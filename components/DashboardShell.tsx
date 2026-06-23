@@ -4,7 +4,7 @@ import { format, subDays } from "date-fns";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range } from "@/components/DateRangePicker";
 import { AIReportButton } from "@/components/AIReportButton";
-import { ACCOUNTS } from "@/lib/accounts";
+import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 
 export function DashboardShell({
   title,
@@ -15,7 +15,7 @@ export function DashboardShell({
   subtitle?: string;
   children: (ctx: { accountId: string; compareAll: boolean; range: Range }) => React.ReactNode;
 }) {
-  const [accountId, setAccountId] = useState(ACCOUNTS[0].id);
+  const [accountId, setAccountId] = useState(DEFAULT_ACCOUNT_ID);
   const [compareAll, setCompareAll] = useState(false);
   const [range, setRange] = useState<Range>({
     from: format(subDays(new Date(), 30), "yyyy-MM-dd"),
