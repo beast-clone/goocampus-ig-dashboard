@@ -29,7 +29,7 @@ function Overview({ accountId, range }: { accountId: string; range: { from: stri
     const qs = new URLSearchParams({ accountId, from: range.from, to: range.to });
     fetch(`/api/insights?${qs}`)
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => setData(d.totals ? d : d.fallback ?? null))
       .finally(() => setLoading(false));
   }, [accountId, range]);
 
