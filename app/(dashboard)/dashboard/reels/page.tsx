@@ -24,22 +24,23 @@ type ApiPost = {
 export default function ReelsPage() {
   return (
     <DashboardShell title="Reels">
-      {({ accountId }) => <ReelsView accountId={accountId} />}
+      {({ accountId, range }) => <ReelsView accountId={accountId} range={range} />}
     </DashboardShell>
   );
 }
 
-function ReelsView({ accountId }: { accountId: string }) {
+function ReelsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const [posts, setPosts] = useState<ApiPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setPosts(null); setError(null);
-    fetch(`/api/posts?accountId=${accountId}&limit=50&insights=true`)
+    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
+    fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
       .then((d) => (d.error ? setError(d.error) : setPosts(d.posts ?? [])))
       .catch((e) => setError(String(e)));
-  }, [accountId]);
+  }, [accountId, range.from, range.to]);
 
   if (error) return <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn’t load reels: {error}</div>;
   if (!posts) return <div className="text-sm text-gray-500">Loading reels…</div>;

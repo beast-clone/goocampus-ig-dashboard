@@ -30,12 +30,12 @@ const TYPE_LABEL: Record<string, string> = {
 export default function PostsPage() {
   return (
     <DashboardShell title="Posts">
-      {({ accountId }) => <PostsView accountId={accountId} />}
+      {({ accountId, range }) => <PostsView accountId={accountId} range={range} />}
     </DashboardShell>
   );
 }
 
-function PostsView({ accountId }: { accountId: string }) {
+function PostsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const [posts, setPosts] = useState<ApiPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
@@ -44,11 +44,12 @@ function PostsView({ accountId }: { accountId: string }) {
   useEffect(() => {
     setPosts(null);
     setError(null);
-    fetch(`/api/posts?accountId=${accountId}&limit=25&insights=true`)
+    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
+    fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
       .then((d) => (d.error ? setError(d.error) : setPosts(d.posts ?? [])))
       .catch((e) => setError(String(e)));
-  }, [accountId]);
+  }, [accountId, range.from, range.to]);
 
   if (error) return <ErrorBox msg={error} />;
   if (!posts) return <div className="text-sm text-gray-500">Loading posts from Instagram…</div>;
@@ -76,7 +77,7 @@ function PostsView({ accountId }: { accountId: string }) {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="text-sm font-medium">All posts</div>
+          <div className="text-sm font-medium">All posts <span className="text-gray-400 font-normal">({range.from} → {range.to}, {totalPosts} loaded)</span></div>
           <div className="flex gap-2">
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1">
               <option value="ALL">All types</option>

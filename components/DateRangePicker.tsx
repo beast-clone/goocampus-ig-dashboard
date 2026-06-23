@@ -6,9 +6,10 @@ export type Range = { from: string; to: string };
 export function DateRangePicker({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
   const presets: { label: string; days: number }[] = [
     { label: "7d", days: 7 },
-    { label: "14d", days: 14 },
     { label: "30d", days: 30 },
     { label: "90d", days: 90 },
+    { label: "6m", days: 180 },
+    { label: "1y", days: 365 },
   ];
   return (
     <div className="flex items-center gap-2">
