@@ -35,12 +35,12 @@ export async function GET(req: Request) {
   const limit = parseInt(url.searchParams.get("limit") || "0", 10);
   const withInsights = url.searchParams.get("insights") !== "false";
 
-  const account = getAccount(accountId);
-  if (!account) return NextResponse.json({ posts: [], note: "No account configured" });
+  const acct = getAccount(accountId);
+  if (!acct) return NextResponse.json({ posts: [], note: "No account configured" });
 
   try {
     const cap = limit > 0 ? limit : 500;
-    const media = await fetchMediaInDateRange(account.igUserId, account.pageAccessToken, from, to, cap);
+    const media = await fetchMediaInDateRange(acct.igUserId, acct.pageAccessToken, from, to, cap);
 
     const concurrency = 6;
     const posts: unknown[] = [];
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
         const m = media[idx];
         let reach = 0, shares = 0, saves = 0, totalInteractions = 0, views: number | undefined, avgWatch: number | undefined;
         if (withInsights) {
-          const insights = await fetchMediaInsights(account, m.id, m.media_type, m.media_product_type);
+          const insights = await fetchMediaInsights(acct!, m.id, m.media_type, m.media_product_type);
           for (const ins of insights) {
             const v = ins.values?.[0]?.value;
             if (typeof v !== "number") continue;
