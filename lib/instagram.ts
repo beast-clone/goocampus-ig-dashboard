@@ -24,19 +24,33 @@ type StoredAccount = {
 
 let cached: IGAccountConfig[] | null = null;
 
+function mapStored(data: StoredAccount[]): IGAccountConfig[] {
+  return data.map((a) => ({
+    id: a.igUsername,
+    label: a.pageName,
+    handle: `@${a.igUsername}`,
+    igUserId: a.igUserId,
+    pageAccessToken: a.pageAccessToken,
+  }));
+}
+
+function loadFromEnvJson(): IGAccountConfig[] {
+  const raw = process.env.ACCOUNTS_JSON;
+  if (!raw) return [];
+  try {
+    return mapStored(JSON.parse(raw) as StoredAccount[]);
+  } catch (err) {
+    console.error("[accounts] ACCOUNTS_JSON env var is invalid JSON:", (err as Error).message);
+    return [];
+  }
+}
+
 function loadFromFile(): IGAccountConfig[] {
   try {
     const file = path.join(process.cwd(), "accounts.local.json");
     if (!fs.existsSync(file)) return [];
     const raw = fs.readFileSync(file, "utf8");
-    const data = JSON.parse(raw) as StoredAccount[];
-    return data.map((a) => ({
-      id: a.igUsername,
-      label: a.pageName,
-      handle: `@${a.igUsername}`,
-      igUserId: a.igUserId,
-      pageAccessToken: a.pageAccessToken,
-    }));
+    return mapStored(JSON.parse(raw) as StoredAccount[]);
   } catch {
     return [];
   }
@@ -52,8 +66,12 @@ function loadFromEnv(): IGAccountConfig[] {
 
 export function getConfiguredAccounts(): IGAccountConfig[] {
   if (cached) return cached;
+  // Priority: file (local dev) → ACCOUNTS_JSON env (production) → single-account env (fallback)
   const fromFile = loadFromFile();
-  cached = fromFile.length ? fromFile : loadFromEnv();
+  if (fromFile.length) { cached = fromFile; return cached; }
+  const fromEnvJson = loadFromEnvJson();
+  if (fromEnvJson.length) { cached = fromEnvJson; return cached; }
+  cached = loadFromEnv();
   return cached;
 }
 
@@ -133,6 +151,138 @@ export async function fetchRecentMedia(acc: IGAccountConfig, limit = 25) {
   });
   return data.data;
 }
+
+// ----- Audience demographics -----
+
+export type DemographicEntry = { label: string; value: number };
+export type AudienceDemographics = {
+  age: DemographicEntry[];
+  gender: DemographicEntry[];
+  cities: DemographicEntry[];
+  countries: DemographicEntry[];
+  ageGender: { age: string; M: number; F: number; U: number }[];
+};
+export type OnlineFollowers = { hour: number; value: number }[];
+
+type BreakdownResult = {
+  dimension_keys: string[];
+  results: { dimension_values: string[]; value: number }[];
+};
+
+async function fetchBreakdown(acc: IGAccountConfig, metric: string, breakdown: string, timeframe?: string): Promise<BreakdownResult | null> {
+  const params: Record<string, string> = {
+    metric,
+    period: "lifetime",
+    metric_type: "total_value",
+    breakdown,
+    access_token: acc.pageAccessToken,
+  };
+  if (timeframe) params.timeframe = timeframe;
+  try {
+    const r = await gget<{ data: { total_value?: { breakdowns?: BreakdownResult[] } }[] }>(
+      `${acc.igUserId}/insights`,
+      params,
+    );
+    const bd = r.data?.[0]?.total_value?.breakdowns?.[0];
+    return bd || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOnlineFollowersRaw(acc: IGAccountConfig): Promise<OnlineFollowers> {
+  // online_followers uses the legacy since/until shape, not metric_type=total_value
+  const until = Math.floor(Date.now() / 1000);
+  const since = until - 7 * 24 * 60 * 60;
+  try {
+    const r = await gget<{ data: { values: { value: Record<string, number>; end_time: string }[] }[] }>(
+      `${acc.igUserId}/insights`,
+      {
+        metric: "online_followers",
+        period: "lifetime",
+        since: String(since),
+        until: String(until),
+        access_token: acc.pageAccessToken,
+      },
+    );
+    const days = r.data?.[0]?.values || [];
+    // Average each hour across all days that have data
+    const sumByHour = new Map<number, { sum: number; count: number }>();
+    for (const day of days) {
+      const map = day.value || {};
+      const keys = Object.keys(map);
+      if (keys.length === 0) continue; // skip empty days
+      for (const k of keys) {
+        const hour = parseInt(k, 10);
+        if (Number.isNaN(hour)) continue;
+        const slot = sumByHour.get(hour) || { sum: 0, count: 0 };
+        slot.sum += map[k] || 0;
+        slot.count += 1;
+        sumByHour.set(hour, slot);
+      }
+    }
+    return Array.from({ length: 24 }, (_, h) => {
+      const slot = sumByHour.get(h);
+      return { hour: h, value: slot ? Math.round(slot.sum / slot.count) : 0 };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemographics & { onlineFollowers: OnlineFollowers; available: boolean; reason?: string }> {
+  const [age, gender, cities, countries, ageGender, online] = await Promise.all([
+    fetchBreakdown(acc, "follower_demographics", "age"),
+    fetchBreakdown(acc, "follower_demographics", "gender"),
+    fetchBreakdown(acc, "follower_demographics", "city"),
+    fetchBreakdown(acc, "follower_demographics", "country"),
+    fetchBreakdown(acc, "follower_demographics", "age,gender"),
+    fetchOnlineFollowersRaw(acc),
+  ]);
+
+  const available = !!(age || gender || cities || countries);
+  if (!available) {
+    return {
+      age: [], gender: [], cities: [], countries: [], ageGender: [],
+      onlineFollowers: online,
+      available: false,
+      reason: "Demographics need 100+ followers and Meta hasn't computed for this account.",
+    };
+  }
+
+  const toEntries = (bd: BreakdownResult | null): DemographicEntry[] =>
+    bd ? bd.results
+      .map((r) => ({ label: r.dimension_values[0], value: r.value || 0 }))
+      .sort((a, b) => b.value - a.value)
+    : [];
+
+  const ageGenderMatrix: { age: string; M: number; F: number; U: number }[] = [];
+  if (ageGender) {
+    const byAge = new Map<string, { M: number; F: number; U: number }>();
+    for (const r of ageGender.results) {
+      const [a, g] = r.dimension_values;
+      if (!byAge.has(a)) byAge.set(a, { M: 0, F: 0, U: 0 });
+      const slot = byAge.get(a)!;
+      if (g === "M" || g === "male") slot.M += r.value || 0;
+      else if (g === "F" || g === "female") slot.F += r.value || 0;
+      else slot.U += r.value || 0;
+    }
+    for (const [a, v] of byAge) ageGenderMatrix.push({ age: a, ...v });
+    ageGenderMatrix.sort((a, b) => a.age.localeCompare(b.age));
+  }
+
+  return {
+    age: toEntries(age),
+    gender: toEntries(gender),
+    cities: toEntries(cities).slice(0, 10),
+    countries: toEntries(countries).slice(0, 10),
+    ageGender: ageGenderMatrix,
+    onlineFollowers: online,
+    available: true,
+  };
+}
+
+// ----- Media insights -----
 
 export async function fetchMediaInsights(acc: IGAccountConfig, mediaId: string, mediaType: IGMedia["media_type"], mediaProductType?: IGMedia["media_product_type"]) {
   let metrics = "reach,saved,shares,total_interactions";

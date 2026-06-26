@@ -28,14 +28,31 @@ export async function GET(req: Request) {
     const followerMetric = insights.find((m) => m.name === "follower_count");
 
     const days = eachDayOfInterval({ start: parseISO(from), end: parseISO(to) });
+    // Build per-day delta first
+    const deltaByDay = new Map<string, number>();
+    for (const d of days) {
+      const key = d.toISOString().slice(0, 10);
+      const delta = followerMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
+      deltaByDay.set(key, delta);
+    }
+    // Reconstruct historical totals by working backward from today's count.
+    // total[i] = current_total - sum(deltas from day i+1 to last)
+    const totalsByDay = new Map<string, number>();
+    let cumulativeAfter = 0;
+    for (let i = days.length - 1; i >= 0; i--) {
+      const key = days[i].toISOString().slice(0, 10);
+      totalsByDay.set(key, basic.followers_count - cumulativeAfter);
+      cumulativeAfter += deltaByDay.get(key) ?? 0;
+    }
+
     const series = days.map((d) => {
       const key = d.toISOString().slice(0, 10);
       const reachVal = reachMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
-      const followerDelta = followerMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
+      const followerDelta = deltaByDay.get(key) ?? 0;
       return {
         date: format(d, "MMM d"),
         reach: reachVal,
-        followers: basic.followers_count,
+        followers: totalsByDay.get(key) ?? basic.followers_count,
         engagement: Math.round(reachVal * 0.06),
         newFollowers: followerDelta,
       };
@@ -44,6 +61,7 @@ export async function GET(req: Request) {
     const totalReach = series.reduce((s, x) => s + x.reach, 0);
     const totalEngagement = series.reduce((s, x) => s + x.engagement, 0);
     const totalNewFollowers = series.reduce((s, x) => s + x.newFollowers, 0);
+    const avgDailyGain = series.length > 0 ? totalNewFollowers / series.length : 0;
 
     const halfPoint = Math.floor(series.length / 2);
     const firstHalfReach = series.slice(0, halfPoint).reduce((s, x) => s + x.reach, 0) || 1;
@@ -74,6 +92,8 @@ export async function GET(req: Request) {
         reach: totalReach,
         engagement: totalEngagement,
         profileVisits: Math.round(totalEngagement * 0.35),
+        newFollowers: totalNewFollowers,
+        avgDailyGain: avgDailyGain,
       },
       deltas: {
         followers: totalNewFollowers === 0 ? 0 : (totalNewFollowers / Math.max(1, basic.followers_count - totalNewFollowers)) * 100,

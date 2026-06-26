@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
+import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 
 type ApiPost = {
@@ -32,21 +33,38 @@ export default function ReelsPage() {
 function ReelsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const [posts, setPosts] = useState<ApiPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
-  useEffect(() => {
-    setPosts(null); setError(null);
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    const t0 = Date.now();
     const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
     fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setPosts(d.posts ?? [])))
-      .catch((e) => setError(String(e)));
-  }, [accountId, range.from, range.to]);
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else {
+          setPosts(d.posts ?? []);
+          setFetchedAt(Date.now());
+          setLatencyMs(Date.now() - t0);
+        }
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  };
 
-  if (error) return <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn’t load reels: {error}</div>;
-  if (!posts) return <div className="text-sm text-gray-500">Loading reels…</div>;
+  useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
+
+  if (error) return <>{live}<div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load reels: {error}</div></>;
+  if (!posts) return <>{live}<div className="text-sm text-gray-500">Loading reels…</div></>;
 
   const reels = posts.filter((p) => p.type === "REEL");
-  if (reels.length === 0) return <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">No reels found in the recent 50 posts for this account.</div>;
+  if (reels.length === 0) return <>{live}<div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">No reels found in the recent 50 posts for this account.</div></>;
 
   const totalViews = reels.reduce((s, r) => s + (r.views ?? 0), 0);
   const avgWatchSec = reels.length ? Math.round(reels.reduce((s, r) => s + (r.avgWatchMs ?? 0), 0) / reels.length / 1000) : 0;
@@ -55,6 +73,7 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
 
   return (
     <>
+      {live}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Reels (recent)" value={reels.length} />
         <MetricCard label="Total views" value={totalViews.toLocaleString()} />

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
+import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 
 type ApiPost = {
@@ -38,21 +39,45 @@ export default function PostsPage() {
 function PostsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const [posts, setPosts] = useState<ApiPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [sort, setSort] = useState<"reach" | "engagement" | "date">("date");
 
-  useEffect(() => {
-    setPosts(null);
+  const fetchData = () => {
+    setLoading(true);
     setError(null);
+    const t0 = Date.now();
     const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
     fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setPosts(d.posts ?? [])))
-      .catch((e) => setError(String(e)));
-  }, [accountId, range.from, range.to]);
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else {
+          setPosts(d.posts ?? []);
+          setFetchedAt(Date.now());
+          setLatencyMs(Date.now() - t0);
+        }
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  };
 
-  if (error) return <ErrorBox msg={error} />;
-  if (!posts) return <div className="text-sm text-gray-500">Loading posts from Instagram…</div>;
+  useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (error) return (
+    <>
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
+      <ErrorBox msg={error} />
+    </>
+  );
+  if (!posts) return (
+    <>
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
+      <div className="text-sm text-gray-500">Loading posts from Instagram…</div>
+    </>
+  );
 
   const filtered = typeFilter === "ALL" ? posts : posts.filter((p) => p.type === typeFilter);
   const sorted = [...filtered].sort((a, b) => {
@@ -68,6 +93,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 
   return (
     <>
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Posts (recent)" value={totalPosts} />
         <MetricCard label="Avg Reach / post" value={avgReach.toLocaleString()} />

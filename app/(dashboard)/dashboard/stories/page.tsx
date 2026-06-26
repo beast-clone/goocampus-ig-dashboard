@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { LiveIndicator } from "@/components/LiveIndicator";
 
 type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string };
 
@@ -15,17 +16,33 @@ export default function StoriesPage() {
 function StoriesView({ accountId }: { accountId: string }) {
   const [stories, setStories] = useState<Story[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
-  useEffect(() => {
-    setStories(null); setError(null);
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    const t0 = Date.now();
     fetch(`/api/posts?accountId=${accountId}&limit=50&insights=false`)
       .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setStories((d.posts ?? []).filter((p: { type: string }) => p.type === "STORY"))))
-      .catch((e) => setError(String(e)));
-  }, [accountId]);
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else {
+          setStories((d.posts ?? []).filter((p: { type: string }) => p.type === "STORY"));
+          setFetchedAt(Date.now());
+          setLatencyMs(Date.now() - t0);
+        }
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchData(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
       <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 mb-6 text-sm">
         ⚠️ <strong>Stories expire from Meta's API 24 hours after posting.</strong> To capture historical story metrics, we need an n8n webhook subscribed to <code>story_insights</code> that writes them to Airtable before they expire. Until that's wired up, this tab only shows currently-active stories.
       </div>

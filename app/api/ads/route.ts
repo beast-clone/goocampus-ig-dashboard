@@ -1,0 +1,43 @@
+import { NextResponse } from "next/server";
+import { format, parseISO, subDays } from "date-fns";
+import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns } from "@/lib/meta-ads";
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const from = url.searchParams.get("from") || format(subDays(new Date(), 29), "yyyy-MM-dd");
+  const to = url.searchParams.get("to") || format(new Date(), "yyyy-MM-dd");
+
+  const acct = getAdAccount();
+  if (!acct) {
+    return NextResponse.json({ error: "META_AD_ACCOUNT_ID or META_LONG_LIVED_USER_TOKEN not set" }, { status: 400 });
+  }
+
+  try {
+    const [totals, daily, campaigns] = await Promise.all([
+      fetchAdsTotals(acct, from, to),
+      fetchAdsDaily(acct, from, to),
+      fetchCampaigns(acct, from, to),
+    ]);
+
+    const series = daily.map((d) => ({
+      date: format(parseISO(d.date), "MMM d"),
+      spend: d.spend,
+      impressions: d.impressions,
+      reach: d.reach,
+      clicks: d.clicks,
+      cpm: d.cpm,
+      ctr: d.ctr,
+      leads: d.leads,
+    }));
+
+    return NextResponse.json({
+      live: true,
+      account: { id: acct.id, name: acct.name },
+      totals,
+      series,
+      campaigns,
+    });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
+}
