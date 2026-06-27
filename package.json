@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.108.2",
     "airtable": "^0.12.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "next": "14.2.18",
+    "openai": "^6.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.13.3"

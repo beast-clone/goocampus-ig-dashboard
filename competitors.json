@@ -1,0 +1,16 @@
+{
+  "niches": [
+    {
+      "name": "MBBS Abroad",
+      "handles": ["moksh_mbbs", "rusvelt_global", "studymbbsinrussia.in", "metglobaleducation", "mokshacademy"]
+    },
+    {
+      "name": "AMC / IMG",
+      "handles": ["amcaustralia", "img_australia", "australianmedicalcouncil"]
+    },
+    {
+      "name": "Matrimony",
+      "handles": ["bharatmatrimony", "shaadi_dot_com", "jeevansathi"]
+    }
+  ]
+}

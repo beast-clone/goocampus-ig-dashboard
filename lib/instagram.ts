@@ -114,6 +114,177 @@ export async function fetchBasic(acc: IGAccountConfig) {
   });
 }
 
+// ----- Mentions / Tagged / Hashtag search (Discover tab) -----
+
+export type DiscoverMedia = {
+  id: string;
+  caption?: string;
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink: string;
+  timestamp: string;
+  like_count?: number;
+  comments_count?: number;
+  owner?: { id: string };
+  username?: string;
+};
+
+export async function fetchMentionedMedia(acc: IGAccountConfig, limit = 25): Promise<DiscoverMedia[]> {
+  try {
+    type R = { mentioned_media?: { data: DiscoverMedia[] } };
+    const r = await gget<R>(acc.igUserId, {
+      fields: `mentioned_media.limit(${limit}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,owner,username}`,
+      access_token: acc.pageAccessToken,
+    });
+    return r.mentioned_media?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTaggedMedia(acc: IGAccountConfig, limit = 25): Promise<DiscoverMedia[]> {
+  try {
+    type R = { tags?: { data: DiscoverMedia[] } };
+    const r = await gget<R>(`${acc.igUserId}/tags`, {
+      fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,owner,username",
+      limit: String(limit),
+      access_token: acc.pageAccessToken,
+    });
+    return r.tags?.data ?? [];
+  } catch {
+    // /tags endpoint sometimes returns under different shape; try the direct field shape
+    try {
+      const r2 = await gget<{ data: DiscoverMedia[] }>(`${acc.igUserId}/tags`, {
+        fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,owner,username",
+        limit: String(limit),
+        access_token: acc.pageAccessToken,
+      });
+      return r2.data ?? [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+export async function lookupHashtagId(acc: IGAccountConfig, hashtag: string): Promise<string | null> {
+  const clean = hashtag.replace(/^#/, "").trim().toLowerCase();
+  try {
+    const r = await gget<{ data: { id: string }[] }>("ig_hashtag_search", {
+      user_id: acc.igUserId,
+      q: clean,
+      access_token: acc.pageAccessToken,
+    });
+    return r.data?.[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchHashtagTopMedia(acc: IGAccountConfig, hashtagId: string, limit = 12): Promise<DiscoverMedia[]> {
+  try {
+    const r = await gget<{ data: DiscoverMedia[] }>(`${hashtagId}/top_media`, {
+      user_id: acc.igUserId,
+      fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count",
+      limit: String(limit),
+      access_token: acc.pageAccessToken,
+    });
+    return r.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchHashtagRecentMedia(acc: IGAccountConfig, hashtagId: string, limit = 12): Promise<DiscoverMedia[]> {
+  try {
+    const r = await gget<{ data: DiscoverMedia[] }>(`${hashtagId}/recent_media`, {
+      user_id: acc.igUserId,
+      fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count",
+      limit: String(limit),
+      access_token: acc.pageAccessToken,
+    });
+    return r.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export type CompetitorMedia = {
+  id: string;
+  caption?: string;
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink?: string;
+  timestamp: string;
+  like_count: number;
+  comments_count: number;
+};
+
+export type CompetitorSnapshot = {
+  username: string;
+  name?: string;
+  biography?: string;
+  profile_picture_url?: string;
+  followers_count: number;
+  follows_count?: number;
+  media_count: number;
+  recent: CompetitorMedia[];
+  avgLikesRecent: number;
+  avgCommentsRecent: number;
+  engagementRatePct: number;
+  postsLast30d: number;
+};
+
+export async function fetchCompetitor(acc: IGAccountConfig, username: string): Promise<CompetitorSnapshot> {
+  const clean = username.replace(/^@/, "").trim();
+  const fields = `business_discovery.username(${clean}){username,name,biography,profile_picture_url,followers_count,follows_count,media_count,media.limit(25){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}`;
+  type R = {
+    business_discovery?: {
+      username: string;
+      name?: string;
+      biography?: string;
+      profile_picture_url?: string;
+      followers_count: number;
+      follows_count?: number;
+      media_count: number;
+      media?: { data: CompetitorMedia[] };
+    };
+  };
+  const res = await gget<R>(acc.igUserId, {
+    fields,
+    access_token: acc.pageAccessToken,
+  });
+  const bd = res.business_discovery;
+  if (!bd) {
+    throw new Error(`No business_discovery data for @${clean} (must be a public Business or Creator account)`);
+  }
+  const recent = bd.media?.data ?? [];
+  const totalLikes = recent.reduce((s, m) => s + (m.like_count || 0), 0);
+  const totalComments = recent.reduce((s, m) => s + (m.comments_count || 0), 0);
+  const avgLikes = recent.length ? Math.round(totalLikes / recent.length) : 0;
+  const avgComments = recent.length ? Math.round(totalComments / recent.length) : 0;
+  const erPct = bd.followers_count > 0 && recent.length > 0
+    ? ((avgLikes + avgComments) / bd.followers_count) * 100
+    : 0;
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const postsLast30d = recent.filter((m) => new Date(m.timestamp).getTime() >= cutoff).length;
+  return {
+    username: bd.username,
+    name: bd.name,
+    biography: bd.biography,
+    profile_picture_url: bd.profile_picture_url,
+    followers_count: bd.followers_count,
+    follows_count: bd.follows_count,
+    media_count: bd.media_count,
+    recent,
+    avgLikesRecent: avgLikes,
+    avgCommentsRecent: avgComments,
+    engagementRatePct: erPct,
+    postsLast30d,
+  };
+}
+
 export type InsightDay = { end_time: string; value: number };
 export type InsightMetric = { name: string; values: InsightDay[] };
 
@@ -163,6 +334,8 @@ export type AudienceDemographics = {
   ageGender: { age: string; M: number; F: number; U: number }[];
 };
 export type OnlineFollowers = { hour: number; value: number }[];
+// 7 rows (weekday 0=Sun..6=Sat) × 24 cols (hour). null when no data for that cell.
+export type OnlineFollowersGrid = (number | null)[][];
 
 type BreakdownResult = {
   dimension_keys: string[];
@@ -190,10 +363,15 @@ async function fetchBreakdown(acc: IGAccountConfig, metric: string, breakdown: s
   }
 }
 
-async function fetchOnlineFollowersRaw(acc: IGAccountConfig): Promise<OnlineFollowers> {
+async function fetchOnlineFollowersRaw(
+  acc: IGAccountConfig,
+): Promise<{ avg: OnlineFollowers; grid: OnlineFollowersGrid }> {
   // online_followers uses the legacy since/until shape, not metric_type=total_value
   const until = Math.floor(Date.now() / 1000);
   const since = until - 7 * 24 * 60 * 60;
+  const empty: OnlineFollowersGrid = Array.from({ length: 7 }, () =>
+    Array.from({ length: 24 }, () => null as number | null),
+  );
   try {
     const r = await gget<{ data: { values: { value: Record<string, number>; end_time: string }[] }[] }>(
       `${acc.igUserId}/insights`,
@@ -206,31 +384,37 @@ async function fetchOnlineFollowersRaw(acc: IGAccountConfig): Promise<OnlineFoll
       },
     );
     const days = r.data?.[0]?.values || [];
-    // Average each hour across all days that have data
     const sumByHour = new Map<number, { sum: number; count: number }>();
+    const grid: OnlineFollowersGrid = Array.from({ length: 7 }, () =>
+      Array.from({ length: 24 }, () => null as number | null),
+    );
     for (const day of days) {
       const map = day.value || {};
       const keys = Object.keys(map);
-      if (keys.length === 0) continue; // skip empty days
+      if (keys.length === 0) continue;
+      const weekday = new Date(day.end_time).getUTCDay(); // 0=Sun..6=Sat
       for (const k of keys) {
         const hour = parseInt(k, 10);
         if (Number.isNaN(hour)) continue;
+        const v = map[k] || 0;
         const slot = sumByHour.get(hour) || { sum: 0, count: 0 };
-        slot.sum += map[k] || 0;
+        slot.sum += v;
         slot.count += 1;
         sumByHour.set(hour, slot);
+        grid[weekday][hour] = (grid[weekday][hour] ?? 0) + v;
       }
     }
-    return Array.from({ length: 24 }, (_, h) => {
+    const avg = Array.from({ length: 24 }, (_, h) => {
       const slot = sumByHour.get(h);
       return { hour: h, value: slot ? Math.round(slot.sum / slot.count) : 0 };
     });
+    return { avg, grid };
   } catch {
-    return [];
+    return { avg: [], grid: empty };
   }
 }
 
-export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemographics & { onlineFollowers: OnlineFollowers; available: boolean; reason?: string }> {
+export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemographics & { onlineFollowers: OnlineFollowers; onlineGrid: OnlineFollowersGrid; available: boolean; reason?: string }> {
   const [age, gender, cities, countries, ageGender, online] = await Promise.all([
     fetchBreakdown(acc, "follower_demographics", "age"),
     fetchBreakdown(acc, "follower_demographics", "gender"),
@@ -244,7 +428,8 @@ export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemog
   if (!available) {
     return {
       age: [], gender: [], cities: [], countries: [], ageGender: [],
-      onlineFollowers: online,
+      onlineFollowers: online.avg,
+      onlineGrid: online.grid,
       available: false,
       reason: "Demographics need 100+ followers and Meta hasn't computed for this account.",
     };
@@ -277,7 +462,8 @@ export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemog
     cities: toEntries(cities).slice(0, 10),
     countries: toEntries(countries).slice(0, 10),
     ageGender: ageGenderMatrix,
-    onlineFollowers: online,
+    onlineFollowers: online.avg,
+    onlineGrid: online.grid,
     available: true,
   };
 }
@@ -297,5 +483,56 @@ export async function fetchMediaInsights(acc: IGAccountConfig, mediaId: string, 
     return data.data;
   } catch {
     return [];
+  }
+}
+
+// ----- Inbox: comments (works today) + DMs (needs instagram_manage_messages approval) -----
+
+export type IGComment = {
+  id: string;
+  text?: string;
+  username?: string;
+  timestamp: string;
+  like_count?: number;
+  replies?: { data: { id: string; text?: string; username?: string; timestamp: string }[] };
+};
+
+export async function fetchMediaComments(acc: IGAccountConfig, mediaId: string, limit = 25): Promise<IGComment[]> {
+  try {
+    const r = await gget<{ data: IGComment[] }>(`${mediaId}/comments`, {
+      fields: "id,text,username,timestamp,like_count,replies{id,text,username,timestamp}",
+      limit: String(limit),
+      access_token: acc.pageAccessToken,
+    });
+    return r.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function replyToComment(acc: IGAccountConfig, commentId: string, message: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${GRAPH}/${commentId}/replies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ message, access_token: acc.pageAccessToken }),
+    });
+    const j = (await res.json()) as { error?: { message: string } };
+    if (!res.ok || j.error) return { success: false, error: j.error?.message || `HTTP ${res.status}` };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+// Returns false (with reason) until instagram_manage_messages is approved — UI uses this to show a "pending" state.
+export async function checkDmCapability(acc: IGAccountConfig): Promise<{ available: boolean; reason?: string }> {
+  try {
+    const res = await fetch(`${GRAPH}/${acc.igUserId}/conversations?platform=instagram&access_token=${acc.pageAccessToken}`);
+    const j = (await res.json()) as { error?: { message: string } };
+    if (j.error) return { available: false, reason: j.error.message };
+    return { available: true };
+  } catch (e) {
+    return { available: false, reason: (e as Error).message };
   }
 }

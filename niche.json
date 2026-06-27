@@ -1,0 +1,34 @@
+{
+  "brand": "GooCampus",
+  "audience": "Indian medical students + IMG doctors pursuing MBBS abroad, PG abroad, AMC (Australia), PLAB (UK), USMLE (US), NEET-PG, FMGE prep, and matrimony for doctors via Samvaya.",
+  "hashtagBuckets": [
+    {
+      "label": "MBBS Abroad",
+      "tags": ["mbbsabroad", "studymbbs", "mbbsinrussia", "mbbsingeorgia", "mbbsinuzbekistan"]
+    },
+    {
+      "label": "IMG Journey",
+      "tags": ["imgjourney", "imgdoctor", "imgsupport"]
+    },
+    {
+      "label": "Australia (AMC)",
+      "tags": ["amcaustralia", "amcexam", "doctorsinaustralia"]
+    },
+    {
+      "label": "UK (PLAB / UKMLA)",
+      "tags": ["plab1", "plab2", "ukmla", "nhsdoctor"]
+    },
+    {
+      "label": "US (USMLE)",
+      "tags": ["usmle", "usmlestep1", "usmleprep"]
+    },
+    {
+      "label": "India PG (NEET-PG / FMGE)",
+      "tags": ["neetpg", "fmge", "medicalpg"]
+    },
+    {
+      "label": "Med student life",
+      "tags": ["medicalstudent", "medstudentlife", "medicallife"]
+    }
+  ]
+}

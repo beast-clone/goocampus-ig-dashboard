@@ -1,7 +1,7 @@
-import Airtable from "airtable";
+import { getSupabase } from "@/lib/supabase";
 import type { CompetitorAd } from "@/lib/apify";
 
-const CACHE_TABLE = process.env.AIRTABLE_TABLE_COMPETITOR_ADS || "IG_Competitor_Ads";
+const CACHE_TABLE = "competitor_ads_cache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export type CachedScrape = {
@@ -11,33 +11,23 @@ export type CachedScrape = {
   source: "cache" | "live";
 };
 
-function getBase() {
-  const key = process.env.AIRTABLE_API_KEY;
-  const baseId = process.env.AIRTABLE_BASE_ID;
-  if (!key || !baseId) return null;
-  return new Airtable({ apiKey: key }).base(baseId);
-}
-
 export function cacheKey(query: string, country: string, activeOnly: boolean, fullCreative: boolean): string {
   return `${query.trim().toLowerCase()}|${country.toLowerCase()}|${activeOnly ? 1 : 0}|${fullCreative ? 1 : 0}`;
 }
 
 export async function readCache(key: string): Promise<CachedScrape | null> {
-  const base = getBase();
-  if (!base) return null;
+  const db = getSupabase();
+  if (!db) return null;
   try {
-    const records = await base(CACHE_TABLE).select({
-      filterByFormula: `{Cache Key} = "${key.replace(/"/g, '\\"')}"`,
-      maxRecords: 1,
-    }).firstPage();
-    if (records.length === 0) return null;
-    const r = records[0];
-    const lastScrapedStr = r.get("Last Scraped") as string;
-    const payload = r.get("Payload JSON") as string;
-    if (!lastScrapedStr || !payload) return null;
-    const ads = JSON.parse(payload) as CompetitorAd[];
-    const ageMs = Date.now() - new Date(lastScrapedStr).getTime();
-    return { ads, lastScraped: lastScrapedStr, ageMs, source: "cache" };
+    const { data, error } = await db
+      .from(CACHE_TABLE)
+      .select("last_scraped, payload")
+      .eq("cache_key", key)
+      .maybeSingle();
+    if (error || !data) return null;
+    const ads = (data.payload as CompetitorAd[]) ?? [];
+    const ageMs = Date.now() - new Date(data.last_scraped as string).getTime();
+    return { ads, lastScraped: data.last_scraped as string, ageMs, source: "cache" };
   } catch (err) {
     console.error("[competitor-cache] read failed:", (err as Error).message);
     return null;
@@ -56,31 +46,24 @@ export async function writeCache(opts: {
   fullCreative: boolean;
   ads: CompetitorAd[];
 }): Promise<void> {
-  const base = getBase();
-  if (!base) return;
+  const db = getSupabase();
+  if (!db) return;
   const { key, query, country, activeOnly, fullCreative, ads } = opts;
-  const now = new Date().toISOString();
   try {
-    // Find existing row to upsert
-    const existing = await base(CACHE_TABLE).select({
-      filterByFormula: `{Cache Key} = "${key.replace(/"/g, '\\"')}"`,
-      maxRecords: 1,
-    }).firstPage();
-    const fields = {
-      "Cache Key": key,
-      Query: query,
-      Country: country,
-      "Active Only": activeOnly,
-      "Full Creative": fullCreative,
-      "Last Scraped": now,
-      "Ad Count": ads.length,
-      "Payload JSON": JSON.stringify(ads),
-    };
-    if (existing.length > 0) {
-      await base(CACHE_TABLE).update(existing[0].id, fields);
-    } else {
-      await base(CACHE_TABLE).create(fields);
-    }
+    const { error } = await db.from(CACHE_TABLE).upsert(
+      {
+        cache_key: key,
+        query,
+        country,
+        active_only: activeOnly,
+        full_creative: fullCreative,
+        last_scraped: new Date().toISOString(),
+        ad_count: ads.length,
+        payload: ads,
+      },
+      { onConflict: "cache_key" }
+    );
+    if (error) console.error("[competitor-cache] write failed:", error.message);
   } catch (err) {
     console.error("[competitor-cache] write failed:", (err as Error).message);
   }

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import PostingHeatmap from "@/components/PostingHeatmap";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 
 type DemoEntry = { label: string; value: number };
@@ -13,6 +14,7 @@ type AudienceData = {
   countries: DemoEntry[];
   ageGender: { age: string; M: number; F: number; U: number }[];
   onlineFollowers: { hour: number; value: number }[];
+  onlineGrid?: (number | null)[][];
   available: boolean;
   reason?: string;
 };
@@ -200,6 +202,13 @@ function Audience({ accountId }: { accountId: string }) {
         <CountryCard countries={data.countries.slice(0, 10)} />
         <CityCard cities={data.cities.slice(0, 10)} />
       </div>
+
+      {/* Best time to post heatmap */}
+      {data.onlineGrid && (
+        <div className="mb-6">
+          <PostingHeatmap grid={data.onlineGrid} />
+        </div>
+      )}
 
       {/* Online activity */}
       {onlineSeries.length > 0 && (
