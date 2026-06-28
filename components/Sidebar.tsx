@@ -11,8 +11,6 @@ const NAV = [
   { label: "Audience", href: "/dashboard/audience" },
   { label: "Hashtags", href: "/dashboard/hashtags" },
   { label: "Discover", href: "/dashboard/discover" },
-  { label: "Inbox", href: "/dashboard/inbox" },
-  { label: "Leads", href: "/dashboard/leads" },
   { label: "Ads", href: "/dashboard/ads" },
   { label: "Competitor Ads", href: "/dashboard/competitors" },
   { label: "Benchmark", href: "/dashboard/benchmark" },
