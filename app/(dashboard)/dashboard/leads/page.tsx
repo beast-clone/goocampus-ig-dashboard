@@ -2,178 +2,179 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Legend } from "recharts";
 
-type Status = "new" | "contacted" | "converted" | "lost";
-type SavedLead = {
-  comment_id?: string;
-  ig_username?: string;
-  account?: string;
-  comment?: string;
-  mood?: string;
-  post_url?: string;
-  comment_time?: string;
-  reason?: string;
-  status?: Status;
-  saved_at?: string;
-};
-type LeadsData = {
-  leads: SavedLead[];
-  totals: { saved: number; new: number; contacted: number; converted: number; lost: number };
-  byBrand: Record<string, number>;
-  latencyMs: number;
+type Overview = {
+  account: { id: string; handle: string };
+  range: { from: string; to: string };
+  totals: { all: number; ads: number; comments: number };
+  byMonth: { month: string; ads: number; comments: number; total: number }[];
+  topKeywords: { keyword: string; leads: number }[];
+  adSpend: number;
+  costPerLead: number;
+  commentReplyRate: number;
+  commentsReplied: number;
+  totalComments: number;
+  postsAnalyzed: number;
+  cached?: boolean;
+  latencyMs?: number;
 };
 
-const STATUS_LABEL: Record<Status, string> = {
-  new: "New", contacted: "Contacted", converted: "Converted", lost: "Lost",
-};
-const STATUS_COLOR: Record<Status, string> = {
-  new: "bg-violet-50 text-violet-700 border-violet-200",
-  contacted: "bg-blue-50 text-blue-700 border-blue-200",
-  converted: "bg-green-50 text-green-700 border-green-200",
-  lost: "bg-gray-50 text-gray-500 border-gray-200",
-};
-
-function timeAgo(iso?: string): string {
-  if (!iso) return "—";
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60); if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+function fmt(n: number): string {
+  return n.toLocaleString("en-IN");
+}
+function fmtINR(n: number): string {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}
+function monthLabel(ym: string): string {
+  try {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(y, (m || 1) - 1, 1).toLocaleString("en-IN", { month: "short", year: "numeric" });
+  } catch { return ym; }
 }
 
 export default function LeadsPage() {
   return (
-    <DashboardShell title="Leads" subtitle="Leads you've saved from the Inbox — track contact + conversion.">
-      {({ accountId }) => <Inner accountId={accountId} />}
+    <DashboardShell title="Leads" subtitle="View-only — how many leads we generated, where they came from, and reply rate.">
+      {({ accountId, range }) => <Inner accountId={accountId} range={range} />}
     </DashboardShell>
   );
 }
 
-function Inner({ accountId }: { accountId: string }) {
-  const [data, setData] = useState<LeadsData | null>(null);
+function Inner({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+  const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
 
-  function load() {
+  function load(force = false) {
     setLoading(true);
-    const qs = new URLSearchParams({ account: accountId });
+    setError(null);
+    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to });
+    if (force) qs.set("force", "1");
     fetch(`/api/leads?${qs}`)
       .then((r) => r.json())
-      .then((d: LeadsData) => { setData(d); setFetchedAt(Date.now()); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else {
+          setData(d);
+          setFetchedAt(Date.now());
+        }
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId]);
-
-  async function setStatus(commentId: string, status: Status) {
-    await fetch("/api/leads", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commentId, status }),
-    });
-    load();
-  }
-
-  const leads = data?.leads || [];
-  const filtered = statusFilter === "all"
-    ? leads
-    : leads.filter((l) => (l.status || "new") === statusFilter);
-  const t = data?.totals || { saved: 0, new: 0, contacted: 0, converted: 0, lost: 0 };
-  const conversionRate = t.saved > 0 ? Math.round((t.converted / t.saved) * 100) : 0;
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId, range.from, range.to]);
 
   return (
     <>
       <div className="flex items-end justify-between mb-4">
         <div className="text-xs text-gray-500">
-          {t.saved} leads saved · {conversionRate}% converted
+          {data ? `Analyzed ${data.postsAnalyzed} posts in this range` : ""}
         </div>
-        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={loading} onRefresh={load} />
+        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={loading} onRefresh={() => load(true)} />
       </div>
 
-      {/* Funnel */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <FunnelStep label="Saved" value={t.saved} color="bg-violet-500" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
-        <FunnelStep label="New (needs action)" value={t.new} color="bg-violet-400" active={statusFilter === "new"} onClick={() => setStatusFilter("new")} />
-        <FunnelStep label="Contacted" value={t.contacted} color="bg-blue-500" active={statusFilter === "contacted"} onClick={() => setStatusFilter("contacted")} />
-        <FunnelStep label="Converted" value={t.converted} color="bg-green-500" active={statusFilter === "converted"} onClick={() => setStatusFilter("converted")} />
-      </div>
+      {loading && !data && <div className="text-sm text-gray-500">Loading lead analytics…</div>}
+      {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error}</div>}
 
-      {loading && leads.length === 0 && <div className="text-gray-400 text-sm py-10 text-center">Loading…</div>}
-      {!loading && leads.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
-          <div className="text-sm font-medium text-gray-700">No leads saved yet</div>
-          <div className="text-xs text-gray-400 mt-1">Go to the Inbox, find a real lead, click <b>“Save to CRM”</b>. It will appear here.</div>
-        </div>
+      {data && (
+        <>
+          {/* Headline totals */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <BigCard label="Total leads" value={fmt(data.totals.all)} sub="all sources combined" accent="bg-violet-600" />
+            <BigCard label="From Meta Ads" value={fmt(data.totals.ads)} sub={data.adSpend > 0 ? `${fmtINR(data.adSpend)} spent · ${fmtINR(data.costPerLead)} / lead` : "no ad data"} accent="bg-blue-500" />
+            <BigCard label="From comments" value={fmt(data.totals.comments)} sub="funnel keyword detection" accent="bg-emerald-500" />
+          </div>
+
+          {/* Monthly trend chart */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+            <div className="text-sm font-medium mb-3">Leads by month</div>
+            {data.byMonth.length === 0 ? (
+              <div className="text-sm text-gray-400 text-center py-8">No lead activity in this range.</div>
+            ) : (
+              <div style={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer>
+                  <BarChart data={data.byMonth.map((m) => ({ ...m, label: monthLabel(m.month) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="ads" name="Ad leads" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="comments" name="Comment leads" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Top funnel keywords + secondary metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="text-sm font-medium mb-3">Top funnel keywords</div>
+              {data.topKeywords.length === 0 ? (
+                <div className="text-sm text-gray-400 text-center py-8">No keywords detected.</div>
+              ) : (
+                <div className="space-y-2">
+                  {data.topKeywords.map((k) => {
+                    const max = data.topKeywords[0].leads || 1;
+                    const pct = (k.leads / max) * 100;
+                    return (
+                      <div key={k.keyword} className="flex items-center gap-3">
+                        <div className="w-20 text-xs font-medium text-gray-700 uppercase truncate">{k.keyword}</div>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="w-10 text-right text-xs font-medium text-gray-900">{k.leads}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="text-sm font-medium mb-3">Engagement</div>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-gray-500">Comment reply rate</div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-2xl font-bold text-gray-900">{(data.commentReplyRate * 100).toFixed(1)}%</span>
+                    <span className="text-xs text-gray-500">{fmt(data.commentsReplied)} of {fmt(data.totalComments)} comments</span>
+                  </div>
+                </div>
+                <div className="h-px bg-gray-100" />
+                <div>
+                  <div className="text-xs text-gray-500">Total comments received</div>
+                  <div className="text-2xl font-bold text-gray-900 mt-0.5">{fmt(data.totalComments)}</div>
+                </div>
+                {data.adSpend > 0 && (
+                  <>
+                    <div className="h-px bg-gray-100" />
+                    <div>
+                      <div className="text-xs text-gray-500">Cost per lead (ads)</div>
+                      <div className="text-2xl font-bold text-gray-900 mt-0.5">{fmtINR(data.costPerLead)}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
-      {!loading && filtered.length === 0 && leads.length > 0 && (
-        <div className="text-gray-400 text-sm py-6 text-center">No leads with status “{STATUS_LABEL[statusFilter as Status] || statusFilter}”.</div>
-      )}
-
-      <div className="space-y-2">
-        {filtered.map((l) => (
-          <LeadRow key={l.comment_id || (l.comment + (l.saved_at || ""))} lead={l} onStatus={setStatus} />
-        ))}
-      </div>
     </>
   );
 }
 
-function FunnelStep({ label, value, color, active, onClick }: { label: string; value: number; color: string; active: boolean; onClick: () => void }) {
+function BigCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) {
   return (
-    <button
-      onClick={onClick}
-      className={`text-left bg-white rounded-xl border p-4 transition ${active ? "border-violet-500 ring-2 ring-violet-100" : "border-gray-100 hover:border-gray-200"}`}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className={`w-2 h-2 rounded-full ${color}`} />
-        <span className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">{label}</span>
-      </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
-    </button>
-  );
-}
-
-function LeadRow({ lead, onStatus }: { lead: SavedLead; onStatus: (cid: string, s: Status) => void }) {
-  const cid = lead.comment_id || "";
-  const status: Status = lead.status || "new";
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
-      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-sm">@{lead.ig_username || "unknown"}</span>
-          <span className="text-xs text-gray-400">{lead.account}</span>
-          {lead.reason && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
-              🎯 {lead.reason}
-            </span>
-          )}
-          <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLOR[status]}`}>{STATUS_LABEL[status]}</span>
-        </div>
-        <span className="text-xs text-gray-400 shrink-0">saved {timeAgo(lead.saved_at)} ago</span>
-      </div>
-
-      <p className="text-sm text-gray-800 mb-1">{lead.comment}</p>
-      {lead.post_url && (
-        <a href={lead.post_url} target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-violet-600">
-          on post ↗
-        </a>
-      )}
-
-      <div className="flex items-center gap-1.5 mt-3">
-        {(["new", "contacted", "converted", "lost"] as Status[]).map((s) => (
-          <button
-            key={s}
-            onClick={() => onStatus(cid, s)}
-            disabled={status === s || !cid}
-            className={`text-xs px-2.5 py-1 rounded-lg border transition ${
-              status === s
-                ? `${STATUS_COLOR[s]} font-medium`
-                : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
-            } disabled:opacity-50`}
-          >
-            {status === s ? "✓ " : "→ "}{STATUS_LABEL[s]}
-          </button>
-        ))}
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className={`h-1 ${accent}`} />
+      <div className="p-5">
+        <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">{label}</div>
+        <div className="text-3xl font-bold text-gray-900 mt-1">{value}</div>
+        {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
       </div>
     </div>
   );
