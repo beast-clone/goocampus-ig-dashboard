@@ -168,6 +168,45 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
     .sort((a, b) => b.spend - a.spend);
 }
 
+// ---- Daily snapshot (matches the Meta "daily summary" notification) ----
+export type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
+export type DayAd = { ad_id: string; ad_name: string; spend: number; reach: number; impressions: number; cpm: number; ctr: number; leads: number };
+
+export async function fetchDaySummary(acct: AdAccountConfig, date: string): Promise<DaySummary> {
+  const json = await gget<{ data: { spend?: string; reach?: string; impressions?: string; actions?: RawAction[] }[] }>(
+    `${acct.id}/insights`, acct.token,
+    { fields: "spend,reach,impressions,actions", time_range: JSON.stringify({ since: date, until: date }), level: "account" },
+  );
+  const r = json.data?.[0] || {};
+  return {
+    date,
+    spend: parseFloat(r.spend || "0"),
+    reach: parseInt(r.reach || "0", 10),
+    impressions: parseInt(r.impressions || "0", 10),
+    leads: extractAction(r.actions, LEAD_TYPES),
+  };
+}
+
+export async function fetchActiveAdsForDay(acct: AdAccountConfig, date: string): Promise<DayAd[]> {
+  const json = await gget<{ data: { ad_id: string; ad_name: string; spend?: string; reach?: string; impressions?: string; cpm?: string; ctr?: string; actions?: RawAction[] }[] }>(
+    `${acct.id}/insights`, acct.token,
+    { fields: "ad_id,ad_name,spend,reach,impressions,cpm,ctr,actions", time_range: JSON.stringify({ since: date, until: date }), level: "ad", limit: "200" },
+  );
+  return (json.data || [])
+    .map((r) => ({
+      ad_id: r.ad_id,
+      ad_name: r.ad_name,
+      spend: parseFloat(r.spend || "0"),
+      reach: parseInt(r.reach || "0", 10),
+      impressions: parseInt(r.impressions || "0", 10),
+      cpm: parseFloat(r.cpm || "0"),
+      ctr: parseFloat(r.ctr || "0"),
+      leads: extractAction(r.actions, LEAD_TYPES),
+    }))
+    .filter((a) => a.spend > 0)
+    .sort((a, b) => b.spend - a.spend);
+}
+
 export async function fetchAdsForCampaign(acct: AdAccountConfig, campaignId: string, from: string, to: string): Promise<AdRow[]> {
   const json = await gget<{ data: (Parameters<typeof mapInsightsRow>[0] & {
     ad_id: string; ad_name: string; adset_id: string; adset_name: string;

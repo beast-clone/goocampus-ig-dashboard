@@ -185,11 +185,18 @@ export async function POST(req: Request) {
   if (body.action === "save_lead") {
     const db = getSupabase();
     if (!db) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    const { error } = await db.from("leads").insert({
-      source: "instagram_comment",
-      created_at: new Date().toISOString(),
-      ...body.lead,
-    });
+    // Re-use discover_cache so no new table is needed.
+    const lead = (body.lead || {}) as Record<string, unknown>;
+    const commentId = (lead.comment_id as string) || body.commentId || `manual:${Date.now()}`;
+    const { error } = await db.from("discover_cache").upsert(
+      {
+        cache_key: `lead:${commentId}`,
+        source: "lead",
+        last_fetched: new Date().toISOString(),
+        payload: { ...lead, comment_id: commentId, source_kind: "instagram_comment", saved_at: new Date().toISOString() },
+      },
+      { onConflict: "cache_key" },
+    );
     if (error) return NextResponse.json({ error: error.message }, { status: 502 });
     return NextResponse.json({ ok: true });
   }

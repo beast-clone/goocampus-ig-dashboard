@@ -4,6 +4,7 @@ import { format, subDays, parseISO } from "date-fns";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
 import { AIReportButton } from "@/components/AIReportButton";
+import { PdfExportButton } from "@/components/PdfExportButton";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 
 function rangeLabel(r: Range): string {
@@ -60,6 +61,7 @@ export function DashboardShell({
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker value={range} onChange={setRange} />
+            <PdfExportButton accountId={compareAll ? "all" : accountId} range={range} />
             <AIReportButton accountId={compareAll ? "all" : accountId} range={range} />
           </div>
         </div>

@@ -21,11 +21,16 @@ type Ad = AdsTotals & {
   creative_title: string | null; permalink: string | null;
 };
 
+type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
+type DayAd = { ad_id: string; ad_name: string; spend: number; reach: number; impressions: number; cpm: number; ctr: number; leads: number };
+
 type AdsData = {
   account: { id: string; name: string };
   totals: AdsTotals;
   series: { date: string; spend: number; impressions: number; reach: number; clicks: number; cpm: number; ctr: number; leads: number }[];
   campaigns: Campaign[];
+  daySummary?: DaySummary;
+  activeAds?: DayAd[];
 };
 
 function fmtINR(n: number) {
@@ -34,6 +39,14 @@ function fmtINR(n: number) {
 
 function fmtNum(n: number) {
   return n.toLocaleString("en-IN");
+}
+
+function fmtDay(iso: string) {
+  try {
+    return new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  } catch {
+    return iso;
+  }
 }
 
 export default function AdsPage() {
@@ -89,6 +102,9 @@ function Ads({ range }: { range: { from: string; to: string } }) {
       <div className="mb-4 text-xs text-gray-500">
         Ad account: <span className="font-medium text-gray-700">{data.account.name}</span> ({data.account.id})
       </div>
+
+      {/* Daily spend summary (yesterday) — matches Meta's notification */}
+      {data.daySummary && <DailySpend summary={data.daySummary} ads={data.activeAds || []} />}
 
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -146,6 +162,81 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         />
       )}
     </>
+  );
+}
+
+function DailySpend({ summary, ads }: { summary: DaySummary; ads: DayAd[] }) {
+  const topSpend = ads.length > 0 ? ads[0].spend : 0;
+  // Split ads into two equal columns: first half on the left, second half on the right.
+  const mid = Math.ceil(ads.length / 2);
+  const left = ads.slice(0, mid);
+  const right = ads.slice(mid);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+      {/* Compact headline strip — mirrors the Meta daily-summary notification */}
+      <div className="px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <div className="text-xs uppercase tracking-wide opacity-80 mr-2">
+          Daily summary · {fmtDay(summary.date)}
+        </div>
+        <div>
+          <span className="text-lg font-bold">{fmtINR(summary.spend)}</span>
+          <span className="text-xs opacity-80 ml-1">spent</span>
+        </div>
+        <div>
+          <span className="text-lg font-bold">{fmtNum(summary.reach)}</span>
+          <span className="text-xs opacity-80 ml-1">reached</span>
+        </div>
+        {summary.leads > 0 && (
+          <div>
+            <span className="text-lg font-bold">{fmtNum(summary.leads)}</span>
+            <span className="text-xs opacity-80 ml-1">leads</span>
+          </div>
+        )}
+      </div>
+
+      <div className="px-5 py-2.5 border-b border-gray-100 text-xs font-medium text-gray-600">
+        Active ads spending yesterday ({ads.length})
+      </div>
+
+      {ads.length === 0 ? (
+        <div className="px-5 py-6 text-center text-sm text-gray-400">No ads spent yesterday.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-gray-100">
+          <AdColumn ads={left} topSpend={topSpend} />
+          <AdColumn ads={right} topSpend={topSpend} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdColumn({ ads, topSpend }: { ads: DayAd[]; topSpend: number }) {
+  return (
+    <div className="divide-y divide-gray-100">
+      {ads.map((ad) => (
+        <div key={ad.ad_id} className="px-4 py-2.5 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-gray-900 truncate" title={ad.ad_name}>
+              {ad.ad_name}
+            </div>
+            <div className="text-[11px] text-gray-500 mt-0.5">
+              {fmtNum(ad.reach)} reached · {ad.ctr.toFixed(2)}% CTR
+              {ad.leads > 0 && <> · {fmtNum(ad.leads)} leads</>}
+            </div>
+            <div className="h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+              <div
+                className="h-full bg-violet-500 rounded-full"
+                style={{ width: topSpend > 0 ? `${(ad.spend / topSpend) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-xs font-semibold text-gray-900">{fmtINR(ad.spend)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

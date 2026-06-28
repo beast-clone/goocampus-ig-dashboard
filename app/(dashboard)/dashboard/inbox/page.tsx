@@ -130,9 +130,11 @@ function CommentCard({ item }: { item: InboxItem }) {
     try {
       const r = await fetch("/api/inbox", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_lead", lead: {
+        body: JSON.stringify({ action: "save_lead", commentId: item.commentId, lead: {
+          comment_id: item.commentId,
           ig_username: item.username, account: item.handle, comment: item.text,
           mood: item.mood, post_url: item.permalink, comment_time: item.timestamp,
+          reason: item.reason,
         } }),
       });
       const j = await r.json();

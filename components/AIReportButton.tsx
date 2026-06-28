@@ -20,7 +20,7 @@ export function AIReportButton({ accountId, range }: { accountId: string; range:
 
   return (
     <>
-      <button onClick={run} className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark">
+      <button onClick={run} className="no-print px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark">
         ✨ Get AI Report
       </button>
       {open && (

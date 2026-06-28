@@ -223,7 +223,12 @@ function Inner({ accountId }: { accountId: string }) {
 
       {loading && !data && <div className="bg-white rounded-2xl p-10 text-center text-gray-400 border border-gray-100">Loading…</div>}
 
-      {tab === "niche" && data?.niche && <NicheFeed niche={data.niche} onSelect={setPreview} />}
+      {tab === "niche" && data?.niche && (
+        <>
+          <TopHashtagsLeaderboard buckets={data.niche.buckets} />
+          <NicheFeed niche={data.niche} onSelect={setPreview} />
+        </>
+      )}
       {tab === "mentions" && data?.mentions && <FeedByAccount feeds={data.mentions} kind="mentions" onSelect={setPreview} />}
       {tab === "tagged" && data?.tagged && <FeedByAccount feeds={data.tagged} kind="tagged" onSelect={setPreview} />}
 
@@ -335,7 +340,7 @@ function NicheFeed({ niche, onSelect }: { niche: { audience: string; buckets: Ni
             <span className="text-xs text-gray-400">{buckets.length} tag{buckets.length > 1 ? "s" : ""}</span>
           </div>
           {buckets.map((b) => (
-            <div key={b.tag} className="mb-5">
+            <div key={b.tag} id={`bucket-${b.tag.replace(/^#/, "")}`} className="mb-5 scroll-mt-6">
               <div className="flex items-baseline justify-between mb-2">
                 <div className="text-sm font-mono text-violet-700 flex items-center gap-2">
                   {b.tag}
