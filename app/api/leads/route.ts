@@ -78,63 +78,76 @@ export async function GET(req: Request) {
   }
 
   try {
-    // ---------- Ad leads (per-day breakdown from Meta Ads) ----------
+    // ---------- Run ad fetch + media/comments in parallel ----------
     const adAcct = getAdAccount();
-    let adLeads = 0;
-    let adSpend = 0;
-    const monthlyAdLeads: Record<string, number> = {};
-    if (adAcct && from && to) {
+
+    type AdData = { adLeads: number; adSpend: number; monthlyAdLeads: Record<string, number> };
+    type CommentData = {
+      commentLeads: number; totalComments: number; totalReplied: number;
+      monthlyCommentLeads: Record<string, number>; keywordCounts: Record<string, number>;
+      postsAnalyzed: number;
+    };
+
+    const adsPromise: Promise<AdData> = (async () => {
+      const out: AdData = { adLeads: 0, adSpend: 0, monthlyAdLeads: {} };
+      if (!adAcct || !from || !to) return out;
       try {
         const daily = await fetchAdsDaily(adAcct, from, to);
         for (const d of daily) {
-          adLeads += d.leads || 0;
-          adSpend += d.spend || 0;
+          out.adLeads += d.leads || 0;
+          out.adSpend += d.spend || 0;
           const m = monthOf(d.date);
-          if (m) monthlyAdLeads[m] = (monthlyAdLeads[m] || 0) + (d.leads || 0);
+          if (m) out.monthlyAdLeads[m] = (out.monthlyAdLeads[m] || 0) + (d.leads || 0);
         }
-      } catch { /* ignore — ad pull failures shouldn't kill the page */ }
-    }
+      } catch { /* ignore */ }
+      return out;
+    })();
 
-    // ---------- Comment-funnel leads + reply rate (sampling: last 50 posts) ----------
-    const media = await fetchRecentMedia(acct, 50);
-    const inRange = media.filter((m) => {
-      if (!from && !to) return true;
-      const t = m.timestamp;
-      return (!from || t >= from) && (!to || t <= to + "T23:59:59Z");
-    });
+    const commentsPromise: Promise<CommentData> = (async () => {
+      const out: CommentData = {
+        commentLeads: 0, totalComments: 0, totalReplied: 0,
+        monthlyCommentLeads: {}, keywordCounts: {}, postsAnalyzed: 0,
+      };
+      const media = await fetchRecentMedia(acct, 50);
+      const inRange = media.filter((m) => {
+        if (!from && !to) return true;
+        const t = m.timestamp;
+        return (!from || t >= from) && (!to || t <= to + "T23:59:59Z");
+      });
+      out.postsAnalyzed = inRange.length;
 
-    let commentLeads = 0;
-    let totalComments = 0;
-    let totalReplied = 0;
-    const monthlyCommentLeads: Record<string, number> = {};
-    const keywordCounts: Record<string, number> = {};
-
-    // Pull comments in parallel, cap concurrency
-    const concurrency = 6;
-    let idx = 0;
-    async function worker() {
-      while (idx < inRange.length) {
-        const i = idx++;
-        const m = inRange[i];
-        if ((m.comments_count ?? 0) === 0) continue;
-        try {
-          const comments = await fetchMediaComments(acct!, m.id, 50);
-          for (const c of comments) {
-            totalComments++;
-            const det = detectLead(c.text || "");
-            if (det.lead && det.keyword) {
-              commentLeads++;
-              keywordCounts[det.keyword] = (keywordCounts[det.keyword] || 0) + 1;
-              const mo = monthOf(c.timestamp);
-              if (mo) monthlyCommentLeads[mo] = (monthlyCommentLeads[mo] || 0) + 1;
+      // Higher concurrency = much faster (Meta tolerates well)
+      const concurrency = 12;
+      let idx = 0;
+      async function worker() {
+        while (idx < inRange.length) {
+          const i = idx++;
+          const m = inRange[i];
+          if ((m.comments_count ?? 0) === 0) continue;
+          try {
+            const comments = await fetchMediaComments(acct!, m.id, 50);
+            for (const c of comments) {
+              out.totalComments++;
+              const det = detectLead(c.text || "");
+              if (det.lead && det.keyword) {
+                out.commentLeads++;
+                out.keywordCounts[det.keyword] = (out.keywordCounts[det.keyword] || 0) + 1;
+                const mo = monthOf(c.timestamp);
+                if (mo) out.monthlyCommentLeads[mo] = (out.monthlyCommentLeads[mo] || 0) + 1;
+              }
+              const repls = (c.replies as { data?: { id: string }[] } | undefined)?.data;
+              if (repls && repls.length > 0) out.totalReplied++;
             }
-            const repls = (c.replies as { data?: { id: string }[] } | undefined)?.data;
-            if (repls && repls.length > 0) totalReplied++;
-          }
-        } catch { /* skip */ }
+          } catch { /* skip */ }
+        }
       }
-    }
-    await Promise.all(Array.from({ length: Math.min(concurrency, inRange.length) }, () => worker()));
+      await Promise.all(Array.from({ length: Math.min(concurrency, inRange.length) }, () => worker()));
+      return out;
+    })();
+
+    const [ads, comments] = await Promise.all([adsPromise, commentsPromise]);
+    const { adLeads, adSpend, monthlyAdLeads } = ads;
+    const { commentLeads, totalComments, totalReplied, monthlyCommentLeads, keywordCounts } = comments;
 
     // ---------- Merge monthly ----------
     const allMonths = Array.from(new Set([
@@ -168,7 +181,7 @@ export async function GET(req: Request) {
       commentReplyRate: totalComments > 0 ? totalReplied / totalComments : 0,
       commentsReplied: totalReplied,
       totalComments,
-      postsAnalyzed: inRange.length,
+      postsAnalyzed: comments.postsAnalyzed,
     };
 
     await cacheSet(cacheKey, result);
