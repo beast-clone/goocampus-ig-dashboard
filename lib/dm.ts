@@ -106,6 +106,15 @@ export async function appendMessage(m: DMMessage): Promise<void> {
   );
 }
 
+// All inbound messages for one (or all) account(s) — used by lead detection across many threads.
+export async function listAllInbound(account?: string): Promise<DMMessage[]> {
+  const db = getSupabase();
+  if (!db) return [];
+  const { data } = await db.from("discover_cache").select("payload").eq("source", "dm_msg").limit(5000);
+  const all = (data || []).map((r) => r.payload as DMMessage);
+  return all.filter((m) => m.direction === "in" && (!account || m.account === account));
+}
+
 export async function listMessages(account: string, sender_id: string, limit = 100): Promise<DMMessage[]> {
   const db = getSupabase();
   if (!db) return [];

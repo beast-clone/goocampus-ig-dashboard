@@ -14,7 +14,11 @@ type Thread = {
   last_message_text: string;
   last_direction: Direction;
   unread_count: number;
+  is_verified_lead?: boolean;
+  lead_kind?: "phone" | "email" | "whatsapp" | "telegram" | "intent";
+  lead_evidence?: string;
 };
+type Counts = { total: number; unread: number; human_mode: number; verified_leads?: number; verified_pct?: number };
 type Message = {
   id: string;
   account: string;
@@ -49,14 +53,17 @@ export default function DMsPage() {
 
 function Inner({ accountId }: { accountId: string }) {
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [counts, setCounts] = useState<{ total: number; unread: number; human_mode: number }>({ total: 0, unread: 0, human_mode: 0 });
+  const [counts, setCounts] = useState<Counts>({ total: 0, unread: 0, human_mode: 0, verified_leads: 0, verified_pct: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [onlyLeads, setOnlyLeads] = useState(false);
 
   function loadThreads() {
-    fetch(`/api/dm/threads?account=${encodeURIComponent(accountId)}`)
+    const qs = new URLSearchParams({ account: accountId });
+    if (onlyLeads) qs.set("onlyLeads", "1");
+    fetch(`/api/dm/threads?${qs}`)
       .then((r) => r.json())
       .then((d) => {
         setThreads(d.threads || []);
@@ -82,7 +89,7 @@ function Inner({ accountId }: { accountId: string }) {
     const id = setInterval(loadThreads, 8000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
+  }, [accountId, onlyLeads]);
 
   // Reload detail when selection changes (and every 8s while open)
   useEffect(() => {
@@ -106,9 +113,28 @@ function Inner({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <div className="flex items-end justify-between mb-3">
-        <div className="text-xs text-gray-500">
-          {counts.total} threads · <b className="text-violet-600">{counts.unread} unread</b> · {counts.human_mode} in human mode
+      <div className="flex items-end justify-between mb-3 flex-wrap gap-2">
+        <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+          <span>{counts.total} threads</span>
+          <span className="text-gray-300">·</span>
+          <b className="text-violet-600">{counts.unread} unread</b>
+          <span className="text-gray-300">·</span>
+          <span>{counts.human_mode} in human mode</span>
+          <span className="text-gray-300">·</span>
+          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+            ✅ {counts.verified_leads ?? 0} verified leads
+            {counts.total > 0 && <> ({(counts.verified_pct ?? 0).toFixed(1)}%)</>}
+          </span>
+          <button
+            onClick={() => setOnlyLeads((v) => !v)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+              onlyLeads
+                ? "bg-violet-600 text-white border-violet-600"
+                : "bg-white text-gray-600 border-gray-200 hover:border-violet-400"
+            }`}
+          >
+            {onlyLeads ? "Showing only leads · click to show all" : "Filter to verified leads only"}
+          </button>
         </div>
         <LiveIndicator fetchedAt={fetchedAt} latencyMs={null} loading={loading} onRefresh={loadThreads} />
       </div>
@@ -131,10 +157,18 @@ function Inner({ accountId }: { accountId: string }) {
                 <div className="font-medium text-sm flex-1 truncate">@{t.username || t.sender_id.slice(0, 10)}</div>
                 <div className="text-[10px] text-gray-400 shrink-0">{timeAgo(t.last_message_at)}</div>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {t.mode === "human" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">🧑 HUMAN</span>}
                 {t.mode === "ai" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">🤖 AI</span>}
                 {t.unread_count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-600 text-white font-medium">{t.unread_count}</span>}
+                {t.is_verified_lead && (
+                  <span
+                    title={t.lead_evidence}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-medium"
+                  >
+                    ✅ LEAD{t.lead_kind ? ` · ${t.lead_kind}` : ""}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500 mt-1 truncate">
                 {t.last_direction === "out" ? "↗ " : "↙ "}{t.last_message_text}
