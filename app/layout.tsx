@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { FetchBasePathPatch } from "@/components/FetchBasePathPatch";
 
 export const metadata: Metadata = {
   title: "GooCampus Instagram Dashboard",
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        <FetchBasePathPatch />
+        {children}
+      </body>
     </html>
   );
 }
