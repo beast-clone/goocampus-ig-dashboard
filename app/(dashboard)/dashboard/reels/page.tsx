@@ -36,25 +36,64 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [insightsLoaded, setInsightsLoaded] = useState<Set<string>>(new Set());
+  const [insightsProgress, setInsightsProgress] = useState<{ done: number; total: number } | null>(null);
 
   const fetchData = () => {
     setLoading(true);
     setError(null);
+    setInsightsLoaded(new Set());
+    setInsightsProgress(null);
     const t0 = Date.now();
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
+    // Phase 1: fast post-list fetch (no insights) so the table paints immediately.
+    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" });
     fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setPosts(d.posts ?? []);
-          setFetchedAt(Date.now());
-          setLatencyMs(Date.now() - t0);
-        }
+        if (d.error) { setError(d.error); return; }
+        const list: ApiPost[] = d.posts ?? [];
+        setPosts(list);
+        setFetchedAt(Date.now());
+        setLatencyMs(Date.now() - t0);
+        setLoading(false);
+        // Phase 2: progressively fetch views/reach/etc, 10 reels at a time.
+        const reels = list.filter((p) => p.type === "REEL");
+        if (reels.length > 0) loadInsightsProgressively(reels);
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => { setError(String(e)); setLoading(false); });
   };
+
+  async function loadInsightsProgressively(list: ApiPost[]) {
+    const BATCH = 10;
+    const ordered = [...list].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    setInsightsProgress({ done: 0, total: ordered.length });
+    for (let off = 0; off < ordered.length; off += BATCH) {
+      const slice = ordered.slice(off, off + BATCH);
+      const items = slice.map((p) => ({ id: p.id, mediaType: "VIDEO", mediaProductType: "REELS" }));
+      try {
+        const r = await fetch("/api/posts/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId, items }),
+        });
+        if (!r.ok) continue;
+        const d = await r.json();
+        const map = new Map<string, { reach: number; shares: number; saves: number; totalInteractions: number; views?: number; avgWatchMs?: number }>();
+        for (const ins of (d.insights ?? [])) map.set(ins.id, ins);
+        setPosts((prev) => prev ? prev.map((p) => {
+          const fresh = map.get(p.id);
+          return fresh ? { ...p, reach: fresh.reach, shares: fresh.shares, saves: fresh.saves, totalInteractions: fresh.totalInteractions, views: fresh.views, avgWatchMs: fresh.avgWatchMs } : p;
+        }) : prev);
+        setInsightsLoaded((prev) => {
+          const next = new Set(prev);
+          for (const id of map.keys()) next.add(id);
+          return next;
+        });
+        setInsightsProgress({ done: Math.min(off + BATCH, ordered.length), total: ordered.length });
+      } catch { /* skip this batch, keep going */ }
+    }
+    setInsightsProgress(null);
+  }
 
   useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,7 +121,12 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 text-sm font-medium">Top reels by views</div>
+        <div className="px-5 py-4 border-b border-gray-100 text-sm font-medium flex items-center justify-between">
+          <span>Top reels by views</span>
+          {insightsProgress && (
+            <span className="text-xs text-brand font-normal">loading {insightsProgress.done}/{insightsProgress.total}</span>
+          )}
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase">
@@ -106,12 +150,12 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
                   </a>
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-600">{format(parseISO(r.timestamp), "MMM d")}</td>
-                <td className="px-3 py-3 text-right">{(r.views ?? 0).toLocaleString()}</td>
-                <td className="px-3 py-3 text-right">{r.avgWatchMs ? `${Math.round(r.avgWatchMs / 1000)}s` : "—"}</td>
-                <td className="px-3 py-3 text-right">{r.reach.toLocaleString()}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(r.id) ? (r.views ?? 0).toLocaleString() : <span className="text-gray-300">···</span>}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(r.id) ? (r.avgWatchMs ? `${Math.round(r.avgWatchMs / 1000)}s` : "—") : <span className="text-gray-300">···</span>}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(r.id) ? r.reach.toLocaleString() : <span className="text-gray-300">···</span>}</td>
                 <td className="px-3 py-3 text-right">{r.likes.toLocaleString()}</td>
-                <td className="px-3 py-3 text-right">{r.shares}</td>
-                <td className="px-5 py-3 text-right">{r.saves}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(r.id) ? r.shares : <span className="text-gray-300">···</span>}</td>
+                <td className="px-5 py-3 text-right">{insightsLoaded.has(r.id) ? r.saves : <span className="text-gray-300">···</span>}</td>
               </tr>
             ))}
           </tbody>

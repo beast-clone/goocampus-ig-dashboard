@@ -44,25 +44,71 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [sort, setSort] = useState<"reach" | "engagement" | "date">("date");
+  // Progressive insights loading: track which post IDs have had their reach/eng fetched yet
+  const [insightsLoaded, setInsightsLoaded] = useState<Set<string>>(new Set());
+  const [insightsProgress, setInsightsProgress] = useState<{ done: number; total: number } | null>(null);
 
   const fetchData = () => {
     setLoading(true);
     setError(null);
+    setInsightsLoaded(new Set());
+    setInsightsProgress(null);
     const t0 = Date.now();
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "true" });
+    // Phase 1: fetch the post LIST only (no per-post insights) — single fast Meta call.
+    // User sees the full table in <1s instead of waiting for N+1 insights calls.
+    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" });
     fetch(`/api/posts?${qs}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setPosts(d.posts ?? []);
-          setFetchedAt(Date.now());
-          setLatencyMs(Date.now() - t0);
-        }
+        if (d.error) { setError(d.error); return; }
+        const list: ApiPost[] = d.posts ?? [];
+        setPosts(list);
+        setFetchedAt(Date.now());
+        setLatencyMs(Date.now() - t0);
+        setLoading(false);
+        // Phase 2: progressively fill in reach/shares/saves/engagement, 10 posts at a time.
+        // Newest posts first so the rows the user is most likely to look at populate first.
+        if (list.length > 0) loadInsightsProgressively(list);
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => { setError(String(e)); setLoading(false); });
   };
+
+  async function loadInsightsProgressively(list: ApiPost[]) {
+    const BATCH = 10;
+    const ordered = [...list].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    setInsightsProgress({ done: 0, total: ordered.length });
+    for (let off = 0; off < ordered.length; off += BATCH) {
+      const slice = ordered.slice(off, off + BATCH);
+      const items = slice.map((p) => ({
+        id: p.id,
+        mediaType: p.type === "REEL" ? "VIDEO" : p.type,
+        mediaProductType: p.type === "REEL" ? "REELS" : undefined,
+      }));
+      try {
+        const r = await fetch("/api/posts/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId, items }),
+        });
+        if (!r.ok) continue;
+        const d = await r.json();
+        const map = new Map<string, { reach: number; shares: number; saves: number; totalInteractions: number; views?: number }>();
+        for (const ins of (d.insights ?? [])) map.set(ins.id, ins);
+        // Merge into existing posts state without re-fetching anything
+        setPosts((prev) => prev ? prev.map((p) => {
+          const fresh = map.get(p.id);
+          return fresh ? { ...p, reach: fresh.reach, shares: fresh.shares, saves: fresh.saves, totalInteractions: fresh.totalInteractions, views: fresh.views } : p;
+        }) : prev);
+        setInsightsLoaded((prev) => {
+          const next = new Set(prev);
+          for (const id of map.keys()) next.add(id);
+          return next;
+        });
+        setInsightsProgress({ done: Math.min(off + BATCH, ordered.length), total: ordered.length });
+      } catch { /* skip this batch, keep going */ }
+    }
+    setInsightsProgress(null);
+  }
 
   useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,7 +149,13 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="text-sm font-medium">All posts <span className="text-gray-400 font-normal">({range.from} → {range.to}, {totalPosts} loaded)</span></div>
+          <div className="text-sm font-medium">
+            All posts <span className="text-gray-400 font-normal">({range.from} → {range.to}, {totalPosts} loaded</span>
+            {insightsProgress && (
+              <span className="ml-2 text-xs text-brand">· loading engagement {insightsProgress.done}/{insightsProgress.total}</span>
+            )}
+            <span className="text-gray-400 font-normal">)</span>
+          </div>
           <div className="flex gap-2">
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1">
               <option value="ALL">All types</option>
@@ -151,12 +203,12 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-600">{TYPE_LABEL[p.type] ?? p.type}</td>
                 <td className="px-3 py-3 text-xs text-gray-600">{format(parseISO(p.timestamp), "MMM d")}</td>
-                <td className="px-3 py-3 text-right">{p.reach.toLocaleString()}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.reach.toLocaleString() : <span className="text-gray-300">···</span>}</td>
                 <td className="px-3 py-3 text-right">{p.likes.toLocaleString()}</td>
                 <td className="px-3 py-3 text-right">{p.comments}</td>
-                <td className="px-3 py-3 text-right">{p.shares}</td>
-                <td className="px-3 py-3 text-right">{p.saves}</td>
-                <td className="px-5 py-3 text-right font-medium">{p.totalInteractions.toLocaleString()}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.shares : <span className="text-gray-300">···</span>}</td>
+                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.saves : <span className="text-gray-300">···</span>}</td>
+                <td className="px-5 py-3 text-right font-medium">{insightsLoaded.has(p.id) ? p.totalInteractions.toLocaleString() : <span className="text-gray-300">···</span>}</td>
               </tr>
             ))}
           </tbody>
