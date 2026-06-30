@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 type Overview = {
   account: { id: string; handle: string };
@@ -25,12 +25,6 @@ function fmt(n: number): string {
 }
 function fmtINR(n: number): string {
   return "₹" + Math.round(n).toLocaleString("en-IN");
-}
-function monthLabel(ym: string): string {
-  try {
-    const [y, m] = ym.split("-").map(Number);
-    return new Date(y, (m || 1) - 1, 1).toLocaleString("en-IN", { month: "short", year: "numeric" });
-  } catch { return ym; }
 }
 
 export default function LeadsPage() {
@@ -98,27 +92,71 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
             <BigCard label="From comments" value={fmt(data.totals.comments)} sub="funnel keyword detection" accent="bg-emerald-500" />
           </div>
 
-          {/* Monthly trend chart */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-            <div className="text-sm font-medium mb-3">Leads by month</div>
-            {data.byMonth.length === 0 ? (
-              <div className="text-sm text-gray-400 text-center py-8">No lead activity in this range.</div>
-            ) : (
-              <div style={{ width: "100%", height: 280 }}>
-                <ResponsiveContainer>
-                  <BarChart data={data.byMonth.map((m) => ({ ...m, label: monthLabel(m.month) }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="ads" name="Ad leads" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="comments" name="Comment leads" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* Source split — donut + horizontal proportion bar. Way more readable than
+              the old monthly bar chart, which collapsed to one big bar when the date
+              range only spanned one month with activity. */}
+          {data.totals.all > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm font-medium">Where leads came from</div>
+                <div className="text-xs text-gray-500">{fmt(data.totals.all)} total in this range</div>
               </div>
-            )}
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                {/* Donut */}
+                <div className="relative" style={{ height: 220 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Meta Ads", value: data.totals.ads, fill: "#3b82f6" },
+                          { name: "Comments", value: data.totals.comments, fill: "#10b981" },
+                        ]}
+                        dataKey="value"
+                        innerRadius={62}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        <Cell fill="#3b82f6" />
+                        <Cell fill="#10b981" />
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [fmt(value) + " leads", name]}
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="text-3xl font-bold text-gray-900 leading-none">{fmt(data.totals.all)}</div>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-1">total leads</div>
+                  </div>
+                </div>
+
+                {/* Side legend with proportion bar + cost details */}
+                <div className="space-y-4">
+                  <SourceRow
+                    color="bg-blue-500"
+                    label="Meta Ads"
+                    value={data.totals.ads}
+                    pct={data.totals.all ? (data.totals.ads / data.totals.all) * 100 : 0}
+                    extra={data.adSpend > 0 ? `${fmtINR(data.adSpend)} spent · ${fmtINR(data.costPerLead)} / lead` : undefined}
+                  />
+                  <SourceRow
+                    color="bg-emerald-500"
+                    label="Comments"
+                    value={data.totals.comments}
+                    pct={data.totals.all ? (data.totals.comments / data.totals.all) * 100 : 0}
+                    extra={`${(data.commentReplyRate * 100).toFixed(1)}% reply rate · ${fmt(data.totalComments)} comments total`}
+                  />
+                  <div className="text-[11px] text-gray-500 leading-relaxed pt-1 border-t border-gray-100">
+                    Comments path is essentially free — only Meta Ads cost money. The split tells you whether
+                    paid spend is doing the heavy lifting or whether organic conversation is.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Top funnel keywords + secondary metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -175,6 +213,27 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
         </>
       )}
     </>
+  );
+}
+
+function SourceRow({ color, label, value, pct, extra }: { color: string; label: string; value: number; pct: number; extra?: string }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className={`inline-block w-2.5 h-2.5 rounded-full ${color}`} />
+          <span className="text-sm font-medium text-gray-900">{label}</span>
+        </div>
+        <div className="text-right">
+          <span className="text-lg font-bold text-gray-900 tabular-nums">{fmt(value)}</span>
+          <span className="text-xs text-gray-500 ml-1.5">({pct.toFixed(1)}%)</span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      {extra && <div className="text-[11px] text-gray-500 mt-1.5">{extra}</div>}
+    </div>
   );
 }
 
