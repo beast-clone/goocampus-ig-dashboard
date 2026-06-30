@@ -25,7 +25,20 @@ export async function POST(req: Request) {
 
   const expected = process.env.DASHBOARD_PASSWORD;
   if (!expected || !password || password !== expected) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    // TEMP diagnostic — returns ONLY lengths + first/last chars, never the values themselves.
+    // Useful for tracking down autofill / encoding issues. Remove after the lockout is solved.
+    return NextResponse.json({
+      ok: false,
+      _debug: {
+        gotLen: password?.length ?? 0,
+        gotFirst: password?.slice(0, 2) || "",
+        gotLast: password?.slice(-2) || "",
+        expectedLen: expected?.length ?? 0,
+        expectedFirst: expected?.slice(0, 2) || "",
+        expectedLast: expected?.slice(-2) || "",
+        match: password === expected,
+      },
+    }, { status: 401 });
   }
   setSession();
   return NextResponse.json({ ok: true });

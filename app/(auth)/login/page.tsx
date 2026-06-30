@@ -20,10 +20,17 @@ export default function LoginPage() {
     setLoading(false);
     if (res.ok) { router.push("/dashboard"); return; }
     // Surface real error from API so rate-limit lockout doesn't look like a wrong password
-    let body: { error?: string } = {};
+    type LoginErr = { error?: string; _debug?: { gotLen: number; gotFirst: string; gotLast: string; expectedLen: number; expectedFirst: string; expectedLast: string; match: boolean } };
+    let body: LoginErr = {};
     try { body = await res.json(); } catch {}
-    if (res.status === 429) setError(body.error || "Too many attempts. Try again in a few minutes.");
-    else setError("Wrong password.");
+    if (res.status === 429) {
+      setError(body.error || "Too many attempts. Try again in a few minutes.");
+    } else if (body._debug) {
+      const d = body._debug;
+      setError(`Wrong password. (got ${d.gotLen} chars "${d.gotFirst}…${d.gotLast}", expected ${d.expectedLen} chars "${d.expectedFirst}…${d.expectedLast}")`);
+    } else {
+      setError("Wrong password.");
+    }
   }
 
   return (
