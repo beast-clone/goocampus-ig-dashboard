@@ -364,8 +364,9 @@ export type TopPerformer = {
 };
 
 export async function getTopPerformers(publishToPage: string, count = 5, daysBack = 90): Promise<TopPerformer[]> {
-  const acc = resolveAccountForPage(publishToPage);
-  if (!acc) return [];
+  const maybeAcc = resolveAccountForPage(publishToPage);
+  if (!maybeAcc) return [];
+  const acc: IGAccountConfig = maybeAcc;   // narrow to non-null for closures below
   const media = await fetchRecentMedia(acc, 75);
   const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
   const recent = media.filter((m: IGMedia) => new Date(m.timestamp).getTime() >= cutoff);
