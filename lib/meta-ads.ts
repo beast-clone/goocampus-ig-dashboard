@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 const GRAPH_VERSION = "v21.0";
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
@@ -118,7 +119,7 @@ export type AdRow = AdsTotals & {
 
 async function gget<T = unknown>(p: string, token: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ ...params, access_token: token });
-  const res = await fetch(`${GRAPH}/${p}?${qs}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`${GRAPH}/${p}?${qs}`, { cache: "no-store" });
   const json = await res.json();
   if (!res.ok || json.error) throw new Error(json.error?.message || `Graph error: ${res.status}`);
   return json;

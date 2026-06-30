@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 import fs from "fs";
 import path from "path";
 
@@ -91,7 +92,7 @@ export function getAccount(accountId: string): IGAccountConfig | null {
 
 async function gget<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${GRAPH}/${path}?${qs}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`${GRAPH}/${path}?${qs}`, { cache: "no-store" });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Meta API ${res.status}: ${body}`);
@@ -512,7 +513,7 @@ export async function fetchMediaComments(acc: IGAccountConfig, mediaId: string, 
 
 export async function replyToComment(acc: IGAccountConfig, commentId: string, message: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${GRAPH}/${commentId}/replies`, {
+    const res = await fetchWithTimeout(`${GRAPH}/${commentId}/replies`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ message, access_token: acc.pageAccessToken }),
@@ -528,7 +529,7 @@ export async function replyToComment(acc: IGAccountConfig, commentId: string, me
 // Returns false (with reason) until instagram_manage_messages is approved — UI uses this to show a "pending" state.
 export async function checkDmCapability(acc: IGAccountConfig): Promise<{ available: boolean; reason?: string }> {
   try {
-    const res = await fetch(`${GRAPH}/${acc.igUserId}/conversations?platform=instagram&access_token=${acc.pageAccessToken}`);
+    const res = await fetchWithTimeout(`${GRAPH}/${acc.igUserId}/conversations?platform=instagram&access_token=${acc.pageAccessToken}`);
     const j = (await res.json()) as { error?: { message: string } };
     if (j.error) return { available: false, reason: j.error.message };
     return { available: true };

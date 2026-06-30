@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout";
 // Apify Instagram Hashtag Scraper — official Apify actor.
 // Pricing: $2.60 per 1,000 results on free plan.
 // Apidojo's cheaper $0.50/1K actor was tested and returns {demo:true} placeholders
@@ -90,7 +91,7 @@ export async function scrapeHashtagViaApify(opts: {
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

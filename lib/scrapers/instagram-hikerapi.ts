@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout";
 // HikerAPI Instagram Hashtag fallback
 // Pricing: $0.0006 per request, 100 free after Telegram activation
 // Docs: hikerapi.com — uses x-access-key header
@@ -66,7 +67,7 @@ export async function scrapeHashtagViaHikerAPI(opts: {
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchWithTimeout(url, {
       headers: { "x-access-key": key, accept: "application/json" },
       cache: "no-store",
     });

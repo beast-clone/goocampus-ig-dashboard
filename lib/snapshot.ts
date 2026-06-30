@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 // Long-term history: snapshot one day's Meta data per account into Supabase so
 // it survives Meta's 30-day daily-data cutoff.
 
@@ -23,7 +24,7 @@ async function fetchDayMetric(acc: IGAccountConfig, metric: string, date: string
   // Try "day" period first; some metrics on newer accounts need metric_type=total_value
   try {
     const url = `${GRAPH}/${acc.igUserId}/insights?metric=${metric}&period=day&since=${since}&until=${until}&access_token=${acc.pageAccessToken}`;
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetchWithTimeout(url, { cache: "no-store" });
     const j = (await r.json()) as { data?: { values?: { value: number }[] }[] };
     return Number(j.data?.[0]?.values?.[0]?.value || 0);
   } catch {

@@ -11,12 +11,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@supabase/supabase-js": "^2.108.2",
-    "airtable": "^0.12.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
-    "next": "^14.2.33",
+    "next": "^14.2.35",
     "openai": "^6.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

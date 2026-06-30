@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 // SendPulse REST API client — used for Instagram DM bridging.
 // API docs: https://sendpulse.com/integrations/api
 // Auth: OAuth2 client_credentials → bearer token (lives ~1h).
@@ -17,7 +18,7 @@ function getCreds() {
 async function getToken(): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
   const { id, secret } = getCreds();
-  const res = await fetch(`${API_BASE}/oauth/access_token`, {
+  const res = await fetchWithTimeout(`${API_BASE}/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ grant_type: "client_credentials", client_id: id, client_secret: secret }),
@@ -35,7 +36,7 @@ async function getToken(): Promise<string> {
 
 async function sget<T>(path: string): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   const j = await res.json();
   if (!res.ok) {
     throw new Error(`SendPulse ${path} → ${res.status}: ${JSON.stringify(j).slice(0, 200)}`);
@@ -45,7 +46,7 @@ async function sget<T>(path: string): Promise<T> {
 
 async function spost<T>(path: string, body: unknown): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),

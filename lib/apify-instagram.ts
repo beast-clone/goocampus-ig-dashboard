@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 // Apify Instagram Hashtag Scraper
 // Actor: apify/instagram-hashtag-scraper
 // Used to bypass Meta's `instagram_public_content_access` App Review wall
@@ -70,7 +71,7 @@ export async function scrapeHashtagPosts(opts: {
   const clean = hashtag.replace(/^#/, "").trim().toLowerCase();
 
   const url = `${APIFY_BASE}/acts/${HASHTAG_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

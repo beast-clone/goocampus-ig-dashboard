@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./fetch-with-timeout";
 // Apify FB Ads Library Scraper
 // Actor: curious_coder/facebook-ads-library-scraper
 
@@ -109,7 +110,7 @@ export type ParsedRun = {
 
 export async function listSuccessfulRuns(token: string, limit = 100): Promise<ApifyRunSummary[]> {
   const url = `https://api.apify.com/v2/acts/${ACTOR_ID_DASH}/runs?token=${encodeURIComponent(token)}&limit=${limit}&desc=true&status=SUCCEEDED`;
-  const r = await fetch(url, { cache: "no-store" });
+  const r = await fetchWithTimeout(url, { cache: "no-store" });
   const j = await r.json();
   if (!r.ok) throw new Error(`Apify list runs failed: ${r.status}`);
   return (j.data?.items || []) as ApifyRunSummary[];
@@ -117,7 +118,7 @@ export async function listSuccessfulRuns(token: string, limit = 100): Promise<Ap
 
 async function fetchRunInput(token: string, kvStoreId: string): Promise<ApifyRunInput | null> {
   try {
-    const r = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/INPUT?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    const r = await fetchWithTimeout(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/INPUT?token=${encodeURIComponent(token)}`, { cache: "no-store" });
     if (!r.ok) return null;
     return await r.json();
   } catch {
@@ -126,7 +127,7 @@ async function fetchRunInput(token: string, kvStoreId: string): Promise<ApifyRun
 }
 
 async function fetchDatasetItems(token: string, datasetId: string): Promise<ApifyAdRecord[]> {
-  const r = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${encodeURIComponent(token)}&clean=true`, { cache: "no-store" });
+  const r = await fetchWithTimeout(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${encodeURIComponent(token)}&clean=true`, { cache: "no-store" });
   if (!r.ok) return [];
   return (await r.json()) as ApifyAdRecord[];
 }
@@ -193,7 +194,7 @@ export async function searchCompetitorAds(opts: {
 
   // Run actor synchronously and get dataset items in one call
   const url = `${APIFY_BASE}/acts/${ACTOR_ID}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
