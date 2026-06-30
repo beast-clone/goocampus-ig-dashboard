@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
 import { AIReportButton } from "@/components/AIReportButton";
 import { PdfExportButton } from "@/components/PdfExportButton";
+import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 
 function rangeLabel(r: Range): string {
@@ -60,6 +61,7 @@ export function DashboardShell({
             <p className="text-sm text-gray-500">{headerSub}</p>
           </div>
           <div className="flex items-center gap-3">
+            <TokenExpiryBadge />
             <DateRangePicker value={range} onChange={setRange} />
             <PdfExportButton accountId={compareAll ? "all" : accountId} range={range} />
             <AIReportButton accountId={compareAll ? "all" : accountId} range={range} />

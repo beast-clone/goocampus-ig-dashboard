@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { format, parseISO, subDays } from "date-fns";
 import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay } from "@/lib/meta-ads";
+import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -45,6 +46,6 @@ export async function GET(req: Request) {
       activeAds,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Failed to load ads data"), { status: 500 });
   }
 }

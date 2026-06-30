@@ -47,13 +47,16 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
-  function load(force = false) {
+  function load(force = false, signal?: AbortSignal) {
     setLoading(true);
     setError(null);
     const qs = new URLSearchParams({ accountId, from: range.from, to: range.to });
     if (force) qs.set("force", "1");
-    fetch(`/api/leads?${qs}`)
-      .then((r) => r.json())
+    fetch(`/api/leads?${qs}`, { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (d.error) setError(d.error);
         else {
@@ -61,10 +64,18 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           setFetchedAt(Date.now());
         }
       })
-      .catch((e) => setError(String(e)))
+      .catch((err) => {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setError(String(err));
+      })
       .finally(() => setLoading(false));
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId, range.from, range.to]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(false, ctrl.signal);
+    return () => ctrl.abort();
+    /* eslint-disable-next-line */
+  }, [accountId, range.from, range.to]);
 
   return (
     <>

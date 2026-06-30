@@ -13,11 +13,10 @@ import { snapshotAllAccountsForDay } from "@/lib/snapshot";
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   const headerSecret = req.headers.get("x-cron-secret");
-  // Also accept ?secret= for easy manual testing
   const url = new URL(req.url);
-  const qsSecret = url.searchParams.get("secret");
   if (!secret) return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
-  if (headerSecret !== secret && qsSecret !== secret) {
+  // Header-only — query-string secrets leak into proxy/cdn/browser-history logs.
+  if (headerSecret !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

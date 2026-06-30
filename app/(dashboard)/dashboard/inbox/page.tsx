@@ -48,16 +48,28 @@ function Inner({ accountId }: { accountId: string }) {
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 
-  function load(force = false) {
+  function load(force = false, signal?: AbortSignal) {
     setLoading(true);
     const qs = new URLSearchParams({ accountId });
     if (force) qs.set("force", "1");
-    fetch(`/api/inbox?${qs}`)
-      .then((r) => r.json())
+    fetch(`/api/inbox?${qs}`, { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d: InboxData) => { setData(d); setFetchedAt(Date.now()); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setData({ items: [], dmAvailable: false, latencyMs: 0, error: (err as Error).message });
+        setLoading(false);
+      });
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(false, ctrl.signal);
+    return () => ctrl.abort();
+    /* eslint-disable-next-line */
+  }, [accountId]);
 
   const items = data?.items ?? [];
   const leadCount = items.filter((i) => i.isLead).length;

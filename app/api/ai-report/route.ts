@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { mockInsights } from "@/lib/mock";
+import { safeError } from "@/lib/errors";
 
 export async function POST(req: Request) {
   const { accountId, range } = await req.json();
@@ -58,6 +59,6 @@ Latest post: ${JSON.stringify(data.latestPost)}`;
     const text = resp.choices[0]?.message?.content ?? "";
     return NextResponse.json({ report: text });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "AI report failed"), { status: 500 });
   }
 }

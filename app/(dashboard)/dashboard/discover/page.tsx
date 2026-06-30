@@ -92,6 +92,7 @@ function Inner({ accountId }: { accountId: string }) {
     try {
       const qs = new URLSearchParams({ accountId, search: clean });
       const r = await fetch(`/api/discover?${qs}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       setSearchResult(j.search || null);
     } catch (e) {
@@ -101,20 +102,31 @@ function Inner({ accountId }: { accountId: string }) {
     }
   }
 
-  function load(force = false) {
+  function load(force = false, signal?: AbortSignal) {
     setLoading(true);
     const qs = new URLSearchParams({ accountId, type: "all" });
     if (force) qs.set("force", "1");
-    fetch(`/api/discover?${qs}`)
-      .then((r) => r.json())
+    fetch(`/api/discover?${qs}`, { signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d: DiscoverData) => {
         setData(d);
         setFetchedAt(Date.now());
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setLoading(false);
+      });
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(false, ctrl.signal);
+    return () => ctrl.abort();
+    /* eslint-disable-next-line */
+  }, [accountId]);
 
   return (
     <>

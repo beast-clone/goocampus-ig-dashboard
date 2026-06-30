@@ -6,6 +6,7 @@ import {
   type IGAccountConfig,
 } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
+import { safeError } from "@/lib/errors";
 
 const INBOX_TTL_MS = 10 * 60 * 1000;          // 10 min — comments don't change much minute-to-minute
 const MEDIA_PER_ACCOUNT = 12;                  // scan the 12 most recent posts per account for comments
@@ -160,45 +161,73 @@ export async function GET(req: Request) {
     await cacheSet(cacheKey, result);
     return NextResponse.json({ ...result, cached: false, latencyMs: Date.now() - t0 });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Failed to load inbox"), { status: 500 });
   }
 }
 
+// Whitelist for save_lead — only these fields are written to Supabase.
+// Anything else the client sends is ignored (prevents mass-assignment).
+const LEAD_FIELDS = ["comment_id", "ig_username", "account", "comment", "mood", "post_url", "comment_time", "reason"] as const;
+function pickLead(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of LEAD_FIELDS) {
+    const v = raw[k];
+    if (typeof v === "string" && v.length < 4000) out[k] = v;
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
-  const body = await req.json() as {
-    action: "reply" | "save_lead";
+  let body: {
+    action?: "reply" | "save_lead";
     account?: string;
     commentId?: string;
     message?: string;
     lead?: Record<string, unknown>;
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
   if (body.action === "reply") {
     const acc = getAccount(body.account || "");
     if (!acc) return NextResponse.json({ error: "Unknown account" }, { status: 400 });
     if (!body.commentId || !body.message) return NextResponse.json({ error: "Missing commentId/message" }, { status: 400 });
-    const res = await replyToComment(acc as IGAccountConfig, body.commentId, body.message);
-    if (!res.success) return NextResponse.json({ error: res.error }, { status: 502 });
-    return NextResponse.json({ ok: true });
+    if (typeof body.message !== "string" || body.message.length > 2200) {
+      return NextResponse.json({ error: "Message too long" }, { status: 400 });
+    }
+    try {
+      const res = await replyToComment(acc as IGAccountConfig, body.commentId, body.message);
+      if (!res.success) return NextResponse.json(safeError(new Error(res.error || "Reply failed"), "Reply failed"), { status: 502 });
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      return NextResponse.json(safeError(err, "Reply failed"), { status: 502 });
+    }
   }
 
   if (body.action === "save_lead") {
     const db = getSupabase();
-    if (!db) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    // Re-use discover_cache so no new table is needed.
-    const lead = (body.lead || {}) as Record<string, unknown>;
-    const commentId = (lead.comment_id as string) || body.commentId || `manual:${Date.now()}`;
-    const { error } = await db.from("discover_cache").upsert(
-      {
-        cache_key: `lead:${commentId}`,
-        source: "lead",
-        last_fetched: new Date().toISOString(),
-        payload: { ...lead, comment_id: commentId, source_kind: "instagram_comment", saved_at: new Date().toISOString() },
-      },
-      { onConflict: "cache_key" },
-    );
-    if (error) return NextResponse.json({ error: error.message }, { status: 502 });
-    return NextResponse.json({ ok: true });
+    if (!db) return NextResponse.json({ error: "Storage not configured" }, { status: 500 });
+    const rawLead = (body.lead || {}) as Record<string, unknown>;
+    const lead = pickLead(rawLead);
+    const commentId = typeof lead.comment_id === "string" ? lead.comment_id : (body.commentId || `manual:${Date.now()}`);
+    try {
+      const { error } = await db.from("discover_cache").upsert(
+        {
+          cache_key: `lead:${commentId}`,
+          source: "lead",
+          last_fetched: new Date().toISOString(),
+          payload: { ...lead, comment_id: commentId, source_kind: "instagram_comment", saved_at: new Date().toISOString() },
+        },
+        { onConflict: "cache_key" },
+      );
+      if (error) return NextResponse.json(safeError(new Error(error.message), "Save failed"), { status: 502 });
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      return NextResponse.json(safeError(err, "Save failed"), { status: 502 });
+    }
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

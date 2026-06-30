@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { format, parseISO, eachDayOfInterval, differenceInDays, subDays } from "date-fns";
 import { getAccount, fetchBasic, fetchAccountInsights, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
 import { mockInsights } from "@/lib/mock";
+import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -110,6 +111,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message, fallback: mockInsights(accountId, from, to) }, { status: 500 });
+    const safe = safeError(err, "Failed to load insights");
+    return NextResponse.json({ ...safe, fallback: mockInsights(accountId, from, to) }, { status: 500 });
   }
 }
