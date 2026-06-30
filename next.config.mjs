@@ -3,7 +3,7 @@ const nextConfig = {
   // Served under goocampusevents.com/insights via a Netlify rewrite on the main site.
   // basePath ensures all generated asset/route URLs include this prefix so they resolve
   // correctly when proxied. Override locally with BASE_PATH= (empty) to run at root.
-  basePath: process.env.BASE_PATH ?? "/insights",
+  basePath: process.env.BASE_PATH ?? "/gc-dashboard",
   // Keep source maps off in production — they'd otherwise expose readable server logic
   // and import paths to anyone who opens devtools on the live site.
   productionBrowserSourceMaps: false,
