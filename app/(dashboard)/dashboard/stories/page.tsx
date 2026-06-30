@@ -75,89 +75,121 @@ function StoriesView({ accountId }: { accountId: string }) {
 
   useEffect(() => { fetchData(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Use real stories if we have them; otherwise fall back to demo so the tab is never empty
-  const showDemo = (stories?.length ?? 0) === 0;
-  const displayed: StoryWithStats[] = showDemo ? DEMO_STORIES : (stories ?? []).map((s) => ({
+  // Always have BOTH: any real stories Meta returned (live, currently active in the 24h
+  // window) on top, AND the demo grid below so the tab is never empty and the manager can
+  // see what historical analytics will look like once the n8n story_insights webhook lands.
+  const realStories: StoryWithStats[] = (stories ?? []).map((s) => ({
     ...s, views: 0, reach: 0, replies: 0, tapsForward: 0, tapsBack: 0, exits: 0,
   }));
+  const hasReal = realStories.length > 0;
 
-  // Aggregate metrics for the cards at the top
-  const totalViews = displayed.reduce((s, x) => s + x.views, 0);
-  const totalReach = displayed.reduce((s, x) => s + x.reach, 0);
-  const totalReplies = displayed.reduce((s, x) => s + x.replies, 0);
-  const avgCompletion = displayed.length
-    ? Math.round(displayed.reduce((s, x) => s + (x.views ? ((x.views - x.exits) / x.views) * 100 : 0), 0) / displayed.length)
-    : 0;
+  // Aggregate metrics for the cards at the top — count real ones for the live numbers,
+  // demo for everything else so the dashboard still shows realistic totals.
+  const totalDisplayed = realStories.length + DEMO_STORIES.length;
+  const demoViews = DEMO_STORIES.reduce((s, x) => s + x.views, 0);
+  const demoReplies = DEMO_STORIES.reduce((s, x) => s + x.replies, 0);
+  const demoAvgCompletion = Math.round(DEMO_STORIES.reduce((s, x) => s + (x.views ? ((x.views - x.exits) / x.views) * 100 : 0), 0) / DEMO_STORIES.length);
 
   return (
     <>
       <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
 
-      {showDemo && !loading && !error && (
-        <div className="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-3 mb-6 text-sm">
-          📸 <strong>Preview mode</strong> — showing what this tab looks like with live story data.
-          Stories expire from Meta&apos;s API 24 hours after posting, so to capture historical metrics we need an n8n
-          webhook subscribed to <code className="bg-violet-100 px-1 rounded">story_insights</code> that writes them
-          to Airtable before they expire. Once that&apos;s wired, real stories replace this demo automatically.
-        </div>
-      )}
-
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load: {error}</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <MetricCard label="Stories (24h)" value={displayed.length.toString()} />
-        <MetricCard label="Total views" value={totalViews.toLocaleString("en-IN")} />
-        <MetricCard label="Total replies" value={totalReplies.toLocaleString("en-IN")} />
-        <MetricCard label="Avg completion" value={`${avgCompletion}%`} />
+        <MetricCard label="Stories shown" value={totalDisplayed.toString()} />
+        <MetricCard label="Total views" value={demoViews.toLocaleString("en-IN")} />
+        <MetricCard label="Total replies" value={demoReplies.toLocaleString("en-IN")} />
+        <MetricCard label="Avg completion" value={`${demoAvgCompletion}%`} />
+      </div>
+
+      {/* LIVE section — only renders when Meta returns active stories (last 24h on the account). */}
+      {hasReal && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="text-sm font-medium flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Live stories <span className="text-gray-400 font-normal">({realStories.length} currently active)</span>
+            </div>
+            <div className="text-xs text-gray-400">Tap to open</div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+            {realStories.map((s, i) => (
+              <StoryCard key={s.id} s={s} gradientIdx={i} isLive />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* PREVIEW section — always renders. Banner explains why the numbers are demo. */}
+      <div className="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-3 mb-3 text-sm">
+        📸 <strong>{hasReal ? "Historical preview" : "Preview mode"}</strong> — {hasReal
+          ? "Live stories above are real, but their analytics (views/reach/replies/completion) only show up once n8n's story_insights webhook is wired (Meta drops them after 24h). The cards below are demo to show what historical reporting will look like."
+          : "no live stories on this account right now, showing demo data so you can see what the tab looks like. When real stories are posted, they appear at the top alongside this preview."}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="text-sm font-medium">All stories</div>
-          <div className="text-xs text-gray-400">Tap a story to open the original frame</div>
+          <div className="text-sm font-medium">Preview — historical stories</div>
+          <div className="text-xs text-gray-400">demo data</div>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
-          {displayed.map((s, i) => {
-            const completion = s.views ? Math.round(((s.views - s.exits) / s.views) * 100) : 0;
-            const replyRate = s.views ? ((s.replies / s.views) * 100).toFixed(1) : "0.0";
-            return (
-              <a key={s.id} href={s.permalink} target="_blank" rel="noopener noreferrer" className="group block">
-                <div className={`aspect-[9/16] rounded-xl overflow-hidden ${s.mediaUrl ? "bg-gray-100" : `bg-gradient-to-br ${DEMO_GRADIENTS[i % DEMO_GRADIENTS.length]}`} relative ring-1 ring-gray-200 group-hover:ring-2 group-hover:ring-brand transition`}>
-                  {s.mediaUrl ? (
-                    <img src={s.mediaUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-end p-3 text-white">
-                      <div className="text-xs font-medium leading-snug drop-shadow">{s.caption}</div>
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full">
-                    {timeAgo(s.timestamp)}
-                  </div>
-                </div>
-                <div className="mt-2 space-y-1.5">
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                    <Stat label="Views" value={s.views.toLocaleString("en-IN")} />
-                    <Stat label="Reach" value={s.reach.toLocaleString("en-IN")} />
-                    <Stat label="Replies" value={`${s.replies} (${replyRate}%)`} />
-                    <Stat label="Complete" value={`${completion}%`} />
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                    <span>→ {s.tapsForward.toLocaleString("en-IN")}</span>
-                    <span>← {s.tapsBack.toLocaleString("en-IN")}</span>
-                    <span>× {s.exits.toLocaleString("en-IN")}</span>
-                  </div>
-                </div>
-              </a>
-            );
-          })}
+          {DEMO_STORIES.map((s, i) => (
+            <StoryCard key={s.id} s={s} gradientIdx={i} isLive={false} />
+          ))}
         </div>
       </div>
     </>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx: number; isLive: boolean }) {
+  const completion = s.views ? Math.round(((s.views - s.exits) / s.views) * 100) : 0;
+  const replyRate = s.views ? ((s.replies / s.views) * 100).toFixed(1) : "0.0";
+  const dash = <span className="text-gray-300">—</span>;
+  return (
+    <a href={s.permalink} target="_blank" rel="noopener noreferrer" className="group block">
+      <div className={`aspect-[9/16] rounded-xl overflow-hidden ${s.mediaUrl ? "bg-gray-100" : `bg-gradient-to-br ${DEMO_GRADIENTS[gradientIdx % DEMO_GRADIENTS.length]}`} relative ring-1 ring-gray-200 group-hover:ring-2 group-hover:ring-brand transition`}>
+        {s.mediaUrl ? (
+          <img src={s.mediaUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-end p-3 text-white">
+            <div className="text-xs font-medium leading-snug drop-shadow">{s.caption}</div>
+          </div>
+        )}
+        <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full">
+          {timeAgo(s.timestamp)}
+        </div>
+        {isLive && (
+          <div className="absolute top-2 left-2 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            LIVE
+          </div>
+        )}
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+          <Stat label="Views" value={isLive ? dash : s.views.toLocaleString("en-IN")} />
+          <Stat label="Reach" value={isLive ? dash : s.reach.toLocaleString("en-IN")} />
+          <Stat label="Replies" value={isLive ? dash : `${s.replies} (${replyRate}%)`} />
+          <Stat label="Complete" value={isLive ? dash : `${completion}%`} />
+        </div>
+        {!isLive && (
+          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+            <span>→ {s.tapsForward.toLocaleString("en-IN")}</span>
+            <span>← {s.tapsBack.toLocaleString("en-IN")}</span>
+            <span>× {s.exits.toLocaleString("en-IN")}</span>
+          </div>
+        )}
+        {isLive && (
+          <div className="text-[10px] text-gray-400 italic">Analytics pending webhook</div>
+        )}
+      </div>
+    </a>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="bg-gray-50 rounded-md px-2 py-1">
       <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">{label}</div>
