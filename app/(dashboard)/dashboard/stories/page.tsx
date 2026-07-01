@@ -56,6 +56,8 @@ export default function StoriesPage() {
 
 function StoriesView({ accountId }: { accountId: string }) {
   const [stories, setStories] = useState<Story[] | null>(null);
+  const [historical, setHistorical] = useState<StoryWithStats[] | null>(null);
+  const [historicalNote, setHistoricalNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -65,18 +67,19 @@ function StoriesView({ accountId }: { accountId: string }) {
     setLoading(true);
     setError(null);
     const t0 = Date.now();
-    // Meta serves stories from a DIFFERENT endpoint than posts (/{ig-user-id}/stories),
-    // so we hit our /api/stories route which wraps that call. Returns currently-live
-    // stories only (Meta expires them from the API 24h after posting).
-    fetch(`/api/stories?accountId=${accountId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setStories(d.stories ?? []);
-          setFetchedAt(Date.now());
-          setLatencyMs(Date.now() - t0);
-        }
+    // Two calls in parallel: live from Meta (/api/stories) + historical from Supabase snapshots.
+    // Historical persists forever — populated by /api/cron/snapshot-stories running hourly.
+    Promise.all([
+      fetch(`/api/stories?accountId=${accountId}`).then((r) => r.json()),
+      fetch(`/api/stories/historical?accountId=${accountId}&limit=30`).then((r) => r.json()),
+    ])
+      .then(([live, hist]) => {
+        if (live.error) setError(live.error);
+        else setStories(live.stories ?? []);
+        setHistorical(hist.stories ?? []);
+        setHistoricalNote(hist.note ?? null);
+        setFetchedAt(Date.now());
+        setLatencyMs(Date.now() - t0);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -142,19 +145,34 @@ function StoriesView({ accountId }: { accountId: string }) {
         </div>
       )}
 
-      {/* PREVIEW section — always renders. Banner explains what the demo grid is. */}
+      {/* HISTORICAL section — snapshots captured by the hourly cron from Supabase. */}
+      {historical && historical.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="text-sm font-medium">📚 Historical stories <span className="text-gray-400 font-normal">(from Supabase — persists forever)</span></div>
+            <div className="text-xs text-gray-400">{historical.length} snapshotted</div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+            {historical.map((s, i) => (
+              <StoryCard key={s.id} s={s} gradientIdx={i} isLive={false} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* PREVIEW / DEMO section — always renders. Banner explains what the demo grid is. */}
       <div className="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-3 mb-3 text-sm">
-        📸 <strong>{hasReal ? "Historical preview" : "Preview mode"}</strong> — {hasReal
-          ? (realHaveStats
-              ? "Live stories above show real analytics from Meta while they're still active (<24h). Once they expire from Meta's API, they'd disappear — the demo grid below shows what historical reporting will look like once n8n's story_insights webhook captures them before expiry."
-              : "Live stories above are real. Their analytics load from Meta's insights endpoint as long as they're still active (<24h). Once they expire, only the historical grid below (fed by an n8n story_insights webhook — not yet wired) can hold them.")
-          : "no live stories on this account right now, showing demo data so you can see what the tab looks like. When real stories are posted, they appear at the top alongside this preview."}
+        📸 <strong>Preview</strong> — {historicalNote
+          ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
+          : (historical && historical.length > 0
+              ? "The historical section above holds every story we've snapshotted so far (hourly cron pulls the image + analytics from Meta before it expires). The demo below is just for reference until the archive fills out."
+              : "Once the hourly cron runs, real historical stories will appear above this section instead of these demos.")}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="text-sm font-medium">Preview — historical stories</div>
-          <div className="text-xs text-gray-400">demo data</div>
+          <div className="text-sm font-medium">Demo — how the tab looks</div>
+          <div className="text-xs text-gray-400">dummy data</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
           {DEMO_STORIES.map((s, i) => (
