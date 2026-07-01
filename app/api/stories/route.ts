@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       return NextResponse.json(safeError(new Error(`Meta ${r.status}: ${body}`), "Failed to fetch stories"), { status: 502 });
     }
     const j = (await r.json()) as { data?: IGStory[] };
-    const stories = (j.data ?? []).map((s) => ({
+    const baseStories = (j.data ?? []).map((s) => ({
       id: s.id,
       caption: s.caption ?? "",
       mediaUrl: s.thumbnail_url || s.media_url || "",
@@ -45,9 +45,34 @@ export async function GET(req: Request) {
       timestamp: s.timestamp,
       mediaType: s.media_type ?? "IMAGE",
     }));
+
+    // Story insights are available WHILE the story is still active (<24h). Metrics differ from
+    // regular media: reach, replies, taps_forward, taps_back, exits (no likes/shares/saves).
+    // Fire the per-story insights calls in parallel — small N (usually <10 live at once).
+    const withStats = await Promise.all(baseStories.map(async (s) => {
+      let reach = 0, replies = 0, tapsForward = 0, tapsBack = 0, exits = 0, views = 0;
+      try {
+        const insightsUrl = `${GRAPH}/${s.id}/insights?metric=reach,replies,taps_forward,taps_back,exits&access_token=${acct.pageAccessToken}`;
+        const ir = await fetchWithTimeout(insightsUrl, { cache: "no-store" });
+        if (ir.ok) {
+          const ij = (await ir.json()) as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+          for (const ins of ij.data ?? []) {
+            const v = ins.values?.[0]?.value;
+            if (typeof v !== "number") continue;
+            if (ins.name === "reach") { reach = v; views = v; }
+            else if (ins.name === "replies") replies = v;
+            else if (ins.name === "taps_forward") tapsForward = v;
+            else if (ins.name === "taps_back") tapsBack = v;
+            else if (ins.name === "exits") exits = v;
+          }
+        }
+      } catch { /* keep zeros — display layer will show a dash */ }
+      return { ...s, reach, views, replies, tapsForward, tapsBack, exits };
+    }));
+
     // Newest first
-    stories.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    return NextResponse.json({ stories, live: true });
+    withStats.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return NextResponse.json({ stories: withStats, live: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to fetch stories"), { status: 502 });
   }

@@ -81,10 +81,18 @@ function StoriesView({ accountId }: { accountId: string }) {
   // Always have BOTH: any real stories Meta returned (live, currently active in the 24h
   // window) on top, AND the demo grid below so the tab is never empty and the manager can
   // see what historical analytics will look like once the n8n story_insights webhook lands.
+  // Real stories now carry their real reach/replies/taps/exits from Meta's insights endpoint.
   const realStories: StoryWithStats[] = (stories ?? []).map((s) => ({
-    ...s, views: 0, reach: 0, replies: 0, tapsForward: 0, tapsBack: 0, exits: 0,
+    ...s,
+    views: (s as unknown as { views?: number }).views ?? 0,
+    reach: (s as unknown as { reach?: number }).reach ?? 0,
+    replies: (s as unknown as { replies?: number }).replies ?? 0,
+    tapsForward: (s as unknown as { tapsForward?: number }).tapsForward ?? 0,
+    tapsBack: (s as unknown as { tapsBack?: number }).tapsBack ?? 0,
+    exits: (s as unknown as { exits?: number }).exits ?? 0,
   }));
   const hasReal = realStories.length > 0;
+  const realHaveStats = realStories.some((s) => s.reach > 0);
 
   // Aggregate metrics for the cards at the top — count real ones for the live numbers,
   // demo for everything else so the dashboard still shows realistic totals.
@@ -124,10 +132,12 @@ function StoriesView({ accountId }: { accountId: string }) {
         </div>
       )}
 
-      {/* PREVIEW section — always renders. Banner explains why the numbers are demo. */}
+      {/* PREVIEW section — always renders. Banner explains what the demo grid is. */}
       <div className="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-3 mb-3 text-sm">
         📸 <strong>{hasReal ? "Historical preview" : "Preview mode"}</strong> — {hasReal
-          ? "Live stories above are real, but their analytics (views/reach/replies/completion) only show up once n8n's story_insights webhook is wired (Meta drops them after 24h). The cards below are demo to show what historical reporting will look like."
+          ? (realHaveStats
+              ? "Live stories above show real analytics from Meta while they're still active (<24h). Once they expire from Meta's API, they'd disappear — the demo grid below shows what historical reporting will look like once n8n's story_insights webhook captures them before expiry."
+              : "Live stories above are real. Their analytics load from Meta's insights endpoint as long as they're still active (<24h). Once they expire, only the historical grid below (fed by an n8n story_insights webhook — not yet wired) can hold them.")
           : "no live stories on this account right now, showing demo data so you can see what the tab looks like. When real stories are posted, they appear at the top alongside this preview."}
       </div>
 
@@ -149,6 +159,7 @@ function StoriesView({ accountId }: { accountId: string }) {
 function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx: number; isLive: boolean }) {
   const completion = s.views ? Math.round(((s.views - s.exits) / s.views) * 100) : 0;
   const replyRate = s.views ? ((s.replies / s.views) * 100).toFixed(1) : "0.0";
+  const hasStats = s.reach > 0;   // real live stories carry insights from Meta now
   const dash = <span className="text-gray-300">—</span>;
   return (
     <a href={s.permalink} target="_blank" rel="noopener noreferrer" className="group block">
@@ -172,20 +183,20 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
       </div>
       <div className="mt-2 space-y-1.5">
         <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <Stat label="Views" value={isLive ? dash : s.views.toLocaleString("en-IN")} />
-          <Stat label="Reach" value={isLive ? dash : s.reach.toLocaleString("en-IN")} />
-          <Stat label="Replies" value={isLive ? dash : `${s.replies} (${replyRate}%)`} />
-          <Stat label="Complete" value={isLive ? dash : `${completion}%`} />
+          <Stat label="Views" value={hasStats ? s.views.toLocaleString("en-IN") : dash} />
+          <Stat label="Reach" value={hasStats ? s.reach.toLocaleString("en-IN") : dash} />
+          <Stat label="Replies" value={hasStats ? `${s.replies} (${replyRate}%)` : dash} />
+          <Stat label="Complete" value={hasStats ? `${completion}%` : dash} />
         </div>
-        {!isLive && (
+        {hasStats && (
           <div className="flex items-center gap-2 text-[10px] text-gray-500">
             <span>→ {s.tapsForward.toLocaleString("en-IN")}</span>
             <span>← {s.tapsBack.toLocaleString("en-IN")}</span>
             <span>× {s.exits.toLocaleString("en-IN")}</span>
           </div>
         )}
-        {isLive && (
-          <div className="text-[10px] text-gray-400 italic">Analytics pending webhook</div>
+        {isLive && !hasStats && (
+          <div className="text-[10px] text-gray-400 italic">Fetching insights…</div>
         )}
       </div>
     </a>
