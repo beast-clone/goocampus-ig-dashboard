@@ -46,28 +46,30 @@ export async function GET(req: Request) {
       mediaType: s.media_type ?? "IMAGE",
     }));
 
-    // Story insights are available WHILE the story is still active (<24h). Metrics differ from
-    // regular media: reach, replies, taps_forward, taps_back, exits (no likes/shares/saves).
-    // Fire the per-story insights calls in parallel — small N (usually <10 live at once).
+    // Story insights are available WHILE the story is still active (<24h). Meta removed
+    // taps_forward / taps_back / exits / completion_rate in v25, so we use the modern set:
+    // reach, views, replies, follows, profile_visits, navigation. Fire in parallel.
     const withStats = await Promise.all(baseStories.map(async (s) => {
-      let reach = 0, replies = 0, tapsForward = 0, tapsBack = 0, exits = 0, views = 0;
+      let reach = 0, replies = 0, views = 0, follows = 0, profileVisits = 0, navigation = 0;
       try {
-        const insightsUrl = `${GRAPH}/${s.id}/insights?metric=reach,replies,taps_forward,taps_back,exits&access_token=${acct.pageAccessToken}`;
+        const insightsUrl = `${GRAPH}/${s.id}/insights?metric=reach,replies,views,follows,profile_visits,navigation&access_token=${acct.pageAccessToken}`;
         const ir = await fetchWithTimeout(insightsUrl, { cache: "no-store" });
         if (ir.ok) {
           const ij = (await ir.json()) as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
           for (const ins of ij.data ?? []) {
             const v = ins.values?.[0]?.value;
             if (typeof v !== "number") continue;
-            if (ins.name === "reach") { reach = v; views = v; }
+            if (ins.name === "reach") reach = v;
+            else if (ins.name === "views") views = v;
             else if (ins.name === "replies") replies = v;
-            else if (ins.name === "taps_forward") tapsForward = v;
-            else if (ins.name === "taps_back") tapsBack = v;
-            else if (ins.name === "exits") exits = v;
+            else if (ins.name === "follows") follows = v;
+            else if (ins.name === "profile_visits") profileVisits = v;
+            else if (ins.name === "navigation") navigation = v;
           }
         }
       } catch { /* keep zeros — display layer will show a dash */ }
-      return { ...s, reach, views, replies, tapsForward, tapsBack, exits };
+      // Map to the shape the UI expects; tapsForward/back/exits kept for backward-compat but zero.
+      return { ...s, reach, views, replies, follows, profileVisits, navigation, tapsForward: 0, tapsBack: 0, exits: 0 };
     }));
 
     // Newest first

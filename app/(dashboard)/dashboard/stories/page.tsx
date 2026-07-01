@@ -5,7 +5,13 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 
 type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string };
-type StoryWithStats = Story & { views: number; reach: number; replies: number; tapsForward: number; tapsBack: number; exits: number };
+type StoryWithStats = Story & {
+  views: number; reach: number; replies: number;
+  // Modern v25 metrics — Meta removed taps_forward/taps_back/exits/completion
+  follows?: number; profileVisits?: number; navigation?: number;
+  // Kept only so old demo entries still compile — no longer used in UI
+  tapsForward: number; tapsBack: number; exits: number;
+};
 
 // Realistic demo stories so the manager can see what the tab WILL look like once
 // n8n's story_insights webhook is wired up. Stats are typical of GooCampus's audience.
@@ -82,15 +88,19 @@ function StoriesView({ accountId }: { accountId: string }) {
   // window) on top, AND the demo grid below so the tab is never empty and the manager can
   // see what historical analytics will look like once the n8n story_insights webhook lands.
   // Real stories now carry their real reach/replies/taps/exits from Meta's insights endpoint.
-  const realStories: StoryWithStats[] = (stories ?? []).map((s) => ({
-    ...s,
-    views: (s as unknown as { views?: number }).views ?? 0,
-    reach: (s as unknown as { reach?: number }).reach ?? 0,
-    replies: (s as unknown as { replies?: number }).replies ?? 0,
-    tapsForward: (s as unknown as { tapsForward?: number }).tapsForward ?? 0,
-    tapsBack: (s as unknown as { tapsBack?: number }).tapsBack ?? 0,
-    exits: (s as unknown as { exits?: number }).exits ?? 0,
-  }));
+  const realStories: StoryWithStats[] = (stories ?? []).map((s) => {
+    const raw = s as unknown as Partial<StoryWithStats>;
+    return {
+      ...s,
+      views: raw.views ?? 0,
+      reach: raw.reach ?? 0,
+      replies: raw.replies ?? 0,
+      follows: raw.follows ?? 0,
+      profileVisits: raw.profileVisits ?? 0,
+      navigation: raw.navigation ?? 0,
+      tapsForward: 0, tapsBack: 0, exits: 0,
+    };
+  });
   const hasReal = realStories.length > 0;
   const realHaveStats = realStories.some((s) => s.reach > 0);
 
@@ -157,10 +167,12 @@ function StoriesView({ accountId }: { accountId: string }) {
 }
 
 function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx: number; isLive: boolean }) {
-  const completion = s.views ? Math.round(((s.views - s.exits) / s.views) * 100) : 0;
-  const replyRate = s.views ? ((s.replies / s.views) * 100).toFixed(1) : "0.0";
-  const hasStats = s.reach > 0;   // real live stories carry insights from Meta now
+  const denom = s.views || s.reach || 0;
+  const replyRate = denom ? ((s.replies / denom) * 100).toFixed(1) : "0.0";
+  const hasStats = s.reach > 0 || s.views > 0;   // real live stories carry insights from Meta now
   const dash = <span className="text-gray-300">—</span>;
+  // Real (v25) stories have the modern metric bundle; demo entries still use the legacy taps/exits set.
+  const useModernMetrics = isLive || typeof s.follows === "number";
   return (
     <a href={s.permalink} target="_blank" rel="noopener noreferrer" className="group block">
       <div className={`aspect-[9/16] rounded-xl overflow-hidden ${s.mediaUrl ? "bg-gray-100" : `bg-gradient-to-br ${DEMO_GRADIENTS[gradientIdx % DEMO_GRADIENTS.length]}`} relative ring-1 ring-gray-200 group-hover:ring-2 group-hover:ring-brand transition`}>
@@ -186,9 +198,21 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
           <Stat label="Views" value={hasStats ? s.views.toLocaleString("en-IN") : dash} />
           <Stat label="Reach" value={hasStats ? s.reach.toLocaleString("en-IN") : dash} />
           <Stat label="Replies" value={hasStats ? `${s.replies} (${replyRate}%)` : dash} />
-          <Stat label="Complete" value={hasStats ? `${completion}%` : dash} />
+          <Stat label={useModernMetrics ? "Follows" : "Complete"} value={
+            hasStats
+              ? (useModernMetrics
+                  ? (s.follows ?? 0).toLocaleString("en-IN")
+                  : `${denom ? Math.round(((denom - s.exits) / denom) * 100) : 0}%`)
+              : dash
+          } />
         </div>
-        {hasStats && (
+        {hasStats && useModernMetrics && (
+          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+            <span title="Profile visits from this story">👤 {(s.profileVisits ?? 0).toLocaleString("en-IN")}</span>
+            <span title="Navigation events (taps / swipes / exits)">⇄ {(s.navigation ?? 0).toLocaleString("en-IN")}</span>
+          </div>
+        )}
+        {hasStats && !useModernMetrics && (
           <div className="flex items-center gap-2 text-[10px] text-gray-500">
             <span>→ {s.tapsForward.toLocaleString("en-IN")}</span>
             <span>← {s.tapsBack.toLocaleString("en-IN")}</span>
