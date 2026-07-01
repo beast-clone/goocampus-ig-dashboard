@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { format, parseISO, subDays } from "date-fns";
-import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay } from "@/lib/meta-ads";
+import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay, fetchCampaignSpendForDay } from "@/lib/meta-ads";
 import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request) {
@@ -17,12 +17,13 @@ export async function GET(req: Request) {
   const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
 
   try {
-    const [totals, daily, campaigns, daySummary, activeAds] = await Promise.all([
+    const [totals, daily, campaigns, daySummary, activeAds, yesterdayByCampaign] = await Promise.all([
       fetchAdsTotals(acct, from, to),
       fetchAdsDaily(acct, from, to),
       fetchCampaigns(acct, from, to),
       fetchDaySummary(acct, yesterday),
       fetchActiveAdsForDay(acct, yesterday),
+      fetchCampaignSpendForDay(acct, yesterday),
     ]);
 
     const series = daily.map((d) => ({
@@ -44,6 +45,7 @@ export async function GET(req: Request) {
       campaigns,
       daySummary,
       activeAds,
+      yesterdayByCampaign,
     });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load ads data"), { status: 500 });

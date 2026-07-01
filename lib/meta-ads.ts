@@ -104,6 +104,11 @@ export type AdsDailyPoint = {
 export type CampaignRow = AdsTotals & {
   campaign_id: string;
   campaign_name: string;
+  // Populated by mergeCampaignBudgets — 0 when budget is set at ad-set level (ABO) rather
+  // than campaign level (CBO). The Ads UI treats 0 as "budget unavailable" and skips the bar.
+  daily_budget: number;
+  lifetime_budget: number;
+  status: string;  // ACTIVE | PAUSED | DELETED | ARCHIVED
 };
 
 export type AdRow = AdsTotals & {
@@ -154,18 +159,71 @@ export async function fetchAdsDaily(acct: AdAccountConfig, from: string, to: str
 }
 
 export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: string): Promise<CampaignRow[]> {
-  const json = await gget<{ data: (Parameters<typeof mapInsightsRow>[0] & { campaign_id: string; campaign_name: string })[] }>(`${acct.id}/insights`, acct.token, {
-    fields: `campaign_id,campaign_name,${INSIGHTS_FIELDS}`,
-    time_range: JSON.stringify({ since: from, until: to }),
-    level: "campaign",
-    limit: "200",
-  });
-  return (json.data || [])
-    .map((r) => ({
-      campaign_id: r.campaign_id,
-      campaign_name: r.campaign_name,
-      ...mapInsightsRow(r),
-    }))
+  // Two calls in parallel: performance from /insights, budget/status from /campaigns.
+  // Meta requires them separately because /insights doesn't expose configuration fields
+  // and /campaigns doesn't expose performance metrics. We merge by campaign_id.
+  const [perfJson, cfgJson] = await Promise.all([
+    gget<{ data: (Parameters<typeof mapInsightsRow>[0] & { campaign_id: string; campaign_name: string })[] }>(`${acct.id}/insights`, acct.token, {
+      fields: `campaign_id,campaign_name,${INSIGHTS_FIELDS}`,
+      time_range: JSON.stringify({ since: from, until: to }),
+      level: "campaign",
+      limit: "200",
+    }),
+    gget<{ data: { id: string; name: string; daily_budget?: string; lifetime_budget?: string; effective_status?: string; status?: string }[] }>(`${acct.id}/campaigns`, acct.token, {
+      fields: "id,name,daily_budget,lifetime_budget,effective_status,status",
+      limit: "200",
+    }),
+  ]);
+
+  // Build a budget lookup — Meta returns budgets in the smallest currency unit (paise for INR),
+  // so we divide by 100 to get rupees.
+  const budgetById = new Map<string, { daily: number; lifetime: number; status: string }>();
+  for (const c of cfgJson.data || []) {
+    budgetById.set(c.id, {
+      daily: parseFloat(c.daily_budget || "0") / 100,
+      lifetime: parseFloat(c.lifetime_budget || "0") / 100,
+      status: c.effective_status || c.status || "UNKNOWN",
+    });
+  }
+
+  // When a campaign has no campaign-level daily budget (i.e. budget lives on its ad sets),
+  // sum the ad-set daily_budgets so the dashboard still shows a real number instead of a
+  // dash. Fire one adsets call per campaign lazily to avoid a heavy fan-out — cap at 30
+  // campaigns to stay well under Meta's rate limit for the range picker's default view.
+  const perfList = perfJson.data || [];
+  const missingBudgetIds = perfList
+    .map((r) => r.campaign_id)
+    .filter((id) => (budgetById.get(id)?.daily ?? 0) === 0)
+    .slice(0, 30);
+  if (missingBudgetIds.length > 0) {
+    const results = await Promise.allSettled(missingBudgetIds.map(async (id) => {
+      const j = await gget<{ data: { daily_budget?: string }[] }>(`${id}/adsets`, acct.token, {
+        fields: "daily_budget",
+        limit: "50",
+      });
+      const total = (j.data || []).reduce((s, x) => s + (parseFloat(x.daily_budget || "0") / 100), 0);
+      return { id, total };
+    }));
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.total > 0) {
+        const existing = budgetById.get(r.value.id) || { daily: 0, lifetime: 0, status: "UNKNOWN" };
+        budgetById.set(r.value.id, { ...existing, daily: r.value.total });
+      }
+    }
+  }
+
+  return perfList
+    .map((r) => {
+      const budget = budgetById.get(r.campaign_id) || { daily: 0, lifetime: 0, status: "UNKNOWN" };
+      return {
+        campaign_id: r.campaign_id,
+        campaign_name: r.campaign_name,
+        daily_budget: budget.daily,
+        lifetime_budget: budget.lifetime,
+        status: budget.status,
+        ...mapInsightsRow(r),
+      };
+    })
     .sort((a, b) => b.spend - a.spend);
 }
 
@@ -186,6 +244,36 @@ export async function fetchDaySummary(acct: AdAccountConfig, date: string): Prom
     impressions: parseInt(r.impressions || "0", 10),
     leads: extractAction(r.actions, LEAD_TYPES),
   };
+}
+
+// One row per campaign that spent on the given date. Feeds the "Individual campaign spend
+// yesterday" section — paired with each campaign's daily_budget to show budget-usage bars.
+export type DayCampaignSpend = {
+  campaign_id: string; campaign_name: string;
+  spend: number; reach: number; impressions: number; leads: number;
+};
+
+export async function fetchCampaignSpendForDay(acct: AdAccountConfig, date: string): Promise<DayCampaignSpend[]> {
+  const json = await gget<{ data: { campaign_id: string; campaign_name: string; spend?: string; reach?: string; impressions?: string; actions?: RawAction[] }[] }>(
+    `${acct.id}/insights`, acct.token,
+    {
+      fields: "campaign_id,campaign_name,spend,reach,impressions,actions",
+      time_range: JSON.stringify({ since: date, until: date }),
+      level: "campaign",
+      limit: "200",
+    },
+  );
+  return (json.data || [])
+    .map((r) => ({
+      campaign_id: r.campaign_id,
+      campaign_name: r.campaign_name,
+      spend: parseFloat(r.spend || "0"),
+      reach: parseInt(r.reach || "0", 10),
+      impressions: parseInt(r.impressions || "0", 10),
+      leads: extractAction(r.actions, LEAD_TYPES),
+    }))
+    .filter((c) => c.spend > 0)
+    .sort((a, b) => b.spend - a.spend);
 }
 
 export async function fetchActiveAdsForDay(acct: AdAccountConfig, date: string): Promise<DayAd[]> {
