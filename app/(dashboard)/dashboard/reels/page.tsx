@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useApi } from "@/lib/use-api";
 import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -31,37 +32,32 @@ export default function ReelsPage() {
 }
 
 function ReelsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const [posts, setPosts] = useState<ApiPost[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [insightsLoaded, setInsightsLoaded] = useState<Set<string>>(new Set());
   const [insightsProgress, setInsightsProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Phase 1: cached post-list fetch via SWR
+  const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" }).toString();
+  const { data: apiData, error, isLoading, refresh } = useApi<{ posts?: ApiPost[] }>(`/api/posts?${qs}`);
+  const loading = isLoading;
+  const fetchData = () => refresh();
+
+  const [posts, setPosts] = useState<ApiPost[] | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const fetchStartRef = useRef<number>(0);
+  useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
+  useEffect(() => {
+    if (!apiData) return;
+    const list: ApiPost[] = apiData.posts ?? [];
+    setPosts(list);
     setInsightsLoaded(new Set());
     setInsightsProgress(null);
-    const t0 = Date.now();
-    // Phase 1: fast post-list fetch (no insights) so the table paints immediately.
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" });
-    fetch(`/api/posts?${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error); return; }
-        const list: ApiPost[] = d.posts ?? [];
-        setPosts(list);
-        setFetchedAt(Date.now());
-        setLatencyMs(Date.now() - t0);
-        setLoading(false);
-        // Phase 2: progressively fetch views/reach/etc, 10 reels at a time.
-        const reels = list.filter((p) => p.type === "REEL");
-        if (reels.length > 0) loadInsightsProgressively(reels);
-      })
-      .catch((e) => { setError(String(e)); setLoading(false); });
-  };
+    setFetchedAt(Date.now());
+    setLatencyMs(Date.now() - fetchStartRef.current);
+    const reels = list.filter((p) => p.type === "REEL");
+    if (reels.length > 0) loadInsightsProgressively(reels);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiData]);
 
   async function loadInsightsProgressively(list: ApiPost[]) {
     const BATCH = 10;
@@ -95,11 +91,9 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
     setInsightsProgress(null);
   }
 
-  useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
 
-  if (error) return <>{live}<div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load reels: {error}</div></>;
+  if (error) return <>{live}<div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load reels: {error.message}</div></>;
   if (!posts) return <>{live}<div className="text-sm text-gray-500">Loading reels…</div></>;
 
   const reels = posts.filter((p) => p.type === "REEL");

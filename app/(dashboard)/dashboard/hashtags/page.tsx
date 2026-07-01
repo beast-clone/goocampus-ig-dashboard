@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { useApi } from "@/lib/use-api";
 
 type HashtagPostRef = {
   id: string; permalink: string; thumbnail: string; timestamp: string;
@@ -45,29 +46,14 @@ export default function HashtagsPage() {
 }
 
 function Inner({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const [data, setData] = useState<Resp | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"er" | "reach" | "posts" | "engagement">("er");
   const [minPosts, setMinPosts] = useState(2);
-
-  function load() {
-    setLoading(true);
-    setError(null);
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, minPosts: String(minPosts) });
-    fetch(`/api/hashtags?${qs}`)
-      .then((r) => r.json())
-      .then((d: Resp) => {
-        if (d.error) { setError(d.error); setLoading(false); return; }
-        setData(d);
-        setFetchedAt(Date.now());
-        setLoading(false);
-      })
-      .catch((e) => { setError(e.message); setLoading(false); });
-  }
-
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId, range.from, range.to, minPosts]);
+  const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, minPosts: String(minPosts) }).toString();
+  const { data, error, isLoading, refresh } = useApi<Resp>(`/api/hashtags?${qs}`);
+  const loading = isLoading;
+  const load = () => refresh();
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
 
   const sorted = useMemo(() => {
     if (!data) return [];
@@ -116,7 +102,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
         ))}
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5 text-sm">{error.message}</div>}
 
       {loading && !data && <div className="bg-white rounded-2xl p-10 text-center text-gray-400 border border-gray-100">Analyzing posts and hashtags…</div>}
 

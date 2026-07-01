@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
+import { useApi } from "@/lib/use-api";
 
 type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string };
 type StoryWithStats = Story & {
@@ -55,37 +56,20 @@ export default function StoriesPage() {
 }
 
 function StoriesView({ accountId }: { accountId: string }) {
-  const [stories, setStories] = useState<Story[] | null>(null);
-  const [historical, setHistorical] = useState<StoryWithStats[] | null>(null);
-  const [historicalNote, setHistoricalNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Two independent cached fetches — SWR handles the parallel calls + deduping.
+  const liveApi = useApi<{ stories?: Story[]; error?: string }>(`/api/stories?accountId=${accountId}`);
+  const histApi = useApi<{ stories?: StoryWithStats[]; note?: string }>(`/api/stories/historical?accountId=${accountId}&limit=30`);
+
+  const stories = liveApi.data?.stories ?? null;
+  const historical = histApi.data?.stories ?? null;
+  const historicalNote = histApi.data?.note ?? null;
+  const error = liveApi.error;
+  const loading = liveApi.isLoading || histApi.isLoading;
+  const fetchData = () => { liveApi.refresh(); histApi.refresh(); };
+
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
-
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
-    const t0 = Date.now();
-    // Two calls in parallel: live from Meta (/api/stories) + historical from Supabase snapshots.
-    // Historical persists forever — populated by /api/cron/snapshot-stories running hourly.
-    Promise.all([
-      fetch(`/api/stories?accountId=${accountId}`).then((r) => r.json()),
-      fetch(`/api/stories/historical?accountId=${accountId}&limit=30`).then((r) => r.json()),
-    ])
-      .then(([live, hist]) => {
-        if (live.error) setError(live.error);
-        else setStories(live.stories ?? []);
-        setHistorical(hist.stories ?? []);
-        setHistoricalNote(hist.note ?? null);
-        setFetchedAt(Date.now());
-        setLatencyMs(Date.now() - t0);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (stories || historical) { setFetchedAt(Date.now()); setLatencyMs(null); } }, [stories, historical]);
 
   // Always have BOTH: any real stories Meta returned (live, currently active in the 24h
   // window) on top, AND the demo grid below so the tab is never empty and the manager can
@@ -118,7 +102,7 @@ function StoriesView({ accountId }: { accountId: string }) {
     <>
       <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load: {error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load: {error.message}</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Stories shown" value={totalDisplayed.toString()} />

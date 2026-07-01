@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { useApi } from "@/lib/use-api";
 
 type CompetitorMedia = {
   id: string;
@@ -57,36 +58,28 @@ export default function BenchmarkPage() {
 }
 
 function BenchmarkInner({ accountId }: { accountId: string; range: { from: string; to: string } }) {
-  const [data, setData] = useState<BenchmarkData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [niche, setNiche] = useState<string>("");
   const [customHandles, setCustomHandles] = useState("");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
+  // Cache key includes niche and handles so switching niches picks up the right cached
+  // response instead of showing stale data or refetching.
+  const qs = new URLSearchParams({ accountId });
+  if (niche) qs.set("niche", niche);
+  if (customHandles.trim()) qs.set("handles", customHandles);
+  const { data, error, isLoading, refresh, mutate } = useApi<BenchmarkData>(`/api/benchmark?${qs.toString()}`);
+  const loading = isLoading;
+
+  // Manual refetch trigger that also sets the niche/handles (used by the buttons).
   function load(opts?: { niche?: string; handles?: string }) {
-    setLoading(true);
-    setError(null);
-    const qs = new URLSearchParams({ accountId });
-    if (opts?.niche) qs.set("niche", opts.niche);
-    if (opts?.handles) qs.set("handles", opts.handles);
-    fetch(`/api/benchmark?${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) {
-          setError(d.error);
-          setLoading(false);
-          return;
-        }
-        setData(d);
-        setNiche(d.niche || "");
-        setFetchedAt(Date.now());
-        setLoading(false);
-      })
-      .catch((e) => { setError(e.message); setLoading(false); });
+    if (opts?.niche !== undefined) setNiche(opts.niche);
+    if (opts?.handles !== undefined) setCustomHandles(opts.handles);
+    if (!opts) refresh();
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [accountId]);
+  useEffect(() => { if (data?.niche && !niche) setNiche(data.niche); }, [data, niche]);
+  useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
+  void mutate;
 
   const sorted = data
     ? [...data.competitors].sort((a, b) => {
@@ -146,7 +139,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5 text-sm">
-          {error}
+          {error.message}
         </div>
       )}
 

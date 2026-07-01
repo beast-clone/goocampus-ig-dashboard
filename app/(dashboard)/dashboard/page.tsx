@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 import { TrendChart } from "@/components/TrendChart";
 import { FollowerGrowthChart } from "@/components/FollowerGrowthChart";
 import { LatestPost, type Post } from "@/components/LatestPost";
+import { useApi } from "@/lib/use-api";
 
 type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number; avgDailyGain: number };
@@ -27,28 +28,25 @@ function daysBetween(a: string, b: string): number {
 }
 
 function Overview({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const [data, setData] = useState<Insights | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const rangeDays = daysBetween(range.from, range.to);
   const isClamped = rangeDays > 30;
 
-  const fetchData = () => {
-    setLoading(true);
-    const t0 = Date.now();
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to });
-    fetch(`/api/insights?${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d.totals ? d : d.fallback ?? null);
-        setFetchedAt(Date.now());
-        setLatencyMs(Date.now() - t0);
-      })
-      .finally(() => setLoading(false));
-  };
+  // SWR handles caching + race-safety + dedup. Repeat visits use the cache; a
+  // background revalidate refreshes within the 60s dedupe window.
+  const qs = new URLSearchParams({ accountId, from: range.from, to: range.to }).toString();
+  const { data: raw, isLoading, refresh } = useApi<{ totals: unknown; fallback?: Insights }>(`/api/insights?${qs}`);
+  const data = (raw as unknown as Insights | undefined) ?? (raw?.fallback as Insights | undefined) ?? null;
+  const loading = isLoading;
 
-  useEffect(() => { fetchData(); }, [accountId, range]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Track latency of the last successful fetch and when it landed — used by LiveIndicator.
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const fetchStartRef = useRef<number>(0);
+  useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
+  useEffect(() => {
+    if (data && !isLoading) { setFetchedAt(Date.now()); setLatencyMs(Date.now() - fetchStartRef.current); }
+  }, [data, isLoading]);
+  const fetchData = () => refresh();
 
   if (!data) return (
     <>

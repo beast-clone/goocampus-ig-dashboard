@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, subDays, parseISO } from "date-fns";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
@@ -7,6 +7,12 @@ import { AIReportButton } from "@/components/AIReportButton";
 import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
+
+// Persist the account picker across tab navigation. Each tab re-mounts the
+// DashboardShell, so without this the selection would reset to the default
+// every time the user clicks a sidebar item.
+const LS_ACCOUNT = "gc-dash:accountId";
+const LS_COMPARE = "gc-dash:compareAll";
 
 function rangeLabel(r: Range): string {
   const days = rangeDays(r);
@@ -31,12 +37,38 @@ export function DashboardShell({
   subtitle?: string;
   children: (ctx: { accountId: string; compareAll: boolean; range: Range }) => React.ReactNode;
 }) {
-  const [accountId, setAccountId] = useState(DEFAULT_ACCOUNT_ID);
-  const [compareAll, setCompareAll] = useState(false);
+  const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
+  const [compareAll, setCompareAllRaw] = useState(false);
   const [range, setRange] = useState<Range>({
     from: format(subDays(new Date(), 30), "yyyy-MM-dd"),
     to: format(new Date(), "yyyy-MM-dd"),
   });
+
+  // Hydrate from localStorage on mount (client-only — SSR sees the defaults).
+  // Reading is done in an effect so the server render matches the client's first
+  // render; the value snaps to the stored one after mount without a hydration warning.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedAccount = window.localStorage.getItem(LS_ACCOUNT);
+      if (savedAccount && ACCOUNTS.some((a) => a.id === savedAccount)) {
+        setAccountIdRaw(savedAccount);
+      }
+      if (window.localStorage.getItem(LS_COMPARE) === "1") {
+        setCompareAllRaw(true);
+      }
+    } catch { /* private-mode or storage full — fall back to defaults */ }
+  }, []);
+
+  // Wrap the setters so every change also persists to localStorage.
+  const setAccountId = (id: string) => {
+    setAccountIdRaw(id);
+    try { window.localStorage.setItem(LS_ACCOUNT, id); window.localStorage.setItem(LS_COMPARE, "0"); } catch { /* ignore */ }
+  };
+  const setCompareAll = (v: boolean) => {
+    setCompareAllRaw(v);
+    try { window.localStorage.setItem(LS_COMPARE, v ? "1" : "0"); } catch { /* ignore */ }
+  };
 
   const account = ACCOUNTS.find((a) => a.id === accountId);
   const headerTitle = compareAll ? `${title} — All Accounts` : title;
@@ -46,7 +78,7 @@ export function DashboardShell({
     <div className="flex">
       <Sidebar
         accountId={accountId}
-        onAccountChange={(id) => { setAccountId(id); setCompareAll(false); }}
+        onAccountChange={(id) => { setAccountId(id); /* setAccountId already clears compareAll in storage */ setCompareAll(false); }}
         onCompareAll={() => setCompareAll(true)}
       />
       <main className="flex-1 p-8">

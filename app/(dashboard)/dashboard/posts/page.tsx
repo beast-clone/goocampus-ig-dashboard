@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
+import { useApi } from "@/lib/use-api";
 
 type ApiPost = {
   id: string;
@@ -37,41 +38,37 @@ export default function PostsPage() {
 }
 
 function PostsView({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const [posts, setPosts] = useState<ApiPost[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [sort, setSort] = useState<"reach" | "engagement" | "date">("date");
   // Progressive insights loading: track which post IDs have had their reach/eng fetched yet
   const [insightsLoaded, setInsightsLoaded] = useState<Set<string>>(new Set());
   const [insightsProgress, setInsightsProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Phase 1: cached list fetch via SWR (instant on repeat visits)
+  const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" }).toString();
+  const { data: apiData, error, isLoading, refresh } = useApi<{ posts?: ApiPost[] }>(`/api/posts?${qs}`);
+  const loading = isLoading;
+  const fetchData = () => refresh();
+
+  // Local mirror of the list so phase-2 progressive updates can mutate individual posts
+  // without invalidating SWR's cache.
+  const [posts, setPosts] = useState<ApiPost[] | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const fetchStartRef = useRef<number>(0);
+  useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
+  // When a new list arrives, reset progressive state and kick off phase 2
+  useEffect(() => {
+    if (!apiData) return;
+    const list: ApiPost[] = apiData.posts ?? [];
+    setPosts(list);
     setInsightsLoaded(new Set());
     setInsightsProgress(null);
-    const t0 = Date.now();
-    // Phase 1: fetch the post LIST only (no per-post insights) — single fast Meta call.
-    // User sees the full table in <1s instead of waiting for N+1 insights calls.
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" });
-    fetch(`/api/posts?${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error); return; }
-        const list: ApiPost[] = d.posts ?? [];
-        setPosts(list);
-        setFetchedAt(Date.now());
-        setLatencyMs(Date.now() - t0);
-        setLoading(false);
-        // Phase 2: progressively fill in reach/shares/saves/engagement, 10 posts at a time.
-        // Newest posts first so the rows the user is most likely to look at populate first.
-        if (list.length > 0) loadInsightsProgressively(list);
-      })
-      .catch((e) => { setError(String(e)); setLoading(false); });
-  };
+    setFetchedAt(Date.now());
+    setLatencyMs(Date.now() - fetchStartRef.current);
+    if (list.length > 0) loadInsightsProgressively(list);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiData]);
 
   async function loadInsightsProgressively(list: ApiPost[]) {
     const BATCH = 10;
@@ -110,12 +107,10 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
     setInsightsProgress(null);
   }
 
-  useEffect(() => { fetchData(); }, [accountId, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (error) return (
     <>
       <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
-      <ErrorBox msg={error} />
+      <ErrorBox msg={error.message} />
     </>
   );
   if (!posts) return (

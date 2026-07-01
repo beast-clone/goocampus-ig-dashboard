@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 import { TrendChart } from "@/components/TrendChart";
@@ -66,38 +67,24 @@ export default function AdsPage() {
 }
 
 function Ads({ range }: { range: { from: string; to: string } }) {
-  const [data, setData] = useState<AdsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  const { data, error, isLoading, refresh } = useApi<AdsData>(`/api/ads?${qs}`);
+  const loading = isLoading;
+  const fetchData = () => refresh();
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
-    const t0 = Date.now();
-    const qs = new URLSearchParams({ from: range.from, to: range.to });
-    fetch(`/api/ads?${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setData(d);
-          setFetchedAt(Date.now());
-          setLatencyMs(Date.now() - t0);
-        }
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const fetchStartRef = useRef<number>(0);
+  useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
+  useEffect(() => {
+    if (data && !isLoading) { setFetchedAt(Date.now()); setLatencyMs(Date.now() - fetchStartRef.current); }
+  }, [data, isLoading]);
 
   const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
 
   if (loading && !data) return <>{live}<div className="text-sm text-gray-500">Loading ads data…</div></>;
-  if (error) return <>{live}<div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg">Error: {error}</div></>;
+  if (error) return <>{live}<div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg">Error: {error.message}</div></>;
   if (!data) return <>{live}<div className="text-sm text-gray-500">No data.</div></>;
 
   const hasLeads = data.totals.leads > 0;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -36,40 +37,12 @@ export default function LeadsPage() {
 }
 
 function Inner({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const [data, setData] = useState<Overview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qs = new URLSearchParams({ accountId, from: range.from, to: range.to }).toString();
+  const { data, error, isLoading, refresh } = useApi<Overview>(`/api/leads?${qs}`);
+  const loading = isLoading;
+  const load = () => refresh();
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-
-  function load(force = false, signal?: AbortSignal) {
-    setLoading(true);
-    setError(null);
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to });
-    if (force) qs.set("force", "1");
-    fetch(`/api/leads?${qs}`, { signal })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setData(d);
-          setFetchedAt(Date.now());
-        }
-      })
-      .catch((err) => {
-        if ((err as { name?: string })?.name === "AbortError") return;
-        setError(String(err));
-      })
-      .finally(() => setLoading(false));
-  }
-  useEffect(() => {
-    const ctrl = new AbortController();
-    load(false, ctrl.signal);
-    return () => ctrl.abort();
-    /* eslint-disable-next-line */
-  }, [accountId, range.from, range.to]);
+  useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
 
   return (
     <>
@@ -77,11 +50,11 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
         <div className="text-xs text-gray-500">
           {data ? `Analyzed ${data.postsAnalyzed} posts in this range` : ""}
         </div>
-        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={loading} onRefresh={() => load(true)} />
+        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={loading} onRefresh={load} />
       </div>
 
       {loading && !data && <div className="text-sm text-gray-500">Loading lead analytics…</div>}
-      {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error}</div>}
+      {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error.message}</div>}
 
       {data && (
         <>

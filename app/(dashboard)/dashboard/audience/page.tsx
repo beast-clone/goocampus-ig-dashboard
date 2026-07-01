@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import PostingHeatmap from "@/components/PostingHeatmap";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
+import { useApi } from "@/lib/use-api";
 
 type DemoEntry = { label: string; value: number };
 type AudienceData = {
@@ -56,34 +57,19 @@ export default function AudiencePage() {
 }
 
 function Audience({ accountId }: { accountId: string }) {
-  const [data, setData] = useState<AudienceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, isLoading, refresh } = useApi<AudienceData>(`/api/audience?accountId=${encodeURIComponent(accountId)}`);
+  const loading = isLoading;
+  const fetchData = () => refresh();
+
+  // Track fetchedAt + latency for the LiveIndicator chip
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
-  const [tick, setTick] = useState(0);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
-
-  const fetchData = (showSpinner = true) => {
-    if (showSpinner) setLoading(true);
-    setError(null);
-    const t0 = Date.now();
-    fetch(`/api/audience?accountId=${encodeURIComponent(accountId)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setError(d.error);
-        else {
-          setData(d);
-          setFetchedAt(Date.now());
-          setLastLatencyMs(Date.now() - t0);
-        }
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  };
-
+  const [tick, setTick] = useState(0);
+  const fetchStartRef = useRef<number>(0);
+  useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
   useEffect(() => {
-    fetchData();
-  }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (data && !isLoading) { setFetchedAt(Date.now()); setLastLatencyMs(Date.now() - fetchStartRef.current); }
+  }, [data, isLoading]);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -93,8 +79,8 @@ function Audience({ accountId }: { accountId: string }) {
   const persona = useMemo(() => buildPersona(data), [data]);
   void tick; // legacy — kept for safety, no-op
 
-  if (loading) return <div className="text-sm text-gray-500">Loading live audience…</div>;
-  if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error}</div>;
+  if (loading && !data) return <div className="text-sm text-gray-500">Loading live audience…</div>;
+  if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error.message}</div>;
   if (!data) return <div className="text-sm text-gray-500">No data.</div>;
 
   const ageGenderTotal = data.ageGender.reduce((s, r) => s + r.M + r.F + r.U, 0);
