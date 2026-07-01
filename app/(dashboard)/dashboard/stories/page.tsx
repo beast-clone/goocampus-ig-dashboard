@@ -59,12 +59,15 @@ function StoriesView({ accountId }: { accountId: string }) {
     setLoading(true);
     setError(null);
     const t0 = Date.now();
-    fetch(`/api/posts?accountId=${accountId}&limit=50&insights=false`)
+    // Meta serves stories from a DIFFERENT endpoint than posts (/{ig-user-id}/stories),
+    // so we hit our /api/stories route which wraps that call. Returns currently-live
+    // stories only (Meta expires them from the API 24h after posting).
+    fetch(`/api/stories?accountId=${accountId}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error);
         else {
-          setStories((d.posts ?? []).filter((p: { type: string }) => p.type === "STORY"));
+          setStories(d.stories ?? []);
           setFetchedAt(Date.now());
           setLatencyMs(Date.now() - t0);
         }
