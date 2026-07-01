@@ -240,56 +240,177 @@ function AdColumn({ ads, topSpend }: { ads: DayAd[]; topSpend: number }) {
   );
 }
 
+// Auto-classify each campaign into a "primary interest" bucket based on keywords in
+// its name. Order matters — the FIRST matching rule wins, so put more-specific rules
+// higher. Tweak this table when you launch a new campaign theme.
+type InterestKey = "amc_australia" | "university_masters" | "mbbs_ug" | "walk_in" | "als" | "samvaya" | "traffic_boost" | "other";
+type InterestDef = { key: InterestKey; label: string; emoji: string; color: string; keywords: (string | RegExp)[] };
+
+const INTERESTS: InterestDef[] = [
+  { key: "amc_australia",       label: "Australia AMC Pathway",    emoji: "🇦🇺", color: "bg-red-500",     keywords: ["AMC", "AUS-PGCP", "AHPRA", /\bAustralia\b/i] },
+  { key: "university_masters",  label: "University / Masters",     emoji: "🎓", color: "bg-violet-500",   keywords: ["University Programs", "Masters", "Post-Graduate", /\bPG\b/] },
+  { key: "mbbs_ug",             label: "MBBS / Undergrad",         emoji: "📚", color: "bg-blue-500",     keywords: ["MBBS", /\bUG\b/, "Study Abroad"] },
+  { key: "walk_in",             label: "Walk-in / Events",         emoji: "📍", color: "bg-amber-500",    keywords: ["Walk-in", "Walk in", "State-wise"] },
+  { key: "als",                 label: "ALS Certification",        emoji: "❤️", color: "bg-rose-500",     keywords: ["ALS"] },
+  { key: "samvaya",             label: "Samvaya Matrimony",        emoji: "💍", color: "bg-pink-500",     keywords: ["Samvaya", "Matrimony"] },
+  { key: "traffic_boost",       label: "Traffic / Boosted Posts",  emoji: "📣", color: "bg-teal-500",     keywords: ["Traffic Ads", "Instagram post:", "Boosted"] },
+];
+
+function classifyCampaign(name: string): InterestDef {
+  for (const def of INTERESTS) {
+    for (const kw of def.keywords) {
+      const matched = typeof kw === "string" ? name.toLowerCase().includes(kw.toLowerCase()) : kw.test(name);
+      if (matched) return def;
+    }
+  }
+  return { key: "other", label: "Other / Unclassified", emoji: "❓", color: "bg-gray-400", keywords: [] };
+}
+
 function CampaignsTable({ campaigns, onSelect, showLeads }: { campaigns: Campaign[]; onSelect: (c: Campaign) => void; showLeads: boolean }) {
-  // Top performer = lowest cost-per-lead if leads exist, else highest CTR
+  // Top performer overall = lowest cost-per-lead if leads exist, else highest CTR
   const topId = campaigns.length > 0 ? campaigns
     .filter((c) => showLeads ? c.leads > 0 : c.impressions > 1000)
     .sort((a, b) => showLeads ? a.costPerLead - b.costPerLead : b.ctr - a.ctr)[0]?.campaign_id : null;
 
+  // Group campaigns by primary interest, then sort groups by total spend (biggest first)
+  const groups = new Map<string, { def: InterestDef; campaigns: Campaign[] }>();
+  for (const c of campaigns) {
+    const def = classifyCampaign(c.campaign_name);
+    const g = groups.get(def.key);
+    if (g) g.campaigns.push(c);
+    else groups.set(def.key, { def, campaigns: [c] });
+  }
+  const orderedGroups = Array.from(groups.values())
+    .map((g) => ({
+      ...g,
+      totals: g.campaigns.reduce(
+        (acc, c) => ({
+          spend: acc.spend + c.spend,
+          impressions: acc.impressions + c.impressions,
+          leads: acc.leads + c.leads,
+          reach: acc.reach + c.reach,
+        }),
+        { spend: 0, impressions: 0, leads: 0, reach: 0 },
+      ),
+    }))
+    .sort((a, b) => b.totals.spend - a.totals.spend);
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <div className="text-sm font-medium">Campaigns ({campaigns.length})</div>
+        <div className="text-sm font-medium">
+          Campaigns by primary interest
+          <span className="text-gray-400 font-normal"> ({orderedGroups.length} groups · {campaigns.length} campaigns)</span>
+        </div>
         <div className="text-xs text-gray-500">Click a row to see its ads</div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <tr>
-              <th className="text-left px-5 py-3 font-medium">Campaign</th>
-              <th className="text-right px-3 py-3 font-medium">Spend</th>
-              <th className="text-right px-3 py-3 font-medium">Impressions</th>
-              {showLeads && <th className="text-right px-3 py-3 font-medium">Leads</th>}
-              {showLeads && <th className="text-right px-3 py-3 font-medium">Cost/Lead</th>}
-              <th className="text-right px-3 py-3 font-medium">CPC</th>
-              <th className="text-right px-5 py-3 font-medium">CTR</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {campaigns.length === 0 && (
-              <tr><td colSpan={showLeads ? 7 : 5} className="px-5 py-6 text-center text-gray-400">No campaigns in this range.</td></tr>
-            )}
-            {campaigns.map((c) => (
-              <tr
-                key={c.campaign_id}
-                onClick={() => onSelect(c)}
-                className="hover:bg-brand-light cursor-pointer transition"
-              >
-                <td className="px-5 py-3 max-w-xs truncate" title={c.campaign_name}>
-                  {c.campaign_id === topId && <span className="mr-1" title="Top performer">🏆</span>}
-                  <span className="text-brand hover:underline">{c.campaign_name}</span>
-                </td>
-                <td className="px-3 py-3 text-right font-medium">{fmtINR(c.spend)}</td>
-                <td className="px-3 py-3 text-right">{fmtNum(c.impressions)}</td>
-                {showLeads && <td className="px-3 py-3 text-right">{c.leads > 0 ? fmtNum(c.leads) : "—"}</td>}
-                {showLeads && <td className="px-3 py-3 text-right">{c.costPerLead > 0 ? fmtINR(c.costPerLead) : "—"}</td>}
-                <td className="px-3 py-3 text-right">{fmtINR(c.cpc)}</td>
-                <td className="px-5 py-3 text-right">{c.ctr.toFixed(2)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="divide-y divide-gray-100">
+        {orderedGroups.map((g) => (
+          <InterestGroup
+            key={g.def.key}
+            def={g.def}
+            totals={g.totals}
+            campaigns={g.campaigns}
+            topId={topId}
+            onSelect={onSelect}
+            showLeads={showLeads}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+function InterestGroup({
+  def, totals, campaigns, topId, onSelect, showLeads,
+}: {
+  def: InterestDef;
+  totals: { spend: number; impressions: number; leads: number; reach: number };
+  campaigns: Campaign[];
+  topId: string | null;
+  onSelect: (c: Campaign) => void;
+  showLeads: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const cpl = totals.leads > 0 ? totals.spend / totals.leads : 0;
+  return (
+    <div>
+      {/* Group header — clickable to collapse */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}
+        className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer transition"
+      >
+        <span className={`inline-block w-1.5 h-8 rounded-full ${def.color}`} />
+        <div className="text-lg">{def.emoji}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-gray-900">{def.label}</div>
+          <div className="text-[11px] text-gray-500">{campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}</div>
+        </div>
+        <div className="flex items-baseline gap-5 text-xs">
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Spend</div>
+            <div className="font-semibold text-gray-900">{fmtINR(totals.spend)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Impressions</div>
+            <div className="font-semibold text-gray-900">{fmtNum(totals.impressions)}</div>
+          </div>
+          {showLeads && (
+            <>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-gray-500">Leads</div>
+                <div className="font-semibold text-gray-900">{totals.leads > 0 ? fmtNum(totals.leads) : "—"}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-gray-500">Cost/Lead</div>
+                <div className="font-semibold text-gray-900">{cpl > 0 ? fmtINR(cpl) : "—"}</div>
+              </div>
+            </>
+          )}
+          <div className="text-gray-400 pl-2 text-lg select-none">{expanded ? "▾" : "▸"}</div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="overflow-x-auto bg-gray-50/50">
+          <table className="w-full text-sm">
+            <thead className="text-[10px] text-gray-500 uppercase">
+              <tr>
+                <th className="text-left px-5 py-2 font-medium">Campaign</th>
+                <th className="text-right px-3 py-2 font-medium">Spend</th>
+                <th className="text-right px-3 py-2 font-medium">Impressions</th>
+                {showLeads && <th className="text-right px-3 py-2 font-medium">Leads</th>}
+                {showLeads && <th className="text-right px-3 py-2 font-medium">Cost/Lead</th>}
+                <th className="text-right px-3 py-2 font-medium">CPC</th>
+                <th className="text-right px-5 py-2 font-medium">CTR</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {campaigns.map((c) => (
+                <tr
+                  key={c.campaign_id}
+                  onClick={() => onSelect(c)}
+                  className="hover:bg-brand-light cursor-pointer transition"
+                >
+                  <td className="px-5 py-2.5 max-w-xs truncate" title={c.campaign_name}>
+                    {c.campaign_id === topId && <span className="mr-1" title="Top performer">🏆</span>}
+                    <span className="text-brand hover:underline">{c.campaign_name}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-medium">{fmtINR(c.spend)}</td>
+                  <td className="px-3 py-2.5 text-right">{fmtNum(c.impressions)}</td>
+                  {showLeads && <td className="px-3 py-2.5 text-right">{c.leads > 0 ? fmtNum(c.leads) : "—"}</td>}
+                  {showLeads && <td className="px-3 py-2.5 text-right">{c.costPerLead > 0 ? fmtINR(c.costPerLead) : "—"}</td>}
+                  <td className="px-3 py-2.5 text-right">{fmtINR(c.cpc)}</td>
+                  <td className="px-5 py-2.5 text-right">{c.ctr.toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
