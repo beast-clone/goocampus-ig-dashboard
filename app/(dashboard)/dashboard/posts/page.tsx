@@ -29,6 +29,13 @@ const TYPE_LABEL: Record<string, string> = {
   REEL: "Reel",
 };
 
+const TYPE_ICON: Record<string, string> = {
+  IMAGE: "◻",
+  VIDEO: "▶",
+  CAROUSEL_ALBUM: "◫",
+  REEL: "🎬",
+};
+
 export default function PostsPage() {
   return (
     <DashboardShell title="Posts">
@@ -43,6 +50,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
   // Progressive insights loading: track which post IDs have had their reach/eng fetched yet
   const [insightsLoaded, setInsightsLoaded] = useState<Set<string>>(new Set());
   const [insightsProgress, setInsightsProgress] = useState<{ done: number; total: number } | null>(null);
+  const [selectedPost, setSelectedPost] = useState<ApiPost | null>(null);
 
   // Phase 1: cached list fetch via SWR (instant on repeat visits)
   const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, insights: "false" }).toString();
@@ -132,15 +140,76 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
   const avgEng = totalPosts ? Math.round(posts.reduce((s, p) => s + p.totalInteractions, 0) / totalPosts) : 0;
   const top = posts.reduce((best, p) => (p.reach > (best?.reach ?? 0) ? p : best), posts[0]);
 
+  // Rate metrics — computed only from posts whose insights have already loaded so a
+  // half-fetched batch doesn't drag the averages toward zero. Weighted (sum/sum) rather
+  // than mean-of-per-post ratios, which is the standard way Instagram / Later / Metricool
+  // compute these — protects the number from being skewed by one tiny-reach post.
+  const withInsights = posts.filter((p) => insightsLoaded.has(p.id) && p.reach > 0);
+  const insightsCount = withInsights.length;
+  const sumReach = withInsights.reduce((s, p) => s + p.reach, 0);
+  const sumEng = withInsights.reduce((s, p) => s + p.totalInteractions, 0);
+  const sumSaves = withInsights.reduce((s, p) => s + p.saves, 0);
+  const sumShares = withInsights.reduce((s, p) => s + p.shares, 0);
+  const engagementRate = sumReach > 0 ? (sumEng / sumReach) * 100 : 0;
+  const saveRate = sumReach > 0 ? (sumSaves / sumReach) * 100 : 0;
+  const shareRate = sumReach > 0 ? (sumShares / sumReach) * 100 : 0;
+  const avgCommentsPerPost = totalPosts ? Math.round(posts.reduce((s, p) => s + p.comments, 0) / totalPosts) : 0;
+
+  // Compute a single top post for each rolling time window ending today. Uses REACH as the
+  // "top" metric — matches how the existing 🏆 trophy in the table picks the winner. Falls
+  // back to null when no post from that window has landed insights yet.
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  function pickTop(withinDays: number): ApiPost | null {
+    const cutoff = now - withinDays * DAY;
+    const eligible = posts.filter((p) => new Date(p.timestamp).getTime() >= cutoff && insightsLoaded.has(p.id) && p.reach > 0);
+    if (eligible.length === 0) return null;
+    return eligible.reduce((b, p) => (p.reach > b.reach ? p : b), eligible[0]);
+  }
+  const topToday = pickTop(1);
+  const topWeek = pickTop(7);
+  const topMonth = pickTop(30);
+
   return (
     <>
       <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <MetricCard label="Posts (recent)" value={totalPosts} />
-        <MetricCard label="Avg Reach / post" value={avgReach.toLocaleString()} />
-        <MetricCard label="Avg Engagement" value={avgEng.toLocaleString()} />
-        <MetricCard label="Top performer" value={top?.caption.slice(0, 18) + "…"} />
+      {/* Compact single row — 7 metric tiles side-by-side on desktop, wraps on smaller
+          screens. Uses the local MiniStat component (below) so the type stays tight
+          and doesn't inherit the large font/padding of the standard MetricCard. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        <MiniStat label="Posts" value={totalPosts.toLocaleString("en-IN")} />
+        <MiniStat label="Avg Reach" value={avgReach.toLocaleString("en-IN")} />
+        <MiniStat label="Avg Engagement" value={avgEng.toLocaleString("en-IN")} />
+        <MiniStat label="Engagement Rate" value={insightsCount > 0 ? `${engagementRate.toFixed(2)}%` : "…"} />
+        <MiniStat label="Avg Comments" value={avgCommentsPerPost.toLocaleString("en-IN")} />
+        <MiniStat label="Save Rate" value={insightsCount > 0 ? `${saveRate.toFixed(2)}%` : "…"} />
+        <MiniStat label="Share Rate" value={insightsCount > 0 ? `${shareRate.toFixed(2)}%` : "…"} />
       </div>
+
+      {/* Top performers by rolling window. Only windows that actually have a post are
+          rendered — no more empty "Today" card when nothing was posted in the last 24h.
+          Also skips repeat entries (if today's top is also the week's top). */}
+      {(topToday || topWeek || topMonth) && (() => {
+        const winners: Array<{ label: string; post: ApiPost }> = [];
+        if (topToday) winners.push({ label: "Today", post: topToday });
+        if (topWeek && topWeek.id !== topToday?.id) winners.push({ label: "This week", post: topWeek });
+        if (topMonth && topMonth.id !== topToday?.id && topMonth.id !== topWeek?.id) winners.push({ label: "This month", post: topMonth });
+        if (winners.length === 0) return null;
+        const cols = winners.length === 1 ? "md:grid-cols-1" : winners.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+            <div className="px-5 py-3 border-b border-gray-100 text-sm font-medium flex items-center justify-between">
+              <div>🏆 Top performers <span className="text-gray-400 font-normal">by reach</span></div>
+              {insightsProgress && (
+                <span className="text-xs text-brand">loading engagement {insightsProgress.done}/{insightsProgress.total}</span>
+              )}
+            </div>
+            <div className={`grid grid-cols-1 ${cols} divide-y md:divide-y-0 md:divide-x divide-gray-100`}>
+              {winners.map((w) => <TopPerformerCard key={w.label} label={w.label} post={w.post} />)}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -166,50 +235,37 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
             </select>
           </div>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 uppercase">
-              <th className="px-5 py-3">Post</th>
-              <th className="px-3 py-3">Type</th>
-              <th className="px-3 py-3">Date</th>
-              <th className="px-3 py-3 text-right">Reach</th>
-              <th className="px-3 py-3 text-right">Likes</th>
-              <th className="px-3 py-3 text-right">Comments</th>
-              <th className="px-3 py-3 text-right">Shares</th>
-              <th className="px-3 py-3 text-right">Saves</th>
-              <th className="px-5 py-3 text-right">Engagement</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 && (
-              <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500">No posts match this filter.</td></tr>
-            )}
+        {/* Instagram-style card grid — 4 cols on desktop, 3 on medium, 2 on small, 1 on mobile. */}
+        {sorted.length === 0 ? (
+          <div className="py-16 text-center text-sm text-gray-500">No posts match this filter.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
             {sorted.map((p) => (
-              <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
-                <td className="px-5 py-3">
-                  <a href={p.permalink} target="_blank" className="flex items-center gap-3 group">
-                    {p.mediaUrl ? (
-                      <img src={p.mediaUrl} alt="" className="w-10 h-10 object-cover rounded-lg" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-xs">{TYPE_LABEL[p.type]?.[0]}</div>
-                    )}
-                    <div className="truncate max-w-xs group-hover:text-brand">{p.caption?.slice(0, 60) || "(no caption)"}{p.caption?.length > 60 ? "…" : ""}</div>
-                  </a>
-                </td>
-                <td className="px-3 py-3 text-xs text-gray-600">{TYPE_LABEL[p.type] ?? p.type}</td>
-                <td className="px-3 py-3 text-xs text-gray-600">{format(parseISO(p.timestamp), "MMM d")}</td>
-                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.reach.toLocaleString() : <span className="text-gray-300">···</span>}</td>
-                <td className="px-3 py-3 text-right">{p.likes.toLocaleString()}</td>
-                <td className="px-3 py-3 text-right">{p.comments}</td>
-                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.shares : <span className="text-gray-300">···</span>}</td>
-                <td className="px-3 py-3 text-right">{insightsLoaded.has(p.id) ? p.saves : <span className="text-gray-300">···</span>}</td>
-                <td className="px-5 py-3 text-right font-medium">{insightsLoaded.has(p.id) ? p.totalInteractions.toLocaleString() : <span className="text-gray-300">···</span>}</td>
-              </tr>
+              <PostCard
+                key={p.id}
+                post={p}
+                isTop={p.id === top?.id}
+                insightsLoaded={insightsLoaded.has(p.id)}
+                onClick={() => setSelectedPost(p)}
+              />
             ))}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
+
+      {selectedPost && <PostDetailModal post={selectedPost} insightsLoaded={insightsLoaded.has(selectedPost.id)} onClose={() => setSelectedPost(null)} />}
     </>
+  );
+}
+
+// Compact metric tile used in the single-row headline strip. Kept intentionally smaller
+// than the shared MetricCard so all 7 fit horizontally on desktop without wrapping.
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2.5">
+      <div className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
+      <div className="text-lg font-bold text-gray-900 tabular-nums leading-tight mt-0.5 truncate">{value}</div>
+    </div>
   );
 }
 
@@ -218,5 +274,220 @@ function ErrorBox({ msg }: { msg: string }) {
     <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">
       Couldn’t load posts: {msg}
     </div>
+  );
+}
+
+// Instagram-style card. Square thumbnail with an aspect-ratio wrapper so no cropping
+// surprises. Type badge in the top-left, trophy in the top-right for the overall winner.
+// Bottom strip shows caption preview + the four core numbers.
+function PostCard({ post, isTop, insightsLoaded, onClick }: {
+  post: ApiPost;
+  isTop: boolean;
+  insightsLoaded: boolean;
+  onClick: () => void;
+}) {
+  const engagement = post.totalInteractions || (post.likes + post.comments);
+  const dash = <span className="text-gray-300">···</span>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-brand hover:shadow-md transition group"
+    >
+      {/* Thumbnail — 1:1 square */}
+      <div className="relative bg-gray-100 aspect-square overflow-hidden">
+        {post.mediaUrl ? (
+          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+            {TYPE_ICON[post.type] ?? "?"}
+          </div>
+        )}
+        {/* Type badge (top-left) */}
+        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span>{TYPE_ICON[post.type] ?? ""}</span>
+          <span>{TYPE_LABEL[post.type] ?? post.type}</span>
+        </div>
+        {isTop && (
+          <div className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+            🏆 Top
+          </div>
+        )}
+      </div>
+
+      {/* Meta strip */}
+      <div className="p-3 space-y-2">
+        <div className="text-[10px] text-gray-500 uppercase tracking-wide">
+          {format(parseISO(post.timestamp), "d MMM yyyy")}
+        </div>
+        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
+          {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
+        </div>
+        {/* Quick stats — 4 columns */}
+        <div className="grid grid-cols-4 gap-1 pt-2 border-t border-gray-100 text-center">
+          <Stat icon="👁" label="Reach" value={insightsLoaded ? shortNum(post.reach) : dash} />
+          <Stat icon="❤" label="Likes" value={shortNum(post.likes)} />
+          <Stat icon="💬" label="Comm" value={shortNum(post.comments)} />
+          <Stat icon="✨" label="Eng" value={insightsLoaded ? shortNum(engagement) : dash} />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function Stat({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] text-gray-500" title={label}>{icon}</div>
+      <div className="text-[11px] font-semibold text-gray-900 tabular-nums leading-tight">{value}</div>
+    </div>
+  );
+}
+
+function shortNum(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString("en-IN");
+}
+
+// Full-detail modal shown when a card is clicked. Big thumbnail on the left, full
+// caption + every metric on the right. Also has a "View on Instagram" link that opens
+// the actual post so the user can see comments / do actions there.
+function PostDetailModal({ post, insightsLoaded, onClose }: {
+  post: ApiPost;
+  insightsLoaded: boolean;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const engagement = post.totalInteractions || (post.likes + post.comments);
+  const engRate = post.reach > 0 ? ((engagement / post.reach) * 100).toFixed(2) : "0.00";
+  const dash = <span className="text-gray-300">—</span>;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
+        {/* LEFT — thumbnail */}
+        <div className="md:w-1/2 bg-black flex items-center justify-center min-h-[300px]">
+          {post.mediaUrl ? (
+            <img src={post.mediaUrl} alt="" className="max-w-full max-h-[80vh] object-contain" />
+          ) : (
+            <div className="text-white text-6xl">{TYPE_ICON[post.type] ?? "?"}</div>
+          )}
+        </div>
+
+        {/* RIGHT — details */}
+        <div className="md:w-1/2 flex flex-col overflow-y-auto">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{TYPE_LABEL[post.type] ?? post.type}</span>
+              <span className="text-xs text-gray-500">{format(parseISO(post.timestamp), "d MMM yyyy · h:mm a")}</span>
+            </div>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
+          </div>
+
+          <div className="px-5 py-4 space-y-4">
+            {/* Full caption */}
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Caption</div>
+              <div className="text-sm text-gray-900 whitespace-pre-wrap break-words leading-relaxed">
+                {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
+              </div>
+            </div>
+
+            {/* Metrics grid */}
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-2">Performance</div>
+              <div className="grid grid-cols-2 gap-3">
+                <MetricRow label="Reach" value={insightsLoaded ? post.reach.toLocaleString("en-IN") : dash} />
+                <MetricRow label="Engagement" value={insightsLoaded ? engagement.toLocaleString("en-IN") : dash} />
+                <MetricRow label="Likes" value={post.likes.toLocaleString("en-IN")} />
+                <MetricRow label="Comments" value={post.comments.toLocaleString("en-IN")} />
+                <MetricRow label="Shares" value={insightsLoaded ? post.shares.toLocaleString("en-IN") : dash} />
+                <MetricRow label="Saves" value={insightsLoaded ? post.saves.toLocaleString("en-IN") : dash} />
+                {post.views !== undefined && <MetricRow label="Views" value={insightsLoaded ? post.views.toLocaleString("en-IN") : dash} />}
+                <MetricRow label="Engagement rate" value={insightsLoaded ? `${engRate}%` : dash} />
+              </div>
+            </div>
+
+            {/* Open on Instagram */}
+            <a href={post.permalink} target="_blank" rel="noopener noreferrer"
+              className="block w-full text-center px-4 py-2.5 bg-brand text-white rounded-lg hover:bg-brand-dark text-sm font-medium transition">
+              Open on Instagram ↗
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="bg-gray-50 rounded-lg px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-base font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+// One card = the top post for a rolling window (Today / This week / This month).
+// Renders a compact preview so three fit side-by-side without scrolling on desktop.
+function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null }) {
+  if (!post) {
+    return (
+      <div className="p-4">
+        <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-2">{label}</div>
+        <div className="text-xs text-gray-400 italic py-6 text-center">
+          Waiting for insights…
+        </div>
+      </div>
+    );
+  }
+  const engagement = post.totalInteractions || (post.likes + post.comments);
+  return (
+    <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="block p-4 hover:bg-gray-50 transition group">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">{label}</div>
+        <div className="text-[9px] uppercase tracking-wide bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 font-semibold">
+          Top by reach
+        </div>
+      </div>
+      <div className="flex gap-3">
+        {post.mediaUrl ? (
+          <img src={post.mediaUrl} alt="" className="w-16 h-16 object-cover rounded-lg shrink-0" />
+        ) : (
+          <div className="w-16 h-16 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-xs text-gray-500">
+            {TYPE_LABEL[post.type]?.[0] ?? "?"}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-gray-500">
+            {TYPE_LABEL[post.type] ?? post.type} · {format(parseISO(post.timestamp), "d MMM")}
+          </div>
+          <div className="text-xs text-gray-900 leading-snug mt-0.5 line-clamp-2 group-hover:text-brand">
+            {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
+        <div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Reach</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Likes</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Engage</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
+        </div>
+      </div>
+    </a>
   );
 }
