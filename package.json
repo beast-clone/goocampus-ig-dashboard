@@ -11,7 +11,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@supabase/supabase-js": "^2.108.2",
+    "@types/d3-geo": "^3.1.0",
+    "@types/react-simple-maps": "^3.0.6",
     "clsx": "^2.1.1",
+    "d3-geo": "^3.1.1",
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -19,6 +22,7 @@
     "openai": "^6.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-simple-maps": "^3.0.0",
     "recharts": "^2.13.3",
     "swr": "^2.4.2"
   },

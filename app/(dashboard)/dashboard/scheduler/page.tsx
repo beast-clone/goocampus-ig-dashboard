@@ -75,6 +75,14 @@ function Scheduler() {
   const [publishToPage, setPublishToPage] = useState<PublishToPage>("GooCampus Main");
   const [publishTo, setPublishTo] = useState<PublishTo>("Instagram/Facebook");
   const [caption, setCaption] = useState("");
+  // Content brief — the topic the post is about. Feeds the AI caption suggester
+  // so the model can write ON topic instead of averaging tone from mixed past posts.
+  const [contentBrief, setContentBrief] = useState("");
+  // Suggestion state — 3 variants from OpenAI, only fetched on button click.
+  type SuggestVariant = { kind: "tone" | "seo" | "punchy"; caption: string; hashtags: string[]; prediction: Prediction | null };
+  const [suggestions, setSuggestions] = useState<SuggestVariant[] | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<string[]>([""]);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -293,6 +301,19 @@ function Scheduler() {
                 />
                 <div className="text-[10px] text-gray-400 mt-1">For your team — not shown on Instagram.</div>
               </div>
+              {/* Content brief — topic anchor for the AI caption suggester */}
+              <div>
+                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">📝 What&apos;s this post about? <span className="normal-case text-gray-400 font-normal">(optional — helps AI write better captions)</span></label>
+                <textarea
+                  value={contentBrief}
+                  onChange={(e) => setContentBrief(e.target.value)}
+                  placeholder="e.g. New AMC Part 1 syllabus changes for 2026 IMG candidates, focus on OSCE additions and 3-month study plan"
+                  rows={2}
+                  className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
+                />
+                <div className="text-[10px] text-gray-400 mt-1">Never sent to Instagram — this is just for you and the AI suggester.</div>
+              </div>
+
               <div>
                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
                 <textarea
@@ -307,7 +328,41 @@ function Scheduler() {
                   <span>{caption.length} / 2200</span>
                 </div>
 
-                {/* Prediction overlay */}
+                {/* AI suggest button + variants panel */}
+                <AISuggestBar
+                  brand={publishToPage}
+                  contentBrief={contentBrief}
+                  caption={caption}
+                  suggestions={suggestions}
+                  loading={suggestLoading}
+                  error={suggestError}
+                  onFetch={async () => {
+                    setSuggestError(null);
+                    setSuggestLoading(true);
+                    try {
+                      const r = await fetch("/api/scheduler/suggest-caption", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ publishToPage, contentBrief, currentCaption: caption }),
+                      });
+                      const d = await r.json();
+                      if (!r.ok) { setSuggestError(d.error || `HTTP ${r.status}`); setSuggestions(null); }
+                      else { setSuggestions((d.variants as SuggestVariant[]) || []); }
+                    } catch (e) { setSuggestError((e as Error).message); }
+                    finally { setSuggestLoading(false); }
+                  }}
+                  onUse={(v) => {
+                    // Merge caption + hashtags (only append hashtags not already inline)
+                    const captionText = v.caption;
+                    const inlineTags = new Set((captionText.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.toLowerCase()));
+                    const extras = v.hashtags.filter((h) => !inlineTags.has("#" + h.toLowerCase()));
+                    setCaption(extras.length > 0 ? `${captionText}\n\n${extras.map((h) => "#" + h).join(" ")}` : captionText);
+                    setSuggestions(null);
+                  }}
+                  onDismiss={() => setSuggestions(null)}
+                />
+
+                {/* Existing reach-prediction overlay (as-you-type) */}
                 {caption.trim().length > 0 && (
                   <PredictionPanel
                     loading={predictionLoading}
@@ -670,6 +725,119 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
       </div>
     </div>
   );
+}
+
+// AI caption suggester UI — button first, 3 variant cards when suggestions arrive.
+// No auto-trigger; the user is always in control. Cards support "Use this" which
+// replaces the caption + appends any missing hashtags, or "Dismiss" to hide the row.
+function AISuggestBar({
+  brand, contentBrief, caption, suggestions, loading, error, onFetch, onUse, onDismiss,
+}: {
+  brand: string;
+  contentBrief: string;
+  caption: string;
+  suggestions: Array<{ kind: "tone" | "seo" | "punchy"; caption: string; hashtags: string[]; prediction: Prediction | null }> | null;
+  loading: boolean;
+  error: string | null;
+  onFetch: () => void;
+  onUse: (v: { kind: "tone" | "seo" | "punchy"; caption: string; hashtags: string[]; prediction: Prediction | null }) => void;
+  onDismiss: () => void;
+}) {
+  const canFetch = contentBrief.trim().length >= 10 && !loading;
+  const kindMeta: Record<string, { emoji: string; label: string; sub: string }> = {
+    tone: { emoji: "✏️", label: "Tone-matched", sub: "matches your usual voice" },
+    seo: { emoji: "🎯", label: "SEO-optimized", sub: "search-friendly wording" },
+    punchy: { emoji: "⚡", label: "Punchier", sub: "shorter, hook-forward" },
+  };
+  void caption; // reserved for future "compare vs your draft" chip
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={onFetch}
+          disabled={!canFetch}
+          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+            canFetch
+              ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+          title={contentBrief.trim().length < 10 ? "Fill in the 'What's this post about?' field first" : "Generate 3 caption variants"}
+        >
+          {loading ? "✨ Thinking…" : "✨ Get 3 AI caption variants"}
+        </button>
+        {!canFetch && contentBrief.trim().length < 10 && (
+          <span className="text-[10px] text-gray-500">Add a topic in &ldquo;What&apos;s this post about?&rdquo; to enable</span>
+        )}
+        {suggestions && suggestions.length > 0 && (
+          <button type="button" onClick={onDismiss} className="text-[11px] text-gray-500 hover:text-gray-800 underline">
+            Dismiss suggestions
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          Suggestion failed: {error}
+        </div>
+      )}
+
+      {suggestions && suggestions.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {suggestions.map((v, i) => {
+            const meta = kindMeta[v.kind] || { emoji: "🪄", label: v.kind, sub: "" };
+            return (
+              <div key={i} className="bg-white border border-violet-200 rounded-xl p-3 flex flex-col shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">{meta.emoji}</span>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-900">{meta.label}</div>
+                    <div className="text-[10px] text-gray-500">{meta.sub}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-800 whitespace-pre-wrap break-words leading-snug flex-1 mb-2 max-h-56 overflow-y-auto">
+                  {v.caption}
+                </div>
+                {v.hashtags.length > 0 && (
+                  <div className="text-[11px] text-violet-700 mb-2 leading-snug">
+                    {v.hashtags.slice(0, 8).map((h) => "#" + h).join(" ")}
+                  </div>
+                )}
+                {v.prediction && v.prediction.basis !== "no-data" && (
+                  <div className="bg-violet-50 rounded-lg px-2.5 py-1.5 mb-2 text-[11px] text-violet-900">
+                    📈 <b>Expected reach ~{v.prediction.avgReach.toLocaleString("en-IN")}</b>
+                    <div className="text-[10px] text-violet-700/80 leading-snug">
+                      {v.prediction.basis === "hashtag-overlap" && "strong hashtag match with past posts"}
+                      {v.prediction.basis === "topic-keyword" && `topic match on ${v.prediction.matchedPosts} past post${v.prediction.matchedPosts === 1 ? "" : "s"}`}
+                      {v.prediction.basis === "recent-avg" && "baseline: last 10 posts on this account"}
+                    </div>
+                  </div>
+                )}
+                {v.prediction?.basis === "no-data" && (
+                  <div className="text-[11px] text-gray-500 mb-2">No past-post data yet to score this variant.</div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onUse(v)}
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-brand text-white font-medium hover:bg-brand-dark transition"
+                >
+                  Use this caption
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {loading && !suggestions && (
+        <div className="text-[11px] text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+          Reading your recent captions + generating 3 variants…
+        </div>
+      )}
+    </div>
+  );
+  void brand; // brand is used indirectly by parent's onFetch; keep for future signature changes
 }
 
 function PredictionPanel({ loading, prediction, onAddHashtag }: {
