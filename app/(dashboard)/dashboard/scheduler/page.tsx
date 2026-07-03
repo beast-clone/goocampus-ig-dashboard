@@ -10,9 +10,18 @@ type ScheduledPost = {
   id: string;
   particulars: string;
   publishToPage: string;
+  primaryInterest: string;
+  platform: string;
+  type: string;
   caption: string;
+  fullCaption: string;
+  igCaption: string;
+  fbCaption: string;
+  thumbnailUrl: string | null;
   scheduleTime: string | null;
   status: string;
+  effectiveStatus: "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
+  failureReason: string | null;
   instagramUrl: string | null;
   facebookUrl: string | null;
   publishedAt: string | null;
@@ -100,11 +109,35 @@ function Scheduler() {
   const [topModalOpen, setTopModalOpen] = useState(false);
   const [topLoading, setTopLoading] = useState(false);
 
-  // Queue
+  // Queue + queue-view state
   const [queue, setQueue] = useState<ScheduledPost[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueFetchedAt, setQueueFetchedAt] = useState<number | null>(null);
   const [queueLatency, setQueueLatency] = useState<number | null>(null);
+
+  // Show the create-post form as a modal overlay so it doesn't dominate the tab.
+  // The queue-management view is the primary content now.
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  // Filters for the queue
+  const [filterPage, setFilterPage] = useState<string>("all");
+  const [filterInterest, setFilterInterest] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  // Per-row inline editing state
+  const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null);
+  const [editingCaptionText, setEditingCaptionText] = useState<string>("");
+  const [captionSaving, setCaptionSaving] = useState(false);
+  const [rowActionId, setRowActionId] = useState<string | null>(null); // shows spinner on the row being acted on
+  // Schedule-now modal — set to a post when the user clicks the button on a queue card.
+  const [scheduleModalPost, setScheduleModalPost] = useState<ScheduledPost | null>(null);
+
+  // Real published IG posts (last 20) — shown alongside scheduled posts in the Content Calendar
+  const [publishedIG, setPublishedIG] = useState([] as PublishedIG[]);
+  useEffect(() => {
+    fetch("/api/posts?accountId=goocampus&limit=20&insights=false")
+      .then((r) => r.ok ? r.json() : { posts: [] })
+      .then((d) => setPublishedIG(d.posts || []))
+      .catch(() => {});
+  }, []);
 
   const loadQueue = () => {
     setQueueLoading(true);
@@ -240,21 +273,255 @@ function Scheduler() {
   const previewHandle = publishToPage === "GooCampus Main" ? "goocampus" :
                         publishToPage === "GooCampus World" ? "goocampusworld" : "12thplusdotcom";
 
+  // Filter derived data for the queue view — computed here so we can also use it for
+  // the status-counter strip.
+  const queueFiltered = queue.filter((p) => {
+    if (filterPage !== "all" && p.publishToPage !== filterPage) return false;
+    if (filterInterest !== "all" && p.primaryInterest !== filterInterest) return false;
+    if (filterStatus !== "all" && p.effectiveStatus !== filterStatus) return false;
+    return true;
+  });
+  const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled");
+  const publishing = queueFiltered.filter((p) => p.effectiveStatus === "publishing");
+  const failed = queueFiltered.filter((p) => p.effectiveStatus === "failed");
+  const publishedRecent = queueFiltered
+    .filter((p) => p.effectiveStatus === "published")
+    .sort((a, b) => new Date(b.publishedAt || b.scheduleTime || 0).getTime() - new Date(a.publishedAt || a.scheduleTime || 0).getTime())
+    .slice(0, 20);
+  // Populate filter dropdown options from the actual data so we don't hardcode.
+  const availablePages = Array.from(new Set(queue.map((p) => p.publishToPage).filter(Boolean))).sort();
+  const availableInterests = Array.from(new Set(queue.map((p) => p.primaryInterest).filter(Boolean))).sort();
+
+  async function handleReschedule(recordId: string, iso: string) {
+    setRowActionId(recordId);
+    try {
+      const r = await fetch("/api/scheduler/reschedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId, scheduleTime: iso }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) alert(`Reschedule failed: ${d.error || "HTTP " + r.status}`);
+      else loadQueue();
+    } finally { setRowActionId(null); }
+  }
+  async function handlePublishNow(recordId: string) {
+    if (!confirm("Publish this post right now (within ~1 min)?")) return;
+    setRowActionId(recordId);
+    try {
+      const r = await fetch("/api/scheduler/publish-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) alert(`Publish failed: ${d.error || "HTTP " + r.status}`);
+      else loadQueue();
+    } finally { setRowActionId(null); }
+  }
+  async function handleSaveCaption() {
+    if (!editingCaptionId) return;
+    setCaptionSaving(true);
+    try {
+      const r = await fetch("/api/scheduler/edit-caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: editingCaptionId, caption: editingCaptionText }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) alert(`Caption update failed: ${d.error || "HTTP " + r.status}`);
+      else { setEditingCaptionId(null); setEditingCaptionText(""); loadQueue(); }
+    } finally { setCaptionSaving(false); }
+  }
+
   return (
     <>
-      {/* Repost-top-performer call-to-action */}
-      <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200 rounded-2xl px-4 py-2.5">
-        <div className="text-xs text-violet-900">
-          <span className="font-medium">💡 Want to start from a winner?</span>{" "}
-          <span className="text-violet-700">Pull a top-performing post from the last 90 days and tweak.</span>
+      {/* Header — queue actions strip */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">Post queue</div>
+            <div className="text-[11px] text-gray-500">
+              Live from your Post Scheduler Airtable table. Fetched <span className="font-medium text-gray-700">{queue.length}</span> row{queue.length === 1 ? "" : "s"} — statuses:{" "}
+              {queue.length === 0 ? "—" : Object.entries(queue.reduce((acc: Record<string, number>, p) => { const k = `${p.status || "?"} → ${p.effectiveStatus}`; acc[k] = (acc[k] || 0) + 1; return acc; }, {})).map(([k, v]) => `${k} ×${v}`).join(", ")}
+            </div>
+          </div>
+          <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
         </div>
-        <button
-          onClick={openTopPerformers}
-          className="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700"
-        >
-          ↻ Pick top performer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openTopPerformers}
+            className="text-xs font-medium bg-white text-violet-700 border border-violet-200 px-3 py-1.5 rounded-lg hover:bg-violet-50"
+          >
+            ↻ Pick top performer
+          </button>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark"
+          >
+            + Add post
+          </button>
+        </div>
       </div>
+
+      {/* Status counters */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <StatusCounter label="Ready to schedule" count={readyToSchedule.length} color="amber" />
+        <StatusCounter label="Publishing" count={publishing.length} color="blue" />
+        <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" />
+        <StatusCounter label="Failed" count={failed.length} color="rose" />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+        <span className="text-gray-500 uppercase tracking-wide font-medium mr-1">Filter:</span>
+        <select value={filterPage} onChange={(e) => setFilterPage(e.target.value)}
+          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
+          <option value="all">All accounts</option>
+          {availablePages.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select value={filterInterest} onChange={(e) => setFilterInterest(e.target.value)}
+          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
+          <option value="all">All primary interests</option>
+          {availableInterests.map((i) => <option key={i} value={i}>{i}</option>)}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
+          <option value="all">All statuses</option>
+          <option value="scheduled">Ready to schedule</option>
+          <option value="publishing">Publishing</option>
+          <option value="published">Published</option>
+          <option value="failed">Failed</option>
+        </select>
+        {(filterPage !== "all" || filterInterest !== "all" || filterStatus !== "all") && (
+          <button onClick={() => { setFilterPage("all"); setFilterInterest("all"); setFilterStatus("all"); }}
+            className="text-gray-500 hover:text-gray-800 underline">clear</button>
+        )}
+      </div>
+
+      {/* MAIN 2-COLUMN — left: queue (2/3); right: content scheduled (1/3, same width as before) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2 space-y-4">
+          {failed.length > 0 && (
+            <QueueSection
+              title="⚠️ Failed — needs attention"
+              subtitle={`${failed.length} post${failed.length === 1 ? "" : "s"} that didn't publish`}
+              posts={failed}
+              onReschedule={handleReschedule}
+              onPublishNow={handlePublishNow}
+              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+              onScheduleNow={(p) => setScheduleModalPost(p)}
+              rowActionId={rowActionId}
+              accent="rose"
+              expanded
+            />
+          )}
+          {publishing.length > 0 && (
+            <QueueSection
+              title="🔵 Publishing right now"
+              subtitle="n8n is pushing these to Meta"
+              posts={publishing}
+              onReschedule={handleReschedule}
+              onPublishNow={handlePublishNow}
+              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+              onScheduleNow={(p) => setScheduleModalPost(p)}
+              rowActionId={rowActionId}
+              accent="blue"
+              expanded
+            />
+          )}
+          <QueueSection
+            title="🟡 Ready to schedule"
+            subtitle={readyToSchedule.length > 0
+              ? `${readyToSchedule.length} post${readyToSchedule.length === 1 ? "" : "s"} waiting — full caption + media below each row`
+              : "No posts waiting to schedule. Add one with the button above."}
+            posts={readyToSchedule}
+            onReschedule={handleReschedule}
+            onPublishNow={handlePublishNow}
+            onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+            onScheduleNow={(p) => setScheduleModalPost(p)}
+            rowActionId={rowActionId}
+            accent="amber"
+            emptyOK
+            expanded
+          />
+        </div>
+
+        {/* RIGHT — content scheduled (same narrow width, tiny 4-per-row tiles) */}
+        <div className="lg:col-span-1">
+          <MiniPlanner posts={queueFiltered} publishedIG={publishedIG} />
+        </div>
+      </div>
+
+      {/* Schedule-now modal */}
+      {scheduleModalPost && (
+        <ScheduleNowModal
+          post={scheduleModalPost}
+          onClose={() => setScheduleModalPost(null)}
+          onConfirm={async (iso) => {
+            await handleReschedule(scheduleModalPost.id, iso);
+            setScheduleModalPost(null);
+          }}
+        />
+      )}
+
+      {/* Caption-edit modal */}
+      {editingCaptionId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setEditingCaptionId(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold">Edit caption</div>
+              <button onClick={() => setEditingCaptionId(null)} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
+            </div>
+            <textarea
+              value={editingCaptionText}
+              onChange={(e) => setEditingCaptionText(e.target.value)}
+              rows={12}
+              className="w-full text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
+            />
+            <div className="flex items-center justify-between mt-3">
+              <div className="text-[11px] text-gray-500">{editingCaptionText.length} / 2200 characters</div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditingCaptionId(null)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200">
+                  Cancel
+                </button>
+                <button onClick={handleSaveCaption} disabled={captionSaving}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium ${captionSaving ? "bg-gray-200 text-gray-500" : "bg-brand text-white hover:bg-brand-dark"}`}>
+                  {captionSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE-POST FORM MODAL ─────────────────────────────────────────
+          The whole existing create-post form (media uploader / AI suggester /
+          reach prediction / smart time / brand picker / etc.) lives in here
+          — nothing was dropped, just moved out of the primary view. */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-black/60 z-40 overflow-y-auto"
+          onClick={() => setShowCreateForm(false)}>
+          <div className="min-h-screen py-8 px-4" onClick={(e) => e.stopPropagation()}>
+            <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-lg font-semibold">Add a new post</div>
+                <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+              </div>
+              {/* Repost-top-performer call-to-action */}
+              <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200 rounded-2xl px-4 py-2.5">
+                <div className="text-xs text-violet-900">
+                  <span className="font-medium">💡 Want to start from a winner?</span>{" "}
+                  <span className="text-violet-700">Pull a top-performing post from the last 90 days and tweak.</span>
+                </div>
+                <button
+                  onClick={openTopPerformers}
+                  className="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700"
+                >
+                  ↻ Pick top performer
+                </button>
+              </div>
 
       {/* TWO-COLUMN LAYOUT: form left, preview right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
@@ -566,29 +833,519 @@ function Scheduler() {
         </div>
       )}
 
-      {/* QUEUE */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">Recent + upcoming posts</div>
-            <div className="text-[11px] text-gray-500">Read from your Post Scheduler table (n8n's queue)</div>
+            </div>
           </div>
-          <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
         </div>
-        {queue.length === 0 && !queueLoading && (
-          <div className="px-5 py-8 text-center text-sm text-gray-500">No rows in Post Scheduler yet.</div>
-        )}
-        <div className="divide-y divide-gray-100">
-          {queue.map((p) => (
-            <QueueRow key={p.id} post={p} />
-          ))}
-        </div>
-      </div>
+      )}
     </>
   );
 }
 
-function QueueRow({ post }: { post: ScheduledPost }) {
+// Big status-count tile shown in the strip at the top of the queue view.
+function StatusCounter({ label, count, color }: { label: string; count: number; color: "amber" | "blue" | "green" | "rose" }) {
+  const tints: Record<string, { bg: string; text: string; ring: string }> = {
+    amber: { bg: "bg-amber-50", text: "text-amber-800", ring: "ring-amber-200" },
+    blue: { bg: "bg-blue-50", text: "text-blue-800", ring: "ring-blue-200" },
+    green: { bg: "bg-emerald-50", text: "text-emerald-800", ring: "ring-emerald-200" },
+    rose: { bg: "bg-rose-50", text: "text-rose-800", ring: "ring-rose-200" },
+  };
+  const t = tints[color];
+  return (
+    <div className={`rounded-xl px-4 py-3 border border-gray-100 shadow-sm ring-1 ${t.ring} ${t.bg}`}>
+      <div className={`text-[10px] uppercase tracking-widest font-semibold ${t.text}`}>{label}</div>
+      <div className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{count}</div>
+    </div>
+  );
+}
+
+// One collapsible section of the queue (Failed / Publishing / Ready / Recently published).
+// Renders rich cards with inline datetime picker + Publish now + Edit caption actions.
+function QueueSection({
+  title, subtitle, posts, onReschedule, onPublishNow, onEdit, onScheduleNow, rowActionId, accent, emptyOK, readonly, expanded,
+}: {
+  title: string;
+  subtitle: string;
+  posts: ScheduledPost[];
+  onReschedule: (recordId: string, iso: string) => void;
+  onPublishNow: (recordId: string) => void;
+  onEdit: (post: ScheduledPost) => void;
+  onScheduleNow?: (post: ScheduledPost) => void;
+  rowActionId: string | null;
+  accent: "amber" | "blue" | "green" | "rose";
+  emptyOK?: boolean;
+  readonly?: boolean;
+  expanded?: boolean;   // richer per-row layout — bigger thumbnail, full caption, tag chips
+}) {
+  const bandColors: Record<string, string> = {
+    amber: "bg-amber-500",
+    blue: "bg-blue-500",
+    green: "bg-emerald-500",
+    rose: "bg-rose-500",
+  };
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-4 overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
+        <div className={`w-1 h-8 rounded-full ${bandColors[accent]}`} />
+        <div className="flex-1">
+          <div className="text-sm font-semibold text-gray-900">{title}</div>
+          <div className="text-[11px] text-gray-500">{subtitle}</div>
+        </div>
+      </div>
+      {posts.length === 0 && emptyOK && (
+        <div className="px-5 py-12 text-center text-sm text-gray-400">
+          Nothing here right now.
+        </div>
+      )}
+      {posts.length > 0 && (
+        <div className="divide-y divide-gray-100">
+          {posts.map((p) => (
+            <QueueRow
+              key={p.id}
+              post={p}
+              onReschedule={onReschedule}
+              onPublishNow={onPublishNow}
+              onEdit={onEdit}
+              onScheduleNow={onScheduleNow}
+              busy={rowActionId === p.id}
+              readonly={readonly}
+              expanded={expanded}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, busy, readonly }: {
+  post: ScheduledPost;
+  onReschedule?: (recordId: string, iso: string) => void;
+  onPublishNow?: (recordId: string) => void;
+  onEdit?: (post: ScheduledPost) => void;
+  onScheduleNow?: (post: ScheduledPost) => void;
+  busy?: boolean;
+  readonly?: boolean;
+  expanded?: boolean;
+}) {
+  const statusColor =
+    post.effectiveStatus === "published" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+    post.effectiveStatus === "publishing" ? "bg-blue-50 text-blue-700 border-blue-200" :
+    post.effectiveStatus === "scheduled" ? "bg-amber-50 text-amber-800 border-amber-200" :
+    post.effectiveStatus === "failed" ? "bg-rose-50 text-rose-700 border-rose-200" :
+    "bg-gray-50 text-gray-600 border-gray-200";
+  const statusLabel = post.effectiveStatus === "scheduled" ? "Ready to schedule" :
+    post.effectiveStatus.charAt(0).toUpperCase() + post.effectiveStatus.slice(1);
+
+  const when = post.publishedAt || post.scheduleTime;
+  const whenLabel = when ? new Date(when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+
+  const typeIcon = post.type?.toLowerCase().includes("reel") ? "🎬" :
+    post.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄";
+
+  return (
+    <div className="px-4 py-3 flex items-start gap-3">
+      {/* Column 1 — post name + interest chip + type chip (stacked one below the other) */}
+      <div className="w-44 shrink-0">
+        <div className="text-sm font-semibold text-gray-900 leading-snug mb-1.5 line-clamp-2">
+          {post.particulars || "(no title)"}
+        </div>
+        {post.primaryInterest && (
+          <div className="inline-block text-[10px] bg-violet-50 text-violet-700 rounded-full px-2 py-0.5 mb-1 mr-1">
+            {post.primaryInterest}
+          </div>
+        )}
+        {post.type && (
+          <div className="inline-block text-[10px] bg-amber-50 text-amber-700 rounded-full px-2 py-0.5">
+            {post.type}
+          </div>
+        )}
+        {post.publishToPage && (
+          <div className="text-[10px] text-gray-500 mt-1">{post.publishToPage}</div>
+        )}
+      </div>
+
+      {/* Column 2 — carousel first slide / thumbnail */}
+      <div className="w-28 h-28 shrink-0">
+        {post.thumbnailUrl ? (
+          <img src={post.thumbnailUrl} alt="" className="w-full h-full object-cover rounded-lg border border-gray-100" />
+        ) : (
+          <div className="w-full h-full rounded-lg bg-gray-100 flex items-center justify-center text-4xl text-gray-400">
+            {typeIcon}
+          </div>
+        )}
+      </div>
+
+      {/* Column 3 — caption */}
+      <div className="flex-1 min-w-0">
+        {post.caption ? (
+          <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap break-words line-clamp-6">
+            {post.caption}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-400 italic">No caption yet.</div>
+        )}
+        {post.failureReason && (
+          <div className="text-[11px] text-rose-700 mt-2 bg-rose-50 border border-rose-100 rounded px-2 py-1">
+            ⚠ {post.failureReason}
+          </div>
+        )}
+      </div>
+
+      {/* Column 4 — status + Schedule now button */}
+      <div className="w-36 shrink-0 flex flex-col items-end gap-2">
+        <span className={`text-[10px] font-medium uppercase tracking-wide rounded-full border px-2 py-0.5 ${statusColor}`}>
+          {statusLabel}
+        </span>
+        {!readonly && (
+          <button
+            type="button"
+            onClick={() => onScheduleNow?.(post)}
+            disabled={busy}
+            className="text-xs font-medium bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
+          >
+            📅 Schedule now
+          </button>
+        )}
+        {!readonly && post.scheduleTime && (
+          <div className="text-[10px] text-gray-500 text-right leading-tight">
+            Current time slot:<br />
+            <span className="text-gray-800 font-medium">{whenLabel}</span>
+          </div>
+        )}
+        {readonly && (
+          <>
+            <div className="text-[10px] text-gray-500 text-right">Published {whenLabel}</div>
+            {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer" className="text-[11px] text-violet-700 hover:underline">View on Instagram ↗</a>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Schedule-now modal — picked-time chooser. Fetches best-time suggestions on open
+// (scoped to the post's Publish To Page brand). User picks a slot, hits Confirm →
+// PATCHes Schedule Time in Airtable and the row moves in the queue.
+function ScheduleNowModal({ post, onClose, onConfirm }: {
+  post: ScheduledPost;
+  onClose: () => void;
+  onConfirm: (iso: string) => void | Promise<void>;
+}) {
+  const [suggestions, setSuggestions] = useState<TimeSuggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [customLocal, setCustomLocal] = useState<string>(
+    post.scheduleTime
+      ? new Date(new Date(post.scheduleTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      : ""
+  );
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch(`/api/scheduler/suggest-time?publishToPage=${encodeURIComponent(post.publishToPage || "GooCampus Main")}`, { signal: ctrl.signal })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setSuggestions((d?.suggestions || []) as TimeSuggestion[]))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [post.publishToPage]);
+
+  async function pickAndConfirm(iso: string) {
+    setSaving(true);
+    try { await onConfirm(iso); } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-sm font-semibold">📅 Schedule this post</div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
+        </div>
+        <div className="text-[11px] text-gray-500 mb-4 line-clamp-1">{post.particulars || "(no title)"}</div>
+
+        {/* Pages */}
+        <div className="mb-4">
+          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Publishing to</div>
+          <div className="flex flex-wrap gap-1.5">
+            {post.publishToPage && (
+              <span className="text-xs bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-1">
+                📄 {post.publishToPage}
+              </span>
+            )}
+            {post.platform && (
+              <span className="text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-1">
+                {post.platform.includes("Instagram") && "📸 "}
+                {post.platform.includes("Facebook") && "👍 "}
+                {post.platform}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Best-time suggestions */}
+        <div className="mb-4">
+          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Good times to schedule
+            <span className="text-gray-400 normal-case font-normal ml-1">— based on when your audience is most active</span>
+          </div>
+          {loading && <div className="text-xs text-gray-400 py-2">Loading suggestions…</div>}
+          {!loading && suggestions.length === 0 && (
+            <div className="text-xs text-gray-400 py-2">No suggestions available right now — pick a custom time below.</div>
+          )}
+          {!loading && suggestions.length > 0 && (
+            <div className="space-y-1.5">
+              {suggestions.slice(0, 5).map((s, i) => {
+                const dt = new Date(s.nextOccurrenceISO);
+                const label = dt.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+                return (
+                  <button
+                    key={i}
+                    onClick={() => pickAndConfirm(s.nextOccurrenceISO)}
+                    disabled={saving}
+                    className="w-full flex items-center justify-between text-left bg-white border border-gray-200 hover:border-violet-400 hover:bg-violet-50/40 rounded-lg px-3 py-2 disabled:opacity-50 transition"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{label}</div>
+                      <div className="text-[10px] text-gray-500">{s.followersOnline.toLocaleString()} followers online at {s.hourLabel}</div>
+                    </div>
+                    <div className="text-xs text-violet-700 font-medium">Schedule →</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Custom time */}
+        <div>
+          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Or pick a custom time</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="datetime-local"
+              value={customLocal}
+              onChange={(e) => setCustomLocal(e.target.value)}
+              className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5"
+            />
+            <button
+              onClick={() => customLocal && pickAndConfirm(new Date(customLocal).toISOString())}
+              disabled={!customLocal || saving}
+              className="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Confirm"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// (retained for API-compat with any callers below — the current queue view uses the
+// new signature above, but a plain version of the row is kept in the legacy tree.)
+// Content Calendar — right-rail sidebar. Shows two things grouped by day (newest first):
+// (1) real published Instagram posts fetched from /api/posts (with the actual full image,
+// not cropped), and (2) upcoming scheduled posts from Airtable. Post cards show the full
+// image at proper aspect ratio, like Meta Ads Library.
+type PublishedIG = {
+  id: string; caption: string; mediaUrl: string; permalink: string; type: string;
+  timestamp: string; likes: number; comments: number; reach: number;
+};
+
+type CalendarItem =
+  | { kind: "scheduled"; whenMs: number; post: ScheduledPost }
+  | { kind: "published"; whenMs: number; post: PublishedIG };
+
+type CalFilter = "all" | "today" | "yesterday" | "week" | "upcoming";
+
+function MiniPlanner({ posts, publishedIG }: { posts: ScheduledPost[]; publishedIG: PublishedIG[] }) {
+  const [filter, setFilter] = useState<CalFilter>("all");
+
+  const rawItems: CalendarItem[] = [
+    ...posts.filter((p) => p.scheduleTime).map((p) => ({
+      kind: "scheduled" as const, whenMs: new Date(p.scheduleTime as string).getTime(), post: p,
+    })),
+    ...publishedIG.map((p) => ({
+      kind: "published" as const, whenMs: new Date(p.timestamp).getTime(), post: p,
+    })),
+  ];
+
+  // Apply filter
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400 * 1000;
+  const tomorrowStart = todayStart + 86400 * 1000;
+  const weekAgo = todayStart - 7 * 86400 * 1000;
+
+  const items = rawItems.filter((it) => {
+    if (filter === "all") return true;
+    if (filter === "today") return it.whenMs >= todayStart && it.whenMs < tomorrowStart;
+    if (filter === "yesterday") return it.whenMs >= yesterdayStart && it.whenMs < todayStart;
+    if (filter === "week") return it.whenMs >= weekAgo && it.whenMs < tomorrowStart;
+    if (filter === "upcoming") return it.whenMs >= todayStart;
+    return true;
+  });
+
+  // Group by yyyy-mm-dd
+  const byDay = new Map<string, CalendarItem[]>();
+  for (const it of items) {
+    const d = new Date(it.whenMs);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const arr = byDay.get(key);
+    if (arr) arr.push(it);
+    else byDay.set(key, [it]);
+  }
+
+  const todayKey = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const dayKeys = Array.from(byDay.keys()).sort((a, b) => {
+    const aFuture = a >= todayKey, bFuture = b >= todayKey;
+    if (aFuture && !bFuture) return -1;
+    if (!aFuture && bFuture) return 1;
+    if (aFuture) return a.localeCompare(b);
+    return b.localeCompare(a);
+  });
+
+  const filterChips: Array<{ key: CalFilter; label: string; count: number }> = [
+    { key: "all", label: "All", count: rawItems.length },
+    { key: "today", label: "Today", count: rawItems.filter((i) => i.whenMs >= todayStart && i.whenMs < tomorrowStart).length },
+    { key: "yesterday", label: "Yesterday", count: rawItems.filter((i) => i.whenMs >= yesterdayStart && i.whenMs < todayStart).length },
+    { key: "week", label: "This week", count: rawItems.filter((i) => i.whenMs >= weekAgo && i.whenMs < tomorrowStart).length },
+    { key: "upcoming", label: "Upcoming", count: rawItems.filter((i) => i.whenMs >= todayStart).length },
+  ];
+
+  function statusChip(kind: "scheduled" | "published", eff?: string): { dot: string; label: string } {
+    if (kind === "published") return { dot: "bg-emerald-500", label: "Published" };
+    if (eff === "publishing") return { dot: "bg-blue-500", label: "Publishing" };
+    if (eff === "failed") return { dot: "bg-rose-500", label: "Failed" };
+    return { dot: "bg-amber-400", label: "Scheduled" };
+  }
+
+  function fmtDay(key: string): { weekday: string; date: string; sub: string } {
+    const d = new Date(key + "T00:00:00");
+    const now = new Date();
+    const diffDays = Math.round((d.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / (86400 * 1000));
+    let sub = "";
+    if (diffDays === 0) sub = "Today";
+    else if (diffDays === 1) sub = "Tomorrow";
+    else if (diffDays === -1) sub = "Yesterday";
+    else if (diffDays > 1 && diffDays < 8) sub = `in ${diffDays} days`;
+    else if (diffDays < 0) sub = `${Math.abs(diffDays)} days ago`;
+    return {
+      weekday: d.toLocaleDateString("en-IN", { weekday: "short" }),
+      date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      sub,
+    };
+  }
+
+  function truncate(s: string, n: number): string {
+    if (!s) return "";
+    return s.length > n ? s.slice(0, n).trim() + "…" : s;
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm lg:sticky lg:top-4 overflow-hidden">
+      <div className="px-3 py-2.5 border-b border-gray-100 bg-gradient-to-r from-violet-50 to-fuchsia-50">
+        <div className="text-[11px] font-semibold text-gray-900 mb-1.5">📅 Content Scheduled</div>
+        <div className="flex flex-wrap gap-1">
+          {filterChips.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setFilter(c.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                filter === c.key
+                  ? "bg-violet-600 text-white border-violet-600"
+                  : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+              }`}
+            >
+              {c.label} <span className={filter === c.key ? "text-violet-100" : "text-gray-400"}>{c.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {dayKeys.length === 0 && (
+        <div className="p-4 text-center text-[11px] text-gray-400">Nothing matches this filter.</div>
+      )}
+
+      <div className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-y-auto p-2 space-y-3">
+        {dayKeys.map((key) => {
+          const { weekday, date, sub } = fmtDay(key);
+          const dayItems = byDay.get(key) || [];
+          dayItems.sort((a, b) => b.whenMs - a.whenMs);
+          return (
+            <div key={key}>
+              <div className="flex items-baseline gap-1 mb-1 px-1">
+                <div className="text-[10px] font-semibold text-gray-900">{weekday}</div>
+                <div className="text-[9px] text-gray-500">{date}</div>
+                {sub && <div className="text-[8px] text-violet-700 ml-auto">{sub}</div>}
+              </div>
+              {/* Super-compact 5-per-row tiles */}
+              <div className="grid grid-cols-5 gap-1">
+                {dayItems.map((it) => {
+                  const t = new Date(it.whenMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+                  if (it.kind === "published") {
+                    const p = it.post;
+                    const isReel = p.type === "REEL";
+                    return (
+                      <a
+                        key={`pub-${p.id}`}
+                        href={p.permalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={p.caption ? truncate(p.caption, 140) : "View on Instagram"}
+                        className="group relative block rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
+                      >
+                        {p.mediaUrl ? (
+                          <img src={p.mediaUrl} alt="" className="w-full aspect-[3/4] object-cover" />
+                        ) : (
+                          <div className="w-full aspect-[3/4] bg-gray-100 flex items-center justify-center text-lg text-gray-400">
+                            {isReel ? "🎬" : p.type === "CAROUSEL_ALBUM" ? "🖼️" : "📄"}
+                          </div>
+                        )}
+                        <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                          {t}
+                        </div>
+                      </a>
+                    );
+                  }
+                  const p = it.post;
+                  const dot = p.effectiveStatus === "publishing"
+                    ? "bg-blue-500" : p.effectiveStatus === "failed" ? "bg-rose-500" : "bg-amber-400";
+                  return (
+                    <div
+                      key={`sch-${p.id}`}
+                      title={p.particulars || "(untitled)"}
+                      className="relative rounded-md overflow-hidden border border-amber-200 bg-amber-50"
+                    >
+                      {p.thumbnailUrl ? (
+                        <img src={p.thumbnailUrl} alt="" className="w-full aspect-[3/4] object-cover" />
+                      ) : (
+                        <div className="w-full aspect-[3/4] bg-amber-100 flex items-center justify-center text-lg text-amber-500">
+                          {p.type?.toLowerCase().includes("reel") ? "🎬" :
+                            p.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄"}
+                        </div>
+                      )}
+                      <div className={`absolute top-1 left-1 w-1.5 h-1.5 rounded-full ring-2 ring-white ${dot}`} />
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                        {t}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LegacyQueueRow({ post }: { post: ScheduledPost }) {
   const statusColor =
     post.status === "Published" ? "bg-green-50 text-green-700 border-green-200" :
     post.status === "Publishing" ? "bg-amber-50 text-amber-800 border-amber-200" :

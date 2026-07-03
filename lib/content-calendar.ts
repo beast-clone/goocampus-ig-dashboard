@@ -103,9 +103,16 @@ export type ScheduledPost = {
   id: string;
   particulars: string;
   publishToPage: string;
+  primaryInterest: string;         // e.g. "Study Abroad", "University Programs"
+  platform: string;                // "Facebook" | "Instagram/Facebook"
+  type: string;                    // "Image" | "Reel" | "Carousel" (freeform)
   caption: string;
+  fullCaption: string;             // untrimmed — used by the edit modal
+  igCaption: string;               // Instagram-specific override, if any
+  fbCaption: string;               // Facebook-specific override, if any
+  thumbnailUrl: string | null;     // first attachment thumbnail for the card
   scheduleTime: string | null;
-  status: string;                 // raw Airtable status
+  status: string;                  // raw Airtable status
   effectiveStatus: EffectiveStatus; // what the UI should show
   failureReason: string | null;    // populated when effectiveStatus === "failed"
   instagramUrl: string | null;
@@ -138,7 +145,8 @@ function deriveStatus(p: { status: string; scheduleTime: string | null; instagra
     return { effective: "publishing", failureReason: null };
   }
 
-  if (raw === "To Be Scheduled") {
+  const rawNorm = raw.trim().toLowerCase();
+  if (rawNorm === "to be scheduled" || rawNorm === "ready to schedule" || rawNorm === "scheduled" || rawNorm === "draft") {
     if (!schedMs) return { effective: "scheduled", failureReason: null };
     if (schedMs > now) return { effective: "scheduled", failureReason: null };
     if (now - schedMs > STUCK_SCHEDULED_MS) {
@@ -150,10 +158,9 @@ function deriveStatus(p: { status: string; scheduleTime: string | null; instagra
   return { effective: "unknown", failureReason: null };
 }
 
-// Read the queue from Post Scheduler. We pull recent + scheduled rows so the UI can show:
-//   - upcoming (Status = "To Be Scheduled" with scheduleTime in future)
-//   - in flight (Status = "Publishing")
-//   - recently published (Status = "Published")
+// Read the queue from Post Scheduler. Sorted newest first (most recent Schedule Time).
+// Populates all fields the new Scheduler UI cards need (thumbnail, Primary Interest,
+// per-platform captions, etc.).
 export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]> {
   const res = await airtableGet<{ records: AirtableRecord[] }>(POST_SCHEDULER_TABLE, {
     pageSize: String(Math.min(limit, 100)),
@@ -162,13 +169,43 @@ export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]>
   });
   return (res.records || []).map((r) => {
     const f = r.fields as Record<string, unknown>;
+    // Media / Post is a multipleAttachments field; grab the first attachment's
+    // thumbnail for the card preview.
+    const attachments = Array.isArray(f["Media/ Post"]) ? f["Media/ Post"] as Array<{ url?: string; thumbnails?: { large?: { url?: string }; small?: { url?: string } } }> : [];
+    const firstAttach = attachments[0];
+    const thumbnailUrl = firstAttach?.thumbnails?.large?.url
+      || firstAttach?.thumbnails?.small?.url
+      || firstAttach?.url
+      || null;
+
+    const igCaption = String(f["Instagram Caption"] || "");
+    const fbCaption = String(f["Facebook Caption"] || "");
+    const mainCaption = String(f.Caption || "");
+    const fullCaption = mainCaption || igCaption || fbCaption;
+
+    // Primary Interest and Publish To Page are singleSelect fields that come back as
+    // { id, name, color } objects, not plain strings.
+    function selectName(v: unknown): string {
+      if (!v) return "";
+      if (typeof v === "string") return v;
+      if (typeof v === "object" && v && "name" in v) return String((v as { name?: string }).name || "");
+      return "";
+    }
+
     const base = {
       id: r.id,
       particulars: String(f.Particulars || ""),
-      publishToPage: String(f["Publish To Page"] || ""),
-      caption: String(f.Caption || f["Instagram Caption"] || f["Facebook Caption"] || "").slice(0, 220),
+      publishToPage: selectName(f["Publish To Page"]),
+      primaryInterest: selectName(f["Primary Interest"]),
+      platform: selectName(f.Platform),
+      type: String(f.Type || ""),
+      caption: fullCaption.slice(0, 220),
+      fullCaption,
+      igCaption,
+      fbCaption,
+      thumbnailUrl,
       scheduleTime: f["Schedule Time"] ? String(f["Schedule Time"]) : null,
-      status: String(f.Status || "Unknown"),
+      status: selectName(f.Status) || String(f.Status || "Unknown"),
       instagramUrl: f["Instagram URL"] ? String(f["Instagram URL"]) : null,
       facebookUrl: f["Facebook URL"] ? String(f["Facebook URL"]) : null,
       publishedAt: f["Published At"] ? String(f["Published At"]) : null,
@@ -176,6 +213,55 @@ export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]>
     const { effective, failureReason } = deriveStatus(base);
     return { ...base, effectiveStatus: effective, failureReason };
   });
+}
+
+// PATCH a Post Scheduler row's Schedule Time (used by the inline picker on each card).
+export async function updateScheduleTime(recordId: string, newISO: string): Promise<void> {
+  await airtablePatch(POST_SCHEDULER_TABLE, recordId, { "Schedule Time": newISO });
+}
+
+// "Publish now" — set Schedule Time to right now + a small buffer so n8n picks it up on
+// its next cron tick. Also normalizes Status back to "To Be Scheduled" in case it was
+// stuck in "Publishing" or "Failed" beforehand.
+export async function publishNow(recordId: string): Promise<void> {
+  const soon = new Date(Date.now() + 30_000).toISOString();
+  await airtablePatch(POST_SCHEDULER_TABLE, recordId, {
+    "Schedule Time": soon,
+    Status: "To Be Scheduled",
+  });
+}
+
+// Edit a post's caption in-place. Writes the same value into all three caption fields
+// so whichever the n8n workflow reads (Caption / Instagram Caption / Facebook Caption)
+// picks up the update. Callers can pass per-platform overrides via the optional fields.
+export async function updatePostCaption(
+  recordId: string,
+  caption: string,
+  igCaption?: string,
+  fbCaption?: string,
+): Promise<void> {
+  const fields: Record<string, unknown> = {
+    Caption: caption,
+    "Instagram Caption": igCaption ?? caption,
+    "Facebook Caption": fbCaption ?? caption,
+  };
+  await airtablePatch(POST_SCHEDULER_TABLE, recordId, fields);
+}
+
+async function airtablePatch(table: string, recordId: string, fields: Record<string, unknown>): Promise<void> {
+  const r = await fetchWithTimeout(`https://api.airtable.com/v0/${BASE_ID}/${table}/${recordId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fields, typecast: true }),
+    timeoutMs: 15_000,
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Airtable PATCH ${r.status}: ${text.slice(0, 200)}`);
+  }
 }
 
 // Retry a stuck post by bumping its Schedule Time to "now + 1 minute" so the Native
