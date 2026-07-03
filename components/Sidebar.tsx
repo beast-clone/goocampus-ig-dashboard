@@ -11,6 +11,7 @@ const NAV = [
   { label: "Audience", href: "/dashboard/audience" },
   { label: "Scheduler", href: "/dashboard/scheduler" },
   { label: "Content Calendar", href: "/dashboard/calendar" },
+  { label: "Content Radar", href: "/dashboard/radar" },
   { label: "Hashtags", href: "/dashboard/hashtags" },
   { label: "Discover", href: "/dashboard/discover" },
   { label: "Leads", href: "/dashboard/leads" },

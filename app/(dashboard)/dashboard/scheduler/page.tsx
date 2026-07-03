@@ -463,8 +463,24 @@ function Scheduler() {
         <ScheduleNowModal
           post={scheduleModalPost}
           onClose={() => setScheduleModalPost(null)}
-          onConfirm={async (iso) => {
-            await handleReschedule(scheduleModalPost.id, iso);
+          onConfirm={async (iso, pages) => {
+            // Single page → update the row in place. Multiple pages → cross-post
+            // (updates original + duplicates once per additional page).
+            if (pages.length <= 1) {
+              await handleReschedule(scheduleModalPost.id, iso);
+            } else {
+              setRowActionId(scheduleModalPost.id);
+              try {
+                const r = await fetch("/api/scheduler/schedule-multi", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ recordId: scheduleModalPost.id, scheduleTime: iso, pages }),
+                });
+                const d = await r.json();
+                if (!r.ok || d.error) alert(`Cross-post failed: ${d.error || "HTTP " + r.status}`);
+                else loadQueue();
+              } finally { setRowActionId(null); }
+            }
             setScheduleModalPost(null);
           }}
         />
@@ -1034,7 +1050,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
 function ScheduleNowModal({ post, onClose, onConfirm }: {
   post: ScheduledPost;
   onClose: () => void;
-  onConfirm: (iso: string) => void | Promise<void>;
+  onConfirm: (iso: string, pages: string[]) => void | Promise<void>;
 }) {
   const [suggestions, setSuggestions] = useState<TimeSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1044,6 +1060,17 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
       : ""
   );
   const [saving, setSaving] = useState(false);
+  // Cross-post: pre-select whichever page the row was tagged with; user can tick more
+  // to fan-out. On confirm, one Airtable row is updated in place + one duplicate is
+  // created for each additional page (same media/caption/interest, different Publish
+  // To Page), so n8n's Native Scheduler fires one post per selected page.
+  const ALL_PAGES = ["GooCampus Main", "GooCampus World", "12Plus / GC India"] as const;
+  const [selectedPages, setSelectedPages] = useState<string[]>(
+    post.publishToPage ? [post.publishToPage] : ["GooCampus Main"]
+  );
+  function togglePage(page: string) {
+    setSelectedPages((prev) => prev.includes(page) ? prev.filter((p) => p !== page) : [...prev, page]);
+  }
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -1056,8 +1083,9 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
   }, [post.publishToPage]);
 
   async function pickAndConfirm(iso: string) {
+    if (selectedPages.length === 0) { alert("Pick at least one page to publish to."); return; }
     setSaving(true);
-    try { await onConfirm(iso); } finally { setSaving(false); }
+    try { await onConfirm(iso, selectedPages); } finally { setSaving(false); }
   }
 
   return (
@@ -1069,23 +1097,45 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
         </div>
         <div className="text-[11px] text-gray-500 mb-4 line-clamp-1">{post.particulars || "(no title)"}</div>
 
-        {/* Pages */}
+        {/* Pages — tick one or more to cross-post */}
         <div className="mb-4">
-          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Publishing to</div>
-          <div className="flex flex-wrap gap-1.5">
-            {post.publishToPage && (
-              <span className="text-xs bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-1">
-                📄 {post.publishToPage}
-              </span>
-            )}
-            {post.platform && (
-              <span className="text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-1">
-                {post.platform.includes("Instagram") && "📸 "}
-                {post.platform.includes("Facebook") && "👍 "}
-                {post.platform}
-              </span>
-            )}
+          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Publish to {selectedPages.length > 1 && <span className="ml-1 text-violet-700 normal-case font-normal">· cross-posting to {selectedPages.length} pages</span>}
           </div>
+          <div className="space-y-1.5">
+            {ALL_PAGES.map((page) => {
+              const checked = selectedPages.includes(page);
+              const handle = page === "GooCampus Main" ? "@goocampus" :
+                page === "GooCampus World" ? "@goocampusworld" : "@12thplusdotcom";
+              return (
+                <label
+                  key={page}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition ${
+                    checked ? "border-violet-400 bg-violet-50" : "border-gray-200 bg-white hover:border-gray-300"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => togglePage(page)}
+                    className="w-4 h-4 accent-violet-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-gray-900">{page}</div>
+                    <div className="text-[10px] text-gray-500">{handle}</div>
+                  </div>
+                  {page === post.publishToPage && (
+                    <span className="text-[9px] font-medium text-violet-700 uppercase tracking-wide">Original</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          {post.platform && (
+            <div className="text-[10px] text-gray-500 mt-1.5">
+              Platform: <span className="text-gray-700 font-medium">{post.platform}</span>
+            </div>
+          )}
         </div>
 
         {/* Best-time suggestions */}
@@ -1291,9 +1341,18 @@ function MiniPlanner({ posts, publishedIG }: { posts: ScheduledPost[]; published
               <div className="grid grid-cols-5 gap-1">
                 {dayItems.map((it) => {
                   const t = new Date(it.whenMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+                  // Map "Publish To Page" → short handle chip shown under each tile.
+                  const handleFor = (page: string): { short: string; color: string } => {
+                    if (page === "GooCampus Main") return { short: "@goocampus", color: "bg-violet-50 text-violet-700 border-violet-200" };
+                    if (page === "GooCampus World") return { short: "@goocampusworld", color: "bg-sky-50 text-sky-700 border-sky-200" };
+                    if (page === "12Plus / GC India") return { short: "@12thplusdotcom", color: "bg-rose-50 text-rose-700 border-rose-200" };
+                    return { short: page || "—", color: "bg-gray-50 text-gray-600 border-gray-200" };
+                  };
                   if (it.kind === "published") {
                     const p = it.post;
                     const isReel = p.type === "REEL";
+                    // Published posts today only come from the goocampus fetch (see loadQueue).
+                    const handle = handleFor("GooCampus Main");
                     return (
                       <a
                         key={`pub-${p.id}`}
@@ -1301,18 +1360,23 @@ function MiniPlanner({ posts, publishedIG }: { posts: ScheduledPost[]; published
                         target="_blank"
                         rel="noopener noreferrer"
                         title={p.caption ? truncate(p.caption, 140) : "View on Instagram"}
-                        className="group relative block rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
+                        className="group block rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
                       >
-                        {p.mediaUrl ? (
-                          <img src={p.mediaUrl} alt="" className="w-full aspect-[3/4] object-cover" />
-                        ) : (
-                          <div className="w-full aspect-[3/4] bg-gray-100 flex items-center justify-center text-lg text-gray-400">
-                            {isReel ? "🎬" : p.type === "CAROUSEL_ALBUM" ? "🖼️" : "📄"}
+                        <div className="relative">
+                          {p.mediaUrl ? (
+                            <img src={p.mediaUrl} alt="" className="w-full aspect-[3/4] object-cover" />
+                          ) : (
+                            <div className="w-full aspect-[3/4] bg-gray-100 flex items-center justify-center text-lg text-gray-400">
+                              {isReel ? "🎬" : p.type === "CAROUSEL_ALBUM" ? "🖼️" : "📄"}
+                            </div>
+                          )}
+                          <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                            {t}
                           </div>
-                        )}
-                        <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
-                          {t}
+                        </div>
+                        <div className={`text-[8px] px-1 py-0.5 border-t truncate text-center ${handle.color}`}>
+                          {handle.short}
                         </div>
                       </a>
                     );
@@ -1320,23 +1384,29 @@ function MiniPlanner({ posts, publishedIG }: { posts: ScheduledPost[]; published
                   const p = it.post;
                   const dot = p.effectiveStatus === "publishing"
                     ? "bg-blue-500" : p.effectiveStatus === "failed" ? "bg-rose-500" : "bg-amber-400";
+                  const handle = handleFor(p.publishToPage);
                   return (
                     <div
                       key={`sch-${p.id}`}
                       title={p.particulars || "(untitled)"}
-                      className="relative rounded-md overflow-hidden border border-amber-200 bg-amber-50"
+                      className="rounded-md overflow-hidden border border-amber-200 bg-amber-50"
                     >
-                      {p.thumbnailUrl ? (
-                        <img src={p.thumbnailUrl} alt="" className="w-full aspect-[3/4] object-cover" />
-                      ) : (
-                        <div className="w-full aspect-[3/4] bg-amber-100 flex items-center justify-center text-lg text-amber-500">
-                          {p.type?.toLowerCase().includes("reel") ? "🎬" :
-                            p.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄"}
+                      <div className="relative">
+                        {p.thumbnailUrl ? (
+                          <img src={p.thumbnailUrl} alt="" className="w-full aspect-[3/4] object-cover" />
+                        ) : (
+                          <div className="w-full aspect-[3/4] bg-amber-100 flex items-center justify-center text-lg text-amber-500">
+                            {p.type?.toLowerCase().includes("reel") ? "🎬" :
+                              p.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄"}
+                          </div>
+                        )}
+                        <div className={`absolute top-1 left-1 w-1.5 h-1.5 rounded-full ring-2 ring-white ${dot}`} />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                          {t}
                         </div>
-                      )}
-                      <div className={`absolute top-1 left-1 w-1.5 h-1.5 rounded-full ring-2 ring-white ${dot}`} />
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
-                        {t}
+                      </div>
+                      <div className={`text-[8px] px-1 py-0.5 border-t truncate text-center ${handle.color}`}>
+                        {handle.short}
                       </div>
                     </div>
                   );
