@@ -114,6 +114,7 @@ function Scheduler() {
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueFetchedAt, setQueueFetchedAt] = useState<number | null>(null);
   const [queueLatency, setQueueLatency] = useState<number | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
 
   // Show the create-post form as a modal overlay so it doesn't dominate the tab.
   // The queue-management view is the primary content now.
@@ -141,18 +142,21 @@ function Scheduler() {
 
   const loadQueue = () => {
     setQueueLoading(true);
+    setQueueError(null);
     const t0 = Date.now();
     fetch("/api/scheduler/queue")
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        const body = await r.text();
+        if (!r.ok) throw new Error(`HTTP ${r.status}: ${body.slice(0, 200)}`);
+        try { return JSON.parse(body); } catch { throw new Error(`Non-JSON: ${body.slice(0, 200)}`); }
       })
-      .then((d: { posts?: ScheduledPost[] }) => {
-        setQueue(d.posts || []);
+      .then((d: { posts?: ScheduledPost[]; error?: string }) => {
+        if (d.error) { setQueueError(d.error); setQueue([]); }
+        else { setQueue(d.posts || []); }
         setQueueFetchedAt(Date.now());
         setQueueLatency(Date.now() - t0);
       })
-      .catch(() => {})
+      .catch((e) => { setQueueError((e as Error).message); })
       .finally(() => setQueueLoading(false));
   };
 
@@ -344,6 +348,7 @@ function Scheduler() {
             <div className="text-[11px] text-gray-500">
               Live from your Post Scheduler Airtable table. Fetched <span className="font-medium text-gray-700">{queue.length}</span> row{queue.length === 1 ? "" : "s"} — statuses:{" "}
               {queue.length === 0 ? "—" : Object.entries(queue.reduce((acc: Record<string, number>, p) => { const k = `${p.status || "?"} → ${p.effectiveStatus}`; acc[k] = (acc[k] || 0) + 1; return acc; }, {})).map(([k, v]) => `${k} ×${v}`).join(", ")}
+              {queueError && <span className="ml-2 text-rose-600">· FETCH ERROR: {queueError}</span>}
             </div>
           </div>
           <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />

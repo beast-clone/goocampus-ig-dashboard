@@ -57,6 +57,7 @@ async function airtableGet<T>(path: string, params: Record<string, string> = {})
   const qs = new URLSearchParams(params).toString();
   const r = await fetchWithTimeout(`https://api.airtable.com/v0/${BASE_ID}/${path}${qs ? `?${qs}` : ""}`, {
     headers: { Authorization: `Bearer ${token()}` },
+    cache: "no-store",
     timeoutMs: 15_000,
   });
   if (!r.ok) {
