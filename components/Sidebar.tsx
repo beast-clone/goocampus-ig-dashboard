@@ -15,6 +15,7 @@ const NAV = [
   { label: "Hashtags", href: "/dashboard/hashtags" },
   { label: "Discover", href: "/dashboard/discover" },
   { label: "Leads", href: "/dashboard/leads" },
+  { label: "Sales Ops", href: "/dashboard/sales-ops" },
   { label: "Ads", href: "/dashboard/ads" },
   { label: "Competitor Ads", href: "/dashboard/competitors" },
   { label: "Benchmark", href: "/dashboard/benchmark" },
