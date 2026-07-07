@@ -3,6 +3,54 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-07 — My Day detail panel redesign + creative pipeline
+
+### Detail panel — brand-new landscape rectangle
+
+- Rebuilt the task detail card from a cramped side-panel into a **portrait rectangle on the right of a compact task list** on the left. Clicking a task no longer jumps to the top of the page — the detail opens beside it.
+- **Auto-expanding content area**: the "Content brief" and "Caption draft" sections grow with their text — no internal scrollbars, no fixed rows. A 15-paragraph brief renders in full.
+- **One-line meta strip**: Status · Priority · Owner · Platform · Publish · Due · SBU collapsed into a single horizontal row so the body has room for the actual content.
+- **Horizontal 5-stage timeline** (Draft → In progress → Approved → Output ready → Published) — green ✓ for done, pulsing accent-color dot for current, hollow grey for pending.
+- **View mode ↔ Edit mode** toggle inside the same rectangle; edit-mode textareas auto-resize as you type via a new `AutoTextarea` helper.
+
+### New sections added to the panel
+
+- **Team strip** — collaborator pills with avatar + role. × on hover to remove. **+ Add** popover to add anyone. **✨ Add usual team** button reads the task type and adds the preset team (Praveen + Maheen for static; Nikhil + Maheen for video; Nandu + Maheen for other reels).
+- **Feedback / notes** — dedicated box surfacing `additional_info`. Turns amber with 🔁 icon when status is `Incorporating Feedback`.
+- **Caption draft** — separate from the brief; writers can draft the IG caption here.
+- **Creative files** — was "Mood board". Horizontal strip of image / video previews + a dashed dropzone. Multi-file drag-and-drop or click-to-upload. Files land in Supabase Storage bucket `scheduler-media/mh-creatives/<postId>/…` and a row is inserted into `mh_attachments`. 25 MB per-file cap. Delete on hover.
+- **Inline comments thread** — replaced the disabled "💬 Comments" button. Latest 3 shown, "View all" expands. Enter-to-send composer at the bottom, posts as the currently-viewing person.
+- **Activity log** — last 5 events with relative timestamps and actor names, pulled from `mh_activity`.
+- **Scheduler link** — appears when the task has been synced to Post Scheduler: "📅 Scheduled to publish Fri, 3 Jul, 9:00 AM via Post Scheduler".
+
+### 7 stat cards across the top of My Day
+
+- Pending today · Content pending · **In progress** · **Feedback to address** · Content approved · **Handed off** · Completed. Numbers driven live off `mh_posts`, switch when the person selector changes.
+
+### Auto-handoff on Content Approved
+
+- `/api/marketing-hub/update` now detects the transition **into** `Content - Approved` and:
+  - **Static task** (Post / Carousel / Thumbnail / YouTube post) → owner becomes **Praveen**, old writer becomes collaborator.
+  - **Video task** (Reel / Video / Long-form) → owner becomes **Nikhil** (default), **Nandu joins as sibling collaborator**, old writer becomes collaborator.
+  - Logs a "handed off to …" row in `mh_activity`.
+- New **🎬 Take over** button in the detail panel for video-editor siblings — when Nandu owns the task, Nikhil sees the button in his My Day (and vice-versa). One click swaps ownership + drops the other from collabs + logs `takeover` in activity.
+- My Day list filter expanded: video editors now also see sibling-owned video tasks (so Nandu's queue is visible in Nikhil's list and can be claimed).
+
+### New API endpoints
+
+- `GET  /api/marketing-hub/task-detail?id=` — composite endpoint returning collaborators (joined with `mh_team_members` for display names + roles), attachments, comments, activity, scheduler status. One call per open panel.
+- `POST /api/marketing-hub/comments` — insert a comment.
+- `POST /api/marketing-hub/collaborators` — add one or many members. Uses upsert with `ignoreDuplicates` on the `post_id,member_key` composite PK.
+- `DELETE /api/marketing-hub/collaborators?postId=&memberKey=` — remove.
+- `POST /api/marketing-hub/attach` — multipart upload → Supabase Storage + row in `mh_attachments`.
+- `DELETE /api/marketing-hub/attach?id=` — removes storage object + DB row.
+- `POST /api/marketing-hub/takeover` — atomically swaps `owner_key` and drops the sibling collab.
+- `update` route whitelists `additional_info` and `caption`.
+
+### Notes tab (context)
+
+- `POST /api/marketing-hub/notes` + PATCH + DELETE — per-person notepad. Displays as a column-flow grid inside a yellow reminders card at the top of My Day (max 4 per column, wraps to next column before growing down).
+
 ## 2026-07-06 & 2026-07-07 — Marketing Hub migration to Supabase
 
 ### Backend — Supabase

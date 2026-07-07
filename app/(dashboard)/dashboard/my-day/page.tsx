@@ -1,17 +1,18 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
 
-// Content creator's personal home view.
+// Manya's / Praveen's / Nikhil's / Nandu's individual dashboard.
 //
-// Answers ONE question when the tab opens: "What do I work on right now?"
-// Reuses the Marketing Hub endpoint (/api/marketing-hub) — same underlying rows,
-// filtered client-side to the selected person, organized into task buckets.
+// Layout:
+//   Header · Week strip · + Add task
+//   Two columns: task list (left) + detail panel (right, opens on click)
 //
-// Person selection persists in localStorage so the tab remembers who you are.
+// Detail panel has view mode and edit mode. Edit persists via
+// PATCH /api/marketing-hub/update.
 
 type Row = {
   id: string;
@@ -59,20 +60,39 @@ const ROLE_LABEL: Record<Role, string> = { writer: "Content writer", designer: "
 const DONE_STATUSES = ["Ready to Publish", "Published/Scheduled"];
 const LS_KEY = "gc-dash:my-day:person";
 
+// The status pill color palette — matches Airtable style.
+const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  "Content - Pending":     { bg: "#F1EFE8", text: "#444441" },
+  "Content - In Progress": { bg: "#FAEEDA", text: "#633806" },
+  "Content - Approved":    { bg: "#EAF3DE", text: "#27500A" },
+  "Incorporating Feedback":{ bg: "#FAEEDA", text: "#633806" },
+  "Output - Ready":        { bg: "#E6F1FB", text: "#0C447C" },
+  "Ready to Publish":      { bg: "#EAF3DE", text: "#27500A" },
+  "Published/Scheduled":   { bg: "#E1F5EE", text: "#0F6E56" },
+};
+
+const PRIORITY_STYLES: Record<string, { bg: string; text: string }> = {
+  Low:    { bg: "#F1EFE8", text: "#444441" },
+  Medium: { bg: "#E6F1FB", text: "#0C447C" },
+  High:   { bg: "#FAEEDA", text: "#633806" },
+  Urgent: { bg: "#FCEBEB", text: "#A32D2D" },
+};
+
+// Statuses shown in the Edit form's status dropdown.
+const STATUS_OPTIONS = [
+  "Content - Pending",
+  "Content - In Progress",
+  "Content - Approved",
+  "Incorporating Feedback",
+  "Output - Ready",
+  "Ready to Publish",
+  "Published/Scheduled",
+];
+
+const PRIORITY_OPTIONS = ["Low", "Medium", "High", "Urgent"];
+
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function fmtRelativeTime(iso: string): string {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const diff = Math.max(0, now - then);
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(iso).toLocaleDateString("en-IN");
 }
 
 function ownerMatches(owner: string, p: Person): boolean {
@@ -96,9 +116,9 @@ export default function MyDayPage() {
 }
 
 function Inner({ range }: { range: { from: string; to: string } }) {
-  // Widen the fetch to cover the wider "this week" bucket even when the range is small.
-  const wideTo = new Date(Math.max(new Date(range.to).getTime(), Date.now() + 14 * 86_400_000)).toISOString().slice(0, 10);
-  const wideFrom = new Date(Math.min(new Date(range.from).getTime(), Date.now() - 14 * 86_400_000)).toISOString().slice(0, 10);
+  // Widen the fetch to cover the week ahead + a bit of context.
+  const wideTo = new Date(Math.max(new Date(range.to).getTime(), Date.now() + 21 * 86_400_000)).toISOString().slice(0, 10);
+  const wideFrom = new Date(Math.min(new Date(range.from).getTime(), Date.now() - 30 * 86_400_000)).toISOString().slice(0, 10);
   const qs = new URLSearchParams({ from: wideFrom, to: wideTo }).toString();
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
 
@@ -107,84 +127,103 @@ function Inner({ range }: { range: { from: string; to: string } }) {
     try {
       const saved = window.localStorage.getItem(LS_KEY);
       if (saved && TEAM.some((p) => p.key === saved)) setPersonKey(saved);
-    } catch { /* private-mode: fall back to default */ }
+    } catch { /* ignore */ }
   }, []);
   const setPerson = (k: string) => {
     setPersonKey(k);
+    setSelectedId(null);
     try { window.localStorage.setItem(LS_KEY, k); } catch { /* ignore */ }
   };
 
   const person = TEAM.find((p) => p.key === personKey) || TEAM[0];
   const todayStr = ymd(new Date());
-  const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
-  const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
 
-  const mine = useMemo(() => (data?.rows || []).filter((r) => ownerMatches(r.owner, person)), [data, person]);
-
-  const buckets = useMemo(() => {
-    const nextUp: Row[] = [];
-    const today: Row[] = [];
-    const waiting: Row[] = [];
-    const week: Row[] = [];
-    const wins: Row[] = [];
-
-    const sorted = [...mine].sort((a, b) => {
-      const aOverdue = !!a.dueDate && (a.dueDate.slice(0, 10) < todayStr);
-      const bOverdue = !!b.dueDate && (b.dueDate.slice(0, 10) < todayStr);
-      if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
-      const aPd = a.publishingDate?.slice(0, 10) || "9999-12-31";
-      const bPd = b.publishingDate?.slice(0, 10) || "9999-12-31";
-      return aPd.localeCompare(bPd);
+  const mine = useMemo(() => {
+    const rows = data?.rows || [];
+    return rows.filter((r) => {
+      if (ownerMatches(r.owner, person)) return true;
+      // Nikhil and Nandu share video tasks — either can take over from the other.
+      if (person.key === "nikhil" || person.key === "nandu") {
+        const isVideo = /reel|video|long.*form/i.test(r.type || "");
+        const owner = (r.owner || "").toLowerCase();
+        const siblingOwns = person.key === "nikhil" ? owner.includes("nandu") : owner.includes("nikhil");
+        if (isVideo && siblingOwns) return true;
+      }
+      return false;
     });
-
-    for (const r of sorted) {
-      const pd = r.publishingDate?.slice(0, 10) || "";
-      const dd = r.dueDate?.slice(0, 10) || "";
-      const isDone = DONE_STATUSES.includes(r.status);
-
-      if (isDone && r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) {
-        wins.push(r);
-        continue;
-      }
-      if (isDone) continue;
-
-      if (r.needsReview) {
-        waiting.push(r);
-        continue;
-      }
-      if (pd === todayStr || (dd && dd <= todayStr)) {
-        today.push(r);
-        continue;
-      }
-      if (pd && pd > todayStr && pd <= weekAhead) {
-        week.push(r);
-      }
-    }
-
-    // Next Up = single most urgent thing. Overdue first, then today, then earliest upcoming.
-    nextUp.push(...today.slice(0, 1));
-    if (nextUp.length === 0 && waiting.length > 0) nextUp.push(waiting[0]);
-    if (nextUp.length === 0 && week.length > 0) nextUp.push(week[0]);
-
-    return { nextUp, today, waiting, week, wins };
-  }, [mine, todayStr, weekAhead, weekAgo]);
-
-  // Notifications rail — recent Airtable activity across ALL posts (not just this person's),
-  // scoped to items where this person is owner OR a collaborator so the feed feels relevant.
-  const activity = useMemo(() => {
-    if (!data) return [];
-    return [...data.rows]
-      .filter((r) => ownerMatches(r.owner, person) || r.collaborators.some((c) => person.aliases.includes(c)))
-      .filter((r) => r.lastModified)
-      .sort((a, b) => (a.lastModified < b.lastModified ? 1 : -1))
-      .slice(0, 15);
   }, [data, person]);
 
-  const [openId, setOpenId] = useState<string | null>(null);
-  const openRow = openId ? data?.rows.find((r) => r.id === openId) || null : null;
+  // Bucket for header status line
+  const counts = useMemo(() => {
+    const today: Row[] = [];
+    const week: Row[] = [];
+    const waiting: Row[] = [];
+    const done: Row[] = [];
+    const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
+    const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
+    for (const r of mine) {
+      const pd = r.publishingDate?.slice(0, 10) || "";
+      const isDone = DONE_STATUSES.includes(r.status);
+      if (isDone && r.completionTime?.slice(0, 10) >= weekAgo) done.push(r);
+      if (isDone) continue;
+      if (pd === todayStr) today.push(r);
+      if (pd && pd >= todayStr && pd <= weekAhead) week.push(r);
+      if (r.needsReview) waiting.push(r);
+    }
+    return { today, week, waiting, done };
+  }, [mine, todayStr]);
+
+  // Personal notepad — reminders manually added by the person.
+  const [notes, setNotes] = useState<{ id: string; body: string; done: boolean }[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [notesBusy, setNotesBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/marketing-hub/notes?person=${personKey}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && j.notes) setNotes(j.notes); })
+      .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [personKey]);
+
+  async function addNote() {
+    const body = newNote.trim();
+    if (!body || notesBusy) return;
+    setNotesBusy(true);
+    try {
+      const r = await fetch(`/api/marketing-hub/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person: personKey, body }),
+      });
+      const j = await r.json();
+      if (r.ok && j.note) {
+        setNotes((prev) => [...prev, j.note]);
+        setNewNote("");
+      }
+    } finally { setNotesBusy(false); }
+  }
+
+  async function toggleNote(id: string, done: boolean) {
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, done } : n)));
+    await fetch(`/api/marketing-hub/notes`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, done }),
+    });
+  }
+
+  async function deleteNote(id: string) {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    await fetch(`/api/marketing-hub/notes?id=${id}`, { method: "DELETE" });
+  }
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = selectedId ? mine.find((r) => r.id === selectedId) || null : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Person switcher */}
       <div className="bg-white border border-gray-100 rounded-lg p-2 flex items-center gap-2">
         <div className="text-sm text-gray-500 px-3">Viewing as</div>
@@ -212,230 +251,1034 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           <div className="text-2xl font-medium">{greetingOfDay()}, {person.label}</div>
           <div className="text-sm text-gray-500">
             {ROLE_LABEL[person.role]} · {person.greeting}
-            {mine.length > 0 && ` · ${buckets.today.length} today, ${buckets.waiting.length} waiting on you`}
+            {mine.length > 0 && ` · ${counts.today.length} today, ${counts.week.length} this week`}
           </div>
         </div>
       </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
-          {/* Next Up — the hero */}
-          <NextUpHero row={buckets.nextUp[0] || null} person={person} onOpen={setOpenId} loading={isLoading && !data} />
-
-          {/* Today's queue */}
-          <Section title="🎯 Today's queue" count={buckets.today.length} empty="Nothing on for today. Clear runway.">
-            {buckets.today.map((r) => <TaskCard key={r.id} row={r} onOpen={setOpenId} showDate />)}
-          </Section>
-
-          {/* Waiting on me */}
-          <Section title="✋ Waiting on you" count={buckets.waiting.length} empty="Nothing waiting on you.">
-            {buckets.waiting.map((r) => <TaskCard key={r.id} row={r} onOpen={setOpenId} accent="#7F77DD" />)}
-          </Section>
-
-          {/* This week */}
-          <Section title="🗓 Coming up this week" count={buckets.week.length} empty="Nothing scheduled for the next 7 days.">
-            <div className="grid grid-cols-2 gap-3">
-              {buckets.week.slice(0, 8).map((r) => <TaskCard key={r.id} row={r} onOpen={setOpenId} showDate compact />)}
+      {/* Stat cards */}
+      <div className="grid grid-cols-7 gap-3">
+        {(() => {
+          const pendingToday    = mine.filter((r) => (r.publishingDate?.slice(0, 10) || "") === todayStr && !DONE_STATUSES.includes(r.status)).length;
+          const contentPending  = mine.filter((r) => r.status === "Content - Pending").length;
+          const inProgress      = mine.filter((r) => r.status === "Content - In Progress").length;
+          const feedback        = mine.filter((r) => r.status === "Incorporating Feedback").length;
+          const contentApproved = mine.filter((r) => r.status === "Content - Approved").length;
+          const handedOff       = mine.filter((r) => ["Content - Approved", "Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(r.status)).length;
+          const completed       = counts.done.length;
+          const cards = [
+            { label: "Pending today",       value: pendingToday,    hint: "Publish date is today",       color: "#D4537E" },
+            { label: "Content pending",     value: contentPending,  hint: "Awaiting your write-up",      color: "#B08308" },
+            { label: "In progress",         value: inProgress,      hint: "Writing right now",           color: "#EF9F27" },
+            { label: "Feedback to address", value: feedback,        hint: "Revisions requested",         color: "#A32D2D" },
+            { label: "Content approved",    value: contentApproved, hint: "Approved, ready for output",  color: "#27500A" },
+            { label: "Handed off",          value: handedOff,       hint: "Past writer, with the team",  color: "#0C447C" },
+            { label: "Completed",           value: completed,       hint: "Wrapped up this week",        color: "#0F6E56" },
+          ];
+          return cards.map((c) => (
+            <div key={c.label} className="bg-white border border-gray-100 rounded-lg p-3">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 leading-tight">{c.label}</div>
+              <div className="mt-1 text-2xl font-medium tabular-nums" style={{ color: c.color }}>{c.value}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{c.hint}</div>
             </div>
-            {buckets.week.length > 8 && <div className="text-sm text-gray-400 mt-3">+{buckets.week.length - 8} more later this week</div>}
-          </Section>
+          ));
+        })()}
+      </div>
 
-          {/* Wins */}
-          {buckets.wins.length > 0 && (
-            <Section title="🎉 Wins this week" count={buckets.wins.length}>
-              <div className="flex flex-wrap gap-2">
-                {buckets.wins.slice(0, 6).map((r) => (
-                  <button key={r.id} onClick={() => setOpenId(r.id)} className="text-xs px-3 py-1.5 rounded bg-green-50 text-green-800 hover:bg-green-100 border border-green-100">
-                    {r.particulars || "(untitled)"}
-                  </button>
-                ))}
-              </div>
-            </Section>
+      {/* Notes — personal reminders, manually added */}
+      <div
+        className="rounded-lg p-5 border-l-4"
+        style={{ background: "#FFFBEA", borderColor: "#EF9F27", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+      >
+        <div className="flex items-baseline justify-between mb-3">
+          <div>
+            <div className="text-lg font-medium flex items-center gap-2">📌 My reminders</div>
+            <div className="text-sm text-gray-600">Everything you need to work on. Add anything, check off when done.</div>
+          </div>
+          <div className="text-sm text-gray-500">
+            {notes.filter((n) => !n.done).length} open · {notes.filter((n) => n.done).length} done
+          </div>
+        </div>
+
+        <div className="grid grid-rows-4 grid-flow-col auto-cols-fr gap-x-6 gap-y-1 mb-3">
+          {notes.length === 0 && (
+            <div className="text-sm text-gray-400 py-3 col-span-full">Nothing here yet. Add your first note below.</div>
+          )}
+          {notes.map((n) => (
+            <div key={n.id} className="group flex items-start gap-3 px-2 py-1.5 rounded hover:bg-white/60">
+              <input
+                type="checkbox"
+                checked={n.done}
+                onChange={(e) => toggleNote(n.id, e.target.checked)}
+                className="mt-1 h-4 w-4 rounded cursor-pointer flex-shrink-0"
+                style={{ accentColor: person.color }}
+              />
+              <span className={`flex-1 text-sm ${n.done ? "line-through text-gray-400" : "text-gray-800"}`}>
+                {n.body}
+              </span>
+              <button
+                onClick={() => deleteNote(n.id)}
+                className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-rose-600 transition flex-shrink-0"
+                title="Delete note"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-amber-200/50">
+          <input
+            type="text"
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addNote(); }}
+            placeholder="Add a reminder…"
+            className="flex-1 border border-amber-200 rounded px-3 py-2 text-sm bg-white/80 focus:outline-none focus:ring-1 focus:ring-amber-400"
+          />
+          <button
+            onClick={addNote}
+            disabled={notesBusy || !newNote.trim()}
+            className="px-4 py-2 rounded text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+            style={{ background: person.color }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Two-column body: compact list on left · portrait detail on right */}
+      <div className="grid grid-cols-5 gap-4">
+        {/* Task list — 2 cols, compact rows */}
+        <div className="col-span-2 bg-white border border-gray-100 rounded-lg p-4 self-start">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-base font-medium">My tasks</div>
+            <div className="text-xs text-gray-500">{mine.length}</div>
+          </div>
+
+          {mine.length === 0 && (
+            <div className="text-sm text-gray-400 py-10 text-center">
+              {isLoading ? "Loading…" : "Nothing on your plate right now."}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            {mine.map((r) => {
+              const isSelected = selectedId === r.id;
+              const st = STATUS_STYLES[r.status] || STATUS_STYLES["Content - Pending"];
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedId(r.id)}
+                  className={`w-full text-left rounded-lg p-2.5 border transition ${isSelected ? "" : "border-gray-100 hover:border-gray-200"}`}
+                  style={isSelected ? { borderLeft: `3px solid ${person.color}`, background: person.color + "0A", borderColor: person.color + "33" } : {}}
+                >
+                  <div className="text-sm font-medium leading-tight">{r.particulars || "(untitled)"}</div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">
+                    {r.type || "—"}
+                    {r.publishingDate && ` · ${new Date(r.publishingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
+                  </div>
+                  <div className="mt-1.5">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.text }}>{r.status || "—"}</span>
+                    {r.needsReview && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 ml-1">Review</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detail panel — 3 cols, portrait, sticky */}
+        <div className="col-span-3">
+          {selected ? (
+            <div>
+              <DetailPanel
+                row={selected}
+                accent={person.color}
+                personKey={person.key}
+                onClose={() => setSelectedId(null)}
+                onSaved={() => { refresh(); }}
+              />
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-100 rounded-xl p-10 text-center text-sm text-gray-400">
+              <div className="text-4xl mb-4">📋</div>
+              <div className="text-base font-medium text-gray-700 mb-2">Pick a task from the left</div>
+              <div>Full details, timeline, and edit mode will open here.</div>
+            </div>
           )}
         </div>
-
-        {/* Notifications rail */}
-        <div className="col-span-1">
-          <div className="bg-white border border-gray-100 rounded-lg p-5 sticky top-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-lg font-medium">Activity</div>
-              <div className="text-xs text-gray-400">Comments · Phase 2</div>
-            </div>
-            <div className="text-xs text-gray-500 mb-4">Recent updates on posts you own or collaborate on.</div>
-            {activity.length === 0 ? (
-              <div className="text-sm text-gray-400 py-6 text-center">No recent activity.</div>
-            ) : (
-              <div className="space-y-3">
-                {activity.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setOpenId(r.id)}
-                    className="w-full text-left hover:bg-gray-50 rounded p-2 -mx-2 transition"
-                  >
-                    <div className="text-sm truncate">{r.particulars || "(untitled)"}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {r.status} · {fmtRelativeTime(r.lastModified)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
-
-      {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
 
       <NewTaskButton onCreated={refresh} />
     </div>
   );
 }
 
-function NextUpHero({ row, person, onOpen, loading }: { row: Row | null; person: Person; onOpen: (id: string) => void; loading: boolean }) {
-  if (loading) {
-    return <div className="bg-white border border-gray-100 rounded-lg p-10 text-center text-gray-400">Finding your next task…</div>;
-  }
-  if (!row) {
-    return (
-      <div className="bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-lg p-10 text-center">
-        <div className="text-4xl mb-3">🎉</div>
-        <div className="text-lg font-medium">You&apos;re all clear.</div>
-        <div className="text-sm text-gray-500 mt-1">Nothing pending for {person.label}. Enjoy the breather.</div>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-lg p-6 border" style={{ background: person.color + "0A", borderColor: person.color + "33" }}>
-      <div className="text-xs uppercase tracking-wider mb-3" style={{ color: person.color }}>Next up</div>
-      <div className="flex items-start gap-6">
-        {row.attachments[0]?.type?.startsWith("image/") ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={row.attachments[0].url} alt="" className="w-32 h-32 object-cover rounded-lg flex-shrink-0" />
-        ) : (
-          <div className="w-32 h-32 rounded-lg flex-shrink-0 flex items-center justify-center text-3xl" style={{ background: person.color + "22" }}>
-            {row.type.includes("Reel") ? "🎬" : row.type.includes("Carousel") ? "📸" : row.type.includes("Thumbnail") ? "🖼" : "📝"}
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-xl font-medium mb-2">{row.particulars || "(untitled)"}</div>
-          <div className="text-sm text-gray-600 mb-3">
-            {row.type} · {row.sbu}
-            {row.publishingDate && ` · Publishes ${new Date(row.publishingDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`}
-          </div>
-          {row.content && (
-            <div className="text-sm text-gray-700 line-clamp-2 mb-4" dangerouslySetInnerHTML={{ __html: row.content.slice(0, 200) }} />
-          )}
-          <button
-            onClick={() => onOpen(row.id)}
-            className="px-5 py-2.5 rounded text-white text-sm font-medium hover:opacity-90"
-            style={{ background: person.color }}
-          >
-            Start work →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Rank the workflow statuses so we can render a horizontal progress bar.
+// Incorporating Feedback loops back to Approved for display purposes.
+const STATUS_RANK: Record<string, number> = {
+  "Content - Pending":     0,
+  "Content - In Progress": 1,
+  "Content - Approved":    2,
+  "Incorporating Feedback":2,
+  "Output - Ready":        3,
+  "Ready to Publish":      4,
+  "Published/Scheduled":   5,
+};
 
-function Section({ title, count, empty, children }: { title: string; count: number; empty?: string; children: React.ReactNode }) {
+// The 5 stages shown on the horizontal timeline strip.
+const TIMELINE_STAGES = [
+  { rank: 0, label: "Draft" },
+  { rank: 1, label: "In progress" },
+  { rank: 2, label: "Approved" },
+  { rank: 3, label: "Output ready" },
+  { rank: 5, label: "Published" },
+];
+
+type Collaborator = { key: string; name: string; role: string | null; addedAt: string | null };
+type Attachment = { id: string; filename: string; storage_path: string; mime_type: string | null; size_bytes: number | null; uploaded_by: string | null; uploaded_at: string };
+type Comment = { id: string; author_key: string; authorName: string; body: string; resolved: boolean; created_at: string };
+type Activity = { id: string; actor_key: string; actorName: string; action: string; from_value: string | null; to_value: string | null; detail: string | null; created_at: string };
+type TaskDetail = {
+  collaborators: Collaborator[];
+  attachments: Attachment[];
+  comments: Comment[];
+  activity: Activity[];
+  scheduler: { syncedToScheduler: boolean; startAt: string | null };
+};
+
+function DetailPanel({ row, accent, onClose, onSaved, personKey }: { row: Row; accent: string; onClose: () => void; onSaved: () => void; personKey: string }) {
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [detail, setDetail] = useState<TaskDetail | null>(null);
+  const [detailReloadTick, setDetailReloadTick] = useState(0);
+
+  useEffect(() => { setMode("view"); }, [row.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/marketing-hub/task-detail?id=${row.id}`)
+      .then((r) => r.json())
+      .then((j: TaskDetail) => { if (!cancelled) setDetail(j); })
+      .catch(() => { if (!cancelled) setDetail(null); });
+    return () => { cancelled = true; };
+  }, [row.id, detailReloadTick]);
+
+  const currentRank = STATUS_RANK[row.status] ?? 0;
+  const refreshDetail = () => setDetailReloadTick((n) => n + 1);
+
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-3">
-        <div className="text-lg font-medium">{title}</div>
-        <div className="text-sm text-gray-400">{count}</div>
-      </div>
-      {count === 0 && empty ? (
-        <div className="bg-white border border-gray-100 rounded-lg p-6 text-sm text-gray-400 text-center">{empty}</div>
+    <div className="bg-white border border-gray-100 rounded-xl p-6" style={{ borderLeft: `4px solid ${accent}` }}>
+      {mode === "view" ? (
+        <ViewMode
+          row={row}
+          accent={accent}
+          currentRank={currentRank}
+          detail={detail}
+          personKey={personKey}
+          onClose={onClose}
+          onEdit={() => setMode("edit")}
+          onSaved={onSaved}
+          onDetailChanged={refreshDetail}
+        />
       ) : (
-        <div className="space-y-2">{children}</div>
+        <EditForm
+          row={row}
+          accent={accent}
+          currentRank={currentRank}
+          onClose={onClose}
+          onCancel={() => setMode("view")}
+          onSaved={() => { onSaved(); setMode("view"); }}
+        />
       )}
     </div>
   );
 }
 
-function TaskCard({ row, onOpen, showDate, accent, compact }: { row: Row; onOpen: (id: string) => void; showDate?: boolean; accent?: string; compact?: boolean }) {
+function ViewMode({ row, accent, currentRank, detail, personKey, onClose, onEdit, onSaved, onDetailChanged }: {
+  row: Row; accent: string; currentRank: number;
+  detail: TaskDetail | null; personKey: string;
+  onClose: () => void; onEdit: () => void; onSaved: () => void; onDetailChanged: () => void;
+}) {
+  const [busyStatus, setBusyStatus] = useState<string | null>(null);
+  const st = STATUS_STYLES[row.status] || STATUS_STYLES["Content - Pending"];
+
+  async function markDone() {
+    // "Mark done" pushes to the next natural step:
+    //   Content Pending → Content Approved (writer approves)
+    //   Content Approved → Output Ready
+    //   Output Ready → Ready to Publish
+    //   Ready to Publish → Published/Scheduled
+    const nextByStatus: Record<string, string> = {
+      "Content - Pending":     "Content - Approved",
+      "Content - In Progress": "Content - Approved",
+      "Content - Approved":    "Output - Ready",
+      "Incorporating Feedback":"Output - Ready",
+      "Output - Ready":        "Ready to Publish",
+      "Ready to Publish":      "Published/Scheduled",
+    };
+    const next = nextByStatus[row.status];
+    if (!next) return;
+    setBusyStatus(next);
+    try {
+      const r = await fetch(`/api/marketing-hub/update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id, fields: { status: next } }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) alert(`Failed: ${j.error || r.status}`);
+      else onSaved();
+    } finally {
+      setBusyStatus(null);
+    }
+  }
+
+  const publishLabel = row.publishingDate
+    ? new Date(row.publishingDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+    : null;
+
   return (
-    <button
-      onClick={() => onOpen(row.id)}
-      className={`w-full text-left bg-white border border-gray-100 rounded-lg ${compact ? "p-3" : "p-4"} hover:border-brand hover:shadow-sm transition`}
-      style={accent ? { borderLeft: `4px solid ${accent}` } : {}}
-    >
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className={`${compact ? "text-sm" : "text-base"} font-medium truncate`}>{row.particulars || "(untitled)"}</div>
-          <div className="text-xs text-gray-500 mt-0.5">
-            {row.type} · {row.sbu}
-            {showDate && row.publishingDate && ` · ${new Date(row.publishingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
+    <div>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>Task detail</div>
+          <div className="text-xl font-medium mt-1 leading-tight">{row.particulars || "(untitled)"}</div>
+          <div className="text-xs text-gray-500 mt-1">
+            {[row.type, row.sbu, publishLabel && `Publishes ${publishLabel}`].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <div className="text-xs px-2 py-1 rounded flex-shrink-0" style={{ background: "#F1EFE8", color: "#444441" }}>{row.status}</div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
       </div>
+
+      {/* Collaborators strip */}
+      {detail && (
+        <TeamStrip
+          postId={row.id}
+          type={row.type}
+          collaborators={detail.collaborators}
+          onChanged={onDetailChanged}
+        />
+      )}
+
+      {/* Feedback notes — prominent when status is Incorporating Feedback, otherwise plain */}
+      {row.additionalInfo && (
+        <div
+          className={`mb-4 rounded-lg p-3 border ${row.status === "Incorporating Feedback" ? "" : "border-gray-100 bg-gray-50/60"}`}
+          style={row.status === "Incorporating Feedback" ? { borderColor: "#F0C24A", background: "#FFF9E9" } : {}}
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+              {row.status === "Incorporating Feedback" ? "🔁 Feedback to address" : "Feedback / notes"}
+            </span>
+          </div>
+          <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{row.additionalInfo}</div>
+        </div>
+      )}
+
+      {/* Meta strip — all fields in one horizontal line */}
+      <div className="border-t border-gray-100 pt-3 flex items-center flex-wrap gap-x-4 gap-y-2 text-xs">
+        <span className="inline-flex items-center gap-1">
+          <span className="text-gray-400 uppercase tracking-wide text-[10px]">Status</span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.text }}>{row.status}</span>
+        </span>
+        {row.priority && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-gray-400 uppercase tracking-wide text-[10px]">Priority</span>
+            <span className="text-gray-800">{row.priority}</span>
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1">
+          <span className="text-gray-400 uppercase tracking-wide text-[10px]">Owner</span>
+          <span className="text-gray-800">{row.owner || "—"}</span>
+        </span>
+        {row.platforms.length > 0 && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-gray-400 uppercase tracking-wide text-[10px]">Platform</span>
+            <span className="text-gray-800">{row.platforms.join(" · ")}</span>
+          </span>
+        )}
+        {row.publishingDate && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-gray-400 uppercase tracking-wide text-[10px]">Publish</span>
+            <span className="text-gray-800">{new Date(row.publishingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+          </span>
+        )}
+        {row.dueDate && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-gray-400 uppercase tracking-wide text-[10px]">Due</span>
+            <span className="text-gray-800">{new Date(row.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+          </span>
+        )}
+        {row.sbu && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-gray-400 uppercase tracking-wide text-[10px]">SBU</span>
+            <span className="text-gray-800">{row.sbu}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Content brief — expands naturally, full text visible */}
+      {row.content && (
+        <div className="border-t border-gray-100 mt-4 pt-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-2">Content brief</div>
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+            {row.content}
+          </div>
+        </div>
+      )}
+
+      {/* Caption draft — expands naturally too */}
+      {row.caption && (
+        <div className="border-t border-gray-100 mt-4 pt-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-2">Caption draft</div>
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{row.caption}</div>
+        </div>
+      )}
+
+      {/* Creative files — references, mood board, final output */}
+      {detail && (
+        <div className="border-t border-gray-100 mt-5 pt-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+              Creative files{detail.attachments.length > 0 && ` · ${detail.attachments.length}`}
+            </div>
+            <div className="text-[10px] text-gray-400">References, mood board, final output</div>
+          </div>
+          <CreativeFiles
+            postId={row.id}
+            attachments={detail.attachments}
+            personKey={personKey}
+            accent={accent}
+            onChanged={onDetailChanged}
+          />
+        </div>
+      )}
+
+      {/* Timeline — horizontal steps */}
+      <div className="border-t border-gray-100 mt-5 pt-4">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-3">Timeline</div>
+        <HorizontalTimeline currentRank={currentRank} accent={accent} />
+      </div>
+
+      {/* Comments thread */}
+      {detail && (
+        <div className="border-t border-gray-100 mt-5 pt-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-3">
+            💬 Comments {detail.comments.length > 0 && `· ${detail.comments.length}`}
+          </div>
+          <CommentsThread postId={row.id} comments={detail.comments} personKey={personKey} accent={accent} onAdded={onDetailChanged} />
+        </div>
+      )}
+
+      {/* Activity log */}
+      {detail && detail.activity.length > 0 && (
+        <div className="border-t border-gray-100 mt-5 pt-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-3">Activity</div>
+          <div className="space-y-1.5">
+            {detail.activity.slice(0, 5).map((a) => (
+              <div key={a.id} className="text-xs text-gray-600 flex gap-2">
+                <span className="text-gray-400 flex-shrink-0 w-14">{relTime(a.created_at)}</span>
+                <span><span className="text-gray-800 font-medium">{a.actorName}</span> {a.detail || a.action}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scheduler line */}
+      {detail?.scheduler.syncedToScheduler && detail.scheduler.startAt && (
+        <div className="border-t border-gray-100 mt-5 pt-4">
+          <div className="text-xs text-gray-600 flex items-center gap-2">
+            <span>📅</span>
+            <span>
+              Scheduled to publish{" "}
+              <span className="font-medium text-gray-800">
+                {new Date(detail.scheduler.startAt).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+              </span>{" "}
+              via Post Scheduler
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="border-t border-gray-100 mt-5 pt-4 flex gap-2 items-center flex-wrap">
+        <button
+          onClick={onEdit}
+          className="flex-1 px-4 py-2 rounded text-sm font-medium text-white hover:opacity-90"
+          style={{ background: accent }}
+        >
+          Edit task
+        </button>
+        <button
+          onClick={markDone}
+          disabled={busyStatus !== null || currentRank >= 5}
+          className="px-5 py-2 rounded text-sm border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+        >
+          {busyStatus ? "Saving…" : currentRank >= 5 ? "Done" : "Mark done"}
+        </button>
+        <TakeOverButton row={row} personKey={personKey} onDone={onSaved} />
+      </div>
+    </div>
+  );
+}
+
+function TakeOverButton({ row, personKey, onDone }: { row: Row; personKey: string; onDone: () => void }) {
+  const isVideo = /reel|video|long.*form/i.test(row.type || "");
+  const isEditor = personKey === "nikhil" || personKey === "nandu";
+  const ownerKey = String(row.owner || "").toLowerCase();
+  const currentOwnerIsSiblingEditor = (ownerKey.includes("nikhil") || ownerKey.includes("nandu")) && !ownerKey.includes(personKey);
+  const showButton = isVideo && isEditor && currentOwnerIsSiblingEditor;
+  const [busy, setBusy] = useState(false);
+  if (!showButton) return null;
+
+  async function claim() {
+    if (!confirm(`Take over this task from ${row.owner}?`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/marketing-hub/takeover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: row.id, newOwnerKey: personKey }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) alert(`Failed: ${j.error || r.status}`);
+      else onDone();
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <button
+      onClick={claim}
+      disabled={busy}
+      className="px-4 py-2 rounded text-sm border-2 border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium disabled:opacity-40"
+      title={`Claim this task — ${row.owner} will step down`}
+    >
+      {busy ? "Claiming…" : "🎬 Take over"}
     </button>
   );
 }
 
-function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+function relTime(iso: string): string {
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+function CommentsThread({ postId, comments, personKey, accent, onAdded }: {
+  postId: string; comments: Comment[]; personKey: string; accent: string; onAdded: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? comments : comments.slice(0, 3);
+
+  async function submit() {
+    if (!draft.trim()) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/marketing-hub/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, authorKey: personKey, body: draft.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) { alert(`Failed: ${j.error || r.status}`); return; }
+      setDraft("");
+      onAdded();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-6 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-4xl my-6 flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-8 py-5 border-b border-gray-100">
-          <div>
-            <div className="text-xl font-medium">{row.particulars || "(untitled)"}</div>
-            <div className="text-sm text-gray-500 mt-1">{row.sbu} · {row.type} · Publishing {row.publishingDate?.slice(0, 10) || "—"}</div>
+    <div>
+      {comments.length === 0 && (
+        <div className="text-xs text-gray-400 mb-3">No comments yet. Kick off the thread below.</div>
+      )}
+      <div className="space-y-2 mb-3">
+        {shown.map((c) => (
+          <div key={c.id} className="text-sm">
+            <div className="flex items-baseline gap-2">
+              <span className="font-medium text-gray-800">{c.authorName}</span>
+              <span className="text-[10px] text-gray-400">{relTime(c.created_at)}</span>
+            </div>
+            <div className="text-gray-700 whitespace-pre-wrap mt-0.5">{c.body}</div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl leading-none">×</button>
-        </div>
-        <div className="px-8 py-6 space-y-5">
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div><div className="text-xs text-gray-500 uppercase tracking-wide">Status</div><div className="mt-1">{row.status || "—"}</div></div>
-            <div><div className="text-xs text-gray-500 uppercase tracking-wide">Owner</div><div className="mt-1">{row.owner || "—"}</div></div>
-            <div><div className="text-xs text-gray-500 uppercase tracking-wide">Due date</div><div className="mt-1">{row.dueDate?.slice(0, 10) || "—"}</div></div>
-          </div>
-          {row.attachments.length > 0 && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Attachments</div>
-              <div className="grid grid-cols-4 gap-3">
-                {row.attachments.map((a, i) => (
-                  <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block border border-gray-100 rounded overflow-hidden hover:border-brand">
-                    {a.type?.startsWith("image/") ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={a.url} alt={a.filename} className="w-full h-32 object-cover" />
-                    ) : (
-                      <div className="w-full h-32 flex items-center justify-center bg-gray-50 text-gray-400 text-xs">{a.type || "file"}</div>
-                    )}
-                    <div className="p-2 text-xs text-gray-600 truncate">{a.filename}</div>
-                  </a>
-                ))}
+        ))}
+        {!expanded && comments.length > 3 && (
+          <button onClick={() => setExpanded(true)} className="text-xs text-gray-500 hover:text-gray-800">
+            View all {comments.length} comments →
+          </button>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          placeholder="Write a comment…"
+          className="flex-1 text-sm px-3 py-1.5 border border-gray-200 rounded-full focus:outline-none focus:ring-1 focus:ring-gray-300"
+        />
+        <button
+          onClick={submit}
+          disabled={busy || !draft.trim()}
+          className="px-4 py-1.5 rounded-full text-sm font-medium text-white disabled:opacity-40"
+          style={{ background: accent }}
+        >
+          {busy ? "…" : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HorizontalTimeline({ currentRank, accent }: { currentRank: number; accent: string }) {
+  return (
+    <div className="relative grid grid-cols-5 gap-0">
+      {/* Connector line */}
+      <div className="absolute top-2 left-[10%] right-[10%] h-[2px] bg-gray-100" />
+      {TIMELINE_STAGES.map((stage) => {
+        const done = currentRank > stage.rank;
+        const active = currentRank === stage.rank || (stage.rank === 5 && currentRank === 4);
+        return (
+          <div key={stage.rank} className="relative z-10 text-center">
+            {active ? (
+              <div
+                className="w-5 h-5 rounded-full mx-auto mb-1.5 border-2 border-white"
+                style={{ background: accent, boxShadow: `0 0 0 2px ${accent}` }}
+              />
+            ) : done ? (
+              <div className="w-4 h-4 rounded-full mx-auto mb-1.5 flex items-center justify-center text-white text-[9px]" style={{ background: "#5DCAA5" }}>
+                ✓
               </div>
+            ) : (
+              <div className="w-4 h-4 rounded-full mx-auto mb-1.5 border-2 border-gray-200 bg-white" />
+            )}
+            <div className={`text-[11px] ${active ? "font-medium" : done ? "" : "text-gray-400"}`} style={active ? { color: accent } : {}}>
+              {stage.label}
             </div>
-          )}
-          {row.caption && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Caption</div>
-              <div className="text-sm whitespace-pre-wrap">{row.caption}</div>
-            </div>
-          )}
-          {row.content && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Content brief</div>
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: row.content }} />
-            </div>
-          )}
-          {(row.outputLink || row.link) && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Links</div>
-              {row.outputLink && <div className="text-sm"><span className="text-gray-500 mr-2">Output:</span><a href={row.outputLink} target="_blank" rel="noreferrer" className="text-brand hover:underline">{row.outputLink}</a></div>}
-              {row.link && <div className="text-sm mt-1"><span className="text-gray-500 mr-2">Link:</span><a href={row.link} target="_blank" rel="noreferrer" className="text-brand hover:underline">{row.link}</a></div>}
-            </div>
-          )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Preset teams keyed by task type. Writer is inferred from owner_key elsewhere;
+// these are the *usual collaborators* to add on top.
+const USUAL_TEAM: { match: (type: string) => boolean; keys: string[]; label: string }[] = [
+  { match: (t) => /post|carousel|thumbnail/i.test(t),      keys: ["praveen", "maheen"], label: "Designer + Reviewer (Praveen, Maheen)" },
+  { match: (t) => /reel.*(original|edit|video)/i.test(t),  keys: ["nikhil", "maheen"],  label: "Editor + Reviewer (Nikhil, Maheen)" },
+  { match: (t) => /reel/i.test(t),                         keys: ["nandu", "maheen"],   label: "Editor + Reviewer (Nandu, Maheen)" },
+  { match: () => true,                                     keys: ["maheen"],            label: "Reviewer (Maheen)" },
+];
+
+function usualTeamFor(type: string): { keys: string[]; label: string } {
+  const hit = USUAL_TEAM.find((u) => u.match(type || ""));
+  return hit ? { keys: hit.keys, label: hit.label } : { keys: ["maheen"], label: "Reviewer (Maheen)" };
+}
+
+function TeamStrip({ postId, type, collaborators, onChanged }: {
+  postId: string; type: string; collaborators: Collaborator[]; onChanged: () => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const present = new Set(collaborators.map((c) => c.key));
+  const missing = TEAM.filter((p) => !present.has(p.key)).concat(TEAM.find((p) => p.key === "manya") && !present.has("manya") ? [] : []);
+  const maheenMissing = !present.has("maheen");
+  const availablePeople = [...TEAM, { key: "maheen", label: "Maheen", role: "editor" as Role, color: "#7C6BAF" }].filter((p) => !present.has(p.key));
+
+  const preset = usualTeamFor(type);
+  const presetToAdd = preset.keys.filter((k) => !present.has(k));
+
+  async function addOne(key: string) {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/collaborators", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, memberKey: key }),
+      });
+      onChanged();
+      setPicking(false);
+    } finally { setBusy(false); }
+  }
+
+  async function addPreset() {
+    if (presetToAdd.length === 0) return;
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/collaborators", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, memberKeys: presetToAdd }),
+      });
+      onChanged();
+    } finally { setBusy(false); }
+  }
+
+  async function remove(key: string) {
+    setBusy(true);
+    try {
+      await fetch(`/api/marketing-hub/collaborators?postId=${postId}&memberKey=${key}`, { method: "DELETE" });
+      onChanged();
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-4 pb-4 border-b border-gray-100">
+      <span className="text-[10px] uppercase tracking-wide text-gray-500">Team</span>
+
+      {collaborators.map((c) => {
+        const color = TEAM.find((p) => p.key === c.key)?.color || "#7C6BAF";
+        return (
+          <span key={c.key} className="group inline-flex items-center gap-1.5 text-[11px] pl-1 pr-2 py-0.5 rounded-full bg-gray-50 border border-gray-100">
+            <span className="w-4 h-4 rounded-full text-white flex items-center justify-center text-[9px] font-medium" style={{ background: color }}>
+              {c.name.charAt(0)}
+            </span>
+            <span>{c.name}</span>
+            {c.role && <span className="text-gray-400">· {c.role}</span>}
+            <button
+              onClick={() => remove(c.key)}
+              disabled={busy}
+              className="ml-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+              title="Remove"
+            >×</button>
+          </span>
+        );
+      })}
+
+      <div className="relative">
+        <button
+          onClick={() => setPicking((v) => !v)}
+          disabled={busy || availablePeople.length === 0}
+          className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 disabled:opacity-40"
+        >
+          + Add
+        </button>
+        {picking && availablePeople.length > 0 && (
+          <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
+            {availablePeople.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => addOne(p.key)}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"
+              >
+                <span className="w-4 h-4 rounded-full text-white text-[9px] font-medium flex items-center justify-center" style={{ background: p.color }}>
+                  {p.label.charAt(0)}
+                </span>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {presetToAdd.length > 0 && (
+        <button
+          onClick={addPreset}
+          disabled={busy}
+          className="text-[11px] px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+          title={preset.label}
+        >
+          ✨ Add usual team
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CreativeFiles({ postId, attachments, personKey, accent, onChanged }: {
+  postId: string; attachments: Attachment[]; personKey: string; accent: string; onChanged: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload(files: FileList | File[]) {
+    setErr(null);
+    setBusy(true);
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("postId", postId);
+        fd.append("uploadedBy", personKey);
+        fd.append("file", file);
+        const r = await fetch(`/api/marketing-hub/attach`, { method: "POST", body: fd });
+        const j = await r.json();
+        if (!r.ok || j.error) { setErr(j.error || `HTTP ${r.status}`); break; }
+      }
+      onChanged();
+    } finally { setBusy(false); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this file?")) return;
+    const r = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
+    if (r.ok) onChanged();
+  }
+
+  return (
+    <div>
+      {attachments.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+          {attachments.map((a) => {
+            const isImg = (a.mime_type || "").startsWith("image/");
+            const isVid = (a.mime_type || "").startsWith("video/");
+            return (
+              <div key={a.id} className="relative group flex-shrink-0 w-28 h-28 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden">
+                <a href={a.storage_path} target="_blank" rel="noreferrer" className="block w-full h-full" title={a.filename}>
+                  {isImg ? (
+                    <img src={a.storage_path} alt={a.filename} className="w-full h-full object-cover" />
+                  ) : isVid ? (
+                    <video src={a.storage_path} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                      <div className="text-2xl">📎</div>
+                      <div className="text-[9px] text-gray-500 mt-1 truncate w-full text-center">{a.filename}</div>
+                    </div>
+                  )}
+                </a>
+                <button
+                  onClick={() => remove(a.id)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs opacity-0 group-hover:opacity-100 transition"
+                  title="Delete"
+                >×</button>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (e.dataTransfer.files.length > 0) upload(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={`border-2 border-dashed rounded-lg p-4 text-center text-xs cursor-pointer transition ${dragOver ? "" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}
+        style={dragOver ? { borderColor: accent, background: accent + "0A", color: accent } : {}}
+      >
+        {busy ? (
+          <span>Uploading…</span>
+        ) : (
+          <span>
+            <span className="font-medium" style={{ color: accent }}>Click to upload</span>{" "}
+            or drag & drop — designs, thumbnails, edited videos, references (up to 25 MB)
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => { if (e.target.files) upload(e.target.files); e.target.value = ""; }}
+        />
+      </div>
+
+      {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
+    </div>
+  );
+}
+
+function AutoTextarea({ value, onChange, minRows = 2, placeholder }: {
+  value: string; onChange: (v: string) => void; minRows?: number; placeholder?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={minRows}
+      placeholder={placeholder}
+      className="w-full mt-1 text-sm px-3 py-2 border border-gray-200 rounded bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-300 leading-relaxed resize-none overflow-hidden"
+    />
+  );
+}
+
+function EditForm({ row, accent, currentRank, onClose, onCancel, onSaved }: {
+  row: Row; accent: string; currentRank: number;
+  onClose: () => void; onCancel: () => void; onSaved: () => void;
+}) {
+  const [particulars, setParticulars] = useState(row.particulars);
+  const [status, setStatus] = useState(row.status);
+  const [priority, setPriority] = useState(row.priority || "Medium");
+  const [publishingDate, setPublishingDate] = useState(row.publishingDate?.slice(0, 10) || "");
+  const [dueDate, setDueDate] = useState(row.dueDate?.slice(0, 10) || "");
+  const [sbu, setSbu] = useState(row.sbu);
+  const [content, setContent] = useState(row.content);
+  const [caption, setCaption] = useState(row.caption);
+  const [additionalInfo, setAdditionalInfo] = useState(row.additionalInfo);
+  const [needsReview, setNeedsReview] = useState(row.needsReview);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Track how many fields differ from the original row for the "N unsaved changes" indicator.
+  const dirtyCount = [
+    particulars !== row.particulars,
+    status !== row.status,
+    priority !== (row.priority || "Medium"),
+    publishingDate !== (row.publishingDate?.slice(0, 10) || ""),
+    dueDate !== (row.dueDate?.slice(0, 10) || ""),
+    sbu !== row.sbu,
+    content !== row.content,
+    caption !== row.caption,
+    additionalInfo !== row.additionalInfo,
+    needsReview !== row.needsReview,
+  ].filter(Boolean).length;
+
+  async function save() {
+    setSaving(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/marketing-hub/update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: row.id,
+          fields: {
+            particulars,
+            status,
+            priority,
+            publishing_date: publishingDate || null,
+            due_date: dueDate || null,
+            sbu: sbu || null,
+            content: content || null,
+            caption: caption || null,
+            additional_info: additionalInfo || null,
+            needs_review: needsReview,
+          },
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) { setErr(j.error || `HTTP ${r.status}`); return; }
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      {/* Header — editable title */}
+      <div className="flex items-start justify-between mb-4 gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>Editing task</div>
+          <input
+            type="text"
+            value={particulars}
+            onChange={(e) => setParticulars(e.target.value)}
+            className="w-full text-xl font-medium mt-1 leading-tight bg-transparent border-b border-gray-100 focus:border-gray-300 outline-none py-1"
+          />
+          <div className="text-xs text-gray-500 mt-1">{row.type || "—"} · {sbu || row.sbu || "—"}</div>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
+      </div>
+
+      {/* Details form */}
+      <div className="border-t border-gray-100 pt-4">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-2">Details</div>
+
+        <label className="block">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wide">Content brief</span>
+          <AutoTextarea value={content} onChange={setContent} minRows={3} />
+        </label>
+
+        <label className="block mt-3">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wide">Caption draft</span>
+          <AutoTextarea value={caption} onChange={setCaption} minRows={3} placeholder="Draft the IG caption here…" />
+        </label>
+
+        <label className="block mt-3">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wide">Feedback / notes</span>
+          <AutoTextarea value={additionalInfo} onChange={setAdditionalInfo} minRows={2} placeholder="Reviewer feedback, follow-up notes…" />
+        </label>
+
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 mt-3">
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full mt-1 text-sm px-2 py-1.5 border border-gray-200 rounded bg-white">
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Priority</span>
+            <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full mt-1 text-sm px-2 py-1.5 border border-gray-200 rounded bg-white">
+              {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">SBU</span>
+            <input type="text" value={sbu} onChange={(e) => setSbu(e.target.value)} className="w-full mt-1 text-sm px-2 py-1.5 border border-gray-200 rounded" />
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Needs review</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} className="h-4 w-4 rounded cursor-pointer" style={{ accentColor: accent }} />
+              <span className="text-xs text-gray-600">Flag for Maheen</span>
+            </div>
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Publish date</span>
+            <input type="date" value={publishingDate} onChange={(e) => setPublishingDate(e.target.value)} className="w-full mt-1 text-sm px-2 py-1.5 border border-gray-200 rounded" />
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Due date</span>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full mt-1 text-sm px-2 py-1.5 border border-gray-200 rounded" />
+          </label>
+        </div>
+      </div>
+
+      {/* Timeline (read-only) */}
+      <div className="border-t border-gray-100 mt-5 pt-4 opacity-70">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-3">Timeline · read-only</div>
+        <HorizontalTimeline currentRank={currentRank} accent={accent} />
+      </div>
+
+      {err && <div className="mt-4 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2">{err}</div>}
+
+      {/* Actions */}
+      <div className="border-t border-gray-100 mt-5 pt-4 flex gap-2 items-center">
+        <div className="text-xs text-gray-500 mr-auto">
+          {dirtyCount > 0 ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}` : "No changes yet"}
+        </div>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="px-5 py-2 rounded text-sm border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={saving || dirtyCount === 0}
+          className="px-5 py-2 rounded text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+          style={{ background: accent }}
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
       </div>
     </div>
   );
