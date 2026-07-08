@@ -27,17 +27,25 @@ export async function POST(req: Request) {
 
     await sb.from("mh_posts").update({ owner_key: body.newOwnerKey }).eq("id", body.postId);
 
-    // Remove new owner from collabs (they were on standby), drop old sibling editor if it was a video split
+    // Remove new owner from collabs (they were on standby)
     await sb.from("mh_post_collaborators").delete().eq("post_id", body.postId).eq("member_key", body.newOwnerKey);
+
     if (oldOwner === "nikhil" || oldOwner === "nandu") {
+      // Sibling editor drops off — the other one released the task
       await sb.from("mh_post_collaborators").delete().eq("post_id", body.postId).eq("member_key", oldOwner);
+    } else if (oldOwner) {
+      // Writer / anyone else stays as a collaborator so they can follow the task
+      await sb.from("mh_post_collaborators").upsert(
+        [{ post_id: body.postId, member_key: oldOwner }],
+        { onConflict: "post_id,member_key", ignoreDuplicates: true }
+      );
     }
 
     await sb.from("mh_activity").insert({
       post_id: body.postId,
       actor_key: body.newOwnerKey,
-      action: "takeover",
-      detail: `took over from ${oldOwner || "unassigned"}`,
+      action: "claim",
+      detail: `claimed the task from ${oldOwner || "unassigned"}`,
     });
 
     return NextResponse.json({ ok: true, newOwnerKey: body.newOwnerKey });

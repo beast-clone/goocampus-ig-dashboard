@@ -3,6 +3,49 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-07 (evening) — Role-aware My Day + Claim task workflow
+
+### Role-aware task list
+
+- **Designers / editors now only see tasks that reached them.** Praveen / Nikhil / Nandu no longer see `Content - Pending`, `Content - In Progress`, or `Incorporating Feedback` — those are the writer's stages. Writers still see the full pipeline.
+- **Designers / editors also see claimable tasks**, not just tasks they already own:
+  - Praveen sees Content-Approved / Output-Ready static tasks (Post / Carousel / Thumbnail / YouTube post) even when a writer still owns them.
+  - Nikhil and Nandu see Content-Approved / Output-Ready video tasks (Reel / Video / Long-form) even when the other editor or a writer owns them.
+- **"owned by X" sub-line** on each row when the current person isn't the owner, so it's clear whose queue the task is in right now.
+
+### Claim task button
+
+- New yellow **Claim** pill on the top-right of any eligible row (designer/editor persona × Content-Approved or Output-Ready × not the current owner). One click swaps ownership:
+  - Clicker becomes the owner.
+  - **Writer stays as a collaborator** (so Manya can still watch her original brief travel through the pipeline).
+  - Sibling video editor (Nikhil ↔ Nandu) drops off — one editor releases the task when the other claims it.
+  - Activity log gets a `claim` entry: "claimed the task from …".
+- Wired to `POST /api/marketing-hub/takeover` (rebranded action label from `takeover` → `claim`, same endpoint).
+
+### Role-aware stat cards
+
+- Writers keep the 7-card lineup (Pending today · Content pending · In progress · Feedback to address · Content approved · Handed off · Completed).
+- Designers / editors get a slimmer 5-card lineup: Pending today · **Waiting on me** · Output ready · Ready to publish · Completed. No writer-only metrics cluttering their view.
+
+### Person-aware "Add usual team" preset
+
+- The preset now depends on **who is looking** at the task, not just the task type.
+  - Writer viewing → suggests downstream owner + reviewer (Praveen + Maheen / Nikhil + Maheen / Nandu + Maheen).
+  - Praveen viewing a static task → suggests **Manya (writer) + Maheen (reviewer)**.
+  - Nikhil viewing a video → suggests **Nandu (sibling) + Manya + Maheen**.
+  - Nandu viewing a video → suggests **Nikhil (sibling) + Manya + Maheen**.
+
+### Auto-status-advance on creative upload
+
+- When a designer or editor uploads a creative to a task in `Content - Approved`, the status auto-PATCHes to `Output - Ready` — no need to click Edit or Mark done. A green toast confirms "Auto-advanced to Output Ready" and the panel refreshes.
+- Dropzone copy is now personalized: designers/editors see "Click to upload **your creative**" plus a sub-line "task auto-moves to Output Ready on upload" when in the right status; writers still see the generic "reference files" wording.
+
+### Bigger Team on this task section
+
+- Owner is now a large card with a 40px avatar, an **OWNER** eyebrow in the person's brand color, and a color-tinted background. Instantly readable at a glance.
+- Collaborators are smaller cards with a 32px avatar, a **COLLABORATOR** eyebrow, and a hover-× to remove.
+- The **+ Add** picker button now matches the height of team cards. **"✨ Add usual team"** shows the preset members' names in the button itself (e.g. "Add usual team (Manya + Maheen)").
+
 ## 2026-07-07 — My Day detail panel redesign + creative pipeline
 
 ### Detail panel — brand-new landscape rectangle

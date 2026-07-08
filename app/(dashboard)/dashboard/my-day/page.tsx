@@ -140,15 +140,22 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
   const mine = useMemo(() => {
     const rows = data?.rows || [];
+    // Designers and editors only get the pipeline once the writer approves.
+    // Writers see their whole pipeline from Content Pending onwards.
+    const preContentStatuses = new Set(["Content - Pending", "Content - In Progress", "Incorporating Feedback"]);
+    const isPostWriterRole = person.role === "designer" || person.role === "editor";
+    const isStatic = (t: string) => /post|carousel|thumbnail|youtube.*(post|thumbnail)/i.test(t || "");
+    const isVideo = (t: string) => /reel|video|long.*form/i.test(t || "");
+
     return rows.filter((r) => {
+      if (isPostWriterRole && preContentStatuses.has(r.status)) return false;
+
       if (ownerMatches(r.owner, person)) return true;
-      // Nikhil and Nandu share video tasks — either can take over from the other.
-      if (person.key === "nikhil" || person.key === "nandu") {
-        const isVideo = /reel|video|long.*form/i.test(r.type || "");
-        const owner = (r.owner || "").toLowerCase();
-        const siblingOwns = person.key === "nikhil" ? owner.includes("nandu") : owner.includes("nikhil");
-        if (isVideo && siblingOwns) return true;
-      }
+
+      // Designer/editor also sees eligible-to-claim tasks so they can grab them from a task list
+      if (person.key === "praveen" && isStatic(r.type)) return true;
+      if ((person.key === "nikhil" || person.key === "nandu") && isVideo(r.type)) return true;
+
       return false;
     });
   }, [data, person]);
@@ -256,34 +263,47 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-7 gap-3">
-        {(() => {
-          const pendingToday    = mine.filter((r) => (r.publishingDate?.slice(0, 10) || "") === todayStr && !DONE_STATUSES.includes(r.status)).length;
-          const contentPending  = mine.filter((r) => r.status === "Content - Pending").length;
-          const inProgress      = mine.filter((r) => r.status === "Content - In Progress").length;
-          const feedback        = mine.filter((r) => r.status === "Incorporating Feedback").length;
-          const contentApproved = mine.filter((r) => r.status === "Content - Approved").length;
-          const handedOff       = mine.filter((r) => ["Content - Approved", "Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(r.status)).length;
-          const completed       = counts.done.length;
-          const cards = [
-            { label: "Pending today",       value: pendingToday,    hint: "Publish date is today",       color: "#D4537E" },
-            { label: "Content pending",     value: contentPending,  hint: "Awaiting your write-up",      color: "#B08308" },
-            { label: "In progress",         value: inProgress,      hint: "Writing right now",           color: "#EF9F27" },
-            { label: "Feedback to address", value: feedback,        hint: "Revisions requested",         color: "#A32D2D" },
-            { label: "Content approved",    value: contentApproved, hint: "Approved, ready for output",  color: "#27500A" },
-            { label: "Handed off",          value: handedOff,       hint: "Past writer, with the team",  color: "#0C447C" },
-            { label: "Completed",           value: completed,       hint: "Wrapped up this week",        color: "#0F6E56" },
-          ];
-          return cards.map((c) => (
-            <div key={c.label} className="bg-white border border-gray-100 rounded-lg p-3">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 leading-tight">{c.label}</div>
-              <div className="mt-1 text-2xl font-medium tabular-nums" style={{ color: c.color }}>{c.value}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{c.hint}</div>
-            </div>
-          ));
-        })()}
-      </div>
+      {/* Stat cards — writer sees the full pipeline, designer/editor see only their downstream work */}
+      {(() => {
+        const isWriter = person.role === "writer";
+        const pendingToday    = mine.filter((r) => (r.publishingDate?.slice(0, 10) || "") === todayStr && !DONE_STATUSES.includes(r.status)).length;
+        const contentPending  = mine.filter((r) => r.status === "Content - Pending").length;
+        const inProgress      = mine.filter((r) => r.status === "Content - In Progress").length;
+        const feedback        = mine.filter((r) => r.status === "Incorporating Feedback").length;
+        const contentApproved = mine.filter((r) => r.status === "Content - Approved").length;
+        const outputReady     = mine.filter((r) => r.status === "Output - Ready").length;
+        const readyToPublish  = mine.filter((r) => r.status === "Ready to Publish").length;
+        const handedOff       = mine.filter((r) => ["Content - Approved", "Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(r.status)).length;
+        const completed       = counts.done.length;
+
+        const cards = isWriter ? [
+          { label: "Pending today",       value: pendingToday,    hint: "Publish date is today",       color: "#D4537E" },
+          { label: "Content pending",     value: contentPending,  hint: "Awaiting your write-up",      color: "#B08308" },
+          { label: "In progress",         value: inProgress,      hint: "Writing right now",           color: "#EF9F27" },
+          { label: "Feedback to address", value: feedback,        hint: "Revisions requested",         color: "#A32D2D" },
+          { label: "Content approved",    value: contentApproved, hint: "Approved, ready for output",  color: "#27500A" },
+          { label: "Handed off",          value: handedOff,       hint: "Past writer, with the team",  color: "#0C447C" },
+          { label: "Completed",           value: completed,       hint: "Wrapped up this week",        color: "#0F6E56" },
+        ] : [
+          { label: "Pending today",       value: pendingToday,    hint: "Publish date is today",             color: "#D4537E" },
+          { label: "Waiting on me",       value: contentApproved, hint: "Content approved · start making",   color: "#EF9F27" },
+          { label: "Output ready",        value: outputReady,     hint: "You've uploaded the creative",      color: "#0C447C" },
+          { label: "Ready to publish",    value: readyToPublish,  hint: "Queued for the scheduler",          color: "#27500A" },
+          { label: "Completed",           value: completed,       hint: "Wrapped up this week",              color: "#0F6E56" },
+        ];
+        const cols = cards.length === 7 ? "grid-cols-7" : "grid-cols-5";
+        return (
+          <div className={`grid ${cols} gap-3`}>
+            {cards.map((c) => (
+              <div key={c.label} className="bg-white border border-gray-100 rounded-lg p-3">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 leading-tight">{c.label}</div>
+                <div className="mt-1 text-2xl font-medium tabular-nums" style={{ color: c.color }}>{c.value}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{c.hint}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Notes — personal reminders, manually added */}
       <div
@@ -366,23 +386,31 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             {mine.map((r) => {
               const isSelected = selectedId === r.id;
               const st = STATUS_STYLES[r.status] || STATUS_STYLES["Content - Pending"];
+              const isOwner = ownerMatches(r.owner, person);
+              const isEligibleToClaim = !isOwner && (person.role === "designer" || person.role === "editor") &&
+                ["Content - Approved", "Output - Ready"].includes(r.status);
               return (
-                <button
-                  key={r.id}
-                  onClick={() => setSelectedId(r.id)}
-                  className={`w-full text-left rounded-lg p-2.5 border transition ${isSelected ? "" : "border-gray-100 hover:border-gray-200"}`}
-                  style={isSelected ? { borderLeft: `3px solid ${person.color}`, background: person.color + "0A", borderColor: person.color + "33" } : {}}
-                >
-                  <div className="text-sm font-medium leading-tight">{r.particulars || "(untitled)"}</div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
-                    {r.type || "—"}
-                    {r.publishingDate && ` · ${new Date(r.publishingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
-                  </div>
-                  <div className="mt-1.5">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.text }}>{r.status || "—"}</span>
-                    {r.needsReview && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 ml-1">Review</span>}
-                  </div>
-                </button>
+                <div key={r.id} className="relative">
+                  <button
+                    onClick={() => setSelectedId(r.id)}
+                    className={`w-full text-left rounded-lg p-2.5 border transition ${isSelected ? "" : "border-gray-100 hover:border-gray-200"}`}
+                    style={isSelected ? { borderLeft: `3px solid ${person.color}`, background: person.color + "0A", borderColor: person.color + "33" } : {}}
+                  >
+                    <div className="text-sm font-medium leading-tight pr-16">{r.particulars || "(untitled)"}</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      {r.type || "—"}
+                      {r.publishingDate && ` · ${new Date(r.publishingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
+                      {!isOwner && r.owner && <span className="text-gray-400"> · owned by {r.owner.split(" ")[0]}</span>}
+                    </div>
+                    <div className="mt-1.5">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.text }}>{r.status || "—"}</span>
+                      {r.needsReview && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 ml-1">Review</span>}
+                    </div>
+                  </button>
+                  {isEligibleToClaim && (
+                    <ClaimRowButton postId={r.id} personKey={person.key} onDone={refresh} />
+                  )}
+                </div>
               );
             })}
           </div>
@@ -557,6 +585,8 @@ function ViewMode({ row, accent, currentRank, detail, personKey, onClose, onEdit
         <TeamStrip
           postId={row.id}
           type={row.type}
+          ownerName={row.owner}
+          viewerKey={personKey}
           collaborators={detail.collaborators}
           onChanged={onDetailChanged}
         />
@@ -648,10 +678,12 @@ function ViewMode({ row, accent, currentRank, detail, personKey, onClose, onEdit
           </div>
           <CreativeFiles
             postId={row.id}
+            personRow={row}
             attachments={detail.attachments}
             personKey={personKey}
             accent={accent}
             onChanged={onDetailChanged}
+            onTaskAdvanced={() => { onDetailChanged(); onSaved(); }}
           />
         </div>
       )}
@@ -722,6 +754,34 @@ function ViewMode({ row, accent, currentRank, detail, personKey, onClose, onEdit
         <TakeOverButton row={row} personKey={personKey} onDone={onSaved} />
       </div>
     </div>
+  );
+}
+
+function ClaimRowButton({ postId, personKey, onDone }: { postId: string; personKey: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  async function claim(e: React.MouseEvent) {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      const r = await fetch("/api/marketing-hub/takeover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, newOwnerKey: personKey }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) alert(`Failed: ${j.error || r.status}`);
+      else onDone();
+    } finally { setBusy(false); }
+  }
+  return (
+    <button
+      onClick={claim}
+      disabled={busy}
+      className="absolute top-2 right-2 text-[10px] font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 disabled:opacity-50"
+      title="Claim this task — you become the owner, current owner joins as collaborator"
+    >
+      {busy ? "…" : "Claim"}
+    </button>
   );
 }
 
@@ -872,33 +932,43 @@ function HorizontalTimeline({ currentRank, accent }: { currentRank: number; acce
   );
 }
 
-// Preset teams keyed by task type. Writer is inferred from owner_key elsewhere;
-// these are the *usual collaborators* to add on top.
-const USUAL_TEAM: { match: (type: string) => boolean; keys: string[]; label: string }[] = [
-  { match: (t) => /post|carousel|thumbnail/i.test(t),      keys: ["praveen", "maheen"], label: "Designer + Reviewer (Praveen, Maheen)" },
-  { match: (t) => /reel.*(original|edit|video)/i.test(t),  keys: ["nikhil", "maheen"],  label: "Editor + Reviewer (Nikhil, Maheen)" },
-  { match: (t) => /reel/i.test(t),                         keys: ["nandu", "maheen"],   label: "Editor + Reviewer (Nandu, Maheen)" },
-  { match: () => true,                                     keys: ["maheen"],            label: "Reviewer (Maheen)" },
-];
+// Preset teams — role-aware. What "usual team" means depends on who is looking.
+// Writer viewing → adds downstream owner (designer/editor) + reviewer.
+// Designer/editor viewing → adds writer (Manya) + reviewer, because handoff already made them owner.
+function usualTeamFor(type: string, viewerKey: string): { keys: string[]; label: string } {
+  const t = type || "";
+  const isStatic = /post|carousel|thumbnail|youtube.*(post|thumbnail)/i.test(t);
+  const isSpeakingReel = /reel.*(original|edit|video)|long.*form/i.test(t);
+  const isReel = /reel/i.test(t);
 
-function usualTeamFor(type: string): { keys: string[]; label: string } {
-  const hit = USUAL_TEAM.find((u) => u.match(type || ""));
-  return hit ? { keys: hit.keys, label: hit.label } : { keys: ["maheen"], label: "Reviewer (Maheen)" };
+  // From designer/editor perspective, presets include the writer.
+  if (viewerKey === "praveen" && isStatic)                                return { keys: ["manya", "maheen"],   label: "Writer + Reviewer (Manya, Maheen)" };
+  if (viewerKey === "nikhil" && (isSpeakingReel || isReel))               return { keys: ["nandu", "manya", "maheen"], label: "Sibling + Writer + Reviewer (Nandu, Manya, Maheen)" };
+  if (viewerKey === "nandu" && isReel)                                    return { keys: ["nikhil", "manya", "maheen"], label: "Sibling + Writer + Reviewer (Nikhil, Manya, Maheen)" };
+
+  // From writer perspective, presets include downstream owner.
+  if (isStatic)         return { keys: ["praveen", "maheen"], label: "Designer + Reviewer (Praveen, Maheen)" };
+  if (isSpeakingReel)   return { keys: ["nikhil", "maheen"],  label: "Editor + Reviewer (Nikhil, Maheen)" };
+  if (isReel)           return { keys: ["nandu", "maheen"],   label: "Editor + Reviewer (Nandu, Maheen)" };
+  return                       { keys: ["maheen"],            label: "Reviewer (Maheen)" };
 }
 
-function TeamStrip({ postId, type, collaborators, onChanged }: {
-  postId: string; type: string; collaborators: Collaborator[]; onChanged: () => void;
+function TeamStrip({ postId, type, ownerName, viewerKey, collaborators, onChanged }: {
+  postId: string; type: string; ownerName: string; viewerKey: string; collaborators: Collaborator[]; onChanged: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const present = new Set(collaborators.map((c) => c.key));
-  const missing = TEAM.filter((p) => !present.has(p.key)).concat(TEAM.find((p) => p.key === "manya") && !present.has("manya") ? [] : []);
-  const maheenMissing = !present.has("maheen");
   const availablePeople = [...TEAM, { key: "maheen", label: "Maheen", role: "editor" as Role, color: "#7C6BAF" }].filter((p) => !present.has(p.key));
 
-  const preset = usualTeamFor(type);
+  const preset = usualTeamFor(type, viewerKey);
   const presetToAdd = preset.keys.filter((k) => !present.has(k));
+
+  // Split collaborators into owner (matches row.owner display name) and helpers.
+  const ownerNorm = (ownerName || "").toLowerCase();
+  const owner = collaborators.find((c) => ownerNorm.includes(c.key) || c.name.toLowerCase() === ownerNorm);
+  const helpers = collaborators.filter((c) => c !== owner);
 
   async function addOne(key: string) {
     setBusy(true);
@@ -934,76 +1004,99 @@ function TeamStrip({ postId, type, collaborators, onChanged }: {
     } finally { setBusy(false); }
   }
 
-  return (
-    <div className="flex items-center gap-2 flex-wrap mb-4 pb-4 border-b border-gray-100">
-      <span className="text-[10px] uppercase tracking-wide text-gray-500">Team</span>
+  const paletteFor = (k: string) => TEAM.find((p) => p.key === k)?.color || "#7C6BAF";
 
-      {collaborators.map((c) => {
-        const color = TEAM.find((p) => p.key === c.key)?.color || "#7C6BAF";
-        return (
-          <span key={c.key} className="group inline-flex items-center gap-1.5 text-[11px] pl-1 pr-2 py-0.5 rounded-full bg-gray-50 border border-gray-100">
-            <span className="w-4 h-4 rounded-full text-white flex items-center justify-center text-[9px] font-medium" style={{ background: color }}>
+  return (
+    <div className="mb-4 pb-4 border-b border-gray-100">
+      <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Team on this task</div>
+
+      <div className="flex items-start gap-3 flex-wrap">
+        {/* Owner — big card */}
+        {owner && (
+          <div className="group flex items-center gap-3 rounded-xl px-3 py-2 border" style={{ borderColor: paletteFor(owner.key) + "55", background: paletteFor(owner.key) + "0A" }}>
+            <div className="w-10 h-10 rounded-full text-white flex items-center justify-center text-base font-medium" style={{ background: paletteFor(owner.key) }}>
+              {owner.name.charAt(0)}
+            </div>
+            <div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: paletteFor(owner.key) }}>Owner</div>
+              <div className="text-sm font-medium leading-tight">{owner.name}</div>
+              <div className="text-[10px] text-gray-500 leading-tight">{owner.role || ""}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Helpers — smaller chips */}
+        {helpers.map((c) => (
+          <div key={c.key} className="group flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-100 bg-gray-50/60">
+            <div className="w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-medium" style={{ background: paletteFor(c.key) }}>
               {c.name.charAt(0)}
-            </span>
-            <span>{c.name}</span>
-            {c.role && <span className="text-gray-400">· {c.role}</span>}
+            </div>
+            <div className="pr-1">
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-gray-500">Collaborator</div>
+              <div className="text-sm leading-tight">{c.name}</div>
+              <div className="text-[10px] text-gray-500 leading-tight">{c.role || ""}</div>
+            </div>
             <button
               onClick={() => remove(c.key)}
               disabled={busy}
-              className="ml-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+              className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition text-lg leading-none"
               title="Remove"
             >×</button>
-          </span>
-        );
-      })}
-
-      <div className="relative">
-        <button
-          onClick={() => setPicking((v) => !v)}
-          disabled={busy || availablePeople.length === 0}
-          className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 disabled:opacity-40"
-        >
-          + Add
-        </button>
-        {picking && availablePeople.length > 0 && (
-          <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
-            {availablePeople.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => addOne(p.key)}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"
-              >
-                <span className="w-4 h-4 rounded-full text-white text-[9px] font-medium flex items-center justify-center" style={{ background: p.color }}>
-                  {p.label.charAt(0)}
-                </span>
-                {p.label}
-              </button>
-            ))}
           </div>
-        )}
+        ))}
+
+        {/* + Add */}
+        <div className="relative">
+          <button
+            onClick={() => setPicking((v) => !v)}
+            disabled={busy || availablePeople.length === 0}
+            className="h-full min-h-[56px] px-3 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-500 hover:text-gray-800 disabled:opacity-40"
+          >
+            + Add
+          </button>
+          {picking && availablePeople.length > 0 && (
+            <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[180px]">
+              {availablePeople.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => addOne(p.key)}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <span className="w-5 h-5 rounded-full text-white text-[10px] font-medium flex items-center justify-center" style={{ background: p.color }}>
+                    {p.label.charAt(0)}
+                  </span>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {presetToAdd.length > 0 && (
         <button
           onClick={addPreset}
           disabled={busy}
-          className="text-[11px] px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+          className="mt-2 text-[11px] px-3 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-40"
           title={preset.label}
         >
-          ✨ Add usual team
+          ✨ Add usual team ({preset.keys.map((k) => TEAM.find((p) => p.key === k)?.label || k[0].toUpperCase() + k.slice(1)).join(" + ")})
         </button>
       )}
     </div>
   );
 }
 
-function CreativeFiles({ postId, attachments, personKey, accent, onChanged }: {
-  postId: string; attachments: Attachment[]; personKey: string; accent: string; onChanged: () => void;
+function CreativeFiles({ postId, personRow, attachments, personKey, accent, onChanged, onTaskAdvanced }: {
+  postId: string; personRow: Row; attachments: Attachment[]; personKey: string; accent: string; onChanged: () => void; onTaskAdvanced: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const isDesignerOrEditor = personKey === "praveen" || personKey === "nikhil" || personKey === "nandu";
 
   async function upload(files: FileList | File[]) {
     setErr(null);
@@ -1017,6 +1110,21 @@ function CreativeFiles({ postId, attachments, personKey, accent, onChanged }: {
         const r = await fetch(`/api/marketing-hub/attach`, { method: "POST", body: fd });
         const j = await r.json();
         if (!r.ok || j.error) { setErr(j.error || `HTTP ${r.status}`); break; }
+      }
+
+      // Auto-advance status: if a designer / editor uploads while task sits at
+      // "Content - Approved", the task is now Output Ready (their work is uploaded).
+      if (isDesignerOrEditor && personRow.status === "Content - Approved") {
+        const patch = await fetch(`/api/marketing-hub/update`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: postId, fields: { status: "Output - Ready" } }),
+        });
+        if (patch.ok) {
+          setToast("Auto-advanced to Output Ready");
+          setTimeout(() => setToast(null), 3500);
+          onTaskAdvanced();
+        }
       }
       onChanged();
     } finally { setBusy(false); }
@@ -1069,16 +1177,21 @@ function CreativeFiles({ postId, attachments, personKey, accent, onChanged }: {
           if (e.dataTransfer.files.length > 0) upload(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-lg p-4 text-center text-xs cursor-pointer transition ${dragOver ? "" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}
-        style={dragOver ? { borderColor: accent, background: accent + "0A", color: accent } : {}}
+        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition ${dragOver ? "" : "border-gray-200 hover:border-gray-300"}`}
+        style={dragOver ? { borderColor: accent, background: accent + "0A" } : {}}
       >
         {busy ? (
-          <span>Uploading…</span>
+          <div className="text-sm text-gray-700">Uploading…</div>
         ) : (
-          <span>
-            <span className="font-medium" style={{ color: accent }}>Click to upload</span>{" "}
-            or drag & drop — designs, thumbnails, edited videos, references (up to 25 MB)
-          </span>
+          <>
+            <div className="text-2xl mb-1">📤</div>
+            <div className="text-sm font-medium" style={{ color: accent }}>
+              Click to upload {isDesignerOrEditor ? "your creative" : "reference files"}
+            </div>
+            <div className="text-[11px] text-gray-500 mt-1">
+              or drag & drop — up to 25 MB per file{isDesignerOrEditor && personRow.status === "Content - Approved" && " · task auto-moves to Output Ready on upload"}
+            </div>
+          </>
         )}
         <input
           ref={inputRef}
@@ -1089,6 +1202,11 @@ function CreativeFiles({ postId, attachments, personKey, accent, onChanged }: {
         />
       </div>
 
+      {toast && (
+        <div className="mt-2 text-xs px-3 py-2 rounded bg-green-50 border border-green-200 text-green-800">
+          ✅ {toast}
+        </div>
+      )}
       {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
     </div>
   );
