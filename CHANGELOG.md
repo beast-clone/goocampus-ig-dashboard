@@ -3,6 +3,31 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-10 — 🔒 Security: enable RLS on all Supabase tables (critical fix)
+
+### The hole
+
+- Row Level Security was **OFF** on every Marketing Hub table. The project's *publishable* (anon) key — public by design — could **read, update, and delete every row** over the Supabase REST API from anywhere on the internet, no password needed. Confirmed live: read / update / delete all returned success against `mh_posts`, `mh_notes`, etc.
+
+### The fix (applied to production 2026-07-10)
+
+- Ran `supabase/security-rls-lockdown.sql` in the Supabase SQL editor:
+  - `enable row level security` on all 10 tables: `mh_posts`, `mh_notes`, `mh_comments`, `mh_activity`, `mh_team_members`, `mh_attachments`, `mh_post_collaborators`, `mh_slack_queue`, `story_snapshots`, `content_alerts`.
+  - `revoke all … from anon, authenticated` on the same tables (belt-and-suspenders).
+- **Why it's safe:** every server route talks to Supabase with the service-role (secret) key via `lib/supabase.ts`, which bypasses RLS. There is no client-side Supabase access anywhere in the codebase. RLS-on with no anon policies locks out the public key while the dashboard keeps working untouched.
+- **Verified both sides after applying:** public/anon key now returns `401` on read + update + delete (was `200`); service-role key (the app) still returns `200` and reads all rows.
+
+### Audit — everything else came back clean
+
+- No secrets ever committed to git (`.env`, `.env.local`, `accounts.local.json`, `CREDENTIALS.md` all correctly gitignored).
+- Secret key is server-only; never bundled into client code.
+- Login rate-limited (5 attempts / 15 min / IP). Session cookies HMAC-signed with constant-time compare. CSRF origin check on every mutating request. Production source maps off; `x-powered-by` stripped.
+
+### Still open (MEDIUM — not yet fixed)
+
+- Storage buckets `scheduler-media` and `story-snapshots` are **public-read** — anyone with a file URL can open uploaded creatives. Anon *upload* is already blocked by storage RLS. Proper fix = private buckets + signed URLs (needs a code change to the attach/upload routes).
+- Recommended credential rotations if a breach is suspected: `SUPABASE_SECRET_KEY`, `DASHBOARD_PASSWORD`, `SESSION_SECRET` (still a dev placeholder).
+
 ## 2026-07-07 (evening) — Role-aware My Day + Claim task workflow
 
 ### Role-aware task list
