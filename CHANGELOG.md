@@ -3,6 +3,22 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-10/11 — LinkedIn + YouTube analytics tabs
+
+### LinkedIn tab (`/dashboard/linkedin`) — GooCampus World is LIVE
+
+- New tab: company-page analytics with a **GooCampus / GooCampus World** switcher, LinkedIn-blue theme, four sections — followers growth, post performance, page visitors, follower demographics.
+- **GooCampus World is live** via the LinkedIn **Community Management API** (Development Tier), app "GC World Pages API". Org auto-discovered (`urn:li:organization:107157863`). Live: followers, growth-over-time, impressions, engagement rate, page views, and demographics (seniority/function labelled from static maps; industry/region resolved via the taxonomy API). Per-post table still sample (`partial` flag → badge "Live · post stats sample").
+- **Main GooCampus stays demo** — its own Community Management API access request was submitted (dedicated verified app "GC Main Pages API") and is **awaiting LinkedIn review** (Microsoft Vetting Services + decision email, 3–10 days).
+- Files: `lib/linkedin.ts` (API client + `buildLive` + taxonomy resolver + `listAdminedOrgs` probe), `app/api/linkedin/route.ts` (live for gcworld when token present, degrades to demo on any error with `liveError`), `app/(dashboard)/dashboard/linkedin/page.tsx`. Token in gitignored `.env.local`, version pinned `202506`.
+
+### YouTube tab (`/dashboard/youtube`) — built, on DEMO
+
+- New tab: multi-channel switcher (GooCampus / GooCampus World / 12thplus), YouTube-red theme, four sections — views & watch time, subscribers, top videos, traffic & audience. Deterministic demo data shaped exactly like the YouTube Analytics API.
+- Live integration written and proven end-to-end (`lib/youtube.ts` with OAuth refresh, `app/api/youtube/route.ts` live-when-token-present). Dedicated Google Cloud project `gc-dashboard-analytics` created (Internal consent, YouTube Analytics + Data API v3 enabled, OAuth client "GC YT Token").
+- **Live is blocked** (documented, not a code issue): `praveen@goocampus.in` manages the GooCampus channel via YouTube *Studio* permissions only, not as a *Brand-Account* manager — so their OAuth token can only read their empty personal channel (API returns 403 for the real channel). Unblock = the Brand-Account owner promotes praveen at myaccount.google.com/brandaccounts, or authorizes directly. Channel IDs already resolved (GooCampus `UCmo54Vb1QG6YoBplgmIh0TQ`, 22.8k subs).
+- Files: `lib/youtube.ts`, `app/api/youtube/route.ts`, `app/(dashboard)/dashboard/youtube/page.tsx`, sidebar + `.env.example` entries.
+
 ## 2026-07-10 — 🔒 Security: enable RLS on all Supabase tables (critical fix)
 
 ### The hole

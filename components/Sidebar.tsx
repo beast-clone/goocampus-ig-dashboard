@@ -18,6 +18,8 @@ const NAV = [
   { label: "Sales Ops", href: "/dashboard/sales-ops" },
   { label: "Marketing Hub", href: "/dashboard/marketing-hub" },
   { label: "My Day", href: "/dashboard/my-day" },
+  { label: "LinkedIn", href: "/dashboard/linkedin" },
+  { label: "YouTube", href: "/dashboard/youtube" },
   { label: "Ads", href: "/dashboard/ads" },
   { label: "Competitor Ads", href: "/dashboard/competitors" },
   { label: "Benchmark", href: "/dashboard/benchmark" },
