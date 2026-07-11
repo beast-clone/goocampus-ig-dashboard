@@ -22,6 +22,7 @@ type Resp = {
   range: { from: string; to: string };
   page: { name: string; followers: number | null; fanCount: number | null; link: string | null; picture: string | null };
   insights: { available: boolean; reason?: string; reach: number | null; engagement: number | null; pageViews: number | null; follows: number | null };
+  audience: { available: boolean; reason?: string; countries: { code: string; count: number; pct: number }[] };
   posts: { available: boolean; reason?: string; items: Post[] };
   latencyMs: number;
   error?: string;
@@ -106,6 +107,16 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
             />
           </div>
 
+          {/* Audience geography — the one demographic Meta still exposes for pages */}
+          {data.audience?.available && data.audience.countries.length > 0 && (
+            <Section title="Where your audience is">
+              <CountryBars countries={data.audience.countries} />
+              <p className="text-[11px] text-gray-400 mt-2">
+                Current followers by country — the only audience breakdown Meta still provides for Facebook Pages (city, age and gender were removed from the API).
+              </p>
+            </Section>
+          )}
+
           {/* Recent posts */}
           <Section title="Recent posts">
             {data.posts.available ? (
@@ -140,6 +151,32 @@ function Stat({ label, value, sub, accent, subMuted }: { label: string; value: s
       <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums" style={accent ? { color: FB } : {}}>{value}</div>
       {sub && <div className={`text-[11px] mt-0.5 ${subMuted ? "text-gray-400 italic" : "text-gray-500"}`}>{sub}</div>}
+    </div>
+  );
+}
+
+// Country name from ISO code, with a safe fallback to the code itself.
+const REGION_NAMES = typeof Intl !== "undefined" && "DisplayNames" in Intl
+  ? new Intl.DisplayNames(["en"], { type: "region" })
+  : null;
+function countryName(code: string): string {
+  try { return REGION_NAMES?.of(code) || code; } catch { return code; }
+}
+
+function CountryBars({ countries }: { countries: { code: string; count: number; pct: number }[] }) {
+  const top = countries.slice(0, 10);
+  const max = top[0]?.count || 1;
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5">
+      {top.map((c) => (
+        <div key={c.code} className="flex items-center gap-3 text-sm">
+          <span className="w-32 truncate text-gray-800">{countryName(c.code)}</span>
+          <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${Math.max(3, (c.count / max) * 100)}%`, background: FB }} />
+          </div>
+          <span className="w-24 text-right text-xs text-gray-500 tabular-nums">{c.count.toLocaleString("en-IN")} · {c.pct}%</span>
+        </div>
+      ))}
     </div>
   );
 }

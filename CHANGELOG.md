@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Facebook audience geography
+
+- **"Where your audience is"** on the Facebook tab: current followers by country with proportional bars (Edu: India 1,064 · 86.5%, UK 2.3%, Bangladesh, Pakistan, Nepal, UAE…), full country names via Intl. Top-5 version on the Overview's Facebook panel too.
+- Probed Graph v25 first: `page_follows_country` is the ONLY demographic metric Meta still exposes for Pages — fans_country/city/gender_age/locale are all removed. The UI says so honestly (no city/age/gender possible).
+- New `fetchPageAudience` in lib/facebook.ts; `/api/facebook` returns `audience`.
+
 ## 2026-07-12 — Facebook analytics UNLOCKED (token rotation done by Claude in the browser)
 
 - **Rotated the Meta tokens with upgraded permissions**, driving the user's Chrome end-to-end: added the "Manage everything on your Page" use case to the GooCampus Analytics app, enabled `read_insights` + `pages_read_user_content` (both "Ready for testing"), ran the OAuth consent, and exchanged the code **server-side via a temporary localhost callback** (token never passed through chat; temp route + middleware exception deleted immediately after). New long-lived user token + fresh page tokens for all 4 brands written to `.env.local` / `accounts.local.json` (~60-day expiry).

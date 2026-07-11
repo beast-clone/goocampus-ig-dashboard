@@ -87,6 +87,41 @@ export type FBInsights = {
   follows: number | null;      // page_follows
 };
 
+// ----- Audience geography — page_follows_country is the ONE demographic metric
+// Meta still exposes on Graph v25 (fans_country/city/gender_age are all removed).
+// It's a snapshot of current followers by ISO country code. -----
+
+export type FBAudience = {
+  available: boolean;
+  reason?: string;
+  countries: { code: string; count: number; pct: number }[];
+};
+
+export async function fetchPageAudience(acc: IGAccountConfig): Promise<FBAudience> {
+  if (!acc.pageId) return { available: false, reason: "no pageId", countries: [] };
+  try {
+    type Metric = { name: string; values?: { value?: Record<string, number> }[] };
+    const r = await fbGet<{ data?: Metric[] }>(`${acc.pageId}/insights`, {
+      metric: "page_follows_country",
+      period: "day",
+      access_token: acc.pageAccessToken,
+    });
+    const vals = r.data?.[0]?.values ?? [];
+    const latest = vals[vals.length - 1]?.value;
+    if (!latest || typeof latest !== "object") {
+      return { available: false, reason: "no country data returned", countries: [] };
+    }
+    const entries = Object.entries(latest).filter(([, n]) => typeof n === "number" && n > 0);
+    const total = entries.reduce((s, [, n]) => s + n, 0) || 1;
+    const countries = entries
+      .map(([code, count]) => ({ code, count, pct: Math.round((count / total) * 1000) / 10 }))
+      .sort((a, b) => b.count - a.count);
+    return { available: true, countries };
+  } catch (e) {
+    return { available: false, reason: (e as Error).message, countries: [] };
+  }
+}
+
 export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, toIso: string): Promise<FBInsights> {
   const unavailable: FBInsights = {
     available: false,

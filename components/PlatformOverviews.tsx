@@ -112,9 +112,17 @@ type FbResp = {
   source: "live";
   page: { name: string; followers: number | null; fanCount: number | null; link: string | null; picture: string | null };
   insights: { available: boolean; reach: number | null; engagement: number | null; pageViews: number | null };
+  audience?: { available: boolean; countries: { code: string; count: number; pct: number }[] };
   posts: { available: boolean; reason?: string; items: FbPost[] };
   error?: string;
 };
+
+const FB_REGIONS = typeof Intl !== "undefined" && "DisplayNames" in Intl
+  ? new Intl.DisplayNames(["en"], { type: "region" })
+  : null;
+function regionName(code: string): string {
+  try { return FB_REGIONS?.of(code) || code; } catch { return code; }
+}
 
 export function FacebookOverview({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to }).toString();
@@ -166,6 +174,18 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
           </Section>
         );
       })()}
+      {data.audience?.available && data.audience.countries.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Section title="Where your audience is" hint="followers by country">
+            {data.audience.countries.slice(0, 5).map((c) => (
+              <div key={c.code} className="flex items-baseline justify-between text-sm py-0.5">
+                <span className="text-gray-800">{regionName(c.code)}</span>
+                <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.count)}</span>
+              </div>
+            ))}
+          </Section>
+        </div>
+      )}
     </div>
   );
 }

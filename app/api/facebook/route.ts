@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/instagram";
-import { fetchPageProfile, fetchPageInsights, fetchPagePosts } from "@/lib/facebook";
+import { fetchPageProfile, fetchPageInsights, fetchPagePosts, fetchPageAudience } from "@/lib/facebook";
 
 // GET /api/facebook?account=<id>&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -31,10 +31,11 @@ export async function GET(req: Request) {
   try {
     // Profile is the make-or-break call (followers). Insights + posts degrade
     // gracefully inside lib/facebook.ts (available:false + reason).
-    const [profile, insights, posts] = await Promise.all([
+    const [profile, insights, posts, audience] = await Promise.all([
       fetchPageProfile(acc),
       fetchPageInsights(acc, from, to),
       fetchPagePosts(acc, 12),
+      fetchPageAudience(acc),
     ]);
 
     return NextResponse.json({
@@ -44,6 +45,7 @@ export async function GET(req: Request) {
       page: profile,
       insights,
       posts,
+      audience,
       latencyMs: Date.now() - t0,
     });
   } catch (err) {
