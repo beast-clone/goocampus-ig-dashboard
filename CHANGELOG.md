@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Overview platform panels enriched (no bare stat cards)
+
+- Per Maheen: the LinkedIn/YouTube overview panels were skeletal next to Instagram's. Rebuilt using everything the APIs already return:
+- **LinkedIn**: + follower-growth chart, **Top performing posts** (thumbnail/text/date · 👁 impressions, reactions, comments, shares, eng-rate, linked), **Best day to post** (computed from the posts' own impressions by weekday), **Who follows you** (top job functions) + **Where they are** (top locations).
+- **YouTube**: + views-over-time chart, **Top performing video hero** (thumbnail, views/watch/avg-view/likes/comments) with ranked 2–5 list (thumbnails, linked to YouTube), **Best day for views** (real weekday average from daily views — GooCampus: Thursday), **Where views come from** (top traffic sources) + **Top countries**.
+- **Facebook**: + **Posting rhythm** stat (~days between recent posts, derived from real post dates) and richer post cards (text snippet + date).
+- All insights are derived from real data or honestly absent — nothing invented. Verified in-browser: YouTube live (hero = Dr. Jeffy Koshi video, 2,243 views; best day Thursday), LinkedIn structure verified (demo for Edu, live for World).
+
 ## 2026-07-12 — Admin rework phase 1: grouped sidebar, platform Overview, Facebook tab
 
 - **Grouped sidebar with icons** (Tabler): Overview on top · CONTENT (Marketing Hub, My Day, Content Calendar, Scheduler, Content Radar, Discover, Hashtags) · ANALYTICS by platform (Instagram expandable → Posts/Reels/Stories/Audience · LinkedIn · YouTube · Facebook) · ADS (Ads, Competitor Ads, Benchmark) · SALES (Leads, Sales Ops) · AI (AI Insights, AI Reports) · bottom shelf Team + Sign out. Subtitle rebranded "Instagram Analytics" → "Marketing OS". All 22 original tabs preserved.
