@@ -3,6 +3,13 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Facebook analytics UNLOCKED (token rotation done by Claude in the browser)
+
+- **Rotated the Meta tokens with upgraded permissions**, driving the user's Chrome end-to-end: added the "Manage everything on your Page" use case to the GooCampus Analytics app, enabled `read_insights` + `pages_read_user_content` (both "Ready for testing"), ran the OAuth consent, and exchanged the code **server-side via a temporary localhost callback** (token never passed through chat; temp route + middleware exception deleted immediately after). New long-lived user token + fresh page tokens for all 4 brands written to `.env.local` / `accounts.local.json` (~60-day expiry).
+- **Now LIVE on Facebook:** page **Engagement** (GooCampus Edu: 84.7K post engagements/30d), **Page views** (3.1K), per-post **likes/comments** (+shares where Meta returns it), and **12thPlus posts** (the fresh token also cleared its permission block).
+- **Reach is gone for good** — Meta removed all `page_impressions*`/reach metrics from the Pages API (probed live: invalid metric). The Reach card is replaced by Page views everywhere; nothing fake shown.
+- lib/facebook.ts posts fetcher requests likes/comments summaries with graceful fallback; Facebook tab + Overview panel updated: **Top performing posts** ranked by likes+comments+shares with 👍💬↗ per card.
+
 ## 2026-07-12 — Overview platform panels enriched (no bare stat cards)
 
 - Per Maheen: the LinkedIn/YouTube overview panels were skeletal next to Instagram's. Rebuilt using everything the APIs already return:

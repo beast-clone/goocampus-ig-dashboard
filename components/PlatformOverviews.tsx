@@ -107,11 +107,12 @@ function bestDay(series: { date: string; value: number }[]): { day: string; runn
 
 // ── Facebook ────────────────────────────────────────────────────────────────
 
+type FbPost = { id: string; message: string; createdTime: string; fullPicture: string | null; permalink: string | null; likes: number | null; comments: number | null; shares: number | null };
 type FbResp = {
   source: "live";
   page: { name: string; followers: number | null; fanCount: number | null; link: string | null; picture: string | null };
-  insights: { available: boolean; reach: number | null; engagement: number | null };
-  posts: { available: boolean; reason?: string; items: { id: string; message: string; createdTime: string; fullPicture: string | null; permalink: string | null }[] };
+  insights: { available: boolean; reach: number | null; engagement: number | null; pageViews: number | null };
+  posts: { available: boolean; reason?: string; items: FbPost[] };
   error?: string;
 };
 
@@ -132,27 +133,39 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
       <PanelHeader title={data.page.name || "Facebook"} sub="Facebook Page" href="/dashboard/facebook" source={data.source} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Followers" value={fmt(data.page.followers)} sub="live from Meta" color="#1877F2" />
-        <Stat label="Page likes" value={fmt(data.page.fanCount)} sub="live from Meta" />
+        <Stat label="Engagement" value={fmt(data.insights.engagement)} sub={data.insights.engagement === null ? "unavailable" : "post engagements in range"} />
+        <Stat label="Page views" value={fmt(data.insights.pageViews)} sub={data.insights.pageViews === null ? "unavailable" : "in range"} />
         <Stat label="Posting rhythm" value={cadence ? `~${cadence}d` : "—"} sub={cadence ? "between posts lately" : "not enough posts"} />
-        <Stat label="Reach" value={fmt(data.insights.reach)} sub={data.insights.reach === null ? "token lacks insights permission" : "in range"} />
       </div>
-      {data.posts.available && data.posts.items.length > 0 && (
-        <Section title="Recent posts" hint="likes/comments need an upgraded page token">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {data.posts.items.slice(0, 8).map((p) => (
-              <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-gray-100 hover:border-gray-300">
-                {p.fullPicture
-                  ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
-                  : <div className="w-full aspect-[4/3] bg-gray-50" />}
-                <div className="p-2">
-                  <div className="text-[11px] text-gray-800 leading-snug line-clamp-2">{p.message || "(no text)"}</div>
-                  <div className="text-[10px] text-gray-400 mt-1">{new Date(p.createdTime).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </Section>
-      )}
+      {data.posts.available && data.posts.items.length > 0 && (() => {
+        const score = (p: FbPost) => (p.likes ?? 0) + (p.comments ?? 0) * 2 + (p.shares ?? 0) * 3;
+        const top = [...data.posts.items].sort((a, b) => score(b) - score(a)).slice(0, 4);
+        return (
+          <Section title="Top performing posts" hint="by likes, comments and shares">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {top.map((p, i) => (
+                <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-gray-100 hover:border-gray-300">
+                  <div className="relative">
+                    {p.fullPicture
+                      ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
+                      : <div className="w-full aspect-[4/3] bg-gray-50" />}
+                    <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
+                  </div>
+                  <div className="p-2">
+                    <div className="text-[11px] text-gray-800 leading-snug line-clamp-2">{p.message || "(no text)"}</div>
+                    <div className="text-[10px] text-gray-500 mt-1 flex gap-2 tabular-nums">
+                      <span>👍 {fmt(p.likes)}</span>
+                      <span>💬 {fmt(p.comments)}</span>
+                      <span>↗ {fmt(p.shares)}</span>
+                      <span className="text-gray-400 ml-auto">{new Date(p.createdTime).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </Section>
+        );
+      })()}
     </div>
   );
 }

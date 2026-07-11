@@ -158,20 +158,36 @@ export async function fetchPagePosts(acc: IGAccountConfig, limit = 12): Promise<
       full_picture?: string;
       permalink_url?: string;
       shares?: { count?: number };
+      likes?: { summary?: { total_count?: number } };
+      comments?: { summary?: { total_count?: number } };
     };
-    const r = await fbGet<{ data?: RawPost[] }>(`${acc.pageId}/published_posts`, {
-      fields: "id,message,created_time,full_picture,permalink_url,shares",
-      limit: String(limit),
-      access_token: acc.pageAccessToken,
-    });
+    // Rich fields need pages_read_engagement (likes) + pages_read_user_content
+    // (comments) — granted in the 2026-07-12 token rotation. If a future token
+    // loses them, fall back to the basic fields so posts never disappear.
+    const RICH = "id,message,created_time,full_picture,permalink_url,shares,likes.summary(true),comments.summary(true)";
+    const BASIC = "id,message,created_time,full_picture,permalink_url,shares";
+    let r: { data?: RawPost[] };
+    try {
+      r = await fbGet<{ data?: RawPost[] }>(`${acc.pageId}/published_posts`, {
+        fields: RICH,
+        limit: String(limit),
+        access_token: acc.pageAccessToken,
+      });
+    } catch {
+      r = await fbGet<{ data?: RawPost[] }>(`${acc.pageId}/published_posts`, {
+        fields: BASIC,
+        limit: String(limit),
+        access_token: acc.pageAccessToken,
+      });
+    }
     const items: FBPost[] = (r.data || []).map((p) => ({
       id: p.id,
       message: p.message || "",
       createdTime: p.created_time,
       fullPicture: p.full_picture || null,
       permalink: p.permalink_url || null,
-      likes: null,
-      comments: null,
+      likes: typeof p.likes?.summary?.total_count === "number" ? p.likes.summary.total_count : null,
+      comments: typeof p.comments?.summary?.total_count === "number" ? p.comments.summary.total_count : null,
       shares: typeof p.shares?.count === "number" ? p.shares.count : null,
     }));
     return { available: true, items };

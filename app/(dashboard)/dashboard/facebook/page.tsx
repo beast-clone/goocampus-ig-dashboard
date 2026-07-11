@@ -93,16 +93,16 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
             <Stat label="Followers" value={data.page.followers !== null ? fmt(data.page.followers) : "—"} sub="live from Meta" accent />
             <Stat label="Page likes" value={data.page.fanCount !== null ? fmt(data.page.fanCount) : "—"} sub="live from Meta" />
             <Stat
-              label="Reach"
-              value={data.insights.reach !== null ? fmt(data.insights.reach) : "—"}
-              sub={data.insights.reach !== null ? "in range" : insightsNote}
-              subMuted={data.insights.reach === null}
-            />
-            <Stat
               label="Engagement"
               value={data.insights.engagement !== null ? fmt(data.insights.engagement) : "—"}
               sub={data.insights.engagement !== null ? "post engagements in range" : insightsNote}
               subMuted={data.insights.engagement === null}
+            />
+            <Stat
+              label="Page views"
+              value={data.insights.pageViews !== null ? fmt(data.insights.pageViews) : "—"}
+              sub={data.insights.pageViews !== null ? "in range" : insightsNote}
+              subMuted={data.insights.pageViews === null}
             />
           </div>
 
@@ -122,9 +122,9 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                 <p className="text-[13px] text-gray-500">{data.posts.reason}</p>
               </div>
             )}
-            {data.posts.available && (
+            {data.posts.available && data.posts.items.length > 0 && data.posts.items.every((p) => p.likes === null) && (
               <p className="text-[11px] text-gray-400 mt-2">
-                Per-post likes and comments show “—” — the stored page token lacks the <span className="font-mono">pages_read_engagement</span> permission. Post text, image, date and link are live.
+                Per-post likes and comments show “—” — the page token lacks the <span className="font-mono">pages_read_engagement</span> permission.
               </p>
             )}
           </Section>
