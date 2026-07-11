@@ -32,10 +32,21 @@ export function hasYouTubeAuth(): boolean {
   return !!(at || (rt && id && secret));
 }
 
+// Each channel is a separate Google brand account, so each needs its own refresh
+// token: YOUTUBE_REFRESH_TOKENS = {"goocampus":"1//…","twelfthplus":"1//…"}.
+// Falls back to the single YOUTUBE_REFRESH_TOKEN for unlisted channels.
+function refreshTokenFor(channelKey?: string): string | null {
+  try {
+    const map = JSON.parse(process.env.YOUTUBE_REFRESH_TOKENS || "{}") as Record<string, unknown>;
+    if (channelKey && typeof map[channelKey] === "string") return map[channelKey] as string;
+  } catch { /* malformed map → fall through to the single-token env */ }
+  return process.env.YOUTUBE_REFRESH_TOKEN || null;
+}
+
 // Access tokens expire hourly; exchange the refresh token for a fresh one when needed.
-async function freshAccessToken(): Promise<string> {
+async function freshAccessToken(channelKey?: string): Promise<string> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;
-  const rt = process.env.YOUTUBE_REFRESH_TOKEN;
+  const rt = refreshTokenFor(channelKey);
   const id = process.env.YOUTUBE_CLIENT_ID;
   const secret = process.env.YOUTUBE_CLIENT_SECRET;
   // Prefer the stored access token; if a refresh token + client creds exist, mint a fresh one.
@@ -72,7 +83,7 @@ function channelFilter(channelId: string): string {
 export async function buildLiveYouTube(channelKey: string, from: string, to: string) {
   const ch = CHANNELS[channelKey];
   if (!ch) throw new Error("unknown channel");
-  const token = await freshAccessToken();
+  const token = await freshAccessToken(channelKey);
   const ids = channelFilter(ch.channelId);
 
   // ── Views & watch time (+ subs) by day ──

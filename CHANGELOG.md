@@ -3,6 +3,13 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 (later) — 12thplus YouTube channel live too + per-channel tokens
+
+- Owner repeated the OAuth flow picking the **12thPlusdotcom** channel → second refresh token verified (567 subs, 178 videos) and stored.
+- New env `YOUTUBE_REFRESH_TOKENS` = JSON map of channel→refresh token (`goocampus` + `twelfthplus`); `lib/youtube.ts` picks the right token per channel (`refreshTokenFor`), falling back to the old single `YOUTUBE_REFRESH_TOKEN`. `YOUTUBE_CHANNEL_IDS` now carries both channel ids.
+- Verified all three: goocampus **live**, twelfthplus **live** (6.7K views/30d), goocampusworld demo (awaiting its owner's token — same flow, pick World).
+- Also fixed: sidebar nav now scrolls on short screens (bottom tabs — LinkedIn/YouTube/Ads/Team — were unreachable below ~700px window height).
+
 ## 2026-07-11 — YouTube tab is LIVE (channel owner authorized)
 
 - The GooCampus **channel owner ran the OAuth flow** (OAuth Playground, our `gc-dashboard-analytics` client, scopes `youtube.readonly` + `yt-analytics.readonly`, signed in as the **brand channel itself**) — this was the blocker since the tab was built (Praveen's token couldn't read channel analytics).
