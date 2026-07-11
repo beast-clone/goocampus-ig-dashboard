@@ -76,7 +76,7 @@ const AI: NavLink[] = [
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-gray-400">
+    <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-[#7C8494]">
       {children}
     </div>
   );
@@ -129,9 +129,9 @@ export function Sidebar() {
       <Link
         key={t.href}
         href={t.href}
-        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${indent ? "ml-5" : ""} ${active ? "bg-brand-light text-brand font-medium" : "hover:bg-gray-50 text-gray-700"}`}
+        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${indent ? "ml-5" : ""} ${active ? "bg-white/10 text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5 hover:text-[#F2F4F8]"}`}
       >
-        <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-brand" : "text-gray-400"} />
+        <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
         {t.label}
       </Link>
     );
@@ -144,7 +144,7 @@ export function Sidebar() {
     const chevron = (
       <button
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenKeys((s) => ({ ...s, [f.key]: !open })); }}
-        className={`px-1.5 text-xs text-gray-400 transition-transform ${open ? "rotate-90" : ""}`}
+        className={`px-1.5 text-xs text-[#8A93A6] transition-transform ${open ? "rotate-90" : ""}`}
         aria-label={`${open ? "Collapse" : "Expand"} ${f.label}`}
       >
         ›
@@ -153,9 +153,9 @@ export function Sidebar() {
     return (
       <div key={f.key}>
         {f.href ? (
-          <div className={`flex items-center rounded-lg ${parentActive ? "bg-brand-light" : "hover:bg-gray-50"}`}>
-            <Link href={f.href} className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-brand font-medium" : "text-gray-800"}`}>
-              <Ico size={17} stroke={1.7} className={parentActive ? "text-brand" : "text-gray-400"} />
+          <div className={`flex items-center rounded-lg ${parentActive ? "bg-white/10" : "hover:bg-white/5"}`}>
+            <Link href={f.href} className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-white font-medium" : "text-[#AEB6C6]"}`}>
+              <Ico size={17} stroke={1.7} className={parentActive ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
               {f.label}
             </Link>
             {chevron}
@@ -163,11 +163,11 @@ export function Sidebar() {
         ) : (
           <button
             onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: !open }))}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${folderActive(f) ? "text-brand font-medium" : "text-gray-800 hover:bg-gray-50"}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${folderActive(f) ? "text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5"}`}
           >
-            <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-brand" : "text-gray-400"} />
+            <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
             <span className="flex-1">{f.label}</span>
-            <span className={`text-gray-400 text-xs transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+            <span className={`text-[#8A93A6] text-xs transition-transform ${open ? "rotate-90" : ""}`}>›</span>
           </button>
         )}
         {open && f.children.map((c) => item(c, true))}
@@ -176,10 +176,10 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-5 border-b border-gray-100">
-        <div className="text-lg font-semibold">GooCampus</div>
-        <div className="text-xs text-gray-500">Marketing OS</div>
+    <aside className="w-64 bg-[#14151C] flex flex-col h-screen sticky top-0">
+      <div className="px-5 py-5 border-b border-white/10">
+        <div className="text-lg font-semibold text-white">GooCampus</div>
+        <div className="text-xs text-[#9BA3B4]">Marketing OS</div>
       </div>
 
       <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0">
@@ -208,10 +208,10 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="px-3 py-3 border-t border-gray-100 space-y-0.5 text-sm">
+      <div className="px-3 py-3 border-t border-white/10 space-y-0.5 text-sm">
         {isAdmin && item({ label: "Team", href: "/dashboard/team", icon: IconUsersGroup })}
         <form action="/api/logout" method="post" className="px-3 pt-1">
-          <button className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900">
+          <button className="flex items-center gap-2 text-xs text-[#8A93A6] hover:text-white">
             <IconLogout size={14} stroke={1.7} />
             Sign out
           </button>
