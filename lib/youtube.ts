@@ -181,11 +181,14 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
       .sort((a, b) => b.pct - a.pct);
   };
 
-  const [trafficRaw, geoRaw, deviceRaw, demoRaw] = await Promise.all([
+  const [trafficRaw, geoRaw, deviceRaw, demoRaw, cityRaw] = await Promise.all([
     ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "insightTrafficSourceType", sort: "-views" }, token).catch(() => ({ rows: [] })),
     ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "country", sort: "-views", maxResults: "8" }, token).catch(() => ({ rows: [] })),
     ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "deviceType", sort: "-views" }, token).catch(() => ({ rows: [] })),
     ytGet({ ids, startDate: from, endDate: to, metrics: "viewerPercentage", dimensions: "ageGroup,gender", sort: "-viewerPercentage" }, token).catch(() => ({ rows: [] })),
+    // Top cities — YouTube only returns cities that clear its privacy threshold,
+    // so small channels may get few rows (that's Google, not us).
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "city", sort: "-views", maxResults: "10" }, token).catch(() => ({ rows: [] })),
   ]);
 
   const TRAFFIC_LABELS: Record<string, string> = {
@@ -195,6 +198,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   };
   const trafficSources = pct(trafficRaw.rows || []).map((r) => ({ source: TRAFFIC_LABELS[r.label] || r.label, views: r.value, pct: r.pct }));
   const geography = pct(geoRaw.rows || []).map((r) => ({ country: r.label, views: r.value, pct: r.pct }));
+  const cities = pct(cityRaw.rows || []).map((r) => ({ city: r.label, views: r.value, pct: r.pct }));
   const devices = pct(deviceRaw.rows || []).map((r) => ({ device: (r.label.charAt(0) + r.label.slice(1).toLowerCase()), pct: r.pct }));
 
   // Demographics: rows are [ageGroup, gender, viewerPercentage]. Collapse to age + gender.
@@ -224,6 +228,6 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     viewsOverTime,
     subscribersOverTime,
     topVideos,
-    traffic: { sources: trafficSources, geography, devices, ageGroups, genderSplit },
+    traffic: { sources: trafficSources, geography, cities, devices, ageGroups, genderSplit },
   };
 }

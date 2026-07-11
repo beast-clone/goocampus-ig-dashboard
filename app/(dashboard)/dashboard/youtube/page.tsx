@@ -25,6 +25,7 @@ type Resp = {
   traffic: {
     sources: { source: string; views: number; pct: number }[];
     geography: { country: string; views: number; pct: number }[];
+    cities?: { city: string; views: number; pct: number }[];
     devices: { device: string; pct: number }[];
     ageGroups: { group: string; pct: number }[];
     genderSplit: { label: string; pct: number }[];
@@ -122,6 +123,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <BarCard title="Traffic sources" rows={data.traffic.sources.map((s) => ({ label: s.source, pct: s.pct, sub: fmt(s.views) }))} />
               <BarCard title="Top countries" rows={data.traffic.geography.map((g) => ({ label: g.country, pct: g.pct, sub: fmt(g.views) }))} />
+              {(data.traffic.cities?.length ?? 0) > 0 && (
+                <BarCard title="Top cities" rows={data.traffic.cities!.map((c) => ({ label: c.city, pct: c.pct, sub: fmt(c.views) }))} />
+              )}
               <BarCard title="Devices" rows={data.traffic.devices.map((d) => ({ label: d.device, pct: d.pct }))} />
               <BarCard title="Age & gender" rows={[
                 ...data.traffic.ageGroups.map((a) => ({ label: a.group, pct: a.pct })),

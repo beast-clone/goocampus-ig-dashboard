@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — LinkedIn/YouTube audience check + YouTube Top cities
+
+- Probed what LinkedIn and YouTube offer for audience geography (user request, same as the Facebook exercise):
+- **LinkedIn**: follower demographics (job function, seniority, industry, location, company size) were ALREADY implemented live — today they return empty only because our testing exhausted the Community Management API's LOW DAILY QUOTA (429 on organizationalEntityFollowerStatistics). Resets daily; no code change needed. Note for future: that endpoint is quota-precious.
+- **YouTube**: `city` dimension works (state/province is US-only per Google — not possible for India). Added **Top cities** to the live builder + a conditional BarCard on the YouTube tab. GooCampus 30d: Colombo 57.6%, London, Bengaluru, Melbourne, Delhi. Google hides cities below a privacy threshold, so small channels show few rows.
+
 ## 2026-07-12 — Facebook audience geography
 
 - **"Where your audience is"** on the Facebook tab: current followers by country with proportional bars (Edu: India 1,064 · 86.5%, UK 2.3%, Bangladesh, Pakistan, Nepal, UAE…), full country names via Intl. Top-5 version on the Overview's Facebook panel too.
