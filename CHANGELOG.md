@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 (night, later) — Member dashboard PARKED; worlds fully detached
+
+- **Decision (Maheen):** the member dashboard is on hold while the admin dashboard gets reworked (rebrand + tab groupings). All member-dashboard work is saved on the `feat/content-radar` branch on GitHub — parked, not deleted.
+- **Detached worlds in middleware:** admins can never enter `/me` or `/me/tasks` (redirect → `/dashboard`) — this kills the "clicked My tasks and landed on Praveen" bug for good; members can never enter `/dashboard/*` (redirect → `/me`); `/login` sends admins to `/dashboard`, members to `/me`.
+- **Standing order recorded:** pushing a working branch to GitHub as backup = OK when asked. Deploying to Netlify (anything touching `main` / the live site) = NEVER without explicit fresh permission.
+
 ## 2026-07-11 (night) — Members get their own tasks page; Marketing Hub is admin-only again
 
 - **New page `/me/tasks`** — each member's personal task workspace: the exact My Day experience (greeting, stat cards, 📌 reminders, task list + full detail panel with edit / mark done / claim / files / comments) **locked to whoever is signed in**. No "Viewing as" tabs, no admin sidebar — just a "← My dashboard" link back to `/me`.

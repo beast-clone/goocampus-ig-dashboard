@@ -127,6 +127,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // DETACHED WORLDS (user order 2026-07-11): admins live in /dashboard, members in /me.
+  // The member dashboard is PARKED while the admin dashboard gets reworked — an admin
+  // must never land in it (it remembers other people's state and confuses the boss).
+  if (isAuthed && (pathname === "/me" || pathname.startsWith("/me/"))) {
+    const cookieVal = req.cookies.get("gc_session")?.value;
+    const userId = cookieUserId(cookieVal);
+    if (cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // The main dashboard is admin-only. Members live on /me and work their tasks
   // on /me/tasks (which talks to the same /api/marketing-hub endpoints).
   if (isAuthed && pathname.startsWith("/dashboard")) {
@@ -141,8 +154,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAuthed && pathname === "/login") {
+    const cookieVal = req.cookies.get("gc_session")?.value;
+    const userId = cookieUserId(cookieVal);
+    const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
     const url = req.nextUrl.clone();
-    url.pathname = "/me";
+    url.pathname = isAdmin ? "/dashboard" : "/me";
     return NextResponse.redirect(url);
   }
 
@@ -150,5 +166,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/api/:path*"],
+  matcher: ["/dashboard/:path*", "/me", "/me/:path*", "/login", "/api/:path*"],
 };
