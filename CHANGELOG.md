@@ -3,6 +3,10 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Dark sidebar rail (matches the member dashboard)
+
+- Admin sidebar reskinned to the member dashboard's rail: `#14151C` background, white header, soft-gray items (`#AEB6C6`) with white hover, active tab = white/10 pill with violet-tinted icon (`#A99AF5`), muted caps group headings, dark bottom shelf. Maheen compared white vs dark and chose dark — better nav/content separation on a dense screen + one visual system across both dashboards.
+
 ## 2026-07-12 — Per-platform Audience inside each Analytics folder
 
 - **Every platform in Analytics is now a folder with its own Audience inside**: Instagram → Posts/Reels/Stories/Audience; LinkedIn → Audience; YouTube → Audience; Facebook → Audience. Parent rows still open the platform's deep-dive page; the chevron expands the folder (auto-opens when you're on that platform's pages).
