@@ -29,12 +29,14 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 // Cookie value is `<payload>.<sig>` where payload is either just `<token>` (legacy,
-// no identity) or `<userId>:<token>` (carries who logged in). The signature always
-// covers the whole payload, so the middleware's verify (which signs everything before
-// the last dot) keeps working unchanged whether or not a userId is present.
-function makeCookieValue(userId?: string | null): string {
+// no identity), `<userId>:<token>` (carries who logged in), or `<userId>:a:<token>`
+// (logged in as an admin — the middleware reads this flag to open /dashboard/* without
+// a DB lookup; it's inside the signed payload so it can't be forged). The signature
+// always covers the whole payload, so the middleware's verify (which signs everything
+// before the last dot) keeps working unchanged whichever form is present.
+function makeCookieValue(userId?: string | null, isAdmin?: boolean): string {
   const token = randomBytes(24).toString("hex");
-  const payload = userId ? `${userId}:${token}` : token;
+  const payload = userId ? (isAdmin ? `${userId}:a:${token}` : `${userId}:${token}`) : token;
   const sig = sign(payload);
   return `${payload}.${sig}`;
 }
@@ -68,8 +70,8 @@ export function getSessionUserId(): string | null {
   return parseVerified(cookies().get(COOKIE)?.value).userId;
 }
 
-export function setSession(userId?: string | null) {
-  cookies().set(COOKIE, makeCookieValue(userId), {
+export function setSession(userId?: string | null, isAdmin?: boolean) {
+  cookies().set(COOKIE, makeCookieValue(userId, isAdmin), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

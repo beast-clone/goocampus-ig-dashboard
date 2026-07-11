@@ -17,15 +17,26 @@ const CRON_PREFIX = "/api/cron";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
-// Only these users may open the main /dashboard (the admin view). Everyone else → /me.
+// Fallback admins for sessions minted before the cookie carried an admin flag.
+// New logins embed `:a:` in the signed payload instead (set from ind_users.is_admin),
+// so admins managed on the Team page work without redeploying this list.
 const ADMIN_IDS = new Set(["maheen"]);
 
-// Extract the userId embedded in the session cookie payload (`<userId>:<token>.<sig>`).
+// Extract the userId embedded in the session cookie payload
+// (`<userId>:<token>.<sig>` or `<userId>:a:<token>.<sig>` for admins).
 function cookieUserId(value: string | undefined): string | null {
   if (!value || !value.includes(".")) return null;
   const payload = value.slice(0, value.lastIndexOf("."));
   const ci = payload.indexOf(":");
   return ci > 0 ? payload.slice(0, ci) : null;
+}
+
+// Does the (already signature-verified) cookie say this session is an admin?
+function cookieIsAdmin(value: string | undefined): boolean {
+  if (!value || !value.includes(".")) return false;
+  const payload = value.slice(0, value.lastIndexOf("."));
+  const parts = payload.split(":");
+  return parts.length === 3 && parts[1] === "a";
 }
 
 // Hex-encoded HMAC-SHA256 of `payload` using `secret`.
@@ -120,9 +131,11 @@ export async function middleware(req: NextRequest) {
   // needs to open their own tasks there (deep-linked from /me). Analytics, Ads, Audience,
   // Sales, LinkedIn, YouTube, etc. stay admin-only.
   if (isAuthed && pathname.startsWith("/dashboard")) {
-    const userId = cookieUserId(req.cookies.get("gc_session")?.value);
+    const cookieVal = req.cookies.get("gc_session")?.value;
+    const userId = cookieUserId(cookieVal);
+    const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
     const memberAllowed = pathname.startsWith("/dashboard/marketing-hub");
-    if (!ADMIN_IDS.has(userId ?? "") && !memberAllowed) {
+    if (!isAdmin && !memberAllowed) {
       const url = req.nextUrl.clone();
       url.pathname = "/me";
       return NextResponse.redirect(url);

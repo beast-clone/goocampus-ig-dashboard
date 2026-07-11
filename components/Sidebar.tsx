@@ -26,6 +26,7 @@ const NAV = [
   { label: "Benchmark", href: "/dashboard/benchmark" },
   { label: "AI Insights", href: "/dashboard/ai-insights" },
   { label: "AI Reports", href: "/dashboard/ai-reports" },
+  { label: "Team", href: "/dashboard/team" },
 ];
 
 // Must mirror the member-allowed routes in middleware.ts — members are bounced

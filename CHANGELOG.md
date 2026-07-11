@@ -3,6 +3,23 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 — Per-user passwords + admin Team page
+
+### Per-user passwords (open item #2 done)
+
+- **`ind_users` got a `password_hash` column** (ran `sql/005_per_user_passwords.sql` in the Supabase SQL editor). Hashing is scrypt via Node's built-in crypto (`lib/passwords.ts`) — no new dependency, hashes never leave the server.
+- **The rule, in plain English:** if someone has a personal password set, ONLY that password signs them in — the shared team password stops working for their email. People without a personal password keep using the shared password, so nothing breaks for anyone today.
+- `/api/login` now looks people up in the **live `ind_users` roster** (new `lib/team-db.ts`, 30s cache, falls back to the hard-coded `lib/users.ts` list if Supabase is down so login can never fully break). Deactivated people are refused. Unknown emails are refused (typos no longer silently create an identity-less session).
+- **Closed a real security hole found on the way:** `/api/whoami` (the "who are you?" picker for old sessions) used to hand out ANY identity — including Maheen's admin — to anyone holding the shared password. It now refuses admins and password-protected accounts; they must sign in properly.
+
+### Admin Team page (open item #3 done)
+
+- **New page: `/dashboard/team`** (admin-only — members get bounced by middleware like every other admin page). Manage the roster live from `ind_users`: edit email/role inline, toggle **Admin** and **Active**, **set / change / remove personal passwords**, and **add a new team member** (they can sign in immediately with their email + shared password — no code change, no redeploy).
+- New API `/api/admin/team` (GET roster / PATCH person / POST set_password·clear_password·add), gated server-side by the roster's own `is_admin`. Guard rails: an admin can't demote or deactivate themselves; passwords need 8+ chars.
+- **Admin flag now rides inside the signed session cookie** (`<user>:a:<token>.<sig>`), so middleware knows admin vs member without a DB call and **new admins made on the Team page actually work** (from their next login). `maheen` stays hardcoded as fallback for sessions from before this change.
+- `/api/me` also reads the live roster now, so DB-added members get their name/role everywhere.
+- Verified with a 19-check end-to-end test against localhost (all passed): roster CRUD, shared→personal password switchover, wrong/unknown rejections, whoami hole closed, self-demotion blocked, deactivation blocks login, fresh admin cookie opens /dashboard. Test user removed afterwards.
+
 ## 2026-07-11 — Role-aware sidebar (members see only what they can open)
 
 - **Main-dashboard sidebar is now role-aware.** `components/Sidebar.tsx` asks `/api/me` who is logged in: admins (Maheen) see the full 21-tab menu + account picker + "Compare all 5 accounts"; regular members see only **Marketing Hub** plus a **"← My dashboard"** link back to `/me`. Mirrors the middleware rule (members can only open `/dashboard/marketing-hub` — every other tab was bouncing them to `/me` anyway).
