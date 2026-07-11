@@ -22,6 +22,16 @@ export function youtubeToken(): string | null {
   return process.env.YOUTUBE_ACCESS_TOKEN || null;
 }
 
+// Live is possible with EITHER a stored access token OR refresh-token credentials
+// (freshAccessToken below mints hourly access tokens from the refresh token).
+export function hasYouTubeAuth(): boolean {
+  const at = process.env.YOUTUBE_ACCESS_TOKEN;
+  const rt = process.env.YOUTUBE_REFRESH_TOKEN;
+  const id = process.env.YOUTUBE_CLIENT_ID;
+  const secret = process.env.YOUTUBE_CLIENT_SECRET;
+  return !!(at || (rt && id && secret));
+}
+
 // Access tokens expire hourly; exchange the refresh token for a fresh one when needed.
 async function freshAccessToken(): Promise<string> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;

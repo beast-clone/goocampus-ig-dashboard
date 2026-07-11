@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildLiveYouTube, youtubeToken } from "@/lib/youtube";
+import { buildLiveYouTube, hasYouTubeAuth } from "@/lib/youtube";
 
 // GET /api/youtube?channel=<key>&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -29,6 +29,15 @@ export const CHANNELS: Record<string, { id: string; name: string; handle: string
   goocampusworld: { id: "goocampusworld", name: "GooCampus World",  handle: "@goocampusworld",  channelId: "", baseSubs: 8600,  scale: 0.44 },
   twelfthplus:    { id: "twelfthplus",    name: "12thplus",         handle: "@12thplus",        channelId: "", baseSubs: 5100,  scale: 0.3 },
 };
+
+// Fill channelIds from env: YOUTUBE_CHANNEL_IDS = {"goocampus":"UCxxxx", ...}.
+// Channels without an id stay on demo data.
+try {
+  const map = JSON.parse(process.env.YOUTUBE_CHANNEL_IDS || "{}") as Record<string, unknown>;
+  for (const [k, v] of Object.entries(map)) {
+    if (CHANNELS[k] && typeof v === "string") CHANNELS[k].channelId = v;
+  }
+} catch { /* malformed env → all channels stay demo */ }
 
 // ── deterministic PRNG (stable across refreshes; seeded by channel+range) ──
 function hashSeed(str: string): number {
@@ -177,8 +186,9 @@ export async function GET(req: Request) {
 
     const t0 = Date.now();
 
-    // Live when a token is present AND this channel has a configured channelId.
-    if (youtubeToken() && CHANNELS[channelKey].channelId) {
+    // Live when auth is available (access token OR refresh credentials) AND this
+    // channel has a configured channelId.
+    if (hasYouTubeAuth() && CHANNELS[channelKey].channelId) {
       try {
         const live = await buildLiveYouTube(channelKey, from, to);
         return NextResponse.json({ ...live, latencyMs: Date.now() - t0 });

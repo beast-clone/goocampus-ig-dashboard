@@ -3,6 +3,13 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 — YouTube tab is LIVE (channel owner authorized)
+
+- The GooCampus **channel owner ran the OAuth flow** (OAuth Playground, our `gc-dashboard-analytics` client, scopes `youtube.readonly` + `yt-analytics.readonly`, signed in as the **brand channel itself**) — this was the blocker since the tab was built (Praveen's token couldn't read channel analytics).
+- New `YOUTUBE_REFRESH_TOKEN` stored in `.env.local`; verified it mints access tokens and reads analytics (30d: 19,285 views, 933 watch-hours, +270 subs).
+- Two code fixes to let live mode actually switch on: `YOUTUBE_CHANNEL_IDS` env map is now parsed into `CHANNELS` (it was documented but never implemented), and the live gate uses new `hasYouTubeAuth()` (refresh-token credentials count; before it demanded a stored access token). `YOUTUBE_CHANNEL_IDS={"goocampus":"UC…h0TQ"}` set.
+- **Verified in-browser: /dashboard/youtube shows ● Live** with real subs/views/watch time, real top-video titles, traffic sources, countries, devices, age/gender. GooCampus World + 12thplus channels stay demo (not authorized yet — same exercise later if wanted).
+
 ## 2026-07-11 — Per-user passwords + admin Team page
 
 ### Per-user passwords (open item #2 done)
