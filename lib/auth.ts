@@ -28,31 +28,48 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
-function makeCookieValue(): string {
+// Cookie value is `<payload>.<sig>` where payload is either just `<token>` (legacy,
+// no identity) or `<userId>:<token>` (carries who logged in). The signature always
+// covers the whole payload, so the middleware's verify (which signs everything before
+// the last dot) keeps working unchanged whether or not a userId is present.
+function makeCookieValue(userId?: string | null): string {
   const token = randomBytes(24).toString("hex");
-  const sig = sign(token);
-  return `${token}.${sig}`;
+  const payload = userId ? `${userId}:${token}` : token;
+  const sig = sign(payload);
+  return `${payload}.${sig}`;
+}
+
+function parseVerified(value: string | undefined): { valid: boolean; userId: string | null } {
+  if (!value || !value.includes(".")) return { valid: false, userId: null };
+  const idx = value.lastIndexOf(".");
+  const payload = value.slice(0, idx);
+  const sig = value.slice(idx + 1);
+  if (!payload || !sig) return { valid: false, userId: null };
+  try {
+    if (!safeEqual(sig, sign(payload))) return { valid: false, userId: null };
+  } catch {
+    return { valid: false, userId: null };
+  }
+  const ci = payload.indexOf(":");
+  const userId = ci > 0 ? payload.slice(0, ci) : null;
+  return { valid: true, userId };
 }
 
 function verifyCookieValue(value: string | undefined): boolean {
-  if (!value || !value.includes(".")) return false;
-  const idx = value.lastIndexOf(".");
-  const token = value.slice(0, idx);
-  const sig = value.slice(idx + 1);
-  if (!token || !sig) return false;
-  try {
-    return safeEqual(sig, sign(token));
-  } catch {
-    return false;
-  }
+  return parseVerified(value).valid;
 }
 
 export function isLoggedIn(): boolean {
-  return verifyCookieValue(cookies().get(COOKIE)?.value);
+  return parseVerified(cookies().get(COOKIE)?.value).valid;
 }
 
-export function setSession() {
-  cookies().set(COOKIE, makeCookieValue(), {
+// Who is logged in? Returns the userId embedded in the session, or null (legacy session).
+export function getSessionUserId(): string | null {
+  return parseVerified(cookies().get(COOKIE)?.value).userId;
+}
+
+export function setSession(userId?: string | null) {
+  cookies().set(COOKIE, makeCookieValue(userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

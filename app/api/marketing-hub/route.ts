@@ -54,6 +54,10 @@ type Payload = {
   latencyMs: number;
   cached?: boolean;
   cachedAt?: string;
+  // When the request carries ?rec=<airtable record id>, this is the mh_posts.id
+  // of that task so the page can auto-open its detail modal (even if the task's
+  // publishing date falls outside the current range).
+  openId?: string | null;
 };
 
 const CACHE = new Map<string, { at: number; payload: Payload }>();
@@ -95,95 +99,129 @@ type PostRow = {
 
 type TeamRow = { key: string; full_name: string };
 
+function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
+  return {
+    id: p.id,
+    particulars: p.particulars || "",
+    type: p.type || "",
+    status: p.status || "",
+    sbu: p.sbu || "",
+    owner: p.owner_key ? teamByKey.get(p.owner_key) || p.owner_key : "",
+    collaborators: [], // filled in Phase B.2 when we join mh_post_collaborators
+    platforms: p.platforms || [],
+    publishTo: p.publish_to || "",
+    publishToPage: p.publish_to_page || "",
+    priority: p.priority || "",
+    publishingDate: p.publishing_date || "",
+    dueDate: p.due_date || "",
+    completionTime: p.completion_time || "",
+    createdDate: p.created_at,
+    lastModified: p.updated_at,
+    needsReview: p.needs_review,
+    syncedToScheduler: p.synced_to_scheduler,
+    caption: p.caption || "",
+    content: p.content || "",
+    additionalInfo: p.additional_info || "",
+    outputLink: p.output_link || "",
+    instagramUrl: p.instagram_url || "",
+    facebookUrl: p.facebook_url || "",
+    link: p.external_link || "",
+    slackLink: p.slack_link || "",
+    attachments: [], // filled in Phase B.2 when we join mh_attachments
+  };
+}
+
+// Resolve a deep-link ?open=<mh_posts.id> so /me can open a specific task even when
+// its publishing date falls outside the requested range (pending items are future-dated).
+async function resolveOpen(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+  openId: string,
+  rows: Row[],
+): Promise<{ openId: string | null; extraRow: Row | null }> {
+  if (rows.some((r) => r.id === openId)) return { openId, extraRow: null };
+  const { data, error } = await sb.from("mh_posts").select("*").eq("id", openId).limit(1);
+  if (error || !data || !data.length) return { openId: null, extraRow: null };
+  const p = data[0] as PostRow;
+  const teamRes = await sb.from("mh_team_members").select("key, full_name");
+  const teamByKey = new Map((teamRes.data || []).map((t: TeamRow) => [t.key, t.full_name]));
+  return { openId: p.id, extraRow: mapPost(p, teamByKey) };
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";
+  const open = url.searchParams.get("open") || "";
   const force = url.searchParams.get("force") === "1";
   if (!from || !to) return NextResponse.json({ error: "from and to required" }, { status: 400 });
-
-  const cacheKey = `${from}|${to}`;
-  const now = Date.now();
-  const cached = CACHE.get(cacheKey);
-  if (!force && cached && now - cached.at < TTL_MS) {
-    return NextResponse.json({ ...cached.payload, cached: true, cachedAt: new Date(cached.at).toISOString() });
-  }
 
   const t0 = Date.now();
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    // Fetch posts in date range + full team roster in parallel.
-    // Filter: publishing_date within range OR publishing_date is null (draft items with no date yet).
-    const [postsRes, teamRes] = await Promise.all([
-      sb
-        .from("mh_posts")
-        .select("*")
-        .or(`and(publishing_date.gte.${from},publishing_date.lte.${to}),publishing_date.is.null`)
-        .order("publishing_date", { ascending: false, nullsFirst: false }),
-      sb.from("mh_team_members").select("key, full_name"),
-    ]);
+    const cacheKey = `${from}|${to}`;
+    const now = Date.now();
+    let payload: Payload;
+    const cached = CACHE.get(cacheKey);
+    if (!force && cached && now - cached.at < TTL_MS) {
+      payload = { ...cached.payload, cached: true, cachedAt: new Date(cached.at).toISOString() };
+    } else {
+      // Fetch posts in date range + full team roster in parallel.
+      // Filter: publishing_date within range OR publishing_date is null (draft items with no date yet).
+      const [postsRes, teamRes] = await Promise.all([
+        sb
+          .from("mh_posts")
+          .select("*")
+          .or(`and(publishing_date.gte.${from},publishing_date.lte.${to}),publishing_date.is.null`)
+          .order("publishing_date", { ascending: false, nullsFirst: false }),
+        sb.from("mh_team_members").select("key, full_name"),
+      ]);
 
-    if (postsRes.error) throw new Error(`posts: ${postsRes.error.message}`);
-    if (teamRes.error) throw new Error(`team: ${teamRes.error.message}`);
+      if (postsRes.error) throw new Error(`posts: ${postsRes.error.message}`);
+      if (teamRes.error) throw new Error(`team: ${teamRes.error.message}`);
 
-    const teamByKey = new Map((teamRes.data || []).map((t: TeamRow) => [t.key, t.full_name]));
-    const posts = (postsRes.data || []) as PostRow[];
+      const teamByKey = new Map((teamRes.data || []).map((t: TeamRow) => [t.key, t.full_name]));
+      const posts = (postsRes.data || []) as PostRow[];
+      const rows: Row[] = posts.map((p) => mapPost(p, teamByKey));
 
-    const rows: Row[] = posts.map((p) => ({
-      id: p.id,
-      particulars: p.particulars || "",
-      type: p.type || "",
-      status: p.status || "",
-      sbu: p.sbu || "",
-      owner: p.owner_key ? teamByKey.get(p.owner_key) || p.owner_key : "",
-      collaborators: [], // filled in Phase B.2 when we join mh_post_collaborators
-      platforms: p.platforms || [],
-      publishTo: p.publish_to || "",
-      publishToPage: p.publish_to_page || "",
-      priority: p.priority || "",
-      publishingDate: p.publishing_date || "",
-      dueDate: p.due_date || "",
-      completionTime: p.completion_time || "",
-      createdDate: p.created_at,
-      lastModified: p.updated_at,
-      needsReview: p.needs_review,
-      syncedToScheduler: p.synced_to_scheduler,
-      caption: p.caption || "",
-      content: p.content || "",
-      additionalInfo: p.additional_info || "",
-      outputLink: p.output_link || "",
-      instagramUrl: p.instagram_url || "",
-      facebookUrl: p.facebook_url || "",
-      link: p.external_link || "",
-      slackLink: p.slack_link || "",
-      attachments: [], // filled in Phase B.2 when we join mh_attachments
-    }));
+      const facets: Facets = {
+        sbu: uniqSorted(rows.map((r) => r.sbu)),
+        type: uniqSorted(rows.map((r) => r.type)),
+        status: uniqSorted(rows.map((r) => r.status)),
+        owner: uniqSorted(rows.map((r) => r.owner)),
+        priority: uniqSorted(rows.map((r) => r.priority)),
+        platforms: uniqSorted(rows.flatMap((r) => r.platforms)),
+        publishTo: uniqSorted(rows.map((r) => r.publishTo)),
+      };
 
-    const facets: Facets = {
-      sbu: uniqSorted(rows.map((r) => r.sbu)),
-      type: uniqSorted(rows.map((r) => r.type)),
-      status: uniqSorted(rows.map((r) => r.status)),
-      owner: uniqSorted(rows.map((r) => r.owner)),
-      priority: uniqSorted(rows.map((r) => r.priority)),
-      platforms: uniqSorted(rows.flatMap((r) => r.platforms)),
-      publishTo: uniqSorted(rows.map((r) => r.publishTo)),
-    };
+      const days = Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1);
 
-    const days = Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1);
+      payload = {
+        range: { from, to, days },
+        totalInRange: rows.length,
+        rows,
+        facets,
+        generatedAt: new Date().toISOString(),
+        latencyMs: Date.now() - t0,
+        cached: false,
+      };
+      CACHE.set(cacheKey, { at: now, payload });
+    }
 
-    const payload: Payload = {
-      range: { from, to, days },
-      totalInRange: rows.length,
-      rows,
-      facets,
-      generatedAt: new Date().toISOString(),
-      latencyMs: Date.now() - t0,
-    };
+    // Deep-link: ensure the requested task is present + tell the page to open it.
+    // Build a fresh response object so we never mutate the cached payload/rows.
+    if (open) {
+      const { openId, extraRow } = await resolveOpen(sb, open, payload.rows);
+      payload = {
+        ...payload,
+        openId,
+        rows: extraRow ? [extraRow, ...payload.rows] : payload.rows,
+        totalInRange: extraRow ? payload.totalInRange + 1 : payload.totalInRange,
+      };
+    }
 
-    CACHE.set(cacheKey, { at: now, payload });
-    return NextResponse.json({ ...payload, cached: false });
+    return NextResponse.json(payload);
   } catch (err) {
     return NextResponse.json(safeError(err, "Marketing Hub fetch failed"), { status: 502 });
   }

@@ -3,6 +3,52 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 — Individual (per-person) dashboard: live route on localhost
+
+### New `/me` route — the personal dashboard, now running in the app (not a mockup)
+
+- Added **`app/me/page.tsx`** + **`public/individual.html`** so the individual (per-person) dashboard is a **real route at `/me`** on the dev server, not a claude.ai artifact. Open it at `http://localhost:<devport>/me`.
+- **Not auth-gated yet** — middleware only guards `/dashboard/*` + `/api/*`, so `/me` is directly reachable while we finalize the design.
+- Rendered via an isolated `<iframe>` of the self-contained `public/individual.html` so its own styling doesn't collide with the app's Tailwind globals.
+- **What it is:** the personal Home (time-of-day sky + live Open-Meteo weather, day plan w/ login-based clock-in + countdown + overflow, EOD review, team board with deletable pins, personal snapshot+ads box) + a right rail that **links out to the shared main dashboard** (Marketing Hub, My Day, Publishing calendar, Sales & Leads, Analytics). Publisher removed.
+### Data-wiring phase 1 — login identity + first Supabase-backed domain (LIVE)
+
+- **Login identity.** Session cookie now optionally carries who logged in (`<userId>:<token>.<sig>` — signature still covers the whole payload so middleware verify is unchanged; legacy identity-less sessions still valid). New `lib/users.ts` (the 5 team members), `getSessionUserId()` in `lib/auth.ts`, `/api/login` accepts an optional `user`, login page got a **"Who are you?"** picker, and `/api/me` returns the current person. Verified: login as nikhil → `/api/me` returns Nikhil; a forged user id is rejected.
+- **Legacy-session upgrade.** `/me` shows a `WhoAmI` name-picker (component) when the session is valid but identity-less; picking a name calls `/api/whoami` (upgrades the session, no password re-entry) and reloads. So existing main-dashboard sessions can adopt an identity without logging out.
+- **Individual dashboard personalised.** `public/individual.html` fetches `/api/me` and sets the greeting ("…, Manya"), rail avatar/name/role live.
+- **First Supabase domain — the pin board is live.** Ran `sql/004_individual_dashboard.sql` in the GooCampus Supabase project (created `ind_pins`, `ind_tasks`, `ind_standup`, `ind_reminders`, `ind_chat`, all RLS-enabled). New `/api/individual/pins` (GET/POST/DELETE via the service key), wired into the pin board — add/delete persist to Supabase, stamped with the logged-in user. Verified end-to-end in the browser: logged in as Manya, added a pin → author "Manya BM (MB)", persisted; delete works.
+### Snapshot + Ads now show LIVE data (not demo numbers)
+
+- **Snapshot Instagram is live per brand.** New `/api/individual/snapshot` fetches real followers + 30-day reach + engagement rate (avg likes+comments/followers over recent posts) for all 4 accounts via the existing `lib/instagram` helpers. Wired into `public/individual.html` — the brand pills now show REAL numbers (Edu ~30.4K, World ~2.3K, 12thPlus ~1.1K, Samvaya ~150; the old demo showed a fake 96.2K for 12thPlus). Instagram card badged **Live**; Facebook/LinkedIn/YouTube honestly badged **Demo** (not yet wired).
+- **Ads · running now is live.** Front-end fetches `/api/ads` and renders the real `activeAds` (top 8 by impressions) — real ad name, impressions, clicks (impr×ctr), leads, CTR, reach. Replaced the four hard-coded demo ad cards.
+- Verified in-browser (logged in as Manya): snapshot per-brand real, 8 real active ads.
+### Snapshot: Facebook + LinkedIn now live too
+
+- **Facebook** — real page followers per brand via the Graph API (`/{pageId}?fields=followers_count,fan_count`) using the per-account page tokens (exposed `pageId` on `IGAccountConfig`). 28-day reach + engagement attempted from page insights but the page tokens lack `read_insights`, so those show "—" (honest) while followers are real. Badged **Live**.
+- **LinkedIn** — GooCampus World real followers / impressions / engagement via `linkedin.buildLive("gcworld")`; other brands show "No LinkedIn". "All brands" LinkedIn = World's (the only approved org). Badged **Live**.
+- `/api/individual/snapshot` now returns nested `{ig, fb, li}` per brand; front-end wired. Verified in-browser.
+- **Ads now show the real creative image.** New `/api/individual/ads` enriches each active ad with its real creative via `/{ad_id}?fields=creative{thumbnail_url.width(480).height(480),image_url}` (prefers the publicly-loadable `thumbnail_url`). Front-end renders it full-bleed in the square (falls back to the gradient+name if an ad has no image). Verified the URLs return real `image/jpeg`/`png` (200) — they render in a normal browser (the sandboxed test browser can't load external fbcdn images, so screenshotting them isn't possible here).
+- **Ads sharper where possible:** prefer creative `image_url` (full-res image ads), fall back to a 1080 `thumbnail_url` (video/lead ads — Meta only exposes a small thumbnail for those, so they stay soft). Front-end `<img>` tries the full image then the thumbnail (onerror chain).
+- **Rail links now navigate directly** into the real main dashboard (`window.top` → `/dashboard/marketing-hub`, `/my-day`, `/calendar`, `/sales-ops`, `/dashboard`) instead of the hand-off card.
+### Team, roles, login-by-email, admin gate + real content imported
+
+- **Two Supabase tables** (`ind_users`, `ind_content`), created + `ind_users` seeded with the 5-person marketing team (real emails, roles, `is_admin`): Maheen (admin), Manya, Nikhil, Nandu, Praveen. Shubhi + Sramana excluded per the user.
+- **`lib/users.ts`** now carries email + role + isAdmin (matches the seeded rows). Added `getUserByEmail`, `isAdminId`.
+- **Login by email** — the login page has a "Your work email" field (was a name dropdown); `/api/login` maps email → user and stamps identity into the session. Shared `DASHBOARD_PASSWORD` still authenticates (per-user passwords = later).
+- **Admin gate** — `middleware.ts` now blocks non-admins from `/dashboard/*` (redirect → `/me`); only `maheen` may open the admin dashboard. Verified: Praveen → `/dashboard` = 307 → `/me`; Maheen → 200.
+- **My Day link stays inside `/me`** (scrolls to the day plan) instead of jumping to the admin dashboard.
+- **Imported 200 real Content Calendar records** from Airtable (Marketing Hub base) into `ind_content`, all types (Carousel 99, Reel 67, Post 14, YouTube 6, Meta Ads 7…), owner-mapped: Praveen 111 · Manya 43 · Nikhil 36 · Nandu 10. So each person's `/me` has real content to wire to.
+- **Still to do (next):** show each person's real `ind_content` in their `/me` day-plan/tasks (imported but not yet rendered); per-user passwords; an admin page to manage `ind_users` live (code still reads `lib/users.ts`); YouTube snapshot + FB reach still demo.
+
+### /me Tasks wired to the real Marketing Hub + full content imported
+
+- **Rail "My Day" → "Tasks"**, redundant "Marketing Hub" entry removed (they pointed at the same board).
+- **`/me` To-do now reads `mh_posts`** (the SAME table the main-dashboard Marketing Hub uses) filtered to the logged-in owner — one source of truth, no more `ind_content` duplication. Shows **pending only**; approved/published hidden (full list under Tasks).
+- **Click a task → opens it in the Hub:** rows deep-link to `/dashboard/marketing-hub?open=<mh_posts.id>`; the Hub API resolves the row (even if its date is outside the 30-day range) and the page auto-opens the task detail, then strips `?open`. Verified end-to-end.
+- **middleware:** members may now reach `/dashboard/marketing-hub` only; every other `/dashboard/*` still admin-only.
+- **Imported 189 real Content Calendar records into `mh_posts`** (the rest already existed) so Tasks + My Day show everyone's full content. Checked triggers first — the only external one (Slack) is UPDATE-only, so no spam on insert.
+- **Side effect:** the Hub's `spawn_thumbnail` INSERT trigger auto-created ~89 "— Thumbnail" sub-tasks. Hidden from `/me` via a `type ilike '%thumbnail%'` filter (non-destructive). Deleting them from the live table was blocked by the safety guard — pending user OK.
+
 ## 2026-07-11 — LinkedIn tab: live per-post data + Instagram-style redesign
 
 ### Post performance — now live & clickable (GooCampus World)

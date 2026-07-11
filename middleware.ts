@@ -17,6 +17,17 @@ const CRON_PREFIX = "/api/cron";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
+// Only these users may open the main /dashboard (the admin view). Everyone else → /me.
+const ADMIN_IDS = new Set(["maheen"]);
+
+// Extract the userId embedded in the session cookie payload (`<userId>:<token>.<sig>`).
+function cookieUserId(value: string | undefined): string | null {
+  if (!value || !value.includes(".")) return null;
+  const payload = value.slice(0, value.lastIndexOf("."));
+  const ci = payload.indexOf(":");
+  return ci > 0 ? payload.slice(0, ci) : null;
+}
+
 // Hex-encoded HMAC-SHA256 of `payload` using `secret`.
 async function hmacHex(secret: string, payload: string): Promise<string> {
   const enc = new TextEncoder();
@@ -105,9 +116,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Main dashboard is admin-only, EXCEPT the Marketing Hub task board — every member
+  // needs to open their own tasks there (deep-linked from /me). Analytics, Ads, Audience,
+  // Sales, LinkedIn, YouTube, etc. stay admin-only.
+  if (isAuthed && pathname.startsWith("/dashboard")) {
+    const userId = cookieUserId(req.cookies.get("gc_session")?.value);
+    const memberAllowed = pathname.startsWith("/dashboard/marketing-hub");
+    if (!ADMIN_IDS.has(userId ?? "") && !memberAllowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/me";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (isAuthed && pathname === "/login") {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/me";
     return NextResponse.redirect(url);
   }
 

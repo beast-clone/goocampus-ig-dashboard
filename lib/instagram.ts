@@ -11,6 +11,7 @@ export type IGAccountConfig = {
   handle: string;
   igUserId: string;
   pageAccessToken: string;
+  pageId?: string;
 };
 
 type StoredAccount = {
@@ -32,6 +33,7 @@ function mapStored(data: StoredAccount[]): IGAccountConfig[] {
     handle: `@${a.igUsername}`,
     igUserId: a.igUserId,
     pageAccessToken: a.pageAccessToken,
+    pageId: a.pageId,
   }));
 }
 

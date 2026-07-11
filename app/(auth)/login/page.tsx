@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -15,10 +16,15 @@ export default function LoginPage() {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, email }),
     });
     setLoading(false);
-    if (res.ok) { router.push("/dashboard"); return; }
+    if (res.ok) {
+      const next = new URLSearchParams(window.location.search).get("next");
+      const dest = next && next.startsWith("/") ? next : "/me";
+      router.push(dest);
+      return;
+    }
     // Surface real error from API so rate-limit lockout doesn't look like a wrong password
     type LoginErr = { error?: string; _debug?: { gotLen: number; gotFirst: string; gotLast: string; expectedLen: number; expectedFirst: string; expectedLast: string; match: boolean } };
     let body: LoginErr = {};
@@ -39,6 +45,17 @@ export default function LoginPage() {
         <div>
           <h1 className="text-2xl font-semibold">GooCampus IG Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">Internal access only.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Your work email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@goocampus.in"
+            autoComplete="username"
+            className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand"
+          />
         </div>
         <div className="relative">
           <input

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { setSession } from "@/lib/auth";
+import { isValidUserId, getUserByEmail } from "@/lib/users";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const LOGIN_MAX = 5;             // 5 attempts
@@ -16,9 +17,13 @@ export async function POST(req: Request) {
   }
 
   let password: string | undefined;
+  let user: string | undefined;
+  let email: string | undefined;
   try {
     const body = await req.json();
     password = typeof body?.password === "string" ? body.password : undefined;
+    user = typeof body?.user === "string" ? body.user : undefined;
+    email = typeof body?.email === "string" ? body.email : undefined;
   } catch {
     password = undefined;
   }
@@ -27,6 +32,9 @@ export async function POST(req: Request) {
   if (!expected || !password || password !== expected) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  setSession();
-  return NextResponse.json({ ok: true });
+  // Identity by email (preferred) or slug. Unknown/absent → no identity (legacy session).
+  const byEmail = getUserByEmail(email);
+  const userId = byEmail ? byEmail.id : (isValidUserId(user) ? user : undefined);
+  setSession(userId);
+  return NextResponse.json({ ok: true, user: userId ?? null });
 }

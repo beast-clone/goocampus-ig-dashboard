@@ -48,6 +48,7 @@ type Data = {
   generatedAt: string;
   latencyMs: number;
   cached?: boolean;
+  openId?: string | null;
 };
 
 // One color per SBU — stable across renders so the calendar reads consistently.
@@ -124,7 +125,9 @@ export default function MarketingHubPage() {
 }
 
 function Inner({ range }: { range: { from: string; to: string } }) {
-  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  // Deep-link: /dashboard/marketing-hub?open=<mh_posts.id> opens that task.
+  const openParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("open") || "" : "";
+  const qs = new URLSearchParams({ from: range.from, to: range.to, ...(openParam ? { open: openParam } : {}) }).toString();
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
   const [view, setView] = useState<"dashboard" | "calendar" | "list">("dashboard");
   const [drillMember, setDrillMember] = useState<string | null>(null);
@@ -152,6 +155,20 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   }, [data, filters, search]);
 
   const openRow = openId ? data?.rows.find((r) => r.id === openId) || null : null;
+
+  // Auto-open the deep-linked task (from /me), once, when its row arrives.
+  useEffect(() => {
+    if (openParam && data?.openId) {
+      setOpenId(data.openId);
+      // strip ?open so closing the modal doesn't reopen it and a manual refresh stays put
+      if (typeof window !== "undefined") {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("open");
+        window.history.replaceState({}, "", u.pathname + (u.search ? u.search : ""));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.openId]);
 
   return (
     <div className="space-y-6">
