@@ -3,6 +3,11 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 (later still) — ALL THREE YouTube channels live
+
+- Third refresh token received → verified it's **GooCampus Study Abroad** (`UCl0REZ55yfytWmth5GHS21Q`, 34 subs, 16 videos). There is **no "GooCampus World" YouTube channel** — the slot is renamed **"Study Abroad"** (@goocampusstudyabroad); internal key stays `goocampusworld` so nothing else breaks.
+- All three channels verified live: GooCampus 19.3K views/30d · 12thplus 6.7K · Study Abroad 234. Note: the old demo faked 8.6K subs for the third slot; the real channel has 34.
+
 ## 2026-07-11 (later) — 12thplus YouTube channel live too + per-channel tokens
 
 - Owner repeated the OAuth flow picking the **12thPlusdotcom** channel → second refresh token verified (567 subs, 178 videos) and stored.
