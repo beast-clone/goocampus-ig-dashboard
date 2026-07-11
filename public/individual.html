@@ -422,27 +422,6 @@
             </div></div>
         </div>
 
-        <div class="lbl" id="dayplan">To-do · needs your attention <span class="sc" id="dayplanSc">· pending items · full list in Tasks →</span></div>
-        <div class="card plan" id="planCard">
-          <div class="restnote" id="restnote" style="display:none">It's the weekend — you're off. Showing <b>Monday's</b> plan.</div>
-          <div class="phead"><div class="cap">Planned <b>6h 40m</b> of 9h · buffer 45m · <b>~2 more posts</b> fit today</div><div class="capbar"><i style="width:74%"></i></div><div class="spacer"></div>
-            <select class="hsel" id="hoursel"><option value="9">9 AM – 6 PM</option><option value="10">10 AM – 7 PM</option></select>
-            <button class="btn sm" id="autoBtn">Auto-plan</button><button class="gbtn sm" id="addBtn">+ Add task</button></div>
-          <div class="explain"><b>Auto-plan</b> lays your accepted tasks into today's working hours (Mon–Fri, off Sat/Sun), around meetings &amp; lunch. Each block's length is that task's own estimate — set a <b>min–max</b> per task (post ≈ 20–34m, carousel ≈ 45m–1.5h, reel ≈ 1–2h). Scope: this day only. Overflow rolls to the next working day (Fri → Mon).</div>
-          <div class="aform" id="aform" style="display:none"><input placeholder="Task — e.g. AMC intake carousel" style="min-width:190px;flex:1"><select><option>Carousel</option><option>Reel</option><option>Post</option><option>Photoshoot</option></select><div class="rangewrap">Takes <input type="number" value="20">–<input type="number" value="34"> min</div><select><option>Today</option><option>Tomorrow</option></select><button class="btn sm">Add</button></div>
-          <div class="typekey"><b>Format</b><span class="kk"><i class="sw-carousel"></i>Carousel</span><span class="kk"><i class="sw-reel"></i>Reel</span><span class="kk"><i class="sw-post"></i>Post</span><span class="kk"><i class="sw-shoot"></i>Photoshoot</span><span class="kk"><i class="sw-meet"></i>Meeting / break</span></div>
-          <div class="tl"><div class="ticks" id="ticks"></div><div class="track">
-            <div class="blk carousel" style="left:0;width:27.7%">Germany carousel<small>design · 2h 30m</small></div>
-            <div class="blk reel" style="left:27.7%;width:5.5%">AMC reel<small>VO</small></div>
-            <div class="blk free" style="left:33.3%;width:11.1%">Lunch</div>
-            <div class="blk meet" style="left:44.4%;width:11.1%">Team sync<small>meeting</small></div>
-            <div class="blk post" style="left:55.5%;width:19.4%">NZREX guide<small>post · 1h 45m</small></div>
-            <div class="blk post" style="left:75%;width:16.6%">3 static posts<small>≈35m each</small></div>
-            <div class="blk free" style="left:91.6%;width:8.3%">Buffer</div>
-            <div class="nowln" style="left:44%"></div></div></div>
-          <p class="hint">Drag a block to reschedule · pull an edge to resize · tap to change its estimate. Overflow past Friday moves to Monday.</p>
-        </div>
-
         <div class="lbl">End-of-day review <span class="sc">· pops up ~5 PM if tasks are still open</span></div>
         <div class="card">
           <div class="eodh">3 tasks still open — a quick review before you log off. <span class="callout" style="font-weight:400">Set how far you got, add a reason, move the rest to the next working day.</span></div>
@@ -562,17 +541,17 @@
   function setActive(el){document.querySelectorAll('.navitem').forEach(n=>n.classList.remove('active'));if(el)el.classList.add('active');}
   function goHome(){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('show',v.id==='v-home'));document.getElementById('crumb').textContent='Home';setActive(document.querySelector('.navitem[data-space="home"]'));document.getElementById('dockPlan').style.display='none';window.scrollTo(0,0);}
   function openLink(name,el){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('show',v.id==='v-linkout'));document.getElementById('loTitle').textContent=name;document.getElementById('crumb').textContent=name;setActive(el);document.getElementById('dockPlan').style.display='flex';window.scrollTo(0,0);}
-  var MAINROUTES={'Tasks':'/dashboard/marketing-hub','Publishing calendar':'/dashboard/calendar','Sales & Leads':'/dashboard/sales-ops','Analytics':'/dashboard'};
+  var MAINROUTES={'Tasks':'/me/tasks','Publishing calendar':'/dashboard/calendar','Sales & Leads':'/dashboard/sales-ops','Analytics':'/dashboard'};
   function goMain(name){var r=MAINROUTES[name];if(r){(window.top||window).location.href=r;}}
-  // open a specific task in the main dashboard's Marketing Hub (deep-link by the Hub's own row id)
-  function openTask(id){var u='/dashboard/marketing-hub'+(id?('?open='+encodeURIComponent(id)):'');(window.top||window).location.href=u;}
+  // open the member's own tasks page (their personal My Day — never the admin dashboard)
+  function openTask(id){(window.top||window).location.href='/me/tasks';}
   document.querySelector('.navitem[data-space="home"]').addEventListener('click',goHome);
   document.querySelectorAll('.navlink').forEach(n=>n.addEventListener('click',()=>goMain(n.dataset.link)));
   document.querySelectorAll('[data-jump]').forEach(b=>b.addEventListener('click',()=>goMain('Tasks')));
   document.addEventListener('click',e=>{if(e.target.closest('[data-goana]'))goMain('Analytics');});
   document.querySelectorAll('.chk').forEach(c=>c.addEventListener('click',()=>{c.classList.toggle('on');c.closest('.li').classList.toggle('done');}));
   document.querySelectorAll('.pindel').forEach(b=>b.addEventListener('click',()=>b.closest('.li').remove()));
-  document.querySelectorAll('.mt').forEach(c=>c.addEventListener('click',()=>document.getElementById('dayplan').scrollIntoView({behavior:'smooth',block:'start'})));
+  document.querySelectorAll('.mt').forEach(c=>c.addEventListener('click',()=>goMain('Tasks')));
 
   let ME={first:'Manya',name:'Manya BM',initials:'MB',role:'Content'};
   const TC={m:['Good morning','26° ⛅','m',['sun','44%','38%']],d:['Good afternoon','33° ☀️','d',['sun','48%','22%']],e:['Good evening','29° 🌆','e',['sun','53%','36%']],n:['Working late','24° 🌙','n',['moon','49%','26%']]};
@@ -612,30 +591,23 @@
     var right=[it.status,d].filter(Boolean).join(' · ');
     var oid=pesc(it.id||'');
     var inner='<span class="ic tag-'+ty[0]+'">'+ty[1]+'</span><div class="pm"><b>'+pesc(it.title||'Untitled')+'</b><small>'+pesc(meta)+'</small></div><span class="pt">'+pesc(right)+'</span>';
-    return '<div class="ptask ptclick" data-open="'+oid+'" title="Open this task in the main dashboard">'+inner+'</div>';}
+    return '<div class="ptask ptclick" data-open="'+oid+'" title="Open in My tasks">'+inner+'</div>';}
   function wireRows(root){if(!root)return;root.querySelectorAll('.ptclick').forEach(function(el){el.style.cursor='pointer';el.onclick=function(){openTask(el.getAttribute('data-open'));};});}
   function renderContent(all){
     all=all||[];
-    var todo=all.filter(function(it){return !isDone(it.status);}); // To-do view = pending only
+    var todo=all.filter(function(it){return !isDone(it.status);}); // pending only
+    // Banner chips — REAL numbers from the person's own content (the task list
+    // itself lives on /me/tasks; the chips are the summary, per Option B).
+    var now=new Date();
+    function isToday(d){if(!d)return false;try{var x=new Date(d);return x.getFullYear()===now.getFullYear()&&x.getMonth()===now.getMonth()&&x.getDate()===now.getDate();}catch(e){return false;}}
+    var due=todo.filter(function(it){return isToday(it.publish_date);}).length;
+    var y1=document.getElementById('yd1');if(y1)y1.innerHTML='<span class="dot"></span>'+due+' due today';
+    var y2=document.getElementById('yd2');if(y2)y2.innerHTML='<span class="dot"></span>'+todo.length+' pending';
     var dt=document.getElementById('dockTasks');
     if(dt){dt.innerHTML='<div class="plansub">To-do · '+todo.length+'</div>'+(todo.length?todo.slice(0,10).map(contentRow).join(''):'<div class="callout" style="padding:2px">Nothing pending — you’re clear.</div>')+'<a class="seeall" onclick="openTask()" style="display:inline-block;margin-top:10px;cursor:pointer">Open all in Tasks →</a>';wireRows(dt);}
-    var pc=document.getElementById('planCard');
-    if(pc){
-      var sc=document.getElementById('dayplanSc');if(sc)sc.textContent='· '+todo.length+' pending · '+all.length+' total in Tasks →';
-      var rows=todo.length?todo.map(contentRow).join(''):'<div class="callout" style="padding:6px 2px">Nothing pending right now. Your full list is under <b>Tasks</b>.</div>';
-      pc.innerHTML='<div class="pad">'+
-        '<div class="phead" style="margin-bottom:14px"><div class="cap"><b>'+todo.length+'</b> pending · click any row to open it in <b>Tasks</b> (main dashboard). Approved &amp; published items live in <a data-link="Tasks" class="tasklink" style="cursor:pointer;color:var(--accent)">Tasks →</a></div><div class="spacer"></div>'+
-        '<div class="typekey" style="margin-bottom:0"><b>Format</b><span class="kk"><i class="sw-carousel"></i>Carousel</span><span class="kk"><i class="sw-reel"></i>Reel</span><span class="kk"><i class="sw-post"></i>Post/Ad</span><span class="kk"><i class="sw-shoot"></i>YouTube</span></div></div>'+
-        '<div class="clist">'+rows+'</div></div>';
-      wireRows(pc);
-      var tl=pc.querySelector('.tasklink');if(tl)tl.onclick=function(){goMain('Tasks');};
-    }
   }
   fetch('/api/individual/content',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){renderContent(j&&j.items);}).catch(function(){renderContent([]);});
   (function(){var b=document.getElementById('pinAdd');if(!b)return;b.addEventListener('click',function(){var t=window.prompt('Pin a note for the team:');if(!t)return;t=t.trim();if(!t)return;fetch('/api/individual/pins',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({text:t})}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&j.pin){var el=document.getElementById('pinList');if(el){var em=el.querySelector('.callout');if(em)el.innerHTML='';el.insertAdjacentHTML('afterbegin',pinRow(j.pin));wirePinDels();}}}).catch(function(){});});})();
-  function ticks(s){let h='';for(let i=0;i<9;i++){const x=s+i;let hh=x%12;if(hh===0)hh=12;h+=`<span>${i===0?hh+(x<12?' AM':' PM'):(x===13?'1 PM':hh)}</span>`;}document.getElementById('ticks').innerHTML=h;}
-  ticks(9);document.getElementById('hoursel').addEventListener('change',e=>ticks(+e.target.value));
-  document.getElementById('addBtn').addEventListener('click',()=>{const f=document.getElementById('aform');f.style.display=f.style.display==='none'?'flex':'none';});
   (function(){const g=new Date().getDay();const c=document.querySelector('.calcol[data-day="'+g+'"]');if(c)c.classList.add('today');})();
   // thinner sliders — fill the track up to the value
   function fillRange(r){const v=+r.value;r.style.background=`linear-gradient(90deg,var(--accent) ${v}%,var(--border-2) ${v}%)`;}

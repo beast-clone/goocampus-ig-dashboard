@@ -127,15 +127,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Main dashboard is admin-only, EXCEPT the Marketing Hub task board — every member
-  // needs to open their own tasks there (deep-linked from /me). Analytics, Ads, Audience,
-  // Sales, LinkedIn, YouTube, etc. stay admin-only.
+  // The main dashboard is admin-only. Members live on /me and work their tasks
+  // on /me/tasks (which talks to the same /api/marketing-hub endpoints).
   if (isAuthed && pathname.startsWith("/dashboard")) {
     const cookieVal = req.cookies.get("gc_session")?.value;
     const userId = cookieUserId(cookieVal);
     const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
-    const memberAllowed = pathname.startsWith("/dashboard/marketing-hub");
-    if (!isAdmin && !memberAllowed) {
+    if (!isAdmin) {
       const url = req.nextUrl.clone();
       url.pathname = "/me";
       return NextResponse.redirect(url);

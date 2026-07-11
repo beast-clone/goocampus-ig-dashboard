@@ -29,11 +29,8 @@ const NAV = [
   { label: "Team", href: "/dashboard/team" },
 ];
 
-// Must mirror the member-allowed routes in middleware.ts — members are bounced
-// to /me from every /dashboard/* page except these, so only show them these.
-const MEMBER_NAV = [
-  { label: "Marketing Hub", href: "/dashboard/marketing-hub" },
-];
+// Members can't open any /dashboard/* page (middleware bounces them to /me),
+// so this sidebar only ever renders its nav for admins.
 
 export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
   accountId: string;
@@ -56,7 +53,7 @@ export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
     return () => { cancelled = true; };
   }, []);
 
-  const nav = isAdmin === null ? [] : isAdmin ? NAV : MEMBER_NAV;
+  const nav = isAdmin ? NAV : [];
 
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">

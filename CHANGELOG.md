@@ -3,6 +3,15 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 (night) — Members get their own tasks page; Marketing Hub is admin-only again
+
+- **New page `/me/tasks`** — each member's personal task workspace: the exact My Day experience (greeting, stat cards, 📌 reminders, task list + full detail panel with edit / mark done / claim / files / comments) **locked to whoever is signed in**. No "Viewing as" tabs, no admin sidebar — just a "← My dashboard" link back to `/me`.
+- The My Day view was extracted into a shared component (`components/MyDayView.tsx`); the admin `/dashboard/my-day` page is now a thin wrapper around it and looks/behaves exactly as before (person switcher intact).
+- **`/me` simplified (Option B):** the To-do list section is gone; the banner chips now show REAL numbers ("N due today · M pending" from the person's own content). "Tasks" in the rail, the "My tasks →" button, and every task row in the dock now open `/me/tasks` — never the admin dashboard.
+- **Members can no longer open ANY `/dashboard/*` page** — the Marketing Hub exception is removed from middleware; the Hub is yours alone again. (Members still use the same `/api/marketing-hub` data endpoints from their own page, so it stays ONE source of truth.)
+- Fixed in passing: `LiveIndicator` was being passed a misnamed prop in the extracted view.
+- Verified as Praveen: `/me` chips real + section gone, `/me/tasks` shows his 104 tasks with working inline detail panel, `/dashboard/marketing-hub` and `/dashboard` both bounce him to `/me`; Maheen's my-day + hub unchanged (200). No console errors.
+
 ## 2026-07-11 (later still) — ALL THREE YouTube channels live
 
 - Third refresh token received → verified it's **GooCampus Study Abroad** (`UCl0REZ55yfytWmth5GHS21Q`, 34 subs, 16 videos). There is **no "GooCampus World" YouTube channel** — the slot is renamed **"Study Abroad"** (@goocampusstudyabroad); internal key stays `goocampusworld` so nothing else breaks.
