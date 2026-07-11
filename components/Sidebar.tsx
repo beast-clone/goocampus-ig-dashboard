@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ACCOUNTS } from "@/lib/accounts";
 
 const NAV = [
@@ -27,12 +28,35 @@ const NAV = [
   { label: "AI Reports", href: "/dashboard/ai-reports" },
 ];
 
+// Must mirror the member-allowed routes in middleware.ts — members are bounced
+// to /me from every /dashboard/* page except these, so only show them these.
+const MEMBER_NAV = [
+  { label: "Marketing Hub", href: "/dashboard/marketing-hub" },
+];
+
 export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
   accountId: string;
   onAccountChange: (id: string) => void;
   onCompareAll: () => void;
 }) {
   const pathname = usePathname();
+
+  // Role-aware nav: admins see everything; members only see the pages middleware
+  // actually lets them open (everything else would just bounce them to /me).
+  // null = still loading — render no nav items yet so members never see a flash
+  // of the full admin menu.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setIsAdmin(!!d?.user?.isAdmin); })
+      .catch(() => { if (!cancelled) setIsAdmin(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const nav = isAdmin === null ? [] : isAdmin ? NAV : MEMBER_NAV;
+
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-5 border-b border-gray-100">
@@ -40,28 +64,41 @@ export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
         <div className="text-xs text-gray-500">Instagram Analytics</div>
       </div>
 
-      <div className="px-5 py-4 space-y-3">
-        <label className="text-xs font-medium text-gray-500 uppercase">Account</label>
-        <select
-          value={accountId}
-          onChange={(e) => onAccountChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
-        >
-          {ACCOUNTS.map((a) => (
-            <option key={a.id} value={a.id}>{a.label}</option>
-          ))}
-        </select>
+      {isAdmin && (
+        <div className="px-5 py-4 space-y-3">
+          <label className="text-xs font-medium text-gray-500 uppercase">Account</label>
+          <select
+            value={accountId}
+            onChange={(e) => onAccountChange(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+          >
+            {ACCOUNTS.map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
 
-        <button
-          onClick={onCompareAll}
-          className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-brand bg-brand-light hover:bg-brand/20"
-        >
-          Compare all 5 accounts
-        </button>
-      </div>
+          <button
+            onClick={onCompareAll}
+            className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-brand bg-brand-light hover:bg-brand/20"
+          >
+            Compare all 5 accounts
+          </button>
+        </div>
+      )}
+
+      {isAdmin === false && (
+        <div className="px-3 pt-4">
+          <Link
+            href="/me"
+            className="block px-3 py-2 rounded-lg text-sm font-medium text-brand bg-brand-light hover:bg-brand/20"
+          >
+            ← My dashboard
+          </Link>
+        </div>
+      )}
 
       <nav className="px-3 py-2 space-y-1 text-sm">
-        {NAV.map((t) => {
+        {nav.map((t) => {
           const active = pathname === t.href;
           return (
             <Link

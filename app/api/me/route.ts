@@ -11,6 +11,6 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 200 });
   }
   return NextResponse.json({
-    user: { id: user.id, name: user.name, first: user.first, initials: user.initials, role: user.role },
+    user: { id: user.id, name: user.name, first: user.first, initials: user.initials, role: user.role, isAdmin: user.isAdmin },
   });
 }

@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-11 — Role-aware sidebar (members see only what they can open)
+
+- **Main-dashboard sidebar is now role-aware.** `components/Sidebar.tsx` asks `/api/me` who is logged in: admins (Maheen) see the full 21-tab menu + account picker + "Compare all 5 accounts"; regular members see only **Marketing Hub** plus a **"← My dashboard"** link back to `/me`. Mirrors the middleware rule (members can only open `/dashboard/marketing-hub` — every other tab was bouncing them to `/me` anyway).
+- No flash of the admin menu: nav items render only after `/api/me` answers.
+- `/api/me` now also returns `isAdmin`.
+- `.claude/launch.json` dev server pinned to port **4324** (was 3000).
+- Verified in-browser with signed sessions: Praveen → 2-item rail, Maheen → full rail. No console errors.
+
 ## 2026-07-11 — Individual (per-person) dashboard: live route on localhost
 
 ### New `/me` route — the personal dashboard, now running in the app (not a mockup)
