@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Admin rework phase 1: grouped sidebar, platform Overview, Facebook tab
+
+- **Grouped sidebar with icons** (Tabler): Overview on top · CONTENT (Marketing Hub, My Day, Content Calendar, Scheduler, Content Radar, Discover, Hashtags) · ANALYTICS by platform (Instagram expandable → Posts/Reels/Stories/Audience · LinkedIn · YouTube · Facebook) · ADS (Ads, Competitor Ads, Benchmark) · SALES (Leads, Sales Ops) · AI (AI Insights, AI Reports) · bottom shelf Team + Sign out. Subtitle rebranded "Instagram Analytics" → "Marketing OS". All 22 original tabs preserved.
+- **Account picker moved from the sidebar into the page header** (dropdown next to the date range) — scoping the whole page to one brand. "Compare all 5 accounts" removed for now (**MUST return later as an All-brands scope — user wants reminding**); stale compare-mode localStorage is cleared so nobody's stuck. "✨ Get AI Report" header button removed (AI Reports tab covers it).
+- **Overview tab = platform toggle** (Instagram | Facebook | LinkedIn | YouTube). Instagram is the ORIGINAL overview, untouched. The other three are new compact overview panels with honest Live/Demo badges + "Open deep dive →" links: Facebook (live followers/page likes + recent posts grid), LinkedIn (followers/impressions/eng-rate/page views/posts; live only for World), YouTube (subs/views/watch time/avg duration + top-5 videos; live for all three channels).
+- **NEW: Facebook analytics tab is REAL** (built via background agent, verified live): per-brand page identity + followers/page likes live from Meta, recent-posts grid (image/text/date/link) for 3 of 4 pages (12thplus blocked by Meta page-permission/2FA), Reach/Engagement honestly "—" — the stored page tokens lack `read_insights` (and `pages_read_engagement` / `pages_read_user_content` for per-post likes/comments). Insights are still attempted each request, so re-scoped tokens go live with zero code changes. Files: lib/facebook.ts, app/api/facebook/route.ts, dashboard/facebook/page.tsx.
+- Added @tabler/icons-react dependency.
+
 ## 2026-07-11 (night, later) — Member dashboard PARKED; worlds fully detached
 
 - **Decision (Maheen):** the member dashboard is on hold while the admin dashboard gets reworked (rebrand + tab groupings). All member-dashboard work is saved on the `feat/content-radar` branch on GitHub — parked, not deleted.

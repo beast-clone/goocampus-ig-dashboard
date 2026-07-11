@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { format, subDays, parseISO } from "date-fns";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
-import { AIReportButton } from "@/components/AIReportButton";
 import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
@@ -54,9 +53,9 @@ export function DashboardShell({
       if (savedAccount && ACCOUNTS.some((a) => a.id === savedAccount)) {
         setAccountIdRaw(savedAccount);
       }
-      if (window.localStorage.getItem(LS_COMPARE) === "1") {
-        setCompareAllRaw(true);
-      }
+      // "Compare all" UI was removed (2026-07-11) — clear any stale stored flag so
+      // nobody gets stuck in compare mode with no control to leave it.
+      window.localStorage.setItem(LS_COMPARE, "0");
     } catch { /* private-mode or storage full — fall back to defaults */ }
   }, []);
 
@@ -76,11 +75,7 @@ export function DashboardShell({
 
   return (
     <div className="flex">
-      <Sidebar
-        accountId={accountId}
-        onAccountChange={(id) => { setAccountId(id); /* setAccountId already clears compareAll in storage */ setCompareAll(false); }}
-        onCompareAll={() => setCompareAll(true)}
-      />
+      <Sidebar />
       <main className="flex-1 p-8">
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -93,10 +88,20 @@ export function DashboardShell({
             <p className="text-sm text-gray-500">{headerSub}</p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Brand scope — moved here from the sidebar (2026-07-11). Picking a
+                brand scopes the whole page to it. */}
+            <select
+              value={accountId}
+              onChange={(e) => { setAccountId(e.target.value); setCompareAll(false); }}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
+            >
+              {ACCOUNTS.map((a) => (
+                <option key={a.id} value={a.id}>{a.label}</option>
+              ))}
+            </select>
             <TokenExpiryBadge />
             <DateRangePicker value={range} onChange={setRange} />
             <PdfExportButton accountId={compareAll ? "all" : accountId} range={range} />
-            <AIReportButton accountId={compareAll ? "all" : accountId} range={range} />
           </div>
         </div>
         {children({ accountId: compareAll ? "all" : accountId, compareAll, range })}

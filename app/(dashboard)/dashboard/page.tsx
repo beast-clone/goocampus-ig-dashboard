@@ -6,6 +6,7 @@ import { LatestPostsStrip } from "@/components/LatestPostsStrip";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
 import { OverviewExtras } from "@/components/OverviewExtras";
+import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
 import type { Post } from "@/components/LatestPost";
 
@@ -32,10 +33,40 @@ const PLAIN_DEFAULT: Record<Tip["metric"], { detail: string; action: string }> =
   profileVisits: { detail: "People who tapped your handle to see the bio.", action: "A/B test the bio link CTA." },
 };
 
+// Platform toggle on the Overview tab: Instagram is the original overview
+// (unchanged); Facebook / LinkedIn / YouTube get compact same-style summaries.
+// Deep dives stay in the sidebar's Analytics tabs.
+const PLATFORM_TABS = [
+  { key: "instagram", label: "Instagram" },
+  { key: "facebook", label: "Facebook" },
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "youtube", label: "YouTube" },
+] as const;
+type PlatformKey = (typeof PLATFORM_TABS)[number]["key"];
+
 export default function OverviewPage() {
+  const [platform, setPlatform] = useState<PlatformKey>("instagram");
   return (
     <DashboardShell title="Overview">
-      {({ accountId, range }) => <Overview accountId={accountId} range={range} />}
+      {({ accountId, range }) => (
+        <div className="space-y-5">
+          <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
+            {PLATFORM_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setPlatform(t.key)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {platform === "instagram" && <Overview accountId={accountId} range={range} />}
+          {platform === "facebook" && <FacebookOverview accountId={accountId} range={range} />}
+          {platform === "linkedin" && <LinkedInOverview accountId={accountId} range={range} />}
+          {platform === "youtube" && <YouTubeOverview accountId={accountId} range={range} />}
+        </div>
+      )}
     </DashboardShell>
   );
 }

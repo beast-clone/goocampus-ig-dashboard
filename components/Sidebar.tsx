@@ -2,47 +2,78 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ACCOUNTS } from "@/lib/accounts";
+import {
+  IconHome, IconLayoutKanban, IconSun, IconCalendar, IconSend, IconRadar,
+  IconCompass, IconHash, IconBrandInstagram, IconPhoto, IconMovie,
+  IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
+  IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
+  IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
+  type Icon as TablerIcon,
+} from "@tabler/icons-react";
 
-const NAV = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "Posts", href: "/dashboard/posts" },
-  { label: "Reels", href: "/dashboard/reels" },
-  { label: "Stories", href: "/dashboard/stories" },
-  { label: "Audience", href: "/dashboard/audience" },
-  { label: "Scheduler", href: "/dashboard/scheduler" },
-  { label: "Content Calendar", href: "/dashboard/calendar" },
-  { label: "Content Radar", href: "/dashboard/radar" },
-  { label: "Hashtags", href: "/dashboard/hashtags" },
-  { label: "Discover", href: "/dashboard/discover" },
-  { label: "Leads", href: "/dashboard/leads" },
-  { label: "Sales Ops", href: "/dashboard/sales-ops" },
-  { label: "Marketing Hub", href: "/dashboard/marketing-hub" },
-  { label: "My Day", href: "/dashboard/my-day" },
-  { label: "LinkedIn", href: "/dashboard/linkedin" },
-  { label: "YouTube", href: "/dashboard/youtube" },
-  { label: "Ads", href: "/dashboard/ads" },
-  { label: "Competitor Ads", href: "/dashboard/competitors" },
-  { label: "Benchmark", href: "/dashboard/benchmark" },
-  { label: "AI Insights", href: "/dashboard/ai-insights" },
-  { label: "AI Reports", href: "/dashboard/ai-reports" },
-  { label: "Team", href: "/dashboard/team" },
+// Grouped navigation (approved by Maheen 2026-07-11, icons per the mockup):
+//   Overview on top · Content · Analytics (by platform, Instagram expandable) ·
+//   Ads · Sales · AI · bottom shelf = Team + Sign out.
+// All 22 original tabs preserved + the new Facebook analytics tab.
+
+type NavLink = { label: string; href: string; icon: TablerIcon };
+
+const CONTENT: NavLink[] = [
+  { label: "Marketing Hub", href: "/dashboard/marketing-hub", icon: IconLayoutKanban },
+  { label: "My Day", href: "/dashboard/my-day", icon: IconSun },
+  { label: "Content Calendar", href: "/dashboard/calendar", icon: IconCalendar },
+  { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
+  { label: "Content Radar", href: "/dashboard/radar", icon: IconRadar },
+  { label: "Discover", href: "/dashboard/discover", icon: IconCompass },
+  { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
 ];
 
-// Members can't open any /dashboard/* page (middleware bounces them to /me),
-// so this sidebar only ever renders its nav for admins.
+// Instagram's four analytics pages nest under one expandable platform row.
+const INSTAGRAM_PAGES: NavLink[] = [
+  { label: "Posts", href: "/dashboard/posts", icon: IconPhoto },
+  { label: "Reels", href: "/dashboard/reels", icon: IconMovie },
+  { label: "Stories", href: "/dashboard/stories", icon: IconCircleDashed },
+  { label: "Audience", href: "/dashboard/audience", icon: IconUsers },
+];
 
-export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
-  accountId: string;
-  onAccountChange: (id: string) => void;
-  onCompareAll: () => void;
-}) {
+const PLATFORMS: NavLink[] = [
+  { label: "LinkedIn", href: "/dashboard/linkedin", icon: IconBrandLinkedin },
+  { label: "YouTube", href: "/dashboard/youtube", icon: IconBrandYoutube },
+  { label: "Facebook", href: "/dashboard/facebook", icon: IconBrandFacebook },
+];
+
+const ADS: NavLink[] = [
+  { label: "Ads", href: "/dashboard/ads", icon: IconSpeakerphone },
+  { label: "Competitor Ads", href: "/dashboard/competitors", icon: IconSpy },
+  { label: "Benchmark", href: "/dashboard/benchmark", icon: IconScale },
+];
+
+const SALES: NavLink[] = [
+  { label: "Leads", href: "/dashboard/leads", icon: IconTarget },
+  { label: "Sales Ops", href: "/dashboard/sales-ops", icon: IconBriefcase },
+];
+
+const AI: NavLink[] = [
+  { label: "AI Insights", href: "/dashboard/ai-insights", icon: IconSparkles },
+  { label: "AI Reports", href: "/dashboard/ai-reports", icon: IconReport },
+];
+
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-gray-400">
+      {children}
+    </div>
+  );
+}
+
+// The brand/account picker lives in the page header now (DashboardShell), not here.
+// User note (2026-07-11): "Compare all 5 accounts" was removed but must come back
+// somewhere — likely as an "All brands" scope once the multi-brand overview matures.
+export function Sidebar() {
   const pathname = usePathname();
 
-  // Role-aware nav: admins see everything; members only see the pages middleware
-  // actually lets them open (everything else would just bounce them to /me).
-  // null = still loading — render no nav items yet so members never see a flash
-  // of the full admin menu.
+  // Role-aware: admins see the nav; members never reach /dashboard/* at all
+  // (middleware bounces them), so nothing renders until /api/me confirms admin.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -53,66 +84,72 @@ export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
     return () => { cancelled = true; };
   }, []);
 
-  const nav = isAdmin ? NAV : [];
+  // Instagram platform row: expanded when you're on one of its pages, or toggled by hand.
+  const igActive = INSTAGRAM_PAGES.some((p) => pathname === p.href);
+  const [igOpen, setIgOpen] = useState(false);
+  useEffect(() => { if (igActive) setIgOpen(true); }, [igActive]);
+
+  const item = (t: NavLink, indent = false) => {
+    const active = pathname === t.href;
+    const Ico = t.icon;
+    return (
+      <Link
+        key={t.href}
+        href={t.href}
+        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${indent ? "ml-5" : ""} ${active ? "bg-brand-light text-brand font-medium" : "hover:bg-gray-50 text-gray-700"}`}
+      >
+        <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-brand" : "text-gray-400"} />
+        {t.label}
+      </Link>
+    );
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-5 border-b border-gray-100">
         <div className="text-lg font-semibold">GooCampus</div>
-        <div className="text-xs text-gray-500">Instagram Analytics</div>
+        <div className="text-xs text-gray-500">Marketing OS</div>
       </div>
 
-      {isAdmin && (
-        <div className="px-5 py-4 space-y-3">
-          <label className="text-xs font-medium text-gray-500 uppercase">Account</label>
-          <select
-            value={accountId}
-            onChange={(e) => onAccountChange(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
-          >
-            {ACCOUNTS.map((a) => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
+      <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0">
+        {isAdmin && (
+          <>
+            {item({ label: "Overview", href: "/dashboard", icon: IconHome })}
 
-          <button
-            onClick={onCompareAll}
-            className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-brand bg-brand-light hover:bg-brand/20"
-          >
-            Compare all 5 accounts
-          </button>
-        </div>
-      )}
+            <GroupHeading>Content</GroupHeading>
+            {CONTENT.map((t) => item(t))}
 
-      {isAdmin === false && (
-        <div className="px-3 pt-4">
-          <Link
-            href="/me"
-            className="block px-3 py-2 rounded-lg text-sm font-medium text-brand bg-brand-light hover:bg-brand/20"
-          >
-            ← My dashboard
-          </Link>
-        </div>
-      )}
-
-      <nav className="px-3 py-2 space-y-1 text-sm flex-1 overflow-y-auto min-h-0">
-        {nav.map((t) => {
-          const active = pathname === t.href;
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`block px-3 py-2 rounded-lg ${active ? "bg-brand-light text-brand font-medium" : "hover:bg-gray-50 text-gray-700"}`}
+            <GroupHeading>Analytics</GroupHeading>
+            <button
+              onClick={() => setIgOpen((v) => !v)}
+              className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${igActive ? "text-brand font-medium" : "text-gray-800 hover:bg-gray-50"}`}
             >
-              {t.label}
-            </Link>
-          );
-        })}
+              <IconBrandInstagram size={17} stroke={1.7} className={igActive ? "text-brand" : "text-gray-400"} />
+              <span className="flex-1">Instagram</span>
+              <span className={`text-gray-400 text-xs transition-transform ${igOpen ? "rotate-90" : ""}`}>›</span>
+            </button>
+            {igOpen && INSTAGRAM_PAGES.map((t) => item(t, true))}
+            {PLATFORMS.map((t) => item(t))}
+
+            <GroupHeading>Ads</GroupHeading>
+            {ADS.map((t) => item(t))}
+
+            <GroupHeading>Sales</GroupHeading>
+            {SALES.map((t) => item(t))}
+
+            <GroupHeading>AI</GroupHeading>
+            {AI.map((t) => item(t))}
+          </>
+        )}
       </nav>
 
-      <div className="mt-auto px-5 py-4 border-t border-gray-100">
-        <form action="/api/logout" method="post">
-          <button className="text-xs text-gray-500 hover:text-gray-900">Sign out</button>
+      <div className="px-3 py-3 border-t border-gray-100 space-y-0.5 text-sm">
+        {isAdmin && item({ label: "Team", href: "/dashboard/team", icon: IconUsersGroup })}
+        <form action="/api/logout" method="post" className="px-3 pt-1">
+          <button className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900">
+            <IconLogout size={14} stroke={1.7} />
+            Sign out
+          </button>
         </form>
       </div>
     </aside>

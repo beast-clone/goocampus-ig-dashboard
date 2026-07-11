@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@mozilla/readability": "^0.6.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@tabler/icons-react": "^3.44.0",
     "@types/d3-geo": "^3.1.0",
     "@types/react-simple-maps": "^3.0.6",
     "clsx": "^2.1.1",
