@@ -6,4 +6,5 @@ node_modules
 .DS_Store
 *.log
 accounts.local.json
+CREDENTIALS.md
 tsconfig.tsbuildinfo
