@@ -62,7 +62,25 @@ const AUD_TABS = [
 type AudTabKey = (typeof AUD_TABS)[number]["key"];
 
 export default function AudiencePage() {
-  const [platform, setPlatform] = useState<AudTabKey>("instagram");
+  const [platform, setPlatformState] = useState<AudTabKey>("instagram");
+
+  // The sidebar's per-platform Audience links use URL hashes
+  // (/dashboard/audience#youtube). Read the hash on load + whenever it changes,
+  // and write it back when the toggle is clicked so the sidebar stays in sync.
+  useEffect(() => {
+    const read = () => {
+      const h = window.location.hash.replace("#", "") as AudTabKey;
+      if (AUD_TABS.some((t) => t.key === h)) setPlatformState(h);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  const setPlatform = (k: AudTabKey) => {
+    setPlatformState(k);
+    try { window.location.hash = k; } catch { /* ignore */ }
+  };
+
   return (
     <DashboardShell title="Audience">
       {({ accountId, range }) => (

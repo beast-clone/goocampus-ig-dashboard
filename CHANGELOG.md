@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Per-platform Audience inside each Analytics folder
+
+- **Every platform in Analytics is now a folder with its own Audience inside**: Instagram → Posts/Reels/Stories/Audience; LinkedIn → Audience; YouTube → Audience; Facebook → Audience. Parent rows still open the platform's deep-dive page; the chevron expands the folder (auto-opens when you're on that platform's pages).
+- Per-platform Audience links use URL hashes (`/dashboard/audience#youtube`) — the Audience page reads the hash and opens that platform's view directly; clicking its internal toggle updates the hash so the sidebar stays in sync.
+- The **AUDIENCE group keeps one standalone entry, "All platforms"** — the collective toggle page.
+
 ## 2026-07-12 — Audience tab goes multi-platform; audience details on Overview
 
 - **The Audience tab now has the same platform toggle as Overview** (Instagram | Facebook | LinkedIn | YouTube). The Instagram audience page (city map, active hours, post-time slots) is UNTOUCHED — it's the default view. New panels (components/PlatformAudience.tsx) show everything each platform's API offers:

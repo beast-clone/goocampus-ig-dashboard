@@ -11,12 +11,15 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
-// Grouped navigation (approved by Maheen 2026-07-11, icons per the mockup):
-//   Overview on top · Content · Analytics (by platform, Instagram expandable) ·
-//   Ads · Sales · AI · bottom shelf = Team + Sign out.
-// All 22 original tabs preserved + the new Facebook analytics tab.
+// Grouped navigation (Maheen, 2026-07-12):
+//   Overview · CONTENT · ANALYTICS (each platform is a folder with its own
+//   Audience inside; Instagram also has Posts/Reels/Stories) · AUDIENCE
+//   (the collective all-platform page) · ADS · SALES · AI · Team + Sign out.
+// Per-platform audience links use URL hashes (/dashboard/audience#youtube) —
+// the Audience page reads the hash to open the right platform view.
 
 type NavLink = { label: string; href: string; icon: TablerIcon };
+type Folder = { key: string; label: string; icon: TablerIcon; href?: string; children: NavLink[] };
 
 const CONTENT: NavLink[] = [
   { label: "Marketing Hub", href: "/dashboard/marketing-hub", icon: IconLayoutKanban },
@@ -28,19 +31,31 @@ const CONTENT: NavLink[] = [
   { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
 ];
 
-// Instagram's analytics pages nest under one expandable platform row.
-// (Audience moved out 2026-07-12 — it's the all-platform audience tab now,
-// a standalone item at the end of the Analytics group, above Ads.)
-const INSTAGRAM_PAGES: NavLink[] = [
-  { label: "Posts", href: "/dashboard/posts", icon: IconPhoto },
-  { label: "Reels", href: "/dashboard/reels", icon: IconMovie },
-  { label: "Stories", href: "/dashboard/stories", icon: IconCircleDashed },
-];
-
-const PLATFORMS: NavLink[] = [
-  { label: "LinkedIn", href: "/dashboard/linkedin", icon: IconBrandLinkedin },
-  { label: "YouTube", href: "/dashboard/youtube", icon: IconBrandYoutube },
-  { label: "Facebook", href: "/dashboard/facebook", icon: IconBrandFacebook },
+// Analytics platform folders. Instagram's parent row is a pure toggle (it has
+// no single page); the other platforms' parent rows link to their deep-dive
+// page and the chevron reveals their Audience.
+const PLATFORM_FOLDERS: Folder[] = [
+  {
+    key: "instagram", label: "Instagram", icon: IconBrandInstagram,
+    children: [
+      { label: "Posts", href: "/dashboard/posts", icon: IconPhoto },
+      { label: "Reels", href: "/dashboard/reels", icon: IconMovie },
+      { label: "Stories", href: "/dashboard/stories", icon: IconCircleDashed },
+      { label: "Audience", href: "/dashboard/audience#instagram", icon: IconUsers },
+    ],
+  },
+  {
+    key: "linkedin", label: "LinkedIn", icon: IconBrandLinkedin, href: "/dashboard/linkedin",
+    children: [{ label: "Audience", href: "/dashboard/audience#linkedin", icon: IconUsers }],
+  },
+  {
+    key: "youtube", label: "YouTube", icon: IconBrandYoutube, href: "/dashboard/youtube",
+    children: [{ label: "Audience", href: "/dashboard/audience#youtube", icon: IconUsers }],
+  },
+  {
+    key: "facebook", label: "Facebook", icon: IconBrandFacebook, href: "/dashboard/facebook",
+    children: [{ label: "Audience", href: "/dashboard/audience#facebook", icon: IconUsers }],
+  },
 ];
 
 const ADS: NavLink[] = [
@@ -67,11 +82,17 @@ function GroupHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-// The brand/account picker lives in the page header now (DashboardShell), not here.
-// User note (2026-07-11): "Compare all 5 accounts" was removed but must come back
-// somewhere — likely as an "All brands" scope once the multi-brand overview matures.
 export function Sidebar() {
   const pathname = usePathname();
+
+  // Track the URL hash so per-platform Audience links highlight correctly.
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    const read = () => setHash(window.location.hash.replace("#", ""));
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, [pathname]);
 
   // Role-aware: admins see the nav; members never reach /dashboard/* at all
   // (middleware bounces them), so nothing renders until /api/me confirms admin.
@@ -85,13 +106,24 @@ export function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  // Instagram platform row: expanded when you're on one of its pages, or toggled by hand.
-  const igActive = INSTAGRAM_PAGES.some((p) => pathname === p.href);
-  const [igOpen, setIgOpen] = useState(false);
-  useEffect(() => { if (igActive) setIgOpen(true); }, [igActive]);
+  const isActive = (href: string): boolean => {
+    const [path, frag] = href.split("#");
+    if (pathname !== path) return false;
+    if (frag) return hash === frag;
+    // Plain /dashboard/audience (the collective tab) — active unless a
+    // platform-specific hash is showing.
+    if (path === "/dashboard/audience") return !hash;
+    return true;
+  };
+
+  // Which folders are open: auto-open the one whose parent or child is active,
+  // plus any the user toggled by hand.
+  const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const folderActive = (f: Folder) =>
+    (f.href ? isActive(f.href) : false) || f.children.some((c) => isActive(c.href));
 
   const item = (t: NavLink, indent = false) => {
-    const active = pathname === t.href;
+    const active = isActive(t.href);
     const Ico = t.icon;
     return (
       <Link
@@ -102,6 +134,44 @@ export function Sidebar() {
         <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-brand" : "text-gray-400"} />
         {t.label}
       </Link>
+    );
+  };
+
+  const folder = (f: Folder) => {
+    const open = openKeys[f.key] ?? folderActive(f);
+    const parentActive = f.href ? isActive(f.href) : false;
+    const Ico = f.icon;
+    const chevron = (
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenKeys((s) => ({ ...s, [f.key]: !open })); }}
+        className={`px-1.5 text-xs text-gray-400 transition-transform ${open ? "rotate-90" : ""}`}
+        aria-label={`${open ? "Collapse" : "Expand"} ${f.label}`}
+      >
+        ›
+      </button>
+    );
+    return (
+      <div key={f.key}>
+        {f.href ? (
+          <div className={`flex items-center rounded-lg ${parentActive ? "bg-brand-light" : "hover:bg-gray-50"}`}>
+            <Link href={f.href} className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-brand font-medium" : "text-gray-800"}`}>
+              <Ico size={17} stroke={1.7} className={parentActive ? "text-brand" : "text-gray-400"} />
+              {f.label}
+            </Link>
+            {chevron}
+          </div>
+        ) : (
+          <button
+            onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: !open }))}
+            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${folderActive(f) ? "text-brand font-medium" : "text-gray-800 hover:bg-gray-50"}`}
+          >
+            <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-brand" : "text-gray-400"} />
+            <span className="flex-1">{f.label}</span>
+            <span className={`text-gray-400 text-xs transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+          </button>
+        )}
+        {open && f.children.map((c) => item(c, true))}
+      </div>
     );
   };
 
@@ -121,19 +191,10 @@ export function Sidebar() {
             {CONTENT.map((t) => item(t))}
 
             <GroupHeading>Analytics</GroupHeading>
-            <button
-              onClick={() => setIgOpen((v) => !v)}
-              className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${igActive ? "text-brand font-medium" : "text-gray-800 hover:bg-gray-50"}`}
-            >
-              <IconBrandInstagram size={17} stroke={1.7} className={igActive ? "text-brand" : "text-gray-400"} />
-              <span className="flex-1">Instagram</span>
-              <span className={`text-gray-400 text-xs transition-transform ${igOpen ? "rotate-90" : ""}`}>›</span>
-            </button>
-            {igOpen && INSTAGRAM_PAGES.map((t) => item(t, true))}
-            {PLATFORMS.map((t) => item(t))}
+            {PLATFORM_FOLDERS.map(folder)}
 
             <GroupHeading>Audience</GroupHeading>
-            {item({ label: "Audience", href: "/dashboard/audience", icon: IconUsers })}
+            {item({ label: "All platforms", href: "/dashboard/audience", icon: IconUsers })}
 
             <GroupHeading>Ads</GroupHeading>
             {ADS.map((t) => item(t))}
