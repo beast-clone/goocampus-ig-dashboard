@@ -98,7 +98,7 @@ export function Sidebar({ accountId, onAccountChange, onCompareAll }: {
         </div>
       )}
 
-      <nav className="px-3 py-2 space-y-1 text-sm">
+      <nav className="px-3 py-2 space-y-1 text-sm flex-1 overflow-y-auto min-h-0">
         {nav.map((t) => {
           const active = pathname === t.href;
           return (
