@@ -28,12 +28,13 @@ const CONTENT: NavLink[] = [
   { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
 ];
 
-// Instagram's four analytics pages nest under one expandable platform row.
+// Instagram's analytics pages nest under one expandable platform row.
+// (Audience moved out 2026-07-12 — it's the all-platform audience tab now,
+// a standalone item at the end of the Analytics group, above Ads.)
 const INSTAGRAM_PAGES: NavLink[] = [
   { label: "Posts", href: "/dashboard/posts", icon: IconPhoto },
   { label: "Reels", href: "/dashboard/reels", icon: IconMovie },
   { label: "Stories", href: "/dashboard/stories", icon: IconCircleDashed },
-  { label: "Audience", href: "/dashboard/audience", icon: IconUsers },
 ];
 
 const PLATFORMS: NavLink[] = [
@@ -130,6 +131,7 @@ export function Sidebar() {
             </button>
             {igOpen && INSTAGRAM_PAGES.map((t) => item(t, true))}
             {PLATFORMS.map((t) => item(t))}
+            {item({ label: "Audience", href: "/dashboard/audience", icon: IconUsers })}
 
             <GroupHeading>Ads</GroupHeading>
             {ADS.map((t) => item(t))}
