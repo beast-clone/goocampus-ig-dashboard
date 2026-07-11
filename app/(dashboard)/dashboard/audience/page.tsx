@@ -6,6 +6,7 @@ import BestTimesToPost from "@/components/BestTimesToPost";
 import { CountriesWorldMap, CitiesRegionMap } from "@/components/GeoMaps";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Legend, CartesianGrid } from "recharts";
 import { useApi } from "@/lib/use-api";
+import { FacebookAudience, LinkedInAudience, YouTubeAudience } from "@/components/PlatformAudience";
 
 type DemoEntry = { label: string; value: number };
 type AudienceData = {
@@ -49,10 +50,40 @@ const COUNTRY_NAME: Record<string, string> = {
   IE: "Ireland", NZ: "New Zealand", IT: "Italy", ES: "Spain",
 };
 
+// Platform toggle (added 2026-07-12): Instagram is the ORIGINAL audience page
+// (city map, active hours, post-time slots) — untouched. Facebook / LinkedIn /
+// YouTube show every audience breakdown their APIs actually offer.
+const AUD_TABS = [
+  { key: "instagram", label: "Instagram" },
+  { key: "facebook", label: "Facebook" },
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "youtube", label: "YouTube" },
+] as const;
+type AudTabKey = (typeof AUD_TABS)[number]["key"];
+
 export default function AudiencePage() {
+  const [platform, setPlatform] = useState<AudTabKey>("instagram");
   return (
     <DashboardShell title="Audience">
-      {({ accountId }) => <Audience accountId={accountId} />}
+      {({ accountId, range }) => (
+        <div className="space-y-5">
+          <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
+            {AUD_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setPlatform(t.key)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {platform === "instagram" && <Audience accountId={accountId} />}
+          {platform === "facebook" && <FacebookAudience accountId={accountId} range={range} />}
+          {platform === "linkedin" && <LinkedInAudience accountId={accountId} range={range} />}
+          {platform === "youtube" && <YouTubeAudience accountId={accountId} range={range} />}
+        </div>
+      )}
     </DashboardShell>
   );
 }

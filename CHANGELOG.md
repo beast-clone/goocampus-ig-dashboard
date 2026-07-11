@@ -3,6 +3,15 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Audience tab goes multi-platform; audience details on Overview
+
+- **The Audience tab now has the same platform toggle as Overview** (Instagram | Facebook | LinkedIn | YouTube). The Instagram audience page (city map, active hours, post-time slots) is UNTOUCHED — it's the default view. New panels (components/PlatformAudience.tsx) show everything each platform's API offers:
+  - **Facebook**: followers by country bars (the only breakdown Meta offers) + honest note.
+  - **LinkedIn**: job function, seniority, industry, location, company size (professional demographics — LinkedIn never exposes age/gender). Friendly amber note when the daily API quota is spent instead of blank cards.
+  - **YouTube**: age groups, gender, top countries (full names), top cities, devices — viewers in range.
+- **Overview's YouTube panel** now also carries compact "Age & gender" and "Top cities" boxes (user request: don't hide the details), and its Top countries shows full country names.
+- Note: the Audience tab was never lost — it lives under the Instagram group in the sidebar (Instagram → Posts/Reels/Stories/Audience).
+
 ## 2026-07-12 — LinkedIn/YouTube audience check + YouTube Top cities
 
 - Probed what LinkedIn and YouTube offer for audience geography (user request, same as the Facebook exercise):

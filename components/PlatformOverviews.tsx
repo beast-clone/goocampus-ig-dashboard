@@ -192,7 +192,7 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
 
 // ── LinkedIn ────────────────────────────────────────────────────────────────
 
-const LI_PAGE: Record<string, string | null> = {
+export const LI_PAGE: Record<string, string | null> = {
   goocampus: "goocampus",
   goocampusworld: "gcworld",
   "12thplusdotcom": null,
@@ -306,7 +306,7 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
 
 // ── YouTube ─────────────────────────────────────────────────────────────────
 
-const YT_CHANNEL: Record<string, string | null> = {
+export const YT_CHANNEL: Record<string, string | null> = {
   goocampus: "goocampus",
   goocampusworld: "goocampusworld", // = the Study Abroad channel
   "12thplusdotcom": "twelfthplus",
@@ -320,7 +320,14 @@ type YtResp = {
   summary: { subscribers: number; subscriberGain: number; views: number; watchHours: number; avgViewDurationSec: number };
   viewsOverTime: { date: string; views: number; watchHours: number }[];
   topVideos: YtVideo[];
-  traffic: { sources: { source: string; views: number; pct: number }[]; geography: { country: string; views: number; pct: number }[]; devices: { device: string; pct: number }[] };
+  traffic: {
+    sources: { source: string; views: number; pct: number }[];
+    geography: { country: string; views: number; pct: number }[];
+    cities?: { city: string; views: number; pct: number }[];
+    devices: { device: string; pct: number }[];
+    ageGroups: { group: string; pct: number }[];
+    genderSplit: { label: string; pct: number }[];
+  };
   error?: string;
 };
 
@@ -338,6 +345,9 @@ export function YouTubeOverview({ accountId, range }: { accountId: string; range
   const best = bestDay((data.viewsOverTime || []).map((p) => ({ date: p.date, value: p.views })));
   const sources = (data.traffic?.sources || []).slice(0, 3);
   const countries = (data.traffic?.geography || []).slice(0, 3);
+  const cities = (data.traffic?.cities || []).slice(0, 3);
+  const ages = (data.traffic?.ageGroups || []).slice(0, 3);
+  const genders = (data.traffic?.genderSplit || []).filter((g) => g.label !== "genderUserSpecified");
   const dur = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
   return (
@@ -413,7 +423,32 @@ export function YouTubeOverview({ accountId, range }: { accountId: string; range
           <Section title="Top countries" hint="by views">
             {countries.map((c) => (
               <div key={c.country} className="flex items-baseline justify-between text-sm py-0.5">
-                <span className="text-gray-800">{c.country}</span>
+                <span className="text-gray-800">{regionName(c.country)}</span>
+                <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
+              </div>
+            ))}
+          </Section>
+        )}
+        {(ages.length > 0 || genders.length > 0) && (
+          <Section title="Age & gender" hint="viewers in range">
+            {ages.map((a) => (
+              <div key={a.group} className="flex items-baseline justify-between text-sm py-0.5">
+                <span className="text-gray-800">{a.group}</span>
+                <span className="text-gray-500 text-xs tabular-nums">{a.pct}%</span>
+              </div>
+            ))}
+            {genders.length > 0 && (
+              <div className="text-xs text-gray-500 mt-1.5 pt-1.5 border-t border-gray-50">
+                {genders.map((g) => `${g.label} ${g.pct}%`).join(" · ")}
+              </div>
+            )}
+          </Section>
+        )}
+        {cities.length > 0 && (
+          <Section title="Top cities" hint="by views">
+            {cities.map((c) => (
+              <div key={c.city} className="flex items-baseline justify-between text-sm py-0.5">
+                <span className="text-gray-800">{c.city}</span>
                 <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
               </div>
             ))}
