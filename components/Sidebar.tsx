@@ -131,6 +131,8 @@ export function Sidebar() {
             </button>
             {igOpen && INSTAGRAM_PAGES.map((t) => item(t, true))}
             {PLATFORMS.map((t) => item(t))}
+
+            <GroupHeading>Audience</GroupHeading>
             {item({ label: "Audience", href: "/dashboard/audience", icon: IconUsers })}
 
             <GroupHeading>Ads</GroupHeading>
