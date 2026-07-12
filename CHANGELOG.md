@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — LinkedIn Posts page rebuilt Instagram-style (cards + detail modal)
+
+- The table was bare (most LinkedIn posts have no image). Now: **4-up card grid** like the Instagram Posts page — real thumbnail when LinkedIn provides one, otherwise a designed **text-creative placeholder** (LinkedIn-blue gradient, type badge, the post's opening lines as the visual). Cards carry snippet, date · type, 👁 👍 💬 + eng-rate.
+- **Click a card → detail modal**: full caption/description on top, the creative below it, and the COMPLETE metrics grid at the bottom (impressions, unique impressions, clicks, reactions, comments, shares, engagement rate, CTR) + "Open on LinkedIn ↗".
+- Verified live with GooCampus World's 25 real posts.
+
 ## 2026-07-12 — Content pages per platform (like Instagram's Posts/Reels/Stories)
 
 - **YouTube → Long-form + Shorts** (`/dashboard/youtube/videos#longform|#shorts`): top-25 videos in range split by REAL duration (Shorts = ≤3 min, YouTube's own rule; durations fetched from the Data API — `durationSec`/`isShort` added to topVideos, maxResults 10→25). Table: thumbnail (vertical for Shorts), length, views, watch hrs, avg view, likes, comments. GooCampus 30d: 16 long-form / 9 Shorts.
