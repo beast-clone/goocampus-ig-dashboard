@@ -3,6 +3,11 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Bigger top-performer cards (YouTube + Instagram)
+
+- **YouTube "Proven — worth reposting" shelf**: cards were tiny thumbnails-in-a-row; now BIG full cards (3-up for Shorts, 2-up for long-form) on an emerald panel, well above the full library grid (measured 244px thumbs vs the grid's 163px).
+- **Instagram Posts "Top performers"**: the small 64px thumbnail cards are now big cards with a full square thumbnail on top (317px), larger caption + stat numbers.
+
 ## 2026-07-12 — Video plays IN-dashboard + comments shown
 
 - **Standing rule (Maheen):** videos/reels play INSIDE the dashboard, never link out to YouTube. The Shorts/Long-form detail modal now embeds an autoplaying `youtube-nocookie.com` player (9:16 for Shorts, 16:9 for long-form); the "Watch on YouTube" link is gone. Keep this for all future video/reel work.
