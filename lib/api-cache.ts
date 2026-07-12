@@ -1,0 +1,19 @@
+// Tiny in-memory TTL cache for slow platform API calls (YouTube analytics can
+// take 2–9s; LinkedIn's follower-statistics quota is precious). Keyed per
+// channel/page + date range, so switching tabs or reloading within the TTL is
+// instant instead of re-hitting Google/LinkedIn.
+
+const store = new Map<string, { at: number; data: unknown }>();
+
+export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = store.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.data as T;
+  const data = await fn();
+  store.set(key, { at: Date.now(), data });
+  // Light housekeeping so the map doesn't grow forever in a long-lived server.
+  if (store.size > 200) {
+    const cutoff = Date.now() - 60 * 60_000;
+    for (const [k, v] of store) if (v.at < cutoff) store.delete(k);
+  }
+  return data;
+}

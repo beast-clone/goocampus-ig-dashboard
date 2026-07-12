@@ -13,9 +13,12 @@ export const LI_PAGE: Record<string, string | null> = {
 };
 
 // Dashboard account id → YouTube channel key.
+// NOTE (Maheen, 2026-07-12): GooCampus World has NO YouTube channel. The
+// "Study Abroad" channel is a separate GooCampus channel — reachable via the
+// channel switcher/pills in MAIN mode only, attached to no brand profile.
 export const YT_CHANNEL: Record<string, string | null> = {
   goocampus: "goocampus",
-  goocampusworld: "goocampusworld", // = the Study Abroad channel
+  goocampusworld: null,
   "12thplusdotcom": "twelfthplus",
   samvaya_matrimony: null,
 };

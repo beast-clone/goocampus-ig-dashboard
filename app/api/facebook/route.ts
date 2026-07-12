@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/instagram";
 import { fetchPageProfile, fetchPageInsights, fetchPagePosts, fetchPageAudience } from "@/lib/facebook";
+import { cached } from "@/lib/api-cache";
 
 // GET /api/facebook?account=<id>&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -31,12 +32,18 @@ export async function GET(req: Request) {
   try {
     // Profile is the make-or-break call (followers). Insights + posts degrade
     // gracefully inside lib/facebook.ts (available:false + reason).
-    const [profile, insights, posts, audience] = await Promise.all([
-      fetchPageProfile(acc),
-      fetchPageInsights(acc, from, to),
-      fetchPagePosts(acc, Math.min(25, Math.max(1, Number(url.searchParams.get("limit")) || 12))),
-      fetchPageAudience(acc),
-    ]);
+    const limit = Math.min(25, Math.max(1, Number(url.searchParams.get("limit")) || 12));
+    // 10-min cache: four Graph calls per load otherwise — tab flips shouldn't re-pay them.
+    const [profile, insights, posts, audience] = await cached(
+      `fb:${acc.id}:${from}:${to}:${limit}`,
+      10 * 60_000,
+      () => Promise.all([
+        fetchPageProfile(acc),
+        fetchPageInsights(acc, from, to),
+        fetchPagePosts(acc, limit),
+        fetchPageAudience(acc),
+      ]),
+    );
 
     return NextResponse.json({
       account: { id: acc.id, label: acc.label, handle: acc.handle, pageId: acc.pageId },

@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — World has no YouTube + API caching (tab-switch speedup)
+
+- **GooCampus World has NO YouTube channel** (Maheen, emphatic): brand mapping goocampusworld → null. The Study Abroad channel is a separate GooCampus channel — reachable via the main-mode channel switcher/pills only, attached to no brand profile. World's profile now grays YouTube out (verified; LinkedIn stays live for World).
+- **Server-side TTL cache** (new lib/api-cache.ts) on the slow platform APIs: YouTube 10 min (measured: 5.5s cold → 50ms warm), Facebook 10 min (four Graph calls saved), LinkedIn 30 min (also protects its tiny daily quota). Tab flips no longer re-pay live API latency.
+- Note on remaining lag: `next dev` compiles each page on first visit — that freeze disappears in the production build (deploy-time; blocked today by ~12 pre-existing type errors that `next build` would enforce — future cleanup task).
+
 ## 2026-07-12 — Profile mode is now AIRTIGHT (no cross-brand leaks)
 
 - **Maheen caught a real leak**: inside Samvaya's profile, the YouTube tab still had its own channel switcher showing GooCampus data. Fixed everywhere:

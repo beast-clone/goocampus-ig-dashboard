@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildLive, linkedinToken, listAdminedOrgs } from "@/lib/linkedin";
+import { cached } from "@/lib/api-cache";
 
 // GET /api/linkedin?page=<gcworld|goocampus>&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -212,7 +213,9 @@ export async function GET(req: Request) {
     // Any live-call failure degrades gracefully to demo so the tab never breaks.
     if (pageKey === "gcworld" && linkedinToken()) {
       try {
-        const livePayload = await buildLive(pageKey, from, to);
+        // 30-min cache: makes tab flips instant AND protects LinkedIn's tiny
+        // per-day quota on the follower-statistics endpoint.
+        const livePayload = await cached(`li:${pageKey}:${from}:${to}`, 30 * 60_000, () => buildLive(pageKey, from, to));
         // If the live posts array is empty (per-post stats are a follow-up), borrow the
         // demo posts so the Post-performance section still renders something meaningful.
         const demoForPosts = buildDemo(pageKey, from, to);
