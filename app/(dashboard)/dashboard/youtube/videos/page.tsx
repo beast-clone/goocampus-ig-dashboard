@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
-import { YT_CHANNEL } from "@/components/PlatformOverviews";
+import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
 
 // YouTube content split: Long-form vs Shorts (sidebar: YouTube → Long-form / Shorts).
@@ -60,15 +60,28 @@ export default function YouTubeVideosPage() {
 function Inner({ accountId, range, kind, setKind }: {
   accountId: string; range: { from: string; to: string }; kind: Kind; setKind: (k: Kind) => void;
 }) {
-  const channel = YT_CHANNEL[accountId] ?? null;
-  const qs = new URLSearchParams({ channel: channel ?? "", from: range.from, to: range.to }).toString();
-  const { data, isLoading } = useApi<Resp>(channel ? `/api/youtube?${qs}` : null);
+  // Channel pills override the brand mapping — all channels reachable from here.
+  const [channelPick, setChannelPick] = useState<string | null>(null);
+  const channel = channelPick ?? YT_CHANNEL[accountId] ?? "goocampus";
+  const qs = new URLSearchParams({ channel, from: range.from, to: range.to }).toString();
+  const { data, isLoading } = useApi<Resp>(`/api/youtube?${qs}`);
 
-  if (!channel) {
-    return <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">This brand has no YouTube channel connected.</div>;
-  }
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading videos…</div>;
-  if (!data || data.error) return <div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load videos.</div>;
+  const channelPills = (
+    <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
+      {YT_CHANNEL_PILLS.map((c) => (
+        <button
+          key={c.key}
+          onClick={() => setChannelPick(c.key)}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${channel === c.key ? "bg-red-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (isLoading && !data) return <div className="space-y-4">{channelPills}<div className="text-sm text-gray-400 py-16 text-center">Loading videos…</div></div>;
+  if (!data || data.error) return <div className="space-y-4">{channelPills}<div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load videos.</div></div>;
 
   const all = data.topVideos || [];
   const classified = all.filter((v) => (v.durationSec ?? 0) > 0);
@@ -79,6 +92,7 @@ function Inner({ accountId, range, kind, setKind }: {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
+        {channelPills}
         <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
           {KINDS.map((k) => (
             <button

@@ -3,6 +3,11 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Audience lock + YouTube channel pills
+
+- **No duplicate platform toggle**: opening Audience from inside a platform folder (e.g. YouTube → Audience) now locks the page to that platform — small label + link to "All platforms" instead of the 4-button switcher. The standalone AUDIENCE → All platforms entry (`#all`) keeps the toggle.
+- **YouTube channel pills** (GooCampus | Study Abroad | 12thplus) on the Long-form/Shorts page AND the YouTube audience view — any channel reachable regardless of the brand dropdown (default = the brand's mapped channel). Verified: pill switch flips to @12thplus live. Also renamed "GooCampus World" → "Study Abroad" on the deep-dive tab's switcher (no such channel as World).
+
 ## 2026-07-12 — Audience panels get real charts (like the Instagram audience page)
 
 - FB/LI/YT audience panels rebuilt from plain progress-bar rows into proper visuals (recharts + the existing GeoMaps):

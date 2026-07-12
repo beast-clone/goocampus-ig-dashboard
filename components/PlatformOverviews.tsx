@@ -337,6 +337,14 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
 
 // ── YouTube ─────────────────────────────────────────────────────────────────
 
+// All YouTube channels — pills shown on the YouTube content/audience pages so
+// any channel is reachable regardless of the brand dropdown.
+export const YT_CHANNEL_PILLS = [
+  { key: "goocampus", label: "GooCampus" },
+  { key: "goocampusworld", label: "Study Abroad" },
+  { key: "twelfthplus", label: "12thplus" },
+];
+
 export const YT_CHANNEL: Record<string, string | null> = {
   goocampus: "goocampus",
   goocampusworld: "goocampusworld", // = the Study Abroad channel

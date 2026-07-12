@@ -3,7 +3,8 @@ import Link from "next/link";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { CountriesWorldMap } from "@/components/GeoMaps";
 import { useApi } from "@/lib/use-api";
-import { LI_PAGE, YT_CHANNEL } from "@/components/PlatformOverviews";
+import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
+import { useState } from "react";
 
 // Facebook / LinkedIn / YouTube audience panels for the Audience tab — styled
 // like the Instagram audience page: real charts (donuts, bar charts, the world
@@ -246,12 +247,28 @@ type YtResp = {
 };
 
 export function YouTubeAudience({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
-  const channel = YT_CHANNEL[accountId] ?? null;
-  const qs = new URLSearchParams({ channel: channel ?? "", from: range.from, to: range.to }).toString();
-  const { data, isLoading } = useApi<YtResp>(channel ? `/api/youtube?${qs}` : null);
-  if (!channel) return <EmptyPlatform platform="YouTube channel" />;
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading YouTube audience…</div>;
-  if (!data || data.error) return <EmptyPlatform platform="YouTube channel" />;
+  // Channel pills override the brand mapping — all channels reachable from here.
+  const [channelPick, setChannelPick] = useState<string | null>(null);
+  const channel = channelPick ?? YT_CHANNEL[accountId] ?? "goocampus";
+  const qs = new URLSearchParams({ channel, from: range.from, to: range.to }).toString();
+  const { data, isLoading } = useApi<YtResp>(`/api/youtube?${qs}`);
+
+  const pills = (
+    <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
+      {YT_CHANNEL_PILLS.map((c) => (
+        <button
+          key={c.key}
+          onClick={() => setChannelPick(c.key)}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${channel === c.key ? "bg-red-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (isLoading && !data) return <div className="space-y-4">{pills}<div className="text-sm text-gray-400 py-16 text-center">Loading YouTube audience…</div></div>;
+  if (!data || data.error) return <div className="space-y-4">{pills}<EmptyPlatform platform="YouTube channel" /></div>;
 
   const t = data.traffic;
   const YR = "#FF0000";
@@ -260,6 +277,7 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
   return (
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={`${data.channel.handle} · ${fmt(data.summary.subscribers)} subscribers`} href="/dashboard/youtube" live={data.source === "live"} />
+      {pills}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Age groups" hint="viewers in range" empty={!(t.ageGroups || []).length}>
           <VBars color={YR} unit="%" data={(t.ageGroups || []).map((a) => ({ name: a.group, value: a.pct }))} />

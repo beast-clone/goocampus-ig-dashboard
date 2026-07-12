@@ -63,39 +63,50 @@ type AudTabKey = (typeof AUD_TABS)[number]["key"];
 
 export default function AudiencePage() {
   const [platform, setPlatformState] = useState<AudTabKey>("instagram");
+  // Locked mode: arriving via a platform folder's Audience link
+  // (/dashboard/audience#youtube) shows ONLY that platform — no toggle. The
+  // toggle belongs to the standalone "All platforms" entry (#all / no hash).
+  const [locked, setLocked] = useState(false);
 
-  // The sidebar's per-platform Audience links use URL hashes
-  // (/dashboard/audience#youtube). Read the hash on load + whenever it changes,
-  // and write it back when the toggle is clicked so the sidebar stays in sync.
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace("#", "") as AudTabKey;
-      if (AUD_TABS.some((t) => t.key === h)) setPlatformState(h);
+      const h = window.location.hash.replace("#", "") as AudTabKey | "all" | "";
+      if (AUD_TABS.some((t) => t.key === h)) {
+        setPlatformState(h as AudTabKey);
+        setLocked(true);
+      } else {
+        setLocked(false);
+        if (h === "all" || h === "") setPlatformState("instagram");
+      }
     };
     read();
     window.addEventListener("hashchange", read);
     return () => window.removeEventListener("hashchange", read);
   }, []);
-  const setPlatform = (k: AudTabKey) => {
-    setPlatformState(k);
-    try { window.location.hash = k; } catch { /* ignore */ }
-  };
 
   return (
     <DashboardShell title="Audience">
       {({ accountId, range }) => (
         <div className="space-y-5">
-          <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
-            {AUD_TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setPlatform(t.key)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {locked ? (
+            <div className="text-[12px] text-gray-500">
+              <span className="text-gray-900 font-medium">{AUD_TABS.find((t) => t.key === platform)?.label} audience</span>
+              {" · for all platforms in one place, open "}
+              <a href="/dashboard/audience#all" className="text-brand hover:underline">Audience → All platforms</a>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
+              {AUD_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setPlatformState(t.key)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
           {platform === "instagram" && <Audience accountId={accountId} />}
           {platform === "facebook" && <FacebookAudience accountId={accountId} range={range} />}
           {platform === "linkedin" && <LinkedInAudience accountId={accountId} range={range} />}

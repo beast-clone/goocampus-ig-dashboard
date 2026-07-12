@@ -119,10 +119,9 @@ export function Sidebar() {
   const isActive = (href: string): boolean => {
     const [path, frag] = href.split("#");
     if (pathname !== path) return false;
+    // "#all" = the collective Audience tab — also active with no hash at all.
+    if (frag === "all") return hash === "all" || hash === "";
     if (frag) return hash === frag;
-    // Plain /dashboard/audience (the collective tab) — active unless a
-    // platform-specific hash is showing.
-    if (path === "/dashboard/audience") return !hash;
     return true;
   };
 
@@ -204,7 +203,7 @@ export function Sidebar() {
             {PLATFORM_FOLDERS.map(folder)}
 
             <GroupHeading>Audience</GroupHeading>
-            {item({ label: "All platforms", href: "/dashboard/audience", icon: IconUsers })}
+            {item({ label: "All platforms", href: "/dashboard/audience#all", icon: IconUsers })}
 
             <GroupHeading>Ads</GroupHeading>
             {ADS.map((t) => item(t))}
