@@ -143,24 +143,24 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
 
           {/* Reusable / proven shelf */}
           {reusable.length > 0 && (
-            <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <IconRefresh size={17} stroke={1.9} className="text-emerald-600" />
-                <span className="text-sm font-semibold text-gray-800">Proven {kind === "shorts" ? "Shorts" : "videos"} — worth reposting</span>
-                <span className="text-[10px] text-gray-400">your top all-time, over a month old</span>
+            <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <IconRefresh size={19} stroke={1.9} className="text-emerald-600" />
+                <span className="text-base font-semibold text-gray-900">Proven {kind === "shorts" ? "Shorts" : "videos"} — worth reposting</span>
+                <span className="text-xs text-gray-400">your top all-time, over a month old</span>
               </div>
-              {/* Compact cards: medium thumbnail + stats, 3-up */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Highlighted big cards — larger thumbnail + big views, 3-up */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {reusable.map((v) => (
-                  <button key={v.id} onClick={() => setSelected(v)} className="flex gap-3 rounded-lg bg-white border border-gray-100 p-2.5 hover:border-gray-300 text-left">
-                    <div className={`${kind === "shorts" ? "w-14 aspect-[9/16]" : "w-28 aspect-video"} rounded-md overflow-hidden bg-gray-100 flex-shrink-0`}>
+                  <button key={v.id} onClick={() => setSelected(v)} className="flex gap-4 rounded-xl bg-white border border-gray-100 p-3 hover:border-gray-300 hover:shadow-sm text-left">
+                    <div className={`${kind === "shorts" ? "w-24 aspect-[9/16]" : "w-40 aspect-video"} rounded-lg overflow-hidden bg-gray-100 flex-shrink-0`}>
                       {v.thumbnail && <img src={v.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12px] text-gray-900 leading-snug line-clamp-2">{v.title}</div>
-                      <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 tabular-nums">
-                        <span className="inline-flex items-center gap-0.5"><IconEye size={12} className="text-gray-400" />{fmt(v.views)}</span>
-                        <span>{dateLabel(v.publishedAt)}</span>
+                    <div className="min-w-0 flex-1 flex flex-col">
+                      <div className="text-[13px] text-gray-900 leading-snug line-clamp-3">{v.title}</div>
+                      <div className="mt-auto pt-2">
+                        <div className="text-xl font-bold text-gray-900 tabular-nums flex items-center gap-1"><IconEye size={16} className="text-gray-400" />{fmt(v.views)}</div>
+                        <div className="text-[11px] text-gray-400">views · {dateLabel(v.publishedAt)}</div>
                       </div>
                     </div>
                   </button>
