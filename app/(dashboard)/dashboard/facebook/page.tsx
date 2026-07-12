@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
+import { IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
 
 // Facebook Page analytics — LIVE via the stored per-brand page tokens.
 //
@@ -208,9 +209,9 @@ function PostCard({ post }: { post: Post }) {
         <div className="text-[11px] text-gray-400 mb-1">{date}</div>
         <p className="text-xs text-gray-700 line-clamp-3 min-h-[3em]">{post.message || <span className="text-gray-400 italic">No caption</span>}</p>
         <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 text-[11px] text-gray-500 tabular-nums">
-          <span title="Likes — not readable with the current page token">👍 {metric(post.likes)}</span>
-          <span title="Comments — not readable with the current page token">💬 {metric(post.comments)}</span>
-          <span title="Shares">↗ {metric(post.shares)}</span>
+          <span title="Likes — not readable with the current page token"><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.likes)}</span>
+          <span title="Comments — not readable with the current page token"><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.comments)}</span>
+          <span title="Shares"><IconShare3 size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.shares)}</span>
         </div>
       </div>
     </>

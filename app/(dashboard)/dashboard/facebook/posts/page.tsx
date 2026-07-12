@@ -2,6 +2,7 @@
 import { format, parseISO } from "date-fns";
 import { DashboardShell } from "@/components/DashboardShell";
 import { useApi } from "@/lib/use-api";
+import { IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
 
 // Facebook content page (sidebar: Facebook → Posts) — the page's recent posts
 // with per-post likes/comments/shares, sorted by engagement.
@@ -70,9 +71,9 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
               <div className="p-3">
                 <div className="text-[12px] text-gray-800 leading-snug line-clamp-2 min-h-[32px]">{p.message || "(no text)"}</div>
                 <div className="text-[11px] text-gray-500 mt-2 flex gap-3 tabular-nums">
-                  <span>👍 {fmt(p.likes)}</span>
-                  <span>💬 {fmt(p.comments)}</span>
-                  <span>↗ {fmt(p.shares)}</span>
+                  <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.likes)}</span>
+                  <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.comments)}</span>
+                  <span><IconShare3 size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.shares)}</span>
                   <span className="text-gray-400 ml-auto">{(() => { try { return format(parseISO(p.createdTime), "d MMM"); } catch { return ""; } })()}</span>
                 </div>
               </div>

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
+import { IconEye, IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
 export { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS };
 
 // Facebook / LinkedIn / YouTube overview panels for the Overview tab's platform
@@ -189,9 +190,9 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
                   <div className="p-2">
                     <div className="text-[11px] text-gray-800 leading-snug line-clamp-2">{p.message || "(no text)"}</div>
                     <div className="text-[10px] text-gray-500 mt-1 flex gap-2 tabular-nums">
-                      <span>👍 {fmt(p.likes)}</span>
-                      <span>💬 {fmt(p.comments)}</span>
-                      <span>↗ {fmt(p.shares)}</span>
+                      <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.likes)}</span>
+                      <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.comments)}</span>
+                      <span><IconShare3 size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.shares)}</span>
                       <span className="text-gray-400 ml-auto">{new Date(p.createdTime).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
                     </div>
                   </div>
@@ -285,10 +286,10 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
                     {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {p.type}
                   </div>
                   <div className="text-[11px] text-gray-600 mt-1 flex gap-3 tabular-nums">
-                    <span>👁 {fmt(p.impressions)}</span>
-                    <span>👍 {fmt(p.reactions)}</span>
-                    <span>💬 {fmt(p.comments)}</span>
-                    <span>↗ {fmt(p.shares)}</span>
+                    <span><IconEye size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.impressions)}</span>
+                    <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.reactions)}</span>
+                    <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.comments)}</span>
+                    <span><IconShare3 size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.shares)}</span>
                     <span>{(p.engagementRate ?? 0).toFixed(1)}% eng</span>
                   </div>
                 </div>

@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
+import { ChartCard, VBars, regionName } from "@/components/PlatformAudience";
+import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -136,21 +138,29 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           </Section>
 
           <Section title="Top videos">
-            <VideosTable videos={data.topVideos} />
+            <VideoCards videos={data.topVideos} />
           </Section>
 
           <Section title="Traffic & audience">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <BarCard title="Traffic sources" rows={data.traffic.sources.map((s) => ({ label: s.source, pct: s.pct, sub: fmt(s.views) }))} />
-              <BarCard title="Top countries" rows={data.traffic.geography.map((g) => ({ label: g.country, pct: g.pct, sub: fmt(g.views) }))} />
-              {(data.traffic.cities?.length ?? 0) > 0 && (
-                <BarCard title="Top cities" rows={data.traffic.cities!.map((c) => ({ label: c.city, pct: c.pct, sub: fmt(c.views) }))} />
-              )}
-              <BarCard title="Devices" rows={data.traffic.devices.map((d) => ({ label: d.device, pct: d.pct }))} />
-              <BarCard title="Age & gender" rows={[
-                ...data.traffic.ageGroups.map((a) => ({ label: a.group, pct: a.pct })),
-                ...data.traffic.genderSplit.map((g) => ({ label: g.label, pct: g.pct, muted: true })),
-              ]} />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <ChartCard title="Traffic sources" hint="views" empty={!data.traffic.sources.length}>
+                <VBars color={YT} unit="views" data={data.traffic.sources.slice(0, 7).map((s) => ({ name: s.source, value: s.views }))} />
+              </ChartCard>
+              <ChartCard title="Top countries" hint="views" empty={!data.traffic.geography.length}>
+                <VBars color={YT} unit="views" data={data.traffic.geography.slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
+              </ChartCard>
+              <ChartCard title="Top cities" hint="views · Google hides small cities" empty={!(data.traffic.cities?.length ?? 0)}>
+                <VBars color={YT} unit="views" data={(data.traffic.cities ?? []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
+              </ChartCard>
+              <ChartCard title="Devices" hint="% of views" empty={!data.traffic.devices.length}>
+                <VBars color={YT} unit="%" data={data.traffic.devices.map((d) => ({ name: d.device, value: d.pct }))} />
+              </ChartCard>
+              <ChartCard title="Age groups" hint="% of viewers" empty={!data.traffic.ageGroups.length}>
+                <VBars color={YT} unit="%" data={data.traffic.ageGroups.map((a) => ({ name: a.group, value: a.pct }))} />
+              </ChartCard>
+              <ChartCard title="Gender" hint="% of viewers" empty={!data.traffic.genderSplit.length}>
+                <VBars color={YT} unit="%" data={data.traffic.genderSplit.filter((g) => g.label !== "genderUserSpecified").map((g) => ({ name: g.label === "male" ? "Male" : g.label === "female" ? "Female" : g.label, value: g.pct }))} />
+              </ChartCard>
             </div>
           </Section>
         </>
@@ -265,67 +275,46 @@ function SubsChart({ data, gain }: { data: { date: string; subscribers: number; 
   );
 }
 
-function VideosTable({ videos }: { videos: Video[] }) {
+function VideoCards({ videos }: { videos: Video[] }) {
+  const Metric = ({ icon: Ico, value, label }: { icon: typeof IconEye; value: string; label: string }) => (
+    <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 tabular-nums" title={label}>
+      <Ico size={13} stroke={1.8} className="text-gray-400" />
+      {value}
+    </span>
+  );
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
-              <th className="px-4 py-2.5 font-medium">Video</th>
-              <th className="px-3 py-2.5 font-medium text-right">Views</th>
-              <th className="px-3 py-2.5 font-medium text-right">Watch hrs</th>
-              <th className="px-3 py-2.5 font-medium text-right">Avg view</th>
-              <th className="px-3 py-2.5 font-medium text-right">Likes</th>
-              <th className="px-3 py-2.5 font-medium text-right">Comments</th>
-            </tr>
-          </thead>
-          <tbody>
-            {videos.map((v, i) => (
-              <tr key={v.id} className={`border-b border-gray-50 ${i === 0 ? "bg-red-50/40" : ""}`}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {v.thumbnail
-                      ? <img src={v.thumbnail} alt="" className="w-16 h-9 rounded object-cover flex-shrink-0 bg-gray-100" />
-                      : <div className="w-16 h-9 rounded bg-gray-100 flex-shrink-0" />}
-                    <div className="min-w-0">
-                      <div className="truncate text-gray-800 max-w-sm">{v.title}</div>
-                      {i === 0 && <div className="text-[11px] text-red-600 font-medium">Top video</div>}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums font-medium">{fmt(v.views)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-600">{fmt(v.watchHours)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-600">{duration(v.avgViewDurationSec)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-600">{fmt(v.likes)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-600">{fmt(v.comments)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {videos.slice(0, 12).map((v, i) => (
+        <a
+          key={v.id}
+          href={`https://www.youtube.com/watch?v=${v.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300 hover:shadow-sm transition block"
+        >
+          <div className="relative bg-gray-100 aspect-video">
+            {v.thumbnail
+              ? <img src={v.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+              : <div className="w-full h-full" />}
+            <span className="absolute top-2 left-2 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
+            {i === 0 && (
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] font-semibold text-white rounded-full px-2 py-0.5" style={{ background: YT }}>
+                <IconTrophy size={11} stroke={2} /> Top video
+              </span>
+            )}
+          </div>
+          <div className="p-3">
+            <div className="text-[13px] text-gray-900 leading-snug line-clamp-2 min-h-[2.4rem]">{v.title}</div>
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
+              <Metric icon={IconEye} value={fmt(v.views)} label="Views" />
+              <Metric icon={IconClock} value={`${fmt(v.watchHours)}h · ${duration(v.avgViewDurationSec)} avg`} label="Watch time · avg view" />
+              <Metric icon={IconThumbUp} value={fmt(v.likes)} label="Likes" />
+              <Metric icon={IconMessageCircle} value={fmt(v.comments)} label="Comments" />
+            </div>
+          </div>
+        </a>
+      ))}
     </div>
   );
 }
 
-function BarCard({ title, rows }: { title: string; rows: { label: string; pct: number; sub?: string; muted?: boolean }[] }) {
-  const max = Math.max(...rows.map((r) => r.pct), 1);
-  return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-      <div className="text-xs uppercase tracking-wide text-gray-400 mb-3">{title}</div>
-      <div className="space-y-2.5">
-        {rows.map((r) => (
-          <div key={r.label}>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-700">{r.label}</span>
-              <span className="tabular-nums text-gray-500">{r.pct}%{r.sub ? ` · ${r.sub}` : ""}</span>
-            </div>
-            <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(r.pct / max) * 100}%`, background: r.muted ? "#F59E9E" : YT }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

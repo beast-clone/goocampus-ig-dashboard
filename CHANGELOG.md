@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — YouTube tab redesign + standard icons everywhere
+
+- **Top videos**: the plain table is gone — now a **3-per-row grid of landscape video cards** (16:9 thumbnail, rank badge, trophy "Top video" on #1, title, and metric row with proper icons: views/watch time+avg/likes/comments). Cards click through to YouTube.
+- **Traffic & audience**: all the progress-bar rows replaced with **standing (vertical) bar charts** — Traffic sources, Top countries (full names), Top cities, Devices, Age groups, Gender — six chart cards, honest "not enough data" states. (Chart components shared from the Audience panels.)
+- **Standard icons sweep**: every emoji metric (👍 💬 👁 ↗ 📄 📎) across the LinkedIn/Facebook post cards + modals + overview panels replaced with the same Tabler icon set the sidebar uses (IconThumbUp, IconMessageCircle, IconEye, IconShare3, IconFileText, IconPaperclip). Verified: zero emoji left on the YouTube tab, 76 Tabler icons rendering.
+
 ## 2026-07-12 — World has no YouTube + API caching (tab-switch speedup)
 
 - **GooCampus World has NO YouTube channel** (Maheen, emphatic): brand mapping goocampusworld → null. The Study Abroad channel is a separate GooCampus channel — reachable via the main-mode channel switcher/pills only, attached to no brand profile. World's profile now grays YouTube out (verified; LinkedIn stays live for World).

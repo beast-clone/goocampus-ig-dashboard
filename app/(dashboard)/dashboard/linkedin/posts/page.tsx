@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LI_PAGE } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
+import { IconEye, IconThumbUp, IconMessageCircle, IconFileText, IconPaperclip } from "@tabler/icons-react";
 
 // pdf.js renders LinkedIn document posts (carousel PDFs) exactly as they look
 // on LinkedIn — media.licdn.com serves them public + CORS-open, so the browser
@@ -235,15 +236,15 @@ function Card({ post, rank, onClick }: { post: Post; rank: number; onClick: () =
           ? <DocThumb url={post.docUrl} fallback={<Creative post={post} />} />
           : <Creative post={post} />}
         <span className="absolute top-2 left-2 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{rank}</span>
-        {post.docUrl && <span className="absolute top-2 right-2 text-[10px] font-semibold bg-black/60 text-white rounded-full px-2 py-0.5">📄 Document</span>}
+        {post.docUrl && <span className="absolute top-2 right-2 text-[10px] font-semibold bg-black/60 text-white rounded-full px-2 py-0.5"><IconFileText size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Document</span>}
       </div>
       <div className="p-3">
         <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">{post.text || "(no text)"}</div>
         <div className="text-[10px] text-gray-400 mt-1">{dateLabel(post.date)} · {post.type}</div>
         <div className="text-[11px] text-gray-600 mt-1.5 flex gap-3 tabular-nums">
-          <span>👁 {fmt(post.impressions)}</span>
-          <span>👍 {fmt(post.reactions)}</span>
-          <span>💬 {fmt(post.comments)}</span>
+          <span><IconEye size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(post.impressions)}</span>
+          <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(post.reactions)}</span>
+          <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(post.comments)}</span>
           <span className="ml-auto">{(post.engagementRate ?? 0).toFixed(1)}%</span>
         </div>
       </div>
@@ -276,7 +277,7 @@ function DetailModal({ post, pageName, onClose }: { post: Post; pageName: string
                 {pageName} · {dateLabel(post.date)} · {post.type}
               </div>
               <p className="text-[15px] text-gray-900 leading-relaxed whitespace-pre-wrap mt-2">{post.text || "(no text)"}</p>
-              {post.mediaTitle && <p className="text-xs text-gray-500 mt-1.5">📎 {post.mediaTitle}</p>}
+              {post.mediaTitle && <p className="text-xs text-gray-500 mt-1.5"><IconPaperclip size={12} stroke={1.8} className="inline -mt-0.5 mr-1 text-gray-400" />{post.mediaTitle}</p>}
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
           </div>

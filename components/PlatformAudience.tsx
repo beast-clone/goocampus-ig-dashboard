@@ -21,7 +21,7 @@ function fmt(n: number | null | undefined): string {
 const REGIONS = typeof Intl !== "undefined" && "DisplayNames" in Intl
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
-function regionName(code: string): string {
+export function regionName(code: string): string {
   try { return REGIONS?.of(code) || code; } catch { return code; }
 }
 
@@ -35,7 +35,7 @@ function shades(base: string, n: number): string[] {
   });
 }
 
-function ChartCard({ title, hint, children, tall, empty }: { title: string; hint?: string; children: React.ReactNode; tall?: boolean; empty?: boolean }) {
+export function ChartCard({ title, hint, children, tall, empty }: { title: string; hint?: string; children: React.ReactNode; tall?: boolean; empty?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-4">
       <div className="flex items-baseline justify-between mb-2">
@@ -54,7 +54,7 @@ function ChartCard({ title, hint, children, tall, empty }: { title: string; hint
 }
 
 // Donut with a compact legend — for gender, devices, seniority, company size.
-function Donut({ data, color }: { data: { name: string; pct: number }[]; color: string }) {
+export function Donut({ data, color }: { data: { name: string; pct: number }[]; color: string }) {
   const cols = shades(color, data.length);
   return (
     <div className="flex items-center h-full gap-2">
@@ -80,7 +80,7 @@ function Donut({ data, color }: { data: { name: string; pct: number }[]; color: 
 }
 
 // Vertical bar chart — for age groups, top cities.
-function VBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
+export function VBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 16, right: 8, left: -18, bottom: 0 }}>
@@ -94,7 +94,7 @@ function VBars({ data, color, unit }: { data: { name: string; value: number }[];
 }
 
 // Horizontal bar chart — for long labels (job functions, industries, locations).
-function HBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
+export function HBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
