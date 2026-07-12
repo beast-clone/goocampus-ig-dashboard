@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ACCOUNTS } from "@/lib/accounts";
 import { useProfile, setProfile } from "@/lib/profile";
+import { hasPlatform, type PlatformKey } from "@/lib/brand-platforms";
 import {
   IconHome, IconLayoutKanban, IconSun, IconCalendar, IconSend, IconRadar,
   IconCompass, IconHash, IconBrandInstagram, IconPhoto, IconMovie,
@@ -163,6 +164,23 @@ export function Sidebar() {
   // icon + label share the items' grid; the chevron gets a fixed w-7 slot on the
   // right. Clicking a parent that has a page navigates AND unfolds its children.
   const folder = (f: Folder) => {
+    // Profile mode: platforms this brand doesn't have are visible but grayed
+    // out and unclickable — no other brand's data can be reached from here.
+    if (profile && !hasPlatform(profile, f.key as PlatformKey)) {
+      const Ico = f.icon;
+      return (
+        <div
+          key={f.key}
+          className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg opacity-30 cursor-not-allowed select-none text-[#AEB6C6]"
+          title={`${profileAccount?.label ?? "This brand"} has no ${f.label} connected`}
+          aria-disabled="true"
+        >
+          <Ico size={17} stroke={1.7} className="text-[#8A93A6]" />
+          <span className="flex-1">{f.label}</span>
+          <span className="text-[9px] uppercase tracking-wider pr-1.5">none</span>
+        </div>
+      );
+    }
     const open = openKeys[f.key] ?? folderActive(f);
     const parentActive = f.href ? isActive(f.href) : false;
     const Ico = f.icon;

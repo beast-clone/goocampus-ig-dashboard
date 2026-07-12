@@ -6,6 +6,8 @@ import BestTimesToPost from "@/components/BestTimesToPost";
 import { CountriesWorldMap, CitiesRegionMap } from "@/components/GeoMaps";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Legend, CartesianGrid } from "recharts";
 import { useApi } from "@/lib/use-api";
+import { useProfile } from "@/lib/profile";
+import { hasPlatform } from "@/lib/brand-platforms";
 import { FacebookAudience, LinkedInAudience, YouTubeAudience } from "@/components/PlatformAudience";
 
 type DemoEntry = { label: string; value: number };
@@ -63,6 +65,7 @@ type AudTabKey = (typeof AUD_TABS)[number]["key"];
 
 export default function AudiencePage() {
   const [platform, setPlatformState] = useState<AudTabKey>("instagram");
+  const profile = useProfile();
   // Locked mode: arriving via a platform folder's Audience link
   // (/dashboard/audience#youtube) shows ONLY that platform — no toggle. The
   // toggle belongs to the standalone "All platforms" entry (#all / no hash).
@@ -96,15 +99,20 @@ export default function AudiencePage() {
             </div>
           ) : (
             <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
-              {AUD_TABS.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setPlatformState(t.key)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {AUD_TABS.map((t) => {
+                const disabled = !!profile && !hasPlatform(profile, t.key);
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => !disabled && setPlatformState(t.key)}
+                    disabled={disabled}
+                    title={disabled ? "Not connected for this brand" : undefined}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${disabled ? "text-gray-300 cursor-not-allowed" : platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
           )}
           {platform === "instagram" && <Audience accountId={accountId} />}

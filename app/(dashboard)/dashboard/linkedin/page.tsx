@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useProfile } from "@/lib/profile";
+import { LI_PAGE } from "@/lib/brand-platforms";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -65,17 +67,34 @@ export default function LinkedInPage() {
 }
 
 function Inner({ range }: { range: { from: string; to: string } }) {
-  const [page, setPage] = useState("goocampus");
+  // Profile mode locks this tab to the brand's own LinkedIn page (only World
+  // has one connected); no switcher, no other brand's data reachable.
+  const profile = useProfile();
+  const profilePage = profile ? LI_PAGE[profile] ?? null : undefined;
+  const [picked, setPage] = useState("goocampus");
+  const page = profile ? (profilePage ?? "") : picked;
   const qs = new URLSearchParams({ page, from: range.from, to: range.to }).toString();
-  const { data, error, isLoading, refresh } = useApi<Resp>(`/api/linkedin?${qs}`);
+  const { data, error, isLoading, refresh } = useApi<Resp>(page ? `/api/linkedin?${qs}` : null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [openPost, setOpenPost] = useState<Post | null>(null);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
+
+  if (profile && !profilePage) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center">
+        <div className="text-base font-medium text-gray-700 mb-1">No LinkedIn page</div>
+        <p className="text-sm text-gray-400">This brand doesn&apos;t have a LinkedIn page connected to the dashboard.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Page switcher + status */}
       <div className="flex items-center justify-between flex-wrap gap-3">
+        {profile ? (
+          <div className="text-sm font-semibold text-gray-800">{PAGES.find((p) => p.key === page)?.label ?? page}</div>
+        ) : (
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {PAGES.map((p) => (
             <button
@@ -88,6 +107,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </button>
           ))}
         </div>
+        )}
         <div className="flex items-center gap-3">
           {data?.source === "live" ? (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200" title={data.partial ? "Live LinkedIn data. Per-post stats are still sample — coming in a follow-up." : "Live LinkedIn data."}>

@@ -8,6 +8,8 @@ import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { ACCOUNTS } from "@/lib/accounts";
+import { useProfile } from "@/lib/profile";
+import { hasPlatform } from "@/lib/brand-platforms";
 import { useApi } from "@/lib/use-api";
 import type { Post } from "@/components/LatestPost";
 
@@ -47,20 +49,27 @@ type PlatformKey = (typeof PLATFORM_TABS)[number]["key"];
 
 export default function OverviewPage() {
   const [platform, setPlatform] = useState<PlatformKey>("instagram");
+  const profile = useProfile();
   return (
     <DashboardShell title="Overview">
       {({ accountId, range }) => (
         <div className="space-y-5">
           <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
-            {PLATFORM_TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setPlatform(t.key)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {PLATFORM_TABS.map((t) => {
+              // Profile mode: platforms the brand doesn't have are grayed out.
+              const disabled = !!profile && !hasPlatform(profile, t.key);
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => !disabled && setPlatform(t.key)}
+                  disabled={disabled}
+                  title={disabled ? "Not connected for this brand" : undefined}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${disabled ? "text-gray-300 cursor-not-allowed" : platform === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
           {platform === "instagram" && <Overview accountId={accountId} range={range} />}
           {platform === "facebook" && <FacebookOverview accountId={accountId} range={range} />}

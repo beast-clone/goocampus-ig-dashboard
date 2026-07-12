@@ -3,6 +3,16 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Profile mode is now AIRTIGHT (no cross-brand leaks)
+
+- **Maheen caught a real leak**: inside Samvaya's profile, the YouTube tab still had its own channel switcher showing GooCampus data. Fixed everywhere:
+- New **lib/brand-platforms.ts** = single source of truth for which brand has which platform connected (LI_PAGE / YT_CHANNEL moved here; PlatformOverviews re-exports).
+- **Sidebar (profile mode)**: platforms the brand doesn't have are **grayed out + unclickable** with a "none" tag (Samvaya: LinkedIn + YouTube grayed; IG/FB clickable).
+- **Overview + Audience platform toggles**: unavailable platforms disabled (gray, tooltip "Not connected for this brand").
+- **YouTube + LinkedIn deep-dive tabs**: in profile mode their own switchers disappear and the page locks to the brand's asset; if none, an honest "No YouTube channel / No LinkedIn page" panel — verified by deep-linking /dashboard/youtube inside Samvaya's profile (no Study Abroad, no 22.8K leak).
+- **YouTube channel pills** (videos + audience views) hidden in profile mode.
+- Honesty fix that rode along: main GooCampus's LinkedIn is NOT connected (pending LinkedIn approval) — it now counts as unavailable instead of showing demo numbers (LI_PAGE goocampus → null).
+
 ## 2026-07-12 — Brand PROFILE SWITCHER (Facebook-Pages style)
 
 - **Switcher card** in the sidebar's empty space below the nav groups: shows what you're viewing (Main dashboard, or the brand profile with its colored initials chip); click → pick Main / Edu / World / 12thPlus / Samvaya.

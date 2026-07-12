@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useProfile } from "@/lib/profile";
+import { YT_CHANNEL } from "@/lib/brand-platforms";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -59,16 +61,33 @@ export default function YouTubePage() {
 }
 
 function Inner({ range }: { range: { from: string; to: string } }) {
-  const [channel, setChannel] = useState("goocampus");
+  // Profile mode locks this tab to the brand's own channel — no switcher, no
+  // other brand's data reachable. Main mode keeps the free channel switcher.
+  const profile = useProfile();
+  const profileChannel = profile ? YT_CHANNEL[profile] ?? null : undefined;
+  const [picked, setChannel] = useState("goocampus");
+  const channel = profile ? (profileChannel ?? "") : picked;
   const qs = new URLSearchParams({ channel, from: range.from, to: range.to }).toString();
-  const { data, error, isLoading, refresh } = useApi<Resp>(`/api/youtube?${qs}`);
+  const { data, error, isLoading, refresh } = useApi<Resp>(channel ? `/api/youtube?${qs}` : null);
   const [, setFetchedAt] = useState<number | null>(null);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
+
+  if (profile && !profileChannel) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center">
+        <div className="text-base font-medium text-gray-700 mb-1">No YouTube channel</div>
+        <p className="text-sm text-gray-400">This brand doesn&apos;t have a YouTube channel connected to the dashboard.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Channel switcher + status */}
       <div className="flex items-center justify-between flex-wrap gap-3">
+        {profile ? (
+          <div className="text-sm font-semibold text-gray-800">{CHANNELS.find((c) => c.key === channel)?.label ?? channel} channel</div>
+        ) : (
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {CHANNELS.map((c) => (
             <button
@@ -81,6 +100,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </button>
           ))}
         </div>
+        )}
         <div className="flex items-center gap-3">
           {data?.source === "live" ? (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>

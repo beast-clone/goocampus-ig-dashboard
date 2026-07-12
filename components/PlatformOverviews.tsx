@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
+import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
+export { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS };
 
 // Facebook / LinkedIn / YouTube overview panels for the Overview tab's platform
 // toggle. The Instagram overview is the original page (untouched); these mirror
@@ -217,13 +219,6 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
 
 // ── LinkedIn ────────────────────────────────────────────────────────────────
 
-export const LI_PAGE: Record<string, string | null> = {
-  goocampus: "goocampus",
-  goocampusworld: "gcworld",
-  "12thplusdotcom": null,
-  samvaya_matrimony: null,
-};
-
 type LiPost = {
   id: string; date: string; text: string; type: string;
   impressions: number; clicks: number; reactions: number; comments: number; shares: number;
@@ -337,20 +332,9 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
 
 // ── YouTube ─────────────────────────────────────────────────────────────────
 
-// All YouTube channels — pills shown on the YouTube content/audience pages so
-// any channel is reachable regardless of the brand dropdown.
-export const YT_CHANNEL_PILLS = [
-  { key: "goocampus", label: "GooCampus" },
-  { key: "goocampusworld", label: "Study Abroad" },
-  { key: "twelfthplus", label: "12thplus" },
-];
 
-export const YT_CHANNEL: Record<string, string | null> = {
-  goocampus: "goocampus",
-  goocampusworld: "goocampusworld", // = the Study Abroad channel
-  "12thplusdotcom": "twelfthplus",
-  samvaya_matrimony: null,
-};
+
+
 
 type YtVideo = { id: string; title: string; thumbnail: string; views: number; watchHours: number; avgViewDurationSec: number; likes: number; comments: number };
 type YtResp = {

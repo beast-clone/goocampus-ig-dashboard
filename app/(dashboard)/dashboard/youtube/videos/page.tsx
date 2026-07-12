@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
+import { useProfile } from "@/lib/profile";
 import { useApi } from "@/lib/use-api";
 
 // YouTube content split: Long-form vs Shorts (sidebar: YouTube → Long-form / Shorts).
@@ -60,13 +61,19 @@ export default function YouTubeVideosPage() {
 function Inner({ accountId, range, kind, setKind }: {
   accountId: string; range: { from: string; to: string }; kind: Kind; setKind: (k: Kind) => void;
 }) {
-  // Channel pills override the brand mapping — all channels reachable from here.
+  // MAIN mode: channel pills make every channel reachable. PROFILE mode: locked
+  // to the brand's own channel — no pills, no cross-brand data.
+  const profile = useProfile();
   const [channelPick, setChannelPick] = useState<string | null>(null);
-  const channel = channelPick ?? YT_CHANNEL[accountId] ?? "goocampus";
+  const channel = profile ? (YT_CHANNEL[profile] ?? "") : (channelPick ?? YT_CHANNEL[accountId] ?? "goocampus");
   const qs = new URLSearchParams({ channel, from: range.from, to: range.to }).toString();
-  const { data, isLoading } = useApi<Resp>(`/api/youtube?${qs}`);
+  const { data, isLoading } = useApi<Resp>(channel ? `/api/youtube?${qs}` : null);
 
-  const channelPills = (
+  if (profile && !channel) {
+    return <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">This brand doesn&apos;t have a YouTube channel connected.</div>;
+  }
+
+  const channelPills = profile ? null : (
     <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
       {YT_CHANNEL_PILLS.map((c) => (
         <button
