@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
-import { ChartCard, VBars, AgeGenderPies, regionName } from "@/components/PlatformAudience";
+import { ChartCard, PieList, AgeGenderPies, regionName } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -145,20 +145,18 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           <Section title="Traffic & audience">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <ChartCard title="Traffic sources" hint="views" empty={!data.traffic.sources.length}>
-                <VBars color={YT} unit="views" data={data.traffic.sources.slice(0, 7).map((s) => ({ name: s.source, value: s.views }))} />
+                <PieList color={YT} unit="views" data={data.traffic.sources.slice(0, 8).map((s) => ({ name: s.source, value: s.views }))} />
               </ChartCard>
               <ChartCard title="Top countries" hint="views" empty={!data.traffic.geography.length}>
-                <VBars color={YT} unit="views" data={data.traffic.geography.slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
+                <PieList color={YT} unit="views" data={data.traffic.geography.slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
               </ChartCard>
               <ChartCard title="Top cities" hint="views · Google hides small cities" empty={!(data.traffic.cities?.length ?? 0)}>
-                <VBars color={YT} unit="views" data={(data.traffic.cities ?? []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
+                <PieList color={YT} unit="views" data={(data.traffic.cities ?? []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
               </ChartCard>
               <ChartCard title="Devices" hint="% of views" empty={!data.traffic.devices.length}>
-                <VBars color={YT} unit="%" data={data.traffic.devices.map((d) => ({ name: d.device, value: d.pct }))} />
+                <PieList color={YT} unit="%" data={data.traffic.devices.map((d) => ({ name: d.device, value: d.pct }))} />
               </ChartCard>
-            </div>
-            <div className="mt-4">
-              <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!data.traffic.ageGroups.length && !data.traffic.genderSplit.length}>
+              <ChartCard title="Age & gender" hint="% of viewers in range" empty={!data.traffic.ageGroups.length && !data.traffic.genderSplit.length}>
                 <AgeGenderPies ageGroups={data.traffic.ageGroups} genderSplit={data.traffic.genderSplit} />
               </ChartCard>
             </div>

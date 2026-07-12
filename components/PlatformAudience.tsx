@@ -25,14 +25,43 @@ export function regionName(code: string): string {
   try { return REGIONS?.of(code) || code; } catch { return code; }
 }
 
-// Shade ramp per platform accent for donut slices.
+// Smooth opacity ramp of the accent colour across n slices (1.0 → 0.22).
 function shades(base: string, n: number): string[] {
-  const ops = [1, 0.75, 0.55, 0.4, 0.28, 0.18];
+  const r = parseInt(base.slice(1, 3), 16), g = parseInt(base.slice(3, 5), 16), b = parseInt(base.slice(5, 7), 16);
   return Array.from({ length: n }, (_, i) => {
-    const o = ops[Math.min(i, ops.length - 1)];
-    const r = parseInt(base.slice(1, 3), 16), g = parseInt(base.slice(3, 5), 16), b = parseInt(base.slice(5, 7), 16);
-    return `rgba(${r},${g},${b},${o})`;
+    const o = n <= 1 ? 1 : 1 - (i / (n - 1)) * 0.78;
+    return `rgba(${r},${g},${b},${o.toFixed(3)})`;
   });
+}
+
+// Reusable donut for any {name, value} list — the standard chart for the
+// Traffic & audience section (sources, countries, cities, devices…). Shows the
+// donut + a legend with each slice's share.
+export function PieList({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
+  const rows = data.filter((d) => d.value > 0);
+  const total = rows.reduce((s, d) => s + d.value, 0) || 1;
+  const cols = shades(color, rows.length);
+  return (
+    <div className="flex items-center h-full gap-3">
+      <ResponsiveContainer width="48%" height="100%">
+        <PieChart>
+          <Pie data={rows} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="86%" paddingAngle={2} strokeWidth={0}>
+            {rows.map((_, i) => <Cell key={i} fill={cols[i]} />)}
+          </Pie>
+          <Tooltip formatter={(v: number) => `${v.toLocaleString("en-IN")}${unit ? ` ${unit}` : ""} · ${Math.round((v / total) * 100)}%`} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex-1 space-y-1 min-w-0 overflow-y-auto max-h-full pr-1">
+        {rows.map((d, i) => (
+          <div key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: cols[i] }} />
+            <span className="truncate text-gray-700 flex-1">{d.name}</span>
+            <span className="text-gray-500 tabular-nums">{Math.round((d.value / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function ChartCard({ title, hint, children, tall, empty }: { title: string; hint?: string; children: React.ReactNode; tall?: boolean; empty?: boolean }) {
@@ -301,6 +330,7 @@ type YtResp = {
   channel: { name: string; handle: string };
   summary: { subscribers: number };
   traffic: {
+    sources: { source: string; views: number; pct: number }[];
     geography: { country: string; views: number; pct: number }[];
     cities?: { city: string; views: number; pct: number }[];
     devices: { device: string; pct: number }[];
@@ -346,18 +376,21 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={`${data.channel.handle} · ${fmt(data.summary.subscribers)} subscribers`} href="/dashboard/youtube" live={data.source === "live"} />
       {pills}
-      <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(t.ageGroups || []).length && !(t.genderSplit || []).length}>
-        <AgeGenderPies ageGroups={t.ageGroups || []} genderSplit={t.genderSplit || []} />
-      </ChartCard>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Views around the world" hint="in range" tall empty={!(t.geography || []).length}>
-          <CountriesWorldMap entries={(t.geography || []).map((g) => ({ label: g.country, value: g.views }))} />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <ChartCard title="Traffic sources" hint="views" empty={!(t.sources || []).length}>
+          <PieList color={YR} unit="views" data={(t.sources || []).slice(0, 8).map((s) => ({ name: s.source, value: s.views }))} />
         </ChartCard>
-        <ChartCard title="Top cities" hint="by views · Google hides small cities" tall empty={!(t.cities || []).length}>
-          <VBars color={YR} unit="views" data={(t.cities || []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
+        <ChartCard title="Top countries" hint="views" empty={!(t.geography || []).length}>
+          <PieList color={YR} unit="views" data={(t.geography || []).slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
         </ChartCard>
-        <ChartCard title="Devices" empty={!(t.devices || []).length}>
-          <Donut color={YR} data={(t.devices || []).map((d) => ({ name: d.device, pct: d.pct }))} />
+        <ChartCard title="Top cities" hint="views · Google hides small cities" empty={!(t.cities || []).length}>
+          <PieList color={YR} unit="views" data={(t.cities || []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
+        </ChartCard>
+        <ChartCard title="Devices" hint="% of views" empty={!(t.devices || []).length}>
+          <PieList color={YR} unit="%" data={(t.devices || []).map((d) => ({ name: d.device, value: d.pct }))} />
+        </ChartCard>
+        <ChartCard title="Age & gender" hint="% of viewers in range" empty={!(t.ageGroups || []).length && !(t.genderSplit || []).length}>
+          <AgeGenderPies ageGroups={t.ageGroups || []} genderSplit={t.genderSplit || []} />
         </ChartCard>
       </div>
       <p className="text-[11px] text-gray-400">

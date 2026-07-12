@@ -3,6 +3,10 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — ALL YouTube Traffic & audience charts = pie charts
+
+- Per Maheen (emphatic): the WHOLE Traffic & audience section is pie/donut charts now, not bars — Traffic sources, Top countries, Top cities, Devices (each a donut with a share legend) + Age & gender (Gender + Age donuts). Applied to BOTH the YouTube tab and the YouTube audience panel (the audience panel's world map is replaced by a Top-countries pie so it matches). New reusable `PieList` component + smooth accent color ramp. Verified: zero bar charts left in the section.
+
 ## 2026-07-12 — Age & gender = PIE charts (per Maheen)
 
 - The "Age & gender" card on the YouTube tab AND the YouTube audience panel is now **two pie/donut charts side by side**: Gender (Male violet / Female pink) + Age (viewer % per bracket, violet ramp), each with a labelled legend. Real data (GooCampus: Male 65.7% / Female 34.2%; 25–34 the top bracket at 54.7%).
