@@ -6,6 +6,7 @@ import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
 import { useProfile } from "@/lib/profile";
 import { useState } from "react";
+import { IconMan, IconWoman } from "@tabler/icons-react";
 
 // Facebook / LinkedIn / YouTube audience panels for the Audience tab — styled
 // like the Instagram audience page: real charts (donuts, bar charts, the world
@@ -90,6 +91,40 @@ export function VBars({ data, color, unit }: { data: { name: string; value: numb
         <Bar dataKey="value" fill={color} radius={[5, 5, 0, 0]} maxBarSize={44} />
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+// Instagram-audience-style age & gender chart: male + female bars side by side
+// per age bracket, gradient fills, icon legend. Values are % of viewers.
+export function AgeGenderBars({ data }: { data: { group: string; male: number; female: number }[] }) {
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-4 text-xs text-gray-600 mb-1 px-1">
+        <span className="inline-flex items-center gap-1"><IconMan size={14} stroke={1.8} className="text-violet-500" /> Male</span>
+        <span className="inline-flex items-center gap-1"><IconWoman size={14} stroke={1.8} className="text-pink-500" /> Female</span>
+      </div>
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 12, right: 8, left: -18, bottom: 0 }} barGap={2}>
+            <defs>
+              <linearGradient id="agMale" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7C3AED" />
+                <stop offset="100%" stopColor="#C4B5FD" />
+              </linearGradient>
+              <linearGradient id="agFemale" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#DB2777" />
+                <stop offset="100%" stopColor="#F9A8D4" />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="group" tick={{ fontSize: 10 }} interval={0} tickFormatter={(g: string) => `${g} yrs`} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Bar dataKey="male" name="Male" fill="url(#agMale)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+            <Bar dataKey="female" name="Female" fill="url(#agFemale)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
@@ -243,6 +278,7 @@ type YtResp = {
     devices: { device: string; pct: number }[];
     ageGroups: { group: string; pct: number }[];
     genderSplit: { label: string; pct: number }[];
+    ageGender?: { group: string; male: number; female: number }[];
   };
   error?: string;
 };
@@ -277,19 +313,15 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
 
   const t = data.traffic;
   const YR = "#FF0000";
-  const genders = (t.genderSplit || []).filter((g) => g.label !== "genderUserSpecified").map((g) => ({ name: g.label === "male" ? "Male" : g.label === "female" ? "Female" : g.label, pct: g.pct }));
 
   return (
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={`${data.channel.handle} · ${fmt(data.summary.subscribers)} subscribers`} href="/dashboard/youtube" live={data.source === "live"} />
       {pills}
+      <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(t.ageGender?.length ?? 0)}>
+        <AgeGenderBars data={t.ageGender ?? []} />
+      </ChartCard>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Age groups" hint="viewers in range" empty={!(t.ageGroups || []).length}>
-          <VBars color={YR} unit="%" data={(t.ageGroups || []).map((a) => ({ name: a.group, value: a.pct }))} />
-        </ChartCard>
-        <ChartCard title="Gender" hint="viewers in range" empty={!genders.length}>
-          <Donut color={YR} data={genders} />
-        </ChartCard>
         <ChartCard title="Views around the world" hint="in range" tall empty={!(t.geography || []).length}>
           <CountriesWorldMap entries={(t.geography || []).map((g) => ({ label: g.country, value: g.views }))} />
         </ChartCard>

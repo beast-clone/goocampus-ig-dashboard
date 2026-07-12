@@ -232,6 +232,20 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   const ageGroups = Object.entries(ageMap).map(([group, p]) => ({ group, pct: Math.round(p * 10) / 10 })).sort((a, b) => b.pct - a.pct);
   const genderSplit = Object.entries(genderMap).map(([label, p]) => ({ label: label.charAt(0) + label.slice(1).toLowerCase(), pct: Math.round(p * 10) / 10 }));
 
+  // Combined age×gender for the Instagram-style grouped chart (male + female
+  // bars side by side per age bracket). Sorted young → old.
+  const agMap: Record<string, { male: number; female: number }> = {};
+  for (const r of demoRaw.rows || []) {
+    const age = String(r[0]).replace("age", "").replace("_", "–");
+    const g = String(r[1]).toLowerCase();
+    if (g !== "male" && g !== "female") continue;
+    agMap[age] = agMap[age] || { male: 0, female: 0 };
+    agMap[age][g as "male" | "female"] += r[2] || 0;
+  }
+  const ageGender = Object.entries(agMap)
+    .map(([group, v]) => ({ group, male: Math.round(v.male * 10) / 10, female: Math.round(v.female * 10) / 10 }))
+    .sort((a, b) => parseInt(a.group) - parseInt(b.group));
+
   return {
     channel: { id: ch.id, name: ch.name, handle: ch.handle, channelId: ch.channelId },
     source: "live" as const,
@@ -247,6 +261,6 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     viewsOverTime,
     subscribersOverTime,
     topVideos,
-    traffic: { sources: trafficSources, geography, cities, devices, ageGroups, genderSplit },
+    traffic: { sources: trafficSources, geography, cities, devices, ageGroups, genderSplit, ageGender },
   };
 }

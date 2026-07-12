@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
-import { ChartCard, VBars, regionName } from "@/components/PlatformAudience";
+import { ChartCard, VBars, AgeGenderBars, regionName } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -33,6 +33,7 @@ type Resp = {
     devices: { device: string; pct: number }[];
     ageGroups: { group: string; pct: number }[];
     genderSplit: { label: string; pct: number }[];
+    ageGender?: { group: string; male: number; female: number }[];
   };
   error?: string;
 };
@@ -155,11 +156,10 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <ChartCard title="Devices" hint="% of views" empty={!data.traffic.devices.length}>
                 <VBars color={YT} unit="%" data={data.traffic.devices.map((d) => ({ name: d.device, value: d.pct }))} />
               </ChartCard>
-              <ChartCard title="Age groups" hint="% of viewers" empty={!data.traffic.ageGroups.length}>
-                <VBars color={YT} unit="%" data={data.traffic.ageGroups.map((a) => ({ name: a.group, value: a.pct }))} />
-              </ChartCard>
-              <ChartCard title="Gender" hint="% of viewers" empty={!data.traffic.genderSplit.length}>
-                <VBars color={YT} unit="%" data={data.traffic.genderSplit.filter((g) => g.label !== "genderUserSpecified").map((g) => ({ name: g.label === "male" ? "Male" : g.label === "female" ? "Female" : g.label, value: g.pct }))} />
+            </div>
+            <div className="mt-4">
+              <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(data.traffic.ageGender?.length ?? 0)}>
+                <AgeGenderBars data={data.traffic.ageGender ?? []} />
               </ChartCard>
             </div>
           </Section>
