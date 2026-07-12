@@ -1,8 +1,23 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LI_PAGE } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
+
+// pdf.js renders LinkedIn document posts (carousel PDFs) exactly as they look
+// on LinkedIn — media.licdn.com serves them public + CORS-open, so the browser
+// can draw real pages. Loaded lazily so text-only brands pay nothing.
+type PdfjsModule = typeof import("pdfjs-dist");
+let pdfjsPromise: Promise<PdfjsModule> | null = null;
+function loadPdfjs(): Promise<PdfjsModule> {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import("pdfjs-dist").then((m) => {
+      m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      return m;
+    });
+  }
+  return pdfjsPromise;
+}
 
 // LinkedIn content page (sidebar: LinkedIn → Posts) — Instagram-style card grid.
 // Every post gets a visual: its real thumbnail when LinkedIn provides one, else
@@ -15,6 +30,7 @@ type Post = {
   impressions: number; uniqueImpressions?: number; clicks: number; reactions: number;
   comments: number; shares: number; engagementRate: number; ctr: number;
   thumbnailUrl?: string | null; permalink?: string | null; mediaTitle?: string | null;
+  docUrl?: string | null;
 };
 type Resp = {
   source: "demo" | "live";
@@ -79,6 +95,116 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
   );
 }
 
+// Renders page 1 of a LinkedIn document post as the card thumbnail — the same
+// preview LinkedIn's feed shows. Falls back to the text creative on failure.
+function DocThumb({ url, fallback }: { url: string; fallback: React.ReactNode }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const pdfjs = await loadPdfjs();
+        const doc = await pdfjs.getDocument({ url, disableAutoFetch: true }).promise;
+        const page = await doc.getPage(1);
+        const canvas = canvasRef.current;
+        if (!canvas || dead) return;
+        const base = page.getViewport({ scale: 1 });
+        const scale = 460 / base.width;
+        const vp = page.getViewport({ scale });
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+        if (!dead) setState("ok");
+      } catch {
+        if (!dead) setState("err");
+      }
+    })();
+    return () => { dead = true; };
+  }, [url]);
+  if (state === "err") return <>{fallback}</>;
+  return (
+    <div className="w-full h-full flex items-start justify-center bg-gray-100 overflow-hidden">
+      {state === "loading" && <div className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-400">Loading document…</div>}
+      <canvas ref={canvasRef} className="w-full h-auto" />
+    </div>
+  );
+}
+
+// LinkedIn-style document viewer for the detail modal — real pages with ‹ › paging.
+function DocViewer({ url, fallback }: { url: string; fallback: React.ReactNode }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const docRef = useRef<Awaited<ReturnType<PdfjsModule["getDocument"]>["promise"]> | null>(null);
+  const [pageNum, setPageNum] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const pdfjs = await loadPdfjs();
+        const doc = await pdfjs.getDocument({ url, disableAutoFetch: true }).promise;
+        if (dead) return;
+        docRef.current = doc;
+        setTotal(doc.numPages);
+        setPageNum(1);
+        setState("ok");
+      } catch {
+        if (!dead) setState("err");
+      }
+    })();
+    return () => { dead = true; };
+  }, [url]);
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      const doc = docRef.current;
+      const canvas = canvasRef.current;
+      if (!doc || !canvas || state !== "ok") return;
+      try {
+        const page = await doc.getPage(pageNum);
+        const base = page.getViewport({ scale: 1 });
+        const scale = 1280 / base.width;
+        const vp = page.getViewport({ scale });
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        if (dead) return;
+        await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+      } catch { /* keep previous page */ }
+    })();
+    return () => { dead = true; };
+  }, [pageNum, state]);
+
+  if (state === "err") return <>{fallback}</>;
+  return (
+    <div className="relative bg-gray-100">
+      {state === "loading" && <div className="aspect-square flex items-center justify-center text-sm text-gray-400">Loading document…</div>}
+      <canvas ref={canvasRef} className="w-full h-auto" />
+      {total > 1 && state === "ok" && (
+        <>
+          <button
+            onClick={() => setPageNum((n) => Math.max(1, n - 1))}
+            disabled={pageNum <= 1}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white text-lg disabled:opacity-25 hover:bg-black/70"
+            aria-label="Previous page"
+          >‹</button>
+          <button
+            onClick={() => setPageNum((n) => Math.min(total, n + 1))}
+            disabled={pageNum >= total}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white text-lg disabled:opacity-25 hover:bg-black/70"
+            aria-label="Next page"
+          >›</button>
+          <span className="absolute bottom-2 right-3 text-[11px] bg-black/60 text-white rounded-full px-2.5 py-1 tabular-nums">
+            {pageNum} / {total}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 // The visual: real thumbnail, or a designed text creative for text-only posts.
 function Creative({ post, big }: { post: Post; big?: boolean }) {
   if (post.thumbnailUrl) {
@@ -105,8 +231,11 @@ function Card({ post, rank, onClick }: { post: Post; rank: number; onClick: () =
       className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300 hover:shadow-sm text-left transition"
     >
       <div className="relative bg-gray-100 aspect-square overflow-hidden">
-        <Creative post={post} />
+        {post.docUrl
+          ? <DocThumb url={post.docUrl} fallback={<Creative post={post} />} />
+          : <Creative post={post} />}
         <span className="absolute top-2 left-2 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{rank}</span>
+        {post.docUrl && <span className="absolute top-2 right-2 text-[10px] font-semibold bg-black/60 text-white rounded-full px-2 py-0.5">📄 Document</span>}
       </div>
       <div className="p-3">
         <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">{post.text || "(no text)"}</div>
@@ -153,10 +282,14 @@ function DetailModal({ post, pageName, onClose }: { post: Post; pageName: string
           </div>
         </div>
 
-        {/* The creative */}
-        <div className="aspect-video bg-gray-100">
-          <Creative post={post} big />
-        </div>
+        {/* The creative — real document pages when it's a document post */}
+        {post.docUrl ? (
+          <DocViewer url={post.docUrl} fallback={<div className="aspect-video"><Creative post={post} big /></div>} />
+        ) : (
+          <div className="aspect-video bg-gray-100">
+            <Creative post={post} big />
+          </div>
+        )}
 
         {/* Complete metrics at the bottom */}
         <div className="p-5">

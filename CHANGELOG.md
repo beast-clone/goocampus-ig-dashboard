@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — LinkedIn document posts render like the real thing
+
+- 23 of World's 25 posts are DOCUMENT posts (carousel PDFs). Cards now render **page 1 of the actual PDF** (media.licdn.com serves them public + CORS-open; pdf.js draws them, lazy-loaded, byte-range requests so we don't download whole files). "📄 Document" badge on cards; blue text-creative stays as fallback and for text-only posts.
+- **Detail modal = LinkedIn-style document viewer**: real pages with ‹ › arrows + "page N / M" counter (verified: flips 1/4 → 2/4).
+- New dependency: pdfjs-dist.
+
 ## 2026-07-12 — LinkedIn Posts page rebuilt Instagram-style (cards + detail modal)
 
 - The table was bare (most LinkedIn posts have no image). Now: **4-up card grid** like the Instagram Posts page — real thumbnail when LinkedIn provides one, otherwise a designed **text-creative placeholder** (LinkedIn-blue gradient, type badge, the post's opening lines as the visual). Cards carry snippet, date · type, 👁 👍 💬 + eng-rate.
