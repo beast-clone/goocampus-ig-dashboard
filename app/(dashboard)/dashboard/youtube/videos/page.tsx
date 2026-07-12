@@ -189,7 +189,7 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
         </>
       )}
 
-      {selected && <DetailModal v={selected} channelName={data?.channel.name ?? "YouTube"} onClose={() => setSelected(null)} />}
+      {selected && <DetailModal v={selected} channel={channel} channelName={data?.channel.name ?? "YouTube"} onClose={() => setSelected(null)} />}
     </div>
   );
 }
@@ -246,7 +246,21 @@ function Mini({ icon, value }: { icon: React.ReactNode; value: string }) {
   );
 }
 
-function DetailModal({ v, channelName, onClose }: { v: Video; channelName: string; onClose: () => void }) {
+type Comment = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string; replyCount: number };
+
+function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: string; channelName: string; onClose: () => void }) {
+  const [comments, setComments] = useState<Comment[] | null>(null);
+  const [cReason, setCReason] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    setComments(null); setCReason(null);
+    fetch(`/api/youtube/comments?channel=${channel}&video=${v.id}`)
+      .then((r) => r.json())
+      .then((d) => { if (dead) return; setComments(d.comments || []); if (!d.available) setCReason(d.reason || "No comments."); })
+      .catch(() => { if (!dead) { setComments([]); setCReason("Couldn't load comments."); } });
+    return () => { dead = true; };
+  }, [v.id, channel]);
+
   const metrics = [
     { label: "Views", value: fmt(v.views) },
     { label: "Likes", value: fmt(v.likes) },
@@ -257,10 +271,18 @@ function DetailModal({ v, channelName, onClose }: { v: Video; channelName: strin
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-col md:flex-row">
-          <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noreferrer"
-            className={`block bg-black flex-shrink-0 ${v.isShort ? "md:w-64" : "md:w-96"}`}>
-            {v.thumbnail && <img src={v.thumbnail} alt="" className={`w-full object-cover ${v.isShort ? "aspect-[9/16]" : "aspect-video"}`} />}
-          </a>
+          {/* Plays INSIDE the dashboard — autoplays on open, never leaves the app. */}
+          <div className={`bg-black flex-shrink-0 ${v.isShort ? "md:w-72" : "md:w-[520px]"}`}>
+            <div className={`relative w-full ${v.isShort ? "aspect-[9/16]" : "aspect-video"}`}>
+              <iframe
+                className="absolute inset-0 w-full h-full"
+                src={`https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&rel=0&modestbranding=1`}
+                title={v.title}
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+              />
+            </div>
+          </div>
           <div className="flex-1 p-5 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -279,10 +301,44 @@ function DetailModal({ v, channelName, onClose }: { v: Video; channelName: strin
                 </div>
               ))}
             </div>
-            <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90" style={{ background: YT }}>
-              <IconPlayerPlayFilled size={14} /> Watch on YouTube
-            </a>
+            <div className="mt-4 text-[11px] text-gray-400 inline-flex items-center gap-1.5">
+              <IconPlayerPlayFilled size={12} className="text-red-500" /> Playing here in the dashboard
+            </div>
+
+            {/* Comments — read live from YouTube, shown in the dashboard */}
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <IconMessageCircle size={15} className="text-gray-500" />
+                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Comments</span>
+                <span className="text-[11px] text-gray-400">{fmt(v.comments)} total</span>
+              </div>
+              {comments === null ? (
+                <div className="text-sm text-gray-400 py-4">Loading comments…</div>
+              ) : comments.length === 0 ? (
+                <div className="text-sm text-gray-400 py-4">{cReason || "No comments yet."}</div>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {comments.map((c) => (
+                    <div key={c.id} className="flex gap-2.5">
+                      {c.authorImage
+                        ? <img src={c.authorImage} alt="" className="w-7 h-7 rounded-full bg-gray-100 flex-shrink-0" loading="lazy" />
+                        : <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[12px] font-medium text-gray-800 truncate">{c.author}</span>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">{c.publishedAt ? dateLabel(c.publishedAt) : ""}</span>
+                        </div>
+                        <div className="text-[13px] text-gray-700 whitespace-pre-wrap break-words leading-snug mt-0.5">{c.text}</div>
+                        <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-3">
+                          <span className="inline-flex items-center gap-1"><IconThumbUp size={11} />{fmt(c.likes)}</span>
+                          {c.replyCount > 0 && <span>{c.replyCount} repl{c.replyCount === 1 ? "y" : "ies"}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

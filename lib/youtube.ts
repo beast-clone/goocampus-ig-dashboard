@@ -102,6 +102,48 @@ export type UploadVideo = {
   comments: number;
 };
 
+export type VideoComment = {
+  id: string; author: string; authorImage: string; text: string;
+  likes: number; publishedAt: string; replyCount: number;
+};
+
+// Top comments on a video (commentThreads, ordered by relevance). Shown inside
+// the in-dashboard player modal so the whole conversation stays in the app.
+// Comments are PUBLIC data — read with a Data API key (the OAuth token's
+// youtube.readonly scope is rejected by commentThreads, a known YT quirk).
+export async function fetchVideoComments(channelKey: string, videoId: string, max = 25): Promise<{ available: boolean; reason?: string; comments: VideoComment[] }> {
+  const key = process.env.YOUTUBE_API_KEY;
+  let url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${max}&order=relevance&textFormat=plainText`;
+  const opts: RequestInit = { cache: "no-store" };
+  if (key) {
+    url += `&key=${key}`;
+  } else {
+    // Fallback to OAuth (works only if the token carries a comment-capable scope).
+    const token = await freshAccessToken(channelKey);
+    opts.headers = { Authorization: `Bearer ${token}` };
+  }
+  const r = await fetch(url, opts);
+  if (!r.ok) {
+    const t = await r.text();
+    const disabled = /commentsDisabled|disabled comments/i.test(t);
+    return { available: false, reason: disabled ? "Comments are turned off for this video." : `Couldn't load comments (${r.status}).`, comments: [] };
+  }
+  const j = await r.json();
+  const comments: VideoComment[] = (j.items || []).map((it: any) => {
+    const s = it?.snippet?.topLevelComment?.snippet || {};
+    return {
+      id: it.id,
+      author: s.authorDisplayName || "—",
+      authorImage: s.authorProfileImageUrl || "",
+      text: s.textDisplay || "",
+      likes: Number(s.likeCount || 0),
+      publishedAt: s.publishedAt || "",
+      replyCount: Number(it?.snippet?.totalReplyCount || 0),
+    };
+  });
+  return { available: true, comments };
+}
+
 // ALL videos a channel has ever uploaded (not just the top-25-in-range that the
 // Analytics API returns) — via the Data API uploads playlist. Each carries
 // LIFETIME stats (views/likes/comments) so the Shorts/Long-form pages can show

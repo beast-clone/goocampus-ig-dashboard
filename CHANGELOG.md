@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Video plays IN-dashboard + comments shown
+
+- **Standing rule (Maheen):** videos/reels play INSIDE the dashboard, never link out to YouTube. The Shorts/Long-form detail modal now embeds an autoplaying `youtube-nocookie.com` player (9:16 for Shorts, 16:9 for long-form); the "Watch on YouTube" link is gone. Keep this for all future video/reel work.
+- **Comments shown** in the player modal (`/api/youtube/comments` → `fetchVideoComments`): author avatar, name, text, likes, date, reply count — top ~25 by relevance, 15-min cached. **NEEDS: a YouTube Data API key** in env as `YOUTUBE_API_KEY` — commentThreads rejects the OAuth `youtube.readonly` scope (known YT quirk), and comments are public so a key is the right tool. Code uses the key when present, else shows an honest "couldn't load" note. (Creating the key in GCP console was blocked by a Google password re-auth I can't pass — pending Maheen's key.)
+- **CSP updated** (netlify.toml) so the deployed site allows the YouTube embed (`frame-src` youtube) + thumbnails/avatars (`img-src` i.ytimg.com, ggpht, googleusercontent) + LinkedIn media, and `connect-src` for googleapis/linkedin.
+
 ## 2026-07-12 — Shorts/Long-form pages rebuilt like Instagram Reels (FULL library)
 
 - **Root fix**: the pages showed only ~9 Shorts because they used the Analytics top-25-in-range list. New `/api/youtube/uploads` + `fetchChannelUploads()` page the channel's **entire uploads playlist** via the Data API → GooCampus returns **400 videos (284 Shorts, 116 long-form)** with lifetime views/likes/comments. 30-min cached.
