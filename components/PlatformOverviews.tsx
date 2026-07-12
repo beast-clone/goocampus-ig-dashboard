@@ -47,6 +47,23 @@ function PanelHeader({ title, href, source, sub }: { title: string; href: string
   );
 }
 
+// Narrative fold — the plain-English one-liner at the top of each platform view,
+// matching the Instagram overview's style. Always built from real numbers.
+function Fold({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section className="pb-4 border-b border-gray-200">
+      <div className="text-[12px] text-gray-500 mb-1">{label}</div>
+      <h1 className="text-[22px] leading-[1.4] text-gray-900 font-normal">{children}</h1>
+    </section>
+  );
+}
+function Up({ children }: { children: React.ReactNode }) {
+  return <b className="text-emerald-700 font-semibold">{children}</b>;
+}
+function Down({ children }: { children: React.ReactNode }) {
+  return <b className="text-rose-700 font-semibold">{children}</b>;
+}
+
 function EmptyPlatform({ platform, brand }: { platform: string; brand: string }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center">
@@ -136,9 +153,17 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
     ? Math.max(1, Math.round((Math.max(...postDates) - Math.min(...postDates)) / 86_400_000 / (postDates.length - 1)))
     : null;
 
+  const nPosts = data.posts.available ? data.posts.items.length : 0;
   return (
     <div className="space-y-4">
       <PanelHeader title={data.page.name || "Facebook"} sub="Facebook Page" href="/dashboard/facebook" source={data.source} />
+      <Fold label={`Facebook · ${data.page.name || "Page"} · in range`}>
+        {data.insights.engagement !== null ? (
+          <>Your page drove <Up>{fmt(data.insights.engagement)} post engagements</Up> this period{data.insights.pageViews !== null && <> and <Up>{fmt(data.insights.pageViews)} page views</Up></>}.</>
+        ) : (
+          <>Your page has <Up>{fmt(data.page.followers)} followers</Up>{nPosts > 0 && <> and <Up>{nPosts} recent posts</Up> live</>}.</>
+        )}
+      </Fold>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Followers" value={fmt(data.page.followers)} sub="live from Meta" color="#1877F2" />
         <Stat label="Engagement" value={fmt(data.insights.engagement)} sub={data.insights.engagement === null ? "unavailable" : "post engagements in range"} />
@@ -228,9 +253,15 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
   const jobs = (data.demographics?.jobFunction || []).slice(0, 3);
   const places = (data.demographics?.location || []).slice(0, 3);
 
+  const liGain = data.summary.followerGain ?? 0;
   return (
     <div className="space-y-4">
       <PanelHeader title={data.page.name || "LinkedIn"} sub="LinkedIn Page" href="/dashboard/linkedin" source={data.source} />
+      <Fold label={`LinkedIn · ${data.page.name || "Page"} · in range`}>
+        You {liGain >= 0
+          ? <Up>gained {fmt(Math.abs(liGain))} followers</Up>
+          : <Down>lost {fmt(Math.abs(liGain))} followers</Down>} this period, and your posts made <Up>{fmt(data.summary.impressions)} impressions</Up>.
+      </Fold>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat label="Followers" value={fmt(data.summary.followers)} sub={`+${data.summary.followerGain} in range`} color="#0A66C2" />
         <Stat label="Impressions" value={fmt(data.summary.impressions)} sub="in range" />
@@ -350,9 +381,15 @@ export function YouTubeOverview({ accountId, range }: { accountId: string; range
   const genders = (data.traffic?.genderSplit || []).filter((g) => g.label !== "genderUserSpecified");
   const dur = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
+  const ytGain = data.summary.subscriberGain ?? 0;
   return (
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={data.channel.handle} href="/dashboard/youtube" source={data.source} />
+      <Fold label={`YouTube · ${data.channel.name || "Channel"} · in range`}>
+        You {ytGain >= 0
+          ? <Up>gained {fmt(Math.abs(ytGain))} subscribers</Up>
+          : <Down>lost {fmt(Math.abs(ytGain))} subscribers</Down>} this period, and your videos pulled <Up>{fmt(data.summary.views)} views</Up> with <Up>{fmt(Math.round(data.summary.watchHours))} hours watched</Up>.
+      </Fold>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Subscribers" value={fmt(data.summary.subscribers)} sub={`+${data.summary.subscriberGain} in range`} color="#FF0000" />
         <Stat label="Views" value={fmt(data.summary.views)} sub="in range" />

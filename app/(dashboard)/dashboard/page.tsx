@@ -7,6 +7,7 @@ import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
+import { ACCOUNTS } from "@/lib/accounts";
 import { useApi } from "@/lib/use-api";
 import type { Post } from "@/components/LatestPost";
 
@@ -145,8 +146,8 @@ function Overview({ accountId, range }: { accountId: string; range: { from: stri
 
       {/* NARRATIVE FOLD — what happened, in plain English */}
       <section className="pb-5 mb-6 border-b border-gray-200">
-        <div className="text-[12px] text-gray-500 mb-1"><span className="text-gray-900 font-medium">Overview</span> · @goocampus · last {rangeDays} days</div>
-        <h1 className="text-[22px] leading-[1.4] text-gray-900 font-normal max-w-[820px]" style={{ textWrap: "balance" as never }}>
+        <div className="text-[12px] text-gray-500 mb-1"><span className="text-gray-900 font-medium">Overview</span> · {ACCOUNTS.find((a) => a.id === accountId)?.handle ?? accountId} · last {rangeDays} days</div>
+        <h1 className="text-[22px] leading-[1.4] text-gray-900 font-normal">
           You <b className={fldDown ? "text-rose-700 font-semibold" : "text-emerald-700 font-semibold"}>{gainWord} {fmt(Math.abs(data.totals.newFollowers))} followers</b> this period.
           {bothDown && (
             <>{" "}But <b className="text-rose-700 font-semibold">Reach dropped {Math.abs(data.deltas.reach).toFixed(0)}%</b> and <b className="text-rose-700 font-semibold">Engagement dropped {Math.abs(data.deltas.engagement).toFixed(0)}%</b> — growth is coming from something other than your posts.</>

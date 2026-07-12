@@ -3,6 +3,11 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Narrative one-liners on every platform + every brand
+
+- The Instagram overview's plain-English headline now sits on ONE line (removed the 820px cap + balanced wrapping), and its label shows the SELECTED account's handle instead of hard-coded @goocampus — so 12thplus/Samvaya/World read correctly.
+- Facebook, LinkedIn and YouTube overview panels got their own narrative one-liner in the same style, always from real numbers: FB "Your page drove X post engagements and Y page views", LinkedIn "You gained X followers … Y impressions", YouTube "You gained X subscribers … Y views with Z hours watched" (gained/lost flips red when negative; FB falls back to followers+posts when insights are unavailable).
+
 ## 2026-07-12 — Dark sidebar rail (matches the member dashboard)
 
 - Admin sidebar reskinned to the member dashboard's rail: `#14151C` background, white header, soft-gray items (`#AEB6C6`) with white hover, active tab = white/10 pill with violet-tinted icon (`#A99AF5`), muted caps group headings, dark bottom shelf. Maheen compared white vs dark and chose dark — better nav/content separation on a dense screen + one visual system across both dashboards.
