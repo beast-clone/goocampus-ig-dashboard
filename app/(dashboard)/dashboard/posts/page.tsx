@@ -262,9 +262,9 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 // than the shared MetricCard so all 7 fit horizontally on desktop without wrapping.
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2.5">
-      <div className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
-      <div className="text-lg font-bold text-gray-900 tabular-nums leading-tight mt-0.5 truncate">{value}</div>
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3.5">
+      <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
+      <div className="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-1 truncate">{value}</div>
     </div>
   );
 }
@@ -450,42 +450,36 @@ function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null
   }
   const engagement = post.totalInteractions || (post.likes + post.comments);
   return (
-    <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="block p-5 hover:bg-gray-50 transition group">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs uppercase tracking-wide text-gray-600 font-semibold">{label}</div>
-        <div className="text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 rounded-full px-2.5 py-1 font-semibold">
-          Top by reach
-        </div>
+    <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="block p-4 hover:bg-gray-50 transition group">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">{label}</div>
+        <div className="text-[9px] uppercase tracking-wide bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 font-semibold">Top by reach</div>
       </div>
-      {/* Big thumbnail on top */}
-      <div className="relative rounded-xl overflow-hidden bg-gray-100 aspect-square mb-3">
+      <div className="flex gap-3">
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200" />
+          <img src={post.mediaUrl} alt="" className="w-20 h-20 object-cover rounded-lg shrink-0" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">
-            {TYPE_LABEL[post.type]?.[0] ?? "?"}
-          </div>
+          <div className="w-20 h-20 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-sm text-gray-400">{TYPE_LABEL[post.type]?.[0] ?? "?"}</div>
         )}
-        <span className="absolute top-2 left-2 text-[10px] font-medium bg-black/60 text-white rounded-full px-2 py-0.5">
-          {TYPE_LABEL[post.type] ?? post.type}
-        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] text-gray-500">{TYPE_LABEL[post.type] ?? post.type} · {format(parseISO(post.timestamp), "d MMM")}</div>
+          <div className="text-xs text-gray-900 leading-snug mt-0.5 line-clamp-3 group-hover:text-brand">
+            {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
+          </div>
+        </div>
       </div>
-      <div className="text-xs text-gray-500">{format(parseISO(post.timestamp), "d MMM yyyy")}</div>
-      <div className="text-sm text-gray-900 leading-snug mt-1 line-clamp-2 min-h-[2.5rem] group-hover:text-brand">
-        {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
+      <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5 border-t border-gray-100 text-center">
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">Reach</div>
-          <div className="text-lg font-bold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Reach</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">Likes</div>
-          <div className="text-lg font-bold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Likes</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">Engage</div>
-          <div className="text-lg font-bold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
+          <div className="text-[9px] uppercase tracking-wide text-gray-500">Engage</div>
+          <div className="text-sm font-bold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
         </div>
       </div>
     </a>

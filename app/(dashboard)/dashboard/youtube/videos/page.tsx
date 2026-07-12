@@ -143,15 +143,28 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
 
           {/* Reusable / proven shelf */}
           {reusable.length > 0 && (
-            <div className="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <IconRefresh size={20} stroke={1.9} className="text-emerald-600" />
-                <span className="text-base font-semibold text-gray-800">Proven {kind === "shorts" ? "Shorts" : "videos"} — worth reposting</span>
-                <span className="text-xs text-gray-400">your top all-time, over a month old</span>
+            <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <IconRefresh size={17} stroke={1.9} className="text-emerald-600" />
+                <span className="text-sm font-semibold text-gray-800">Proven {kind === "shorts" ? "Shorts" : "videos"} — worth reposting</span>
+                <span className="text-[10px] text-gray-400">your top all-time, over a month old</span>
               </div>
-              {/* BIG cards — 3-up (or 2-up for long-form) so they stand out above the full library */}
-              <div className={`grid gap-4 ${kind === "shorts" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl" : "grid-cols-1 md:grid-cols-2"}`}>
-                {reusable.map((v, i) => <VideoCard key={v.id} v={v} isTop={i === 0} onClick={() => setSelected(v)} />)}
+              {/* Compact cards: medium thumbnail + stats, 3-up */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {reusable.map((v) => (
+                  <button key={v.id} onClick={() => setSelected(v)} className="flex gap-3 rounded-lg bg-white border border-gray-100 p-2.5 hover:border-gray-300 text-left">
+                    <div className={`${kind === "shorts" ? "w-14 aspect-[9/16]" : "w-28 aspect-video"} rounded-md overflow-hidden bg-gray-100 flex-shrink-0`}>
+                      {v.thumbnail && <img src={v.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] text-gray-900 leading-snug line-clamp-2">{v.title}</div>
+                      <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 tabular-nums">
+                        <span className="inline-flex items-center gap-0.5"><IconEye size={12} className="text-gray-400" />{fmt(v.views)}</span>
+                        <span>{dateLabel(v.publishedAt)}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           )}
