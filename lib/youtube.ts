@@ -102,9 +102,12 @@ export type UploadVideo = {
   comments: number;
 };
 
+export type VideoReply = {
+  id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string;
+};
 export type VideoComment = {
   id: string; author: string; authorImage: string; text: string;
-  likes: number; publishedAt: string; replyCount: number;
+  likes: number; publishedAt: string; replyCount: number; replies: VideoReply[];
 };
 
 // Top comments on a video (commentThreads, ordered by relevance). Shown inside
@@ -113,7 +116,8 @@ export type VideoComment = {
 // youtube.readonly scope is rejected by commentThreads, a known YT quirk).
 export async function fetchVideoComments(channelKey: string, videoId: string, max = 25): Promise<{ available: boolean; reason?: string; comments: VideoComment[] }> {
   const key = process.env.YOUTUBE_API_KEY;
-  let url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${max}&order=relevance&textFormat=plainText`;
+  // part=snippet,replies returns up to 5 replies per top-level comment inline.
+  let url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${encodeURIComponent(videoId)}&maxResults=${max}&order=relevance&textFormat=plainText`;
   const opts: RequestInit = { cache: "no-store" };
   if (key) {
     url += `&key=${key}`;
@@ -131,6 +135,17 @@ export async function fetchVideoComments(channelKey: string, videoId: string, ma
   const j = await r.json();
   const comments: VideoComment[] = (j.items || []).map((it: any) => {
     const s = it?.snippet?.topLevelComment?.snippet || {};
+    const replies: VideoReply[] = (it?.replies?.comments || []).map((rc: any) => {
+      const rs = rc?.snippet || {};
+      return {
+        id: rc.id,
+        author: rs.authorDisplayName || "—",
+        authorImage: rs.authorProfileImageUrl || "",
+        text: rs.textDisplay || "",
+        likes: Number(rs.likeCount || 0),
+        publishedAt: rs.publishedAt || "",
+      };
+    }).reverse(); // API returns newest-first; show oldest-first under the parent
     return {
       id: it.id,
       author: s.authorDisplayName || "—",
@@ -139,6 +154,7 @@ export async function fetchVideoComments(channelKey: string, videoId: string, ma
       likes: Number(s.likeCount || 0),
       publishedAt: s.publishedAt || "",
       replyCount: Number(it?.snippet?.totalReplyCount || 0),
+      replies,
     };
   });
   return { available: true, comments };

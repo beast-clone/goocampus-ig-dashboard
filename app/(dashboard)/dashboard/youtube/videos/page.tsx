@@ -246,7 +246,8 @@ function Mini({ icon, value }: { icon: React.ReactNode; value: string }) {
   );
 }
 
-type Comment = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string; replyCount: number };
+type Reply = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string };
+type Comment = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string; replyCount: number; replies?: Reply[] };
 
 function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: string; channelName: string; onClose: () => void }) {
   const [comments, setComments] = useState<Comment[] | null>(null);
@@ -333,6 +334,26 @@ function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: 
                           <span className="inline-flex items-center gap-1"><IconThumbUp size={11} />{fmt(c.likes)}</span>
                           {c.replyCount > 0 && <span>{c.replyCount} repl{c.replyCount === 1 ? "y" : "ies"}</span>}
                         </div>
+                        {/* Nested replies */}
+                        {(c.replies?.length ?? 0) > 0 && (
+                          <div className="mt-2 space-y-2 pl-3 border-l-2 border-gray-100">
+                            {c.replies!.map((rp) => (
+                              <div key={rp.id} className="flex gap-2">
+                                {rp.authorImage
+                                  ? <img src={rp.authorImage} alt="" className="w-5 h-5 rounded-full bg-gray-100 flex-shrink-0" loading="lazy" />
+                                  : <div className="w-5 h-5 rounded-full bg-gray-200 flex-shrink-0" />}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-[11px] font-medium text-gray-800 truncate">{rp.author}</span>
+                                    <span className="text-[9px] text-gray-400 flex-shrink-0">{rp.publishedAt ? dateLabel(rp.publishedAt) : ""}</span>
+                                  </div>
+                                  <div className="text-[12px] text-gray-700 whitespace-pre-wrap break-words leading-snug mt-0.5">{rp.text}</div>
+                                  {rp.likes > 0 && <div className="text-[10px] text-gray-400 mt-0.5 inline-flex items-center gap-1"><IconThumbUp size={10} />{fmt(rp.likes)}</div>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
