@@ -6,6 +6,7 @@ import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePi
 import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
+import { useProfile } from "@/lib/profile";
 
 // Persist the account picker across tab navigation. Each tab re-mounts the
 // DashboardShell, so without this the selection would reset to the default
@@ -69,9 +70,14 @@ export function DashboardShell({
     try { window.localStorage.setItem(LS_COMPARE, v ? "1" : "0"); } catch { /* ignore */ }
   };
 
-  const account = ACCOUNTS.find((a) => a.id === accountId);
-  const headerTitle = compareAll ? `${title} — All Accounts` : title;
-  const headerSub = compareAll ? "Cross-account comparison" : subtitle ?? account?.handle;
+  // Profile mode (sidebar switcher): the brand profile overrides the account
+  // picker entirely — every page is locked to that brand and the dropdown hides.
+  const profile = useProfile();
+  const effectiveAccountId = profile ?? accountId;
+
+  const account = ACCOUNTS.find((a) => a.id === effectiveAccountId);
+  const headerTitle = compareAll && !profile ? `${title} — All Accounts` : title;
+  const headerSub = compareAll && !profile ? "Cross-account comparison" : subtitle ?? account?.handle;
 
   return (
     <div className="flex">
@@ -90,21 +96,27 @@ export function DashboardShell({
           <div className="flex items-center gap-3">
             {/* Brand scope — moved here from the sidebar (2026-07-11). Picking a
                 brand scopes the whole page to it. */}
-            <select
-              value={accountId}
-              onChange={(e) => { setAccountId(e.target.value); setCompareAll(false); }}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
-            >
-              {ACCOUNTS.map((a) => (
-                <option key={a.id} value={a.id}>{a.label}</option>
-              ))}
-            </select>
+            {profile ? (
+              <span className="rounded-lg bg-brand-light text-brand px-3 py-2 text-sm font-medium">
+                {account?.label ?? profile} · profile view
+              </span>
+            ) : (
+              <select
+                value={accountId}
+                onChange={(e) => { setAccountId(e.target.value); setCompareAll(false); }}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
+              >
+                {ACCOUNTS.map((a) => (
+                  <option key={a.id} value={a.id}>{a.label}</option>
+                ))}
+              </select>
+            )}
             <TokenExpiryBadge />
             <DateRangePicker value={range} onChange={setRange} />
-            <PdfExportButton accountId={compareAll ? "all" : accountId} range={range} />
+            <PdfExportButton accountId={profile ?? (compareAll ? "all" : accountId)} range={range} />
           </div>
         </div>
-        {children({ accountId: compareAll ? "all" : accountId, compareAll, range })}
+        {children({ accountId: profile ?? (compareAll ? "all" : accountId), compareAll: profile ? false : compareAll, range })}
       </main>
     </div>
   );

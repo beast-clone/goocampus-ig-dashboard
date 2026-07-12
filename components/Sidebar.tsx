@@ -1,22 +1,27 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ACCOUNTS } from "@/lib/accounts";
+import { useProfile, setProfile } from "@/lib/profile";
 import {
   IconHome, IconLayoutKanban, IconSun, IconCalendar, IconSend, IconRadar,
   IconCompass, IconHash, IconBrandInstagram, IconPhoto, IconMovie,
   IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
   IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
   IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
+  IconSwitchHorizontal, IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
-// Grouped navigation (Maheen, 2026-07-12):
-//   Overview · CONTENT · ANALYTICS (each platform is a folder with its own
-//   Audience inside; Instagram also has Posts/Reels/Stories) · AUDIENCE
-//   (the collective all-platform page) · ADS · SALES · AI · Team + Sign out.
-// Per-platform audience links use URL hashes (/dashboard/audience#youtube) —
-// the Audience page reads the hash to open the right platform view.
+// Grouped navigation + BRAND PROFILE SWITCHER (Maheen, 2026-07-12):
+//   MAIN mode (profile = null): Overview · CONTENT · ANALYTICS (platform
+//   folders w/ their own Audience) · AUDIENCE (all platforms) · ADS · SALES ·
+//   AI · Team — the full admin home. Untouched behaviour.
+//   PROFILE mode (a brand picked in the switcher): the dashboard is locked to
+//   that brand and the nav slims to Overview · ANALYTICS · AUDIENCE · ADS.
+//   Leads/Sales stay main-only. Clicking the GooCampus logo returns to main.
+// The switcher card lives in the empty space under the last nav group.
 
 type NavLink = { label: string; href: string; icon: TablerIcon };
 type Folder = { key: string; label: string; icon: TablerIcon; href?: string; children: NavLink[] };
@@ -31,9 +36,6 @@ const CONTENT: NavLink[] = [
   { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
 ];
 
-// Analytics platform folders. Instagram's parent row is a pure toggle (it has
-// no single page); the other platforms' parent rows link to their deep-dive
-// page and the chevron reveals their Audience.
 const PLATFORM_FOLDERS: Folder[] = [
   {
     key: "instagram", label: "Instagram", icon: IconBrandInstagram,
@@ -84,6 +86,17 @@ const AI: NavLink[] = [
   { label: "AI Reports", href: "/dashboard/ai-reports", icon: IconReport },
 ];
 
+// Brand chip colours for the switcher avatars.
+const BRAND_COLORS: Record<string, string> = {
+  goocampus: "#6D5CE7",
+  goocampusworld: "#1D9E75",
+  "12thplusdotcom": "#EF9F27",
+  samvaya_matrimony: "#D4537E",
+};
+function brandInitials(label: string): string {
+  return label.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-[#7C8494]">
@@ -94,8 +107,11 @@ function GroupHeading({ children }: { children: React.ReactNode }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const profile = useProfile();
+  const profileAccount = profile ? ACCOUNTS.find((a) => a.id === profile) ?? null : null;
 
-  // Track the URL hash so per-platform Audience links highlight correctly.
+  // Track the URL hash so hash-routed links (audience/videos) highlight correctly.
   const [hash, setHash] = useState("");
   useEffect(() => {
     const read = () => setHash(window.location.hash.replace("#", ""));
@@ -104,8 +120,7 @@ export function Sidebar() {
     return () => window.removeEventListener("hashchange", read);
   }, [pathname]);
 
-  // Role-aware: admins see the nav; members never reach /dashboard/* at all
-  // (middleware bounces them), so nothing renders until /api/me confirms admin.
+  // Role-aware: admins see the nav; members never reach /dashboard/* at all.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -119,15 +134,13 @@ export function Sidebar() {
   const isActive = (href: string): boolean => {
     const [path, frag] = href.split("#");
     if (pathname !== path) return false;
-    // "#all" = the collective Audience tab — also active with no hash at all.
     if (frag === "all") return hash === "all" || hash === "";
     if (frag) return hash === frag;
     return true;
   };
 
-  // Which folders are open: auto-open the one whose parent or child is active,
-  // plus any the user toggled by hand.
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const folderActive = (f: Folder) =>
     (f.href ? isActive(f.href) : false) || f.children.some((c) => isActive(c.href));
 
@@ -146,14 +159,19 @@ export function Sidebar() {
     );
   };
 
+  // One consistent row layout for every folder (fixes the misaligned chevrons):
+  // icon + label share the items' grid; the chevron gets a fixed w-7 slot on the
+  // right. Clicking a parent that has a page navigates AND unfolds its children.
   const folder = (f: Folder) => {
     const open = openKeys[f.key] ?? folderActive(f);
     const parentActive = f.href ? isActive(f.href) : false;
     const Ico = f.icon;
-    const chevron = (
+    const toggle = () => setOpenKeys((s) => ({ ...s, [f.key]: !open }));
+    const forceOpen = () => setOpenKeys((s) => ({ ...s, [f.key]: true }));
+    const chevron = (onClick: (e: React.MouseEvent) => void) => (
       <button
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenKeys((s) => ({ ...s, [f.key]: !open })); }}
-        className={`px-1.5 text-xs text-[#8A93A6] transition-transform ${open ? "rotate-90" : ""}`}
+        onClick={onClick}
+        className={`w-7 h-7 flex items-center justify-center text-xs text-[#8A93A6] hover:text-white transition-transform ${open ? "rotate-90" : ""}`}
         aria-label={`${open ? "Collapse" : "Expand"} ${f.label}`}
       >
         ›
@@ -162,21 +180,27 @@ export function Sidebar() {
     return (
       <div key={f.key}>
         {f.href ? (
-          <div className={`flex items-center rounded-lg ${parentActive ? "bg-white/10" : "hover:bg-white/5"}`}>
-            <Link href={f.href} className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-white font-medium" : "text-[#AEB6C6]"}`}>
+          <div className={`flex items-center rounded-lg pr-0.5 ${parentActive ? "bg-white/10" : "hover:bg-white/5"}`}>
+            <Link
+              href={f.href}
+              onClick={forceOpen}
+              className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-white font-medium" : "text-[#AEB6C6]"}`}
+            >
               <Ico size={17} stroke={1.7} className={parentActive ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
               {f.label}
             </Link>
-            {chevron}
+            {chevron((e) => { e.preventDefault(); e.stopPropagation(); toggle(); })}
           </div>
         ) : (
           <button
-            onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: !open }))}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left ${folderActive(f) ? "text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5"}`}
+            onClick={toggle}
+            className={`w-full flex items-center rounded-lg pr-0.5 text-left ${folderActive(f) ? "text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5"}`}
           >
-            <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
-            <span className="flex-1">{f.label}</span>
-            <span className={`text-[#8A93A6] text-xs transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+            <span className="flex-1 flex items-center gap-2.5 px-3 py-1.5">
+              <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
+              {f.label}
+            </span>
+            <span className={`w-7 h-7 flex items-center justify-center text-xs text-[#8A93A6] transition-transform ${open ? "rotate-90" : ""}`}>›</span>
           </button>
         )}
         {open && f.children.map((c) => item(c, true))}
@@ -184,20 +208,35 @@ export function Sidebar() {
     );
   };
 
+  const switchTo = (id: string | null) => {
+    setProfile(id);
+    setSwitcherOpen(false);
+    router.push("/dashboard");
+  };
+
   return (
     <aside className="w-64 bg-[#14151C] flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-5 border-b border-white/10">
+      {/* Logo = home. In profile mode, clicking it returns to the main dashboard. */}
+      <button
+        onClick={() => switchTo(null)}
+        className="px-5 py-5 border-b border-white/10 text-left hover:bg-white/5"
+        title={profile ? "Back to the main dashboard" : "Main dashboard"}
+      >
         <div className="text-lg font-semibold text-white">GooCampus</div>
         <div className="text-xs text-[#9BA3B4]">Marketing OS</div>
-      </div>
+      </button>
 
       <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0">
         {isAdmin && (
           <>
             {item({ label: "Overview", href: "/dashboard", icon: IconHome })}
 
-            <GroupHeading>Content</GroupHeading>
-            {CONTENT.map((t) => item(t))}
+            {!profile && (
+              <>
+                <GroupHeading>Content</GroupHeading>
+                {CONTENT.map((t) => item(t))}
+              </>
+            )}
 
             <GroupHeading>Analytics</GroupHeading>
             {PLATFORM_FOLDERS.map(folder)}
@@ -208,17 +247,74 @@ export function Sidebar() {
             <GroupHeading>Ads</GroupHeading>
             {ADS.map((t) => item(t))}
 
-            <GroupHeading>Sales</GroupHeading>
-            {SALES.map((t) => item(t))}
+            {!profile && (
+              <>
+                <GroupHeading>Sales</GroupHeading>
+                {SALES.map((t) => item(t))}
 
-            <GroupHeading>AI</GroupHeading>
-            {AI.map((t) => item(t))}
+                <GroupHeading>AI</GroupHeading>
+                {AI.map((t) => item(t))}
+              </>
+            )}
+
+            {/* ── Brand profile switcher — lives in the empty space below the groups ── */}
+            <div className="pt-5 pb-2 relative">
+              {switcherOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#1D1E27] border border-white/10 rounded-xl overflow-hidden shadow-xl z-20">
+                  <button
+                    onClick={() => switchTo(null)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[#AEB6C6] hover:bg-white/5 hover:text-white text-sm"
+                  >
+                    <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center"><IconHome size={15} stroke={1.7} /></span>
+                    <span className="flex-1">Main dashboard</span>
+                    {!profile && <IconCheck size={15} className="text-[#A99AF5]" />}
+                  </button>
+                  <div className="border-t border-white/10" />
+                  {ACCOUNTS.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => switchTo(a.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[#AEB6C6] hover:bg-white/5 hover:text-white text-sm"
+                    >
+                      <span
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
+                        style={{ background: BRAND_COLORS[a.id] ?? "#555" }}
+                      >
+                        {brandInitials(a.label)}
+                      </span>
+                      <span className="flex-1 truncate">{a.label}</span>
+                      {profile === a.id && <IconCheck size={15} className="text-[#A99AF5]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => setSwitcherOpen((v) => !v)}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-left"
+              >
+                {profileAccount ? (
+                  <span
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                    style={{ background: BRAND_COLORS[profileAccount.id] ?? "#555" }}
+                  >
+                    {brandInitials(profileAccount.label)}
+                  </span>
+                ) : (
+                  <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 text-[#AEB6C6]"><IconHome size={15} stroke={1.7} /></span>
+                )}
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[10px] uppercase tracking-widest text-[#7C8494]">{profileAccount ? "Profile" : "Viewing"}</span>
+                  <span className="block text-sm text-white truncate">{profileAccount ? profileAccount.label : "Main dashboard"}</span>
+                </span>
+                <IconSwitchHorizontal size={15} stroke={1.7} className="text-[#8A93A6] flex-shrink-0" />
+              </button>
+            </div>
           </>
         )}
       </nav>
 
       <div className="px-3 py-3 border-t border-white/10 space-y-0.5 text-sm">
-        {isAdmin && item({ label: "Team", href: "/dashboard/team", icon: IconUsersGroup })}
+        {isAdmin && !profile && item({ label: "Team", href: "/dashboard/team", icon: IconUsersGroup })}
         <form action="/api/logout" method="post" className="px-3 pt-1">
           <button className="flex items-center gap-2 text-xs text-[#8A93A6] hover:text-white">
             <IconLogout size={14} stroke={1.7} />

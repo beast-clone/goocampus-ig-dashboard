@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Brand PROFILE SWITCHER (Facebook-Pages style)
+
+- **Switcher card** in the sidebar's empty space below the nav groups: shows what you're viewing (Main dashboard, or the brand profile with its colored initials chip); click → pick Main / Edu / World / 12thPlus / Samvaya.
+- **Profile mode**: the whole dashboard locks to that brand — lands on its Overview, the sidebar slims to **Overview · Analytics · Audience · Ads** (Content, Sales, AI, Team hidden — Leads/Sales Ops stay MAIN-dashboard-only per Maheen), the header account dropdown is replaced by a "«Brand» · profile view" chip, and every page scopes to the brand automatically (new lib/profile.ts, localStorage + event sync into DashboardShell).
+- **Main mode untouched** — and clicking the GooCampus logo (now a button) exits any profile back to the full admin home.
+- Sidebar fixes: platform folder rows realigned (chevrons in a fixed slot, consistent row grid); clicking a platform parent now opens its page AND unfolds its children (verified: collapse → click → expanded on /dashboard/youtube).
+- Verified end-to-end: 12thPlus profile → @12thplusdotcom overview, slim nav, chip header; logo → full nav restored. No console errors.
+
 ## 2026-07-12 — Audience lock + YouTube channel pills
 
 - **No duplicate platform toggle**: opening Audience from inside a platform folder (e.g. YouTube → Audience) now locks the page to that platform — small label + link to "All platforms" instead of the 4-button switcher. The standalone AUDIENCE → All platforms entry (`#all`) keeps the toggle.
