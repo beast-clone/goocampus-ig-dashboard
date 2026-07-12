@@ -246,6 +246,33 @@ function Mini({ icon, value }: { icon: React.ReactNode; value: string }) {
   );
 }
 
+// Comment/reply avatar — Google's image CDN 403s hotlinked requests unless we
+// send no referrer; on any failure fall back to a coloured initial circle.
+function Avatar({ src, name, size }: { src: string; name: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  const initial = (name || "?").replace(/^@/, "").charAt(0).toUpperCase();
+  const hue = Array.from(name || "?").reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  if (!src || failed) {
+    return (
+      <div className="rounded-full flex items-center justify-center text-white font-medium flex-shrink-0"
+        style={{ width: size, height: size, fontSize: size * 0.45, background: `hsl(${hue} 55% 55%)` }}>
+        {initial}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="rounded-full bg-gray-100 flex-shrink-0 object-cover"
+      style={{ width: size, height: size }}
+      loading="lazy"
+    />
+  );
+}
+
 type Reply = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string };
 type Comment = { id: string; author: string; authorImage: string; text: string; likes: number; publishedAt: string; replyCount: number; replies?: Reply[] };
 
@@ -321,9 +348,7 @@ function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: 
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                   {comments.map((c) => (
                     <div key={c.id} className="flex gap-2.5">
-                      {c.authorImage
-                        ? <img src={c.authorImage} alt="" className="w-7 h-7 rounded-full bg-gray-100 flex-shrink-0" loading="lazy" />
-                        : <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />}
+                      <Avatar src={c.authorImage} name={c.author} size={28} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-[12px] font-medium text-gray-800 truncate">{c.author}</span>
@@ -339,9 +364,7 @@ function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: 
                           <div className="mt-2 space-y-2 pl-3 border-l-2 border-gray-100">
                             {c.replies!.map((rp) => (
                               <div key={rp.id} className="flex gap-2">
-                                {rp.authorImage
-                                  ? <img src={rp.authorImage} alt="" className="w-5 h-5 rounded-full bg-gray-100 flex-shrink-0" loading="lazy" />
-                                  : <div className="w-5 h-5 rounded-full bg-gray-200 flex-shrink-0" />}
+                                <Avatar src={rp.authorImage} name={rp.author} size={20} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-baseline gap-2">
                                     <span className="text-[11px] font-medium text-gray-800 truncate">{rp.author}</span>
