@@ -82,10 +82,11 @@ export async function GET(req: Request) {
     const adAcct = getAdAccount();
 
     type AdData = { adLeads: number; adSpend: number; monthlyAdLeads: Record<string, number> };
+    type PostLead = { id: string; permalink: string; caption: string; leads: number };
     type CommentData = {
       commentLeads: number; totalComments: number; totalReplied: number;
       monthlyCommentLeads: Record<string, number>; keywordCounts: Record<string, number>;
-      postsAnalyzed: number;
+      postsAnalyzed: number; topPostsRaw: PostLead[];
     };
 
     const adsPromise: Promise<AdData> = (async () => {
@@ -106,7 +107,7 @@ export async function GET(req: Request) {
     const commentsPromise: Promise<CommentData> = (async () => {
       const out: CommentData = {
         commentLeads: 0, totalComments: 0, totalReplied: 0,
-        monthlyCommentLeads: {}, keywordCounts: {}, postsAnalyzed: 0,
+        monthlyCommentLeads: {}, keywordCounts: {}, postsAnalyzed: 0, topPostsRaw: [],
       };
       const media = await fetchRecentMedia(acct, 50);
       const inRange = media.filter((m) => {
@@ -126,17 +127,27 @@ export async function GET(req: Request) {
           if ((m.comments_count ?? 0) === 0) continue;
           try {
             const comments = await fetchMediaComments(acct!, m.id, 50);
+            let postLeads = 0;
             for (const c of comments) {
               out.totalComments++;
               const det = detectLead(c.text || "");
               if (det.lead && det.keyword) {
                 out.commentLeads++;
+                postLeads++;
                 out.keywordCounts[det.keyword] = (out.keywordCounts[det.keyword] || 0) + 1;
                 const mo = monthOf(c.timestamp);
                 if (mo) out.monthlyCommentLeads[mo] = (out.monthlyCommentLeads[mo] || 0) + 1;
               }
               const repls = (c.replies as { data?: { id: string }[] } | undefined)?.data;
               if (repls && repls.length > 0) out.totalReplied++;
+            }
+            if (postLeads > 0) {
+              out.topPostsRaw.push({
+                id: m.id,
+                permalink: m.permalink,
+                caption: (m.caption || "").replace(/\s+/g, " ").trim().slice(0, 90),
+                leads: postLeads,
+              });
             }
           } catch { /* skip */ }
         }
@@ -182,6 +193,9 @@ export async function GET(req: Request) {
       commentsReplied: totalReplied,
       totalComments,
       postsAnalyzed: comments.postsAnalyzed,
+      leadsPerPost: comments.postsAnalyzed > 0 ? commentLeads / comments.postsAnalyzed : 0,
+      commentConversion: totalComments > 0 ? commentLeads / totalComments : 0,
+      topPosts: comments.topPostsRaw.sort((a, b) => b.leads - a.leads).slice(0, 3),
     };
 
     await cacheSet(cacheKey, result);

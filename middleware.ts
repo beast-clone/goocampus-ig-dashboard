@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 const PUBLIC_API_ROUTES = new Set<string>([
   "/api/login",
   "/api/logout",
+  "/api/auth/google/start",
+  "/api/auth/google/callback",
 ]);
 
 // CRON routes that auth themselves via x-cron-secret header — middleware should NOT gate them
