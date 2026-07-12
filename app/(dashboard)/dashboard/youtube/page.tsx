@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
-import { ChartCard, VBars, AgeGenderBars, regionName } from "@/components/PlatformAudience";
+import { ChartCard, VBars, AgeGenderPies, regionName } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -158,8 +158,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               </ChartCard>
             </div>
             <div className="mt-4">
-              <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(data.traffic.ageGender?.length ?? 0)}>
-                <AgeGenderBars data={data.traffic.ageGender ?? []} />
+              <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!data.traffic.ageGroups.length && !data.traffic.genderSplit.length}>
+                <AgeGenderPies ageGroups={data.traffic.ageGroups} genderSplit={data.traffic.genderSplit} />
               </ChartCard>
             </div>
           </Section>

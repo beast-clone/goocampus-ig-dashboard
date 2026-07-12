@@ -6,7 +6,6 @@ import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
 import { useProfile } from "@/lib/profile";
 import { useState } from "react";
-import { IconMan, IconWoman } from "@tabler/icons-react";
 
 // Facebook / LinkedIn / YouTube audience panels for the Audience tab — styled
 // like the Instagram audience page: real charts (donuts, bar charts, the world
@@ -94,35 +93,64 @@ export function VBars({ data, color, unit }: { data: { name: string; value: numb
   );
 }
 
-// Instagram-audience-style age & gender chart: male + female bars side by side
-// per age bracket, gradient fills, icon legend. Values are % of viewers.
-export function AgeGenderBars({ data }: { data: { group: string; male: number; female: number }[] }) {
+// Age & gender as PIE charts (per Maheen): a Gender donut (Male/Female) + an
+// Age donut (viewer % per bracket), side by side. Values are % of viewers.
+const AGE_COLORS = ["#7C3AED", "#9F67F0", "#B98BF3", "#D0AEF6", "#E3CCF9", "#F1E4FC"];
+export function AgeGenderPies({ ageGroups, genderSplit }: {
+  ageGroups: { group: string; pct: number }[];
+  genderSplit: { label: string; pct: number }[];
+}) {
+  const genders = (genderSplit || [])
+    .filter((g) => g.label.toLowerCase() !== "genderuserspecified")
+    .map((g) => ({ name: g.label.toLowerCase() === "male" ? "Male" : g.label.toLowerCase() === "female" ? "Female" : g.label, pct: g.pct }));
+  const genderColor = (name: string) => (name === "Male" ? "#7C3AED" : name === "Female" ? "#DB2777" : "#9CA3AF");
+  const ages = [...(ageGroups || [])].sort((a, b) => parseInt(a.group) - parseInt(b.group));
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center gap-4 text-xs text-gray-600 mb-1 px-1">
-        <span className="inline-flex items-center gap-1"><IconMan size={14} stroke={1.8} className="text-violet-500" /> Male</span>
-        <span className="inline-flex items-center gap-1"><IconWoman size={14} stroke={1.8} className="text-pink-500" /> Female</span>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+      <div className="flex flex-col">
+        <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Gender</div>
+        <div className="flex-1 min-h-0 flex items-center gap-2">
+          <ResponsiveContainer width="52%" height="100%">
+            <PieChart>
+              <Pie data={genders} dataKey="pct" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} strokeWidth={0}>
+                {genders.map((g) => <Cell key={g.name} fill={genderColor(g.name)} />)}
+              </Pie>
+              <Tooltip formatter={(v: number) => `${v}%`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex-1 space-y-1.5 min-w-0">
+            {genders.map((g) => (
+              <div key={g.name} className="flex items-center gap-2 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: genderColor(g.name) }} />
+                <span className="truncate text-gray-700 flex-1">{g.name}</span>
+                <span className="text-gray-500 tabular-nums">{g.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 12, right: 8, left: -18, bottom: 0 }} barGap={2}>
-            <defs>
-              <linearGradient id="agMale" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7C3AED" />
-                <stop offset="100%" stopColor="#C4B5FD" />
-              </linearGradient>
-              <linearGradient id="agFemale" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#DB2777" />
-                <stop offset="100%" stopColor="#F9A8D4" />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="group" tick={{ fontSize: 10 }} interval={0} tickFormatter={(g: string) => `${g} yrs`} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v: number) => `${v}%`} />
-            <Bar dataKey="male" name="Male" fill="url(#agMale)" radius={[6, 6, 0, 0]} maxBarSize={40} />
-            <Bar dataKey="female" name="Female" fill="url(#agFemale)" radius={[6, 6, 0, 0]} maxBarSize={40} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex flex-col">
+        <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Age</div>
+        <div className="flex-1 min-h-0 flex items-center gap-2">
+          <ResponsiveContainer width="52%" height="100%">
+            <PieChart>
+              <Pie data={ages} dataKey="pct" nameKey="group" innerRadius="55%" outerRadius="85%" paddingAngle={2} strokeWidth={0}>
+                {ages.map((_, i) => <Cell key={i} fill={AGE_COLORS[i % AGE_COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: number) => `${v}%`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex-1 space-y-1 min-w-0">
+            {ages.map((a, i) => (
+              <div key={a.group} className="flex items-center gap-2 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: AGE_COLORS[i % AGE_COLORS.length] }} />
+                <span className="truncate text-gray-700 flex-1">{a.group}</span>
+                <span className="text-gray-500 tabular-nums">{a.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -318,8 +346,8 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={`${data.channel.handle} · ${fmt(data.summary.subscribers)} subscribers`} href="/dashboard/youtube" live={data.source === "live"} />
       {pills}
-      <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(t.ageGender?.length ?? 0)}>
-        <AgeGenderBars data={t.ageGender ?? []} />
+      <ChartCard title="Age & gender" hint="% of viewers in range" tall empty={!(t.ageGroups || []).length && !(t.genderSplit || []).length}>
+        <AgeGenderPies ageGroups={t.ageGroups || []} genderSplit={t.genderSplit || []} />
       </ChartCard>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Views around the world" hint="in range" tall empty={!(t.geography || []).length}>

@@ -3,10 +3,10 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
-## 2026-07-12 — Instagram-style Age & gender chart for YouTube
+## 2026-07-12 — Age & gender = PIE charts (per Maheen)
 
-- Replaced the separate Age groups + Gender charts with ONE **grouped bar chart exactly like the Instagram audience page**: male + female bars side by side per age bracket, violet/pink gradient fills, Male/Female icon legend, "18-24 yrs" style ticks. Full-width card on the YouTube tab's Traffic & audience AND on the YouTube audience panel.
-- lib/youtube.ts now emits the combined `traffic.ageGender` array (male/female % per bracket, sorted young → old) alongside the existing splits.
+- The "Age & gender" card on the YouTube tab AND the YouTube audience panel is now **two pie/donut charts side by side**: Gender (Male violet / Female pink) + Age (viewer % per bracket, violet ramp), each with a labelled legend. Real data (GooCampus: Male 65.7% / Female 34.2%; 25–34 the top bracket at 54.7%).
+- (The grouped-bar version from earlier this session is retired; `AgeGenderBars` → `AgeGenderPies`.)
 
 ## 2026-07-12 — YouTube tab redesign + standard icons everywhere
 
