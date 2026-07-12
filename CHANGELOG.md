@@ -3,6 +3,12 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Shorts/Long-form pages rebuilt like Instagram Reels (FULL library)
+
+- **Root fix**: the pages showed only ~9 Shorts because they used the Analytics top-25-in-range list. New `/api/youtube/uploads` + `fetchChannelUploads()` page the channel's **entire uploads playlist** via the Data API → GooCampus returns **400 videos (284 Shorts, 116 long-form)** with lifetime views/likes/comments. 30-min cached.
+- **Reels-style design** (matches the Instagram Reels page): Shorts render as **9:16 vertical cards**, long-form as 16:9; play/duration badge, 🏆 Top badge on the most-viewed, views overlay, meta strip (views/likes/comments); summary stat row; **sort control** (Most viewed / Most liked / Newest); **"Proven — worth reposting" shelf** (top all-time, >30 days old — the reusable ones); click → detail modal with thumbnail + full metrics + Watch on YouTube.
+- Channel pills (main mode) + profile-lock respected.
+
 ## 2026-07-12 — ALL YouTube Traffic & audience charts = pie charts
 
 - Per Maheen (emphatic): the WHOLE Traffic & audience section is pie/donut charts now, not bars — Traffic sources, Top countries, Top cities, Devices (each a donut with a share legend) + Age & gender (Gender + Age donuts). Applied to BOTH the YouTube tab and the YouTube audience panel (the audience panel's world map is replaced by a Top-countries pie so it matches). New reusable `PieList` component + smooth accent color ramp. Verified: zero bar charts left in the section.

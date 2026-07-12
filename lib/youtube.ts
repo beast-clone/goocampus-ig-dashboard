@@ -90,6 +90,69 @@ function parseIsoDuration(iso: string): number {
 // YouTube counts videos up to 3 minutes as Shorts (since Oct 2024).
 export const SHORTS_MAX_SEC = 180;
 
+export type UploadVideo = {
+  id: string;
+  title: string;
+  thumbnail: string;
+  publishedAt: string;
+  durationSec: number;
+  isShort: boolean;
+  views: number;
+  likes: number;
+  comments: number;
+};
+
+// ALL videos a channel has ever uploaded (not just the top-25-in-range that the
+// Analytics API returns) — via the Data API uploads playlist. Each carries
+// LIFETIME stats (views/likes/comments) so the Shorts/Long-form pages can show
+// the full library, sort by performance, and flag reusable top performers.
+export async function fetchChannelUploads(channelKey: string): Promise<UploadVideo[]> {
+  const ch = CHANNELS[channelKey];
+  if (!ch?.channelId) throw new Error("unknown channel");
+  const token = await freshAccessToken(channelKey);
+  const auth = { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" as const };
+  const api = (path: string) => `https://www.googleapis.com/youtube/v3/${path}`;
+
+  // 1. uploads playlist id
+  const chRes = await fetch(api(`channels?part=contentDetails&id=${ch.channelId}`), auth).then((r) => r.json());
+  const uploadsId: string | undefined = chRes?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsId) return [];
+
+  // 2. page all video ids (cap 400 for safety)
+  const ids: string[] = [];
+  let pageToken = "";
+  for (let i = 0; i < 8 && ids.length < 400; i++) {
+    const pl = await fetch(api(`playlistItems?part=contentDetails&maxResults=50&playlistId=${uploadsId}${pageToken ? `&pageToken=${pageToken}` : ""}`), auth).then((r) => r.json());
+    for (const it of pl?.items || []) if (it?.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
+    pageToken = pl?.nextPageToken || "";
+    if (!pageToken) break;
+  }
+  if (!ids.length) return [];
+
+  // 3. hydrate in batches of 50
+  const out: UploadVideo[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50).join(",");
+    const vr = await fetch(api(`videos?part=snippet,contentDetails,statistics&id=${batch}`), auth).then((r) => r.json());
+    for (const v of vr?.items || []) {
+      const durationSec = parseIsoDuration(v?.contentDetails?.duration || "");
+      out.push({
+        id: v.id,
+        title: v?.snippet?.title || v.id,
+        thumbnail: v?.snippet?.thumbnails?.medium?.url || v?.snippet?.thumbnails?.default?.url || "",
+        publishedAt: v?.snippet?.publishedAt || "",
+        durationSec,
+        isShort: durationSec > 0 && durationSec <= SHORTS_MAX_SEC,
+        views: Number(v?.statistics?.viewCount || 0),
+        likes: Number(v?.statistics?.likeCount || 0),
+        comments: Number(v?.statistics?.commentCount || 0),
+      });
+    }
+  }
+  out.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  return out;
+}
+
 export async function buildLiveYouTube(channelKey: string, from: string, to: string) {
   const ch = CHANNELS[channelKey];
   if (!ch) throw new Error("unknown channel");
