@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Audience panels get real charts (like the Instagram audience page)
+
+- FB/LI/YT audience panels rebuilt from plain progress-bar rows into proper visuals (recharts + the existing GeoMaps):
+  - **YouTube**: age groups = bar chart · gender = donut · views = WORLD MAP · top cities = bar chart · devices = donut.
+  - **Facebook**: followers = WORLD MAP + top-countries bar chart.
+  - **LinkedIn**: job function/location/industry = horizontal bar charts · seniority/company size = donuts. (Quota reset overnight — live World demographics rendering.)
+- Charts that a platform hides for small audiences (e.g. Study Abroad's age/cities) show an honest "Not enough data yet" note instead of a blank box.
+
 ## 2026-07-12 — LinkedIn document posts render like the real thing
 
 - 23 of World's 25 posts are DOCUMENT posts (carousel PDFs). Cards now render **page 1 of the actual PDF** (media.licdn.com serves them public + CORS-open; pdf.js draws them, lazy-loaded, byte-range requests so we don't download whole files). "📄 Document" badge on cards; blue text-creative stays as fallback and for text-only posts.

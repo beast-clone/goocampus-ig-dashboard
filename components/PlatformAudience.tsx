@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { CountriesWorldMap } from "@/components/GeoMaps";
 import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL } from "@/components/PlatformOverviews";
 
-// Facebook / LinkedIn / YouTube audience panels for the Audience tab's platform
-// toggle. The Instagram audience page (city map, active hours, post-time slots)
-// is the original — untouched. These show every audience breakdown each
-// platform's API actually offers, honestly labelled when a platform offers less.
+// Facebook / LinkedIn / YouTube audience panels for the Audience tab — styled
+// like the Instagram audience page: real charts (donuts, bar charts, the world
+// map), not plain progress rows. Instagram's own audience page is untouched.
 
 function fmt(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
@@ -22,29 +23,85 @@ function regionName(code: string): string {
   try { return REGIONS?.of(code) || code; } catch { return code; }
 }
 
-function BarList({ title, hint, rows, color }: {
-  title: string; hint?: string; color: string;
-  rows: { label: string; pct: number; sub?: string }[];
-}) {
-  const max = Math.max(...rows.map((r) => r.pct), 1);
+// Shade ramp per platform accent for donut slices.
+function shades(base: string, n: number): string[] {
+  const ops = [1, 0.75, 0.55, 0.4, 0.28, 0.18];
+  return Array.from({ length: n }, (_, i) => {
+    const o = ops[Math.min(i, ops.length - 1)];
+    const r = parseInt(base.slice(1, 3), 16), g = parseInt(base.slice(3, 5), 16), b = parseInt(base.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${o})`;
+  });
+}
+
+function ChartCard({ title, hint, children, tall, empty }: { title: string; hint?: string; children: React.ReactNode; tall?: boolean; empty?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-4">
-      <div className="flex items-baseline justify-between mb-3">
+      <div className="flex items-baseline justify-between mb-2">
         <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">{title}</div>
         {hint && <div className="text-[10px] text-gray-400">{hint}</div>}
       </div>
-      <div className="space-y-2">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-center gap-3 text-sm">
-            <span className="w-36 truncate text-gray-800">{r.label}</span>
-            <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${Math.max(3, (r.pct / max) * 100)}%`, background: color }} />
-            </div>
-            <span className="w-24 text-right text-xs text-gray-500 tabular-nums">{r.sub ? `${r.sub} · ` : ""}{r.pct}%</span>
+      <div style={{ height: tall ? 260 : 210 }}>
+        {empty ? (
+          <div className="h-full flex items-center justify-center text-xs text-gray-400 text-center px-6">
+            Not enough data yet — the platform hides this breakdown until the audience is bigger.
+          </div>
+        ) : children}
+      </div>
+    </div>
+  );
+}
+
+// Donut with a compact legend — for gender, devices, seniority, company size.
+function Donut({ data, color }: { data: { name: string; pct: number }[]; color: string }) {
+  const cols = shades(color, data.length);
+  return (
+    <div className="flex items-center h-full gap-2">
+      <ResponsiveContainer width="55%" height="100%">
+        <PieChart>
+          <Pie data={data} dataKey="pct" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} strokeWidth={0}>
+            {data.map((_, i) => <Cell key={i} fill={cols[i]} />)}
+          </Pie>
+          <Tooltip formatter={(v: number) => `${v}%`} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex-1 space-y-1.5 min-w-0">
+        {data.slice(0, 6).map((d, i) => (
+          <div key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: cols[i] }} />
+            <span className="truncate text-gray-700 flex-1">{d.name}</span>
+            <span className="text-gray-500 tabular-nums">{d.pct}%</span>
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+// Vertical bar chart — for age groups, top cities.
+function VBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 16, right: 8, left: -18, bottom: 0 }}>
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={data.length > 6 ? -28 : 0} textAnchor={data.length > 6 ? "end" : "middle"} height={data.length > 6 ? 46 : 24} />
+        <YAxis tick={{ fontSize: 10 }} />
+        <Tooltip formatter={(v: number) => `${v.toLocaleString("en-IN")}${unit ? ` ${unit}` : ""}`} />
+        <Bar dataKey="value" fill={color} radius={[5, 5, 0, 0]} maxBarSize={44} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Horizontal bar chart — for long labels (job functions, industries, locations).
+function HBars({ data, color, unit }: { data: { name: string; value: number }[]; color: string; unit?: string }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
+        <XAxis type="number" hide />
+        <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} interval={0} />
+        <Tooltip formatter={(v: number) => `${v.toLocaleString("en-IN")}${unit ? ` ${unit}` : ""}`} />
+        <Bar dataKey="value" fill={color} radius={[0, 5, 5, 0]} maxBarSize={18} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -87,18 +144,22 @@ export function FacebookAudience({ accountId, range }: { accountId: string; rang
   if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading Facebook audience…</div>;
   if (!data || data.error) return <EmptyPlatform platform="Facebook page" />;
 
+  const countries = data.audience?.available ? data.audience.countries : [];
+
   return (
     <div className="space-y-4">
       <PanelHeader title={data.page.name || "Facebook"} sub={`Facebook Page · ${fmt(data.page.followers)} followers`} href="/dashboard/facebook" live />
-      {data.audience?.available && data.audience.countries.length > 0 ? (
-        <BarList
-          title="Followers by country"
-          hint={`${data.audience.countries.length} countries`}
-          color="#1877F2"
-          rows={data.audience.countries.slice(0, 12).map((c) => ({ label: regionName(c.code), pct: c.pct, sub: c.count.toLocaleString("en-IN") }))}
-        />
+      {countries.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Followers around the world" hint={`${countries.length} countries`} tall>
+            <CountriesWorldMap entries={countries.map((c) => ({ label: c.code, value: c.count }))} />
+          </ChartCard>
+          <ChartCard title="Top countries" hint="followers" tall>
+            <HBars color="#1877F2" unit="followers" data={countries.slice(0, 8).map((c) => ({ name: regionName(c.code), value: c.count }))} />
+          </ChartCard>
+        </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-xl p-8 text-center text-sm text-gray-400">No country data returned for this page yet.</div>
+        <div className="bg-white border border-gray-100 rounded-xl p-8 text-center text-sm text-gray-400">No country data returned for this page yet — Meta shows it once a page has enough followers.</div>
       )}
       <p className="text-[11px] text-gray-400">
         Country split is the only audience breakdown Meta still provides for Facebook Pages — city, age and gender were removed from Meta&apos;s API for everyone.
@@ -129,7 +190,9 @@ export function LinkedInAudience({ accountId, range }: { accountId: string; rang
   const d = data.demographics;
   const allEmpty = ["jobFunction", "seniority", "industry", "location", "companySize"]
     .every((k) => !(d as Record<string, DemoRow[]>)[k]?.length);
-  const rows = (list: DemoRow[]) => (list || []).slice(0, 8).map((r) => ({ label: r.label, pct: r.pct, sub: r.count ? r.count.toLocaleString("en-IN") : undefined }));
+  const bars = (list: DemoRow[], n = 8) => (list || []).slice(0, n).map((r) => ({ name: r.label, value: r.count || Math.round(r.pct) }));
+  const donut = (list: DemoRow[], n = 6) => (list || []).slice(0, n).map((r) => ({ name: r.label, pct: r.pct }));
+  const LB = "#0A66C2";
 
   return (
     <div className="space-y-4">
@@ -141,12 +204,22 @@ export function LinkedInAudience({ accountId, range }: { accountId: string; rang
           It resets automatically — this section fills itself back in tomorrow.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <BarList title="Job function" hint="what your followers do" color="#0A66C2" rows={rows(d.jobFunction)} />
-          <BarList title="Seniority" hint="how senior they are" color="#0A66C2" rows={rows(d.seniority)} />
-          <BarList title="Industry" color="#0A66C2" rows={rows(d.industry)} />
-          <BarList title="Location" hint="where they are" color="#0A66C2" rows={rows(d.location)} />
-          <BarList title="Company size" color="#0A66C2" rows={rows(d.companySize)} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Job function" hint="what your followers do">
+            <HBars color={LB} unit="followers" data={bars(d.jobFunction)} />
+          </ChartCard>
+          <ChartCard title="Seniority" hint="how senior they are">
+            <Donut color={LB} data={donut(d.seniority)} />
+          </ChartCard>
+          <ChartCard title="Location" hint="where they are">
+            <HBars color={LB} unit="followers" data={bars(d.location)} />
+          </ChartCard>
+          <ChartCard title="Industry">
+            <HBars color={LB} unit="followers" data={bars(d.industry, 6)} />
+          </ChartCard>
+          <ChartCard title="Company size">
+            <Donut color={LB} data={donut(d.companySize)} />
+          </ChartCard>
         </div>
       )}
       <p className="text-[11px] text-gray-400">
@@ -181,17 +254,28 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
   if (!data || data.error) return <EmptyPlatform platform="YouTube channel" />;
 
   const t = data.traffic;
+  const YR = "#FF0000";
+  const genders = (t.genderSplit || []).filter((g) => g.label !== "genderUserSpecified").map((g) => ({ name: g.label === "male" ? "Male" : g.label === "female" ? "Female" : g.label, pct: g.pct }));
+
   return (
     <div className="space-y-4">
       <PanelHeader title={data.channel.name || "YouTube"} sub={`${data.channel.handle} · ${fmt(data.summary.subscribers)} subscribers`} href="/dashboard/youtube" live={data.source === "live"} />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <BarList title="Age groups" hint="viewers in range" color="#FF0000" rows={t.ageGroups.map((a) => ({ label: a.group, pct: a.pct }))} />
-        <BarList title="Gender" hint="viewers in range" color="#FF0000" rows={t.genderSplit.map((g) => ({ label: g.label, pct: g.pct }))} />
-        <BarList title="Top countries" hint="by views" color="#FF0000" rows={t.geography.slice(0, 8).map((g) => ({ label: regionName(g.country), pct: g.pct, sub: fmt(g.views) }))} />
-        {(t.cities?.length ?? 0) > 0 && (
-          <BarList title="Top cities" hint="by views · Google hides small cities" color="#FF0000" rows={t.cities!.slice(0, 8).map((c) => ({ label: c.city, pct: c.pct, sub: fmt(c.views) }))} />
-        )}
-        <BarList title="Devices" color="#FF0000" rows={t.devices.map((d) => ({ label: d.device, pct: d.pct }))} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Age groups" hint="viewers in range" empty={!(t.ageGroups || []).length}>
+          <VBars color={YR} unit="%" data={(t.ageGroups || []).map((a) => ({ name: a.group, value: a.pct }))} />
+        </ChartCard>
+        <ChartCard title="Gender" hint="viewers in range" empty={!genders.length}>
+          <Donut color={YR} data={genders} />
+        </ChartCard>
+        <ChartCard title="Views around the world" hint="in range" tall empty={!(t.geography || []).length}>
+          <CountriesWorldMap entries={(t.geography || []).map((g) => ({ label: g.country, value: g.views }))} />
+        </ChartCard>
+        <ChartCard title="Top cities" hint="by views · Google hides small cities" tall empty={!(t.cities || []).length}>
+          <VBars color={YR} unit="views" data={(t.cities || []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
+        </ChartCard>
+        <ChartCard title="Devices" empty={!(t.devices || []).length}>
+          <Donut color={YR} data={(t.devices || []).map((d) => ({ name: d.device, pct: d.pct }))} />
+        </ChartCard>
       </div>
       <p className="text-[11px] text-gray-400">
         Audience describes who WATCHED in the selected date range. State-level breakdown isn&apos;t possible — Google only offers it for the US.
