@@ -3,6 +3,10 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Highlighted Top-performers hero on every content page
+
+- The Instagram/YouTube "top performers = highlighted hero, all-content dense below" pattern now applies to **LinkedIn Posts** (blue panel, top 3 by impressions, doc/creative thumb + big Impr./React./Eng. stats) and **Facebook Posts** (blue panel, top 3 by engagement, image + big Likes/Comm./Shares). Each page: highlighted hero on top → "All posts · N" dense 6-up grid below. Works across all brands automatically (pages follow the account/profile). Verified: World LinkedIn (25 posts) + Edu Facebook (24 posts).
+
 ## 2026-07-12 — Bigger top-performer cards (YouTube + Instagram)
 
 - **YouTube "Proven — worth reposting" shelf**: cards were tiny thumbnails-in-a-row; now BIG full cards (3-up for Shorts, 2-up for long-form) on an emerald panel, well above the full library grid (measured 244px thumbs vs the grid's 163px).

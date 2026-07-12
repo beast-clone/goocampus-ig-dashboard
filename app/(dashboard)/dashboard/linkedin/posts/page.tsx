@@ -86,9 +86,40 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
       {posts.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">No posts in this date range.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {posts.map((p, i) => <Card key={p.id} post={p} rank={i + 1} onClick={() => setSelected(p)} />)}
-        </div>
+        <>
+          {/* Highlighted TOP PERFORMERS hero — the 3 best by impressions, big + prominent */}
+          <div className="bg-blue-50/50 border border-blue-200 rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-base font-semibold text-gray-900">🏆 Top performers</span>
+              <span className="text-xs text-gray-400">· by impressions</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {posts.slice(0, 3).map((p) => (
+                <button key={p.id} onClick={() => setSelected(p)} className="flex gap-4 rounded-xl bg-white border border-gray-100 p-3 hover:border-gray-300 hover:shadow-sm text-left">
+                  <div className="w-32 aspect-square rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                    {p.docUrl
+                      ? <DocThumb url={p.docUrl} fallback={<Creative post={p} />} />
+                      : <Creative post={p} />}
+                  </div>
+                  <div className="min-w-0 flex-1 flex flex-col">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide">{p.type} · {dateLabel(p.date)}</div>
+                    <div className="text-[13px] text-gray-900 leading-snug mt-0.5 line-clamp-2">{p.text || "(no text)"}</div>
+                    <div className="grid grid-cols-3 gap-1 mt-auto pt-2 text-center">
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.impressions)}</div><div className="text-[9px] uppercase text-gray-500">Impr.</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.reactions)}</div><div className="text-[9px] uppercase text-gray-500">React.</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{(p.engagementRate ?? 0).toFixed(1)}%</div><div className="text-[9px] uppercase text-gray-500">Eng.</div></div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">All posts · {posts.length}</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {posts.map((p, i) => <Card key={p.id} post={p} rank={i + 1} onClick={() => setSelected(p)} />)}
+          </div>
+        </>
       )}
 
       {selected && <DetailModal post={selected} pageName={data.page.name} onClose={() => setSelected(null)} />}
