@@ -80,6 +80,16 @@ function channelFilter(channelId: string): string {
   return channelId ? `channel==${channelId}` : "channel==MINE";
 }
 
+// "PT1H2M3S" → seconds. Data API expresses video length as ISO-8601 duration.
+function parseIsoDuration(iso: string): number {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return 0;
+  return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+}
+
+// YouTube counts videos up to 3 minutes as Shorts (since Oct 2024).
+export const SHORTS_MAX_SEC = 180;
+
 export async function buildLiveYouTube(channelKey: string, from: string, to: string) {
   const ch = CHANNELS[channelKey];
   if (!ch) throw new Error("unknown channel");
@@ -136,30 +146,37 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   });
 
   // ── Top videos ──
+  // 25 rows so the Long-form/Shorts content pages have a real list to split.
   const topRaw = await ytGet({
     ids, startDate: from, endDate: to,
     metrics: "views,estimatedMinutesWatched,averageViewDuration,likes,comments",
-    dimensions: "video", sort: "-views", maxResults: "10",
+    dimensions: "video", sort: "-views", maxResults: "25",
   }, token).catch(() => ({ rows: [] }));
   const videoRows: any[] = topRaw.rows || [];
   const videoIds = videoRows.map((r) => r[0]).join(",");
-  // Resolve titles + thumbnails via the Data API.
-  const titleMap: Record<string, { title: string; thumb: string }> = {};
+  // Resolve titles + thumbnails + durations via the Data API. Duration is what
+  // separates Shorts from long-form (Shorts are ≤ 3 minutes).
+  const titleMap: Record<string, { title: string; thumb: string; durationSec: number }> = {};
   if (videoIds) {
     try {
-      const vr = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoIds}`, {
+      const vr = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
       });
       if (vr.ok) {
         const vj = await vr.json();
         for (const item of vj.items || []) {
-          titleMap[item.id] = { title: item.snippet?.title || item.id, thumb: item.snippet?.thumbnails?.medium?.url || "" };
+          titleMap[item.id] = {
+            title: item.snippet?.title || item.id,
+            thumb: item.snippet?.thumbnails?.medium?.url || "",
+            durationSec: parseIsoDuration(item.contentDetails?.duration || ""),
+          };
         }
       }
     } catch { /* leave ids */ }
   }
   const topVideos = videoRows.map((r) => {
     const id = r[0];
+    const durationSec = titleMap[id]?.durationSec ?? 0;
     return {
       id,
       title: titleMap[id]?.title || id,
@@ -170,6 +187,8 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
       likes: r[4] || 0,
       comments: r[5] || 0,
       publishedDaysAgo: 0,
+      durationSec,
+      isShort: durationSec > 0 && durationSec <= SHORTS_MAX_SEC,
     };
   });
 

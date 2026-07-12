@@ -3,6 +3,13 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-12 — Content pages per platform (like Instagram's Posts/Reels/Stories)
+
+- **YouTube → Long-form + Shorts** (`/dashboard/youtube/videos#longform|#shorts`): top-25 videos in range split by REAL duration (Shorts = ≤3 min, YouTube's own rule; durations fetched from the Data API — `durationSec`/`isShort` added to topVideos, maxResults 10→25). Table: thumbnail (vertical for Shorts), length, views, watch hrs, avg view, likes, comments. GooCampus 30d: 16 long-form / 9 Shorts.
+- **LinkedIn → Posts** (`/dashboard/linkedin/posts`): every post in range sorted by impressions — text/thumb/date/type + impressions, clicks, reactions, comments, shares, eng rate, CTR. Live for World.
+- **Facebook → Posts** (`/dashboard/facebook/posts`): recent posts (API now takes `?limit=` up to 25) as cards ranked by engagement with 👍💬↗.
+- Sidebar folders updated: LinkedIn(Posts·Audience), YouTube(Long-form·Shorts·Audience), Facebook(Posts·Audience).
+
 ## 2026-07-12 — Narrative one-liners on every platform + every brand
 
 - The Instagram overview's plain-English headline now sits on ONE line (removed the 820px cap + balanced wrapping), and its label shows the SELECTED account's handle instead of hard-coded @goocampus — so 12thplus/Samvaya/World read correctly.

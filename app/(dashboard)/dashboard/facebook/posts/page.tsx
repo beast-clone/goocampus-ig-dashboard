@@ -1,0 +1,85 @@
+"use client";
+import { format, parseISO } from "date-fns";
+import { DashboardShell } from "@/components/DashboardShell";
+import { useApi } from "@/lib/use-api";
+
+// Facebook content page (sidebar: Facebook → Posts) — the page's recent posts
+// with per-post likes/comments/shares, sorted by engagement.
+
+type Post = {
+  id: string; message: string; createdTime: string; fullPicture: string | null;
+  permalink: string | null; likes: number | null; comments: number | null; shares: number | null;
+};
+type Resp = {
+  page: { name: string };
+  posts: { available: boolean; reason?: string; items: Post[] };
+  error?: string;
+};
+
+function fmt(n: number | null): string {
+  if (n === null || !Number.isFinite(n)) return "—";
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString("en-IN");
+}
+
+export default function FacebookPostsPage() {
+  return (
+    <DashboardShell title="Facebook posts" subtitle="Recent page posts with per-post engagement.">
+      {({ accountId, range }) => <Inner accountId={accountId} range={range} />}
+    </DashboardShell>
+  );
+}
+
+function Inner({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+  const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to, limit: "24" }).toString();
+  const { data, isLoading } = useApi<Resp>(`/api/facebook?${qs}`);
+
+  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading posts…</div>;
+  if (!data || data.error) return <div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load posts.</div>;
+  if (!data.posts.available) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+        <div className="text-base font-medium text-gray-700 mb-1">Posts can&apos;t be read for this page</div>
+        <p className="text-sm text-gray-400 max-w-lg mx-auto">{data.posts.reason}</p>
+      </div>
+    );
+  }
+
+  const score = (p: Post) => (p.likes ?? 0) + (p.comments ?? 0) * 2 + (p.shares ?? 0) * 3;
+  const posts = [...data.posts.items].sort((a, b) => score(b) - score(a));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="text-sm font-semibold text-gray-800">{data.page.name} · {posts.length} recent posts · sorted by engagement</div>
+        <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>
+      </div>
+
+      {posts.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">No published posts on this page yet.</div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          {posts.map((p, i) => (
+            <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="block bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300">
+              <div className="relative">
+                {p.fullPicture
+                  ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
+                  : <div className="w-full aspect-[4/3] bg-gray-50 flex items-center justify-center text-xs text-gray-400 p-3 text-center">{(p.message || "Post").slice(0, 80)}</div>}
+                <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
+              </div>
+              <div className="p-3">
+                <div className="text-[12px] text-gray-800 leading-snug line-clamp-2 min-h-[32px]">{p.message || "(no text)"}</div>
+                <div className="text-[11px] text-gray-500 mt-2 flex gap-3 tabular-nums">
+                  <span>👍 {fmt(p.likes)}</span>
+                  <span>💬 {fmt(p.comments)}</span>
+                  <span>↗ {fmt(p.shares)}</span>
+                  <span className="text-gray-400 ml-auto">{(() => { try { return format(parseISO(p.createdTime), "d MMM"); } catch { return ""; } })()}</span>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

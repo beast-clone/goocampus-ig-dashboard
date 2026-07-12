@@ -46,15 +46,25 @@ const PLATFORM_FOLDERS: Folder[] = [
   },
   {
     key: "linkedin", label: "LinkedIn", icon: IconBrandLinkedin, href: "/dashboard/linkedin",
-    children: [{ label: "Audience", href: "/dashboard/audience#linkedin", icon: IconUsers }],
+    children: [
+      { label: "Posts", href: "/dashboard/linkedin/posts", icon: IconPhoto },
+      { label: "Audience", href: "/dashboard/audience#linkedin", icon: IconUsers },
+    ],
   },
   {
     key: "youtube", label: "YouTube", icon: IconBrandYoutube, href: "/dashboard/youtube",
-    children: [{ label: "Audience", href: "/dashboard/audience#youtube", icon: IconUsers }],
+    children: [
+      { label: "Long-form", href: "/dashboard/youtube/videos#longform", icon: IconMovie },
+      { label: "Shorts", href: "/dashboard/youtube/videos#shorts", icon: IconCircleDashed },
+      { label: "Audience", href: "/dashboard/audience#youtube", icon: IconUsers },
+    ],
   },
   {
     key: "facebook", label: "Facebook", icon: IconBrandFacebook, href: "/dashboard/facebook",
-    children: [{ label: "Audience", href: "/dashboard/audience#facebook", icon: IconUsers }],
+    children: [
+      { label: "Posts", href: "/dashboard/facebook/posts", icon: IconPhoto },
+      { label: "Audience", href: "/dashboard/audience#facebook", icon: IconUsers },
+    ],
   },
 ];
 

@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     const [profile, insights, posts, audience] = await Promise.all([
       fetchPageProfile(acc),
       fetchPageInsights(acc, from, to),
-      fetchPagePosts(acc, 12),
+      fetchPagePosts(acc, Math.min(25, Math.max(1, Number(url.searchParams.get("limit")) || 12))),
       fetchPageAudience(acc),
     ]);
 
