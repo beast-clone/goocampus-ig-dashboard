@@ -82,48 +82,51 @@ export async function PATCH(req: Request) {
     if (error) throw new Error(error.message);
     if (!data) return NextResponse.json({ error: "row not found" }, { status: 404 });
 
-    // Auto-handoff: writer → next-stage owner when status becomes Content Approved.
-    // Post/Carousel/Thumbnail/YouTube post → Praveen.
-    // Reel/Video               → Nikhil (default), Nandu joins as collab.
-    // Old owner (writer) always joins the collaborators.
+    // Auto-handoff when status becomes "Content - Approved":
+    //   • Design/static work (post, carousel, thumbnail, static Meta Ads, story-image…)
+    //     → auto-assigned to Praveen; the writer stays as a collaborator.
+    //   • Video work (reels, YouTube long-form/shorts, story-video, Meta Ads - Video)
+    //     → NOT auto-assigned; it becomes claimable by an editor (Nikhil/Nandu) via
+    //       the Claim button. Whoever claims becomes owner (takeover route).
+    //   • The writer (Manya) is added as collaborator; Maheen is NEVER auto-added.
+    const VIDEO_TYPES = new Set([
+      "Reel - Original", "Reel - Cut", "YouTube Long-Form", "YouTube Shorts",
+      "Story (Video)", "Meta Ads - Video",
+    ]);
     if (
       clean.status === "Content - Approved" &&
       before.data.status !== "Content - Approved"
     ) {
       const type = String(data.type || "");
-      const isStatic = /post|carousel|thumbnail|youtube.*(post|thumbnail)/i.test(type);
-      const isVideo = /reel|video|long.*form/i.test(type);
-      const newOwner = isStatic ? "praveen" : isVideo ? "nikhil" : data.owner_key;
-      const dualCollab = isVideo ? "nandu" : null;
-      const oldOwner = before.data.owner_key;
+      const isVideo = VIDEO_TYPES.has(type);
+      const oldOwner = before.data.owner_key; // the writer (Manya)
 
-      const promotes: Record<string, unknown> = {};
-      if (newOwner && newOwner !== data.owner_key) promotes.owner_key = newOwner;
-      if (Object.keys(promotes).length > 0) {
-        await sb.from("mh_posts").update(promotes).eq("id", body.id);
+      if (!isVideo) {
+        // Design → hand to Praveen; writer joins as collaborator (never Maheen).
+        if (data.owner_key !== "praveen") {
+          await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
+        }
+        if (oldOwner && oldOwner !== "praveen" && oldOwner !== "maheen") {
+          await sb.from("mh_post_collaborators").upsert(
+            [{ post_id: body.id, member_key: oldOwner }],
+            { onConflict: "post_id,member_key", ignoreDuplicates: true },
+          );
+        }
+        await sb.from("mh_activity").insert({
+          post_id: body.id,
+          actor_key: oldOwner || null,
+          action: "handoff",
+          detail: "approved — handed to Praveen",
+        });
+      } else {
+        // Video → stays with the writer, now open for an editor to claim.
+        await sb.from("mh_activity").insert({
+          post_id: body.id,
+          actor_key: oldOwner || null,
+          action: "handoff",
+          detail: "approved — ready for an editor to claim",
+        });
       }
-
-      // Collaborators: old owner + the-other-video-editor
-      const collabKeys: string[] = [];
-      if (oldOwner && oldOwner !== newOwner) collabKeys.push(oldOwner);
-      if (dualCollab) collabKeys.push(dualCollab);
-      if (collabKeys.length > 0) {
-        const rows = collabKeys.map((k) => ({ post_id: body.id, member_key: k }));
-        await sb.from("mh_post_collaborators").upsert(rows, { onConflict: "post_id,member_key", ignoreDuplicates: true });
-      }
-
-      // Activity log
-      const summary = isVideo
-        ? `handed off to Nikhil (Nandu on standby)`
-        : isStatic
-        ? `handed off to Praveen`
-        : `content approved`;
-      await sb.from("mh_activity").insert({
-        post_id: body.id,
-        actor_key: oldOwner || newOwner || null,
-        action: "handoff",
-        detail: summary,
-      });
     }
 
     return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at });

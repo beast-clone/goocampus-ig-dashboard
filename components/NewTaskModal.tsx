@@ -24,8 +24,15 @@ const OWNER_OPTIONS = [
 const TYPE_OPTIONS = [
   "Post", "Carousel", "Reel - Original", "Reel - Cut", "Reel Thumbnail",
   "YouTube Long-Form", "YouTube Shorts", "YouTube Thumbnail",
-  "Meta Ads", "Story (Image)", "Atomic Essay",
+  "Meta Ads", "Meta Ads - Video", "Story (Image)", "Story (Video)", "Atomic Essay",
 ];
+
+// Only these get a companion thumbnail task (→ Praveen): reels make a Reel
+// Thumbnail, YouTube long-form makes a YouTube Thumbnail. Shorts have no
+// thumbnail; nor do story-video or video ads.
+const THUMBNAIL_ELIGIBLE = new Set([
+  "Reel - Original", "Reel - Cut", "YouTube Long-Form",
+]);
 
 const PRIORITY_OPTIONS = ["Low", "Medium", "High"];
 
@@ -41,15 +48,19 @@ const FALLBACK_SBUS = [
   "Mentorship Platform",
 ];
 
-export function NewTaskButton({ facets, onCreated }: { facets?: Facets; onCreated?: () => void }) {
+export function NewTaskButton({ facets, onCreated, variant = "floating", label = "New task" }: { facets?: Facets; onCreated?: () => void; variant?: "floating" | "inline"; label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-8 right-8 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
+        className={
+          variant === "inline"
+            ? "bg-brand text-white rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90 transition flex items-center gap-2 shadow-sm"
+            : "fixed bottom-8 right-8 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
+        }
       >
-        <span className="text-lg leading-none">+</span> New task
+        <span className="text-lg leading-none">+</span> {label}
       </button>
       {open && <NewTaskModal facets={facets} onClose={() => setOpen(false)} onCreated={onCreated} />}
     </>
@@ -62,7 +73,7 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
   const [title, setTitle] = useState("");
   const [sbu, setSbu] = useState("");
   const [type, setType] = useState("");
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState("Manya B M"); // writer owns content at creation
   const [publishingDate, setPublishingDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("Medium");
@@ -70,6 +81,9 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
   const [content, setContent] = useState("");
   const [caption, setCaption] = useState("");
   const [needsReview, setNeedsReview] = useState(false);
+  const [makeThumb, setMakeThumb] = useState(false);
+  const [thumbBrief, setThumbBrief] = useState("");
+  const canMakeThumb = THUMBNAIL_ELIGIBLE.has(type);
 
   const [step, setStep] = useState<"form" | "confirm" | "saving" | "done" | "error">("form");
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -129,6 +143,24 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
         setStep("error");
         return;
       }
+      // "Create thumbnail" → spawn a second task assigned to Praveen.
+      if (makeThumb && canMakeThumb) {
+        const thumbType = /youtube/i.test(type) ? "YouTube Thumbnail" : "Reel Thumbnail";
+        await fetch("/api/marketing-hub/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${title.trim()} — Thumbnail`,
+            sbu: sbu || undefined,
+            type: thumbType,
+            owner: "Praveen L",
+            publishingDate: publishingDate || undefined,
+            priority: priority || undefined,
+            content: thumbBrief || undefined,
+          }),
+        }).catch(() => { /* thumbnail is best-effort; main task already created */ });
+      }
+
       setCreatedId(j.id);
       setStep("done");
       if (onCreated) onCreated();
@@ -241,6 +273,26 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
               <label htmlFor="needs-review" className="text-sm text-gray-700">Flag as &quot;Needs Review&quot;</label>
             </div>
 
+            {/* Reels + YouTube long-form: offer to spawn a thumbnail task (→ Praveen). */}
+            {canMakeThumb && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={makeThumb} onChange={(e) => setMakeThumb(e.target.checked)} />
+                  <span className="text-sm font-medium text-gray-800">Also create a thumbnail task</span>
+                  <span className="text-xs text-gray-500">→ auto-assigned to Praveen</span>
+                </label>
+                {makeThumb && (
+                  <textarea
+                    value={thumbBrief}
+                    onChange={(e) => setThumbBrief(e.target.value)}
+                    rows={2}
+                    placeholder="Thumbnail brief — headline text, key visual, reference…"
+                    className="mt-3 w-full border border-gray-200 rounded px-3 py-2 text-sm"
+                  />
+                )}
+              </div>
+            )}
+
             {errMsg && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2">{errMsg}</div>}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -292,9 +344,10 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
               <button onClick={onClose} className="px-5 py-2 rounded border border-gray-200 text-sm hover:bg-gray-50">Close</button>
               <button
                 onClick={() => {
-                  setTitle(""); setSbu(""); setType(""); setOwner("");
+                  setTitle(""); setSbu(""); setType(""); setOwner("Manya B M");
                   setPublishingDate(""); setDueDate(""); setPriority("Medium");
                   setPlatforms([]); setContent(""); setCaption(""); setNeedsReview(false);
+                  setMakeThumb(false); setThumbBrief("");
                   setCreatedId(null); setStep("form");
                 }}
                 className="px-5 py-2 rounded bg-brand text-white text-sm font-medium hover:opacity-90"

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ACCOUNTS } from "@/lib/accounts";
 import { useProfile, setProfile } from "@/lib/profile";
@@ -11,7 +11,7 @@ import {
   IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
   IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
   IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
-  IconSwitchHorizontal, IconCheck,
+  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -27,8 +27,19 @@ import {
 type NavLink = { label: string; href: string; icon: TablerIcon };
 type Folder = { key: string; label: string; icon: TablerIcon; href?: string; children: NavLink[] };
 
+// Marketing Hub is a FOLDER (like the Analytics platform folders) — its five
+// sub-tabs are hash-routed on the single /dashboard/marketing-hub page.
+const MARKETING_HUB: Folder = {
+  key: "marketing-hub", label: "Marketing Hub", icon: IconLayoutKanban, href: "/dashboard/marketing-hub?tab=team",
+  children: [
+    { label: "Team", href: "/dashboard/marketing-hub?tab=team", icon: IconUsers },
+    { label: "Master sheet", href: "/dashboard/marketing-hub?tab=master", icon: IconTable },
+    { label: "Pipeline", href: "/dashboard/marketing-hub?tab=pipeline", icon: IconLayoutKanban },
+    { label: "Content calendar", href: "/dashboard/marketing-hub?tab=calendar", icon: IconCalendar },
+  ],
+};
+
 const CONTENT: NavLink[] = [
-  { label: "Marketing Hub", href: "/dashboard/marketing-hub", icon: IconLayoutKanban },
   { label: "My Day", href: "/dashboard/my-day", icon: IconSun },
   { label: "Content Calendar", href: "/dashboard/calendar", icon: IconCalendar },
   { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
@@ -109,6 +120,7 @@ function GroupHeading({ children }: { children: React.ReactNode }) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const profile = useProfile();
   const profileAccount = profile ? ACCOUNTS.find((a) => a.id === profile) ?? null : null;
 
@@ -133,8 +145,17 @@ export function Sidebar() {
   }, []);
 
   const isActive = (href: string): boolean => {
-    const [path, frag] = href.split("#");
+    const [pathAndQuery, frag] = href.split("#");
+    const [path, query] = pathAndQuery.split("?");
     if (pathname !== path) return false;
+    // Query-param tabs (Marketing Hub) — match ?tab=, treating master as default.
+    if (query) {
+      const tab = new URLSearchParams(query).get("tab");
+      if (tab) {
+        const cur = searchParams.get("tab");
+        return cur === tab || (tab === "team" && !cur);
+      }
+    }
     if (frag === "all") return hash === "all" || hash === "";
     if (frag) return hash === frag;
     return true;
@@ -152,7 +173,7 @@ export function Sidebar() {
       <Link
         key={t.href}
         href={t.href}
-        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${indent ? "ml-5" : ""} ${active ? "bg-white/10 text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5 hover:text-[#F2F4F8]"}`}
+        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${active ? "bg-white/10 text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5 hover:text-[#F2F4F8]"}`}
       >
         <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
         {t.label}
@@ -189,10 +210,10 @@ export function Sidebar() {
     const chevron = (onClick: (e: React.MouseEvent) => void) => (
       <button
         onClick={onClick}
-        className={`w-7 h-7 flex items-center justify-center text-xs text-[#8A93A6] hover:text-white transition-transform ${open ? "rotate-90" : ""}`}
+        className="w-7 h-7 flex items-center justify-center text-[#8A93A6] hover:text-white"
         aria-label={`${open ? "Collapse" : "Expand"} ${f.label}`}
       >
-        ›
+        <IconChevronRight size={15} stroke={2} className={`transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
     );
     return (
@@ -218,10 +239,16 @@ export function Sidebar() {
               <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
               {f.label}
             </span>
-            <span className={`w-7 h-7 flex items-center justify-center text-xs text-[#8A93A6] transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+            <span className="w-7 h-7 flex items-center justify-center text-[#8A93A6]">
+              <IconChevronRight size={15} stroke={2} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+            </span>
           </button>
         )}
-        {open && f.children.map((c) => item(c, true))}
+        {open && (
+          <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-white/[0.08] space-y-0.5">
+            {f.children.map((c) => item(c, true))}
+          </div>
+        )}
       </div>
     );
   };
@@ -252,6 +279,7 @@ export function Sidebar() {
             {!profile && (
               <>
                 <GroupHeading>Content</GroupHeading>
+                {folder(MARKETING_HUB)}
                 {CONTENT.map((t) => item(t))}
               </>
             )}

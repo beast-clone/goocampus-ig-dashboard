@@ -31,10 +31,12 @@ function rangeLabel(r: Range): string {
 export function DashboardShell({
   title,
   subtitle,
+  hideAccountPicker,
   children,
 }: {
   title: string;
   subtitle?: string;
+  hideAccountPicker?: boolean;
   children: (ctx: { accountId: string; compareAll: boolean; range: Range }) => React.ReactNode;
 }) {
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
@@ -96,7 +98,7 @@ export function DashboardShell({
           <div className="flex items-center gap-3">
             {/* Brand scope — moved here from the sidebar (2026-07-11). Picking a
                 brand scopes the whole page to it. */}
-            {profile ? (
+            {!hideAccountPicker && (profile ? (
               <span className="rounded-lg bg-brand-light text-brand px-3 py-2 text-sm font-medium">
                 {account?.label ?? profile} · profile view
               </span>
@@ -110,7 +112,7 @@ export function DashboardShell({
                   <option key={a.id} value={a.id}>{a.label}</option>
                 ))}
               </select>
-            )}
+            ))}
             <TokenExpiryBadge />
             <DateRangePicker value={range} onChange={setRange} />
             <PdfExportButton accountId={profile ?? (compareAll ? "all" : accountId)} range={range} />

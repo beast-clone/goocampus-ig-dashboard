@@ -3,3 +3,8 @@
 @tailwind utilities;
 
 html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
+
+/* Always reserve the scrollbar gutter so a page whose height crosses the
+   viewport (e.g. filtering the Marketing Hub tables shorter/taller) doesn't
+   toggle the window scrollbar and shove the whole layout sideways. */
+html { scrollbar-gutter: stable; }

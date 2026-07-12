@@ -100,6 +100,22 @@ export async function createContentCalendarRow(input: CreatePostInput): Promise<
   return { id: row.id, createdTime: row.createdTime };
 }
 
+// Pull the writer's long-form body straight from the Content Calendar row.
+// The Supabase mirror (mh_posts) doesn't carry the "Content" rich-text field,
+// so the task-detail panel fetches it live by Airtable record id when opened.
+export async function fetchContentCalendarBody(
+  recordId: string,
+): Promise<{ content: string; notes: string }> {
+  try {
+    const rec = await airtableGet<AirtableRecord>(`${CONTENT_CALENDAR_TABLE}/${recordId}`);
+    const f = rec.fields || {};
+    const asText = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    return { content: asText(f["Content"]), notes: asText(f["Content Notes"]) };
+  } catch {
+    return { content: "", notes: "" };
+  }
+}
+
 export type ScheduledPost = {
   id: string;
   particulars: string;
