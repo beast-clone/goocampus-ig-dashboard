@@ -144,6 +144,7 @@ function Ads({ range }: { range: { from: string; to: string } }) {
           {hasMessages && <MetricCard label="Cost / Message" value={fmtINR(data.totals.costPerMessage)} />}
           {hasPurchases && <MetricCard label="Purchases" value={fmtNum(data.totals.purchases)} />}
           {hasPurchases && <MetricCard label="ROAS" value={data.totals.roas.toFixed(2) + "x"} />}
+          {data.totals.postEngagement > 0 && <MetricCard label="Post Engagement" value={fmtNum(data.totals.postEngagement)} />}
           {!hasLeads && !hasMessages && !hasPurchases && (
             <div className="md:col-span-4 text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg p-3">
               No conversion data — campaigns may not have Pixel/Lead-form tracking configured for this range.
@@ -170,6 +171,9 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
+      {/* Breakdowns — where the spend & leads actually land (platform, placement, demographics, region) */}
+      <AdBreakdowns range={range} showLeads={hasLeads} />
+
       {/* All campaigns — flat table with Category column + dropdown filter. Replaces the old
           grouped view; the classifyCampaign() logic is still what colors the Category chips. */}
       <div className="mt-6">
@@ -188,6 +192,69 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         />
       )}
     </>
+  );
+}
+
+// Breakdowns — Meta insights split by platform, placement, age, gender, region.
+// Fetched from its own endpoint so the main Ads page isn't slowed by the extra calls.
+type BreakdownRow = { key: string; spend: number; impressions: number; reach: number; clicks: number; leads: number };
+type Breakdowns = { platform: BreakdownRow[]; placement: BreakdownRow[]; age: BreakdownRow[]; gender: BreakdownRow[]; region: BreakdownRow[] };
+
+function prettyPlatform(k: string) {
+  return ({ instagram: "Instagram", facebook: "Facebook", audience_network: "Audience Network", messenger: "Messenger", unknown: "Unknown" } as Record<string, string>)[k] || k;
+}
+function prettyPlacement(k: string) {
+  return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function titleCase(k: string) {
+  return k.charAt(0).toUpperCase() + k.slice(1);
+}
+
+function AdBreakdowns({ range, showLeads }: { range: { from: string; to: string }; showLeads: boolean }) {
+  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  const { data } = useApi<Breakdowns>(`/api/ads/breakdowns?${qs}`);
+  if (!data) return <div className="mt-6 text-xs text-gray-400">Loading breakdowns…</div>;
+
+  const cards = [
+    { title: "By platform", rows: data.platform, pretty: prettyPlatform },
+    { title: "By placement", rows: data.placement, pretty: prettyPlacement },
+    { title: "By age", rows: data.age, pretty: (k: string) => k },
+    { title: "By gender", rows: data.gender, pretty: titleCase },
+    { title: "Top regions", rows: data.region, pretty: (k: string) => k },
+  ].filter((c) => (c.rows?.length ?? 0) > 0);
+  if (cards.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-2">Where the spend &amp; leads land</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {cards.map((c) => <BreakdownCard key={c.title} title={c.title} rows={c.rows} showLeads={showLeads} pretty={c.pretty} />)}
+      </div>
+    </div>
+  );
+}
+
+function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows: BreakdownRow[]; showLeads: boolean; pretty: (k: string) => string }) {
+  const max = rows[0]?.spend || 1;
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="text-sm font-medium mb-3">{title}</div>
+      <div className="space-y-2.5">
+        {rows.slice(0, 8).map((r) => (
+          <div key={r.key}>
+            <div className="flex items-center justify-between gap-2 text-[12px] mb-1">
+              <span className="font-medium text-gray-700 truncate">{pretty(r.key)}</span>
+              <span className="text-gray-500 tabular-nums whitespace-nowrap flex-shrink-0">
+                {fmtINR(r.spend)}{showLeads && r.leads > 0 ? ` · ${fmtNum(r.leads)} leads` : ""}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-violet-500 rounded-full" style={{ width: `${(r.spend / max) * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

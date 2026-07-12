@@ -8,3 +8,14 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
    viewport (e.g. filtering the Marketing Hub tables shorter/taller) doesn't
    toggle the window scrollbar and shove the whole layout sideways. */
 html { scrollbar-gutter: stable; }
+
+/* Subtle scrollbar for the dark sidebar nav — thin, translucent-white, fades in on
+   hover. Keeps the "bottom items reachable on short screens" scroll without the
+   chunky default browser scrollbar looking out of place on the dark rail. */
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.sidebar-scroll:hover { scrollbar-color: rgba(255,255,255,0.22) transparent; }
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.32); }

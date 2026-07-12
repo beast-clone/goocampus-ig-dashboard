@@ -158,6 +158,34 @@ export async function fetchAdsDaily(acct: AdAccountConfig, from: string, to: str
   }));
 }
 
+export type AdBreakdownRow = { key: string; spend: number; impressions: number; reach: number; clicks: number; leads: number };
+
+// Meta insights split by a breakdown dimension (publisher_platform, platform_position,
+// age, gender, region…), aggregated by the joined dimension value and sorted by spend.
+export async function fetchAdsBreakdown(
+  acct: AdAccountConfig, from: string, to: string, breakdowns: string, keyFields: string[],
+): Promise<AdBreakdownRow[]> {
+  const json = await gget<{ data: Record<string, unknown>[] }>(`${acct.id}/insights`, acct.token, {
+    fields: "spend,impressions,reach,clicks,actions",
+    time_range: JSON.stringify({ since: from, until: to }),
+    breakdowns,
+    level: "account",
+    limit: "500",
+  });
+  const map = new Map<string, AdBreakdownRow>();
+  for (const r of json.data || []) {
+    const key = keyFields.map((f) => String(r[f] ?? "—")).join(" · ") || "—";
+    let e = map.get(key);
+    if (!e) { e = { key, spend: 0, impressions: 0, reach: 0, clicks: 0, leads: 0 }; map.set(key, e); }
+    e.spend += parseFloat((r.spend as string) || "0");
+    e.impressions += parseInt((r.impressions as string) || "0", 10);
+    e.reach += parseInt((r.reach as string) || "0", 10);
+    e.clicks += parseInt((r.clicks as string) || "0", 10);
+    e.leads += extractAction(r.actions as RawAction[] | undefined, LEAD_TYPES);
+  }
+  return [...map.values()].sort((a, b) => b.spend - a.spend);
+}
+
 export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: string): Promise<CampaignRow[]> {
   // Two calls in parallel: performance from /insights, budget/status from /campaigns.
   // Meta requires them separately because /insights doesn't expose configuration fields

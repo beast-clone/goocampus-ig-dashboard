@@ -271,7 +271,7 @@ export function Sidebar() {
         <div className="text-xs text-[#9BA3B4]">Marketing OS</div>
       </button>
 
-      <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0">
+      <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0 sidebar-scroll">
         {isAdmin && (
           <>
             {item({ label: "Overview", href: "/dashboard", icon: IconHome })}
