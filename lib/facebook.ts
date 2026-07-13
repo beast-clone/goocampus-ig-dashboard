@@ -21,6 +21,8 @@
 // read_insights + pages_read_engagement + pages_read_user_content scopes.
 
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { recordApiCall } from "./api-usage";
+import { metaLimiter } from "./concurrency";
 import type { IGAccountConfig } from "./instagram";
 
 const GRAPH_VERSION = "v25.0";
@@ -28,7 +30,8 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function fbGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetchWithTimeout(`${GRAPH}/${path}?${qs}`, { cache: "no-store" });
+  const res = await metaLimiter(() => fetchWithTimeout(`${GRAPH}/${path}?${qs}`, { cache: "no-store" }));
+  recordApiCall("Facebook Graph", res.ok, res.status);
   if (!res.ok) {
     const body = await res.text();
     let msg = `Meta API ${res.status}`;

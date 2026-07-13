@@ -11,7 +11,7 @@ import {
   IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
   IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
   IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
-  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight, IconTool,
+  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight, IconTool, IconPlugConnected,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -99,6 +99,7 @@ const AI: NavLink[] = [
 ];
 
 const SYSTEM: NavLink[] = [
+  { label: "Integrations", href: "/dashboard/integrations", icon: IconPlugConnected },
   { label: "Tools", href: "/dashboard/tools", icon: IconTool },
 ];
 

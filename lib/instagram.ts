@@ -1,4 +1,6 @@
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { recordApiCall } from "./api-usage";
+import { metaLimiter } from "./concurrency";
 import fs from "fs";
 import path from "path";
 
@@ -94,7 +96,8 @@ export function getAccount(accountId: string): IGAccountConfig | null {
 
 async function gget<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetchWithTimeout(`${GRAPH}/${path}?${qs}`, { cache: "no-store" });
+  const res = await metaLimiter(() => fetchWithTimeout(`${GRAPH}/${path}?${qs}`, { cache: "no-store" }));
+  recordApiCall("Instagram Graph", res.ok, res.status);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Meta API ${res.status}: ${body}`);

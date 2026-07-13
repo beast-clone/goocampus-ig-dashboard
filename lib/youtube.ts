@@ -15,6 +15,8 @@
 // Docs: https://developers.google.com/youtube/analytics/reference/reports/query
 
 import { CHANNELS } from "@/app/api/youtube/route";
+import { recordApiCall } from "./api-usage";
+import { fetchWithTimeout } from "./fetch-with-timeout";
 
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
@@ -52,7 +54,7 @@ async function freshAccessToken(channelKey?: string): Promise<string> {
   // Prefer the stored access token; if a refresh token + client creds exist, mint a fresh one.
   if (rt && id && secret) {
     try {
-      const r = await fetch("https://oauth2.googleapis.com/token", {
+      const r = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: rt, grant_type: "refresh_token" }),
@@ -69,7 +71,8 @@ async function freshAccessToken(channelKey?: string): Promise<string> {
 
 async function ytGet(params: Record<string, string>, token: string): Promise<any> {
   const qs = new URLSearchParams(params).toString();
-  const r = await fetch(`${ANALYTICS}?${qs}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const r = await fetchWithTimeout(`${ANALYTICS}?${qs}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  recordApiCall("YouTube", r.ok, r.status);
   const text = await r.text();
   if (!r.ok) throw new Error(`YouTube ${r.status}: ${text.slice(0, 300)}`);
   return text ? JSON.parse(text) : {};
@@ -126,7 +129,7 @@ export async function fetchVideoComments(channelKey: string, videoId: string, ma
     const token = await freshAccessToken(channelKey);
     opts.headers = { Authorization: `Bearer ${token}` };
   }
-  const r = await fetch(url, opts);
+  const r = await fetchWithTimeout(url, opts);
   if (!r.ok) {
     const t = await r.text();
     const disabled = /commentsDisabled|disabled comments/i.test(t);
@@ -172,7 +175,7 @@ export async function fetchChannelUploads(channelKey: string): Promise<UploadVid
   const api = (path: string) => `https://www.googleapis.com/youtube/v3/${path}`;
 
   // 1. uploads playlist id
-  const chRes = await fetch(api(`channels?part=contentDetails&id=${ch.channelId}`), auth).then((r) => r.json());
+  const chRes = await fetchWithTimeout(api(`channels?part=contentDetails&id=${ch.channelId}`), auth).then((r) => r.json());
   const uploadsId: string | undefined = chRes?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploadsId) return [];
 
@@ -180,7 +183,7 @@ export async function fetchChannelUploads(channelKey: string): Promise<UploadVid
   const ids: string[] = [];
   let pageToken = "";
   for (let i = 0; i < 8 && ids.length < 400; i++) {
-    const pl = await fetch(api(`playlistItems?part=contentDetails&maxResults=50&playlistId=${uploadsId}${pageToken ? `&pageToken=${pageToken}` : ""}`), auth).then((r) => r.json());
+    const pl = await fetchWithTimeout(api(`playlistItems?part=contentDetails&maxResults=50&playlistId=${uploadsId}${pageToken ? `&pageToken=${pageToken}` : ""}`), auth).then((r) => r.json());
     for (const it of pl?.items || []) if (it?.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
     pageToken = pl?.nextPageToken || "";
     if (!pageToken) break;
@@ -191,7 +194,7 @@ export async function fetchChannelUploads(channelKey: string): Promise<UploadVid
   const out: UploadVideo[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50).join(",");
-    const vr = await fetch(api(`videos?part=snippet,contentDetails,statistics&id=${batch}`), auth).then((r) => r.json());
+    const vr = await fetchWithTimeout(api(`videos?part=snippet,contentDetails,statistics&id=${batch}`), auth).then((r) => r.json());
     for (const v of vr?.items || []) {
       const durationSec = parseIsoDuration(v?.contentDetails?.duration || "");
       out.push({
@@ -250,7 +253,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   let currentSubs = ch.baseSubs;
   try {
     if (ch.channelId) {
-      const dr = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`, {
+      const dr = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
       });
       if (dr.ok) {
@@ -280,7 +283,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   const titleMap: Record<string, { title: string; thumb: string; durationSec: number }> = {};
   if (videoIds) {
     try {
-      const vr = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}`, {
+      const vr = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
       });
       if (vr.ok) {

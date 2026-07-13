@@ -1,4 +1,6 @@
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { recordApiCall } from "./api-usage";
+import { metaLimiter } from "./concurrency";
 const GRAPH_VERSION = "v21.0";
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
@@ -124,8 +126,9 @@ export type AdRow = AdsTotals & {
 
 async function gget<T = unknown>(p: string, token: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ ...params, access_token: token });
-  const res = await fetchWithTimeout(`${GRAPH}/${p}?${qs}`, { cache: "no-store" });
+  const res = await metaLimiter(() => fetchWithTimeout(`${GRAPH}/${p}?${qs}`, { cache: "no-store" }));
   const json = await res.json();
+  recordApiCall("Meta Ads", res.ok && !json.error, res.status);
   if (!res.ok || json.error) throw new Error(json.error?.message || `Graph error: ${res.status}`);
   return json;
 }

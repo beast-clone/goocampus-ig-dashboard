@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { metaLimiter } from "@/lib/concurrency";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -21,7 +23,7 @@ async function fetchMediaInDateRange(igUserId: string, token: string, fromIso?: 
   const toTs = toIso ? new Date(toIso + "T23:59:59Z").getTime() : Infinity;
   const out: IGMedia[] = [];
   while (url && out.length < hardCap) {
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await metaLimiter(() => fetchWithTimeout(url, { cache: "no-store" }));
     if (!r.ok) throw new Error(`Meta ${r.status}: ${await r.text()}`);
     const j = (await r.json()) as { data: IGMedia[]; paging?: { next?: string } };
     let stopPaging = false;

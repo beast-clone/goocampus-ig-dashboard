@@ -10,6 +10,9 @@
 // stop the review and check with the user — the base has 30k rows with
 // no backup.
 
+import { recordApiCall } from "./api-usage";
+import { fetchWithTimeout } from "./fetch-with-timeout";
+
 export const SALES_HUB_BASE = "appersdbBcpxhadnD";
 export const CRM_TABLE = "tblTvEGviLA4tEjic";
 export const CONTRACT_TABLE = "tbl82JrETFxd3EMzK";
@@ -56,10 +59,11 @@ export async function airtableList<T = Record<string, unknown>>(
     });
     if (offset) qs.set("offset", offset);
 
-    const r = await fetch(`https://api.airtable.com/v0/${SALES_HUB_BASE}/${tableId}?${qs}`, {
+    const r = await fetchWithTimeout(`https://api.airtable.com/v0/${SALES_HUB_BASE}/${tableId}?${qs}`, {
       headers: { Authorization: `Bearer ${token()}` },
       cache: "no-store",
     });
+    recordApiCall("Airtable", r.ok, r.status);
     if (!r.ok) {
       const text = await r.text();
       throw new Error(`Airtable ${r.status}: ${text.slice(0, 200)}`);

@@ -15,6 +15,9 @@
 //
 // All REST calls use the versioned API. Bump LINKEDIN_VERSION quarterly.
 
+import { recordApiCall } from "./api-usage";
+import { fetchWithTimeout } from "./fetch-with-timeout";
+
 const REST = "https://api.linkedin.com/rest";
 const LINKEDIN_VERSION = "202506";
 
@@ -31,7 +34,8 @@ export function linkedinToken(): string | null {
 }
 
 async function liGet(path: string, token: string): Promise<any> {
-  const r = await fetch(`${REST}${path}`, { headers: headers(token), cache: "no-store" });
+  const r = await fetchWithTimeout(`${REST}${path}`, { headers: headers(token), cache: "no-store" });
+  recordApiCall("LinkedIn", r.ok, r.status);
   const text = await r.text();
   if (!r.ok) throw new Error(`LinkedIn ${r.status} on ${path}: ${text.slice(0, 300)}`);
   return text ? JSON.parse(text) : {};
