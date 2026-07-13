@@ -32,7 +32,7 @@ function fmtINR(n: number): string {
 
 export default function LeadsPage() {
   return (
-    <DashboardShell title="Leads" subtitle="View-only — how many leads we generated, where they came from, and reply rate.">
+    <DashboardShell title="Social Leads" subtitle="Leads from this account's posts, comments and ads — where they came from and reply rate.">
       {({ accountId, range }) => <Inner accountId={accountId} range={range} />}
     </DashboardShell>
   );

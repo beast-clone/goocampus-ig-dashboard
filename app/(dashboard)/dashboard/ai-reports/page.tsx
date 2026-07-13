@@ -76,7 +76,7 @@ function fmtNum(n: number): string {
 
 export default function AIReportsPage() {
   return (
-    <DashboardShell title="AI Reports" subtitle="Weekly, monthly and quarterly rollups — content, audience and leads-to-sales.">
+    <DashboardShell title="AI Reports" subtitle="The full performance report — weekly, monthly &amp; quarterly rollups with graphs, audience and leads-to-sales. (For a quick weekly take, see AI Insights.)">
       {({ accountId }) => <AIReports accountId={accountId} />}
     </DashboardShell>
   );

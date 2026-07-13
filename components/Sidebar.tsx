@@ -32,7 +32,7 @@ type Folder = { key: string; label: string; icon: TablerIcon; href?: string; chi
 const MARKETING_HUB: Folder = {
   key: "marketing-hub", label: "Marketing Hub", icon: IconLayoutKanban, href: "/dashboard/marketing-hub?tab=team",
   children: [
-    { label: "Team", href: "/dashboard/marketing-hub?tab=team", icon: IconUsers },
+    { label: "Workload", href: "/dashboard/marketing-hub?tab=team", icon: IconUsers },
     { label: "Master sheet", href: "/dashboard/marketing-hub?tab=master", icon: IconTable },
     { label: "Pipeline", href: "/dashboard/marketing-hub?tab=pipeline", icon: IconLayoutKanban },
     { label: "Content calendar", href: "/dashboard/marketing-hub?tab=calendar", icon: IconCalendar },
@@ -40,7 +40,7 @@ const MARKETING_HUB: Folder = {
 };
 
 const CONTENT: NavLink[] = [
-  { label: "My Day", href: "/dashboard/my-day", icon: IconSun },
+  { label: "Daily Planner", href: "/dashboard/my-day", icon: IconSun },
   { label: "Content Calendar", href: "/dashboard/calendar", icon: IconCalendar },
   { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
   { label: "Post Planner", href: "/dashboard/post-planner", icon: IconWand },
@@ -56,14 +56,12 @@ const PLATFORM_FOLDERS: Folder[] = [
       { label: "Posts", href: "/dashboard/posts", icon: IconPhoto },
       { label: "Reels", href: "/dashboard/reels", icon: IconMovie },
       { label: "Stories", href: "/dashboard/stories", icon: IconCircleDashed },
-      { label: "Audience", href: "/dashboard/audience#instagram", icon: IconUsers },
     ],
   },
   {
     key: "linkedin", label: "LinkedIn", icon: IconBrandLinkedin, href: "/dashboard/linkedin",
     children: [
       { label: "Posts", href: "/dashboard/linkedin/posts", icon: IconPhoto },
-      { label: "Audience", href: "/dashboard/audience#linkedin", icon: IconUsers },
     ],
   },
   {
@@ -71,14 +69,12 @@ const PLATFORM_FOLDERS: Folder[] = [
     children: [
       { label: "Long-form", href: "/dashboard/youtube/videos#longform", icon: IconMovie },
       { label: "Shorts", href: "/dashboard/youtube/videos#shorts", icon: IconCircleDashed },
-      { label: "Audience", href: "/dashboard/audience#youtube", icon: IconUsers },
     ],
   },
   {
     key: "facebook", label: "Facebook", icon: IconBrandFacebook, href: "/dashboard/facebook",
     children: [
       { label: "Posts", href: "/dashboard/facebook/posts", icon: IconPhoto },
-      { label: "Audience", href: "/dashboard/audience#facebook", icon: IconUsers },
     ],
   },
 ];
@@ -90,8 +86,10 @@ const ADS: NavLink[] = [
 ];
 
 const SALES: NavLink[] = [
-  { label: "Leads", href: "/dashboard/leads", icon: IconTarget },
-  { label: "Sales Ops", href: "/dashboard/sales-ops", icon: IconBriefcase },
+  // "Social Leads" (per-account, from posts/comments/ads) vs "Sales Hub" (the whole
+  // CRM) — renamed so the two very different lead numbers stop reading as the same thing.
+  { label: "Social Leads", href: "/dashboard/leads", icon: IconTarget },
+  { label: "Sales Hub", href: "/dashboard/sales-ops", icon: IconBriefcase },
 ];
 
 const AI: NavLink[] = [

@@ -33,7 +33,7 @@ function fmt(n: number): string {
 
 export default function AIInsightsPage() {
   return (
-    <DashboardShell title="AI Insights" subtitle="Auto-generated weekly analysis: what worked, what to do next.">
+    <DashboardShell title="AI Insights" subtitle="The quick weekly read — what worked last week and a 5-day plan for the next. (For the full report, see AI Reports.)">
       {({ accountId, range }) => <Inner accountId={accountId} range={range} />}
     </DashboardShell>
   );
