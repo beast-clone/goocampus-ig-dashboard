@@ -101,6 +101,31 @@ export type ReportPayload = {
     shares: number;
     erPct: number;
   }[];
+  // Daily trend for the reach/engagement line chart.
+  trend: { date: string; reach: number; engagement: number; newFollowers: number }[];
+  // Leads → sales pulled from the Sales Hub CRM for the same window. null if
+  // the CRM couldn't be reached (keeps the rest of the report working).
+  leadsSales: {
+    totals: { leads: number; contracts: number; revenue: number; conversionPct: number; firstActivityAvgHrs: number | null };
+    inflowByDay: { date: string; count: number }[];
+    bySource: { name: string; count: number }[];
+    byInterest: { name: string; count: number }[];
+    byStatus: { name: string; count: number }[];
+    counsellors: { name: string; assigned: number; contracts: number; revenue: number }[];
+    revenueTrend: { month: string; revenue: number; contracts: number }[];
+    insight: string;
+  } | null;
+};
+
+// Subset of /api/leads-crm we consume.
+type LeadsCrm = {
+  totals: { leads: number; contracts: number; revenue: number; firstActivityAvgHrs: number | null };
+  inflowByDay: { date: string; count: number }[];
+  bySource: { name: string; count: number }[];
+  byInterest: { name: string; count: number }[];
+  byStatus: { name: string; count: number }[];
+  counsellors: { name: string; assigned: number; contracts: number; revenue: number }[];
+  revenueTrend: { month: string; revenue: number; contracts: number }[];
 };
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -148,10 +173,12 @@ export async function GET(req: Request) {
     const cookie = req.headers.get("cookie") || "";
     const commonHeaders = { cookie };
 
-    const [insightsRes, postsRes, audienceRes] = await Promise.all([
+    const [insightsRes, postsRes, audienceRes, leadsRes] = await Promise.all([
       fetch(`${origin}/api/insights?accountId=${accountId}&from=${fromStr}&to=${toStr}`, { headers: commonHeaders, cache: "no-store" }),
       fetch(`${origin}/api/posts?accountId=${accountId}&from=${fromStr}&to=${toStr}&limit=500&insights=true`, { headers: commonHeaders, cache: "no-store" }),
       fetch(`${origin}/api/audience?accountId=${accountId}`, { headers: commonHeaders, cache: "no-store" }),
+      // Sales Hub CRM for the same window — fail-soft (org-wide, not per-account).
+      fetch(`${origin}/api/leads-crm?from=${fromStr}&to=${toStr}`, { headers: commonHeaders, cache: "no-store" }).catch(() => null),
     ]);
     if (!insightsRes.ok) throw new Error(`insights ${insightsRes.status}`);
     if (!postsRes.ok) throw new Error(`posts ${postsRes.status}`);
@@ -160,6 +187,29 @@ export async function GET(req: Request) {
     const postsJson = (await postsRes.json()) as { posts: Post[] };
     const posts = postsJson.posts || [];
     const audience = audienceRes.ok ? ((await audienceRes.json()) as Audience) : {};
+    const crm: LeadsCrm | null = leadsRes && leadsRes.ok ? ((await leadsRes.json()) as LeadsCrm) : null;
+
+    // Shape the leads → sales block (top-N trimmed) for both the AI context and payload.
+    const leadsSales = crm
+      ? {
+          totals: {
+            leads: crm.totals.leads,
+            contracts: crm.totals.contracts,
+            revenue: crm.totals.revenue,
+            conversionPct: crm.totals.leads > 0 ? Math.round((crm.totals.contracts / crm.totals.leads) * 1000) / 10 : 0,
+            firstActivityAvgHrs: crm.totals.firstActivityAvgHrs,
+          },
+          inflowByDay: crm.inflowByDay || [],
+          bySource: (crm.bySource || []).slice(0, 6),
+          byInterest: (crm.byInterest || []).slice(0, 6),
+          byStatus: (crm.byStatus || []).slice(0, 6),
+          counsellors: (crm.counsellors || [])
+            .filter((c) => c.name && c.name !== "Unassigned")
+            .slice(0, 8),
+          revenueTrend: crm.revenueTrend || [],
+          insight: "",
+        }
+      : null;
 
     const totalPosts = posts.length;
     const formatBag: Record<string, { count: number; reachSum: number; engSum: number }> = {};
@@ -247,6 +297,17 @@ export async function GET(req: Request) {
         age: audience.age || [],
         gender: audience.gender || [],
       },
+      leadsSales: leadsSales
+        ? {
+            leads: leadsSales.totals.leads,
+            contracts: leadsSales.totals.contracts,
+            revenue: leadsSales.totals.revenue,
+            conversionPct: leadsSales.totals.conversionPct,
+            firstResponseHrs: leadsSales.totals.firstActivityAvgHrs,
+            topSources: leadsSales.bySource,
+            topCounsellors: leadsSales.counsellors.map((c) => ({ name: c.name, assigned: c.assigned, contracts: c.contracts, revenue: c.revenue })),
+          }
+        : null,
     };
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -267,8 +328,9 @@ export async function GET(req: Request) {
             "  2. Voice: first-person marketing lead, direct, no fluff, no emoji.",
             "  3. Each insight cites at least one specific number as evidence.",
             "  4. Recommendations must be concrete actions ('post 3 Reels on AMC exam prep next week'), not platitudes.",
-            "  5. Executive summary: 3-4 sentences, high-level, ends with the ONE thing to focus on next.",
-            "  6. Length caps: executiveSummary ≤ 90 words, each insight ≤ 40 words, each whyItWorked ≤ 25 words, each recommendation.title ≤ 8 words, .why ≤ 30 words, .action ≤ 30 words.",
+            "  5. Executive summary: 3-4 sentences, high-level. If leadsSales is present, tie social performance to leads and revenue (e.g. reach → leads → contracts). End with the ONE thing to focus on next.",
+            "  6. leadsInsight: 2-3 sentences connecting the leads collected to sales — cite leads, conversionPct, revenue, and name the strongest counsellor or source. If leadsSales is null, return an empty string.",
+            "  7. Length caps: executiveSummary ≤ 90 words, leadsInsight ≤ 55 words, each insight ≤ 40 words, each whyItWorked ≤ 25 words, each recommendation.title ≤ 8 words, .why ≤ 30 words, .action ≤ 30 words.",
             "",
             "Return JSON matching:",
             "  {",
@@ -280,6 +342,7 @@ export async function GET(req: Request) {
             "    reachInsight: string,",
             "    engagementInsight: string,",
             "    audienceInsight: string,",
+            "    leadsInsight: string,",
             "    recommendations: [{ title, why, action }] (3-5 items)",
             "  }",
           ].join("\n"),
@@ -299,6 +362,7 @@ export async function GET(req: Request) {
       reachInsight?: string;
       engagementInsight?: string;
       audienceInsight?: string;
+      leadsInsight?: string;
       recommendations?: { title: string; why: string; action: string }[];
     };
     let ai: AIPart = {};
@@ -360,6 +424,13 @@ export async function GET(req: Request) {
       bestTimes,
       recommendations: ai.recommendations || [],
       postMetricsTable,
+      trend: (insights.series || []).map((s) => ({
+        date: s.date,
+        reach: s.reach || 0,
+        engagement: s.engagement || 0,
+        newFollowers: s.newFollowers || 0,
+      })),
+      leadsSales: leadsSales ? { ...leadsSales, insight: ai.leadsInsight || "" } : null,
     };
 
     CACHE.set(cacheKey, { at: Date.now(), payload });

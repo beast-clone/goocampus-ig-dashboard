@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 
 type Period = "weekly" | "monthly" | "quarterly";
@@ -45,6 +45,17 @@ type ReportPayload = {
     date: string; type: string; caption: string;
     reach: number; likes: number; comments: number; saves: number; shares: number; erPct: number;
   }[];
+  trend: { date: string; reach: number; engagement: number; newFollowers: number }[];
+  leadsSales: {
+    totals: { leads: number; contracts: number; revenue: number; conversionPct: number; firstActivityAvgHrs: number | null };
+    inflowByDay: { date: string; count: number }[];
+    bySource: { name: string; count: number }[];
+    byInterest: { name: string; count: number }[];
+    byStatus: { name: string; count: number }[];
+    counsellors: { name: string; assigned: number; contracts: number; revenue: number }[];
+    revenueTrend: { month: string; revenue: number; contracts: number }[];
+    insight: string;
+  } | null;
 };
 
 const PERIOD_META: Record<Period, { title: string; sub: string; icon: string }> = {
@@ -65,7 +76,7 @@ function fmtNum(n: number): string {
 
 export default function AIReportsPage() {
   return (
-    <DashboardShell title="AI Reports" subtitle="Weekly, monthly and quarterly performance rollups — generated on demand.">
+    <DashboardShell title="AI Reports" subtitle="Weekly, monthly and quarterly rollups — content, audience and leads-to-sales.">
       {({ accountId }) => <AIReports accountId={accountId} />}
     </DashboardShell>
   );
@@ -76,6 +87,7 @@ function AIReports({ accountId }: { accountId: string }) {
   const [loading, setLoading] = useState<Period | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<Period | null>(null);
+  const autoedFor = useRef<string | null>(null);
 
   const generate = async (period: Period, force = false) => {
     setLoading(period);
@@ -94,10 +106,34 @@ function AIReports({ accountId }: { accountId: string }) {
     }
   };
 
+  // Auto-load the monthly report on open (and when the account changes) so the
+  // report is already on screen for the demo — no click-to-generate, no wait.
+  // The server caches 12h, so re-opens are instant.
+  useEffect(() => {
+    if (autoedFor.current === accountId) return;
+    autoedFor.current = accountId;
+    setReport(null);
+    generate("monthly");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
   return (
     <div className="max-w-[1200px] mx-auto">
-      {/* Header cards — the three generation buttons */}
-      {!report && (
+      {/* Auto-load skeleton — shown while the monthly report is being prepared on open. */}
+      {!report && loading && (
+        <div className="animate-pulse">
+          <div className="h-28 bg-gray-100 rounded-2xl mb-6" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
+          </div>
+          <div className="h-48 bg-gray-100 rounded-2xl mb-4" />
+          <div className="h-64 bg-gray-100 rounded-2xl" />
+          <div className="text-center text-[13px] text-gray-500 mt-6">Preparing your {loading} report…</div>
+        </div>
+      )}
+
+      {/* Header cards — the three generation buttons (fallback / manual re-pick) */}
+      {!report && !loading && (
         <>
           <div className="bg-gradient-to-r from-brand to-brand-dark text-white rounded-2xl p-6 mb-6">
             <div className="text-[11px] uppercase tracking-widest opacity-80">Pick a cadence</div>
@@ -242,6 +278,16 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
         </div>
       </section>
 
+      {/* Performance trend — reach & engagement over the period */}
+      {report.trend && report.trend.length > 1 && (
+        <section>
+          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Performance trend</div>
+          <div className="border border-gray-200 rounded-xl p-4">
+            <TrendLineChart data={report.trend} />
+          </div>
+        </section>
+      )}
+
       {/* Content mix */}
       <section>
         <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Content mix</div>
@@ -360,6 +406,89 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
         <TwoLineCard title="Reach" value={fmtNum(report.reachOverview.total)} delta={report.reachOverview.deltaPct} insight={report.reachOverview.insight} />
         <TwoLineCard title="Engagement" value={fmtNum(report.engagementOverview.total)} delta={report.engagementOverview.deltaPct} insight={report.engagementOverview.insight} extra={`Engagement rate: ${report.engagementOverview.engagementRatePct}%`} />
       </section>
+
+      {/* Leads & sales — from the Sales Hub CRM for the same window */}
+      {report.leadsSales && (
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold">Leads &amp; sales</div>
+            <div className="text-[10.5px] text-gray-400">Sales Hub CRM · same date range</div>
+          </div>
+
+          {/* Top-line numbers */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <LeadStat big={fmtNum(report.leadsSales.totals.leads)} lbl="Leads collected" />
+            <LeadStat big={fmtNum(report.leadsSales.totals.contracts)} lbl="Contracts closed" />
+            <LeadStat big={`${report.leadsSales.totals.conversionPct}%`} lbl="Lead → contract" accent />
+            <LeadStat big={`₹${fmtNum(report.leadsSales.totals.revenue)}`} lbl="Revenue" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Leads inflow chart */}
+            {report.leadsSales.inflowByDay.length > 1 && (
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Leads inflow</div>
+                <VBars data={report.leadsSales.inflowByDay.map((d) => ({ label: d.date, value: d.count }))} color="#5142C4" />
+              </div>
+            )}
+            {/* Revenue trend (last 6 months) */}
+            {report.leadsSales.revenueTrend.length > 0 && (
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Revenue trend · last 6 months</div>
+                <VBars
+                  data={report.leadsSales.revenueTrend.map((m) => ({ label: m.month, value: m.revenue }))}
+                  color="#059669"
+                  fmt={(v) => `₹${fmtNum(v)}`}
+                  labelFmt={(m) => new Date(m + "-01").toLocaleDateString("en-IN", { month: "short" })}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Counsellor performance table */}
+          {report.leadsSales.counsellors.length > 0 && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden mt-4">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Counsellor</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Assigned</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Contracts</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Conv.</th>
+                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.leadsSales.counsellors.map((c) => (
+                    <tr key={c.name} className="border-t border-gray-100">
+                      <td className="px-3 py-2 font-medium text-gray-900">{c.name}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtNum(c.assigned)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtNum(c.contracts)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{c.assigned > 0 ? Math.round((c.contracts / c.assigned) * 100) : 0}%</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">₹{fmtNum(c.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Lead source split */}
+          {report.leadsSales.bySource.length > 0 && (
+            <div className="mt-4 border border-gray-200 rounded-xl p-4">
+              <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Where leads came from</div>
+              <RankBars data={report.leadsSales.bySource} color="#2B6AB0" />
+            </div>
+          )}
+
+          {report.leadsSales.insight && (
+            <div className="mt-4 border border-brand/30 bg-brand/5 rounded-xl p-4">
+              <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-2">Read on leads &amp; sales</div>
+              <p className="text-[13px] text-gray-800 leading-relaxed">{report.leadsSales.insight}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Audience */}
       {(report.audienceInsights.topCountries.length > 0 || report.audienceInsights.topCities.length > 0) && (
@@ -512,6 +641,99 @@ function TwoLineCard({ title, value, delta, insight, extra }: { title: string; v
       </div>
       {extra && <div className="text-[11.5px] text-gray-500 mt-1">{extra}</div>}
       {insight && <div className="text-[12.5px] text-gray-700 mt-2 leading-snug">{insight}</div>}
+    </div>
+  );
+}
+
+function LeadStat({ big, lbl, accent }: { big: string; lbl: string; accent?: boolean }) {
+  return (
+    <div className={`rounded-xl p-4 border ${accent ? "border-brand/30 bg-brand/5" : "border-gray-200"}`}>
+      <div className={`text-[22px] font-semibold tabular-nums tracking-tight ${accent ? "text-brand" : "text-gray-900"}`}>{big}</div>
+      <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mt-1">{lbl}</div>
+    </div>
+  );
+}
+
+// Two-line trend chart. Reach and engagement live on very different scales, so
+// each line is indexed to its own peak — the point is the SHAPE over time.
+function TrendLineChart({ data }: { data: { date: string; reach: number; engagement: number; newFollowers: number }[] }) {
+  const W = 720, H = 180, PL = 8, PR = 8, PT = 12, PB = 22;
+  const n = data.length;
+  const maxReach = Math.max(1, ...data.map((d) => d.reach));
+  const maxEng = Math.max(1, ...data.map((d) => d.engagement));
+  const x = (i: number) => PL + (i / Math.max(1, n - 1)) * (W - PL - PR);
+  const y = (v: number, max: number) => PT + (1 - v / max) * (H - PT - PB);
+  const path = (key: "reach" | "engagement", max: number) =>
+    data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d[key], max).toFixed(1)}`).join(" ");
+  const fmtDay = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const ticks = n <= 1 ? [0] : [0, Math.floor((n - 1) / 2), n - 1];
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-2 text-[11px]">
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#5142C4" }} /> Reach <span className="text-gray-400 tabular-nums">(peak {maxReach.toLocaleString("en-IN")})</span></span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#059669" }} /> Engagement <span className="text-gray-400 tabular-nums">(peak {maxEng.toLocaleString("en-IN")})</span></span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "auto" }} preserveAspectRatio="xMidYMid meet">
+        {[0.25, 0.5, 0.75].map((g) => (
+          <line key={g} x1={PL} x2={W - PR} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke="#f1f1f4" strokeWidth={1} />
+        ))}
+        <path d={path("reach", maxReach)} fill="none" stroke="#5142C4" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path("engagement", maxEng)} fill="none" stroke="#059669" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {ticks.map((i) => (
+          <text key={i} x={x(i)} y={H - 6} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"} className="fill-gray-400" style={{ fontSize: 10 }}>
+            {fmtDay(data[i].date)}
+          </text>
+        ))}
+      </svg>
+      <div className="text-[10.5px] text-gray-400 mt-1 italic">Each line indexed to its own peak — shows the trend, not the absolute scale.</div>
+    </div>
+  );
+}
+
+// Vertical bar chart for a time series (leads inflow, revenue by month).
+function VBars({ data, color, fmt, labelFmt }: {
+  data: { label: string; value: number }[];
+  color: string;
+  fmt?: (v: number) => string;
+  labelFmt?: (l: string) => string;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const peak = data.reduce((a, b) => (b.value > a.value ? b : a), data[0]);
+  // Cap the number of x-axis labels so dense day-series stay readable.
+  const step = Math.max(1, Math.ceil(data.length / 6));
+  return (
+    <div>
+      <div className="flex items-end gap-[3px] h-[120px]">
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col justify-end group relative" title={`${labelFmt ? labelFmt(d.label) : d.label}: ${fmt ? fmt(d.value) : d.value}`}>
+            <div className="rounded-t-sm transition-opacity group-hover:opacity-80" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0, background: color }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 tabular-nums">
+        {data.filter((_, i) => i % step === 0 || i === data.length - 1).map((d, i) => (
+          <span key={i}>{labelFmt ? labelFmt(d.label) : new Date(d.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+        ))}
+      </div>
+      <div className="text-[11px] text-gray-500 mt-1.5">Peak <b className="text-gray-800">{fmt ? fmt(peak.value) : fmtNum(peak.value)}</b> · {labelFmt ? labelFmt(peak.label) : new Date(peak.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+    </div>
+  );
+}
+
+// Horizontal ranked bars for a category split (lead sources).
+function RankBars({ data, color }: { data: { name: string; count: number }[]; color: string }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div className="space-y-2">
+      {data.map((d) => (
+        <div key={d.name} className="grid grid-cols-[130px_1fr_48px] items-center gap-3 text-[12.5px]">
+          <div className="truncate text-gray-900" title={d.name}>{d.name}</div>
+          <div className="h-3 bg-gray-100 rounded overflow-hidden">
+            <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
+          </div>
+          <div className="text-right tabular-nums text-gray-500">{fmtNum(d.count)}</div>
+        </div>
+      ))}
     </div>
   );
 }
