@@ -115,7 +115,7 @@ function brandInitials(label: string): string {
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-[#7C8494]">
+    <div className="px-3 pt-4 pb-1 text-[10px] font-medium uppercase tracking-widest text-gray-400">
       {children}
     </div>
   );
@@ -177,9 +177,9 @@ export function Sidebar() {
       <Link
         key={t.href}
         href={t.href}
-        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${active ? "bg-white/10 text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5 hover:text-[#F2F4F8]"}`}
+        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition ${active ? "bg-brand text-white font-medium shadow-sm shadow-brand/30" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"}`}
       >
-        <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
+        <Ico size={indent ? 15 : 17} stroke={1.7} className={active ? "text-white" : "text-gray-400"} />
         {t.label}
       </Link>
     );
@@ -196,11 +196,11 @@ export function Sidebar() {
       return (
         <div
           key={f.key}
-          className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg opacity-30 cursor-not-allowed select-none text-[#AEB6C6]"
+          className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg opacity-40 cursor-not-allowed select-none text-gray-400"
           title={`${profileAccount?.label ?? "This brand"} has no ${f.label} connected`}
           aria-disabled="true"
         >
-          <Ico size={17} stroke={1.7} className="text-[#8A93A6]" />
+          <Ico size={17} stroke={1.7} className="text-gray-300" />
           <span className="flex-1">{f.label}</span>
           <span className="text-[9px] uppercase tracking-wider pr-1.5">none</span>
         </div>
@@ -214,7 +214,7 @@ export function Sidebar() {
     const chevron = (onClick: (e: React.MouseEvent) => void) => (
       <button
         onClick={onClick}
-        className="w-7 h-7 flex items-center justify-center text-[#8A93A6] hover:text-white"
+        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900"
         aria-label={`${open ? "Collapse" : "Expand"} ${f.label}`}
       >
         <IconChevronRight size={15} stroke={2} className={`transition-transform ${open ? "rotate-90" : ""}`} />
@@ -223,13 +223,13 @@ export function Sidebar() {
     return (
       <div key={f.key}>
         {f.href ? (
-          <div className={`flex items-center rounded-lg pr-0.5 ${parentActive ? "bg-white/10" : "hover:bg-white/5"}`}>
+          <div className={`flex items-center rounded-lg pr-0.5 transition ${parentActive ? "bg-brand shadow-sm shadow-brand/30" : "hover:bg-gray-50"}`}>
             <Link
               href={f.href}
               onClick={forceOpen}
-              className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-white font-medium" : "text-[#AEB6C6]"}`}
+              className={`flex-1 flex items-center gap-2.5 px-3 py-1.5 ${parentActive ? "text-white font-medium" : "text-gray-500"}`}
             >
-              <Ico size={17} stroke={1.7} className={parentActive ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
+              <Ico size={17} stroke={1.7} className={parentActive ? "text-white" : "text-gray-400"} />
               {f.label}
             </Link>
             {chevron((e) => { e.preventDefault(); e.stopPropagation(); toggle(); })}
@@ -237,19 +237,19 @@ export function Sidebar() {
         ) : (
           <button
             onClick={toggle}
-            className={`w-full flex items-center rounded-lg pr-0.5 text-left ${folderActive(f) ? "text-white font-medium" : "text-[#AEB6C6] hover:bg-white/5"}`}
+            className={`w-full flex items-center rounded-lg pr-0.5 text-left transition ${folderActive(f) ? "text-gray-900 font-medium" : "text-gray-500 hover:bg-gray-50"}`}
           >
             <span className="flex-1 flex items-center gap-2.5 px-3 py-1.5">
-              <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-[#A99AF5]" : "text-[#8A93A6]"} />
+              <Ico size={17} stroke={1.7} className={folderActive(f) ? "text-brand" : "text-gray-400"} />
               {f.label}
             </span>
-            <span className="w-7 h-7 flex items-center justify-center text-[#8A93A6]">
+            <span className="w-7 h-7 flex items-center justify-center text-gray-400">
               <IconChevronRight size={15} stroke={2} className={`transition-transform ${open ? "rotate-90" : ""}`} />
             </span>
           </button>
         )}
         {open && (
-          <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-white/[0.08] space-y-0.5">
+          <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-gray-100 space-y-0.5">
             {f.children.map((c) => item(c, true))}
           </div>
         )}
@@ -264,15 +264,18 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-[#14151C] flex flex-col h-screen sticky top-0">
+    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">
       {/* Logo = home. In profile mode, clicking it returns to the main dashboard. */}
       <button
         onClick={() => switchTo(null)}
-        className="px-5 py-5 border-b border-white/10 text-left hover:bg-white/5"
+        className="px-5 py-5 border-b border-gray-100 text-left hover:bg-gray-50 flex items-center gap-2.5"
         title={profile ? "Back to the main dashboard" : "Main dashboard"}
       >
-        <div className="text-lg font-semibold text-white">GooCampus</div>
-        <div className="text-xs text-[#9BA3B4]">Marketing OS</div>
+        <span className="w-9 h-9 rounded-[10px] bg-brand flex items-center justify-center text-white font-bold text-sm flex-shrink-0">G</span>
+        <span>
+          <span className="block text-lg font-bold text-gray-900 leading-tight">GooCampus</span>
+          <span className="block text-[11px] text-gray-400">Marketing OS</span>
+        </span>
       </button>
 
       <nav className="px-3 pt-3 pb-2 space-y-0.5 text-sm flex-1 overflow-y-auto min-h-0 sidebar-scroll">
@@ -313,21 +316,21 @@ export function Sidebar() {
             {/* ── Brand profile switcher — lives in the empty space below the groups ── */}
             <div className="pt-5 pb-2 relative">
               {switcherOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#1D1E27] border border-white/10 rounded-xl overflow-hidden shadow-xl z-20">
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xl z-20">
                   <button
                     onClick={() => switchTo(null)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[#AEB6C6] hover:bg-white/5 hover:text-white text-sm"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-sm"
                   >
-                    <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center"><IconHome size={15} stroke={1.7} /></span>
+                    <span className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500"><IconHome size={15} stroke={1.7} /></span>
                     <span className="flex-1">Main dashboard</span>
-                    {!profile && <IconCheck size={15} className="text-[#A99AF5]" />}
+                    {!profile && <IconCheck size={15} className="text-brand" />}
                   </button>
-                  <div className="border-t border-white/10" />
+                  <div className="border-t border-gray-100" />
                   {ACCOUNTS.map((a) => (
                     <button
                       key={a.id}
                       onClick={() => switchTo(a.id)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[#AEB6C6] hover:bg-white/5 hover:text-white text-sm"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-sm"
                     >
                       <span
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
@@ -336,14 +339,14 @@ export function Sidebar() {
                         {brandInitials(a.label)}
                       </span>
                       <span className="flex-1 truncate">{a.label}</span>
-                      {profile === a.id && <IconCheck size={15} className="text-[#A99AF5]" />}
+                      {profile === a.id && <IconCheck size={15} className="text-brand" />}
                     </button>
                   ))}
                 </div>
               )}
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-left"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-left"
               >
                 {profileAccount ? (
                   <span
@@ -353,23 +356,23 @@ export function Sidebar() {
                     {brandInitials(profileAccount.label)}
                   </span>
                 ) : (
-                  <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 text-[#AEB6C6]"><IconHome size={15} stroke={1.7} /></span>
+                  <span className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500"><IconHome size={15} stroke={1.7} /></span>
                 )}
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[10px] uppercase tracking-widest text-[#7C8494]">{profileAccount ? "Profile" : "Viewing"}</span>
-                  <span className="block text-sm text-white truncate">{profileAccount ? profileAccount.label : "Main dashboard"}</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-gray-400">{profileAccount ? "Profile" : "Viewing"}</span>
+                  <span className="block text-sm text-gray-900 truncate">{profileAccount ? profileAccount.label : "Main dashboard"}</span>
                 </span>
-                <IconSwitchHorizontal size={15} stroke={1.7} className="text-[#8A93A6] flex-shrink-0" />
+                <IconSwitchHorizontal size={15} stroke={1.7} className="text-gray-400 flex-shrink-0" />
               </button>
             </div>
           </>
         )}
       </nav>
 
-      <div className="px-3 py-3 border-t border-white/10 space-y-0.5 text-sm">
+      <div className="px-3 py-3 border-t border-gray-100 space-y-0.5 text-sm">
         {isAdmin && !profile && item({ label: "Team", href: "/dashboard/team", icon: IconUsersGroup })}
         <form action="/api/logout" method="post" className="px-3 pt-1">
-          <button className="flex items-center gap-2 text-xs text-[#8A93A6] hover:text-white">
+          <button className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900">
             <IconLogout size={14} stroke={1.7} />
             Sign out
           </button>

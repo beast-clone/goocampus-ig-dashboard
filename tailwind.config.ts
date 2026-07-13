@@ -5,10 +5,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Hope UI reskin — indigo primary.
         brand: {
-          DEFAULT: "#6E48F8",
-          dark: "#4A2EC4",
-          light: "#EDE7FE",
+          DEFAULT: "#3A57E8",
+          dark: "#2138B0",
+          light: "#E9ECFB",
         },
       },
     },
