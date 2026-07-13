@@ -3,6 +3,17 @@ import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
+// Per-post insights mean one Meta call per post — a cold fetch for a month of
+// posts takes 15–30s. The underlying numbers barely move within a day, and this
+// endpoint is hit by nearly every page, so cache the finished payload per
+// {account, range, limit, insights}. First load is cold; every repeat is instant.
+// In-flight de-dupe collapses the burst of identical requests each page fires on
+// mount into a single upstream fetch.
+type PostsPayload = { live: boolean; count: number; posts: unknown[]; range: { from?: string; to?: string } };
+const CACHE = new Map<string, { at: number; body: PostsPayload }>();
+const INFLIGHT = new Map<string, Promise<PostsPayload>>();
+const TTL_MS = 60 * 60 * 1000;
+
 async function fetchMediaInDateRange(igUserId: string, token: string, fromIso?: string, toIso?: string, hardCap = 500) {
   const fields = "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
   let url = `${GRAPH}/${igUserId}/media?fields=${fields}&limit=100&access_token=${token}`;
@@ -38,9 +49,12 @@ export async function GET(req: Request) {
   const acct = getAccount(accountId);
   if (!acct) return NextResponse.json({ posts: [], note: "No account configured" });
 
-  try {
-    const cap = limit > 0 ? limit : 500;
-    const media = await fetchMediaInDateRange(acct.igUserId, acct.pageAccessToken, from, to, cap);
+  const cap = limit > 0 ? limit : 500;
+  const force = url.searchParams.get("force") === "1";
+  const key = `${accountId}|${from || ""}|${to || ""}|${cap}|${withInsights ? "ins" : "raw"}`;
+
+  const build = async (): Promise<PostsPayload> => {
+    const media = await fetchMediaInDateRange(acct!.igUserId, acct!.pageAccessToken, from, to, cap);
 
     const concurrency = 6;
     const posts: unknown[] = [];
@@ -78,7 +92,37 @@ export async function GET(req: Request) {
     }
     await Promise.all(Array.from({ length: Math.min(concurrency, media.length) }, () => worker()));
 
-    return NextResponse.json({ live: true, count: posts.length, posts, range: { from, to } });
+    return { live: true, count: posts.length, posts, range: { from, to } };
+  };
+
+  // Kick off (or reuse) a build and keep the cache warm.
+  const revalidate = (): Promise<PostsPayload> => {
+    const flying = INFLIGHT.get(key);
+    if (flying) return flying;
+    const p = build()
+      .then((body) => {
+        CACHE.set(key, { at: Date.now(), body });
+        return body;
+      })
+      .finally(() => INFLIGHT.delete(key));
+    INFLIGHT.set(key, p);
+    return p;
+  };
+
+  const hit = CACHE.get(key);
+  if (!force && hit) {
+    const fresh = Date.now() - hit.at < TTL_MS;
+    // Stale → serve the old copy instantly and refresh in the background, so a
+    // warmed view is never slow again.
+    if (!fresh) revalidate().catch(() => {});
+    return NextResponse.json({ ...hit.body, cached: true, stale: !fresh });
+  }
+
+  // Cold (or forced) — must wait for the real fetch. Concurrent identical
+  // requests share this one build via the in-flight map.
+  try {
+    const body = await revalidate();
+    return NextResponse.json({ ...body, cached: false });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
