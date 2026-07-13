@@ -107,7 +107,7 @@ const COLORS = ["#378ADD", "#5DCAA5", "#EF9F27", "#B4B2A9", "#D4537E", "#7F77DD"
 
 export default function SalesOpsPage() {
   return (
-    <DashboardShell title="Sales Ops" subtitle="Live view of Sales Hub — leads, activity, contracts, and revenue in the selected range.">
+    <DashboardShell title="Sales Ops" subtitle="Live view of Sales Hub — leads, activity, contracts, and revenue in the selected range." hideAccountPicker>
       {({ range }) => <Inner range={range} />}
     </DashboardShell>
   );

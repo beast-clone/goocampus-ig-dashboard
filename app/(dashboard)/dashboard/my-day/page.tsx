@@ -7,7 +7,7 @@ import { MyDayView } from "@/components/MyDayView";
 // own /me/tasks page (which locks it to the signed-in person).
 export default function MyDayPage() {
   return (
-    <DashboardShell title="My Day" subtitle="Your queue for today — pick the person, see what's next.">
+    <DashboardShell title="My Day" subtitle="Your queue for today — pick the person, see what's next." hideAccountPicker>
       {({ range }) => <MyDayView range={range} />}
     </DashboardShell>
   );

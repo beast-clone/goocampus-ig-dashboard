@@ -16,7 +16,7 @@ type Member = {
 
 export default function TeamPage() {
   return (
-    <DashboardShell title="Team" subtitle="Who can sign in, what they can open, and their passwords.">
+    <DashboardShell title="Team" subtitle="Who can sign in, what they can open, and their passwords." hideAccountPicker>
       {() => <TeamManager />}
     </DashboardShell>
   );

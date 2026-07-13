@@ -46,7 +46,7 @@ const INTEREST_OPTIONS = [
 
 export default function RadarPage() {
   return (
-    <DashboardShell title="Content Radar" subtitle="Every Google Alert you subscribe to, grouped by primary interest. Turn any headline into a post brief.">
+    <DashboardShell title="Content Radar" subtitle="Every Google Alert you subscribe to, grouped by primary interest. Turn any headline into a post brief." hideAccountPicker>
       {() => <Radar />}
     </DashboardShell>
   );

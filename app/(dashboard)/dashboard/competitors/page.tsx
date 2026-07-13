@@ -26,7 +26,7 @@ const PRESETS = [
 
 export default function CompetitorsPage() {
   return (
-    <DashboardShell title="Competitor Ads">
+    <DashboardShell title="Competitor Ads" hideAccountPicker>
       {() => <Competitors />}
     </DashboardShell>
   );

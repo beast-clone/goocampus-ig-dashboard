@@ -60,7 +60,7 @@ function fmtDay(iso: string) {
 
 export default function AdsPage() {
   return (
-    <DashboardShell title="Ads">
+    <DashboardShell title="Ads" hideAccountPicker>
       {({ range }) => <Ads range={range} />}
     </DashboardShell>
   );

@@ -72,7 +72,7 @@ const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = 
 
 export default function SchedulerPage() {
   return (
-    <DashboardShell title="Scheduler" subtitle="Create post → drops into your Content Calendar → n8n picks it up within a minute.">
+    <DashboardShell title="Scheduler" subtitle="Create post → drops into your Content Calendar → n8n picks it up within a minute." hideAccountPicker>
       {() => <Scheduler />}
     </DashboardShell>
   );
