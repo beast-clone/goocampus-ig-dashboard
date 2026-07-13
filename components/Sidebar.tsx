@@ -11,7 +11,7 @@ import {
   IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
   IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
   IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
-  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight, IconTool, IconPlugConnected,
+  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight, IconTool, IconPlugConnected, IconWand,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -43,6 +43,7 @@ const CONTENT: NavLink[] = [
   { label: "My Day", href: "/dashboard/my-day", icon: IconSun },
   { label: "Content Calendar", href: "/dashboard/calendar", icon: IconCalendar },
   { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
+  { label: "Post Planner", href: "/dashboard/post-planner", icon: IconWand },
   { label: "Content Radar", href: "/dashboard/radar", icon: IconRadar },
   { label: "Discover", href: "/dashboard/discover", icon: IconCompass },
   { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
