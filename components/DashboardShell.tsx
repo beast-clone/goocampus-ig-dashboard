@@ -84,7 +84,10 @@ export function DashboardShell({
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 min-w-0">
+        {/* Cap the content width so 27"–32" / 4K screens stay dense and readable
+            instead of stretching cards edge-to-edge; still fills 21"–24" fully. */}
+        <div className="max-w-[2200px] mx-auto p-8">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold flex items-center gap-3">
@@ -119,6 +122,7 @@ export function DashboardShell({
           </div>
         </div>
         {children({ accountId: profile ?? (compareAll ? "all" : accountId), compareAll: profile ? false : compareAll, range })}
+        </div>
       </main>
     </div>
   );

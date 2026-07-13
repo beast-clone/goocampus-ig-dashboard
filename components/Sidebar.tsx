@@ -11,7 +11,7 @@ import {
   IconCircleDashed, IconUsers, IconBrandLinkedin, IconBrandYoutube,
   IconBrandFacebook, IconSpeakerphone, IconSpy, IconScale, IconTarget,
   IconBriefcase, IconSparkles, IconReport, IconUsersGroup, IconLogout,
-  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight,
+  IconSwitchHorizontal, IconCheck, IconTable, IconChevronRight, IconTool,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -96,6 +96,10 @@ const SALES: NavLink[] = [
 const AI: NavLink[] = [
   { label: "AI Insights", href: "/dashboard/ai-insights", icon: IconSparkles },
   { label: "AI Reports", href: "/dashboard/ai-reports", icon: IconReport },
+];
+
+const SYSTEM: NavLink[] = [
+  { label: "Tools", href: "/dashboard/tools", icon: IconTool },
 ];
 
 // Brand chip colours for the switcher avatars.
@@ -300,6 +304,9 @@ export function Sidebar() {
 
                 <GroupHeading>AI</GroupHeading>
                 {AI.map((t) => item(t))}
+
+                <GroupHeading>System</GroupHeading>
+                {SYSTEM.map((t) => item(t))}
               </>
             )}
 
