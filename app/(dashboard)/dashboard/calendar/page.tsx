@@ -326,7 +326,7 @@ function Calendar() {
             <div className="text-sm font-semibold text-rose-900">⚠ {statusCounts.failed} post{statusCounts.failed === 1 ? "" : "s"} need attention</div>
             <button onClick={() => setActiveStatus("failed")} className="text-xs text-rose-700 hover:underline">Show only failures →</button>
           </div>
-          <div className="text-xs text-rose-700">Stuck posts won&apos;t self-recover. Click a red tile → Retry to bump it back into the n8n queue.</div>
+          <div className="text-xs text-rose-700">Stuck posts won&apos;t self-recover. Click a red tile → Retry to bump it back into the publishing queue.</div>
         </div>
       )}
 
@@ -641,7 +641,7 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
                 disabled={retrying}
                 className="mt-3 text-xs font-medium bg-rose-600 text-white px-3 py-1.5 rounded-md hover:bg-rose-700 disabled:opacity-50"
               >
-                {retrying ? "Retrying…" : "↻ Retry — bump back into n8n queue"}
+                {retrying ? "Retrying…" : "↻ Retry — bump back into the queue"}
               </button>
               {error && <div className="text-xs text-rose-700 mt-2">{error}</div>}
             </div>

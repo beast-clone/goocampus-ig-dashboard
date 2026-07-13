@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable instrumentation.ts (Next 14) — used to auto-warm caches in local dev.
+  experimental: { instrumentationHook: true },
   // Served under goocampusevents.com/insights via a Netlify rewrite on the main site.
   // basePath ensures all generated asset/route URLs include this prefix so they resolve
   // correctly when proxied. Override locally with BASE_PATH= (empty) to run at root.

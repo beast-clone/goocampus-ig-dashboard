@@ -267,7 +267,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </Card>
         <Card>
           <div className="text-lg font-medium">Interest mix</div>
-          <div className="text-sm text-gray-500 mb-4">Primary Interest (n8n)</div>
+          <div className="text-sm text-gray-500 mb-4">Primary Interest</div>
           <TableList rows={data?.byInterest || []} total={totalInterest} loading={isLoading} />
         </Card>
       </div>
@@ -597,7 +597,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <Card>
           <div className="flex items-baseline justify-between mb-1">
             <div className="text-lg font-medium">Geography</div>
-            <div className="text-sm text-gray-500">Location (n8n) field on CRM</div>
+            <div className="text-sm text-gray-500">Location field on CRM</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Where leads are physically located.</div>
           <TableList rows={data.geography} total={data.totals.leads} loading={false} />

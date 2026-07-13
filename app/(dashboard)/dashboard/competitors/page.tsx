@@ -53,7 +53,7 @@ function Competitors() {
       const res = await fetch("/api/competitors/sync", { method: "POST" });
       const d = await res.json();
       if (d.error) setSyncResult(`Error: ${d.error}`);
-      else setSyncResult(`Synced ${d.uniqueQueriesSynced} unique queries from ${d.totalRunsFound} past Apify runs. No new Apify cost.`);
+      else setSyncResult(`Synced ${d.uniqueQueriesSynced} unique queries from ${d.totalRunsFound} past scans. No new cost.`);
     } catch (e) {
       setSyncResult(`Error: ${String(e)}`);
     } finally {
@@ -96,9 +96,9 @@ function Competitors() {
             onClick={syncFromApify}
             disabled={syncing}
             className="text-xs rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1 disabled:opacity-50"
-            title="Pull all your past Apify runs' datasets into Airtable. Free — uses already-paid-for data."
+            title="Pull all your past competitor scans into the dashboard. Free — reuses already-fetched data."
           >
-            {syncing ? "Syncing…" : "↻ Sync past Apify runs (free)"}
+            {syncing ? "Syncing…" : "↻ Sync past competitor scans (free)"}
           </button>
         </div>
         {syncResult && (
@@ -128,7 +128,7 @@ function Competitors() {
             <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
             Active only
           </label>
-          <label className="flex items-center gap-2 text-xs text-gray-600 px-2" title="Pulls per-variant creatives for catalog ads. Costs ~3× more Apify credit.">
+          <label className="flex items-center gap-2 text-xs text-gray-600 px-2" title="Pulls per-variant creatives for catalog ads (a heavier scan).">
             <input type="checkbox" checked={fullCreative} onChange={(e) => setFullCreative(e.target.checked)} />
             Full creative
           </label>
@@ -194,7 +194,7 @@ function Competitors() {
             <button
               onClick={() => search(searchedQuery, true)}
               className="text-xs rounded-full border border-gray-200 px-3 py-1 hover:bg-gray-50"
-              title="Force fresh scrape from Apify — bypasses 7-day cache. Costs ~$0.025/run."
+              title="Force a fresh scan — bypasses the 7-day cache."
             >
               ↻ Refresh now
             </button>
@@ -232,7 +232,7 @@ function Competitors() {
 
       {!ads && !loading && !error && (
         <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-6">
-          Enter a competitor name, brand, or keyword above and click Search. Results come from Meta&apos;s public Ad Library via Apify.
+          Enter a competitor name, brand, or keyword above and click Search. Results come from Meta&apos;s public Ad Library.
         </div>
       )}
     </>

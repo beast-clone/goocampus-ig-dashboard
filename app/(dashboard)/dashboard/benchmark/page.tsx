@@ -101,7 +101,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       <div className="flex items-end justify-between mb-5">
         <div>
           <h2 className="text-xl font-semibold">Competitor Benchmark <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
-          <p className="text-sm text-gray-500 mt-0.5">Public IG accounts tracked via Meta business_discovery — followers, posting cadence, engagement rate.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Public Instagram accounts tracked via Meta&apos;s public data — followers, posting cadence, engagement rate.</p>
         </div>
         <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={() => load({ niche })} loading={loading} />
       </div>
@@ -167,8 +167,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
                 error
               </span>
             </div>
-            <p className="text-xs text-gray-500 break-words">{c.error}</p>
-            <p className="text-[11px] text-gray-400 mt-2">Must be a public IG Business or Creator account. Personal accounts can&apos;t be tracked.</p>
+            <p className="text-xs text-gray-500">Couldn&apos;t pull this account — it may be private, renamed, or a personal profile.</p>
+            <p className="text-[11px] text-gray-400 mt-2">Only public Instagram Business or Creator accounts can be tracked.</p>
           </div>
         ) : (
           <CompetitorCard key={c.username} c={c} medianER={medianER} />

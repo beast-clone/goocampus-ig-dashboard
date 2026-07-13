@@ -72,7 +72,7 @@ const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = 
 
 export default function SchedulerPage() {
   return (
-    <DashboardShell title="Scheduler" subtitle="Create post → drops into your Content Calendar → n8n picks it up within a minute." hideAccountPicker>
+    <DashboardShell title="Scheduler" subtitle="Create a post → it drops into your calendar and publishes within about a minute." hideAccountPicker>
       {() => <Scheduler />}
     </DashboardShell>
   );
@@ -424,7 +424,7 @@ function Scheduler() {
           {publishing.length > 0 && (
             <QueueSection
               title="🔵 Publishing right now"
-              subtitle="n8n is pushing these to Meta"
+              subtitle="Publishing to Meta now"
               posts={publishing}
               onReschedule={handleReschedule}
               onPublishNow={handlePublishNow}
@@ -612,7 +612,7 @@ function Scheduler() {
                   className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
                 />
                 <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                  <span>n8n Sync V3 will split this into IG / FB versions and strip markdown.</span>
+                  <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
                 </div>
 
@@ -682,7 +682,7 @@ function Scheduler() {
           <Card title="Schedule">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-500">
-                {scheduleEnabled ? "Publish at the exact time below" : "Defaults to ~2 hours from now (n8n Sync V3's default)"}
+                {scheduleEnabled ? "Publish at the exact time below" : "Defaults to ~2 hours from now"}
               </span>
               <button
                 onClick={() => setScheduleEnabled(!scheduleEnabled)}
@@ -791,7 +791,7 @@ function Scheduler() {
         <div className="text-xs text-gray-500">
           {result?.ok === true && <span className="text-green-700">✓ Scheduled. Row <code className="bg-green-50 px-1 rounded">{result.recordId}</code> dropped into Content Calendar.</span>}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
-          {!result && <span>Writes to Airtable Content Calendar · your n8n picks it up within 1 min · publishes within 1 min after that.</span>}
+          {!result && <span>Goes straight into your publishing queue and publishes within about 2 minutes.</span>}
         </div>
         <button
           onClick={submit}

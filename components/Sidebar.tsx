@@ -45,8 +45,8 @@ const CONTENT: NavLink[] = [
   { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
   { label: "Post Planner", href: "/dashboard/post-planner", icon: IconWand },
   { label: "Content Radar", href: "/dashboard/radar", icon: IconRadar },
-  { label: "Discover", href: "/dashboard/discover", icon: IconCompass },
-  { label: "Hashtags", href: "/dashboard/hashtags", icon: IconHash },
+  // Discover + Hashtags hidden (2026-07-13) — empty for these accounts. Pages kept
+  // in the codebase; just removed from nav so users don't hit dead ends.
 ];
 
 const PLATFORM_FOLDERS: Folder[] = [

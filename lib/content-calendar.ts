@@ -184,7 +184,11 @@ export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]>
     "sort[0][field]": "Schedule Time",
     "sort[0][direction]": "desc",
   });
-  return (res.records || []).map((r) => {
+  return (res.records || [])
+    // Hide seeded demo rows (titled "[DEMO — delete] …") from the dashboard —
+    // they're sample data, not real posts. Delete them in Airtable to remove for good.
+    .filter((r) => !/^\s*\[demo/i.test(String((r.fields as Record<string, unknown>).Particulars || "")))
+    .map((r) => {
     const f = r.fields as Record<string, unknown>;
     // Media / Post is a multipleAttachments field; grab the first attachment's
     // thumbnail for the card preview.
