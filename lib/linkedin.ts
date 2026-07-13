@@ -15,6 +15,8 @@
 //
 // All REST calls use the versioned API. Bump LINKEDIN_VERSION quarterly.
 
+import fs from "fs";
+import path from "path";
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 
@@ -169,13 +171,55 @@ function label(raw: string, table: Record<string, string>): string {
   return table[id] || table[raw] || raw;
 }
 
+// LinkedIn taxonomy (industry / geo / region) is a FIXED reference list — a URN
+// always maps to the same name — so we resolve each URN at most once per server
+// lifetime and reuse it across every build. This is what keeps us under the
+// industries-BATCH_GET 2-calls/day quota: without it, every follower-demographics
+// build re-hit /industries (once per date range viewed) and breached the limit.
+// In-memory is enough: a restart costs one fetch, nowhere near 2/day.
+// Resolved taxonomy names are persisted to disk so that once /industries (etc.)
+// succeeds even once, the names survive restarts and the endpoint is NEVER hit
+// again — the hard guarantee against the 2/day industries quota.
+const TAX_FILE = path.join(process.cwd(), ".data", "li-taxonomy.json");
+function loadTaxonomy(): Map<string, string> {
+  try {
+    return new Map(Object.entries(JSON.parse(fs.readFileSync(TAX_FILE, "utf8")) as Record<string, string>));
+  } catch {
+    return new Map();
+  }
+}
+function saveTaxonomy() {
+  try {
+    fs.mkdirSync(path.dirname(TAX_FILE), { recursive: true });
+    fs.writeFileSync(TAX_FILE, JSON.stringify(Object.fromEntries(taxonomyCache)));
+  } catch {
+    /* read-only fs — in-memory only */
+  }
+}
+const taxonomyCache = loadTaxonomy();
+// Last UTC day we ATTEMPTED to resolve each taxonomy type (industry/geo/region).
+// industries-BATCH_GET is only 2 calls/day, so we spend at most one attempt per
+// type per day even if it fails — never hammer a breached endpoint. Resets with
+// LinkedIn's own 00:00 UTC quota reset, so it self-heals once quota frees up.
+const taxonomyTriedOn = new Map<string, string>();
+const utcDay = () => new Date().toISOString().slice(0, 10);
+
 // Batch-resolve LinkedIn taxonomy URNs (industry, geo/region) to human names.
 // Returns a map { rawUrn: friendlyName }. Any failure just yields an empty map,
 // so callers fall back to the raw code — never a wrong label.
 async function resolveNames(token: string, urns: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  const byType: Record<string, { path: string; ids: string[] }> = {};
+  // Serve everything we already know; only hit LinkedIn for genuinely-new URNs.
+  const missing: string[] = [];
   for (const u of urns) {
+    const known = taxonomyCache.get(u);
+    if (known !== undefined) out[u] = known;
+    else missing.push(u);
+  }
+  if (missing.length === 0) return out; // fully cached → no LinkedIn call at all
+
+  const byType: Record<string, { path: string; ids: string[] }> = {};
+  for (const u of missing) {
     const parts = String(u).split(":"); // urn:li:industry:14
     const type = parts[2], id = parts[3];
     if (!type || !id) continue;
@@ -184,14 +228,25 @@ async function resolveNames(token: string, urns: string[]): Promise<Record<strin
     (byType[type] ||= { path, ids: [] }).ids.push(id);
   }
   await Promise.all(Object.entries(byType).map(async ([type, { path, ids }]) => {
+    // Spend at most one resolution attempt per type per UTC day (protects the
+    // 2/day industries quota). Marked before the call so a failure won't retry.
+    if (taxonomyTriedOn.get(type) === utcDay()) return;
+    taxonomyTriedOn.set(type, utcDay());
     try {
       const list = `List(${[...new Set(ids)].join(",")})`;
       const data = await liGet(`${path}?ids=${encodeURIComponent(list)}`, token);
       const results = data.results || data.elements || {};
+      let added = false;
       for (const [id, val] of Object.entries<any>(results)) {
         const name = val?.name?.localized?.en_US || val?.name?.value || val?.defaultLocalizedName?.value || val?.name;
-        if (name) out[`urn:li:${type}:${id}`] = String(name);
+        if (name) {
+          const urn = `urn:li:${type}:${id}`;
+          out[urn] = String(name);
+          taxonomyCache.set(urn, String(name)); // remember permanently
+          added = true;
+        }
       }
+      if (added) saveTaxonomy(); // durable — never fetch these URNs again
     } catch { /* leave codes */ }
   }));
   return out;

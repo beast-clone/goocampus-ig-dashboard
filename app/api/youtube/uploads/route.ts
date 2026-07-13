@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
   try {
     // 30-min cache: the uploads list changes rarely and this makes 5+ Data API calls.
-    const videos = await cached(`ytup:${channelKey}`, 30 * 60_000, () => fetchChannelUploads(channelKey));
+    const videos = await cached(`ytup:${channelKey}`, 24 * 60 * 60_000, () => fetchChannelUploads(channelKey));
     return NextResponse.json({ channel: { name: ch.name, handle: ch.handle }, source: "live", videos });
   } catch (e) {
     return NextResponse.json({ channel: { name: ch.name, handle: ch.handle }, source: "error", error: e instanceof Error ? e.message : String(e), videos: [] }, { status: 502 });

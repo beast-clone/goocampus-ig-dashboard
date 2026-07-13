@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!video) return NextResponse.json({ error: "missing video id" }, { status: 400 });
   if (!hasYouTubeAuth()) return NextResponse.json({ available: false, reason: "YouTube not connected", comments: [] });
   try {
-    const data = await cached(`ytc:${channelKey}:${video}`, 15 * 60_000, () => fetchVideoComments(channelKey, video));
+    const data = await cached(`ytc:${channelKey}:${video}`, 24 * 60 * 60_000, () => fetchVideoComments(channelKey, video));
     return NextResponse.json(data);
   } catch (e) {
     return NextResponse.json({ available: false, reason: e instanceof Error ? e.message : String(e), comments: [] }, { status: 502 });

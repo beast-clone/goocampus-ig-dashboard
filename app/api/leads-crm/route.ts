@@ -110,7 +110,7 @@ type Payload = {
 
 type Cached = { at: number; payload: Payload };
 const CACHE = new Map<string, Cached>();
-const TTL_MS = 12 * 60 * 60 * 1000;
+const TTL_MS = 24 * 60 * 60 * 1000; // once/day — Airtable is heavy; sales data refreshed daily
 
 const CRM_FIELDS = [
   "Full Name",

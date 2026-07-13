@@ -215,7 +215,7 @@ export async function GET(req: Request) {
       try {
         // 30-min cache: makes tab flips instant AND protects LinkedIn's tiny
         // per-day quota on the follower-statistics endpoint.
-        const livePayload = await cached(`li:${pageKey}:${from}:${to}`, 30 * 60_000, () => buildLive(pageKey, from, to));
+        const livePayload = await cached(`li:${pageKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLive(pageKey, from, to));
         // If the live posts array is empty (per-post stats are a follow-up), borrow the
         // demo posts so the Post-performance section still renders something meaningful.
         const demoForPosts = buildDemo(pageKey, from, to);

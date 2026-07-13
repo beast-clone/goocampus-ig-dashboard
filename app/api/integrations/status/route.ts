@@ -286,9 +286,9 @@ export async function GET(req: Request) {
   const atInteg = integrations.find((i) => i.key === "airtable");
   if (atInteg) {
     atInteg.quota = {
-      label: "Rate limit",
-      detail: "5 requests / second per base",
-      note: "Exceeding returns 429 with a Retry-After header. Airtable exposes no daily usage counter via API.",
+      label: "Limits · monthly credits",
+      detail: "Monthly API-call allowance per workspace + 5 req/sec per base",
+      note: "Airtable's main budget is a MONTHLY API-call allowance per workspace (varies by plan — check Airtable billing) and is SHARED with your n8n workflows. It resets monthly, not daily. The 5 req/sec cap returns 429 + Retry-After when exceeded.",
     };
   }
 

@@ -192,7 +192,7 @@ export async function GET(req: Request) {
     if (hasYouTubeAuth() && CHANNELS[channelKey].channelId) {
       try {
         // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
-        const live = await cached(`yt:${channelKey}:${from}:${to}`, 10 * 60_000, () => buildLiveYouTube(channelKey, from, to));
+        const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
         return NextResponse.json({ ...live, latencyMs: Date.now() - t0 });
       } catch (e) {
         const payload = buildDemo(channelKey, from, to);
