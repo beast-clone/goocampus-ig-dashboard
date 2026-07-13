@@ -161,7 +161,7 @@ function ymd(d: Date): string {
 
 export default function CalendarPage() {
   return (
-    <DashboardShell title="Content Calendar" subtitle="Plan the month across your 3 IG accounts. Left rail filters, click any tile for detail, drag drafts up to book them." hideAccountPicker>
+    <DashboardShell title="Publishing Calendar" subtitle="Plan the month across your 3 IG accounts. Left rail filters, click any tile for detail, drag drafts up to book them." hideAccountPicker>
       {() => <Calendar />}
     </DashboardShell>
   );

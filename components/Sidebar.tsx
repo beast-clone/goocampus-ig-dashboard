@@ -41,7 +41,7 @@ const MARKETING_HUB: Folder = {
 
 const CONTENT: NavLink[] = [
   { label: "Daily Planner", href: "/dashboard/my-day", icon: IconSun },
-  { label: "Content Calendar", href: "/dashboard/calendar", icon: IconCalendar },
+  { label: "Publishing Calendar", href: "/dashboard/calendar", icon: IconCalendar },
   { label: "Scheduler", href: "/dashboard/scheduler", icon: IconSend },
   { label: "Post Planner", href: "/dashboard/post-planner", icon: IconWand },
   { label: "Content Radar", href: "/dashboard/radar", icon: IconRadar },
