@@ -1,4 +1,5 @@
 "use client";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
@@ -104,6 +105,113 @@ function Spark({ points, color }: { points: number[]; color: string }) {
       <polyline points={line} fill="none" stroke={color} strokeWidth="2" />
     </svg>
   );
+}
+
+// Catmull-Rom → cubic-bezier smoothing so the line reads as a curve, not a
+// jagged polyline. Low tension keeps real spikes without wild overshoot.
+function smoothPath(pts: readonly (readonly [number, number])[]): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  const t = 0.16;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) * t, c1y = p1[1] + (p2[1] - p0[1]) * t;
+    const c2x = p2[0] - (p3[0] - p1[0]) * t, c2y = p2[1] - (p3[1] - p1[1]) * t;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
+function niceDay(s: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return s; // already a label like "Jul 3"
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${MON[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+// Full-width smooth area chart with a hover tooltip — the polished replacement
+// for <Spark> when a panel opts in (enhanced). Baseline anchored at 0 so the
+// filled area is honest; non-scaling stroke keeps the line crisp at any width.
+function ViewsAreaChart({ data, color, unit = "views" }: { data: { date: string; views: number }[]; color: string; unit?: string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  if (data.length < 2) return null;
+  const W = 1000, H = 150, padT = 14, padB = 8;
+  const views = data.map((d) => d.views);
+  const max = Math.max(...views, 1);
+  const span = max || 1; // baseline 0
+  const x = (i: number) => (i / (data.length - 1)) * W;
+  const y = (v: number) => padT + (1 - v / span) * (H - padT - padB);
+  const pts = data.map((d, i) => [x(i), y(d.views)] as const);
+  const line = smoothPath(pts);
+  const gid = `ytg-${color.replace("#", "")}`;
+  const onMove = (e: React.MouseEvent) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const rel = (e.clientX - r.left) / r.width;
+    setHover(Math.max(0, Math.min(data.length - 1, Math.round(rel * (data.length - 1)))));
+  };
+  const hx = hover !== null ? (hover / (data.length - 1)) * 100 : 0;
+  return (
+    <div ref={wrapRef} className="relative" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" style={{ height: 150 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.26" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${line} L ${W} ${H - padB} L 0 ${H - padB} Z`} fill={`url(#${gid})`} />
+        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {hover !== null && (
+          <>
+            <line x1={x(hover)} y1={padT} x2={x(hover)} y2={H - padB} stroke={color} strokeWidth="1" strokeDasharray="3 3" opacity="0.55" vectorEffect="non-scaling-stroke" />
+            <circle cx={x(hover)} cy={y(data[hover].views)} r="4" fill="#fff" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+      </svg>
+      {hover !== null && (
+        <div className="absolute top-0 z-10 pointer-events-none -translate-x-1/2" style={{ left: `${Math.min(Math.max(hx, 8), 92)}%` }}>
+          <div className="rounded-lg bg-gray-900 text-white px-2.5 py-1.5 shadow-lg text-center whitespace-nowrap">
+            <div className="text-[11px] font-semibold tabular-nums leading-tight">{fmt(data[hover].views)} {unit}</div>
+            <div className="text-[10px] text-gray-300 leading-tight">{niceDay(data[hover].date)}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ranked list drawn as proportional bars instead of a bare text list — the
+// "detailed" treatment for traffic sources / countries / cities / age groups.
+function BarBreakdown({ items, color }: { items: { label: string; pct: number; value?: string }[]; color: string }) {
+  const maxPct = Math.max(...items.map((i) => i.pct), 1);
+  return (
+    <div className="space-y-2.5">
+      {items.map((it, i) => (
+        <div key={i}>
+          <div className="flex items-baseline justify-between text-sm mb-1 gap-2">
+            <span className="text-gray-800 truncate">{it.label}</span>
+            <span className="text-gray-500 text-xs tabular-nums flex-shrink-0">{it.pct}%{it.value ? ` · ${it.value}` : ""}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${Math.max((it.pct / maxPct) * 100, 4)}%`, background: color, opacity: 0.85 - i * 0.12 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function prettyGender(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes("female")) return "Female";
+  if (l === "male" || (l.includes("male") && !l.includes("female"))) return "Male";
+  return "Undisclosed";
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -355,7 +463,7 @@ type YtResp = {
   error?: string;
 };
 
-export function YouTubeOverview({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+export function YouTubeOverview({ accountId, range, enhanced }: { accountId: string; range: { from: string; to: string }; enhanced?: boolean }) {
   const channel = YT_CHANNEL[accountId] ?? null;
   const qs = new URLSearchParams({ channel: channel ?? "", from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<YtResp>(channel ? `/api/youtube?${qs}` : null);
@@ -391,8 +499,10 @@ export function YouTubeOverview({ accountId, range }: { accountId: string; range
       </div>
 
       {data.viewsOverTime?.length > 1 && (
-        <Section title="Views over time" hint="daily, in range">
-          <Spark points={data.viewsOverTime.map((p) => p.views)} color="#FF0000" />
+        <Section title="Views over time" hint={enhanced ? "daily · hover for any day" : "daily, in range"}>
+          {enhanced
+            ? <ViewsAreaChart data={data.viewsOverTime} color="#FF0000" />
+            : <Spark points={data.viewsOverTime.map((p) => p.views)} color="#FF0000" />}
         </Section>
       )}
 
@@ -441,47 +551,69 @@ export function YouTubeOverview({ accountId, range }: { accountId: string; range
         )}
         {sources.length > 0 && (
           <Section title="Where views come from" hint="top traffic sources">
-            {sources.map((s) => (
-              <div key={s.source} className="flex items-baseline justify-between text-sm py-0.5">
-                <span className="text-gray-800">{s.source}</span>
-                <span className="text-gray-500 text-xs tabular-nums">{s.pct}% · {fmt(s.views)}</span>
-              </div>
-            ))}
+            {enhanced
+              ? <BarBreakdown color="#FF0000" items={sources.map((s) => ({ label: s.source, pct: s.pct, value: fmt(s.views) }))} />
+              : sources.map((s) => (
+                <div key={s.source} className="flex items-baseline justify-between text-sm py-0.5">
+                  <span className="text-gray-800">{s.source}</span>
+                  <span className="text-gray-500 text-xs tabular-nums">{s.pct}% · {fmt(s.views)}</span>
+                </div>
+              ))}
           </Section>
         )}
         {countries.length > 0 && (
           <Section title="Top countries" hint="by views">
-            {countries.map((c) => (
-              <div key={c.country} className="flex items-baseline justify-between text-sm py-0.5">
-                <span className="text-gray-800">{regionName(c.country)}</span>
-                <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
-              </div>
-            ))}
+            {enhanced
+              ? <BarBreakdown color="#FF0000" items={countries.map((c) => ({ label: regionName(c.country), pct: c.pct, value: fmt(c.views) }))} />
+              : countries.map((c) => (
+                <div key={c.country} className="flex items-baseline justify-between text-sm py-0.5">
+                  <span className="text-gray-800">{regionName(c.country)}</span>
+                  <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
+                </div>
+              ))}
           </Section>
         )}
         {(ages.length > 0 || genders.length > 0) && (
           <Section title="Age & gender" hint="viewers in range">
-            {ages.map((a) => (
-              <div key={a.group} className="flex items-baseline justify-between text-sm py-0.5">
-                <span className="text-gray-800">{a.group}</span>
-                <span className="text-gray-500 text-xs tabular-nums">{a.pct}%</span>
-              </div>
-            ))}
-            {genders.length > 0 && (
-              <div className="text-xs text-gray-500 mt-1.5 pt-1.5 border-t border-gray-50">
-                {genders.map((g) => `${g.label} ${g.pct}%`).join(" · ")}
-              </div>
+            {enhanced ? (
+              <>
+                {ages.length > 0 && <BarBreakdown color="#FF0000" items={ages.map((a) => ({ label: a.group, pct: a.pct }))} />}
+                {(() => {
+                  const gg = (data.traffic?.genderSplit || []).filter((g) => !/specified/i.test(g.label));
+                  return gg.length ? (
+                    <div className="text-xs text-gray-500 mt-3 pt-2.5 border-t border-gray-100">
+                      {gg.map((g) => `${prettyGender(g.label)} ${g.pct}%`).join("  ·  ")}
+                    </div>
+                  ) : null;
+                })()}
+              </>
+            ) : (
+              <>
+                {ages.map((a) => (
+                  <div key={a.group} className="flex items-baseline justify-between text-sm py-0.5">
+                    <span className="text-gray-800">{a.group}</span>
+                    <span className="text-gray-500 text-xs tabular-nums">{a.pct}%</span>
+                  </div>
+                ))}
+                {genders.length > 0 && (
+                  <div className="text-xs text-gray-500 mt-1.5 pt-1.5 border-t border-gray-50">
+                    {genders.map((g) => `${g.label} ${g.pct}%`).join(" · ")}
+                  </div>
+                )}
+              </>
             )}
           </Section>
         )}
         {cities.length > 0 && (
           <Section title="Top cities" hint="by views">
-            {cities.map((c) => (
-              <div key={c.city} className="flex items-baseline justify-between text-sm py-0.5">
-                <span className="text-gray-800">{c.city}</span>
-                <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
-              </div>
-            ))}
+            {enhanced
+              ? <BarBreakdown color="#FF0000" items={cities.map((c) => ({ label: c.city, pct: c.pct, value: fmt(c.views) }))} />
+              : cities.map((c) => (
+                <div key={c.city} className="flex items-baseline justify-between text-sm py-0.5">
+                  <span className="text-gray-800">{c.city}</span>
+                  <span className="text-gray-500 text-xs tabular-nums">{c.pct}% · {fmt(c.views)}</span>
+                </div>
+              ))}
           </Section>
         )}
       </div>

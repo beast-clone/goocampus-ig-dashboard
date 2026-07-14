@@ -4,6 +4,36 @@
 
 html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 
+/* Brand accent as CSS vars — defaults reproduce the original violet exactly
+   (#6E48F8 / #4A2EC4 / #EDE7FE). Every `brand`/`brand-dark`/`brand-light`
+   Tailwind utility (incl. opacity variants) resolves through these. */
+:root {
+  --brand: 110 72 248;
+  --brand-dark: 74 46 196;
+  --brand-light: 237 231 254;
+}
+
+/* Hope UI reskin scope — flips the brand accent to Hope blue (#3A57E8) for any
+   subtree wrapped in .hope-scope, so shared Overview components (post-mix,
+   cadence, best-times) render in Hope blue ONLY inside the Hope preview. */
+.hope-scope {
+  --brand: 58 87 232;
+  --brand-dark: 33 56 176;
+  --brand-light: 233 236 251;
+}
+/* The ER trend chart hardcodes #6D5AE6 as SVG presentation attributes; CSS
+   overrides win over presentation attributes, so recolor them to Hope blue. */
+.hope-scope [stroke="#6D5AE6"] { stroke: #3A57E8 !important; }
+.hope-scope [fill="#6D5AE6"] { fill: #3A57E8 !important; }
+.hope-scope [stop-color="#6D5AE6"] { stop-color: #3A57E8 !important; }
+/* The post-type palette uses the old brand violet (#6D5AE6, normalized to
+   rgb(109 90 230)) for "Static" via inline styles; retint just that one to Hope
+   blue so no brand-violet lingers. Pink/sky/indigo category colors stay for
+   legend clarity. Inline styles require !important to override. */
+.hope-scope [style*="background: rgb(109, 90, 230)"] { background-color: #3A57E8 !important; }
+.hope-scope [style*="color: rgb(109, 90, 230)"] { color: #3A57E8 !important; }
+.hope-scope [style*="rgba(109, 90, 230"] { border-color: rgba(58, 87, 232, 0.33) !important; background-image: linear-gradient(135deg, rgba(58, 87, 232, 0.07), rgba(58, 87, 232, 0)) !important; }
+
 /* Always reserve the scrollbar gutter so a page whose height crosses the
    viewport (e.g. filtering the Marketing Hub tables shorter/taller) doesn't
    toggle the window scrollbar and shove the whole layout sideways. */

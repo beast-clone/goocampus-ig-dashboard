@@ -10,7 +10,8 @@ const GRAPH = "https://graph.facebook.com/v25.0";
 export type AccountSnapshot = {
   accountId: string;
   date: string;            // YYYY-MM-DD (the day this row represents)
-  followers: number;
+  followers: number;       // total follower count "as of" capture (reference)
+  newFollowers: number;    // NEW followers on this day (follower_count metric) — for growth
   reach: number;
   profileVisits: number;
   websiteClicks: number;
@@ -36,18 +37,22 @@ export async function snapshotAccountForDay(acc: IGAccountConfig, date: string):
   // Followers count is "now" — we record today's value for the snapshot date.
   const basic = await fetchBasic(acc).catch(() => ({ followers_count: 0 } as { followers_count: number }));
 
-  // Daily metrics for the snapshot date
-  const [reach, profileVisits, websiteClicks, totalInteractions] = await Promise.all([
+  // Daily metrics for the snapshot date. follower_count = NEW followers that day
+  // (available for the last 30 days) — this is what lets us reconstruct monthly
+  // follower growth after Meta drops the daily data.
+  const [reach, profileVisits, websiteClicks, totalInteractions, newFollowers] = await Promise.all([
     fetchDayMetric(acc, "reach", date),
     fetchDayMetric(acc, "profile_views", date),
     fetchDayMetric(acc, "website_clicks", date),
     fetchDayMetric(acc, "total_interactions", date),
+    fetchDayMetric(acc, "follower_count", date),
   ]);
 
   return {
     accountId: acc.id,
     date,
     followers: basic.followers_count || 0,
+    newFollowers,
     reach,
     profileVisits,
     websiteClicks,

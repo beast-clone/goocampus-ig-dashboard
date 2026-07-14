@@ -39,7 +39,7 @@ function extractHashtags(text: string | undefined): string[] {
 // One fetch → four derived views. Post mix, engagement rate, top hashtags,
 // and format-performance comparison. Plus a "repost old winners" section that
 // pulls high performers from earlier ranges.
-export function OverviewExtras({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+export function OverviewExtras({ accountId, range, hideReposts, hidePostMix, hideFormat }: { accountId: string; range: { from: string; to: string }; hideReposts?: boolean; hidePostMix?: boolean; hideFormat?: boolean }) {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [oldWinners, setOldWinners] = useState<Post[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,17 +115,21 @@ export function OverviewExtras({ accountId, range }: { accountId: string; range:
 
   return (
     <>
-      {/* Row 1: 2 small cards — engagement rate moved to top KPI row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <PostMixCard loading={loading} mix={mix} />
+      {/* Row 1: 2 small cards — engagement rate moved to top KPI row.
+          hidePostMix lets a caller (Hope preview) render its own post-mix and
+          keep only the hashtags here. */}
+      <div className={`grid grid-cols-1 ${hidePostMix ? "" : "md:grid-cols-2"} gap-4 mb-6`}>
+        {!hidePostMix && <PostMixCard loading={loading} mix={mix} />}
         <TopHashtagsCard loading={loading} entries={topHashtags} />
       </div>
 
       {/* Row 2: Format comparison — full-width, has its own range picker */}
-      <FormatComparisonCard accountId={accountId} defaultRange={range} />
+      {!hideFormat && <FormatComparisonCard accountId={accountId} defaultRange={range} />}
 
-      {/* Row 3: Repost opportunities — grid of old winners */}
-      <RepostOpportunitiesCard loading={oldWinners === null} posts={reposts} />
+      {/* Row 3: Repost opportunities — grid of old winners.
+          hideReposts lets a caller (e.g. the Hope preview) render this block
+          somewhere else without changing the data or the default layout. */}
+      {!hideReposts && <RepostOpportunitiesCard loading={oldWinners === null} posts={reposts} />}
     </>
   );
 }

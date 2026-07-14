@@ -135,10 +135,23 @@ export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, t
     follows: null,
   };
   if (!acc.pageId) return unavailable;
-  const since = Math.floor(new Date(fromIso + "T00:00:00Z").getTime() / 1000);
-  const until = Math.floor(new Date(toIso + "T23:59:59Z").getTime() / 1000);
-  try {
-    type Metric = { name: string; values?: { end_time: string; value: number }[] };
+
+  // Meta's page-insights endpoint returns [] for any since/until span wider than
+  // ~90 days. So for long ranges (the 60-day and 1-year views) we split the range
+  // into ≤90-day windows, fetch them in parallel, and sum the daily totals — a
+  // full year aggregates correctly instead of coming back empty. Short ranges are
+  // a single window, unchanged.
+  const WINDOW_MS = 90 * 86400_000;
+  const startMs = new Date(fromIso + "T00:00:00Z").getTime();
+  const endMs = new Date(toIso + "T23:59:59Z").getTime();
+  const windows: { since: number; until: number }[] = [];
+  for (let s = startMs; s <= endMs; s += WINDOW_MS) {
+    const u = Math.min(s + WINDOW_MS - 1000, endMs);
+    windows.push({ since: Math.floor(s / 1000), until: Math.floor(u / 1000) });
+  }
+
+  type Metric = { name: string; values?: { end_time: string; value: number }[] };
+  const fetchWindow = async (since: number, until: number) => {
     const r = await fbGet<{ data?: Metric[] }>(`${acc.pageId}/insights`, {
       metric: "page_post_engagements,page_views_total,page_follows",
       period: "day",
@@ -147,18 +160,33 @@ export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, t
       access_token: acc.pageAccessToken,
     });
     const data = r.data || [];
-    if (!data.length) return unavailable; // Meta returns [] without read_insights
+    if (!data.length) return null; // no read_insights, or an empty window
     const total = (name: string): number | null => {
       const m = data.find((d) => d.name === name);
       if (!m || !m.values?.length) return null;
       return m.values.reduce((s, v) => s + (typeof v.value === "number" ? v.value : 0), 0);
     };
     return {
-      available: true,
-      reach: null, // Graph v25 exposes no reach metric readable by page tokens
       engagement: total("page_post_engagements"),
       pageViews: total("page_views_total"),
       follows: total("page_follows"),
+    };
+  };
+
+  try {
+    const parts = await Promise.all(windows.map((w) => fetchWindow(w.since, w.until).catch(() => null)));
+    const got = parts.filter(Boolean) as { engagement: number | null; pageViews: number | null; follows: number | null }[];
+    if (!got.length) return unavailable; // Meta returns [] without read_insights (or every window empty)
+    const sumField = (key: "engagement" | "pageViews" | "follows"): number | null => {
+      const vals = got.map((g) => g[key]).filter((v): v is number => typeof v === "number");
+      return vals.length ? vals.reduce((s, v) => s + v, 0) : null;
+    };
+    return {
+      available: true,
+      reach: null, // Graph v25 exposes no reach metric readable by page tokens
+      engagement: sumField("engagement"),
+      pageViews: sumField("pageViews"),
+      follows: sumField("follows"),
     };
   } catch (e) {
     return { ...unavailable, reason: (e as Error).message };

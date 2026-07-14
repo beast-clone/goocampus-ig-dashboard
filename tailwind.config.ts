@@ -5,10 +5,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Driven by CSS vars so a scoped wrapper (e.g. .hope-scope) can re-theme
+        // the brand accent without touching the rest of the app. Defaults below
+        // (in globals.css :root) reproduce the original violet exactly.
         brand: {
-          DEFAULT: "#6E48F8",
-          dark: "#4A2EC4",
-          light: "#EDE7FE",
+          DEFAULT: "rgb(var(--brand) / <alpha-value>)",
+          dark: "rgb(var(--brand-dark) / <alpha-value>)",
+          light: "rgb(var(--brand-light) / <alpha-value>)",
         },
       },
     },

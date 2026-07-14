@@ -17,7 +17,7 @@ function ymd(d: Date): string {
 // Compact "posts per week" view. One row per week, one horizontal bar per week
 // showing how many posts you published. A summary strip on top with three
 // clearly labelled numbers so a new reader gets the whole story in 3 seconds.
-export function PostingCadenceBar({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+export function PostingCadenceBar({ accountId, range, smartCadence }: { accountId: string; range: { from: string; to: string }; smartCadence?: boolean }) {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,8 +31,9 @@ export function PostingCadenceBar({ accountId, range }: { accountId: string; ran
       .finally(() => setLoading(false));
   }, [accountId, range.from, range.to]);
 
-  const { weeks, totalPosts, activeDays, silentDays, deltaPct, lastCount, prevCount } = useMemo(() => {
-    if (!posts) return { weeks: [], totalPosts: 0, activeDays: 0, silentDays: 0, deltaPct: 0, lastCount: 0, prevCount: 0 };
+  const { weeks, totalPosts, activeDays, silentDays, cmp } = useMemo(() => {
+    const empty = { weeks: [] as { label: string; count: number; days: number }[], totalPosts: 0, activeDays: 0, silentDays: 0, cmp: null as null | { curr: number; prev: number; deltaPct: number; mode: string; days: number; label: string } };
+    if (!posts) return empty;
     const from = new Date(range.from);
     const to = new Date(range.to);
     const dayMap = new Map<string, number>();
@@ -47,7 +48,7 @@ export function PostingCadenceBar({ accountId, range }: { accountId: string; ran
     // Group into weeks. Label each with a "Jun 4 – 10" date range so it reads
     // like a calendar, not a jargon-y "Week of…" string.
     const days = Array.from(dayMap.entries()).map(([date, count]) => ({ date, count }));
-    const weeks: { label: string; count: number }[] = [];
+    const weeks: { label: string; count: number; days: number }[] = [];
     for (let i = 0; i < days.length; i += 7) {
       const chunk = days.slice(i, i + 7);
       const start = new Date(chunk[0].date);
@@ -57,20 +58,34 @@ export function PostingCadenceBar({ accountId, range }: { accountId: string; ran
       const endMonth = end.toLocaleDateString("en-IN", { month: "short" });
       // If same month, just show day; else include month for the end date too.
       const label = start.getMonth() === end.getMonth() ? `${startLabel} – ${endDay}` : `${startLabel} – ${endDay} ${endMonth}`;
-      weeks.push({ label, count: chunk.reduce((s, d) => s + d.count, 0) });
+      weeks.push({ label, count: chunk.reduce((s, d) => s + d.count, 0), days: chunk.length });
     }
 
     const totalPosts = days.reduce((s, d) => s + d.count, 0);
     const activeDays = days.filter((d) => d.count > 0).length;
     const silentDays = days.length - activeDays;
 
-    // Last week vs the week before — both raw counts, not just delta.
-    const lastCount = weeks[weeks.length - 1]?.count ?? 0;
-    const prevCount = weeks[weeks.length - 2]?.count ?? 0;
-    const deltaPct = prevCount === 0 ? (lastCount > 0 ? 100 : 0) : Math.round(((lastCount - prevCount) / prevCount) * 100);
+    // "This week vs last" — but never flag a slowdown on an IN-PROGRESS final week.
+    // In smart mode, if the last bucket is a partial week, compare the last two
+    // COMPLETE weeks instead (or, if there aren't two, say the week's in progress).
+    const lastWeek = weeks[weeks.length - 1];
+    const partial = !!smartCadence && !!lastWeek && lastWeek.days < 7;
+    let curr: number, prev: number, mode: string, label: string;
+    const dcount = lastWeek?.days ?? 0;
+    if (partial) {
+      const complete = weeks.filter((w) => w.days === 7);
+      if (complete.length >= 2) {
+        curr = complete[complete.length - 1].count; prev = complete[complete.length - 2].count; mode = "complete"; label = "posts · last full week vs the one before";
+      } else {
+        curr = lastWeek!.count; prev = 0; mode = "inprogress"; label = "";
+      }
+    } else {
+      curr = weeks[weeks.length - 1]?.count ?? 0; prev = weeks[weeks.length - 2]?.count ?? 0; mode = "normal"; label = "posts this week vs last";
+    }
+    const deltaPct = prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
 
-    return { weeks, totalPosts, activeDays, silentDays, deltaPct, lastCount, prevCount };
-  }, [posts, range.from, range.to]);
+    return { weeks, totalPosts, activeDays, silentDays, cmp: { curr, prev, deltaPct, mode, days: dcount, label } };
+  }, [posts, range.from, range.to, smartCadence]);
 
   const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
 
@@ -116,7 +131,7 @@ export function PostingCadenceBar({ accountId, range }: { accountId: string; ran
                   </div>
                   {isLast && (
                     <div className="text-[10px] text-brand font-medium uppercase tracking-widest mt-2">
-                      This week
+                      {smartCadence && w.days < 7 ? "This week · so far" : "This week"}
                     </div>
                   )}
                 </div>
@@ -164,17 +179,25 @@ export function PostingCadenceBar({ accountId, range }: { accountId: string; ran
                 />
               );
             })()}
-            <Sentence
-              big={`${lastCount} vs ${prevCount}`}
-              text={
-                lastCount === prevCount
-                  ? <>posts this week vs last — <b className="text-gray-700">same rhythm</b>.<span className="block text-gray-500 mt-1">Consistency is holding.</span></>
-                  : lastCount > prevCount
-                    ? <>posts this week vs last — <b className="text-emerald-800 tabular-nums">{deltaPct}% more</b>.<span className="block text-emerald-800/80 mt-1">Cadence is picking up. Keep this pace and next month&rsquo;s reach should follow.</span></>
-                    : <>posts this week vs last — <b className="text-rose-800 tabular-nums">{Math.abs(deltaPct)}% less</b>.<span className="block text-rose-800/80 mt-1">Slowdown detected. Reach usually drops within a week of a cadence dip — schedule 2–3 posts to catch up.</span></>
-              }
-              tone={deltaPct < -10 ? "warn" : deltaPct > 10 ? "good" : "flat"}
-            />
+            {cmp && cmp.mode === "inprogress" ? (
+              <Sentence
+                big={`${cmp.curr}`}
+                text={<>post{cmp.curr === 1 ? "" : "s"} so far this week — <b className="text-gray-700 tabular-nums">{cmp.days} day{cmp.days === 1 ? "" : "s"} in</b>.<span className="block text-gray-500 mt-1">Too early to call a trend — check back once the week fills out.</span></>}
+                tone="flat"
+              />
+            ) : (
+              <Sentence
+                big={`${cmp?.curr ?? 0} vs ${cmp?.prev ?? 0}`}
+                text={
+                  (cmp?.curr ?? 0) === (cmp?.prev ?? 0)
+                    ? <>{cmp?.label} — <b className="text-gray-700">same rhythm</b>.<span className="block text-gray-500 mt-1">Consistency is holding.</span></>
+                    : (cmp?.curr ?? 0) > (cmp?.prev ?? 0)
+                      ? <>{cmp?.label} — <b className="text-emerald-800 tabular-nums">{cmp?.deltaPct}% more</b>.<span className="block text-emerald-800/80 mt-1">Cadence is picking up. Keep this pace and next month&rsquo;s reach should follow.</span></>
+                      : <>{cmp?.label} — <b className="text-rose-800 tabular-nums">{Math.abs(cmp?.deltaPct ?? 0)}% less</b>.<span className="block text-rose-800/80 mt-1">Slowdown detected. Reach usually drops within a week of a cadence dip — schedule 2–3 posts to catch up.</span></>
+                }
+                tone={(cmp?.deltaPct ?? 0) < -10 ? "warn" : (cmp?.deltaPct ?? 0) > 10 ? "good" : "flat"}
+              />
+            )}
           </div>
         </div>
       )}
