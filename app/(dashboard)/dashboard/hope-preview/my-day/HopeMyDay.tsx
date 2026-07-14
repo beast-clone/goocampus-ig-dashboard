@@ -22,32 +22,42 @@ function NavItem({ icon: Icon, label, active }: { icon: React.ComponentType<{ si
 // task/chat/handoff data wiring is a follow-up. V1 (components/MyDayView.tsx) is
 // untouched.
 
-type Tone = "good" | "info" | "brand" | "warn";
+type Tone = "good" | "info" | "brand" | "warn" | "bad" | "muted";
 type Person = { name: string; av: string; color: string };
-// Content Calendar Status (Airtable). The WORKING VIEW only shows statuses with
-// inView:true — i.e. tasks that still need work. "Output ready" leaves the view
-// (goes to the review/schedule queue) and "Published" never shows. `stage` maps to
-// the pipeline strip below. Draft/Pending exist upstream but don't reach My Day.
-type StatusKey = "in_progress" | "approved" | "feedback" | "output_ready" | "published";
-const STATUS: Record<StatusKey, { label: string; tone: Tone; stage: number; inView: boolean }> = {
-  in_progress:  { label: "In progress",            tone: "warn",  stage: 1, inView: true },
-  approved:     { label: "Content approved",       tone: "good",  stage: 2, inView: true },
-  feedback:     { label: "Incorporating feedback", tone: "warn",  stage: 2, inView: true },
-  output_ready: { label: "Output ready",           tone: "info",  stage: 3, inView: true },
-  published:    { label: "Scheduled",              tone: "brand", stage: 4, inView: false }, // scheduled → leaves the view
-};
-// The statuses a producer can move a task through from My Day.
-const STATUS_ACTIONS: { key: StatusKey; label: string }[] = [
-  { key: "in_progress", label: "In progress" },
-  { key: "feedback", label: "Incorporating feedback" },
-  { key: "output_ready", label: "Output ready" },
+// Status follows the Airtable Content Calendar single-select EXACTLY (the source
+// of truth being migrated to Supabase mh_posts). The status dropdown on the task
+// card offers this exact list, in this order. `stage` maps to the 5-step pipeline;
+// `inView` = still needs work (shows in the working view). Queued/terminal states
+// (Ready to Publish, Published, Rejected, Failed) drop out of the working view.
+type CCStatus =
+  | "Content - Pending" | "Content - In Progress" | "Content - Needs Approval"
+  | "Content - Approved" | "Output - In Progress" | "Output - Ready"
+  | "Incorporating Feedback" | "Ready to Publish" | "Published/Scheduled"
+  | "Rejected/Not Published" | "Failed";
+const CC_STATUS_ORDER: CCStatus[] = [
+  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+  "Content - Approved", "Output - In Progress", "Output - Ready",
+  "Incorporating Feedback", "Ready to Publish", "Published/Scheduled",
+  "Rejected/Not Published", "Failed",
 ];
-// Status tabs — output-ready stays visible under its own tab; only "Scheduled"
-// (published) drops out of the view entirely.
-const TASK_TABS: { key: string; label: string; statuses: StatusKey[] }[] = [
-  { key: "active", label: "In progress", statuses: ["in_progress", "approved"] },
-  { key: "feedback", label: "Feedback", statuses: ["feedback"] },
-  { key: "output", label: "Output ready", statuses: ["output_ready"] },
+const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inView: boolean }> = {
+  "Content - Pending":        { label: "Content - Pending",        tone: "muted", stage: 0, inView: true },
+  "Content - In Progress":    { label: "Content - In Progress",    tone: "warn",  stage: 1, inView: true },
+  "Content - Needs Approval": { label: "Content - Needs Approval", tone: "warn",  stage: 1, inView: true },
+  "Content - Approved":       { label: "Content - Approved",       tone: "good",  stage: 2, inView: true },
+  "Output - In Progress":     { label: "Output - In Progress",     tone: "info",  stage: 3, inView: true },
+  "Output - Ready":           { label: "Output - Ready",           tone: "info",  stage: 3, inView: true },
+  "Incorporating Feedback":   { label: "Incorporating Feedback",   tone: "warn",  stage: 2, inView: true },
+  "Ready to Publish":         { label: "Ready to Publish",         tone: "brand", stage: 4, inView: false },
+  "Published/Scheduled":      { label: "Published/Scheduled",      tone: "good",  stage: 4, inView: false },
+  "Rejected/Not Published":   { label: "Rejected/Not Published",   tone: "bad",   stage: 4, inView: false },
+  "Failed":                   { label: "Failed",                   tone: "bad",   stage: 4, inView: false },
+};
+// Status tabs in the working view (queued/terminal states drop out of the view).
+const TASK_TABS: { key: string; label: string; statuses: CCStatus[] }[] = [
+  { key: "active",   label: "In progress", statuses: ["Content - Pending", "Content - In Progress", "Content - Needs Approval", "Content - Approved"] },
+  { key: "feedback", label: "Feedback",    statuses: ["Incorporating Feedback"] },
+  { key: "output",   label: "Output",      statuses: ["Output - In Progress", "Output - Ready"] },
 ];
 function dueInfo(due: string, today: string): { label: string; overdue: boolean } {
   if (!due) return { label: "", overdue: false };
@@ -57,14 +67,18 @@ function dueInfo(due: string, today: string): { label: string; overdue: boolean 
   if (d === 1) return { label: "Due tomorrow", overdue: false };
   return { label: `Due in ${d} days`, overdue: false };
 }
+// A reference the team drops on a task — either a URL (mood board, doc, tweet…) or
+// an image. Mirrors the Airtable "References" field.
+type RefItem = { kind: "link" | "image"; label: string; url?: string };
 type Task = {
   id: string; title: string; meta: string;
-  status: StatusKey; due: string; // YYYY-MM-DD
+  status: CCStatus; due: string; // YYYY-MM-DD
   detail: {
     typeLine: string; publishes: string; owner: string;
     priority: "High" | "Medium" | "Low"; brand: string;
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc" }[]; // uploaded assets → thumbnails
+    references?: RefItem[];                             // links + images the team adds for context
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
   };
@@ -88,48 +102,52 @@ const PPL: Record<string, Person> = {
 };
 
 const TASKS: Task[] = [
-  { id: "t1", title: "10k Mentorship — Speaking Reel", meta: "Reel · Original · 15 Jul", status: "in_progress", due: "2026-07-14",
+  { id: "t1", title: "10k Mentorship — Speaking Reel", meta: "Reel · Original · 15 Jul", status: "Content - In Progress", due: "2026-07-14",
     detail: {
-      typeLine: "Reel · Original", publishes: "15 Jul 2026", owner: "You own this", priority: "High", brand: "GooCampus · 10k Mentorship",
+      typeLine: "Reel · Original", publishes: "15 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · 10k Mentorship",
       content: "Talking-head reel introducing the 10k Mentorship program.\n\nHook (0–3s): open with a pattern-interrupt — “Most students pick a college blind. Here's how 10,000 of them didn't.” Keep the first frame text-only and high-contrast so it stops the scroll.\n\nBody (3–35s): three crisp benefits, one per beat. 1) A 1-on-1 counsellor who has actually walked the path. 2) Verified cutoff data, not WhatsApp-forward rumours. 3) A private community of 10,000 aspirants going through the same season.\n\nProof: drop the on-screen stat “10,000+ students guided” and a two-second montage of real counsellor-call screenshots so the claim lands.\n\nCTA (35–45s): “Comment or DM the word MENTOR and we'll send you the free starter kit.” End on a clean card with the logo and handle.\n\nSpecs: vertical 9:16, under 45 seconds, subtitles burned in (English). B-roll — campus shots plus the app screen-recording in the shared drive. Music upbeat but under 100 BPM so the voice stays clear.\n\nTone: warm and direct, like a senior telling a junior what they wish they'd known. No jargon, no fear-mongering — just clarity.",
       creatives: [{ name: "cover-frame.png", type: "image" }, { name: "reel-cut-v3.mp4", type: "video" }],
-      collaborators: [PPL.manya, PPL.nandu],
+      references: [
+        { kind: "link", label: "notion.so/10k-mentorship-brief", url: "https://notion.so" },
+        { kind: "link", label: "youtube.com/watch?v=hook-ref", url: "https://youtube.com" },
+      ],
+      collaborators: [PPL.manya],
       activity: [{ who: "Manya", text: "approved the script", time: "9:12 AM" }, { who: "You", text: "started editing", time: "10:31 AM" }] } },
-  { id: "t2", title: "Careers other than NEET — Reel", meta: "Reel Thumbnail · owned by Praveen", status: "output_ready", due: "2026-07-13",
+  { id: "t2", title: "Careers other than NEET — Reel", meta: "Reel Thumbnail · owned by Praveen", status: "Output - Ready", due: "2026-07-13",
     detail: {
-      typeLine: "Reel Thumbnail", publishes: "14 Jul 2026", owner: "Owned by Praveen", priority: "Medium", brand: "GooCampus · Careers",
+      typeLine: "Reel Thumbnail", publishes: "14 Jul 2026", owner: "Praveen", priority: "Medium", brand: "GooCampus · Careers",
       content: "Thumbnail and cover frame for the “Careers other than NEET” reel.\n\nOne face, bold high-contrast text hook (“NEET isn't the only door”), brand-blue accent. Keep the face on the right third, text on the left.\n\nDeliver a 9:16 cover plus a 1:1 crop for the grid. Output is ready in the drive — needs a quick review pass before it goes to the Scheduler.",
       creatives: [{ name: "thumb-9x16-final.png", type: "image" }, { name: "thumb-1x1.png", type: "image" }],
-      collaborators: [PPL.praveen, PPL.maheen],
+      collaborators: [PPL.manya],
       activity: [{ who: "Praveen", text: "uploaded the output", time: "8:40 AM" }, { who: "Praveen", text: "marked output ready", time: "9:05 AM" }] } },
-  { id: "t3", title: "Careers other than NEET — Reel", meta: "Reel · Original · 13 Jul", status: "feedback", due: "2026-07-13",
+  { id: "t3", title: "Careers other than NEET — Reel", meta: "Reel · Original · 13 Jul", status: "Incorporating Feedback", due: "2026-07-13",
     detail: {
-      typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "You own this", priority: "High", brand: "GooCampus · Careers",
+      typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · Careers",
       content: "Full reel cut on career alternatives after NEET — five options in a fast-paced sequence (research, allied health, biotech, data + health, abroad pathways).\n\nQuick jump-cuts, on-screen captions in English and Hindi, upbeat track under 100 BPM. Approved by Manya; currently in editing. Target runtime 40–50 seconds.",
       creatives: [{ name: "reel-cut-final.mp4", type: "video" }, { name: "cover.png", type: "image" }],
-      collaborators: [PPL.manya, PPL.nandu],
+      collaborators: [PPL.manya],
       activity: [{ who: "Manya", text: "left B-roll notes", time: "10:24 AM" }, { who: "You", text: "accepted the task", time: "10:31 AM" }] } },
-  { id: "t4", title: "Salary Tool — text based", meta: "Reel · owned by Manya", status: "published", due: "2026-07-11",
+  { id: "t4", title: "Salary Tool — text based", meta: "Reel · owned by Manya", status: "Published/Scheduled", due: "2026-07-11",
     detail: {
-      typeLine: "Reel · Text", publishes: "11 Jul 2026", owner: "Owned by Manya", priority: "Low", brand: "GooCampus · Tools",
+      typeLine: "Reel · Text", publishes: "11 Jul 2026", owner: "Manya", priority: "Low", brand: "GooCampus · Tools",
       content: "Text-based reel walking through the salary-estimator tool: pick a role, see the median package by city, and share the result.\n\nPublished and performing well (34k reach in 48h). Kept here for reference and as a template for the next tool explainer.",
       creatives: [{ name: "salary-tool-demo.mp4", type: "video" }],
       collaborators: [PPL.manya],
       activity: [{ who: "Manya", text: "published the reel", time: "Jul 11" }, { who: "Maheen", text: "flagged it as a top performer", time: "Jul 12" }] } },
-  { id: "t5", title: "MBBS Govt Quota Cutoff — TN", meta: "Reel · owned by Nikhil", status: "published", due: "2026-07-10",
+  { id: "t5", title: "MBBS Govt Quota Cutoff — TN", meta: "Reel · owned by Nikhil", status: "Published/Scheduled", due: "2026-07-10",
     detail: {
-      typeLine: "Reel · Original", publishes: "10 Jul 2026", owner: "Owned by Nikhil", priority: "Medium", brand: "GooCampus · NEET",
+      typeLine: "Reel · Original", publishes: "10 Jul 2026", owner: "Nikhil", priority: "Medium", brand: "GooCampus · NEET",
       content: "Tamil Nadu government-quota MBBS cutoff explainer — the 2025 closing ranks by community, what changed vs 2024, and how to read the counselling table.\n\nPublished and steady. Use as the reference/template for the next state's cutoff reel (Karnataka is queued).",
       creatives: [{ name: "reel-final.mp4", type: "video" }, { name: "cutoff-card.png", type: "image" }],
-      collaborators: [PPL.nikhil, PPL.maheen],
+      collaborators: [PPL.manya],
       activity: [{ who: "Nikhil", text: "published the reel", time: "Jul 10" }] } },
-  { id: "t6", title: "Germany Approbation — Reel", meta: "Reel · Original · 13 Jul", status: "in_progress", due: "2026-07-13",
-    detail: { typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "You own this", priority: "High", brand: "GooCampus · Study Abroad",
+  { id: "t6", title: "Germany Approbation — Reel", meta: "Reel · Original · 13 Jul", status: "Content - In Progress", due: "2026-07-13",
+    detail: { typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · Study Abroad",
       content: "Reel explaining Germany's Approbation pathway for IMGs — the three steps, the timeline, and the language bar.\n\nApproved and you're mid-edit. It was due yesterday, so it needs wrapping up first.",
-      creatives: [{ name: "approbation-cut.mp4", type: "video" }], collaborators: [PPL.manya, PPL.nandu],
+      creatives: [{ name: "approbation-cut.mp4", type: "video" }], collaborators: [PPL.manya],
       activity: [{ who: "Manya", text: "approved the script", time: "Jul 12" }] } },
-  { id: "t7", title: "AMC Exam Guide — Carousel", meta: "Carousel · 15 Jul", status: "approved", due: "2026-07-15",
-    detail: { typeLine: "Carousel · Original", publishes: "15 Jul 2026", owner: "You own this", priority: "Medium", brand: "GooCampus · Australia",
+  { id: "t7", title: "AMC Exam Guide — Carousel", meta: "Carousel · 15 Jul", status: "Content - Approved", due: "2026-07-15",
+    detail: { typeLine: "Carousel · Original", publishes: "15 Jul 2026", owner: "Praveen", priority: "Medium", brand: "GooCampus · Australia",
       content: "8-slide carousel breaking down the AMC exam pathway — MCQ then clinical, the documents, and the timelines.\n\nJust approved; queued for tomorrow.",
       creatives: [], collaborators: [PPL.manya], activity: [{ who: "Manya", text: "approved the content", time: "Today" }] } },
 ];
@@ -138,12 +156,12 @@ const TASKS: Task[] = [
 // (Nandu long-form, Nikhil short-form) can see and CLAIM. Whoever claims becomes
 // the owner. (Design/thumbnail work stays auto-assigned to Praveen.)
 const CLAIM_POOL_INIT: Task[] = [
-  { id: "v1", title: "NEET PG Strategy — Long-Form", meta: "YouTube Long-Form · unclaimed", status: "approved", due: "2026-07-18",
+  { id: "v1", title: "NEET PG Strategy — Long-Form", meta: "YouTube Long-Form · unclaimed", status: "Content - Approved", due: "2026-07-18",
     detail: { typeLine: "YouTube Long-Form", publishes: "18 Jul 2026", owner: "Unclaimed", priority: "High", brand: "GooCampus · NEET PG",
       content: "Long-form explainer on how to build a NEET-PG counselling strategy — choosing branch vs college, reading closing ranks, and the round-by-round game plan.\n\nApproved script is in the doc. Needs an editor to claim it and cut a 6–8 min video with lower-thirds and chapter markers.",
       creatives: [{ name: "script-final.txt", type: "doc" }, { name: "raw-interview.mp4", type: "video" }],
       collaborators: [PPL.manya], activity: [{ who: "Manya", text: "approved the script", time: "9:40 AM" }] } },
-  { id: "v2", title: "Which Branch After NEET — Reel", meta: "Reel - Original · unclaimed", status: "approved", due: "2026-07-16",
+  { id: "v2", title: "Which Branch After NEET — Reel", meta: "Reel - Original · unclaimed", status: "Content - Approved", due: "2026-07-16",
     detail: { typeLine: "Reel - Original", publishes: "16 Jul 2026", owner: "Unclaimed", priority: "Medium", brand: "GooCampus · NEET UG",
       content: "Fast-paced reel: “Which branch should you pick after NEET?” — 4 factors in 30 seconds, punchy captions, trending audio.\n\nApproved and ready to edit. First editor to claim it owns it.",
       creatives: [{ name: "reel-brief.txt", type: "doc" }], collaborators: [PPL.manya], activity: [{ who: "Manya", text: "moved it to Approved", time: "10:05 AM" }] } },
@@ -155,7 +173,7 @@ const CLAIM_POOL_INIT: Task[] = [
 const DAY_START_H = 9, DAY_END_H = 18;             // 9 AM – 6 PM span
 const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
-const LUNCH_AT = (13 - DAY_START_H) * 60;          // drop lunch around 1 PM
+const LUNCH_AT = (12 - DAY_START_H) * 60;          // drop lunch around noon (centred)
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
 
@@ -205,6 +223,8 @@ const TONE: Record<Tone, { bg: string; fg: string }> = {
   info: { bg: "#E1F4F5", fg: "#079AA2" },
   brand: { bg: "#E9ECFB", fg: "#3A57E8" },
   warn: { bg: "#FEF3E2", fg: "#D97706" },
+  bad: { bg: "#FBE7E4", fg: "#C03221" },
+  muted: { bg: "#F0F2F8", fg: "#8A92A6" },
 };
 
 const PRIO: Record<"High" | "Medium" | "Low", { bg: string; fg: string }> = {
@@ -212,6 +232,71 @@ const PRIO: Record<"High" | "Medium" | "Low", { bg: string; fg: string }> = {
   Medium: { bg: "#E1F4F5", fg: "#079AA2" },
   Low: { bg: "#F0F2F8", fg: "#8A92A6" },
 };
+
+// Content Calendar Type options (exact Airtable list). Design/static types route
+// to the designer (Praveen); video types drop into the editors' claim pool.
+const DESIGN_TYPES = ["Atomic Essay", "Post", "Carousel", "Story (Image)", "Reel Thumbnail", "YouTube Thumbnail", "Meta Ads"] as const;
+const VIDEO_TYPES = ["Reel - Original", "Reel - Cut", "YouTube Long-Form", "YouTube Shorts", "Story (Video)"] as const;
+const CC_TYPES = [...DESIGN_TYPES, ...VIDEO_TYPES];
+const CC_SBUS = [
+  "10K Mentorship", "12thPlus.com", "Allied Courses", "Australia-PGCP", "Buckingham Program", "Dr Divij's Course",
+  "General Content", "India NEET PG Consulting", "India NEET UG Consulting", "Interview Plus", "ISIP",
+  "Mentorship Platform", "Middle East", "Portfolio Plus", "Samvaya", "Special Days", "SSAHE",
+  "Standard Consulting Program - Australia", "Standard Consulting Program - UK", "Standard Consulting Program - USA",
+  "Study Abroad", "UK ALS Course", "UK-PGCP", "University Programs",
+];
+
+// The auto-assignment rule: given a Type, who owns the task? Design/thumbnail work
+// auto-assigns to the single designer (Praveen); video work is NOT auto-assigned to
+// one editor — it goes into the shared pool that Nikhil & Nandu can claim.
+function autoAssign(type: string): { owner: string; toPool: boolean; note: string } {
+  if ((DESIGN_TYPES as readonly string[]).includes(type)) return { owner: "Praveen", toPool: false, note: `${type} is design work → auto-assigned to Praveen (designer).` };
+  if ((VIDEO_TYPES as readonly string[]).includes(type)) return { owner: "Unclaimed", toPool: true, note: `${type} is video → dropped into the editors' claim pool (Nikhil / Nandu).` };
+  return { owner: "Manya", toPool: false, note: "Stays with the writer." };
+}
+
+// ── Capacity model ─────────────────────────────────────────────────────────
+// An editor's working day is 9 AM–6 PM minus a protected 1h lunch = 8h (480 min).
+// A task's estimate is checked against the room left in their Today's plan: if it
+// fits it just auto-adds; if it doesn't, it surfaces through the pipeline.
+const WORK_MIN = 480;
+const DAY_END_LABEL = "6:00 PM";
+function estMins(type: string): number {
+  const t = (type || "").toLowerCase();
+  if (/long-form/.test(t)) return 120;
+  if (/reel - cut|cut/.test(t)) return 60;
+  if (/reel|short|story|video/.test(t)) return 90;
+  if (/carousel/.test(t)) return 60;
+  if (/meta ads/.test(t)) return 45;
+  return 30;
+}
+function fmtMins(m: number): string { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; }
+// minutes-past-9AM of the finish time → "6:30 PM"
+function finishLabel(committed: number, addMin: number): string {
+  const total = 9 * 60 + committed + addMin + 60; // + 1h lunch
+  const h = Math.floor(total / 60), mm = total % 60;
+  const ap = h >= 12 ? "PM" : "AM"; const hh = ((h + 11) % 12) + 1;
+  return `${hh}:${String(mm).padStart(2, "0")} ${ap}`;
+}
+
+// A seeded urgent task (for the demo) that lands mid-day and doesn't fit — the
+// entry point for the Accept & Work pipeline. Kept a 1h "cut" so a packed day
+// tips ~30 min over (mirrors the storyboard).
+const URGENT_TASK: Task = {
+  id: "urgent1", title: "12thPlus Exam Alert — Reel Cut", meta: "Reel - Cut · urgent · today",
+  status: "Content - Approved", due: "",
+  detail: { typeLine: "Reel - Cut", publishes: "Today", owner: "Unclaimed", priority: "High", brand: "12thPlus.com",
+    content: "Exam-notification reel — the board just released dates. Fast turnaround, must publish today.",
+    creatives: [], collaborators: [PPL.manya], activity: [{ who: "Manya", text: "flagged this urgent", time: "now" }] },
+};
+// The editor's low-priority, no-fixed-date tasks Manya could slide to tomorrow.
+const MOVABLE = [
+  { id: "m1", title: "Evergreen Study Tips — Reel", note: "Evergreen · no fixed date", mins: 90 },
+  { id: "m2", title: "Motivation Monday — Reel", note: "Filler content · flexible", mins: 90 },
+];
+
+// A notification in the chat-panel stack. `urgent`/`freed` carry an action.
+type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task };
 
 function greetingFor(h: number) {
   if (h < 5) return { word: "Working late", emoji: "🌙" };
@@ -230,34 +315,140 @@ const CHATIC = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path
 // progress, activity).
 const THUMB_BG = ["linear-gradient(135deg,#3A57E8,#6478F0)", "linear-gradient(135deg,#079AA2,#3AC5CD)", "linear-gradient(135deg,#E83A8A,#F582B0)", "linear-gradient(135deg,#D97706,#F0A94A)"];
 
-function TaskBody({ task, label }: { task: Task; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
+// Custom status dropdown — a styled menu (not a native <select>, which can't be
+// themed) so it matches the Hope card: each row shows the status's own tone dot.
+function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CCStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const tone = TONE[STATUS[value].tone];
+  return (
+    <div className="status-dd">
+      <button className="status-dd-btn" style={{ background: tone.bg, color: tone.fg }} onClick={() => setOpen((o) => !o)}>
+        <span className="status-dot" style={{ background: tone.fg }} />
+        <span className="status-dd-val">{value}</span>
+        <span className="status-caret" style={{ borderTopColor: tone.fg }} />
+      </button>
+      {open && (
+        <>
+          <div className="status-dd-back" onClick={() => setOpen(false)} />
+          <div className="status-dd-menu">
+            {CC_STATUS_ORDER.map((s) => {
+              const t = TONE[STATUS[s].tone];
+              return (
+                <button key={s} className={`status-dd-item ${s === value ? "on" : ""}`} onClick={() => { onChange(s); setOpen(false); }}>
+                  <span className="status-dot" style={{ background: t.fg }} />
+                  <span className="status-dd-item-lbl">{s}</span>
+                  {s === value && <span className="status-dd-check">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// References — links + images the team drops on a task for context. Paste a URL
+// or drop image files; both sit side by side. Local to this session (the mock),
+// seeded from the task's own references. Remounted per task via key={task.id}.
+function ReferencesSection({ initial }: { initial: RefItem[] }) {
+  const [refs, setRefs] = useState<RefItem[]>(initial);
+  const [url, setUrl] = useState("");
+  const addUrl = () => {
+    const raw = url.trim(); if (!raw) return;
+    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
+    setUrl("");
+  };
+  const addImages = (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setRefs((r) => [...r, ...Array.from(files).map((f) => ({ kind: "image" as const, label: f.name, url: URL.createObjectURL(f) }))]);
+  };
+  const remove = (i: number) => setRefs((r) => r.filter((_, j) => j !== i));
   return (
     <>
-      {label && <div className="lbl" style={{ marginBottom: ".45rem" }}>{label}</div>}
-      <div className="d-title">{task.title}</div>
-      <div className="d-sub">{task.detail.typeLine} · {task.detail.brand} · Publishes {task.detail.publishes}</div>
+      <div className="section-lbl">References</div>
+      <div className="refs">
+        {refs.map((r, i) => r.kind === "image" ? (
+          <div key={i} className="thumb ref-thumb" title={r.label}>
+            <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            <div className="thumb-name">{r.label}</div>
+            <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
+          </div>
+        ) : (
+          <a key={i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
+            <span className="ref-link-ic">🔗</span>
+            <span className="ref-link-lbl">{r.label}</span>
+            <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
+          </a>
+        ))}
+        <label className="thumb thumb-add" title="Add reference image">
+          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">Image</span>
+          <input type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+        </label>
+      </div>
+      <div className="ref-url">
+        <input className="nt-input" placeholder="Paste a reference URL…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addUrl()} />
+        <button className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
+      </div>
+    </>
+  );
+}
 
-      <div className="meta-grid">
-        <div><div className="mlbl">Status</div><span className="pill" style={{ background: TONE[STATUS[task.status].tone].bg, color: TONE[STATUS[task.status].tone].fg }}>{STATUS[task.status].label}</span></div>
-        <div><div className="mlbl">Priority</div><span className="pill" style={{ background: PRIO[task.detail.priority].bg, color: PRIO[task.detail.priority].fg }}>{task.detail.priority}</span></div>
-        <div><div className="mlbl">Owner</div><div className="mval">{task.detail.owner}</div></div>
+function TaskBody({ task, label, onStatusChange }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; canSchedule?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  const tone = TONE[STATUS[task.status].tone];
+  // Collaborators = the writer(s)/helpers on the task — kept separate from Owner
+  // (the single person who claimed / does it), mirroring the Airtable model.
+  const collabs = task.detail.collaborators;
+  return (
+    <>
+      {/* Header — title + sub on the left, STATUS dropdown pinned top-right (above owner) */}
+      <div className="d-head">
+        <div className="d-head-main">
+          {label && <div className="lbl" style={{ marginBottom: ".45rem" }}>{label}</div>}
+          <div className="d-title">{task.title}</div>
+          <div className="d-sub">{task.detail.typeLine} · {task.detail.brand} · Publishes {task.detail.publishes}</div>
+        </div>
+        <div className="status-box">
+          <div className="mlbl">Status</div>
+          {onStatusChange ? (
+            <StatusDropdown value={task.status} onChange={onStatusChange} />
+          ) : (
+            <span className="pill" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
+          )}
+        </div>
       </div>
 
-      <div className="collab">
-        <span className="mlbl">Team</span>
-        {task.detail.collaborators.map((c, i) => <span key={i} className="av av-sm" style={{ background: c.color }} title={c.name}>{c.av}</span>)}
-        <span className="collab-names">{task.detail.collaborators.map((c) => c.name).join(", ")}</span>
+      {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
+      <div className="meta-grid">
+        <div>
+          <div className="mlbl">Owner</div>
+          <div className="mval">{task.detail.owner}</div>
+        </div>
+        <div>
+          <div className="mlbl">Collaborators</div>
+          {collabs.length ? (
+            <div className="collab-cell">
+              {collabs.map((c, i) => <span key={i} className="av av-sm" style={{ background: c.color }} title={c.name}>{c.av}</span>)}
+              <span className="collab-names">{collabs.map((c) => c.name).join(", ")}</span>
+            </div>
+          ) : <div className="mval" style={{ color: "var(--faint)" }}>—</div>}
+        </div>
+        <div>
+          <div className="mlbl">Priority</div>
+          <span className="pill" style={{ background: PRIO[task.detail.priority].bg, color: PRIO[task.detail.priority].fg }}>{task.detail.priority}</span>
+        </div>
       </div>
 
       <div className="section-head">
         <span className="section-lbl">Content brief</span>
         <button className="copy-btn" onClick={copyContent}>{copied ? "✓ Copied" : "Copy"}</button>
       </div>
-      <div className="brief">
-        {task.detail.content.split(/\n\n+/).map((p, i) => <p key={i} className="para">{p}</p>)}
-      </div>
+      {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
+          scroll (the section grows; you scroll the card/page to read it all). */}
+      <div className="brief brief-full">{task.detail.content}</div>
 
       <div className="section-lbl">Creatives &amp; files</div>
       {task.detail.creatives.length ? (
@@ -280,10 +471,7 @@ function TaskBody({ task, label }: { task: Task; label?: string }) {
         </label>
       )}
 
-      <div className="section-lbl">Progress</div>
-      <div className="mini-tl">
-        {PIPELINE.map((s, i) => { const stage = STATUS[task.status].stage; return <div key={s} className={`step ${i < stage ? "done" : i === stage ? "now" : ""}`}><div className="bar" /><span>{s}</span></div>; })}
-      </div>
+      <ReferencesSection key={task.id} initial={task.detail.references || []} />
 
       <div className="section-lbl">Recent activity</div>
       <div className="activity">
@@ -292,6 +480,266 @@ function TaskBody({ task, label }: { task: Task; label?: string }) {
         ))}
       </div>
     </>
+  );
+}
+
+// Create-task flow (writer/Manya only). On submit it runs the Type→owner routing
+// so you can watch where the task lands — design types to Praveen, video to the
+// editors' claim pool. The routing preview updates live as you change the Type.
+function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t: Task, owner: string, note: string) => void }) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<string>("Reel Thumbnail");
+  const [sbu, setSbu] = useState<string>(CC_SBUS[0]);
+  const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
+  const [content, setContent] = useState("");
+  const assign = autoAssign(type);
+  function create() {
+    if (!title.trim()) return;
+    const d = new Date(); d.setDate(d.getDate() + 3);
+    const due = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const publishes = d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    // Content-first: the task starts with the writer (Manya) in the content phase.
+    // It auto-hands off to the producer (Praveen / claim pool) only once she moves
+    // it to "Content - Approved" — handled in setTaskStatus.
+    const t: Task = {
+      id: `t${Date.now()}`,
+      title: title.trim(),
+      meta: `${type} · content`,
+      status: "Content - Pending",
+      due,
+      detail: {
+        typeLine: type, publishes, owner: "Manya", priority, brand: sbu,
+        content: content.trim() || "Manya to write the content brief. On approval it hands to the producer.",
+        creatives: [], collaborators: [],
+        activity: [{ who: "Manya", text: "created the task", time: "now" }],
+      },
+    };
+    onCreate(t, "Manya", assign.note);
+  }
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-card nt-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <div className="lbl" style={{ marginBottom: ".5rem" }}>New task · created by Manya</div>
+        <div className="d-title" style={{ marginBottom: "1.1rem" }}>Create a content task</div>
+        <div className="nt-field"><label className="nt-label">Particulars</label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
+        <div className="nt-row">
+          <div className="nt-field"><label className="nt-label">Type</label><select className="nt-input" value={type} onChange={(e) => setType(e.target.value)}>{CC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
+          <div className="nt-field"><label className="nt-label">Priority</label><select className="nt-input" value={priority} onChange={(e) => setPriority(e.target.value as "High" | "Medium" | "Low")}>{["High", "Medium", "Low"].map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
+        </div>
+        <div className="nt-field"><label className="nt-label">SBU</label><select className="nt-input" value={sbu} onChange={(e) => setSbu(e.target.value)}>{CC_SBUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+        <div className="nt-field"><label className="nt-label">Content <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+        <div className="nt-assign">
+          <span className="status-dot" style={{ background: "#8A92A6" }} />
+          <span><b>Flow:</b> starts with <b>Manya</b> in the content phase. On <b>Content - Approved</b> it auto-hands off to {assign.toPool ? <b>the editors&apos; claim pool (Nikhil / Nandu)</b> : <b>{assign.owner}</b>} — because {type} is {assign.toPool ? "video" : "design"} work.</span>
+        </div>
+        <div className="nt-actions">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={create} disabled={!title.trim()}>Create task</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The notification stack — sits at the TOP of the chat panel and pushes the chat
+// down (never overlays it). Urgent/freed notifications carry an Accept & Work
+// action; claims and messages are informational.
+function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs: Notif[]; onAccept: (n: Notif) => void; onDismiss: (id: string) => void; onClearAll: () => void }) {
+  if (!notifs.length) return null;
+  return (
+    <div className="notif-stack">
+      <div className="nstack-head"><span>{notifs.length} notification{notifs.length > 1 ? "s" : ""}</span><button className="nstack-clear" onClick={onClearAll}>Clear all</button></div>
+      {notifs.map((n) => (
+        <div key={n.id} className={`pnotif ${n.kind}`}>
+          <div className={`pn-ic ${n.kind}`}>{n.emoji}</div>
+          <div className="pn-body">
+            {n.kind === "urgent" && <div className="pn-eyebrow">Urgent · must publish today</div>}
+            <div className="pn-title">{n.title}</div>
+            <div className="pn-sub">{n.sub}</div>
+            {(n.kind === "urgent" || n.kind === "freed") && (
+              <div className="pn-acts">
+                <button className="btn primary sm" onClick={() => onAccept(n)}>Accept &amp; work</button>
+                {n.kind === "urgent" && <button className="btn sm" onClick={() => onDismiss(n.id)}>Later</button>}
+              </div>
+            )}
+          </div>
+          <button className="pn-x" onClick={() => onDismiss(n.id)} title="Dismiss">✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Accept & Work — does the capacity math against the person's Today's plan and
+// offers the two honest choices: take the overtime, or ask Manya to free room.
+function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }: { task: Task; committed: number; onAcceptWork: () => void; onAskManya: () => void; onClose: () => void }) {
+  const add = estMins(task.detail.typeLine);
+  const free = Math.max(0, WORK_MIN - committed);
+  const fits = add <= free;
+  const over = Math.max(0, committed + add - WORK_MIN);
+  const finish = finishLabel(committed, add);
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <div className="aw-h">Accept this task?</div>
+        <div className="aw-task"><div className="tt">{task.title}</div><div className="tm">{task.detail.typeLine} · adds ~{fmtMins(add)} to your day</div></div>
+        <div className={`impact ${fits ? "ok" : ""}`}>
+          <span>⏱️</span>
+          {fits
+            ? <span>You have <b>{fmtMins(free)}</b> free today — this fits. You'd still finish by <b>{DAY_END_LABEL}</b>.</span>
+            : <span>Your day is <b>9:00 AM–{DAY_END_LABEL}</b>. Adding this pushes you to <b className="over">{finish}</b> — you'd work <b>{fmtMins(over)} over</b> your usual checkout.</span>}
+        </div>
+        <div className="aw-choice">
+          <button className="btn primary" onClick={onAcceptWork}>{fits ? "Accept & work" : `Accept & work — finish ${finish}`}</button>
+          {!fits && (<><div className="aw-or">or, if you can't stretch</div><button className="btn" onClick={onAskManya}>I&apos;m packed — ask Manya to free up room</button></>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Ask Manya — shows the editor's low-priority, movable tasks so Manya can slide one
+// to tomorrow. (Stage 1 simulates her freeing room right after sending.)
+function AskManyaModal({ onSend, onClose }: { onSend: () => void; onClose: () => void }) {
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <div className="aw-h">Ask Manya to free up room</div>
+        <p className="aw-p">These of yours can slip to tomorrow — Manya picks one to move so the urgent reel fits. Must-go-today tasks stay put.</p>
+        <div className="tchips">
+          {MOVABLE.map((m) => (
+            <div key={m.id} className="tchip movable"><div className="cmid"><div className="ct">{m.title}</div><div className="cs">{m.note}</div></div><span className="pri low">Low · can move</span></div>
+          ))}
+        </div>
+        <div className="aw-choice"><button className="btn primary" onClick={onSend}>Send request to Manya</button></div>
+      </div>
+    </div>
+  );
+}
+
+// Manya's reschedule card — she sees the packed editor's movable tasks, slides one
+// to tomorrow, and confirms. Confirming frees room in his plan (pipeline → freed).
+function ManyaReschedule({ task, editorName, movedId, onMove, onConfirm }: { task: Task; editorName: string; movedId: string | null; onMove: (id: string) => void; onConfirm: () => void }) {
+  return (
+    <div className="card pad manya-resched">
+      <div className="mr-h">
+        <div className="mr-ic">⏱️</div>
+        <div><div className="mr-t">{editorName} is packed — needs room for an urgent task</div><div className="mr-d">Slide one of {editorName}&apos;s low-priority reels to tomorrow so <b>{task.title}</b> fits. Must-go-today tasks stay put.</div></div>
+      </div>
+      <div className="tchips" style={{ marginTop: ".9rem" }}>
+        {MOVABLE.map((m) => (
+          <div key={m.id} className={`tchip ${movedId === m.id ? "" : "movable"}`}>
+            <div className="cmid"><div className="ct">{m.title}</div><div className="cs">{movedId === m.id ? <b style={{ color: "var(--good)" }}>Moved to tomorrow ✓</b> : m.note}</div></div>
+            <span className="pri low">Low</span>
+            {movedId === m.id ? <span className="cap-badge some">Moved</span> : <button className="btn sm" onClick={() => onMove(m.id)}>Move to tomorrow</button>}
+          </div>
+        ))}
+      </div>
+      <div className="mr-foot">
+        <span className="mr-note">{movedId ? `Frees ~1h 30m on ${editorName}'s day.` : "Pick one to move to tomorrow."}</span>
+        <button className="btn primary" disabled={!movedId} onClick={onConfirm}>✓ Changes done</button>
+      </div>
+    </div>
+  );
+}
+
+// The team capacity board on Manya's My Day — each person's day at a glance so she
+// assigns with eyes open. (Seeded for the mock.)
+const CAP_BOARD: { name: string; role: string; av: string; color: string; badge: "free" | "some" | "full"; free: string; blocks: { k: string; l: string; f: number }[] }[] = [
+  { name: "Praveen", role: "Designer", av: "P", color: "#C2410C", badge: "free", free: "2h 30m free", blocks: [{ k: "design", l: "Australia Carousel", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "design", l: "NEET Thumbnail", f: 1.5 }, { k: "free", l: "Free", f: 2.5 }] },
+  { name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8", badge: "some", free: "1h 30m free", blocks: [{ k: "reel", l: "Reel A", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2 }, { k: "free", l: "Free", f: 1.5 }] },
+  { name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8", badge: "full", free: "Full", blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5 }, { k: "reel", l: "Germany", f: 1.5 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
+];
+function TeamCapacityBoard() {
+  return (
+    <div className="card pad tcb">
+      <div className="tcb-head">Team capacity — today <span className="tcb-sub">assign with everyone&apos;s day in view</span></div>
+      {CAP_BOARD.map((p) => (
+        <div key={p.name} className="tcb-row">
+          <div className="tcb-who"><span className="av" style={{ background: p.color }}>{p.av}</span><div><div className="tcb-n">{p.name}</div><div className="tcb-r">{p.role}</div></div></div>
+          <div className="tcb-tl">{p.blocks.map((b, i) => <div key={i} className={`tcb-blk ${b.k}`} style={{ flex: b.f }} title={b.l}>{b.k === "free" || b.k === "lunch" ? b.l : b.l}</div>)}</div>
+          <span className={`cap-badge ${p.badge}`}>{p.free}</span>
+        </div>
+      ))}
+      <div className="tcb-note">Assigning a video to someone <b>Full</b> pops a <b>&ldquo;send anyway, or route to a freer editor?&rdquo;</b> check — never a silent overload.</div>
+    </div>
+  );
+}
+
+// The Team-capacity PAGE (opened from the 👥 button, next to the bell) — its own
+// screen so Manya never confuses it with her own plan. Each teammate shows their
+// day planner (done faded, current highlighted + now-line) and what they're on now.
+type CapBlock = { k: string; l: string; f: number; s?: "done" | "now" };
+type CapPerson = { name: string; role: string; av: string; color: string; started: string; badge: "free" | "some" | "full"; free: string; nowLeft: number; now: { label: string; since: string; left: string }; blocks: CapBlock[] };
+const CAP_PAGE: CapPerson[] = [
+  { name: "Praveen", role: "Designer", av: "P", color: "#C2410C", started: "9:05 AM", badge: "free", free: "2h 30m free", nowLeft: 47,
+    now: { label: "NEET Thumbnail", since: "1:10 PM", left: "~35m left" },
+    blocks: [{ k: "design", l: "Australia Carousel", f: 2, s: "done" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "design", l: "NEET Thumbnail", f: 1.5, s: "now" }, { k: "free", l: "Free", f: 2.5 }] },
+  { name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8", started: "9:18 AM", badge: "some", free: "1h 30m free", nowLeft: 52,
+    now: { label: "Reel B — Which Branch After NEET", since: "1:40 PM", left: "~50m left" },
+    blocks: [{ k: "reel", l: "Reel A", f: 2, s: "done" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2, s: "now" }, { k: "free", l: "Free", f: 1.5 }] },
+  { name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8", started: "9:12 AM", badge: "full", free: "Full", nowLeft: 28,
+    now: { label: "Germany Approbation — Reel", since: "10:40 AM", left: "~40m left" },
+    blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5, s: "done" }, { k: "reel", l: "Germany Reel", f: 1.5, s: "now" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
+];
+function TeamCapacityPage({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="tcp">
+      <div className="tcp-head">
+        <button className="tc-back" onClick={onBack} title="Back to My Day">‹</button>
+        <div className="tcp-title">Team capacity <span>· today, live — who&apos;s on what</span></div>
+      </div>
+      {CAP_PAGE.map((p) => (
+        <div key={p.name} className="card pad tcp-card">
+          <div className="tcp-top">
+            <span className="av" style={{ background: p.color }}>{p.av}</span>
+            <div><div className="tcp-n">{p.name}</div><div className="tcp-r">{p.role}</div></div>
+            <div className="tcp-status"><span className="st-badge working">● Started {p.started}</span><span className={`cap-badge ${p.badge}`}>{p.free}</span></div>
+          </div>
+          <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
+          <div className="tcp-track">
+            {p.blocks.map((b, i) => <div key={i} className={`tcp-blk ${b.k} ${b.s || ""}`} style={{ flex: b.f }} title={b.l}>{b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}</div>)}
+            <div className="tcp-now-line" style={{ left: `${p.nowLeft}%` }} />
+          </div>
+          <div className="tcp-now"><span className="dot" /> Currently working on: <b>{p.now.label}</b> <span className="muted">· since {p.now.since} · {p.now.left}</span></div>
+        </div>
+      ))}
+      <div className="hint" style={{ padding: "0 .3rem" }}>Opened from the 👥 button — a separate page, so it never gets mixed up with your own plan.</div>
+    </div>
+  );
+}
+
+// End-today wrap-up — confirm what's done; unchecked tasks roll to tomorrow.
+function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number) => void; onClose: () => void }) {
+  const [done, setDone] = useState<Set<string>>(new Set(tasks.slice(0, Math.ceil(tasks.length / 2)).map((t) => t.id)));
+  const toggle = (id: string) => setDone((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const doneN = done.size, rollN = tasks.length - doneN;
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <div className="aw-h">Wrap up your day</div>
+        <p className="aw-p">Confirm what you finished today. Anything unchecked rolls to tomorrow.</p>
+        {tasks.length === 0 && <div className="empty" style={{ padding: "1rem 0" }}>No tasks on your plate today.</div>}
+        {tasks.map((t) => {
+          const isDone = done.has(t.id);
+          return (
+            <div key={t.id} className={`eod-row ${isDone ? "" : "roll"}`}>
+              <span className={`eod-cb ${isDone ? "on" : ""}`} onClick={() => toggle(t.id)}>{isDone ? "✓" : ""}</span>
+              <span className="eod-title">{t.title}</span>
+              <span className={`eod-tag ${isDone ? "done" : "roll"}`}>{isDone ? "Done" : "→ Tomorrow"}</span>
+            </div>
+          );
+        })}
+        <div className="eod-foot">
+          <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
+          <div style={{ display: "flex", gap: ".5rem" }}><button className="btn" onClick={onClose}>Cancel</button><button className="btn rose" onClick={() => onEnd(doneN, rollN)}>End today</button></div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -323,6 +771,18 @@ export function HopeMyDay() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPinned, setChatPinned] = useState(false);
   const [toast, setToast] = useState<null | { who: string; color: string; av: string; body: string; convo?: string }>(null);
+  const [showNew, setShowNew] = useState(false); // create-task modal (Manya only)
+  const [notifs, setNotifs] = useState<Notif[]>([]);   // chat-panel notification stack
+  const [acceptTask, setAcceptTask] = useState<Task | null>(null); // Accept & Work modal
+  const [askManya, setAskManya] = useState(false);     // Ask-Manya reschedule modal
+  // The urgent-task pipeline state, shared across the editor and Manya views:
+  // offered → (editor asks) waiting → (Manya frees room) freed → (editor accepts) done.
+  const [pipeline, setPipeline] = useState<"offered" | "waiting" | "freed" | "done">("offered");
+  const [movedId, setMovedId] = useState<string | null>(null); // which task Manya slid to tomorrow
+  const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
+  const [dayStarted, setDayStarted] = useState(false);  // Start day / End today
+  const [dayStartAt, setDayStartAt] = useState("");
+  const [showEod, setShowEod] = useState(false);        // End-today wrap-up modal
   const closedManually = useRef(false);
   // The claim pool surfaces PROMINENTLY on the right first; if ignored for 15s it
   // demotes into the 🔔 bell (badge only shows once demoted).
@@ -371,22 +831,51 @@ export function HopeMyDay() {
   const me = useMemo(() => TEAM.find((t) => t.key === person) || TEAM[3], [person]);
   const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
   const showPool = isEditor && claimPool.length > 0;
-  // WORKING VIEW: only tasks that still need work show here (In progress · Approved
-  // · Incorporating feedback). Output-ready leaves the view; Published never shows.
-  const workingTasks = useMemo(() => [...claimedTasks, ...tasks].filter((t) => STATUS[t.status].inView), [claimedTasks, tasks]);
+  // MY DAY = only the SELECTED person's own tasks. A task's Owner (whoever it's
+  // assigned to / claimed it) must match the person being viewed — so e.g. a
+  // Carousel owned by Praveen never shows up under an editor. Then keep only the
+  // statuses that still need work (queued/terminal states drop out of the view).
+  const workingTasks = useMemo(
+    () => [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView),
+    [claimedTasks, tasks, me.name],
+  );
   const tabCounts = useMemo(() => TASK_TABS.map((tb) => ({ ...tb, n: workingTasks.filter((t) => tb.statuses.includes(t.status)).length })), [workingTasks]);
   const curTab = TASK_TABS.find((t) => t.key === taskTab) || TASK_TABS[0];
   // Tasks in the current tab, sorted by due date (overdue first → today → later).
   const shownTasks = useMemo(() => workingTasks.filter((t) => curTab.statuses.includes(t.status)).sort((a, b) => (a.due || "").localeCompare(b.due || "")), [workingTasks, taskTab]);
   const task = shownTasks[sel] || shownTasks[0] || null;
   const planModalTask = planModalId ? tasks.find((t) => t.id === planModalId) || null : null;
-  // Change a task's status. Output-ready → moves to the Output-ready tab; Scheduled → leaves the view.
-  const setTaskStatus = (id: string, status: StatusKey) => {
-    setTasks((a) => a.map((t) => (t.id === id ? { ...t, status } : t)));
-    setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, status } : t)));
-    setSel(0);
-    if (status === "output_ready") setToast({ who: "Output ready ✓", color: "#3A57E8", av: me.av, body: "Moved to the Output ready tab." });
-    else if (!STATUS[status].inView) setToast({ who: "Scheduled ✓", color: "#3A57E8", av: me.av, body: "It's left your working view." });
+  // Change a task's status via the card's status dropdown. Two special cases:
+  //  • CONTENT-FIRST HANDOFF: when the WRITER's task hits "Content - Approved", it
+  //    auto-hands off to the producer by Type — design → Praveen (owner), video →
+  //    the editors' claim pool — and Manya stays on as a collaborator.
+  //  • Output-ready → Output tab; queued/terminal states leave the working view.
+  const withManya = (cs: Person[]) => (cs.some((c) => c.name === "Manya") ? cs : [PPL.manya, ...cs]);
+  const setTaskStatus = (id: string, status: CCStatus) => {
+    const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
+    if (!cur) return;
+    // Content-first handoff fires only the first time the writer's own task is approved.
+    const handoff = status === "Content - Approved" && cur.detail.owner === "Manya" ? autoAssign(cur.detail.typeLine) : null;
+
+    if (handoff && handoff.toPool) {
+      // Video → drop into the editors' claim pool (Nikhil / Nandu).
+      const routed: Task = { ...cur, status, meta: `${cur.detail.typeLine} · unclaimed`, detail: { ...cur.detail, owner: "Unclaimed", collaborators: withManya(cur.detail.collaborators) } };
+      setTasks((a) => a.filter((t) => t.id !== id));
+      setClaimedTasks((a) => a.filter((t) => t.id !== id));
+      setClaimPool((p) => [routed, ...p]);
+      setToast({ who: "Approved → claim pool", color: "#3A57E8", av: me.av, body: `${cur.detail.typeLine} handed off to the editors' pool.` });
+      return;
+    }
+
+    const next: Task = handoff && handoff.owner !== "Manya"
+      ? { ...cur, status, meta: `${cur.detail.typeLine} · owned by ${handoff.owner}`, detail: { ...cur.detail, owner: handoff.owner, collaborators: withManya(cur.detail.collaborators) } }
+      : { ...cur, status };
+    setTasks((a) => a.map((t) => (t.id === id ? next : t)));
+    setClaimedTasks((a) => a.map((t) => (t.id === id ? next : t)));
+
+    if (next.detail.owner !== cur.detail.owner) setToast({ who: `Approved → ${next.detail.owner}`, color: "#3A57E8", av: (next.detail.owner[0] || "?").toUpperCase(), body: `${cur.detail.typeLine} handed off to ${next.detail.owner} (design).` });
+    else if (status === "Output - Ready" || status === "Output - In Progress") setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "Moved to the Output tab." });
+    else if (!STATUS[status].inView) setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "It's left your working view." });
   };
 
   // Lay the (reorderable) tasks across the day, dropping the protected 1-hour
@@ -400,7 +889,6 @@ export function HopeMyDay() {
       cursor += p.dur;
     }
     if (!lunchDone) { out.push({ kind: "lunch", label: "Lunch", start: cursor, dur: LUNCH_MIN }); cursor += LUNCH_MIN; }
-    if (cursor < DAY_MINS) out.push({ kind: "buffer", label: "Buffer", start: cursor, dur: DAY_MINS - cursor });
     return out;
   }, [plan]);
   const workMin = plan.reduce((s, p) => s + p.dur, 0);
@@ -408,12 +896,74 @@ export function HopeMyDay() {
   const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; });
   const dropPlan = (targetKey: string) => { const from = plan.findIndex((p) => p.key === dragKey.current); const to = plan.findIndex((p) => p.key === targetKey); dragKey.current = null; if (from < 0 || to < 0 || from === to) return; setPlan((arr) => { const c = [...arr]; const [m] = c.splice(from, 1); c.splice(to, 0, m); return c; }); };
   const isAdmin = person === "maheen"; // only Maheen (manager) may Send to Scheduler
+  const canCreate = person === "manya"; // the writer creates content tasks
+  // Create a task → apply the Type→owner routing, drop it where it belongs (design
+  // → the owner's My tasks; video → the editors' claim pool), and toast the result.
+  const createTask = (t: Task, owner: string, note: string) => {
+    if (t.detail.owner === "Unclaimed") setClaimPool((p) => [t, ...p]);
+    else setTasks((p) => [t, ...p]);
+    setShowNew(false);
+    setToast({ who: `Auto-assigned → ${owner}`, color: "#3A57E8", av: (owner[0] || "?").toUpperCase(), body: note });
+  };
+
+  // ── Capacity pipeline (Accept & Work) ──
+  // `workMin` (minutes booked on Today's plan) is the person's committed load.
+  const addNotif = (n: Notif) => setNotifs((ns) => [n, ...ns.filter((x) => x.id !== n.id)]);
+  const dismissNotif = (id: string) => setNotifs((ns) => ns.filter((n) => n.id !== id));
+  const onAcceptNotif = (n: Notif) => { if (n.task) setAcceptTask(n.task); };
+  const acceptWork = () => {
+    const t = acceptTask; if (!t) return;
+    setPlan((p) => [...p, { key: `pk${Date.now()}`, taskId: t.id, label: t.title, dur: estMins(t.detail.typeLine) }]);
+    setTasks((a) => [{ ...t, status: "Content - In Progress", meta: `${t.detail.typeLine} · you accepted this`, detail: { ...t.detail, owner: me.name } }, ...a]);
+    setAcceptTask(null);
+    setPipeline("done");
+    setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: `“${t.title}” added to your plan.` });
+  };
+  const askManyaToMove = () => { setAcceptTask(null); setAskManya(true); };
+  // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
+  // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
+  useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
+  const startDay = () => { setDayStarted(true); setDayStartAt(clock?.time || "now"); };
+  const endToday = (doneCount: number, rollCount: number) => {
+    setDayStarted(false); setShowEod(false);
+    setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow.` });
+  };
+  // Editor sends the reschedule ask → the request goes to Manya (pipeline: waiting).
+  const sendToManya = () => {
+    setAskManya(false);
+    setPipeline("waiting");
+    setToast({ who: "Sent to Manya", color: "#3A57E8", av: me.av, body: "She'll free a slot — you'll get a heads-up." });
+  };
+  // Manya confirms the reschedule → slides the chosen task out, frees room, and the
+  // editor's pipeline flips to "freed" (they'll see the follow-up notification).
+  const manyaConfirmMove = () => {
+    setPlan((p) => (p.length > 1 ? p.slice(0, -1) : p)); // free ~1h 30m on the editor's day
+    setPipeline("freed");
+    setToast({ who: "Room freed ✓", color: "#1AA053", av: me.av, body: "Slid a low-priority reel to tomorrow — Nandu can take the urgent one now." });
+  };
+  // Drive the editor's notification stack from the pipeline state (so it survives
+  // switching persons and reflects where the urgent task is in its journey).
+  useEffect(() => {
+    if (person === "nandu" || person === "nikhil") {
+      const sibling = person === "nandu" ? "Nikhil" : "Nandu";
+      const claim: Notif = { id: "nc1", kind: "claim", emoji: "✓", title: `${sibling} claimed a video`, sub: "“Germany Approbation — Short” is off the board — you're clear on that one." };
+      const stack: Notif[] = [];
+      if (pipeline === "offered") stack.push({ id: "nu1", kind: "urgent", emoji: "🔴", title: "12thPlus Exam Alert — Reel Cut", sub: "Exam-notification reel · must go today · won't fit your day as it stands.", task: URGENT_TASK });
+      else if (pipeline === "waiting") stack.push({ id: "nu2", kind: "message", emoji: "⏳", title: "Waiting on Manya", sub: "You asked her to move a low-priority reel — she'll free a slot for the 12thPlus Exam Alert." });
+      else if (pipeline === "freed") stack.push({ id: "nu3", kind: "freed", emoji: "✓", title: "Room freed by Manya", sub: "A low-priority reel moved to tomorrow — you can take the 12thPlus Exam Alert now.", task: URGENT_TASK });
+      stack.push(claim);
+      setNotifs(stack);
+      setChatOpen(true);
+    } else {
+      setNotifs([]);
+    }
+  }, [person, pipeline]);
   // My-tasks row → expands inline in the "Up next" panel (setSel).
   // Today's-plan block → opens the task in a popup (like the original dashboard).
   // Claim a video → you become the owner; it leaves the pool and lands in My tasks.
   const claimVideo = (v: Task) => {
     setClaimPool((p) => p.filter((x) => x.id !== v.id));
-    const claimed: Task = { ...v, status: "in_progress", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: "You own this — claimed" } };
+    const claimed: Task = { ...v, status: "Content - In Progress", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: me.name } };
     setClaimedTasks((c) => [claimed, ...c]);
     setSel(0); // open the freshly claimed task in "Up next"
     setToast({ who: "Claimed ✓", color: me.color, av: me.av, body: `You claimed “${v.title}” — it's yours now, added to My tasks.` });
@@ -441,22 +991,7 @@ export function HopeMyDay() {
       {/* click-away layer for the top popovers */}
       {panel && <div className="backdrop" onClick={() => setPanel(null)} />}
 
-      {/* Videos up for grabs surface prominently on the right first; ignored → demote to 🔔 after 15s */}
-      {showPool && poolProminent && (
-        <div className="handoff-card">
-          <div className="notif">
-            <div className="bell">{BELL}</div>
-            <div className="txt">
-              <b>{claimPool.length} video{claimPool.length === 1 ? "" : "s"} up for grabs.</b> First to claim owns it — long-form &amp; short-form waiting.
-              <span className="cap">Open to claim, or this tucks into the 🔔 in 15s.</span>
-              <div className="acts">
-                <button className="btn primary sm" onClick={() => { setPanel("notif"); setPoolProminent(false); }}>Claim a video</button>
-                <button className="btn sm" onClick={() => setPoolProminent(false)}>Later</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* (Videos-up-for-grabs now surfaces through the chat-panel notification stack.) */}
 
       <div className="shell">
       {/* ── Sidebar (matches the Overview V2 Hope shell) ── */}
@@ -494,6 +1029,18 @@ export function HopeMyDay() {
             <span>collapsible chat · icon inbox · wider workspace</span>
           </p>
           <div className="icons">
+            {/* Start / End day — same control for everyone */}
+            {!dayStarted ? (
+              <button className="daybtn" onClick={startDay}>▶ Start day</button>
+            ) : (
+              <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End today</button></span>
+            )}
+            {/* Team capacity — Manya only, a clearly-labelled button next to the day control */}
+            {person === "manya" && (
+              <button className={`teamcapbtn ${screen === "team" ? "on" : ""}`} onClick={() => setScreen(screen === "team" ? "myday" : "team")}>
+                <IconUsers size={15} stroke={1.8} /> {screen === "team" ? "Back to My Day" : "Team capacity"}
+              </button>
+            )}
             <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
             </button>
@@ -542,6 +1089,10 @@ export function HopeMyDay() {
           </div>
         </div>
 
+        {screen === "team" ? (
+          <TeamCapacityPage onBack={() => setScreen("myday")} />
+        ) : (
+        <>
         {/* 1 · HEADER BAND */}
         <div className="card pad headband">
           <div className="who">
@@ -560,12 +1111,17 @@ export function HopeMyDay() {
           </div>
         </div>
 
+        {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}
+        {person === "manya" && pipeline === "waiting" && (
+          <ManyaReschedule task={URGENT_TASK} editorName="Nandu" movedId={movedId} onMove={setMovedId} onConfirm={manyaConfirmMove} />
+        )}
+
         {/* 2 · HERO — today's plan */}
         <div className="card pad hero">
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
-              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, DAY_MINS - workMin - LUNCH_MIN))} buffer</span>
+              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, DAY_MINS - workMin - LUNCH_MIN))} free</span>
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task or use ‹ › to reorder.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
@@ -606,7 +1162,7 @@ export function HopeMyDay() {
         {/* 3 · WORK ROW — My tasks | Up next detail (wider now) */}
         <div className="work">
           <div className="card pad">
-            <div className="colhead"><h3>My tasks</h3><span className="lbl">by due date</span></div>
+            <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className="btn primary sm" onClick={() => setShowNew(true)}>+ New task</button> : <span className="lbl">by due date</span>}</div>
             <div className="task-tabs">
               {tabCounts.map((tb) => (
                 <button key={tb.key} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); }}>
@@ -639,26 +1195,20 @@ export function HopeMyDay() {
 
           <div className="card pad detail">
             {task ? (
-              <>
-                <TaskBody task={task} label="Task · opened" />
-                <div className="d-actions">
-                  <span className="mlbl" style={{ alignSelf: "center", margin: "0 .1rem 0 0" }}>Set status</span>
-                  {STATUS_ACTIONS.map((sa) => (
-                    <button key={sa.key} className={`btn ${task.status === sa.key ? "primary" : ""}`} onClick={() => setTaskStatus(task.id, sa.key)}>{sa.label}</button>
-                  ))}
-                  {isAdmin && <button className="btn" style={{ marginLeft: "auto" }} onClick={() => setTaskStatus(task.id, "published")}>Send to Scheduler</button>}
-                </div>
-              </>
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} canSchedule={isAdmin} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
       </div>{/* /shell */}
 
       {/* TEAM CHAT — collapsible slide-in panel */}
       <aside className={`chatpanel ${chatOpen ? "open" : ""}`}>
+        <NotificationStack notifs={notifs} onAccept={onAcceptNotif} onDismiss={dismissNotif} onClearAll={() => setNotifs([])} />
         {(() => {
           const active = activeChat ? convos[activeChat] : null;
           return (
@@ -734,7 +1284,7 @@ export function HopeMyDay() {
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close">✕</button>
-            <TaskBody task={planModalTask} label="Today's plan · task" />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} canSchedule={isAdmin} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
@@ -746,9 +1296,19 @@ export function HopeMyDay() {
         </div>
       )}
 
+      {/* CREATE-TASK MODAL — writer only; runs the Type→owner routing on submit */}
+      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreate={createTask} />}
+
+      {/* ACCEPT & WORK — capacity-aware accept dialog */}
+      {acceptTask && <AcceptWorkModal task={acceptTask} committed={workMin} onAcceptWork={acceptWork} onAskManya={askManyaToMove} onClose={() => setAcceptTask(null)} />}
+      {askManya && <AskManyaModal onSend={sendToManya} onClose={() => setAskManya(false)} />}
+
+      {/* END TODAY — wrap-up checklist */}
+      {showEod && <EndTodayModal tasks={workingTasks.map((t) => ({ id: t.id, title: t.title }))} onEnd={endToday} onClose={() => setShowEod(false)} />}
+
       {/* TOAST — new message nudge */}
       {toast && (
-        <div className="toast" onClick={() => { openChat(); if (toast.convo) openConvo(toast.convo); setToast(null); }}>
+        <div className="toast" onClick={() => { if (toast.convo) { openChat(); openConvo(toast.convo); } setToast(null); }}>
           <span className="av" style={{ background: toast.color }}>{toast.av}</span>
           <div><div className="who2">{toast.who}</div><div className="body">{toast.body}</div></div>
           <span className="toast-cta">Open</span>
@@ -852,12 +1412,13 @@ const CSS = `
 .hmd .tl-ticks{display:flex;margin-bottom:.35rem;padding:0 1px}
 .hmd .tl-ticks span{flex:1;font-size:.62rem;color:var(--faint);font-family:var(--mono)}
 .hmd .tl-track{position:relative;height:116px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);overflow:hidden}
-.hmd .tl-blk{position:absolute;top:11px;height:94px;border-radius:9px;padding:.6rem .6rem;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff;font-size:.75rem;transition:filter .12s}
-.hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab;box-shadow:0 2px 6px rgba(58,87,232,.25)}
+.hmd .tl-blk{position:absolute;top:0;height:100%;border-radius:0;padding:.6rem .7rem;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff;font-size:.75rem;transition:filter .12s;border-right:1px solid rgba(255,255,255,.16)}
+.hmd .tl-blk:last-child{border-right:0}
+.hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab}
 .hmd .tl-blk.reel:hover{filter:brightness(1.05)}
 .hmd .tl-blk.reel:active{cursor:grabbing}
-.hmd .tl-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 6px,#DFE3EE 6px,#DFE3EE 12px);color:var(--muted);border:1px dashed #C7CEDD}
-.hmd .tl-blk.buffer{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 6px,#E9ECF2 6px,#E9ECF2 12px);color:var(--faint);border:1px dashed var(--line)}
+.hmd .tl-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 6px,#DFE3EE 6px,#DFE3EE 12px);color:var(--muted);border-right:1px solid rgba(255,255,255,.5)}
+.hmd .tl-blk.buffer{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 6px,#E9ECF2 6px,#E9ECF2 12px);color:var(--faint)}
 .hmd .tl-t{font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .tl-m{font-size:.62rem;opacity:.85;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hmd .tl-nudge{position:absolute;top:50%;transform:translateY(-50%);width:18px;height:40px;border:none;border-radius:6px;background:rgba(255,255,255,.26);color:#fff;font-size:1.05rem;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;display:flex;align-items:center;justify-content:center;z-index:3;padding:0}
@@ -889,6 +1450,23 @@ const CSS = `
 .hmd .task .tt{font-weight:600;font-size:.82rem;line-height:1.25}
 .hmd .task .mm{font-size:.68rem;color:var(--muted);margin:.2rem 0 .35rem}
 .hmd .detail .d-title{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
+.hmd .d-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.hmd .d-head-main{min-width:0}
+.hmd .status-box{flex-shrink:0;text-align:right}
+.hmd .status-box .mlbl{margin-bottom:.35rem}
+.hmd .status-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+.hmd .status-caret{position:absolute;right:.65rem;top:50%;width:0;height:0;margin-top:-2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;pointer-events:none}
+.hmd .status-dd{position:relative;display:inline-block}
+.hmd .status-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.45rem;border:1px solid rgba(35,45,66,.08);border-radius:9px;padding:.42rem 1.55rem .42rem .65rem;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.hmd .status-dd-val{white-space:nowrap}
+.hmd .status-dd-back{position:fixed;inset:0;z-index:40}
+.hmd .status-dd-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 46px rgba(20,22,40,.16);padding:.35rem;min-width:238px;max-height:344px;overflow:auto}
+.hmd .status-dd-item{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:.8rem;font-weight:500;color:var(--ink);padding:.5rem .6rem;border-radius:8px;cursor:pointer}
+.hmd .status-dd-item:hover{background:var(--panel-2)}
+.hmd .status-dd-item.on{font-weight:700;background:var(--panel-2)}
+.hmd .status-dd-item-lbl{flex:1;white-space:nowrap}
+.hmd .status-dd-check{color:var(--brand);font-weight:800}
+.hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:.76rem;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:.75rem;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 .hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
@@ -900,6 +1478,7 @@ const CSS = `
 .hmd .collab-names{font-size:.78rem;color:var(--ink-soft);margin-left:.3rem}
 .hmd .section-lbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin:1.15rem 0 .5rem}
 .hmd .brief{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem;font-size:.84rem;color:var(--ink-soft);line-height:1.6}
+.hmd .brief-full{white-space:pre-wrap;word-break:break-word}
 .hmd .section-head{display:flex;align-items:center;justify-content:space-between;margin:1.15rem 0 .5rem}
 .hmd .section-head .section-lbl{margin:0}
 .hmd .copy-btn{font-size:.66rem;font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border:1px solid transparent;border-radius:7px;padding:.3em .65em;cursor:pointer;transition:background .12s}
@@ -1004,9 +1583,9 @@ const CSS = `
 /* prominent handoff card (right side, before demoting to the bell) */
 .hmd .handoff-card{position:fixed;top:74px;right:22px;width:320px;background:var(--panel);border:1px solid var(--brand);border-radius:14px;box-shadow:0 20px 50px rgba(58,87,232,.20);padding:.9rem 1rem;z-index:55;animation:hmdslide .3s ease}
 /* task popup */
-.hmd .modal{position:fixed;inset:0;background:rgba(20,22,40,.42);display:flex;align-items:flex-start;justify-content:center;padding:clamp(2rem,7vh,5rem) 1rem;z-index:70;animation:hmdfade .16s ease}
+.hmd .modal{position:fixed;inset:0;background:rgba(20,22,40,.42);display:flex;align-items:flex-start;justify-content:center;padding:clamp(2rem,7vh,5rem) 1rem;z-index:70;animation:hmdfade .16s ease;overflow-y:auto}
 @keyframes hmdfade{from{opacity:0}to{opacity:1}}
-.hmd .modal-card{position:relative;width:100%;max-width:640px;max-height:86vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px rgba(20,22,40,.3);padding:1.5rem 1.6rem;animation:hmdslide .22s ease}
+.hmd .modal-card{position:relative;width:100%;max-width:640px;background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px rgba(20,22,40,.3);padding:1.5rem 1.6rem;animation:hmdslide .22s ease}
 .hmd .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
 .hmd .modal-close{position:absolute;top:1.1rem;right:1.1rem;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;font-size:.85rem;z-index:2}
 .hmd .modal-close:hover{color:var(--ink);border-color:#D9DEEA}
@@ -1014,4 +1593,148 @@ const CSS = `
 .hmd .modal-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--line)}
 .hmd .modal-foot-note{font-size:.72rem;color:var(--muted)}
 .hmd .modal-foot-acts{display:flex;gap:.5rem}
+.hmd .nt-card{max-width:520px}
+.hmd .nt-field{margin-bottom:.9rem}
+.hmd .nt-row{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+.hmd .nt-label{display:block;font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.35rem}
+.hmd .nt-input{width:100%;font:inherit;font-size:.85rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:.55rem .65rem;outline:none}
+.hmd .nt-input:focus{border-color:var(--brand)}
+.hmd .nt-textarea{resize:vertical;min-height:98px;line-height:1.5}
+.hmd .nt-hint{font-weight:400;font-size:.62rem;color:var(--faint);text-transform:none;letter-spacing:0;margin-left:.4rem}
+.hmd .nt-assign{display:flex;align-items:flex-start;gap:.5rem;font-size:.8rem;color:var(--ink-soft);line-height:1.4;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.65rem .75rem;margin:.3rem 0 1.2rem}
+.hmd .nt-assign .status-dot{margin-top:.35rem}
+.hmd .nt-assign b{color:var(--ink)}
+.hmd .nt-actions{display:flex;justify-content:flex-end;gap:.6rem}
+.hmd .refs{display:flex;flex-wrap:wrap;gap:.7rem;align-items:flex-start}
+.hmd .refs .ref-thumb{position:relative}
+.hmd .ref-thumb .thumb-img{background-color:var(--panel-2)}
+.hmd .ref-link{display:inline-flex;align-items:center;gap:.4rem;max-width:230px;height:34px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:0 .35rem 0 .6rem;font-size:.76rem;font-weight:500;color:var(--brand-ink);text-decoration:none}
+.hmd .ref-link:hover{border-color:var(--brand)}
+.hmd .ref-link-ic{flex:0 0 auto;font-size:.72rem}
+.hmd .ref-link-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmd .ref-x{border:none;background:rgba(20,22,40,.55);color:#fff;border-radius:50%;width:17px;height:17px;font-size:.6rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 17px}
+.hmd .ref-thumb .ref-x{position:absolute;top:5px;right:5px;opacity:0;transition:opacity .12s}
+.hmd .ref-thumb:hover .ref-x{opacity:1}
+.hmd .ref-link .ref-x{background:transparent;color:var(--faint);width:16px;height:16px}
+.hmd .ref-link .ref-x:hover{color:var(--rose)}
+.hmd .ref-url{display:flex;gap:.5rem;margin-top:.7rem;max-width:540px}
+.hmd .ref-url .nt-input{flex:1}
+/* notification stack — sits at the top of the chat panel, pushes chat down */
+.hmd .notif-stack{flex:0 0 auto;max-height:44%;overflow:auto;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#F3F1FE,transparent);padding:.6rem .6rem .5rem}
+.hmd .nstack-head{display:flex;align-items:center;justify-content:space-between;padding:0 .25rem .45rem;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.hmd .nstack-clear{border:none;background:transparent;font-size:.66rem;color:var(--brand-ink);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0}
+.hmd .pnotif{display:flex;gap:.55rem;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:.55rem .6rem;margin-bottom:.45rem;box-shadow:0 3px 10px rgba(35,45,66,.05);animation:hmdslide .26s ease}
+.hmd .pnotif:last-child{margin-bottom:0}
+.hmd .pnotif.urgent{border-color:#F4C4C9;background:linear-gradient(180deg,#FEF3F4,var(--panel))}
+.hmd .pn-ic{width:28px;height:28px;border-radius:8px;flex:0 0 28px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#fff}
+.hmd .pn-ic.urgent{background:var(--rose)} .hmd .pn-ic.claim{background:var(--good)} .hmd .pn-ic.freed{background:var(--good)} .hmd .pn-ic.message{background:var(--brand)}
+.hmd .pn-body{flex:1;min-width:0}
+.hmd .pn-eyebrow{font-size:.56rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#C0201F}
+.hmd .pn-title{font-size:.8rem;font-weight:600;line-height:1.25;margin-top:.05rem}
+.hmd .pn-sub{font-size:.71rem;color:var(--muted);margin-top:.12rem;line-height:1.35}
+.hmd .pn-acts{display:flex;gap:.4rem;margin-top:.5rem}
+.hmd .pn-x{border:none;background:transparent;color:var(--faint);cursor:pointer;font-size:.85rem;line-height:1;padding:.1rem .2rem;flex:0 0 auto}
+.hmd .pn-x:hover{color:var(--ink)}
+/* accept & work / ask-manya modals */
+.hmd .aw-card{max-width:440px}
+.hmd .aw-h{font-size:1rem;font-weight:700}
+.hmd .aw-p{font-size:.8rem;color:var(--muted);line-height:1.45;margin:.4rem 0 .9rem}
+.hmd .aw-task{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.65rem .75rem;margin:.85rem 0}
+.hmd .aw-task .tt{font-size:.86rem;font-weight:600}
+.hmd .aw-task .tm{font-size:.72rem;color:var(--muted);margin-top:.12rem}
+.hmd .impact{display:flex;gap:.55rem;align-items:flex-start;font-size:.8rem;line-height:1.45;background:var(--warn-soft);border:1px solid #F3DCB4;border-radius:10px;padding:.65rem .75rem;color:#7A4E0B}
+.hmd .impact.ok{background:var(--good-soft);border-color:#BFE6CD;color:#155E37}
+.hmd .impact b{color:#5A3906}.hmd .impact.ok b{color:#0E4A2A}.hmd .impact .over{color:#C0201F}
+.hmd .aw-choice{display:flex;flex-direction:column;gap:.55rem;margin-top:1rem}
+.hmd .aw-or{text-align:center;font-size:.64rem;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.hmd .tchips{display:flex;flex-direction:column;gap:.5rem}
+.hmd .tchip{display:flex;align-items:center;gap:.6rem;border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;background:var(--panel)}
+.hmd .tchip.movable{border-style:dashed;border-color:#C7CEDD}
+.hmd .tchip .cmid{flex:1;min-width:0}
+.hmd .tchip .ct{font-size:.8rem;font-weight:600}
+.hmd .tchip .cs{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+.hmd .pri{font-size:.6rem;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
+.hmd .pri.low{background:#EEF0F5;color:#7A8296}
+/* Manya reschedule card */
+.hmd .manya-resched{border-color:#F4C4C9;background:linear-gradient(180deg,#FEF6F0,var(--panel))}
+.hmd .mr-h{display:flex;gap:.7rem;align-items:flex-start}
+.hmd .mr-ic{width:34px;height:34px;border-radius:9px;flex:0 0 34px;background:#FEE9D6;display:flex;align-items:center;justify-content:center;font-size:1rem}
+.hmd .mr-t{font-size:.92rem;font-weight:700}
+.hmd .mr-d{font-size:.78rem;color:var(--muted);margin-top:.15rem;line-height:1.45}
+.hmd .mr-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding-top:.9rem;border-top:1px solid var(--line)}
+.hmd .mr-note{font-size:.75rem;color:var(--muted)}
+.hmd .cap-badge{font-size:.64rem;font-weight:700;padding:.22em .55em;border-radius:7px;white-space:nowrap}
+.hmd .cap-badge.full{background:var(--rose-soft,#FCEBEC);color:#C0201F}
+.hmd .cap-badge.some{background:var(--warn-soft);color:#7A4E0B}
+.hmd .cap-badge.free{background:var(--good-soft);color:var(--good)}
+/* team capacity board */
+.hmd .tcb-head{font-size:.95rem;font-weight:700;margin-bottom:.6rem}
+.hmd .tcb-sub{font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem}
+.hmd .tcb-row{display:grid;grid-template-columns:158px 1fr auto;gap:.8rem;align-items:center;padding:.55rem 0;border-top:1px solid var(--line-2)}
+.hmd .tcb-row:first-of-type{border-top:0}
+.hmd .tcb-who{display:flex;align-items:center;gap:.55rem}
+.hmd .tcb-who .av{width:30px;height:30px;font-size:.72rem;flex:0 0 30px}
+.hmd .tcb-n{font-size:.82rem;font-weight:600}
+.hmd .tcb-r{font-size:.66rem;color:var(--muted)}
+.hmd .tcb-tl{display:flex;height:40px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel-2)}
+.hmd .tcb-blk{color:#fff;font-size:.62rem;font-weight:600;padding:0 .5rem;display:flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16)}
+.hmd .tcb-blk:last-child{border-right:0}
+.hmd .tcb-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
+.hmd .tcb-blk.design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
+.hmd .tcb-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
+.hmd .tcb-blk.free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
+.hmd .tcb-note{font-size:.75rem;color:var(--ink-soft);background:var(--brand-soft);border:1px solid #D5DCFB;border-radius:10px;padding:.6rem .75rem;margin-top:.85rem;line-height:1.45}
+.hmd .tcb-note b{color:var(--brand-ink)}
+/* Start / End day control */
+.hmd .daybtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid transparent;background:var(--good);color:#fff;cursor:pointer}
+.hmd .daybtn:hover{background:#158A46}
+.hmd .daybar{display:inline-flex;align-items:center;gap:.4rem}
+.hmd .daychip{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:600;border-radius:9px;padding:.45em .7em;background:var(--good-soft);color:#0F6E3C;border:1px solid #BFE6CD;white-space:nowrap}
+.hmd .daychip .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);animation:hmdpl 1.6s infinite}
+@keyframes hmdpl{0%{box-shadow:0 0 0 0 rgba(26,160,83,.45)}70%{box-shadow:0 0 0 6px rgba(26,160,83,0)}100%{box-shadow:0 0 0 0 rgba(26,160,83,0)}}
+.hmd .endbtn{white-space:nowrap}
+.hmd .teamcapbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid #CBD5FA;background:var(--brand-soft);color:var(--brand-ink);cursor:pointer;white-space:nowrap}
+.hmd .teamcapbtn:hover{border-color:var(--brand)}
+.hmd .teamcapbtn.on{background:var(--brand);color:#fff;border-color:transparent}
+/* Team-capacity page */
+.hmd .tcp-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+.hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
+.hmd .tc-back:hover{border-color:#D9DEEA}
+.hmd .tcp-title{font-size:1.2rem;font-weight:700}
+.hmd .tcp-title span{font-size:.8rem;font-weight:500;color:var(--muted);margin-left:.4rem}
+.hmd .tcp-card{margin-bottom:1rem}
+.hmd .tcp-top{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem}
+.hmd .tcp-n{font-size:.9rem;font-weight:700}
+.hmd .tcp-r{font-size:.68rem;color:var(--muted)}
+.hmd .tcp-status{margin-left:auto;display:flex;align-items:center;gap:.5rem}
+.hmd .st-badge{font-size:.64rem;font-weight:700;padding:.22em .55em;border-radius:7px}
+.hmd .st-badge.working{background:var(--good-soft);color:#0F6E3C}
+.hmd .tcp-ticks{display:flex;padding:0 1px;margin-bottom:.3rem}
+.hmd .tcp-track{position:relative;display:flex;height:56px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
+.hmd .tcp-blk{color:#fff;font-size:.66rem;font-weight:600;padding:.35rem .5rem;display:flex;flex-direction:column;justify-content:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16);position:relative}
+.hmd .tcp-blk:last-child{border-right:0}
+.hmd .tcp-bm{font-size:.56rem;opacity:.85;font-weight:500}
+.hmd .tcp-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
+.hmd .tcp-blk.design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
+.hmd .tcp-blk.done{opacity:.48}
+.hmd .tcp-blk.now{outline:2px solid #fff;outline-offset:-3px}
+.hmd .tcp-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
+.hmd .tcp-blk.free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
+.hmd .tcp-now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:3}
+.hmd .tcp-now-line::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
+.hmd .tcp-now{display:flex;align-items:center;gap:.55rem;margin-top:.65rem;font-size:.79rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem}
+.hmd .tcp-now .dot{width:8px;height:8px;border-radius:50%;background:#DC2E2E;flex:0 0 8px}
+.hmd .tcp-now b{color:var(--ink)}.hmd .tcp-now .muted{color:var(--muted)}
+/* End-today modal rows */
+.hmd .eod-row{display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid var(--line-2);font-size:.83rem}
+.hmd .eod-row:last-of-type{border-bottom:0}
+.hmd .eod-row.roll{color:var(--muted)}
+.hmd .eod-cb{width:18px;height:18px;border-radius:5px;border:1.6px solid #CBD2E0;flex:0 0 18px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.68rem;color:#fff}
+.hmd .eod-cb.on{background:var(--good);border-color:var(--good)}
+.hmd .eod-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmd .eod-tag{font-size:.6rem;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
+.hmd .eod-tag.done{background:var(--good-soft);color:#0F6E3C}.hmd .eod-tag.roll{background:var(--warn-soft);color:#7A4E0B}
+.hmd .eod-foot{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}
+.hmd .m-note{font-size:.72rem;color:var(--muted)}
+.hmd .btn.rose{background:var(--rose);color:#fff;border-color:transparent}
 `;

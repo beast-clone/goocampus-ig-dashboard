@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Day — capacity-aware assignment pipeline (mockup)</title>
+<style>
+  :root{
+    --bg:#F5F6FA;--panel:#FFFFFF;--panel-2:#F7F8FC;
+    --ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;
+    --line:#EEF0F4;--line-2:#F3F5F9;
+    --brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;
+    --good:#1AA053;--good-soft:#E3F5EA;--warn:#D97706;--warn-soft:#FEF3E2;
+    --rose:#E11D48;--rose-soft:#FCEBEC;--rose-ink:#C0201F;
+    --shadow:0 10px 30px rgba(35,45,66,.06);
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:1.6rem clamp(1rem,3vw,2rem) 4rem}
+  .banner{font-size:.85rem;color:var(--muted);margin:0 0 .4rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+  .banner b{color:var(--ink-soft)}
+  .tag{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
+  .lede{font-size:.9rem;color:var(--ink-soft);margin:0 0 1.6rem;line-height:1.5;max-width:70ch}
+  .lede b{color:var(--ink)}
+
+  .scene{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:1.2rem 1.3rem;margin-bottom:1.3rem}
+  .scene-h{display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1rem}
+  .scene-n{width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 26px;margin-top:1px}
+  .scene-t{font-size:1rem;font-weight:700}
+  .scene-d{font-size:.82rem;color:var(--muted);margin-top:.15rem;line-height:1.45}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .mini-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:0 0 .5rem}
+
+  /* timeline */
+  .ticks{display:flex;padding:0 1px;margin-bottom:.3rem}
+  .ticks span{flex:1;font-size:.58rem;color:var(--faint);font-family:var(--mono)}
+  .ot span:last-child{color:var(--rose);font-weight:700}
+  .tl{position:relative;display:flex;height:60px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel-2)}
+  .b{color:#fff;font-size:.66rem;font-weight:600;padding:.35rem .45rem;display:flex;flex-direction:column;justify-content:center;overflow:hidden;border-right:1px solid rgba(255,255,255,.16);line-height:1.2}
+  .b:last-child{border-right:0}
+  .b .bm{font-size:.56rem;opacity:.82;font-weight:500}
+  .b-reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
+  .b-low{background:linear-gradient(135deg,#9AA6EE,#7D8CE6)}
+  .b-urgent{background:linear-gradient(135deg,#F0596B,#E11D48)}
+  .b-design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
+  .b-lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
+  .b-free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
+  .b-over{background:repeating-linear-gradient(45deg,#FDE1E5,#FDE1E5 5px,#F8CBD2 5px,#F8CBD2 10px);color:var(--rose-ink);border-left:2px solid var(--rose)}
+  .cap-line{font-size:.72rem;color:var(--muted);margin-top:.5rem}
+  .cap-line b{color:var(--ink)} .cap-line .over{color:var(--rose-ink);font-weight:700}
+
+  /* notification */
+  .notif{display:flex;gap:.6rem;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.7rem .75rem;box-shadow:0 4px 12px rgba(35,45,66,.06)}
+  .notif.urgent{border-color:#F4C4C9;background:linear-gradient(180deg,#FEF3F4,var(--panel))}
+  .n-ic{width:32px;height:32px;border-radius:9px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem}
+  .n-ic.red{background:var(--rose)} .n-ic.green{background:var(--good)} .n-ic.brand{background:var(--brand)}
+  .n-body{flex:1;min-width:0}
+  .n-eyebrow{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--rose-ink)}
+  .n-title{font-size:.85rem;font-weight:600;line-height:1.25;margin-top:.1rem}
+  .n-sub{font-size:.74rem;color:var(--muted);margin-top:.15rem;line-height:1.35}
+  .n-acts{display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap}
+
+  .btn{font-size:.76rem;font-weight:600;border-radius:8px;padding:.42em .75em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer}
+  .btn:hover{border-color:#D9DEEA}
+  .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
+  .btn.rose{background:var(--rose);color:#fff;border-color:transparent}
+  .btn.ghost{background:transparent}
+  .btn.sm{font-size:.72rem;padding:.34em .6em}
+
+  /* accept & work dialog (shown inline for the storyboard) */
+  .aw{border:1px solid var(--line);border-radius:14px;background:var(--panel-2);padding:1rem 1.05rem;max-width:420px}
+  .aw-h{font-size:.92rem;font-weight:700}
+  .aw-task{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;margin:.7rem 0}
+  .aw-task .tt{font-size:.82rem;font-weight:600}
+  .aw-task .tm{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+  .impact{display:flex;gap:.55rem;align-items:flex-start;font-size:.78rem;line-height:1.4;background:var(--warn-soft);border:1px solid #F3DCB4;border-radius:10px;padding:.6rem .7rem;color:#7A4E0B}
+  .impact b{color:#5A3906}
+  .aw-choice{display:flex;flex-direction:column;gap:.5rem;margin-top:.85rem}
+  .aw-or{text-align:center;font-size:.66rem;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin:.15rem 0}
+
+  /* task chips (movable candidates) */
+  .tchips{display:flex;flex-direction:column;gap:.5rem}
+  .tchip{display:flex;align-items:center;gap:.6rem;border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;background:var(--panel)}
+  .tchip .cmid{flex:1;min-width:0}
+  .tchip .ct{font-size:.8rem;font-weight:600}
+  .tchip .cs{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+  .pri{font-size:.6rem;font-weight:700;padding:.12em .5em;border-radius:6px;white-space:nowrap}
+  .pri.low{background:#EEF0F5;color:#7A8296} .pri.must{background:var(--rose-soft);color:var(--rose-ink)}
+  .movable{border-color:#C7CEDD;border-style:dashed}
+
+  /* team capacity board */
+  .teamrow{display:grid;grid-template-columns:150px 1fr auto;gap:.8rem;align-items:center;padding:.6rem 0;border-top:1px solid var(--line-2)}
+  .teamrow:first-of-type{border-top:0}
+  .who{display:flex;align-items:center;gap:.55rem}
+  .who .av{width:30px;height:30px;border-radius:50%;color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 30px}
+  .who .wn{font-size:.82rem;font-weight:600}
+  .who .wr{font-size:.66rem;color:var(--muted)}
+  .cap-badge{font-size:.66rem;font-weight:700;padding:.2em .55em;border-radius:7px;white-space:nowrap}
+  .cap-badge.full{background:var(--rose-soft);color:var(--rose-ink)}
+  .cap-badge.some{background:var(--warn-soft);color:#7A4E0B}
+  .cap-badge.free{background:var(--good-soft);color:var(--good)}
+  .callout{font-size:.78rem;color:var(--ink-soft);background:var(--brand-soft);border:1px solid #D5DCFB;border-radius:10px;padding:.65rem .75rem;margin-top:.9rem;line-height:1.45}
+  .callout b{color:var(--brand-ink)}
+  .flowto{font-size:.72rem;color:var(--faint);margin:.55rem 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="banner"><b>Mockup — capacity-aware assignment pipeline</b> <span class="tag">not wired yet</span></p>
+  <p class="lede">The claim/accept pipeline only fires when a task <b>doesn't fit</b> an editor's Today's plan. If it fits, it just auto-adds. When it doesn't, it surfaces as a notification with an <b>Accept &amp; Work</b> decision — take the overtime, or ask Manya to free room. Walkthrough below (viewing as <b>Nandu</b>, an editor).</p>
+
+  <!-- SCENE 1 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">1</span><div><div class="scene-t">An urgent task lands — but Nandu's day is full</div><div class="scene-d">It's 9–6, packed. The 12thPlus exam-alert video must go today and doesn't fit, so it comes through the pipeline as a notification (not auto-added).</div></div></div>
+    <div class="cols">
+      <div>
+        <div class="mini-lbl">Nandu · Today's plan — packed to 6:00</div>
+        <div class="ticks"><span>9</span><span>10</span><span>11</span><span>12</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+        <div class="tl">
+          <div class="b b-reel" style="flex:1.5">NEET Cutoff<div class="bm">Reel</div></div>
+          <div class="b b-reel" style="flex:1.5">Germany Reel<div class="bm">Reel</div></div>
+          <div class="b b-lunch" style="flex:1">Lunch</div>
+          <div class="b b-reel" style="flex:1.5">Careers Reel<div class="bm">Reel</div></div>
+          <div class="b b-low" style="flex:1.5">Evergreen Tips<div class="bm">Reel · Low</div></div>
+          <div class="b b-low" style="flex:1.5">Motivation Mon<div class="bm">Reel · Low</div></div>
+        </div>
+        <div class="cap-line"><b>0h free</b> · fully booked 9:00–6:00 (1h lunch)</div>
+      </div>
+      <div>
+        <div class="mini-lbl">Notification (in the chat stack)</div>
+        <div class="notif urgent">
+          <div class="n-ic red">🔴</div>
+          <div class="n-body">
+            <div class="n-eyebrow">Urgent · must publish today</div>
+            <div class="n-title">12thPlus Exam Alert — Reel</div>
+            <div class="n-sub">Exam-notification reel · needs ~1h 30m · won't fit your day as it stands.</div>
+            <div class="n-acts"><button class="btn primary sm">Accept &amp; work →</button><button class="btn sm ghost">Later</button></div>
+          </div>
+        </div>
+        <div class="flowto">Tapping <b>Accept &amp; work</b> opens the decision below ↓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 2 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">2</span><div><div class="scene-t">Accept &amp; Work — with the real time impact</div><div class="scene-d">Same modal as the original My Day "Accept &amp; work", but now it does the capacity math against his plan and gives two honest choices.</div></div></div>
+    <div class="aw">
+      <div class="aw-h">Accept this task?</div>
+      <div class="aw-task">
+        <div class="tt">12thPlus Exam Alert — Reel</div>
+        <div class="tm">Reel · adds ~1h 30m to your day</div>
+      </div>
+      <div class="impact">
+        <span>⏱️</span>
+        <span>Your day is <b>9:00–6:00</b>. Adding this pushes you to <b class="over-x">6:30</b> — you'd work <b>30 min over</b> your usual checkout.</span>
+      </div>
+      <div class="aw-choice">
+        <button class="btn primary">Accept &amp; work — finish 6:30</button>
+        <div class="aw-or">or, if you can't stretch</div>
+        <button class="btn">I'm packed — ask Manya to free up room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 3 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">3</span><div><div class="scene-t">"Ask Manya" — flag what could slip a day</div><div class="scene-d">Nandu doesn't want the overtime. He sends Manya his low-priority tasks that can go tomorrow — she decides which to move. (Must-go-today tasks are locked.)</div></div></div>
+    <div class="tchips" style="max-width:520px">
+      <div class="tchip movable"><div class="cmid"><div class="ct">Evergreen Study Tips — Reel</div><div class="cs">Evergreen · no fixed date</div></div><span class="pri low">Low · can move</span><button class="btn sm">Suggest to Manya</button></div>
+      <div class="tchip movable"><div class="cmid"><div class="ct">Motivation Monday — Reel</div><div class="cs">Filler content · flexible</div></div><span class="pri low">Low · can move</span><button class="btn sm">Suggest to Manya</button></div>
+      <div class="tchip"><div class="cmid"><div class="ct">NEET Cutoff — Reel</div><div class="cs">Ties to today's cutoff release</div></div><span class="pri must">Must go today</span></div>
+    </div>
+    <div class="callout" style="max-width:520px"><b>Message to Manya:</b> "Packed today — the 12thPlus exam alert is urgent. Could one of these move to tomorrow? Your call which." <span style="color:var(--muted)">(sends the two Low cards, not the locked one)</span></div>
+  </div>
+
+  <!-- SCENE 4 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">4</span><div><div class="scene-t">Manya's side — she moves one, hits "Changes done"</div><div class="scene-d">She sees exactly which of Nandu's tasks can slip, reschedules one to tomorrow, and confirms. That frees room in his plan automatically.</div></div></div>
+    <div class="cols">
+      <div>
+        <div class="mini-lbl">Nandu is packed — needs room for the urgent 12thPlus reel</div>
+        <div class="tchips">
+          <div class="tchip"><div class="cmid"><div class="ct">Evergreen Study Tips — Reel</div><div class="cs">Moved to <b>tomorrow</b> ✓</div></div><span class="pri low">Low</span><span class="cap-badge some">Moved</span></div>
+          <div class="tchip movable"><div class="cmid"><div class="ct">Motivation Monday — Reel</div><div class="cs">Keep today</div></div><span class="pri low">Low</span><button class="btn sm">Move to tomorrow</button></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:.7rem">
+        <div class="callout">Moving <b>Evergreen Study Tips</b> to tomorrow frees <b>1h 30m</b> on Nandu's day → enough for the exam reel.</div>
+        <button class="btn primary" style="align-self:flex-start">✓ Changes done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 5 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">5</span><div><div class="scene-t">Back to Nandu — room freed, he accepts</div><div class="scene-d">He gets a follow-up notification; accepting slots the urgent reel into the freed gap. Day back to 6:00, no overtime.</div></div></div>
+    <div class="cols">
+      <div>
+        <div class="mini-lbl">Notification</div>
+        <div class="notif">
+          <div class="n-ic green">✓</div>
+          <div class="n-body">
+            <div class="n-title">Room freed by Manya</div>
+            <div class="n-sub">"Evergreen Study Tips" moved to tomorrow — you can take the 12thPlus Exam Alert now.</div>
+            <div class="n-acts"><button class="btn primary sm">Accept &amp; work</button></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="mini-lbl">Nandu · plan after accepting — finishes 6:00 ✓</div>
+        <div class="ticks"><span>9</span><span>10</span><span>11</span><span>12</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+        <div class="tl">
+          <div class="b b-reel" style="flex:1.5">NEET Cutoff<div class="bm">Reel</div></div>
+          <div class="b b-reel" style="flex:1.5">Germany Reel<div class="bm">Reel</div></div>
+          <div class="b b-lunch" style="flex:1">Lunch</div>
+          <div class="b b-reel" style="flex:1.5">Careers Reel<div class="bm">Reel</div></div>
+          <div class="b b-urgent" style="flex:1.5">12thPlus Exam<div class="bm">Reel · urgent</div></div>
+          <div class="b b-low" style="flex:1.5">Motivation Mon<div class="bm">Reel · Low</div></div>
+        </div>
+        <div class="cap-line">Evergreen (Low) rolled to tomorrow · urgent reel slotted · <b>still 6:00</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 6 -->
+  <div class="scene">
+    <div class="scene-h"><span class="scene-n">6</span><div><div class="scene-t">Manya's My Day — everyone's timelines (capacity board)</div><div class="scene-d">Before she even assigns, Manya sees each person's day. Assigning to someone full triggers the "send anyway?" check instead of silently overloading them.</div></div></div>
+    <div>
+      <div class="teamrow">
+        <div class="who"><span class="av" style="background:#C2410C">P</span><div><div class="wn">Praveen</div><div class="wr">Designer</div></div></div>
+        <div>
+          <div class="tl" style="height:44px">
+            <div class="b b-design" style="flex:2">Australia Carousel<div class="bm">Carousel</div></div>
+            <div class="b b-lunch" style="flex:1">Lunch</div>
+            <div class="b b-design" style="flex:1.5">NEET Thumbnail<div class="bm">Thumb</div></div>
+            <div class="b b-free" style="flex:2.5">Free</div>
+          </div>
+        </div>
+        <span class="cap-badge free">2h 30m free</span>
+      </div>
+      <div class="teamrow">
+        <div class="who"><span class="av" style="background:#3A57E8">N</span><div><div class="wn">Nikhil</div><div class="wr">Editor · short-form</div></div></div>
+        <div>
+          <div class="tl" style="height:44px">
+            <div class="b b-reel" style="flex:2">Reel A<div class="bm">Reel</div></div>
+            <div class="b b-lunch" style="flex:1">Lunch</div>
+            <div class="b b-reel" style="flex:2">Reel B<div class="bm">Reel</div></div>
+            <div class="b b-free" style="flex:1.5">Free</div>
+          </div>
+        </div>
+        <span class="cap-badge some">1h 30m free</span>
+      </div>
+      <div class="teamrow">
+        <div class="who"><span class="av" style="background:#3A57E8">Nd</span><div><div class="wn">Nandu</div><div class="wr">Editor · long-form</div></div></div>
+        <div>
+          <div class="tl" style="height:44px">
+            <div class="b b-reel" style="flex:1.5">NEET Cutoff<div class="bm">Reel</div></div>
+            <div class="b b-reel" style="flex:1.5">Germany<div class="bm">Reel</div></div>
+            <div class="b b-lunch" style="flex:1">Lunch</div>
+            <div class="b b-reel" style="flex:1.5">Careers<div class="bm">Reel</div></div>
+            <div class="b b-urgent" style="flex:1.5">12thPlus<div class="bm">urgent</div></div>
+            <div class="b b-low" style="flex:1.5">Motivation<div class="bm">Low</div></div>
+          </div>
+        </div>
+        <span class="cap-badge full">Full</span>
+      </div>
+      <div class="callout">Manya drags a new video onto <b>Nandu</b> → <b>"Nandu is fully packed today. Send anyway, or route to Nikhil (1h 30m free)?"</b> — she assigns with eyes open, or reschedules one of his tasks first and it auto-slots.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

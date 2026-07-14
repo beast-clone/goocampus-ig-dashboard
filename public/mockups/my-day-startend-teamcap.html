@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Day — Start/End day + Team capacity page (mockup)</title>
+<style>
+  :root{
+    --bg:#F5F6FA;--panel:#FFFFFF;--panel-2:#F7F8FC;
+    --ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;
+    --line:#EEF0F4;--line-2:#F3F5F9;
+    --brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;
+    --good:#1AA053;--good-soft:#E3F5EA;--warn:#D97706;--warn-soft:#FEF3E2;
+    --rose:#E11D48;--rose-soft:#FCEBEC;
+    --shadow:0 10px 30px rgba(35,45,66,.06);
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:1.4rem clamp(1rem,3vw,2rem) 3rem}
+  .banner{font-size:.85rem;color:var(--muted);margin:0 0 1.2rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+  .banner b{color:var(--ink-soft)}
+  .tag{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .pad{padding:1.1rem 1.2rem}
+  .btn{font-size:.78rem;font-weight:600;border-radius:9px;padding:.45em .8em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer}
+  .btn:hover{border-color:#D9DEEA}
+  .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
+  .btn.rose{background:var(--rose);color:#fff;border-color:transparent}
+  .btn.sm{font-size:.72rem;padding:.34em .6em}
+
+  /* top bar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+  .tb-title{font-size:1.15rem;font-weight:700}
+  .tb-title span{font-size:.8rem;font-weight:500;color:var(--muted);margin-left:.5rem}
+  .tb-right{display:flex;align-items:center;gap:.6rem}
+  .daybtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:600;border-radius:9px;padding:.5em .85em;border:1px solid transparent;background:var(--good);color:#fff;cursor:pointer}
+  .daychip{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:600;border-radius:9px;padding:.5em .8em;background:var(--good-soft);color:#0F6E3C;border:1px solid #BFE6CD}
+  .daychip .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(26,160,83,.5);animation:pl 1.6s infinite}
+  @keyframes pl{0%{box-shadow:0 0 0 0 rgba(26,160,83,.45)}70%{box-shadow:0 0 0 7px rgba(26,160,83,0)}100%{box-shadow:0 0 0 0 rgba(26,160,83,0)}}
+  .iconbtn{position:relative;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem}
+  .iconbtn:hover{border-color:#D9DEEA}
+  .iconbtn.team{background:var(--brand-soft);border-color:#CBD5FA}
+  .iconbtn .badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--rose);color:#fff;font-size:.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel)}
+  .newpill{font-size:.55rem;font-weight:800;color:#fff;background:var(--brand);border-radius:5px;padding:.1em .35em;letter-spacing:.04em;position:absolute;top:-8px;left:-6px}
+
+  /* greeting */
+  .greet .hi{font-size:1.15rem;font-weight:700}
+  .greet .sub{font-size:.8rem;color:var(--muted);margin-top:.15rem}
+
+  /* planner (square, edge-to-edge — the approved look) */
+  .ticks{display:flex;padding:0 1px;margin:.9rem 0 .3rem}
+  .ticks span{flex:1;font-size:.58rem;color:var(--faint);font-family:var(--mono)}
+  .track{position:relative;display:flex;height:74px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel-2)}
+  .b{color:#fff;font-size:.68rem;font-weight:600;padding:.4rem .5rem;display:flex;flex-direction:column;justify-content:center;overflow:hidden;border-right:1px solid rgba(255,255,255,.16);position:relative;white-space:nowrap;text-overflow:ellipsis}
+  .b:last-child{border-right:0}
+  .b .bm{font-size:.58rem;opacity:.85;font-weight:500}
+  .b.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
+  .b.design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
+  .b.done{opacity:.5}
+  .b.now{outline:2px solid #fff;outline-offset:-3px}
+  .b.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
+  .b.free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
+  .nowline{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:3}
+  .nowline::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
+
+  .hint{font-size:.74rem;color:var(--faint);margin-top:.6rem;line-height:1.5}
+  h2.sec{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:700;margin:1.6rem 0 .7rem}
+
+  /* team capacity page */
+  .screen{display:none}
+  .screen.on{display:block}
+  .tc-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+  .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1rem}
+  .tc-title{font-size:1.2rem;font-weight:700}
+  .tc-title span{font-size:.82rem;font-weight:500;color:var(--muted);margin-left:.5rem}
+  .tc-card{margin-bottom:1rem}
+  .tc-top{display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem}
+  .av{width:38px;height:38px;border-radius:50%;color:#fff;font-size:.82rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 38px}
+  .tc-n{font-size:.92rem;font-weight:700}
+  .tc-r{font-size:.7rem;color:var(--muted)}
+  .tc-status{margin-left:auto;display:flex;align-items:center;gap:.5rem}
+  .st-badge{font-size:.66rem;font-weight:700;padding:.24em .6em;border-radius:7px}
+  .st-badge.working{background:var(--good-soft);color:#0F6E3C}
+  .st-badge.notstarted{background:#EEF0F5;color:#7A8296}
+  .cap-badge{font-size:.66rem;font-weight:700;padding:.24em .6em;border-radius:7px}
+  .cap-badge.full{background:var(--rose-soft);color:#C0201F}.cap-badge.some{background:var(--warn-soft);color:#7A4E0B}.cap-badge.free{background:var(--good-soft);color:var(--good)}
+  .tc-now{display:flex;align-items:center;gap:.6rem;margin-top:.65rem;font-size:.8rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem}
+  .tc-now .dot{width:8px;height:8px;border-radius:50%;background:#DC2E2E;flex:0 0 8px}
+  .tc-now b{color:var(--ink)} .tc-now .muted{color:var(--muted)}
+
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(20,22,40,.42);display:none;align-items:flex-start;justify-content:center;padding:6vh 1rem;z-index:70}
+  .modal.on{display:flex}
+  .modal-card{width:100%;max-width:460px;background:var(--panel);border-radius:16px;box-shadow:0 30px 80px rgba(20,22,40,.3);padding:1.3rem 1.4rem}
+  .m-h{font-size:1.05rem;font-weight:700}
+  .m-p{font-size:.8rem;color:var(--muted);margin:.35rem 0 1rem;line-height:1.45}
+  .eod-row{display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid var(--line-2);font-size:.84rem}
+  .eod-row:last-of-type{border-bottom:0}
+  .cb{width:18px;height:18px;border-radius:5px;border:1.6px solid #CBD2E0;flex:0 0 18px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem;color:#fff}
+  .cb.on{background:var(--good);border-color:var(--good)}
+  .eod-row.roll{color:var(--muted)}
+  .eod-tag{margin-left:auto;font-size:.62rem;font-weight:700;padding:.14em .5em;border-radius:6px}
+  .eod-tag.done{background:var(--good-soft);color:#0F6E3C}.eod-tag.roll{background:var(--warn-soft);color:#7A4E0B}
+  .m-foot{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--line)}
+  .m-note{font-size:.72rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="banner"><b>Mockup — Start/End day + Team capacity as its own page</b> <span class="tag">not wired</span> <span>click ▶ Start day, then End today · click the 👥 button (next to 🔔) to open the team page</span></p>
+
+  <!-- ============ SCREEN 1: MY DAY ============ -->
+  <div class="screen on" id="myday">
+    <div class="topbar">
+      <div class="tb-title">My Day <span id="who">· Nandu</span></div>
+      <div class="tb-right">
+        <span id="dayCtl"></span>
+        <button class="iconbtn" title="Notifications">🔔<span class="badge">2</span></button>
+        <button class="iconbtn team" title="Team capacity" onclick="show('team')"><span class="newpill">NEW</span>👥</button>
+      </div>
+    </div>
+
+    <div class="card pad">
+      <div class="greet"><div class="hi">Good morning, Nandu</div><div class="sub" id="daySub">Video editor · Tue, 15 Jul · Bengaluru 23° · <span style="color:var(--good)">● live</span></div></div>
+      <h2 class="sec" style="margin-top:1.1rem">Today's plan</h2>
+      <div class="ticks"><span>9 AM</span><span>10</span><span>11</span><span>12</span><span>1 PM</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      <div class="track" id="myTrack">
+        <div class="b reel done" style="flex:1.5">NEET Cutoff<div class="bm">done</div></div>
+        <div class="b reel now" style="flex:1.5">Germany Reel<div class="bm">now · ~40m left</div></div>
+        <div class="b lunch" style="flex:1">Lunch</div>
+        <div class="b reel" style="flex:1.5">Careers Reel<div class="bm">Reel</div></div>
+        <div class="b reel" style="flex:1.5">Australia Ebook<div class="bm">Reel</div></div>
+        <div class="b reel" style="flex:1.5">Motivation<div class="bm">Reel · Low</div></div>
+        <div class="nowline" style="left:28%"></div>
+      </div>
+      <div class="hint">Click a task → the existing popup (mark complete / move to next day) still works. <b>Start day</b> begins the count; <b>End today</b> wraps up.</div>
+    </div>
+
+    <div class="hint" style="margin-top:1rem">Start / End day is the same control for <b>Manya, Praveen, Nikhil &amp; Nandu</b> — everyone starts and ends their own day.</div>
+  </div>
+
+  <!-- ============ SCREEN 2: TEAM CAPACITY PAGE ============ -->
+  <div class="screen" id="team">
+    <div class="tc-head">
+      <button class="tc-back" onclick="show('myday')" title="Back">‹</button>
+      <div class="tc-title">Team capacity <span>· today, live — who's on what</span></div>
+    </div>
+
+    <div class="card pad tc-card">
+      <div class="tc-top"><span class="av" style="background:#C2410C">P</span><div><div class="tc-n">Praveen</div><div class="tc-r">Designer</div></div>
+        <div class="tc-status"><span class="st-badge working">● Started 9:05 AM</span><span class="cap-badge free">2h 30m free</span></div></div>
+      <div class="ticks"><span>9 AM</span><span>10</span><span>11</span><span>12</span><span>1 PM</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      <div class="track">
+        <div class="b design done" style="flex:2">Australia Carousel<div class="bm">done</div></div>
+        <div class="b lunch" style="flex:1">Lunch</div>
+        <div class="b design now" style="flex:1.5">NEET Thumbnail<div class="bm">now</div></div>
+        <div class="b free" style="flex:2.5">Free</div>
+        <div class="nowline" style="left:47%"></div>
+      </div>
+      <div class="tc-now"><span class="dot"></span> Currently working on: <b>NEET Thumbnail</b> <span class="muted">· since 1:10 PM · ~35m left</span></div>
+    </div>
+
+    <div class="card pad tc-card">
+      <div class="tc-top"><span class="av" style="background:#3A57E8">N</span><div><div class="tc-n">Nikhil</div><div class="tc-r">Editor · short-form</div></div>
+        <div class="tc-status"><span class="st-badge working">● Started 9:18 AM</span><span class="cap-badge some">1h 30m free</span></div></div>
+      <div class="ticks"><span>9 AM</span><span>10</span><span>11</span><span>12</span><span>1 PM</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      <div class="track">
+        <div class="b reel done" style="flex:2">Reel A<div class="bm">done</div></div>
+        <div class="b lunch" style="flex:1">Lunch</div>
+        <div class="b reel now" style="flex:2">Reel B<div class="bm">now</div></div>
+        <div class="b free" style="flex:1.5">Free</div>
+        <div class="nowline" style="left:52%"></div>
+      </div>
+      <div class="tc-now"><span class="dot"></span> Currently working on: <b>Reel B — Which Branch After NEET</b> <span class="muted">· since 1:40 PM · ~50m left</span></div>
+    </div>
+
+    <div class="card pad tc-card">
+      <div class="tc-top"><span class="av" style="background:#3A57E8">Nd</span><div><div class="tc-n">Nandu</div><div class="tc-r">Editor · long-form</div></div>
+        <div class="tc-status"><span class="st-badge working">● Started 9:12 AM</span><span class="cap-badge full">Full</span></div></div>
+      <div class="ticks"><span>9 AM</span><span>10</span><span>11</span><span>12</span><span>1 PM</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      <div class="track">
+        <div class="b reel done" style="flex:1.5">NEET Cutoff<div class="bm">done</div></div>
+        <div class="b reel now" style="flex:1.5">Germany Reel<div class="bm">now</div></div>
+        <div class="b lunch" style="flex:1">Lunch</div>
+        <div class="b reel" style="flex:1.5">Careers</div>
+        <div class="b reel" style="flex:1.5">Australia</div>
+        <div class="b reel" style="flex:1.5">Motivation</div>
+        <div class="nowline" style="left:28%"></div>
+      </div>
+      <div class="tc-now"><span class="dot"></span> Currently working on: <b>Germany Approbation — Reel</b> <span class="muted">· since 10:40 AM · ~40m left</span></div>
+    </div>
+
+    <div class="hint">Manya opens this from the 👥 button — it's a separate page so it never gets mixed up with her own plan. Clicking a person could drill into their full My Day.</div>
+  </div>
+</div>
+
+<!-- ============ END-TODAY MODAL ============ -->
+<div class="modal" id="eod">
+  <div class="modal-card">
+    <div class="m-h">Wrap up your day</div>
+    <div class="m-p">Confirm what you finished today. Anything unchecked rolls to tomorrow.</div>
+    <div class="eod-row"><span class="cb on" onclick="tog(this)">✓</span> NEET Cutoff — Reel <span class="eod-tag done">Done</span></div>
+    <div class="eod-row"><span class="cb on" onclick="tog(this)">✓</span> Germany Approbation — Reel <span class="eod-tag done">Done</span></div>
+    <div class="eod-row roll"><span class="cb" onclick="tog(this)"></span> Careers — Speaking Reel <span class="eod-tag roll">→ Tomorrow</span></div>
+    <div class="eod-row roll"><span class="cb" onclick="tog(this)"></span> Australia Ebook — Reel <span class="eod-tag roll">→ Tomorrow</span></div>
+    <div class="m-foot">
+      <span class="m-note">2 done · 2 roll to tomorrow</span>
+      <div style="display:flex;gap:.5rem"><button class="btn" onclick="closeEod()">Cancel</button><button class="btn rose" onclick="endDone()">End today</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let started = false;
+  function renderDayCtl(){
+    const el = document.getElementById('dayCtl');
+    if(!started){
+      el.innerHTML = '<button class="daybtn" onclick="startDay()">▶ Start day</button>';
+      document.getElementById('daySub').innerHTML = 'Video editor · Tue, 15 Jul · Bengaluru 23° · <span style="color:var(--muted)">day not started</span>';
+    } else {
+      el.innerHTML = '<span class="daychip"><span class="pulse"></span>Started 9:12 AM · 3h 41m</span> <button class="btn sm" style="margin-left:.35rem" onclick="openEod()">■ End today</button>';
+      document.getElementById('daySub').innerHTML = 'Video editor · Tue, 15 Jul · Bengaluru 23° · <span style="color:var(--good)">● working since 9:12 AM</span>';
+    }
+  }
+  function startDay(){ started = true; renderDayCtl(); }
+  function openEod(){ document.getElementById('eod').classList.add('on'); }
+  function closeEod(){ document.getElementById('eod').classList.remove('on'); }
+  function endDone(){ started = false; renderDayCtl(); closeEod(); }
+  function tog(el){ el.classList.toggle('on'); el.textContent = el.classList.contains('on') ? '✓' : ''; }
+  function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); document.getElementById(id).classList.add('on'); window.scrollTo(0,0); }
+  renderDayCtl();
+</script>
+</body>
+</html>

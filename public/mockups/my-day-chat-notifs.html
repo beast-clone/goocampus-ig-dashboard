@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Day — accept pipeline + chat notifications (mockup)</title>
+<style>
+  :root{
+    --bg:#F5F6FA;--panel:#FFFFFF;--panel-2:#F7F8FC;
+    --ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;
+    --line:#EEF0F4;--line-2:#F3F5F9;
+    --brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;
+    --good:#1AA053;--good-soft:#E3F5EA;--warn:#D97706;--warn-soft:#FEF3E2;--rose:#E11D48;
+    --shadow:0 10px 30px rgba(35,45,66,.06);
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:1.6rem clamp(1rem,3vw,2.2rem) 3rem}
+  .banner{font-size:.85rem;color:var(--muted);margin:0 0 1.3rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+  .banner b{color:var(--ink-soft)}
+  .tag{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
+  h2.section{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:700;margin:0 0 .7rem}
+  .grid{display:grid;grid-template-columns:1fr 372px;gap:1.4rem;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .pad{padding:1.15rem 1.25rem}
+  .btn{font-size:.78rem;font-weight:600;border-radius:9px;padding:.45em .8em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer}
+  .btn:hover{border-color:#D9DEEA}
+  .btn.primary{background:var(--brand);color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(58,87,232,.24)}
+  .btn.sm{font-size:.72rem;padding:.32em .6em}
+
+  /* ── TODAY'S PLAN — edge-to-edge (the version you picked) ── */
+  .plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.9rem}
+  .plan-head h3{margin:0;font-size:1.02rem}
+  .plan-head .prog{font-size:.78rem;color:var(--muted)}
+  .ticks{display:flex;padding:0 2px;margin-bottom:.35rem}
+  .ticks span{flex:1;font-size:.6rem;color:var(--faint);font-family:var(--mono)}
+  .track{position:relative;height:104px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2);overflow:hidden;display:flex}
+  .track .blk{flex:1;color:#fff;font-size:.75rem;font-weight:600;padding:.6rem .7rem;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg,#5A6FF0,#3A57E8);border-right:1px solid rgba(255,255,255,.16)}
+  .track .blk:last-child{border-right:0}
+  .track .blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 6px,#DFE3EE 6px,#DFE3EE 12px);color:var(--muted);flex:.6}
+  .track .blk .m{font-size:.63rem;opacity:.85;font-weight:500;margin-top:.15rem}
+
+  /* ── VIDEO CLAIM/ACCEPT PIPELINE ── */
+  .flow{display:flex;align-items:stretch;gap:0;margin-bottom:1.1rem;flex-wrap:wrap}
+  .step{flex:1;min-width:120px;position:relative;padding:.2rem .2rem .2rem 0}
+  .step .dot{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem}
+  .step .num{width:22px;height:22px;border-radius:50%;background:var(--brand-soft);color:var(--brand-ink);font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 22px}
+  .step .st{font-size:.82rem;font-weight:600}
+  .step .sd{font-size:.72rem;color:var(--muted);line-height:1.35;padding-right:.8rem}
+  .step:not(:last-child)::after{content:"→";position:absolute;right:.15rem;top:.2rem;color:var(--faint);font-size:.9rem}
+
+  .pool-row{display:flex;align-items:center;gap:.7rem;padding:.7rem;border:1px solid var(--line);border-radius:11px;margin-bottom:.55rem}
+  .pool-row:last-child{margin-bottom:0}
+  .pool-ic{width:34px;height:34px;border-radius:9px;flex:0 0 34px;background:#EEE9FF;color:#6D5CE7;display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .pool-mid{flex:1;min-width:0}
+  .pool-t{font-size:.85rem;font-weight:600}
+  .pool-m{font-size:.72rem;color:var(--muted);margin-top:.1rem}
+  .pool-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:1.1rem 0}
+  .pool-note{font-size:.72rem;color:var(--faint);margin-top:.7rem;line-height:1.5}
+  .sim{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.9rem}
+
+  /* ── CHAT PANEL with notification STACK (informational) ── */
+  .chatwrap{position:sticky;top:1rem}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);height:640px;display:flex;flex-direction:column;overflow:hidden}
+  .notif-stack{flex:0 0 auto;max-height:0;overflow:hidden;transition:max-height .32s ease;background:linear-gradient(180deg,#F3F1FE,transparent)}
+  .notif-stack.show{max-height:330px;overflow:auto;border-bottom:1px solid var(--line)}
+  .notif-stack-inner{padding:.7rem .7rem .55rem}
+  .nhead{display:flex;align-items:center;justify-content:space-between;padding:0 .25rem .5rem;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .nhead .clear{font-size:.66rem;color:var(--brand-ink);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0}
+  .notif{display:flex;gap:.6rem;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:.6rem .65rem;margin-bottom:.5rem;box-shadow:0 3px 10px rgba(35,45,66,.05);animation:pop .28s ease}
+  @keyframes pop{from{transform:translateY(-6px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .notif:last-child{margin-bottom:0}
+  .n-ic{width:30px;height:30px;border-radius:9px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem}
+  .n-ic.msg{background:var(--brand)} .n-ic.claim{background:var(--good)} .n-ic.warn{background:var(--warn)}
+  .n-body{flex:1;min-width:0}
+  .n-title{font-size:.8rem;font-weight:600;line-height:1.25}
+  .n-sub{font-size:.72rem;color:var(--muted);margin-top:.1rem;line-height:1.35}
+  .n-x{border:none;background:transparent;color:var(--faint);cursor:pointer;font-size:.9rem;line-height:1;padding:.1rem .2rem;flex:0 0 auto}
+  .n-x:hover{color:var(--ink)}
+
+  .chat{flex:1;min-height:0;display:flex;flex-direction:column}
+  .chat-head{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem .7rem;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .chat-head h3{margin:0;font-size:.95rem}
+  .online{font-size:.66rem;color:var(--good);font-weight:600}
+  .chat-list{flex:1;min-height:0;overflow:auto;padding:.35rem .45rem}
+  .row{display:flex;align-items:center;gap:.65rem;padding:.55rem;border-radius:10px;cursor:pointer}
+  .row:hover{background:var(--panel-2)}
+  .av{width:36px;height:36px;border-radius:50%;flex:0 0 36px;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;color:#fff}
+  .rmid{flex:1;min-width:0}.rname{font-size:.83rem;font-weight:600;display:flex;align-items:center;gap:.35rem}
+  .rlast{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:.1rem}
+  .rdot{width:7px;height:7px;border-radius:50%;background:var(--good)}
+  .rtime{font-size:.62rem;color:var(--faint);flex:0 0 auto}
+  .chat-foot{padding:.65rem .8rem;border-top:1px solid var(--line);flex:0 0 auto;display:flex;gap:.4rem}
+  .chat-foot input{flex:1;font:inherit;font-size:.78rem;border:1px solid var(--line);border-radius:8px;padding:.45em .6em;background:var(--panel-2);color:var(--ink);outline:none}
+  .hint{font-size:.72rem;color:var(--faint);margin-top:.6rem;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="banner"><b>Mockup — My Day tweaks (v2)</b> <span class="tag">not wired yet</span> <span>plan kept edge-to-edge · claims are info-only notifications · accept pipeline shown</span></p>
+
+  <div class="grid">
+    <div>
+      <!-- 1 · Today's plan — kept exactly edge-to-edge -->
+      <h2 class="section">1 · Today's plan — kept as-is (edge-to-edge)</h2>
+      <div class="card pad">
+        <div class="plan-head"><h3>Today's plan</h3><span class="prog"><b style="color:var(--ink)">7h 30m</b> of 8h · 1h lunch · 30m buffer</span></div>
+        <div class="ticks"><span>9 AM</span><span>10</span><span>11</span><span>12</span><span>1 PM</span><span>2</span><span>3</span></div>
+        <div class="track">
+          <div class="blk">10k Mentorship<div class="m">Reel · 1h 30m</div></div>
+          <div class="blk">Careers — NEET<div class="m">Reel · 1h 30m</div></div>
+          <div class="blk lunch">Lunch<div class="m">protected</div></div>
+          <div class="blk">Germany Reel<div class="m">Reel · 1h 30m</div></div>
+          <div class="blk">Australia Ebook<div class="m">Reel · 1h 30m</div></div>
+        </div>
+      </div>
+
+      <!-- 2 · Accept-video pipeline -->
+      <h2 class="section" style="margin-top:1.6rem">2 · How a video gets claimed (pipeline)</h2>
+      <div class="card pad">
+        <div class="flow">
+          <div class="step"><div class="dot"><span class="num">1</span><span class="st">Approved</span></div><div class="sd">Writer approves a video task.</div></div>
+          <div class="step"><div class="dot"><span class="num">2</span><span class="st">Shared pool</span></div><div class="sd">Both editors (Nikhil &amp; Nandu) see it — no auto-assign.</div></div>
+          <div class="step"><div class="dot"><span class="num">3</span><span class="st">Accept</span></div><div class="sd">They discuss; one accepts &amp; becomes the owner.</div></div>
+          <div class="step"><div class="dot"><span class="num">4</span><span class="st">Notified</span></div><div class="sd">The other editor just gets a notification — no action.</div></div>
+        </div>
+
+        <div id="pool"></div>
+        <div class="pool-note"><b>Only two editors</b> — they coordinate between themselves, so the pool has one <b>Accept</b> and the other editor is simply told it's taken. There's no per-editor "claim" button in the notification.</div>
+        <div class="sim">
+          <button class="btn primary sm" onclick="resetPool()">↺ Reset pool</button>
+          <button class="btn sm" onclick="nikhilAccepts()">▶ Simulate: Nikhil accepts one</button>
+          <button class="btn sm" onclick="addNotif('msg')">＋ New message</button>
+        </div>
+        <div class="hint">You're viewing as <b>Nandu</b>. Accept a video below → you own it &amp; Nikhil is notified. Or simulate Nikhil accepting → you just get an info notification.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: chat panel with notification stack -->
+    <div>
+      <h2 class="section">3 · Team chat — notifications stack on top</h2>
+      <div class="chatwrap">
+        <div class="panel">
+          <div class="notif-stack" id="stack">
+            <div class="notif-stack-inner">
+              <div class="nhead"><span id="ncount">Notifications</span><span class="clear" onclick="clearAll()">Clear all</span></div>
+              <div id="notifs"></div>
+            </div>
+          </div>
+          <div class="chat">
+            <div class="chat-head"><h3>Chats</h3><span class="online">● 4 online</span></div>
+            <div class="chat-list">
+              <div class="row"><span class="av" style="background:var(--brand)">👥</span><div class="rmid"><div class="rname">Team chat</div><div class="rlast">You: Got it. Germany reel accepted 👍</div></div><span class="rtime">10:31</span></div>
+              <div class="row"><span class="av" style="background:#2F9E6F">Mn</span><div class="rmid"><div class="rname">Maheen Ejaz <span class="rdot"></span></div><div class="rlast">You: On it 👍</div></div><span class="rtime">10:02</span></div>
+              <div class="row"><span class="av" style="background:#E0791F">M</span><div class="rmid"><div class="rname">Manya <span class="rdot"></span></div><div class="rlast">Ping me when the first cut's ready 👀</div></div><span class="rtime">now</span></div>
+              <div class="row"><span class="av" style="background:#C2410C">P</span><div class="rmid"><div class="rname">Praveen</div><div class="rlast">Thumbnail for the Australia ebook is up.</div></div><span class="rtime">09:12</span></div>
+              <div class="row"><span class="av" style="background:#3A57E8">N</span><div class="rmid"><div class="rname">Nikhil <span class="rdot"></span></div><div class="rlast">Left the Germany short in the pool for you.</div></div><span class="rtime">09:30</span></div>
+            </div>
+            <div class="chat-foot"><input placeholder="Message the team…" /><button class="btn primary sm">Send</button></div>
+          </div>
+        </div>
+        <div class="hint">The notification stack takes the top slice; the chat gets the rest. Clear them and the chat expands back up — never overlaid.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const POOL0 = [
+    {id:'v1', title:'NEET PG Strategy — Long-Form', type:'YouTube Long-Form · unclaimed'},
+    {id:'v2', title:'Which Branch After NEET — Reel', type:'Reel - Original · unclaimed'},
+  ];
+  let pool = [];
+  let items = [], seed = 0;
+
+  function renderPool(){
+    const el = document.getElementById('pool');
+    if(!pool.length){ el.innerHTML = '<div class="pool-empty">All claimed — nothing up for grabs ✓</div>'; return; }
+    el.innerHTML = pool.map(v=>`
+      <div class="pool-row">
+        <div class="pool-ic">🎬</div>
+        <div class="pool-mid"><div class="pool-t">${v.title}</div><div class="pool-m">${v.type}</div></div>
+        <button class="btn primary sm" onclick="accept('${v.id}')">Accept</button>
+      </div>`).join('');
+  }
+  function accept(id){
+    const v = pool.find(x=>x.id===id); if(!v) return;
+    pool = pool.filter(x=>x.id!==id); renderPool();
+    addNotifRaw({ic:'claim',emoji:'✓',title:'You accepted a video',sub:`“${v.title}” is yours now · Nikhil was notified.`});
+  }
+  function nikhilAccepts(){
+    if(!pool.length){ return; }
+    const v = pool[0]; pool = pool.slice(1); renderPool();
+    addNotifRaw({ic:'claim',emoji:'✓',title:'Nikhil claimed a video',sub:`“${v.title}” is off the board — you're clear on this one.`});
+  }
+  const TEMPLATES = { msg:{ic:'msg',emoji:'💬',title:'Manya · new message',sub:'“Ping me when the first cut’s ready 👀”'} };
+  function addNotif(type){ addNotifRaw(TEMPLATES[type]); }
+  function addNotifRaw(t){ items.unshift({id:'n'+(seed++), ...t}); render(); }
+  function dismiss(id){ items = items.filter(x=>x.id!==id); render(); }
+  function clearAll(){ items = []; render(); }
+  function resetPool(){ pool = POOL0.map(x=>({...x})); renderPool(); }
+
+  function render(){
+    const stack = document.getElementById('stack');
+    document.getElementById('ncount').textContent = items.length ? (items.length+' notification'+(items.length>1?'s':'')) : 'Notifications';
+    document.getElementById('notifs').innerHTML = items.map(n=>`
+      <div class="notif">
+        <div class="n-ic ${n.ic}">${n.emoji}</div>
+        <div class="n-body"><div class="n-title">${n.title}</div><div class="n-sub">${n.sub}</div></div>
+        <button class="n-x" onclick="dismiss('${n.id}')" title="Dismiss">✕</button>
+      </div>`).join('');
+    stack.classList.toggle('show', items.length>0);
+  }
+
+  resetPool();
+  // one info notification present on load so the pushed-down state is visible
+  addNotifRaw({ic:'claim',emoji:'✓',title:'Nikhil claimed a video',sub:'“Germany Approbation — Short” is off the board — you’re clear.'});
+</script>
+</body>
+</html>
