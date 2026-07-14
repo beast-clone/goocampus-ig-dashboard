@@ -5,7 +5,7 @@ import {
   IconUsers, IconWand, IconSettings, IconSearch, IconBell, IconMail,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
-  IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
+  IconBrandYoutube, IconClock, IconChartBar, IconTrophy, IconSun,
 } from "@tabler/icons-react";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
@@ -296,21 +296,22 @@ export function HopeOverview() {
           <span style={{ fontWeight: 700, fontSize: 19, color: C.heading }}>GooCampus</span>
         </div>
         <NavGroup label="Content" />
-        <NavItem icon={IconLayoutGrid} label="Overview" active />
-        <NavItem icon={IconChartBar} label="Marketing Hub" />
-        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" />
-        <NavItem icon={IconWand} label="Post Planner" />
+        <NavItem icon={IconSun} label="My Day" href="/dashboard/hope-preview/my-day" />
+        <NavItem icon={IconLayoutGrid} label="Overview" active href="/dashboard/hope-preview" />
+        <NavItem icon={IconChartBar} label="Marketing Hub" href="/dashboard/marketing-hub?tab=team" />
+        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" href="/dashboard/calendar" />
+        <NavItem icon={IconWand} label="Post Planner" href="/dashboard/post-planner" />
         <NavGroup label="Analytics" />
-        <NavItem icon={IconChartLine} label="Instagram" />
-        <NavItem icon={IconBrandLinkedin} label="LinkedIn" />
-        <NavItem icon={IconBrandYoutube} label="YouTube" />
-        <NavItem icon={IconBrandFacebook} label="Facebook" />
+        <NavItem icon={IconChartLine} label="Instagram" href="/dashboard/posts" />
+        <NavItem icon={IconBrandLinkedin} label="LinkedIn" href="/dashboard/linkedin" />
+        <NavItem icon={IconBrandYoutube} label="YouTube" href="/dashboard/youtube" />
+        <NavItem icon={IconBrandFacebook} label="Facebook" href="/dashboard/facebook" />
         <NavGroup label="Audience" />
-        <NavItem icon={IconUsers} label="All platforms" />
+        <NavItem icon={IconUsers} label="All platforms" href="/dashboard/audience#all" />
         <NavGroup label="Ads" />
-        <NavItem icon={IconSpeakerphone} label="Ads" />
+        <NavItem icon={IconSpeakerphone} label="Ads" href="/dashboard/ads" />
         <NavGroup label="System" />
-        <NavItem icon={IconSettings} label="Integrations" />
+        <NavItem icon={IconSettings} label="Integrations" href="/dashboard/integrations" />
       </aside>
 
       {/* ───────── Main ───────── */}
@@ -832,13 +833,10 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: typeof IconLayoutGrid
 function NavGroup({ label }: { label: string }) {
   return <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#B3B9C6", padding: "18px 10px 6px" }}>{label}</div>;
 }
-function NavItem({ icon: Icon, label, active }: { icon: typeof IconLayoutGrid; label: string; active?: boolean }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, marginBottom: 2, cursor: "pointer", background: active ? C.primary : "transparent", color: active ? "#fff" : C.muted, fontWeight: active ? 600 : 500, fontSize: 14, boxShadow: active ? "0 8px 18px rgba(58,87,232,0.30)" : "none" }}>
-      <span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: active ? "rgba(255,255,255,0.18)" : C.chip, color: active ? "#fff" : C.muted, flexShrink: 0 }}><Icon size={17} stroke={1.8} /></span>
-      {label}
-    </div>
-  );
+function NavItem({ icon: Icon, label, active, href }: { icon: typeof IconLayoutGrid; label: string; active?: boolean; href?: string }) {
+  const style = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, marginBottom: 2, cursor: "pointer", background: active ? C.primary : "transparent", color: active ? "#fff" : C.muted, fontWeight: active ? 600 : 500, fontSize: 14, boxShadow: active ? "0 8px 18px rgba(58,87,232,0.30)" : "none", textDecoration: "none" } as const;
+  const inner = (<><span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: active ? "rgba(255,255,255,0.18)" : C.chip, color: active ? "#fff" : C.muted, flexShrink: 0 }}><Icon size={17} stroke={1.8} /></span>{label}</>);
+  return href ? <a href={href} style={style}>{inner}</a> : <div style={style}>{inner}</div>;
 }
 function StatCard({ label, value, delta, flat, detail, action, badge }: { label: string; value: string; delta: number | null; flat?: boolean; detail: string; action: string; badge?: string }) {
   const hasDelta = !flat && typeof delta === "number";

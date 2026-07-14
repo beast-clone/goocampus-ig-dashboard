@@ -3,8 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings } from "@tabler/icons-react";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
-function NavItem({ icon: Icon, label, active }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean }) {
-  return <div className={`navitem ${active ? "active" : ""}`}><Icon size={16} stroke={1.8} /> <span>{label}</span></div>;
+function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean; href?: string }) {
+  const inner = <><Icon size={16} stroke={1.8} /> <span>{label}</span></>;
+  const cls = `navitem ${active ? "active" : ""}`;
+  return href ? <a className={cls} href={href}>{inner}</a> : <div className={cls}>{inner}</div>;
 }
 
 // ── Hope-themed "My Day" (Version 2 preview) ────────────────────────────────
@@ -1001,22 +1003,22 @@ export function HopeMyDay() {
           <span className="brandname">GooCampus</span>
         </div>
         <NavGroup label="Content" />
-        <NavItem icon={IconSunHigh} label="My Day" active />
-        <NavItem icon={IconLayoutGrid} label="Overview" />
-        <NavItem icon={IconChartBar} label="Marketing Hub" />
-        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" />
-        <NavItem icon={IconWand} label="Post Planner" />
+        <NavItem icon={IconSunHigh} label="My Day" active href="/dashboard/hope-preview/my-day" />
+        <NavItem icon={IconLayoutGrid} label="Overview" href="/dashboard/hope-preview" />
+        <NavItem icon={IconChartBar} label="Marketing Hub" href="/dashboard/marketing-hub?tab=team" />
+        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" href="/dashboard/calendar" />
+        <NavItem icon={IconWand} label="Post Planner" href="/dashboard/post-planner" />
         <NavGroup label="Analytics" />
-        <NavItem icon={IconBrandInstagram} label="Instagram" />
-        <NavItem icon={IconBrandLinkedin} label="LinkedIn" />
-        <NavItem icon={IconBrandYoutube} label="YouTube" />
-        <NavItem icon={IconBrandFacebook} label="Facebook" />
+        <NavItem icon={IconBrandInstagram} label="Instagram" href="/dashboard/posts" />
+        <NavItem icon={IconBrandLinkedin} label="LinkedIn" href="/dashboard/linkedin" />
+        <NavItem icon={IconBrandYoutube} label="YouTube" href="/dashboard/youtube" />
+        <NavItem icon={IconBrandFacebook} label="Facebook" href="/dashboard/facebook" />
         <NavGroup label="Audience" />
-        <NavItem icon={IconUsers} label="All platforms" />
+        <NavItem icon={IconUsers} label="All platforms" href="/dashboard/audience#all" />
         <NavGroup label="Ads" />
-        <NavItem icon={IconSpeakerphone} label="Ads" />
+        <NavItem icon={IconSpeakerphone} label="Ads" href="/dashboard/ads" />
         <NavGroup label="System" />
-        <NavItem icon={IconSettings} label="Integrations" />
+        <NavItem icon={IconSettings} label="Integrations" href="/dashboard/integrations" />
       </aside>
 
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
@@ -1339,7 +1341,7 @@ const CSS = `
 .hmd .sidebar-brand .logo svg{color:#fff}
 .hmd .sidebar-brand .brandname{font-weight:700;font-size:1.05rem;color:var(--ink)}
 .hmd .navgroup{font-family:var(--mono);font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:700;padding:13px 10px 5px}
-.hmd .navitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:.82rem;font-weight:500;color:var(--ink-soft);cursor:pointer;margin-bottom:1px}
+.hmd .navitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:.82rem;font-weight:500;color:var(--ink-soft);cursor:pointer;margin-bottom:1px;text-decoration:none}
 .hmd .navitem:hover{background:var(--panel-2)}
 .hmd .navitem.active{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(58,87,232,.24)}
 .hmd .main{flex:1;min-width:0;padding:clamp(1rem,2.2vw,2.2rem);transition:padding-right .28s ease}
