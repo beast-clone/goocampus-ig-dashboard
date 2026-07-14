@@ -3,6 +3,21 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-15 — Hope My Day V2: full workflow (capacity pipeline, Start/End day, team page) + working tabs
+
+Built the standalone Hope-UI **My Day V2** (`/dashboard/hope-preview/my-day`) up from a static design preview into a rich, working prototype. Still an **in-memory mock** (hardcoded seed data, resets on reload — not yet wired to Supabase). V1 (the original `/dashboard`) is untouched and separate.
+
+- **Task card** — adopted the exact Airtable Content Calendar **11 statuses** via a custom themed status **dropdown** (top-right of the card, not a native select); split **Owner** (claimer) vs **Collaborators** (writer) into separate fields; content brief now shows the **full write-up** (all paragraphs preserved, no inner scroll).
+- **Create → auto-assign** — create-task modal (Manya) with a **Content** write-up field; **Type→owner routing** (design/thumbnail → Praveen, video → editors' claim pool) with a **content-first handoff** (starts with Manya at Content-Pending → routes to the producer on Content-Approved). Per-person filtering so a task only shows for its owner.
+- **References** field (links + images) on the shared task card.
+- **Capacity-aware Accept & Work pipeline** — an urgent task that doesn't fit an editor's 8h plan surfaces as a **notification** (chat-panel stack that pushes the chat down); Accept & Work shows real time-impact ("+30 min → 6:30 PM") with two paths: take the overtime, or **ask Manya to free room** → Manya's **reschedule** card (move a low-priority task to tomorrow → "Changes done") frees the slot → editor gets "Room freed" → accepts.
+- **Team capacity page** — its own screen via a Manya-only **"Team capacity"** button (next to Start day); each teammate's day planner + "currently working on".
+- **Start day / End today** for everyone (End-today = completed-tasks checklist; unchecked roll to tomorrow).
+- **Planner** made square/edge-to-edge (only the outer track rounded), lunch centred at noon, buffer block removed.
+- **V2 tabs now navigate** — the Hope sidebar links were decorative; wired **My Day V2 ↔ Overview V2**, and other tabs → the V1 pages.
+- Mockups saved under `public/mockups/` (chat-notifs, capacity-pipeline, start/end + team page).
+- **Next:** wire everything to real Supabase `mh_posts` (persist + real-time). Open TODO: also add the Team-capacity page to the admin dashboard.
+
 ## 2026-07-12 — Highlighted Top-performers hero on every content page
 
 - The Instagram/YouTube "top performers = highlighted hero, all-content dense below" pattern now applies to **LinkedIn Posts** (blue panel, top 3 by impressions, doc/creative thumb + big Impr./React./Eng. stats) and **Facebook Posts** (blue panel, top 3 by engagement, image + big Likes/Comm./Shares). Each page: highlighted hero on top → "All posts · N" dense 6-up grid below. Works across all brands automatically (pages follow the account/profile). Verified: World LinkedIn (25 posts) + Edu Facebook (24 posts).
