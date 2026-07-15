@@ -7,6 +7,7 @@ import {
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconClock, IconChartBar, IconTrophy, IconSun,
 } from "@tabler/icons-react";
+import { HopeSidebar } from "./HopeSidebar";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
@@ -21,7 +22,7 @@ const C = {
   teal: "#079AA2", success: "#1AA053", danger: "#C03221", line: "#EEF0F4",
   chip: "#F0F2F8", pink: "#E83A8A",
 };
-const SHADOW = "0 10px 30px rgba(35,45,66,0.06)";
+const SHADOW = "none"; // Hope UI cards are FLAT — no drop shadow (matches the real theme)
 
 type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number };
@@ -288,31 +289,7 @@ export function HopeOverview() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.heading }}>
       {/* ───────── Sidebar ───────── */}
-      <aside style={{ width: 256, background: C.card, borderRight: `1px solid ${C.line}`, position: "sticky", top: 0, height: "100vh", padding: "0 14px", flexShrink: 0, overflowY: "auto" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "22px 8px 20px" }}>
-          <span style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: "grid", placeItems: "center", color: "#fff", transform: "rotate(45deg)" }}>
-            <IconBrandInstagram size={18} style={{ transform: "rotate(-45deg)" }} />
-          </span>
-          <span style={{ fontWeight: 700, fontSize: 19, color: C.heading }}>GooCampus</span>
-        </div>
-        <NavGroup label="Content" />
-        <NavItem icon={IconSun} label="My Day" href="/dashboard/hope-preview/my-day" />
-        <NavItem icon={IconLayoutGrid} label="Overview" active href="/dashboard/hope-preview" />
-        <NavItem icon={IconChartBar} label="Marketing Hub" href="/dashboard/marketing-hub?tab=team" />
-        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" href="/dashboard/calendar" />
-        <NavItem icon={IconWand} label="Post Planner" href="/dashboard/post-planner" />
-        <NavGroup label="Analytics" />
-        <NavItem icon={IconChartLine} label="Instagram" href="/dashboard/posts" />
-        <NavItem icon={IconBrandLinkedin} label="LinkedIn" href="/dashboard/linkedin" />
-        <NavItem icon={IconBrandYoutube} label="YouTube" href="/dashboard/youtube" />
-        <NavItem icon={IconBrandFacebook} label="Facebook" href="/dashboard/facebook" />
-        <NavGroup label="Audience" />
-        <NavItem icon={IconUsers} label="All platforms" href="/dashboard/audience#all" />
-        <NavGroup label="Ads" />
-        <NavItem icon={IconSpeakerphone} label="Ads" href="/dashboard/ads" />
-        <NavGroup label="System" />
-        <NavItem icon={IconSettings} label="Integrations" href="/dashboard/integrations" />
-      </aside>
+      <HopeSidebar active="overview" />
 
       {/* ───────── Main ───────── */}
       <main style={{ flex: 1, minWidth: 0 }}>
@@ -580,7 +557,7 @@ function HeroBanner({ eyebrow, children }: { eyebrow: string; children: React.Re
       <div style={{ position: "absolute", right: 90, bottom: -90, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
       <div style={{ position: "relative" }}>
         <div style={{ fontSize: 13, opacity: 0.85, fontWeight: 500 }}>{eyebrow}</div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "8px 0 6px", letterSpacing: "-0.5px" }}>{greeting()}, GooCampus 👋</h1>
+        <h1 style={{ fontSize: 32, fontWeight: 500, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, GooCampus 👋</h1>
         <p style={{ fontSize: 15, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
       </div>
     </section>

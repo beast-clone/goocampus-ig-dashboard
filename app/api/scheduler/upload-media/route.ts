@@ -6,8 +6,8 @@ import { safeError } from "@/lib/errors";
 // that we drop into the Media URL field. The bucket name is "scheduler-media".
 // Bucket must exist + be public (create once in Supabase dashboard, or we auto-create on first call).
 
-const BUCKET = "scheduler-media";
-const MAX_MB = 50;                  // Airtable attachment fetch tops out around 20-50 MB safely
+const BUCKET = "post-media";        // unified pipeline bucket (created Phase 1; public, video-ready)
+const MAX_MB = 300;                 // matches the post-media bucket limit — reels/videos allowed
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",

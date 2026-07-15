@@ -78,6 +78,7 @@ type Task = {
   detail: {
     typeLine: string; publishes: string; owner: string;
     priority: "High" | "Medium" | "Low"; brand: string;
+    duration?: number;                                  // minutes — the producer sets how long it'll take → feeds Today's plan
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc" }[]; // uploaded assets → thumbnails
     references?: RefItem[];                             // links + images the team adds for context
@@ -175,11 +176,13 @@ const CLAIM_POOL_INIT: Task[] = [
 const DAY_START_H = 9, DAY_END_H = 18;             // 9 AM – 6 PM span
 const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
-const LUNCH_AT = (12 - DAY_START_H) * 60;          // drop lunch around noon (centred)
+const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
+// Minutes-since-9AM → a clock label like "2:00 PM" (for the drag drop-guide).
+const clockOf = (m: number) => { const t = DAY_START_H * 60 + m; const h = Math.floor(t / 60), mm = t % 60; const ap = h >= 12 ? "PM" : "AM"; const h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2, "0")} ${ap}`; };
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
 
-type PlanItem = { key: string; taskId: string; label: string; dur: number };
+type PlanItem = { key: string; taskId: string; label: string; dur: number; at?: number };
 const INITIAL_PLAN: PlanItem[] = [
   { key: "p1", taskId: "t1", label: "10k Mentorship — Speaking Reel", dur: 90 },
   { key: "p2", taskId: "t2", label: "Careers other than NEET", dur: 90 },
@@ -397,7 +400,7 @@ function ReferencesSection({ initial }: { initial: RefItem[] }) {
   );
 }
 
-function TaskBody({ task, label, onStatusChange }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; canSchedule?: boolean }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean }) {
   const [copied, setCopied] = useState(false);
   const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const tone = TONE[STATUS[task.status].tone];
@@ -419,6 +422,15 @@ function TaskBody({ task, label, onStatusChange }: { task: Task; label?: string;
             <StatusDropdown value={task.status} onChange={onStatusChange} />
           ) : (
             <span className="pill" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
+          )}
+          {onSetDuration && (
+            <div className="dur-ctl">
+              <span className="dur-ic" title="Task duration">⏱</span>
+              <select className="dur-select" value={task.detail.duration ?? ""} onChange={(e) => onSetDuration(Number(e.target.value))}>
+                <option value="" disabled>Set duration…</option>
+                {[15, 30, 45, 60, 90, 120, 150, 180, 240].map((m) => <option key={m} value={m}>{fmtDur(m)}</option>)}
+              </select>
+            </div>
           )}
         </div>
       </div>
@@ -485,6 +497,54 @@ function TaskBody({ task, label, onStatusChange }: { task: Task; label?: string;
   );
 }
 
+// Custom Hope-themed date picker (replaces the OS-native <input type=date> calendar).
+function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const base = value ? new Date(value + "T00:00:00") : new Date();
+  const [view, setView] = useState({ y: base.getFullYear(), m: base.getMonth() });
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const iso = (y: number, m: number, d: number) => `${y}-${p2(m + 1)}-${p2(d)}`;
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const sel = value ? new Date(value + "T00:00:00") : null;
+  const now = new Date();
+  const startDow = new Date(view.y, view.m, 1).getDay();
+  const days = new Date(view.y, view.m + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(startDow).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  const label = sel ? sel.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "";
+  const shift = (dir: number) => setView((v) => { const m = v.m + dir; if (m < 0) return { y: v.y - 1, m: 11 }; if (m > 11) return { y: v.y + 1, m: 0 }; return { y: v.y, m }; });
+  return (
+    <div className="dp">
+      <button type="button" className="dp-field" onClick={() => setOpen((o) => !o)}>
+        <span className={label ? "" : "dp-ph"}>{label || "Pick a date"}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="dp-cal"><rect x="3" y="4.5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.7" /><path d="M3 9h18M8 3v3M16 3v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+      </button>
+      {open && (
+        <>
+          <div className="dp-backdrop" onClick={() => setOpen(false)} />
+          <div className="dp-pop">
+            <div className="dp-head">
+              <span className="dp-title">{MONTHS[view.m]} {view.y}</span>
+              <div className="dp-nav"><button type="button" onClick={() => shift(-1)}>‹</button><button type="button" onClick={() => shift(1)}>›</button></div>
+            </div>
+            <div className="dp-grid dp-dow">{["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
+            <div className="dp-grid">
+              {cells.map((d, i) => d === null ? <span key={i} className="dp-empty" /> : (
+                <button key={i} type="button"
+                  className={`dp-day ${sel && sel.getFullYear() === view.y && sel.getMonth() === view.m && sel.getDate() === d ? "sel" : ""} ${now.getFullYear() === view.y && now.getMonth() === view.m && now.getDate() === d ? "today" : ""}`}
+                  onClick={() => { onChange(iso(view.y, view.m, d)); setOpen(false); }}>{d}</button>
+              ))}
+            </div>
+            <div className="dp-foot">
+              <button type="button" className="dp-link" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>
+              <button type="button" className="dp-link" onClick={() => { onChange(iso(now.getFullYear(), now.getMonth(), now.getDate())); setView({ y: now.getFullYear(), m: now.getMonth() }); setOpen(false); }}>Today</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Create-task flow (writer/Manya only). On submit it runs the Type→owner routing
 // so you can watch where the task lands — design types to Praveen, video to the
 // editors' claim pool. The routing preview updates live as you change the Type.
@@ -493,13 +553,15 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   const [type, setType] = useState<string>("Reel Thumbnail");
   const [sbu, setSbu] = useState<string>(CC_SBUS[0]);
   const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
+  const [status, setStatus] = useState<CCStatus>("Content - Pending");
   const [content, setContent] = useState("");
+  const [publishDate, setPublishDate] = useState(""); // the writer picks it — no auto-date
   const assign = autoAssign(type);
+  const canSubmit = !!title.trim() && !!content.trim() && !!publishDate; // required fields
   function create() {
-    if (!title.trim()) return;
-    const d = new Date(); d.setDate(d.getDate() + 3);
-    const due = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const publishes = d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    if (!canSubmit) return;
+    const due = publishDate; // the writer's chosen publishing date (no +3 assumption)
+    const publishes = new Date(publishDate + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
     // Content-first: the task starts with the writer (Manya) in the content phase.
     // It auto-hands off to the producer (Praveen / claim pool) only once she moves
     // it to "Content - Approved" — handled in setTaskStatus.
@@ -507,11 +569,11 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
       id: `t${Date.now()}`,
       title: title.trim(),
       meta: `${type} · content`,
-      status: "Content - Pending",
+      status,
       due,
       detail: {
         typeLine: type, publishes, owner: "Manya", priority, brand: sbu,
-        content: content.trim() || "Manya to write the content brief. On approval it hands to the producer.",
+        content: content.trim(),
         creatives: [], collaborators: [],
         activity: [{ who: "Manya", text: "created the task", time: "now" }],
       },
@@ -524,20 +586,24 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
         <button className="modal-close" onClick={onClose} title="Close">✕</button>
         <div className="lbl" style={{ marginBottom: ".5rem" }}>New task · created by Manya</div>
         <div className="d-title" style={{ marginBottom: "1.1rem" }}>Create a content task</div>
-        <div className="nt-field"><label className="nt-label">Particulars</label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
+        <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
         <div className="nt-row">
           <div className="nt-field"><label className="nt-label">Type</label><select className="nt-input" value={type} onChange={(e) => setType(e.target.value)}>{CC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
           <div className="nt-field"><label className="nt-label">Priority</label><select className="nt-input" value={priority} onChange={(e) => setPriority(e.target.value as "High" | "Medium" | "Low")}>{["High", "Medium", "Low"].map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
         </div>
-        <div className="nt-field"><label className="nt-label">SBU</label><select className="nt-input" value={sbu} onChange={(e) => setSbu(e.target.value)}>{CC_SBUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
-        <div className="nt-field"><label className="nt-label">Content <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+        <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
+        <div className="nt-row">
+          <div className="nt-field"><label className="nt-label">SBU</label><select className="nt-input" value={sbu} onChange={(e) => setSbu(e.target.value)}>{CC_SBUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+          <div className="nt-field"><label className="nt-label">Status</label><select className="nt-input" value={status} onChange={(e) => setStatus(e.target.value as CCStatus)}>{CC_STATUS_ORDER.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+        </div>
+        <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
         <div className="nt-assign">
           <span className="status-dot" style={{ background: "#8A92A6" }} />
           <span><b>Flow:</b> starts with <b>Manya</b> in the content phase. On <b>Content - Approved</b> it auto-hands off to {assign.toPool ? <b>the editors&apos; claim pool (Nikhil / Nandu)</b> : <b>{assign.owner}</b>} — because {type} is {assign.toPool ? "video" : "design"} work.</span>
         </div>
         <div className="nt-actions">
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={create} disabled={!title.trim()}>Create task</button>
+          <button className="btn primary" onClick={create} disabled={!canSubmit}>Create task</button>
         </div>
       </div>
     </div>
@@ -749,6 +815,7 @@ export function HopeMyDay() {
   const [person, setPerson] = useState("nandu");
   const [sel, setSel] = useState(0);
   const [claimPool, setClaimPool] = useState<Task[]>(CLAIM_POOL_INIT); // videos up for grabs
+  const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [tasks, setTasks] = useState<Task[]>(TASKS);                   // my tasks (status is mutable)
   const [taskTab, setTaskTab] = useState("active");                    // status tab
@@ -767,6 +834,9 @@ export function HopeMyDay() {
   const [planModalId, setPlanModalId] = useState<string | null>(null); // Today's-plan popup
   const [plan, setPlan] = useState<PlanItem[]>(INITIAL_PLAN);         // reorderable plan
   const dragKey = useRef<string | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const grabDX = useRef(0);                          // px between the cursor and the block's LEFT edge at grab
+  const [dropAt, setDropAt] = useState<number | null>(null); // live guide: where a dragged task would start
   const [nowMin, setNowMin] = useState<number | null>(null);          // minutes since 9 AM
   const [isWeekend, setIsWeekend] = useState(false);
   const [todayStr, setTodayStr] = useState("");                       // YYYY-MM-DD for due-date sorting
@@ -882,30 +952,121 @@ export function HopeMyDay() {
 
   // Lay the (reorderable) tasks across the day, dropping the protected 1-hour
   // lunch in around 1 PM and filling the tail with buffer.
+  // Today's plan is PER-PERSON: only the current person's own, still-in-production
+  // tasks land on their timeline (output-ready/published/other people's are excluded).
+  const myPlan = useMemo(() => {
+    const all = [...claimedTasks, ...tasks];
+    return plan.filter((p) => { const t = all.find((x) => x.id === p.taskId); return !!t && t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready"; });
+  }, [plan, tasks, claimedTasks, me.name]);
   const planBlocks = useMemo(() => {
-    const out: { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number }[] = [];
-    let cursor = 0, lunchDone = false;
-    for (const p of plan) {
-      if (!lunchDone && cursor >= LUNCH_AT) { out.push({ kind: "lunch", label: "Lunch", start: cursor, dur: LUNCH_MIN }); cursor += LUNCH_MIN; lunchDone = true; }
-      out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: p.dur });
-      cursor += p.dur;
+    type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number };
+    const out: Blk[] = [];
+    const LUNCH_END = LUNCH_AT + LUNCH_MIN;
+    // Remaining work is scheduled from NOW (the morning is already gone), not 9 AM.
+    let cursor = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    let lunchDone = false;
+    const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
+    for (const p of myPlan) {
+      let remaining = p.dur;
+      // Pinned start (dragged to a specific time) — jump the cursor forward to it,
+      // leaving the earlier slot free. Can only push LATER than the natural flow,
+      // never earlier (no overlap, no scheduling in the past).
+      if (p.at != null) cursor = Math.max(cursor, Math.min(p.at, DAY_MINS));
+      // If we're sitting inside the lunch window, jump past the (fixed) 1 PM lunch.
+      if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { pushLunch(); cursor = LUNCH_END; }
+      // Part that fits before lunch.
+      if (!lunchDone && cursor < LUNCH_AT) {
+        const before = Math.min(remaining, LUNCH_AT - cursor);
+        if (before > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: before }); cursor += before; remaining -= before; }
+        // The task runs into lunch → drop the protected lunch and continue after it (SPLIT).
+        if (remaining > 0) { pushLunch(); cursor = LUNCH_END; }
+      }
+      // Remainder after lunch (or the whole task if it's already past 2 PM).
+      if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining }); cursor += remaining; }
     }
-    if (!lunchDone) { out.push({ kind: "lunch", label: "Lunch", start: cursor, dur: LUNCH_MIN }); cursor += LUNCH_MIN; }
+    if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     return out;
-  }, [plan]);
-  const workMin = plan.reduce((s, p) => s + p.dur, 0);
+  }, [myPlan, nowMin]);
+  const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const showNow = nowMin !== null && !isWeekend && nowMin >= 0 && nowMin <= DAY_MINS;
   const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; });
-  const dropPlan = (targetKey: string) => { const from = plan.findIndex((p) => p.key === dragKey.current); const to = plan.findIndex((p) => p.key === targetKey); dragKey.current = null; if (from < 0 || to < 0 || from === to) return; setPlan((arr) => { const c = [...arr]; const [m] = c.splice(from, 1); c.splice(to, 0, m); return c; }); };
+  // Where a dragged block's LEFT EDGE would land, given the cursor. We subtract the
+  // grab offset (where inside the block you picked it up) so the block tracks the
+  // cursor naturally instead of teleporting its edge under the pointer. Snapped to
+  // 15 min for precise placement.
+  const edgeMinFromCursor = (clientX: number): number | null => {
+    const el = trackRef.current; if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const leftPx = clientX - grabDX.current;
+    const mins = ((leftPx - r.left) / r.width) * DAY_MINS;
+    return Math.max(0, Math.min(DAY_MINS, Math.round(mins / 15) * 15));
+  };
+  // Drag a task block onto the track to PIN its start time. Dropping it at/before
+  // "now" clears the pin (the task flows normally again).
+  const pinPlanAt = (mins: number | null) => {
+    const key = dragKey.current; dragKey.current = null;
+    setDropAt(null);
+    if (!key || mins == null) return;
+    const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    setPlan((arr) => arr.map((p) => (p.key === key ? { ...p, at: mins <= now ? undefined : mins } : p)));
+  };
+  // The producer sets how long a task takes → store it AND add/update it on Today's plan.
+  const PRIO_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+  const setDuration = (id: string, mins: number) => {
+    setTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
+    setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
+    setPlan((p) => {
+      if (p.some((x) => x.taskId === id)) return p.map((x) => (x.taskId === id ? { ...x, dur: mins } : x));
+      const t = [...claimedTasks, ...tasks].find((x) => x.id === id);
+      return t ? [...p, { key: `pk${id}`, taskId: id, label: t.title, dur: mins }] : p;
+    });
+    setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan. Hit Auto-plan to reshuffle.` });
+  };
+  // AUTO-PLAN — currently RULE-BASED (no AI): highest priority first, then earliest
+  // due date; tasks then flow sequentially from "now", splitting around the 1 PM lunch.
+  // Deterministic and instant — same tasks always produce the same order.
+  //
+  // FUTURE (deferred, per Praveen 2026-07-15): this can be upgraded to an AI-driven
+  // planner — feed the tasks (title, brief, priority, due, effort, the person's
+  // meetings/energy) to Claude and let it reason about a smarter schedule (batch
+  // similar work, respect dependencies, put creative work in focus blocks, etc.).
+  // Keep the rule-based path as the instant/offline fallback. See setPlan sort below.
+  const autoPlan = () => {
+    setPlan((p) => {
+      const all = [...claimedTasks, ...tasks];
+      // Reshuffle drops any manual pins — everything re-flows from now.
+      return [...p].map((x) => ({ ...x, at: undefined })).sort((a, b) => {
+        const ta = all.find((x) => x.id === a.taskId), tb = all.find((x) => x.id === b.taskId);
+        const pa = ta ? PRIO_RANK[ta.detail.priority] : 1, pb = tb ? PRIO_RANK[tb.detail.priority] : 1;
+        return pa - pb || (ta?.due || "9999").localeCompare(tb?.due || "9999");
+      });
+    });
+    setToast({ who: "Auto-planned ✓", color: "#3A57E8", av: me.av, body: "Reshuffled by priority, then due date." });
+  };
   const isAdmin = person === "maheen"; // only Maheen (manager) may Send to Scheduler
   const canCreate = person === "manya"; // the writer creates content tasks
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
   const createTask = (t: Task, owner: string, note: string) => {
+    setShowNew(false);
+    // If it's created already at Content-Approved (or later), run the handoff now:
+    // video → the editors' claim pool, design → Praveen. Otherwise it stays with Manya.
+    const handoff = STATUS[t.status].stage >= 2 && t.detail.owner === "Manya" ? autoAssign(t.detail.typeLine) : null;
+    if (handoff?.toPool) {
+      const routed: Task = { ...t, meta: `${t.detail.typeLine} · unclaimed`, detail: { ...t.detail, owner: "Unclaimed", collaborators: withManya(t.detail.collaborators) } };
+      setClaimPool((p) => [routed, ...p]);
+      setToast({ who: "→ Claim pool", color: "#3A57E8", av: me.av, body: `${t.detail.typeLine} is in the editors' claim pool for Nikhil / Nandu.` });
+      return;
+    }
+    if (handoff && handoff.owner !== "Manya") {
+      const routed: Task = { ...t, meta: `${t.detail.typeLine} · owned by ${handoff.owner}`, detail: { ...t.detail, owner: handoff.owner, collaborators: withManya(t.detail.collaborators) } };
+      setTasks((p) => [routed, ...p]);
+      setToast({ who: `→ ${handoff.owner}`, color: "#3A57E8", av: (handoff.owner[0] || "?").toUpperCase(), body: note });
+      return;
+    }
     if (t.detail.owner === "Unclaimed") setClaimPool((p) => [t, ...p]);
     else setTasks((p) => [t, ...p]);
-    setShowNew(false);
-    setToast({ who: `Auto-assigned → ${owner}`, color: "#3A57E8", av: (owner[0] || "?").toUpperCase(), body: note });
+    setToast({ who: `Created → ${owner}`, color: "#3A57E8", av: (owner[0] || "?").toUpperCase(), body: note });
   };
 
   // ── Capacity pipeline (Accept & Work) ──
@@ -1043,6 +1204,13 @@ export function HopeMyDay() {
                 <IconUsers size={15} stroke={1.8} /> {screen === "team" ? "Back to My Day" : "Team capacity"}
               </button>
             )}
+            {/* Claim pool — editors (Nikhil / Nandu): the video work they can pick up */}
+            {isEditor && (
+              <button className={`teamcapbtn ${showClaimPool ? "on" : ""}`} onClick={() => setShowClaimPool(true)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M16.5 10l5-2.5v9L16.5 14" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
+                Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
+              </button>
+            )}
             <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
             </button>
@@ -1124,27 +1292,38 @@ export function HopeMyDay() {
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
               <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, DAY_MINS - workMin - LUNCH_MIN))} free</span>
-              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task or use ‹ › to reorder.">?</span>
+              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Auto-plan re-flows everything from now.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
               <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Reel</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
-              <button className="btn primary sm">✦ Auto-plan</button>
+              <button className="btn primary sm" onClick={autoPlan}>✦ Auto-plan</button>
             </div>
           </div>
           <div className="tl-wrap">
             <div className="tl-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
-            <div className="tl-track">
+            <div
+              className="tl-track"
+              ref={trackRef}
+              onDragOver={(e) => { e.preventDefault(); if (dragKey.current) setDropAt(edgeMinFromCursor(e.clientX)); }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setDropAt(null); }}
+              onDrop={(e) => { e.preventDefault(); pinPlanAt(edgeMinFromCursor(e.clientX)); }}
+            >
+              {/* Live drop guide — where the block's start edge will land while dragging. */}
+              {dropAt !== null && (
+                <div className="tl-guide" style={{ left: `${(dropAt / DAY_MINS) * 100}%` }}>
+                  <span className="tl-guide-tag">{clockOf(dropAt)}</span>
+                </div>
+              )}
               {planBlocks.map((b) => (
                 <div
-                  key={b.key || `${b.kind}-${b.start}`}
+                  key={`${b.kind}-${b.key || b.taskId || ""}-${b.start}`}
                   className={`tl-blk ${b.kind} ${b.kind === "reel" ? "clickable" : ""}`}
                   draggable={b.kind === "reel"}
-                  onDragStart={b.kind === "reel" ? () => { dragKey.current = b.key!; } : undefined}
-                  onDragOver={b.kind === "reel" ? (e) => e.preventDefault() : undefined}
-                  onDrop={b.kind === "reel" ? () => dropPlan(b.key!) : undefined}
+                  onDragStart={b.kind === "reel" ? (e) => { dragKey.current = b.key!; grabDX.current = e.clientX - e.currentTarget.getBoundingClientRect().left; } : undefined}
+                  onDragEnd={b.kind === "reel" ? () => { dragKey.current = null; setDropAt(null); } : undefined}
                   onClick={() => b.taskId && setPlanModalId(b.taskId)}
                   style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }}
-                  title={b.kind === "reel" ? "Drag to reorder · click to open" : b.kind === "lunch" ? "Protected lunch" : undefined}
+                  title={b.kind === "reel" ? "Drag along the timeline to start it later · click to open" : b.kind === "lunch" ? "Protected lunch" : undefined}
                 >
                   {b.kind === "reel" && (
                     <>
@@ -1197,7 +1376,7 @@ export function HopeMyDay() {
 
           <div className="card pad detail">
             {task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} canSchedule={isAdmin} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
             )}
@@ -1300,6 +1479,31 @@ export function HopeMyDay() {
 
       {/* CREATE-TASK MODAL — writer only; runs the Type→owner routing on submit */}
       {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreate={createTask} />}
+
+      {/* CLAIM POOL modal — editors pick up video work; claiming moves it to My tasks */}
+      {showClaimPool && (
+        <div className="modal" onClick={() => setShowClaimPool(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowClaimPool(false)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Claim pool · video work up for grabs</div>
+            <div className="d-title" style={{ marginBottom: "1rem" }}>Pick up a video</div>
+            {claimPool.length ? (
+              <div className="claim-list">
+                {claimPool.map((v) => (
+                  <div key={v.id} className="claim-card">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="claim-title">{v.title}</div>
+                      <div className="claim-meta">{v.detail.typeLine} · {v.detail.brand} · {STATUS[v.status].label}</div>
+                    </div>
+                    <button className="btn primary sm" onClick={() => { claimVideo(v); if (claimPool.length <= 1) setShowClaimPool(false); }}>Claim</button>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="empty" style={{ padding: "2.4rem 0" }}>Nothing to claim right now ✓</div>}
+            <div className="nt-assign" style={{ marginTop: "1rem" }}><span className="status-dot" style={{ background: "#8A92A6" }} /><span>Claim a video and it lands in your <b>My tasks</b> as <b>In progress</b> — you become the owner.</span></div>
+          </div>
+        </div>
+      )}
 
       {/* ACCEPT & WORK — capacity-aware accept dialog */}
       {acceptTask && <AcceptWorkModal task={acceptTask} committed={workMin} onAcceptWork={acceptWork} onAskManya={askManyaToMove} onClose={() => setAcceptTask(null)} />}
@@ -1430,6 +1634,8 @@ const CSS = `
 .hmd .tl-nudge.r{right:3px}
 .hmd .now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:5;pointer-events:none}
 .hmd .now-dot{position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
+.hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
+.hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:.68rem;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
 .hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:1rem;margin-top:1rem;align-items:start}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
 .hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
@@ -1456,6 +1662,16 @@ const CSS = `
 .hmd .d-head-main{min-width:0}
 .hmd .status-box{flex-shrink:0;text-align:right}
 .hmd .status-box .mlbl{margin-bottom:.35rem}
+/* task duration control (next to the status dropdown) */
+.hmd .dur-ctl{display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem;border:1px solid var(--line);border-radius:8px;padding:.25rem .4rem;background:var(--panel-2)}
+.hmd .dur-ic{font-size:.8rem}
+.hmd .dur-select{border:none;background:transparent;font:inherit;font-size:.74rem;font-weight:600;color:var(--ink-soft);cursor:pointer;outline:none}
+/* claim-pool modal + claim-pool button badge */
+.hmd .teamcap-n{background:var(--brand);color:#fff;font-size:.6rem;font-weight:700;border-radius:8px;min-width:16px;height:16px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;margin-left:.1rem}
+.hmd .claim-list{display:flex;flex-direction:column;gap:.5rem;max-height:52vh;overflow:auto}
+.hmd .claim-card{display:flex;align-items:center;gap:.7rem;border:1px solid var(--line);border-radius:11px;padding:.7rem .85rem}
+.hmd .claim-card:hover{border-color:#D9DEEA;background:var(--panel-2)}
+.hmd .claim-card .btn{margin-left:auto;flex-shrink:0}
 .hmd .status-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
 .hmd .status-caret{position:absolute;right:.65rem;top:50%;width:0;height:0;margin-top:-2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;pointer-events:none}
 .hmd .status-dd{position:relative;display:inline-block}
@@ -1603,6 +1819,32 @@ const CSS = `
 .hmd .nt-input:focus{border-color:var(--brand)}
 .hmd .nt-textarea{resize:vertical;min-height:98px;line-height:1.5}
 .hmd .nt-hint{font-weight:400;font-size:.62rem;color:var(--faint);text-transform:none;letter-spacing:0;margin-left:.4rem}
+.hmd .nt-req{font-weight:600;font-size:.58rem;color:#C03221;background:#FBE7E4;border-radius:5px;padding:.05em .4em;text-transform:uppercase;letter-spacing:.03em;margin-left:.35rem}
+.hmd .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+/* custom Hope-themed date picker */
+.hmd .dp{position:relative}
+.hmd .dp-field{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;font:inherit;font-size:.82rem;border:1px solid var(--line);border-radius:9px;padding:.55rem .7rem;background:var(--panel-2);color:var(--ink);cursor:pointer;text-align:left}
+.hmd .dp-field:hover{border-color:#D9DEEA}
+.hmd .dp-ph{color:var(--faint)}
+.hmd .dp-cal{color:var(--muted);flex-shrink:0}
+.hmd .dp-backdrop{position:fixed;inset:0;z-index:80}
+.hmd .dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:81;width:266px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 46px rgba(20,22,40,.18);padding:.8rem;animation:hmdslide .16s ease}
+.hmd .dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+.hmd .dp-title{font-size:.85rem;font-weight:700;color:var(--ink)}
+.hmd .dp-nav{display:flex;gap:.3rem}
+.hmd .dp-nav button{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.hmd .dp-nav button:hover{background:var(--panel-2);color:var(--brand-ink);border-color:#D9DEEA}
+.hmd .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.hmd .dp-dow{margin-bottom:2px}
+.hmd .dp-dow span{text-align:center;font-size:.58rem;font-weight:700;color:var(--faint);text-transform:uppercase;padding:.25rem 0}
+.hmd .dp-day{aspect-ratio:1;border:none;background:transparent;border-radius:8px;font:inherit;font-size:.74rem;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s}
+.hmd .dp-day:hover{background:var(--brand-soft);color:var(--brand-ink)}
+.hmd .dp-day.today{color:var(--brand-ink);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--brand-soft)}
+.hmd .dp-day.sel{background:var(--brand);color:#fff;font-weight:700;box-shadow:0 4px 10px rgba(58,87,232,.3)}
+.hmd .dp-empty{aspect-ratio:1}
+.hmd .dp-foot{display:flex;justify-content:space-between;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--line-2)}
+.hmd .dp-link{border:none;background:transparent;font:inherit;font-size:.72rem;font-weight:600;color:var(--brand-ink);cursor:pointer}
+.hmd .dp-link:hover{text-decoration:underline}
 .hmd .nt-assign{display:flex;align-items:flex-start;gap:.5rem;font-size:.8rem;color:var(--ink-soft);line-height:1.4;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.65rem .75rem;margin:.3rem 0 1.2rem}
 .hmd .nt-assign .status-dot{margin-top:.35rem}
 .hmd .nt-assign b{color:var(--ink)}
