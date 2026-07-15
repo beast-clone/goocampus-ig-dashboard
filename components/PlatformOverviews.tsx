@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
+import { useV2Href } from "@/lib/hopeHref";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { IconEye, IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
 export { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS };
@@ -37,6 +38,7 @@ function Stat({ label, value, sub, color }: { label: string; value: string; sub?
 }
 
 function PanelHeader({ title, href, source, sub }: { title: string; href: string; source?: string; sub?: string }) {
+  const v2 = useV2Href();
   return (
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div>
@@ -45,7 +47,7 @@ function PanelHeader({ title, href, source, sub }: { title: string; href: string
       </div>
       <div className="flex items-center gap-3">
         <Badge source={source} />
-        <Link href={href} className="text-xs font-medium text-brand hover:underline">Open deep dive →</Link>
+        <Link href={v2(href)} className="text-xs font-medium text-brand hover:underline">Open deep dive →</Link>
       </div>
     </div>
   );

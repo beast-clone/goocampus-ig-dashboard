@@ -95,7 +95,7 @@ export default function AudiencePage() {
             <div className="text-[12px] text-gray-500">
               <span className="text-gray-900 font-medium">{AUD_TABS.find((t) => t.key === platform)?.label} audience</span>
               {" · for all platforms in one place, open "}
-              <a href="/dashboard/audience#all" className="text-brand hover:underline">Audience → All platforms</a>
+              <a href="/dashboard/hope-preview/audience#all" className="text-brand hover:underline">Audience → All platforms</a>
             </div>
           ) : (
             <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">

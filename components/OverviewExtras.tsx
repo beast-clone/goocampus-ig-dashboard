@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useV2Href } from "@/lib/hopeHref";
 
 type Post = {
   id: string;
@@ -756,6 +757,7 @@ function MiniStat({ n, l, hint }: { n: string; l: string; hint?: string }) {
 }
 
 function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: Post[] }) {
+  const v2 = useV2Href();
   return (
     <section className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-6">
       <div className="mb-4">
@@ -803,7 +805,7 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
                     <span>{fmtNum(p.likes || 0)} ❤</span>
                   </div>
                   <Link
-                    href={`/dashboard/scheduler?draft=${encodeURIComponent(draft)}`}
+                    href={v2(`/dashboard/scheduler?draft=${encodeURIComponent(draft)}`)}
                     className="mt-auto text-[11.5px] font-medium bg-brand text-white text-center px-3 py-2 rounded-md hover:bg-brand-dark"
                   >
                     ↻ Send to Scheduler

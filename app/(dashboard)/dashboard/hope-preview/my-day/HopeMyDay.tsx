@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings } from "@tabler/icons-react";
+import { HopeSidebar } from "../HopeSidebar";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean; href?: string }) {
@@ -1157,30 +1158,9 @@ export function HopeMyDay() {
       {/* (Videos-up-for-grabs now surfaces through the chat-panel notification stack.) */}
 
       <div className="shell">
-      {/* ── Sidebar (matches the Overview V2 Hope shell) ── */}
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <span className="logo"><IconBrandInstagram size={16} style={{ transform: "rotate(-45deg)" }} /></span>
-          <span className="brandname">GooCampus</span>
-        </div>
-        <NavGroup label="Content" />
-        <NavItem icon={IconSunHigh} label="My Day" active href="/dashboard/hope-preview/my-day" />
-        <NavItem icon={IconLayoutGrid} label="Overview" href="/dashboard/hope-preview" />
-        <NavItem icon={IconChartBar} label="Marketing Hub" href="/dashboard/marketing-hub?tab=team" />
-        <NavItem icon={IconCalendarEvent} label="Publishing Calendar" href="/dashboard/calendar" />
-        <NavItem icon={IconWand} label="Post Planner" href="/dashboard/post-planner" />
-        <NavGroup label="Analytics" />
-        <NavItem icon={IconBrandInstagram} label="Instagram" href="/dashboard/posts" />
-        <NavItem icon={IconBrandLinkedin} label="LinkedIn" href="/dashboard/linkedin" />
-        <NavItem icon={IconBrandYoutube} label="YouTube" href="/dashboard/youtube" />
-        <NavItem icon={IconBrandFacebook} label="Facebook" href="/dashboard/facebook" />
-        <NavGroup label="Audience" />
-        <NavItem icon={IconUsers} label="All platforms" href="/dashboard/audience#all" />
-        <NavGroup label="Ads" />
-        <NavItem icon={IconSpeakerphone} label="Ads" href="/dashboard/ads" />
-        <NavGroup label="System" />
-        <NavItem icon={IconSettings} label="Integrations" href="/dashboard/integrations" />
-      </aside>
+      {/* ── Shared V2 Hope sidebar — same grouped nav as every other V2 page,
+             so every link stays inside /dashboard/hope-preview (no V1 leaks). ── */}
+      <HopeSidebar active="my-day" />
 
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
 

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useV2Href } from "@/lib/hopeHref";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { CountriesWorldMap } from "@/components/GeoMaps";
 import { useApi } from "@/lib/use-api";
@@ -200,6 +201,7 @@ export function HBars({ data, color, unit }: { data: { name: string; value: numb
 }
 
 function PanelHeader({ title, sub, href, live }: { title: string; sub?: string; href: string; live?: boolean }) {
+  const v2 = useV2Href();
   return (
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div>
@@ -209,7 +211,7 @@ function PanelHeader({ title, sub, href, live }: { title: string; sub?: string; 
       <div className="flex items-center gap-3">
         {live === true && <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>}
         {live === false && <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Demo</span>}
-        <Link href={href} className="text-xs font-medium text-brand hover:underline">Open deep dive →</Link>
+        <Link href={v2(href)} className="text-xs font-medium text-brand hover:underline">Open deep dive →</Link>
       </div>
     </div>
   );

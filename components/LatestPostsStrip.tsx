@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useV2Href } from "@/lib/hopeHref";
 
 type Post = {
   id: string;
@@ -118,6 +119,7 @@ export function LatestPostsStrip({ accountId, range }: { accountId: string; rang
 }
 
 function PostModal({ post, onClose }: { post: Post; onClose: () => void }) {
+  const v2 = useV2Href();
   const meta = TYPE_META[post.type] || TYPE_META.IMAGE;
   const engRate = post.reach > 0 && post.totalInteractions
     ? ((post.totalInteractions / post.reach) * 100).toFixed(1) + "%"
@@ -160,10 +162,10 @@ function PostModal({ post, onClose }: { post: Post; onClose: () => void }) {
         </div>
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">
           <a
-            href={`/dashboard/scheduler?draft=${encodeURIComponent(new URLSearchParams({
+            href={v2(`/dashboard/scheduler?draft=${encodeURIComponent(new URLSearchParams({
               title: post.caption.split("\n")[0].slice(0, 80),
               brief: `Turn this top performer into a similar post.\nOriginal caption:\n${post.caption.slice(0, 400)}`,
-            }).toString())}`}
+            }).toString())}`)}
             className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-md hover:bg-brand-dark"
           >
             ✍ Turn into a similar post
