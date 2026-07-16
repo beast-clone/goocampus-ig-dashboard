@@ -987,7 +987,7 @@ function Scheduler() {
         <div className="text-xs text-gray-500">
           {result?.ok === true && <span className="text-green-700">✓ Scheduled. Row <code className="bg-green-50 px-1 rounded">{result.recordId}</code> dropped into Content Calendar.</span>}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
-          {!result && <span>Goes straight into your publishing queue and publishes within about 2 minutes.</span>}
+          {!result && <span>{scheduleEnabled ? "Goes into your publishing queue for the time you set." : "Goes straight into your publishing queue."}</span>}
         </div>
         <button
           onClick={submit}
