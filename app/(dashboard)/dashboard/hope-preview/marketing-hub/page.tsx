@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
@@ -256,17 +257,16 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   );
 }
 
+// Was a native <select>, which renders the OS widget and reads as V1 on sight.
+// HopeSelect is the themed one the Scheduler already uses.
 function CompactFacet({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
   return (
-    <select
+    <HopeSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      title={label}
-      className={`border rounded-lg px-2.5 py-1.5 text-sm bg-white ${value ? "border-brand text-brand font-medium" : "border-gray-200 text-gray-600"}`}
-    >
-      <option value="">{label}</option>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
+      onChange={onChange}
+      placeholder={label}
+      options={options.map((o) => ({ value: o, label: o }))}
+    />
   );
 }
 
@@ -885,7 +885,90 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   );
 }
 
+const MHCAL_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MHCAL_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+// Status → pill palette. Mirrors the Hope UI publishing calendar's approach: soft-tinted
+// bg + matching border + colored text so status is legible at a glance across the grid.
+// Unmapped statuses fall through to the neutral gray.
+const CAL_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  "Content - Pending":     { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" },
+  "Content - In Progress": { bg: "#FEF3E2", text: "#B45309", border: "#F4DBB0" },
+  "Content - Approved":    { bg: "#E1F5EE", text: "#0F6E56", border: "#B2E1D0" },
+  "Output - Ready":        { bg: "#E4ECFF", text: "#2138B0", border: "#BBCCF7" },
+  "Ready to Publish":      { bg: "#E3F5EA", text: "#157F3C", border: "#B9E4D2" },
+  "Published/Scheduled":   { bg: "#EEEDFE", text: "#3C3489", border: "#CFCBFA" },
+};
+function calStatusStyle(s: string): { bg: string; text: string; border: string } {
+  return CAL_STATUS_COLORS[s] || { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
+}
+
+const MHCAL_CSS = `
+.mhcal{color:#0F172A;font-feature-settings:"cv02","cv03","cv04","cv11"}
+.mhcal button{font-family:inherit;cursor:pointer}
+/* Hero band — indigo→violet ramp, distinct from the publishing calendar's blue */
+.mhcal-hero{position:relative;background:linear-gradient(115deg,#4C4CE2 0%,#6F5BEA 50%,#8B6DF2 100%);border-radius:16px;padding:1.35rem 1.7rem 3rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.mhcal-hero::after{content:"";position:absolute;right:-40px;top:-60px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)}
+.mhcal-hero::before{content:"";position:absolute;right:120px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)}
+.mhcal-hero-txt{position:relative;z-index:1;max-width:640px}
+.mhcal-hero-tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:rgba(255,255,255,.22);padding:.22rem .6rem;border-radius:20px;margin-bottom:.5rem}
+.mhcal-hero-txt h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-.018em;line-height:1.15}
+.mhcal-hero-txt p{margin:.3rem 0 0;font-size:.86rem;color:rgba(255,255,255,.95);line-height:1.45}
+.mhcal-hero-stat{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:.7rem 1rem;border-radius:12px;backdrop-filter:blur(2px);min-width:125px}
+.mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+.mhcal-hero-statl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.82)}
+/* Title card, pulled up to overlap the hero */
+.mhcal-titlecard{position:relative;z-index:2;margin:-2.15rem 1rem 0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;box-shadow:0 12px 28px rgba(20,25,60,.10);padding:.85rem 1.35rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:#0F172A;letter-spacing:-.012em}
+.mhcal-titlemeta{font-size:.76rem;color:#6B7280;font-weight:500}
+.mhcal-titlemeta b{color:#0F172A;font-weight:600}
+/* Brand filter — pill chips one-click filter across SBUs (primary interest) */
+.mhcal-brands{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;padding:.65rem .8rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;overflow-x:auto;scrollbar-width:thin}
+.mhcal-brands::-webkit-scrollbar{height:6px}
+.mhcal-brands::-webkit-scrollbar-thumb{background:#D3D8E1;border-radius:3px}
+.mhcal-brands-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:#94A0AF;font-weight:700;padding-right:.5rem;flex:0 0 auto}
+.mhcal-brand{display:inline-flex;align-items:center;gap:.42rem;padding:.4rem .78rem;border-radius:99px;background:#F5F6FA;color:#4B5563;font-size:.75rem;font-weight:500;border:1px solid transparent;flex:0 0 auto;transition:.15s;white-space:nowrap;letter-spacing:-.003em}
+.mhcal-brand:hover{background:#EAECF3;color:#0F172A}
+.mhcal-brand.on{background:#0F172A;color:#fff}
+.mhcal-brand .bdot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+.mhcal-brand .bcount{opacity:.7;font-weight:500;font-size:.68rem;font-variant-numeric:tabular-nums}
+.mhcal-brand.on .bcount{opacity:.85}
+/* Calendar card */
+.mhcal-card{background:#fff;border:1px solid #EEF0F4;border-radius:16px;box-shadow:0 6px 16px rgba(20,25,60,.05);overflow:hidden;margin-top:.75rem}
+.mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:#FAFBFC;border-bottom:1px solid #EEF0F4}
+.mhcal-dow span{padding:.65rem .7rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94A0AF;border-right:1px solid #EEF0F4}
+.mhcal-dow span:last-child{border-right:none}
+.mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(126px,1fr)}
+.mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.4rem;position:relative;min-width:0;transition:background .15s}
+.mhcal-cell:nth-child(7n){border-right:none}
+.mhcal-cell.out{background:#FAFBFC}
+.mhcal-cell.today{background:rgba(76,76,226,.045)}
+.mhcal-cell.over{background:rgba(76,76,226,.09);box-shadow:inset 0 0 0 2px rgba(76,76,226,.35)}
+.mhcal-daynum{text-align:right;font-size:.75rem;font-weight:600;color:#4B5563;padding:.05rem .3rem .3rem;font-variant-numeric:tabular-nums}
+.mhcal-cell.out .mhcal-daynum{color:#C4CBD4}
+.mhcal-cell.today .mhcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:#4C4CE2;color:#fff;font-weight:700}
+.mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
+/* Event pill — Hope V1 look: 1px border matching bg-tint, colored text, small SBU dot
+   + brand name on the right so primary interest reads at a glance. */
+.mhcal-ev{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:6px;padding:2.5px 7px;overflow:hidden;transition:filter .1s,transform .1s;cursor:grab}
+.mhcal-ev:hover{filter:brightness(.96);transform:translateX(1px)}
+.mhcal-ev:active{cursor:grabbing}
+.mhcal-evdot{width:7px;height:7px;border-radius:2px;flex:0 0 7px}
+.mhcal-evtitle{font-size:.7rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.005em}
+.mhcal-evsbu{font-size:.6rem;font-weight:600;opacity:.7;flex:0 0 auto;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.003em}
+.mhcal-more{border:none;background:none;font-size:.66rem;color:#94A0AF;text-align:left;padding:1px 6px;font-weight:600}
+.mhcal-more:hover{color:#4C4CE2}
+/* Status legend — compact strip so the pill color→meaning is obvious */
+.mhcal-slegend{margin-top:.75rem;padding:.7rem 1rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;font-size:.72rem;color:#4B5563;font-weight:500}
+.mhcal-slegend-item{display:inline-flex;align-items:center;gap:.45rem}
+.mhcal-slegend-chip{width:14px;height:14px;border-radius:4px;border:1px solid;flex:0 0 14px}
+`;
+
 function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows: Row[]; range: { from: string; to: string }; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
+  // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
+  // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
+  const [activeBrand, setActiveBrand] = useState<string>("");
+
   // Drag-to-reschedule: drop a task on a day to set its publishing date there.
   const [dragOver, setDragOver] = useState<string | null>(null);
   const dropOn = async (e: React.DragEvent, dayKey: string) => {
@@ -899,10 +982,11 @@ function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows:
     if (ok) onSaved();
   };
 
-  // Bucket rows by yyyy-mm-dd
+  // Filter by active brand first, then bucket by yyyy-mm-dd.
+  const filteredRows = useMemo(() => activeBrand ? rows.filter((r) => r.sbu === activeBrand) : rows, [rows, activeBrand]);
   const byDay = useMemo(() => {
     const m = new Map<string, Row[]>();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const d = r.publishingDate?.slice(0, 10);
       if (!d) continue;
       let list = m.get(d);
@@ -910,77 +994,158 @@ function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows:
       list.push(r);
     }
     return m;
+  }, [filteredRows]);
+
+  // Per-brand counts across the current (unfiltered) range — powers the chip badges.
+  const brandCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.sbu, (m.get(r.sbu) || 0) + 1);
+    return m;
   }, [rows]);
 
-  // Build a month grid based on the FROM month.
+  // Which statuses actually exist in the current view — legend only surfaces those.
+  const statusesInView = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of filteredRows) if (r.status) s.add(r.status);
+    return Array.from(s);
+  }, [filteredRows]);
+
+  // 42-cell month grid (mirrors the publishing calendar's HopeCalendar layout so the two
+  // pages read as siblings — always 6 full rows, prev/next-month spillover greyed out).
   const fromDate = new Date(range.from);
   const y = fromDate.getFullYear();
   const mo = fromDate.getMonth();
-  const firstOfMonth = new Date(y, mo, 1);
-  const firstWeekday = firstOfMonth.getDay(); // 0 = Sun
-  const daysInMonth = new Date(y, mo + 1, 0).getDate();
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < firstWeekday; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(y, mo, d));
-  while (cells.length % 7 !== 0) cells.push(null);
+  const monthGrid = useMemo(() => {
+    const firstOfMonth = new Date(y, mo, 1);
+    const start = new Date(firstOfMonth);
+    start.setDate(start.getDate() - firstOfMonth.getDay());
+    const today = ymd(new Date());
+    const cells: { date: Date; inMonth: boolean; isToday: boolean }[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      cells.push({ date: d, inMonth: d.getMonth() === mo, isToday: ymd(d) === today });
+    }
+    return cells;
+  }, [y, mo]);
 
   const allSbus = facets?.sbu || [];
-  const monthLabel = firstOfMonth.toLocaleString("en-IN", { month: "long", year: "numeric" });
-  const today = ymd(new Date());
+  const monthLabel = `${MHCAL_MONTH_NAMES[mo]} ${y}`;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-lg p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-lg font-medium">{monthLabel}</div>
-        <div className="text-sm text-gray-500">{loading ? "Loading…" : <><span className="text-gray-400">drag a task to another day to reschedule · </span>{rows.length} entries scheduled this range</>}</div>
+    <div className="mhcal">
+      <style dangerouslySetInnerHTML={{ __html: MHCAL_CSS }} />
+
+      {/* Hero — tightened copy, higher-contrast subtitle */}
+      <div className="mhcal-hero">
+        <div className="mhcal-hero-txt">
+          <span className="mhcal-hero-tag">Team calendar</span>
+          <h1>Content Calendar</h1>
+          <p>Everything the marketing team is on — click to open, drag to reschedule.</p>
+        </div>
+        <div className="mhcal-hero-stat">
+          <div className="mhcal-hero-statv">{fmtInt(filteredRows.length)}</div>
+          <div className="mhcal-hero-statl">{activeBrand ? `${activeBrand} tasks` : "Tasks in view"}</div>
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-2 text-xs text-gray-500 mb-2">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="text-center font-medium">{d}</div>)}
+
+      {/* Title card overlapping the hero */}
+      <div className="mhcal-titlecard">
+        <h4>{monthLabel}</h4>
+        <div className="mhcal-titlemeta">
+          {loading ? "Syncing…" : <><b>{filteredRows.length}</b>{activeBrand ? <> in <b>{activeBrand}</b></> : ""} · drag any card to reschedule</>}
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-2">
-        {cells.map((d, i) => {
-          if (!d) return <div key={`empty-${i}`} className="min-h-[120px]" />;
-          const key = ymd(d);
-          const list = byDay.get(key) || [];
-          const isToday = key === today;
-          return (
-            <div
-              key={key}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
-              onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
-              onDrop={(e) => dropOn(e, key)}
-              className={`min-h-[120px] border rounded p-2 ${dragOver === key ? "border-brand border-2 bg-brand/5" : isToday ? "border-brand border-2" : "border-gray-100"}`}
-            >
-              <div className={`text-xs font-medium mb-1.5 ${isToday ? "text-brand" : "text-gray-500"}`}>{d.getDate()}</div>
-              <div className="space-y-1">
-                {list.slice(0, 4).map((r) => (
-                  <button
-                    key={r.id}
-                    draggable
-                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
-                    onClick={() => onOpen(r.id)}
-                    title={`${r.particulars} · ${r.type} · ${r.owner} — drag to reschedule`}
-                    className="w-full text-left text-[11px] px-1.5 py-1 rounded truncate hover:opacity-90 cursor-grab active:cursor-grabbing"
-                    style={{ background: sbuColor(r.sbu, allSbus) + "22", color: "#222", borderLeft: `3px solid ${sbuColor(r.sbu, allSbus)}` }}
-                  >
-                    {r.particulars || "(untitled)"}
-                  </button>
-                ))}
-                {list.length > 4 && <div className="text-[10px] text-gray-400 text-center">+{list.length - 4} more</div>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {/* Legend */}
+
+      {/* Brand quick-filter — one-click SBU isolate; primary interest is also shown
+          on every task pill, so the brand stays legible even without a filter set. */}
       {allSbus.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-600">
-          {allSbus.map((s) => (
-            <div key={s} className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm" style={{ background: sbuColor(s, allSbus) }} />
-              {s}
-            </div>
-          ))}
+        <div className="mhcal-brands">
+          <span className="mhcal-brands-lbl">Brand</span>
+          <button className={`mhcal-brand ${activeBrand === "" ? "on" : ""}`} onClick={() => setActiveBrand("")}>
+            All <span className="bcount">{rows.length}</span>
+          </button>
+          {allSbus.map((s) => {
+            const n = brandCounts.get(s) || 0;
+            if (n === 0) return null;
+            const active = activeBrand === s;
+            return (
+              <button
+                key={s}
+                className={`mhcal-brand ${active ? "on" : ""}`}
+                onClick={() => setActiveBrand((prev) => prev === s ? "" : s)}
+              >
+                <span className="bdot" style={{ background: sbuColor(s, allSbus) }} />
+                {s}
+                <span className="bcount">{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Calendar card */}
+      <div className="mhcal-card">
+        <div className="mhcal-dow">
+          {MHCAL_DAY_LABELS.map((d) => <span key={d}>{d}</span>)}
+        </div>
+        <div className="mhcal-grid">
+          {monthGrid.map((cell) => {
+            const key = ymd(cell.date);
+            const list = byDay.get(key) || [];
+            const cls = `mhcal-cell${cell.inMonth ? "" : " out"}${cell.isToday ? " today" : ""}${dragOver === key ? " over" : ""}`;
+            return (
+              <div
+                key={key}
+                className={cls}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
+                onDrop={(e) => dropOn(e, key)}
+              >
+                <div className="mhcal-daynum">{cell.date.getDate()}</div>
+                <div className="mhcal-events">
+                  {list.slice(0, 4).map((r) => {
+                    const st = calStatusStyle(r.status);
+                    const c = sbuColor(r.sbu, allSbus);
+                    return (
+                      <button
+                        key={r.id}
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
+                        onClick={() => onOpen(r.id)}
+                        title={`${r.particulars} · ${r.type} · ${r.sbu} · ${r.owner || "—"} — drag to reschedule`}
+                        className="mhcal-ev"
+                        style={{ background: st.bg, borderColor: st.border, color: st.text }}
+                      >
+                        <span className="mhcal-evdot" style={{ background: c }} />
+                        <span className="mhcal-evtitle">{r.particulars || "(untitled)"}</span>
+                        {r.sbu && <span className="mhcal-evsbu">{r.sbu}</span>}
+                      </button>
+                    );
+                  })}
+                  {list.length > 4 && (
+                    <button className="mhcal-more" onClick={() => { const first = list[4]; if (first) onOpen(first.id); }}>
+                      +{list.length - 4} more
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Status legend — only surfaces statuses actually present in the current view */}
+      {statusesInView.length > 0 && (
+        <div className="mhcal-slegend">
+          {statusesInView.map((s) => {
+            const st = calStatusStyle(s);
+            return (
+              <div key={s} className="mhcal-slegend-item">
+                <span className="mhcal-slegend-chip" style={{ background: st.bg, borderColor: st.border }} />
+                {s}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
