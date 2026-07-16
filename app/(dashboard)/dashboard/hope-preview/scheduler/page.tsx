@@ -57,6 +57,7 @@ type Prediction = {
 type TopPerformer = {
   id: string; permalink: string; thumbnail: string | null; mediaType: string;
   caption: string; reach: number; likes: number; comments: number; timestamp: string;
+  publishToPage?: string; // which account it belongs to (set when merging across accounts)
 };
 
 const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] = [
@@ -107,7 +108,6 @@ function Scheduler() {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
-  const [topModalOpen, setTopModalOpen] = useState(false);
   const [topLoading, setTopLoading] = useState(false);
 
   // Queue + queue-view state
@@ -129,7 +129,8 @@ function Scheduler() {
     channel: string | null; defaultPage: string; publishingDate: string | null;
     airtableRecordId?: string | null;
   };
-  const [schedTab, setSchedTab] = useState<"to_schedule" | "publish">("to_schedule");
+  const [schedTab, setSchedTab] = useState<"to_schedule" | "publish" | "top">("to_schedule");
+  const [topAccount, setTopAccount] = useState<string>("all");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
   const loadToSchedule = () => {
@@ -299,22 +300,31 @@ function Scheduler() {
     setScheduleTime(hm);
   }
 
-  async function openTopPerformers() {
-    setTopModalOpen(true);
-    if (topPerformers.length > 0) return;
+  // Top performers now live in their own tab. Fetch across the selected account(s),
+  // merge, and sort by reach.
+  const loadTopPerformers = async () => {
     setTopLoading(true);
     try {
-      const r = await fetch(`/api/scheduler/top-performers?publishToPage=${encodeURIComponent(publishToPage)}`);
-      const d = await r.json();
-      if (d.top) setTopPerformers(d.top);
+      const pages = topAccount === "all" ? PAGE_OPTIONS.map((o) => o.value) : [topAccount];
+      const results = await Promise.all(pages.map((pg) =>
+        fetch(`/api/scheduler/top-performers?publishToPage=${encodeURIComponent(pg)}`)
+          .then((r) => r.ok ? r.json() : { top: [] })
+          .then((d) => ((d.top || []) as TopPerformer[]).map((t) => ({ ...t, publishToPage: pg })))
+          .catch(() => [] as TopPerformer[])
+      ));
+      setTopPerformers(results.flat().sort((a, b) => b.reach - a.reach));
     } finally { setTopLoading(false); }
-  }
+  };
+  useEffect(() => { if (schedTab === "top") loadTopPerformers(); }, [schedTab, topAccount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function useTopPerformer(p: TopPerformer) {
+  // Click a winner → open the manual composer pre-filled to reschedule/repost it.
+  function rescheduleTopPerformer(p: TopPerformer) {
+    setSchedulingTaskId(null);
+    if (p.publishToPage) setPublishToPage(p.publishToPage as PublishToPage);
     setParticulars(`Repost: ${(p.caption || "").slice(0, 60)}`);
     setCaption(p.caption || "");
-    if (p.thumbnail) setMediaUrls([p.thumbnail]);
-    setTopModalOpen(false);
+    setMediaUrls(p.thumbnail ? [p.thumbnail] : [""]);
+    setShowCreateForm(true);
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
@@ -445,6 +455,12 @@ function Scheduler() {
           className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
           Calendar
+        </button>
+        <button
+          onClick={() => setSchedTab("top")}
+          className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "top" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
+        >
+          Top performers
         </button>
       </div>
 
@@ -672,6 +688,56 @@ function Scheduler() {
 
       </>)}
 
+      {schedTab === "top" && (
+        <div>
+          <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+            <div>
+              <div className="text-base font-semibold text-gray-900">Top performers</div>
+              <div className="text-[12px] text-gray-500">Your best posts by reach (last 90 days) — click one to reschedule it.</div>
+            </div>
+            <HopeSelect value={topAccount} onChange={setTopAccount}
+              options={[{ value: "all", label: "All accounts" }, ...PAGE_OPTIONS.map((o) => ({ value: o.value, label: o.value }))]} />
+          </div>
+
+          {topLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading top performers…</div>}
+          {!topLoading && topPerformers.length === 0 && (
+            <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">No posts found for this account in the last 90 days.</div>
+          )}
+          {!topLoading && topPerformers.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {topPerformers.map((p, i) => {
+                const handle = p.publishToPage === "GooCampus World" ? "@goocampusworld" : p.publishToPage === "12Plus / GC India" ? "@12thplusdotcom" : "@goocampus";
+                return (
+                  <div key={`${p.publishToPage}-${p.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+                    <div className="relative aspect-square bg-gray-100">
+                      {p.thumbnail
+                        ? <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">{p.mediaType === "VIDEO" ? "🎬" : "🖼️"}</div>}
+                      <div className="absolute top-2 left-2 text-[10px] font-semibold bg-black/60 text-white px-2 py-0.5 rounded-full">#{i + 1}</div>
+                      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5 text-[10px] text-white">
+                        <span className="bg-black/60 px-1.5 py-0.5 rounded-full">{p.reach.toLocaleString("en-IN")} reach</span>
+                        <span className="bg-black/60 px-1.5 py-0.5 rounded-full">{p.likes.toLocaleString("en-IN")} ♥</span>
+                      </div>
+                    </div>
+                    <div className="p-3 flex flex-col gap-2 flex-1">
+                      <div className="flex items-center justify-between text-[11px] text-gray-500">
+                        <span>{handle}</span>
+                        <span>{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                      </div>
+                      <div className="text-xs text-gray-700 line-clamp-2 flex-1">{p.caption || "(no caption)"}</div>
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <a href={p.permalink} target="_blank" rel="noreferrer" className="text-[11px] text-gray-400 hover:text-brand hover:underline">View ↗</a>
+                        <button onClick={() => rescheduleTopPerformer(p)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark">Reschedule →</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Schedule-now modal */}
       {scheduleModalPost && (
         <ScheduleNowModal
@@ -746,19 +812,6 @@ function Scheduler() {
               <div className="flex items-center justify-between mb-4">
                 <div className="text-lg font-semibold">Add a new post</div>
                 <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
-              </div>
-              {/* Repost-top-performer call-to-action */}
-              <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200 rounded-2xl px-4 py-2.5">
-                <div className="text-xs text-violet-900">
-                  <span className="font-medium">💡 Want to start from a winner?</span>{" "}
-                  <span className="text-violet-700">Pull a top-performing post from the last 90 days and tweak.</span>
-                </div>
-                <button
-                  onClick={openTopPerformers}
-                  className="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700"
-                >
-                  ↻ Pick top performer
-                </button>
               </div>
 
       {/* TWO-COLUMN LAYOUT: form left, preview right */}
@@ -932,57 +985,6 @@ function Scheduler() {
         </button>
       </div>
 
-      {/* Top performer modal */}
-      {topModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setTopModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <div className="text-base font-semibold text-gray-900">Top performers</div>
-                <div className="text-[11px] text-gray-500">Best posts on {publishToPage} in the last 90 days, by reach. Click one to pre-fill the form.</div>
-              </div>
-              <button onClick={() => setTopModalOpen(false)} className="text-gray-400 hover:text-gray-900 text-xl">×</button>
-            </div>
-            <div className="p-5">
-              {topLoading && <div className="text-center text-sm text-gray-500 py-8">Loading top performers…</div>}
-              {!topLoading && topPerformers.length === 0 && <div className="text-center text-sm text-gray-500 py-8">No posts found in the last 90 days.</div>}
-              {!topLoading && topPerformers.length > 0 && (
-                <div className="space-y-2">
-                  {topPerformers.map((p, i) => (
-                    <button
-                      key={p.id}
-                      onClick={() => useTopPerformer(p)}
-                      className="w-full text-left flex gap-4 p-3 border border-gray-100 rounded-xl hover:border-violet-300 hover:bg-violet-50/30 transition"
-                    >
-                      <div className="flex-shrink-0">
-                        {p.thumbnail ? (
-                          <img src={p.thumbnail} alt="" className="w-16 h-16 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">📷</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-mono font-semibold text-violet-700">#{i + 1}</span>
-                          <span className="text-[10px] uppercase tracking-wide text-gray-400">{p.mediaType}</span>
-                          <span className="text-[10px] text-gray-400">· {new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
-                        </div>
-                        <div className="text-xs text-gray-700 line-clamp-2">{p.caption || "(no caption)"}</div>
-                        <div className="flex items-center gap-4 mt-1.5 text-[11px] text-gray-500">
-                          <span><span className="font-semibold text-gray-800">{p.reach.toLocaleString("en-IN")}</span> reach</span>
-                          <span>{p.likes.toLocaleString("en-IN")} likes</span>
-                          <span>{p.comments.toLocaleString("en-IN")} comments</span>
-                          <a href={p.permalink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="ml-auto text-violet-600 hover:underline">View ↗</a>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
             </div>
           </div>
