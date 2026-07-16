@@ -152,6 +152,8 @@ function Scheduler() {
   const openTaskRef = useRef<string | null>(null); // guards the async caption fetch against fast task switches
   // Which network the live preview mocks. IG/FB share the handle; LinkedIn uses the page name.
   const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>("instagram");
+  // A scheduled/published post opened in the big full-screen view popup.
+  const [calItem, setCalItem] = useState<CalendarItem | null>(null);
   // Open the manual composer pre-filled from an Output-Ready task.
   function scheduleFromTask(t: ToScheduleItem) {
     setSchedulingTaskId(t.id);
@@ -442,18 +444,12 @@ function Scheduler() {
               <div className="text-[12px] text-gray-500">Produced content awaiting a publish action — click a post to open it right here.</div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
-                <button onClick={() => setToScheduleView("list")} className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${toScheduleView === "list" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>List</button>
-                <button onClick={() => setToScheduleView("cards")} className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${toScheduleView === "cards" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>Cards</button>
-              </div>
               <button onClick={loadToSchedule} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
               <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
             </div>
           </div>
 
-          {toScheduleView === "cards" ? (
-            <ToScheduleList items={toSchedule} loading={toScheduleLoading} onRefresh={loadToSchedule} onSchedule={scheduleFromTask} onAddManual={openManualComposer} hideHeader />
-          ) : (
+          {(
             <>
               {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
               {!toScheduleLoading && toSchedule.length === 0 && (
@@ -653,60 +649,45 @@ function Scheduler() {
         )}
       </div>
 
-      {/* MAIN — when there's something to act on, show the queue (left) + the
-          scheduled/published feed (right). When nothing's waiting, the feed goes
-          FULL-WIDTH so the page never looks half-empty. */}
-      {(() => {
-        const hasActionable = failed.length > 0 || publishing.length > 0 || readyToSchedule.length > 0;
-        return (
-          <div className={`grid grid-cols-1 gap-4 mb-4 ${hasActionable ? "lg:grid-cols-3" : ""}`}>
-            {hasActionable && (
-              <div className="lg:col-span-2 space-y-4">
-                {failed.length > 0 && (
-                  <QueueSection
-                    title="Failed — needs attention"
-                    subtitle={`${failed.length} post${failed.length === 1 ? "" : "s"} didn't publish — retry or fix the media`}
-                    posts={failed}
-                    onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-                    onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-                    onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="rose" expanded
-                  />
-                )}
-                {publishing.length > 0 && (
-                  <QueueSection
-                    title="Publishing now"
-                    subtitle="Going out to Instagram / Facebook right now"
-                    posts={publishing}
-                    onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-                    onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-                    onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="blue" expanded
-                  />
-                )}
-                {readyToSchedule.length > 0 && (
-                  <QueueSection
-                    title="Waiting to publish"
-                    subtitle={`${readyToSchedule.length} post${readyToSchedule.length === 1 ? "" : "s"} queued — set a time or publish now`}
-                    posts={readyToSchedule}
-                    onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-                    onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-                    onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="amber" expanded
-                  />
-                )}
-              </div>
-            )}
+      {/* Actionable queue (failed / publishing / waiting) — stacked full-width above
+          the calendar so nothing needing attention gets buried. */}
+      {(failed.length > 0 || publishing.length > 0 || readyToSchedule.length > 0) && (
+        <div className="space-y-4 mb-4">
+          {failed.length > 0 && (
+            <QueueSection
+              title="Failed — needs attention"
+              subtitle={`${failed.length} post${failed.length === 1 ? "" : "s"} didn't publish — retry or fix the media`}
+              posts={failed}
+              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
+              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="rose" expanded
+            />
+          )}
+          {publishing.length > 0 && (
+            <QueueSection
+              title="Publishing now"
+              subtitle="Going out to Instagram / Facebook right now"
+              posts={publishing}
+              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
+              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="blue" expanded
+            />
+          )}
+          {readyToSchedule.length > 0 && (
+            <QueueSection
+              title="Waiting to publish"
+              subtitle={`${readyToSchedule.length} post${readyToSchedule.length === 1 ? "" : "s"} queued — set a time or publish now`}
+              posts={readyToSchedule}
+              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
+              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
+              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="amber" expanded
+            />
+          )}
+        </div>
+      )}
 
-            <div className={hasActionable ? "lg:col-span-1" : ""}>
-              {!hasActionable && (
-                <div className="bg-white rounded-lg border border-gray-100 px-5 py-3 mb-4 text-sm text-gray-500 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Nothing waiting to publish — you&apos;re all caught up. Hit <span className="text-brand font-medium">+ Add post</span> to queue the next one.
-                </div>
-              )}
-              <MiniPlanner posts={queueFiltered} publishedIG={publishedIG} wide={!hasActionable} />
-            </div>
-          </div>
-        );
-      })()}
+      {/* Full-width calendar of everything scheduled & published — click a post to open it big. */}
+      <MiniPlanner posts={queueFiltered} publishedIG={publishedIG} wide onSelect={setCalItem} />
 
       </>)}
 
@@ -737,6 +718,9 @@ function Scheduler() {
           }}
         />
       )}
+
+      {/* Big full-screen view of a scheduled / published post */}
+      {calItem && <SchedulePreviewModal item={calItem} onClose={() => setCalItem(null)} />}
 
       {/* Caption-edit modal */}
       {editingCaptionId && (
@@ -910,23 +894,6 @@ function Scheduler() {
                     onAddHashtag={(tag) => setCaption((c) => c.trimEnd() + " #" + tag)}
                   />
                 )}
-              </div>
-              <div>
-                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Publish to</label>
-                <div className="flex gap-2 mt-1">
-                  {PUBLISH_TO_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setPublishTo(opt.value)}
-                      className={`text-xs px-3 py-2 rounded-lg border ${
-                        publishTo === opt.value ? "border-brand bg-brand text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="mr-1">{opt.icon}</span>{opt.label}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           </Card>
@@ -1562,7 +1529,62 @@ type CalendarItem =
 
 type CalFilter = "all" | "today" | "yesterday" | "week" | "upcoming";
 
-function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; publishedIG: PublishedIG[]; wide?: boolean }) {
+// Big full-screen view of a scheduled or published post — opened from the calendar.
+// View-only: media, caption, status, account, and permalinks. Handles both kinds.
+function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: () => void }) {
+  const isPub = item.kind === "published";
+  const p = item.post as ScheduledPost & PublishedIG;
+  const img: string | null = isPub ? (p.mediaUrl || null) : (p.thumbnailUrl || null);
+  const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
+  const when = new Date(item.whenMs).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
+  const status: string = isPub ? "published" : (p.effectiveStatus || "scheduled");
+  const igUrl: string | null = isPub ? (p.permalink || null) : (p.instagramUrl || null);
+  const fbUrl: string | null = isPub ? null : (p.facebookUrl || null);
+  const account: string = isPub ? "@goocampus" : (p.publishToPage || "");
+  const statusColor: Record<string, string> = {
+    published: "bg-emerald-50 text-emerald-700", publishing: "bg-blue-50 text-blue-700",
+    failed: "bg-rose-50 text-rose-700", scheduled: "bg-amber-50 text-amber-700",
+  };
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <div className="text-base font-semibold text-gray-900">{title}</div>
+            <div className="text-[11px] text-gray-500">{when}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+        </div>
+        <div className="grid md:grid-cols-2 min-h-0 overflow-auto">
+          <div className="bg-gray-900 flex items-center justify-center p-4 min-h-[320px]">
+            {img
+              ? <img src={img} alt="" className="max-w-full max-h-[78vh] object-contain rounded-lg" />
+              : <div className="text-gray-500 text-6xl">🖼️</div>}
+          </div>
+          <div className="p-5 space-y-4 overflow-auto">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
+              {account && <span className="text-xs text-gray-500">{account}</span>}
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
+              <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{caption || <span className="text-gray-400 italic">No caption</span>}</div>
+            </div>
+            {(igUrl || fbUrl) && (
+              <div className="flex gap-2 pt-1">
+                {igUrl && <a href={igUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-lg hover:bg-brand-dark">View on Instagram ↗</a>}
+                {fbUrl && <a href={fbUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-300">View on Facebook ↗</a>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledPost[]; publishedIG: PublishedIG[]; wide?: boolean; onSelect?: (item: CalendarItem) => void }) {
   const [filter, setFilter] = useState<CalFilter>("all");
 
   const rawItems: CalendarItem[] = [
@@ -1650,7 +1672,7 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
   }
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-100 overflow-hidden ${wide ? "max-w-5xl" : "lg:sticky lg:top-4"}`}>
+    <div className={`bg-white rounded-lg border border-gray-100 overflow-hidden ${wide ? "w-full" : "lg:sticky lg:top-4"}`}>
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
         <div className="text-sm font-semibold text-gray-900">Scheduled &amp; published</div>
         <div className="flex flex-wrap gap-1">
@@ -1687,7 +1709,7 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
                 {sub && <div className="text-[8px] text-violet-700 ml-auto">{sub}</div>}
               </div>
               {/* Compact tiles — more per row when the feed is full-width */}
-              <div className={`grid gap-2 ${wide ? "grid-cols-4 sm:grid-cols-5 lg:grid-cols-6" : "grid-cols-5"}`}>
+              <div className={`grid gap-2 ${wide ? "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10" : "grid-cols-5"}`}>
                 {dayItems.map((it) => {
                   const t = new Date(it.whenMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
                   // Map "Publish To Page" → short handle chip shown under each tile.
@@ -1703,13 +1725,12 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
                     // Published posts today only come from the goocampus fetch (see loadQueue).
                     const handle = handleFor("GooCampus Main");
                     return (
-                      <a
+                      <button
                         key={`pub-${p.id}`}
-                        href={p.permalink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={p.caption ? truncate(p.caption, 140) : "View on Instagram"}
-                        className="group block rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
+                        type="button"
+                        onClick={() => onSelect?.(it)}
+                        title={p.caption ? truncate(p.caption, 140) : "View post"}
+                        className="group block w-full text-left rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
                       >
                         <div className="relative">
                           {p.mediaUrl ? (
@@ -1727,7 +1748,7 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
                         <div className={`text-[8px] px-1 py-0.5 border-t truncate text-center ${handle.color}`}>
                           {handle.short}
                         </div>
-                      </a>
+                      </button>
                     );
                   }
                   const p = it.post;
@@ -1735,10 +1756,12 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
                     ? "bg-blue-500" : p.effectiveStatus === "failed" ? "bg-rose-500" : "bg-amber-400";
                   const handle = handleFor(p.publishToPage);
                   return (
-                    <div
+                    <button
                       key={`sch-${p.id}`}
+                      type="button"
+                      onClick={() => onSelect?.(it)}
                       title={p.particulars || "(untitled)"}
-                      className="rounded-md overflow-hidden border border-amber-200 bg-amber-50"
+                      className="block w-full text-left rounded-md overflow-hidden border border-amber-200 bg-amber-50 hover:border-amber-400 hover:shadow-md transition"
                     >
                       <div className="relative">
                         {p.thumbnailUrl ? (
@@ -1757,7 +1780,7 @@ function MiniPlanner({ posts, publishedIG, wide }: { posts: ScheduledPost[]; pub
                       <div className={`text-[8px] px-1 py-0.5 border-t truncate text-center ${handle.color}`}>
                         {handle.short}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
