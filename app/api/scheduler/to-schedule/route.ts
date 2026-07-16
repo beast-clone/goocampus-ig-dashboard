@@ -39,7 +39,12 @@ export async function GET() {
 
     if (error) throw new Error(error.message);
 
-    const posts = (data || []).map((r) => ({
+    const posts = (data || [])
+      // Only surface rows that actually have a creative to schedule — either an
+      // uploaded media file (Supabase) or a legacy asset link (Slack/Drive). Rows
+      // with neither aren't schedulable yet, so they'd only inflate the count.
+      .filter((r) => ((r.media_urls as string[] | null)?.length ?? 0) > 0 || !!r.output_link)
+      .map((r) => ({
       id: r.id,
       title: r.particulars,
       status: r.status,
