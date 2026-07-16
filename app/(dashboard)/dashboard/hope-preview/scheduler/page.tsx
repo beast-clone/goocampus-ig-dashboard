@@ -66,6 +66,10 @@ const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] 
   { value: "12Plus / GC India",  label: "GooCampus India",      subtitle: "@12thplusdotcom + GC India page" },
 ];
 
+// Soft daily cap per account — warn (don't hard-block) before a day exceeds this many
+// posts, so we don't over-post. Scheduling the (MAX+1)th post on a day triggers the popup.
+const MAX_POSTS_PER_DAY = 4;
+
 const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = [
   { value: "Instagram/Facebook", label: "Instagram + Facebook", icon: "📱" },
   { value: "Instagram",          label: "Instagram only",       icon: "📸" },
@@ -212,6 +216,12 @@ function Scheduler() {
   const [scheduleModalPost, setScheduleModalPost] = useState<ScheduledPost | null>(null);
   // Post pending a delete/reschedule choice (the confirm popup from a Delete click).
   const [deletePost, setDeletePost] = useState<ScheduledPost | null>(null);
+  // Over-posting guard: when a target day already has MAX_POSTS_PER_DAY posts, hold the
+  // pending schedule here and show the warning popup instead of committing straight away.
+  const [capWarn, setCapWarn] = useState<{
+    dateLabel: string; page: string; existing: ScheduledPost[];
+    onProceed: () => void | Promise<void>; onPickAnother: () => void;
+  } | null>(null);
 
   // Real published IG posts across ALL 3 GooCampus accounts — shown alongside the
   // scheduled posts in the Content Calendar. Each post is tagged with its account
@@ -349,15 +359,48 @@ function Scheduler() {
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
   const canSubmit = particulars.trim().length > 0 && caption.trim().length > 0 && cleanMediaUrls.length > 0 && !submitting;
 
+  // Posts already committed to the same local day for a given account (scheduled,
+  // publishing, or already published). Used by the over-posting guard.
+  function postsOnDay(iso: string, page: string, excludeId?: string): ScheduledPost[] {
+    const day = new Date(iso).toLocaleDateString("en-CA"); // local YYYY-MM-DD
+    return queue.filter((p) => {
+      if (excludeId && p.id === excludeId) return false;
+      if (page && p.publishToPage !== page) return false;
+      if (!["scheduled", "publishing", "published"].includes(p.effectiveStatus)) return false;
+      const t = p.scheduleTime || p.publishedAt;
+      return !!t && new Date(t).toLocaleDateString("en-CA") === day;
+    });
+  }
+  function dayLabel(iso: string): string {
+    return new Date(iso).toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  }
+
   async function submit() {
+    let scheduleTimeISO: string | undefined;
+    if (scheduleEnabled && scheduleDate && scheduleTime) {
+      const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
+      if (!Number.isNaN(local.getTime())) scheduleTimeISO = local.toISOString();
+    }
+    // Over-posting guard — if that day+account is already full, warn before committing.
+    if (scheduleTimeISO) {
+      const existing = postsOnDay(scheduleTimeISO, publishToPage, schedulingTaskId || undefined);
+      if (existing.length >= MAX_POSTS_PER_DAY) {
+        const iso = scheduleTimeISO;
+        setCapWarn({
+          dateLabel: dayLabel(iso), page: publishToPage, existing,
+          onProceed: () => { setCapWarn(null); doEnqueue(iso); },
+          onPickAnother: () => setCapWarn(null),
+        });
+        return;
+      }
+    }
+    doEnqueue(scheduleTimeISO);
+  }
+
+  async function doEnqueue(scheduleTimeISO?: string) {
     setSubmitting(true);
     setResult(null);
     try {
-      let scheduleTimeISO: string | undefined;
-      if (scheduleEnabled && scheduleDate && scheduleTime) {
-        const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
-        if (!Number.isNaN(local.getTime())) scheduleTimeISO = local.toISOString();
-      }
       // Supabase-native: write the post into the mh_posts publish queue. Updates the
       // Output-Ready task in place when scheduling one (schedulingTaskId), else inserts.
       const res = await fetch("/api/scheduler/enqueue", {
@@ -802,25 +845,52 @@ function Scheduler() {
           post={scheduleModalPost}
           onClose={() => setScheduleModalPost(null)}
           onConfirm={async (iso, pages) => {
-            // Single page → update the row in place. Multiple pages → cross-post
-            // (updates original + duplicates once per additional page).
-            if (pages.length <= 1) {
-              await handleReschedule(scheduleModalPost.id, iso);
-            } else {
-              setRowActionId(scheduleModalPost.id);
-              try {
-                const r = await fetch("/api/scheduler/schedule-multi", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ recordId: scheduleModalPost.id, scheduleTime: iso, pages }),
-                });
-                const d = await r.json();
-                if (!r.ok || d.error) alert(`Cross-post failed: ${d.error || "HTTP " + r.status}`);
-                else loadQueue();
-              } finally { setRowActionId(null); }
+            const post = scheduleModalPost;
+            const commit = async () => {
+              // Single page → update the row in place. Multiple pages → cross-post
+              // (updates original + duplicates once per additional page).
+              if (pages.length <= 1) {
+                await handleReschedule(post.id, iso);
+              } else {
+                setRowActionId(post.id);
+                try {
+                  const r = await fetch("/api/scheduler/schedule-multi", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ recordId: post.id, scheduleTime: iso, pages }),
+                  });
+                  const d = await r.json();
+                  if (!r.ok || d.error) alert(`Cross-post failed: ${d.error || "HTTP " + r.status}`);
+                  else loadQueue();
+                } finally { setRowActionId(null); }
+              }
+              setScheduleModalPost(null);
+            };
+            // Over-posting guard — check the primary account for that day (exclude self).
+            const primary = pages[0] || post.publishToPage;
+            const existing = postsOnDay(iso, primary, post.id);
+            if (existing.length >= MAX_POSTS_PER_DAY) {
+              setCapWarn({
+                dateLabel: dayLabel(iso), page: primary, existing,
+                onProceed: async () => { setCapWarn(null); await commit(); },
+                onPickAnother: () => setCapWarn(null), // leaves the picker open to choose again
+              });
+              return;
             }
-            setScheduleModalPost(null);
+            await commit();
           }}
+        />
+      )}
+
+      {/* Over-posting warning — a day already has MAX_POSTS_PER_DAY posts */}
+      {capWarn && (
+        <DayCapWarningModal
+          dateLabel={capWarn.dateLabel}
+          page={capWarn.page}
+          existing={capWarn.existing}
+          pageHandle={pageHandle}
+          onProceed={capWarn.onProceed}
+          onPickAnother={capWarn.onPickAnother}
         />
       )}
 
@@ -1258,6 +1328,67 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Over-posting guard popup. Lists the posts already committed to that day (name + time),
+// each expandable inline to show its creative + caption, with "Schedule anyway" / "Pick
+// another date" at the bottom.
+function DayCapWarningModal({ dateLabel, page, existing, pageHandle, onProceed, onPickAnother }: {
+  dateLabel: string;
+  page: string;
+  existing: ScheduledPost[];
+  pageHandle: (page: string) => string;
+  onProceed: () => void | Promise<void>;
+  onPickAnother: () => void;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const fmtTime = (iso: string | null) => iso
+    ? new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+    : "—";
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={onPickAnother}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-2">
+          <span className="text-lg leading-none">⚠️</span>
+          <div>
+            <div className="text-base font-semibold text-gray-900">Already {existing.length} post{existing.length === 1 ? "" : "s"} scheduled that day</div>
+            <div className="text-[13px] text-gray-500 mt-1">
+              {pageHandle(page)} already has {existing.length} post{existing.length === 1 ? "" : "s"} going out on <span className="font-medium text-gray-700">{dateLabel}</span>. Scheduling this makes it {existing.length + 1}. Review what&apos;s planned, then schedule anyway or pick another date.
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 border border-gray-100 rounded-xl divide-y divide-gray-100 overflow-hidden">
+          {existing.map((p) => (
+            <div key={p.id}>
+              <button onClick={() => setOpenId(openId === p.id ? null : p.id)}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
+                  <div className="text-[11px] text-gray-500">{p.type || "Post"}</div>
+                </div>
+                <div className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">{fmtTime(p.scheduleTime || p.publishedAt)}</div>
+                <span className="text-gray-300 text-[10px] flex-shrink-0">{openId === p.id ? "▲" : "▼"}</span>
+              </button>
+              {openId === p.id && (
+                <div className="px-3.5 pb-3 flex gap-3">
+                  <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                    {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="text-[12px] text-gray-600 whitespace-pre-wrap flex-1 max-h-32 overflow-y-auto">{p.fullCaption || p.caption || "No caption"}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button onClick={onPickAnother}
+            className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Pick another date</button>
+          <button onClick={onProceed}
+            className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark">Schedule anyway</button>
+        </div>
+      </div>
     </div>
   );
 }
