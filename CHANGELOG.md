@@ -3,6 +3,38 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-16 — Scheduler goes Supabase-only + Post Planner becomes a Perplexity-ranked drag-drop calendar
+
+All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_posts`) — no Airtable writes; the only remaining Airtable use is reading post captions from the Content Calendar's Content field.
+
+**Post Planner** (`/dashboard/hope-preview/post-planner`) — reworked from a static ranked list into a two-tab, drag-and-drop calendar for @12thplus:
+
+- **Two calendar tabs** — **AI post planner** (AI-suggested order) and **Publishing calendar** (the team's real `publishing_date`s), with month navigation.
+- **Drag to reschedule** — drop a post on a new day → writes `publishing_date` to Supabase, so it reflects in the team's Marketing Hub. An in-app "moved" note is stamped on the row as the owner's notification.
+- **Ownership guard** — a post being worked on (status Content-Approved and due within 1 day) shows an "already being worked on" popup before it can be moved.
+- **Daily-limit guard** — @12thplus max 2/day; moving/accepting onto a full day asks first.
+- **Right-hand detail sidebar** (replaces the popup) — creative (carousel/video, or a "View creative in Slack" link when media isn't uploaded), caption (fetched from the Content field), owner/status/date, and "Why the AI put it here" on the planner tab.
+- **Accept flow** — per-post "Add to <date>" button + "Apply plan" to write all suggested dates at once. Nothing auto-applies; you confirm.
+- **Web-search-grounded, trend-aware ranking** — reads each post's real content and ranks by what's currently trending in India. Runs on **Perplexity `sonar`** (provider is env-swappable), with a "🔎 Ranked with live web search" badge and a graceful fallback ranker if the search model fails. Trimmed for speed (~35s → ~21s cold, cached 30 min); Perplexity `[2][5]` source markers stripped from the copy.
+- **Recommended-order numbers** on planner cards (1 = publish first) + a highlight on the selected card, so the summary's post names map to visible cards. AI reasoning shows only on the AI planner tab.
+
+**Scheduler** (`/dashboard/hope-preview/scheduler`):
+
+- **Fixed** — every write endpoint (reschedule, publish-now, edit-caption, retry, schedule-multi) was still writing to Airtable and rejecting the Supabase UUIDs; repointed all to `mh_posts`.
+- **Fixed** — Queue/Calendar now read from Supabase (`fetchScheduledQueueFromSupabase`), not the legacy Airtable table, so scheduled posts appear and counters update; killed stale caching on the read APIs.
+- **Fixed** — "Ready to schedule" shows the true count (removed the cap) and only counts rows that actually have a creative.
+- **Added** — clickable status counters that filter the list (Ready / Scheduled / Publishing / Published / Failed); per-row **Reschedule** and **Delete** (Delete unschedules — reversible — via a confirm popup); per-account daily over-posting guard (GooCampus Main 4/day, World 2/day, 12Plus 2/day) with a "Daily limit reached" dialog; calendar post preview with carousel slide-by-slide + inline video.
+- **Changed** — Calendar tab is now Published-only (dropped the scheduled list that duplicated the Scheduled filter).
+- **Removed** — dead Airtable helpers (`fetchScheduledPosts`, `updateScheduleTime`, `publishNow`, `updatePostCaption`, `retryStuckPost`, `scheduleMulti`, `airtablePatch`).
+
+**Backend & infrastructure:**
+
+- New endpoints: `POST /api/scheduler/cancel`, `POST /api/post-planner/move`, `POST /api/post-planner/apply`.
+- New `mh_posts` columns `planner_note` / `planner_note_at` (migration `post_planner_move_tracking`) for the in-app move notification.
+- Search-provider config: `PLANNER_SEARCH_BASE_URL`, `PLANNER_SEARCH_KEY`, `PLANNER_SEARCH_MODEL` (Perplexity when set; model auto-defaults to `sonar`). Lives in `.env.local` (git-ignored), per machine.
+
+**Known limitation:** the actual carousel **images** for @12thplus posts live in private Slack and can't render inline yet (shown as a "View creative in Slack" link); captions and details work. Real creatives need Slack access (files:read + a proxy) or the creatives uploaded into the dashboard (`media_urls`).
+
 ## 2026-07-15 — Hope My Day V2: full workflow (capacity pipeline, Start/End day, team page) + working tabs
 
 Built the standalone Hope-UI **My Day V2** (`/dashboard/hope-preview/my-day`) up from a static design preview into a rich, working prototype. Still an **in-memory mock** (hardcoded seed data, resets on reload — not yet wired to Supabase). V1 (the original `/dashboard`) is untouched and separate.
