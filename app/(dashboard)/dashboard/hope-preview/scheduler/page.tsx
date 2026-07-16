@@ -766,28 +766,7 @@ function Scheduler() {
         {/* LEFT — form */}
         <div className="lg:col-span-7 space-y-4">
           <Card title="Post to">
-            <div className="space-y-2">
-              {PAGE_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${
-                    publishToPage === opt.value ? "border-brand bg-brand-light/40" : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="page"
-                    checked={publishToPage === opt.value}
-                    onChange={() => setPublishToPage(opt.value)}
-                    className="accent-brand"
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">{opt.label}</div>
-                    <div className="text-xs text-gray-500">{opt.subtitle}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <PageDropdown value={publishToPage} onChange={setPublishToPage} />
           </Card>
 
           <Card title="Media" subtitle="Drop a file to upload, or paste a URL (Slack / Drive / direct image / video). For carousels add multiple (max 10).">
@@ -821,13 +800,7 @@ function Scheduler() {
 
               <div>
                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                <textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Write your caption…"
-                  rows={6}
-                  className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
-                />
+                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-[10px] text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
@@ -924,54 +897,21 @@ function Scheduler() {
           </Card>
         </div>
 
-        {/* RIGHT — Instagram preview */}
+        {/* RIGHT — live preview with an Instagram / Facebook / LinkedIn switcher */}
         <div className="lg:col-span-5">
           <div className="sticky top-6">
-            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-3">Instagram Feed preview</div>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden max-w-sm mx-auto">
-              {/* Header */}
-              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-medium">
-                  {previewHandle.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="text-sm font-semibold text-gray-900">{previewHandle}</div>
-                <div className="ml-auto text-gray-400">⋯</div>
-              </div>
-              {/* Media */}
-              <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
-                {previewImage ? (
-                  <img
-                    src={previewImage}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
-                ) : (
-                  <div className="text-center text-gray-300 p-8">
-                    <div className="text-5xl mb-2">🖼️</div>
-                    <div className="text-xs">Paste a media URL above to preview</div>
-                  </div>
-                )}
-              </div>
-              {/* Action bar */}
-              <div className="flex items-center gap-4 px-3 py-2 text-xl">
-                <span>♡</span>
-                <span>💬</span>
-                <span>↗</span>
-                <span className="ml-auto">🔖</span>
-              </div>
-              {/* Caption */}
-              <div className="px-3 pb-3 text-xs">
-                <span className="font-semibold mr-1.5">{previewHandle}</span>
-                <span className="text-gray-800 whitespace-pre-wrap">
-                  {caption ? (caption.length > 220 ? caption.slice(0, 220) + "… more" : caption) : <span className="text-gray-400 italic">Your caption will appear here</span>}
-                </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
+              <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
+                {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
+                  <button key={p} type="button" onClick={() => setPreviewPlatform(p)}
+                    className={`text-[11px] font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                    {p}
+                  </button>
+                ))}
               </div>
             </div>
-
-            <div className="mt-3 text-[10px] text-gray-400 text-center">
-              Carousel slides + reel videos render as the first frame here. The actual post on IG matches your media list.
-            </div>
+            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={cleanMediaUrls} caption={caption} />
           </div>
         </div>
       </div>
