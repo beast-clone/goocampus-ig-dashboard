@@ -154,7 +154,7 @@ export async function GET(req: Request) {
     // so the ranker searches the web for the actual topic, not just the title. ----
     const contentPairs = await Promise.all(candidates.map(async (c) => {
       if (!c.airtable_record_id) return [c.id, ""] as const;
-      try { const { content } = await fetchContentCalendarBody(c.airtable_record_id); return [c.id, snippet(content, 400)] as const; }
+      try { const { content } = await fetchContentCalendarBody(c.airtable_record_id); return [c.id, snippet(content, 180)] as const; }
       catch { return [c.id, ""] as const; }
     }));
     const contentById = new Map(contentPairs);
@@ -166,7 +166,7 @@ export async function GET(req: Request) {
       candidates: candidates.map((c) => ({
         id: c.id, title: c.particulars || "", type: c.type || "", status: c.status || "",
         priority: c.priority || "",
-        content: contentById.get(c.id) || snippet(c.caption || c.content, 200),
+        content: contentById.get(c.id) || snippet(c.caption || c.content, 120),
       })),
     };
 
@@ -182,8 +182,8 @@ export async function GET(req: Request) {
       "Each CANDIDATE has a title and its ACTUAL content (the carousel slides / body). First, for EACH candidate, derive its real topic from the content (e.g. 'top BSc courses', 'NEET UG cutoff', 'IT courses after 12th') and SEARCH THE WEB to judge how much interest/attention that topic has RIGHT NOW in India — recent news, seasonality (results/admissions/exam dates), rising search interest.",
       "THEN decide the ORDER to publish the candidates. A 24-HOUR minimum gap is enforced separately — focus on order and topic/format spacing, not exact times.",
       "RANK by, in priority: (a) topics that are TRENDING or timely right now go earlier; (b) what has historically performed for this account (whatWorks); (c) 'priority' where set; (d) never place two SAME-topic or SAME-format posts back-to-back (they cannibalise each other's reach); (e) alternate formats for feed variety; (f) if a candidate is too similar to the LAST published post, push it later or move it to hold.",
-      "In each reason, cite the REAL trend finding when relevant, e.g. 'BSc course searches spike right after board results — lead with this'.",
-      "Return ONLY a JSON object, no prose around it: { summary: string (1 sentence), insight: string (1 sentence on what's timely/works for this account right now), order: [{ id, reason (1 concrete sentence), tags: string[] }] (every candidate id, in publish order), hold: [{ id, reason }] (optional) }.",
+      "Do ALL your web searching in this one pass, then answer. Keep every reason SHORT — one plain clause, max ~14 words — citing the trend when relevant (e.g. 'trending: BSc searches spike after board results'). No source markers like [1].",
+      "Return ONLY a JSON object, no prose around it: { summary: string (1 short sentence), insight: string (1 short sentence on what's timely right now), order: [{ id, reason (short), tags: string[] }] (every candidate id, in publish order), hold: [{ id, reason }] (optional) }.",
       "tags are short labels like: 'trending now', 'timely', 'proven format', 'different topic', 'format variety', 'complements last post', 'fresh angle', 'priority'.",
     ].join("\n");
 
@@ -193,6 +193,7 @@ export async function GET(req: Request) {
         const sc = new OpenAI({ apiKey: searchKey, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
         const resp = await sc.chat.completions.create({
           model: SEARCH_MODEL,
+          max_tokens: 1200,
           messages: [ { role: "system", content: searchSystem }, { role: "user", content: JSON.stringify(ctx) } ],
         });
         ai = parseLooseJson<AIOrder>(resp.choices[0]?.message?.content || "") || {};
