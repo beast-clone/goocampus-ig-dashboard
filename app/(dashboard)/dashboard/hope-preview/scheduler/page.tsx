@@ -1514,7 +1514,6 @@ type CalendarItem =
   | { kind: "published"; whenMs: number; post: PublishedIG };
 
 type CalFilter = "all" | "today" | "yesterday" | "week" | "upcoming";
-type IGComment = { id: string; text: string; username?: string; timestamp: string; like_count?: number; replies?: { data?: IGComment[] } };
 
 // Big full-screen view of a scheduled or published post — opened from the calendar.
 // View-only: media, caption, status, account, and permalinks. Handles both kinds.
@@ -1532,42 +1531,6 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   const statusColor: Record<string, string> = {
     published: "bg-emerald-50 text-emerald-700", publishing: "bg-blue-50 text-blue-700",
     failed: "bg-rose-50 text-rose-700", scheduled: "bg-amber-50 text-amber-700",
-  };
-
-  // Live comments — fetched when the popup opens (published posts only); reply publishes back.
-  const mediaId = isPub ? p.id : null;
-  const [comments, setComments] = useState<IGComment[]>([]);
-  const [cLoading, setCLoading] = useState(false);
-  const [cError, setCError] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const [sending, setSending] = useState(false);
-  const loadComments = () => {
-    if (!mediaId) return;
-    setCLoading(true); setCError(null);
-    fetch(`/api/scheduler/comments?mediaId=${encodeURIComponent(mediaId)}`)
-      .then((r) => r.json())
-      .then((d: { comments?: IGComment[]; error?: string }) => { if (d.error) setCError(d.error); else setComments(d.comments || []); })
-      .catch((e) => setCError((e as Error).message))
-      .finally(() => setCLoading(false));
-  };
-  useEffect(() => { loadComments(); }, [mediaId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sendReply = async (commentId: string) => {
-    const msg = replyText.trim(); if (!msg) return;
-    setSending(true);
-    try {
-      const r = await fetch("/api/scheduler/comments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, message: msg }) });
-      const d = await r.json();
-      if (!r.ok || d.error) alert(`Reply failed: ${d.error || "HTTP " + r.status}`);
-      else { setReplyText(""); setReplyingTo(null); setTimeout(loadComments, 800); }
-    } finally { setSending(false); }
-  };
-  const timeAgo = (ts: string) => {
-    const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-    if (s < 60) return "just now";
-    if (s < 3600) return `${Math.floor(s / 60)}m`;
-    if (s < 86400) return `${Math.floor(s / 3600)}h`;
-    return `${Math.floor(s / 86400)}d`;
   };
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
@@ -1612,39 +1575,6 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
               <div className="flex gap-2 pt-1">
                 {igUrl && <a href={igUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-lg hover:bg-brand-dark">View on Instagram ↗</a>}
                 {fbUrl && <a href={fbUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-300">View on Facebook ↗</a>}
-              </div>
-            )}
-
-            {isPub && (
-              <div className="pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Comments{comments.length > 0 ? ` · ${comments.length}` : ""}</div>
-                  <button onClick={loadComments} className="text-[11px] text-gray-400 hover:text-gray-700">↻ Refresh</button>
-                </div>
-                {cLoading && <div className="text-xs text-gray-400">Loading comments…</div>}
-                {cError && <div className="text-xs text-rose-600">Couldn&apos;t load comments: {cError}</div>}
-                {!cLoading && !cError && comments.length === 0 && <div className="text-xs text-gray-400">No comments yet.</div>}
-                <div className="space-y-3">
-                  {comments.map((c) => (
-                    <div key={c.id} className="text-sm">
-                      <div><span className="font-medium text-gray-900">{c.username || "user"}</span> <span className="text-gray-800">{c.text}</span></div>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
-                        <span>{timeAgo(c.timestamp)}</span>
-                        {(c.like_count ?? 0) > 0 && <span>{c.like_count} likes</span>}
-                        <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyText(""); }} className="hover:text-gray-700 font-medium">Reply</button>
-                      </div>
-                      {c.replies?.data?.map((rr) => (
-                        <div key={rr.id} className="ml-5 mt-2 text-sm"><span className="font-medium text-gray-900">{rr.username || "user"}</span> <span className="text-gray-800">{rr.text}</span> <span className="text-[11px] text-gray-400">· {timeAgo(rr.timestamp)}</span></div>
-                      ))}
-                      {replyingTo === c.id && (
-                        <div className="ml-5 mt-2 flex gap-2">
-                          <input value={replyText} onChange={(e) => setReplyText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendReply(c.id); } }} autoFocus placeholder="Write a reply…" className="flex-1 text-sm rounded-lg border border-gray-200 px-3 py-1.5" />
-                          <button onClick={() => sendReply(c.id)} disabled={sending || !replyText.trim()} className="text-xs font-medium bg-brand text-white px-3 rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed">{sending ? "…" : "Reply"}</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>
