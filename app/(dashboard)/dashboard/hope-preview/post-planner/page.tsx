@@ -25,6 +25,7 @@ type Payload = {
 type CalCard = {
   id: string; title: string; type: string; owner: string; status: string;
   eff: string; note: string | null; reason: string; tags: string[]; beingWorkedOn: boolean;
+  thumbnailUrl: string | null;
 };
 
 // The team starts working a post ~this many days before its publish date, so an
@@ -82,6 +83,7 @@ function Planner() {
   const [view, setView] = useState<{ y: number; m: number } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [guard, setGuard] = useState<{ card: CalCard; targetISO: string } | null>(null);
+  const [detail, setDetail] = useState<CalCard | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
   // Optimistic local date overrides so drags feel instant.
@@ -118,7 +120,7 @@ function Planner() {
           if (!eff) return null;
           return {
             id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
-            eff, note: p.note, reason: "", tags: [],
+            eff, note: p.note, reason: "", tags: [], thumbnailUrl: p.thumbnailUrl,
             beingWorkedOn: beingWorkedOn(p.status, pubOverride[p.id] || p.publishingDate),
           } as CalCard;
         })
@@ -127,7 +129,7 @@ function Planner() {
     return data.plan.map((p) => ({
       id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
       eff: planOverride[p.id] || p.suggestedTime, note: null, reason: p.reason, tags: p.tags,
-      beingWorkedOn: false,
+      beingWorkedOn: false, thumbnailUrl: p.thumbnailUrl,
     }));
   }, [data, tab, pubOverride, planOverride]);
 
@@ -238,6 +240,7 @@ function Planner() {
             <MonthGrid
               view={view} byDay={byDay} mode={tab}
               dragId={dragId} onDragStart={setDragId} onDrop={onDropDay} busy={busy}
+              onOpen={setDetail}
             />
           )}
 
@@ -292,11 +295,55 @@ function Planner() {
           </div>
         </div>
       )}
+
+      {/* Post detail — "why this slot" on the AI tab, full info on the publishing tab */}
+      {detail && (() => {
+        const chip = typeChip(detail.type);
+        const oc = ownerColor(detail.owner);
+        const when = new Date(detail.eff).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
+        const isPlan = !!detail.reason;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                  <div className="text-[15px] font-semibold text-gray-900 leading-snug mt-1.5">{detail.title || "(untitled)"}</div>
+                </div>
+                <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                {detail.thumbnailUrl && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={detail.thumbnailUrl} alt="" className="w-full max-h-52 object-contain rounded-lg bg-gray-50 border border-gray-100" />
+                )}
+                {isPlan && (
+                  <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
+                    <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
+                    <div className="text-[13px] text-gray-700 leading-relaxed">{detail.reason}</div>
+                    {detail.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {detail.tags.map((t) => <span key={t} className="text-[10.5px] px-2 py-0.5 rounded-full bg-brand-light/60 text-brand">{t}</span>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[12.5px] pt-1">
+                  <div><div className="text-gray-400 text-[11px] mb-0.5">{isPlan ? "Suggested for" : "Publishing on"}</div><div className="text-gray-800 font-medium">{when}</div></div>
+                  <div><div className="text-gray-400 text-[11px] mb-0.5">Owner</div><div className="text-gray-800 font-medium flex items-center gap-1.5">{detail.owner ? <><span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center" style={{ background: oc.bg, color: oc.fg }}>{detail.owner[0].toUpperCase()}</span>{detail.owner}</> : "—"}</div></div>
+                  <div><div className="text-gray-400 text-[11px] mb-0.5">Workflow status</div><div className="text-gray-800 font-medium">{detail.status || "—"}</div></div>
+                  {detail.note && <div><div className="text-gray-400 text-[11px] mb-0.5">Last change</div><div className="text-amber-700 font-medium">{detail.note}</div></div>}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
-function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy }: {
+function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpen }: {
   view: { y: number; m: number };
   byDay: Record<string, CalCard[]>;
   mode: "plan" | "pub";
@@ -304,6 +351,7 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy }: {
   onDragStart: (id: string) => void;
   onDrop: (dayKey: string) => void;
   busy: boolean;
+  onOpen: (card: CalCard) => void;
 }) {
   const first = new Date(view.y, view.m, 1);
   const startOffset = (first.getDay() + 6) % 7; // Monday-first
@@ -339,6 +387,7 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy }: {
                   const oc = ownerColor(c.owner);
                   return (
                     <div key={c.id} draggable onDragStart={() => onDragStart(c.id)} onDragEnd={() => onDragStart("")}
+                      onClick={() => onOpen(c)} title="Click for details · drag to reschedule"
                       className="bg-white border border-gray-200 rounded-lg p-1.5 cursor-grab active:cursor-grabbing hover:border-brand transition">
                       <div className="flex items-center gap-1">
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
