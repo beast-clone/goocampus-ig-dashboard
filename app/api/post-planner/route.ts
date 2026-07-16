@@ -7,8 +7,10 @@ import { safeError } from "@/lib/errors";
 
 // Web-search-grounded ranking. Defaults to OpenAI's web-search model; swap to Perplexity
 // later purely via env (PLANNER_SEARCH_BASE_URL=https://api.perplexity.ai, _KEY, _MODEL=sonar).
-const SEARCH_MODEL = process.env.PLANNER_SEARCH_MODEL || "gpt-4o-mini-search-preview";
 const SEARCH_BASE_URL = process.env.PLANNER_SEARCH_BASE_URL || undefined;
+// When pointed at a custom provider (Perplexity), default to its search model 'sonar';
+// otherwise use OpenAI's web-search model. Override either way with PLANNER_SEARCH_MODEL.
+const SEARCH_MODEL = process.env.PLANNER_SEARCH_MODEL || (SEARCH_BASE_URL ? "sonar" : "gpt-4o-mini-search-preview");
 
 // Pull a plain-JSON object out of a model reply that may wrap it in prose / code fences.
 function parseLooseJson<T>(text: string): T | null {
@@ -168,7 +170,9 @@ export async function GET(req: Request) {
 
     type AIOrder = { summary?: string; insight?: string; order?: { id: string; reason?: string; tags?: string[] }[]; hold?: { id: string; reason?: string }[] };
     let ai: AIOrder = {};
-    const key = process.env.OPENAI_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    // The search provider (Perplexity when PLANNER_SEARCH_KEY is set, else OpenAI).
+    const searchKey = process.env.PLANNER_SEARCH_KEY || openaiKey;
 
     const searchSystem = [
       "You schedule Instagram posts for @12thplus — an Indian education account for students after 12th grade (NEET UG, courses/careers after 12th, competitive exams, colleges).",
@@ -180,10 +184,10 @@ export async function GET(req: Request) {
       "tags are short labels like: 'trending now', 'timely', 'proven format', 'different topic', 'format variety', 'complements last post', 'fresh angle', 'priority'.",
     ].join("\n");
 
-    if (key) {
-      // 1) Web-search-grounded ranker (OpenAI search model by default; Perplexity via env).
+    if (searchKey) {
+      // 1) Web-search-grounded ranker (Perplexity when configured, else OpenAI search model).
       try {
-        const sc = new OpenAI({ apiKey: process.env.PLANNER_SEARCH_KEY || key, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
+        const sc = new OpenAI({ apiKey: searchKey, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
         const resp = await sc.chat.completions.create({
           model: SEARCH_MODEL,
           messages: [ { role: "system", content: searchSystem }, { role: "user", content: JSON.stringify(ctx) } ],
@@ -191,9 +195,10 @@ export async function GET(req: Request) {
         ai = parseLooseJson<AIOrder>(resp.choices[0]?.message?.content || "") || {};
       } catch { ai = {}; }
 
-      // 2) Fallback to a plain (non-search) ranker if the search model failed / returned nothing.
-      if (!ai.order || ai.order.length === 0) try {
-        const client = new OpenAI({ apiKey: key });
+      // 2) Fallback to a plain (non-search) OpenAI ranker if the search model failed / returned
+      //    nothing — only if an OpenAI key exists (skipped in a Perplexity-only setup).
+      if (openaiKey && (!ai.order || ai.order.length === 0)) try {
+        const client = new OpenAI({ apiKey: openaiKey });
         const resp = await client.chat.completions.create({
           model: "gpt-4o-mini",
           temperature: 0.4,
