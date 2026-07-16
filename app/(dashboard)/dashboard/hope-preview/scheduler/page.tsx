@@ -1360,45 +1360,55 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
     ? new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
     : "—";
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={onPickAnother}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start gap-2">
-          <span className="text-lg leading-none">⚠️</span>
-          <div>
-            <div className="text-base font-semibold text-gray-900">Daily limit reached — {pageHandle(page)}&apos;s limit is {limit}/day</div>
-            <div className="text-[13px] text-gray-500 mt-1">
-              {pageHandle(page)} already has {existing.length} post{existing.length === 1 ? "" : "s"} going out on <span className="font-medium text-gray-700">{dateLabel}</span> (its daily limit is {limit}). Scheduling this makes it {existing.length + 1}. Review what&apos;s planned, then schedule anyway or pick another date.
-            </div>
+    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={onPickAnother}>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header bar */}
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 bg-amber-50">
+          <span className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-base flex-shrink-0">⚠️</span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-semibold text-gray-900 leading-tight">Daily limit reached</div>
+            <div className="text-[12px] text-amber-700">{pageHandle(page)} · limit {limit}/day</div>
+          </div>
+          <button onClick={onPickAnother} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 overflow-y-auto">
+          <div className="text-[13px] text-gray-600">
+            {pageHandle(page)} already has <span className="font-semibold text-gray-900">{existing.length}</span> post{existing.length === 1 ? "" : "s"} scheduled for <span className="font-medium text-gray-800">{dateLabel}</span>, which is its daily limit of {limit}. Scheduling this one makes it <span className="font-semibold text-gray-900">{existing.length + 1}</span>.
+          </div>
+          <div className="text-[11px] uppercase tracking-wide font-medium text-gray-400 mt-4 mb-2">Already planned that day</div>
+          <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+            {existing.map((p) => (
+              <div key={p.id}>
+                <button onClick={() => setOpenId(openId === p.id ? null : p.id)}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
+                    <div className="text-[11px] text-gray-500">{p.type || "Post"}</div>
+                  </div>
+                  <div className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">{fmtTime(p.scheduleTime || p.publishedAt)}</div>
+                  <span className="text-gray-300 text-[10px] flex-shrink-0">{openId === p.id ? "▲" : "▼"}</span>
+                </button>
+                {openId === p.id && (
+                  <div className="px-3.5 pb-3 flex gap-3 bg-gray-50/60">
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 mt-2">
+                      {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="text-[12px] text-gray-600 whitespace-pre-wrap flex-1 max-h-32 overflow-y-auto pt-2">{p.fullCaption || p.caption || "No caption"}</div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="mt-4 border border-gray-100 rounded-xl divide-y divide-gray-100 overflow-hidden">
-          {existing.map((p) => (
-            <div key={p.id}>
-              <button onClick={() => setOpenId(openId === p.id ? null : p.id)}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
-                  <div className="text-[11px] text-gray-500">{p.type || "Post"}</div>
-                </div>
-                <div className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">{fmtTime(p.scheduleTime || p.publishedAt)}</div>
-                <span className="text-gray-300 text-[10px] flex-shrink-0">{openId === p.id ? "▲" : "▼"}</span>
-              </button>
-              {openId === p.id && (
-                <div className="px-3.5 pb-3 flex gap-3">
-                  <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-                    {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
-                  </div>
-                  <div className="text-[12px] text-gray-600 whitespace-pre-wrap flex-1 max-h-32 overflow-y-auto">{p.fullCaption || p.caption || "No caption"}</div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-end gap-2 mt-5">
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/50">
           <button onClick={onPickAnother}
-            className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Pick another date</button>
+            className="text-xs font-medium px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">Pick another date</button>
           <button onClick={onProceed}
-            className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark">Schedule anyway</button>
+            className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark">Schedule anyway</button>
         </div>
       </div>
     </div>
