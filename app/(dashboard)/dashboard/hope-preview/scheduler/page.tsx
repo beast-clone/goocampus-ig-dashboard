@@ -135,7 +135,7 @@ function Scheduler() {
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
   const loadToSchedule = () => {
     setToScheduleLoading(true);
-    fetch("/api/scheduler/to-schedule")
+    fetch("/api/scheduler/to-schedule", { cache: "no-store" })
       .then((r) => r.json())
       .then((d: { posts?: ToScheduleItem[] }) => setToSchedule(d.posts || []))
       .catch(() => {})
@@ -233,7 +233,7 @@ function Scheduler() {
     setQueueLoading(true);
     setQueueError(null);
     const t0 = Date.now();
-    fetch("/api/scheduler/queue")
+    fetch("/api/scheduler/queue", { cache: "no-store" })
       .then(async (r) => {
         const body = await r.text();
         if (!r.ok) throw new Error(`HTTP ${r.status}: ${body.slice(0, 200)}`);

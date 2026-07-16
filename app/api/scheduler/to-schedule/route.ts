@@ -7,6 +7,10 @@ import { getSupabase } from "@/lib/supabase";
 // mh_posts rows whose content-workflow status is Output-Ready or Ready-to-Publish
 // (and not yet handed to the publish queue). Supabase-native, no Airtable.
 
+// Never cache — must reflect enqueue writes immediately (a just-scheduled post
+// should drop off this list on the next refresh).
+export const dynamic = "force-dynamic";
+
 const READY_STATUSES = ["Output - Ready", "Ready to Publish"];
 
 // Best-effort default IG/FB account from the content's SBU (interest). The person

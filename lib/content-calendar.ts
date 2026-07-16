@@ -6,6 +6,7 @@
 // publishes within ~1 min -> Telegram notifier marks Published. Worst-case lag ~2 min.
 
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { getSupabase } from "@/lib/supabase";
 
 const BASE_ID = "appLdJFTrothBLDc0";
 const CONTENT_CALENDAR_TABLE = "tblRlOFss2lDKE9EG";   // Content Calendar (where new posts go)
@@ -256,6 +257,94 @@ export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]>
     };
     const { effective, failureReason } = deriveStatus(base);
     return { ...base, effectiveStatus: effective, failureReason };
+  });
+}
+
+// Supabase-native queue. Reads mh_posts rows that have entered the publish pipeline
+// (publish_status is set), so the Calendar/Scheduled counters reflect exactly what
+// the enqueue action wrote. The legacy Airtable Post Scheduler queue (fetchScheduledPosts
+// above) is kept only for the old V1 page — the V2/Supabase scheduler uses this.
+type MhQueueRow = {
+  id: string;
+  particulars: string | null;
+  sbu: string | null;
+  type: string | null;
+  caption: string | null;
+  media_urls: string[] | null;
+  publish_to: string | null;
+  publish_to_page: string | null;
+  publish_to_pages: string[] | null;
+  schedule_time: string | null;
+  publish_status: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  published_at: string | null;
+};
+
+function deriveSupabaseStatus(
+  ps: string | null,
+  scheduleTime: string | null,
+  hasUrl: boolean,
+): { effective: EffectiveStatus; failureReason: string | null } {
+  const now = Date.now();
+  const schedMs = scheduleTime ? new Date(scheduleTime).getTime() : null;
+  switch ((ps || "").toLowerCase()) {
+    case "published":
+      return { effective: "published", failureReason: null };
+    case "failed":
+      return { effective: "failed", failureReason: "Publish failed — check the worker log." };
+    case "publishing":
+      if (hasUrl) return { effective: "published", failureReason: null };
+      if (schedMs && now - schedMs > STUCK_PUBLISHING_MS) {
+        return { effective: "failed", failureReason: `Stuck in "Publishing" for ${Math.floor((now - schedMs) / 60000)} min — Meta API likely failed. Check the worker log.` };
+      }
+      return { effective: "publishing", failureReason: null };
+    case "scheduled":
+      if (schedMs && schedMs <= now && now - schedMs > STUCK_SCHEDULED_MS) {
+        return { effective: "failed", failureReason: `Scheduled ${Math.floor((now - schedMs) / 60000)} min ago but never picked up by the publish worker. Check the n8n worker is active.` };
+      }
+      return { effective: "scheduled", failureReason: null };
+    default:
+      return { effective: "unknown", failureReason: null };
+  }
+}
+
+export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<ScheduledPost[]> {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase not configured");
+  const { data, error } = await sb
+    .from("mh_posts")
+    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at")
+    .not("publish_status", "is", null)
+    .order("schedule_time", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+
+  return (data as MhQueueRow[] | null || []).map((r) => {
+    const pages = r.publish_to_pages || [];
+    const fullCaption = r.caption || "";
+    const hasUrl = !!(r.instagram_url || r.facebook_url);
+    const { effective, failureReason } = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
+    return {
+      id: r.id,
+      particulars: r.particulars || "",
+      publishToPage: r.publish_to_page || pages[0] || "",
+      primaryInterest: r.sbu || "",
+      platform: r.publish_to || "",
+      type: r.type || "",
+      caption: fullCaption.slice(0, 220),
+      fullCaption,
+      igCaption: "",
+      fbCaption: "",
+      thumbnailUrl: (r.media_urls && r.media_urls[0]) || null,
+      scheduleTime: r.schedule_time,
+      status: r.publish_status || "",
+      effectiveStatus: effective,
+      failureReason,
+      instagramUrl: r.instagram_url,
+      facebookUrl: r.facebook_url,
+      publishedAt: r.published_at,
+    } as ScheduledPost;
   });
 }
 
