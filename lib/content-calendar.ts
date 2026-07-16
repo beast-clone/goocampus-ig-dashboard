@@ -9,8 +9,7 @@ import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { getSupabase } from "@/lib/supabase";
 
 const BASE_ID = "appLdJFTrothBLDc0";
-const CONTENT_CALENDAR_TABLE = "tblRlOFss2lDKE9EG";   // Content Calendar (where new posts go)
-const POST_SCHEDULER_TABLE = "tblMuZHH5c2lP6oTD";     // Post Scheduler (status queue, read-only from dashboard)
+const CONTENT_CALENDAR_TABLE = "tblRlOFss2lDKE9EG";   // Content Calendar (caption source + legacy create-post)
 
 function token(): string {
   const t = process.env.AIRTABLE_API_KEY;
@@ -164,108 +163,15 @@ export type ScheduledPost = {
 
 export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
 
-// n8n doesn't write a "Failed" status — posts just stay stuck. We derive failure by time.
-//   - "To Be Scheduled" past its schedule_time by >5 min = stuck (n8n cron should have caught it)
-//   - "Publishing" with no Instagram/Facebook URL for >10 min = stuck mid-publish
+// A scheduled post is treated as stuck/failed if the worker misses its window:
+//   - 'scheduled' past its schedule_time by >5 min = the publish worker never picked it up
+//   - 'publishing' with no IG/FB URL for >10 min = stuck mid-publish (likely a Meta error)
 const STUCK_SCHEDULED_MS = 5 * 60 * 1000;
 const STUCK_PUBLISHING_MS = 10 * 60 * 1000;
 
-function deriveStatus(p: { status: string; scheduleTime: string | null; instagramUrl: string | null; facebookUrl: string | null }): { effective: EffectiveStatus; failureReason: string | null } {
-  const raw = (p.status || "").trim();
-  const now = Date.now();
-  const schedMs = p.scheduleTime ? new Date(p.scheduleTime).getTime() : null;
-  const hasUrl = !!(p.instagramUrl || p.facebookUrl);
-
-  if (raw === "Published") return { effective: "published", failureReason: null };
-  if (raw === "Draft") return { effective: "draft", failureReason: null };
-
-  if (raw === "Publishing") {
-    if (hasUrl) return { effective: "published", failureReason: null }; // Telegram notifier hasn't bumped status yet
-    if (schedMs && now - schedMs > STUCK_PUBLISHING_MS) {
-      return { effective: "failed", failureReason: `Stuck in "Publishing" for ${Math.floor((now - schedMs) / 60000)} min — Meta API likely failed (reel processing? big video?). Check n8n execution log.` };
-    }
-    return { effective: "publishing", failureReason: null };
-  }
-
-  const rawNorm = raw.trim().toLowerCase();
-  if (rawNorm === "to be scheduled" || rawNorm === "ready to schedule" || rawNorm === "scheduled" || rawNorm === "draft") {
-    if (!schedMs) return { effective: "scheduled", failureReason: null };
-    if (schedMs > now) return { effective: "scheduled", failureReason: null };
-    if (now - schedMs > STUCK_SCHEDULED_MS) {
-      return { effective: "failed", failureReason: `Scheduled ${Math.floor((now - schedMs) / 60000)} min ago but never picked up by n8n Native Scheduler. Check the workflow is active.` };
-    }
-    return { effective: "scheduled", failureReason: null }; // within grace window
-  }
-
-  return { effective: "unknown", failureReason: null };
-}
-
-// Read the queue from Post Scheduler. Sorted newest first (most recent Schedule Time).
-// Populates all fields the new Scheduler UI cards need (thumbnail, Primary Interest,
-// per-platform captions, etc.).
-export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]> {
-  const res = await airtableGet<{ records: AirtableRecord[] }>(POST_SCHEDULER_TABLE, {
-    pageSize: String(Math.min(limit, 100)),
-    "sort[0][field]": "Schedule Time",
-    "sort[0][direction]": "desc",
-  });
-  return (res.records || [])
-    // Hide seeded demo rows (titled "[DEMO — delete] …") from the dashboard —
-    // they're sample data, not real posts. Delete them in Airtable to remove for good.
-    .filter((r) => !/^\s*\[demo/i.test(String((r.fields as Record<string, unknown>).Particulars || "")))
-    .map((r) => {
-    const f = r.fields as Record<string, unknown>;
-    // Media / Post is a multipleAttachments field; grab the first attachment's
-    // thumbnail for the card preview.
-    const attachments = Array.isArray(f["Media/ Post"]) ? f["Media/ Post"] as Array<{ url?: string; thumbnails?: { large?: { url?: string }; small?: { url?: string } } }> : [];
-    const firstAttach = attachments[0];
-    const thumbnailUrl = firstAttach?.thumbnails?.large?.url
-      || firstAttach?.thumbnails?.small?.url
-      || firstAttach?.url
-      || null;
-
-    const igCaption = String(f["Instagram Caption"] || "");
-    const fbCaption = String(f["Facebook Caption"] || "");
-    const mainCaption = String(f.Caption || "");
-    const fullCaption = mainCaption || igCaption || fbCaption;
-
-    // Primary Interest and Publish To Page are singleSelect fields that come back as
-    // { id, name, color } objects, not plain strings.
-    function selectName(v: unknown): string {
-      if (!v) return "";
-      if (typeof v === "string") return v;
-      if (typeof v === "object" && v && "name" in v) return String((v as { name?: string }).name || "");
-      return "";
-    }
-
-    const base = {
-      id: r.id,
-      particulars: String(f.Particulars || ""),
-      publishToPage: selectName(f["Publish To Page"]),
-      primaryInterest: selectName(f["Primary Interest"]),
-      platform: selectName(f.Platform),
-      type: String(f.Type || ""),
-      caption: fullCaption.slice(0, 220),
-      fullCaption,
-      igCaption,
-      fbCaption,
-      thumbnailUrl,
-      mediaUrls: attachments.map((a) => a.thumbnails?.large?.url || a.url || "").filter(Boolean),
-      scheduleTime: f["Schedule Time"] ? String(f["Schedule Time"]) : null,
-      status: selectName(f.Status) || String(f.Status || "Unknown"),
-      instagramUrl: f["Instagram URL"] ? String(f["Instagram URL"]) : null,
-      facebookUrl: f["Facebook URL"] ? String(f["Facebook URL"]) : null,
-      publishedAt: f["Published At"] ? String(f["Published At"]) : null,
-    };
-    const { effective, failureReason } = deriveStatus(base);
-    return { ...base, effectiveStatus: effective, failureReason };
-  });
-}
-
 // Supabase-native queue. Reads mh_posts rows that have entered the publish pipeline
 // (publish_status is set), so the Calendar/Scheduled counters reflect exactly what
-// the enqueue action wrote. The legacy Airtable Post Scheduler queue (fetchScheduledPosts
-// above) is kept only for the old V1 page — the V2/Supabase scheduler uses this.
+// the enqueue action wrote. This is the single source of truth for the scheduler queue.
 type MhQueueRow = {
   id: string;
   particulars: string | null;
@@ -349,79 +255,4 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       publishedAt: r.published_at,
     } as ScheduledPost;
   });
-}
-
-// PATCH a Post Scheduler row's Schedule Time (used by the inline picker on each card).
-export async function updateScheduleTime(recordId: string, newISO: string): Promise<void> {
-  await airtablePatch(POST_SCHEDULER_TABLE, recordId, { "Schedule Time": newISO });
-}
-
-// "Publish now" — set Schedule Time to right now + a small buffer so n8n picks it up on
-// its next cron tick. Also normalizes Status back to "To Be Scheduled" in case it was
-// stuck in "Publishing" or "Failed" beforehand.
-export async function publishNow(recordId: string): Promise<void> {
-  const soon = new Date(Date.now() + 30_000).toISOString();
-  await airtablePatch(POST_SCHEDULER_TABLE, recordId, {
-    "Schedule Time": soon,
-    Status: "To Be Scheduled",
-  });
-}
-
-// Edit a post's caption in-place. Writes the same value into all three caption fields
-// so whichever the n8n workflow reads (Caption / Instagram Caption / Facebook Caption)
-// picks up the update. Callers can pass per-platform overrides via the optional fields.
-export async function updatePostCaption(
-  recordId: string,
-  caption: string,
-  igCaption?: string,
-  fbCaption?: string,
-): Promise<void> {
-  const fields: Record<string, unknown> = {
-    Caption: caption,
-    "Instagram Caption": igCaption ?? caption,
-    "Facebook Caption": fbCaption ?? caption,
-  };
-  await airtablePatch(POST_SCHEDULER_TABLE, recordId, fields);
-}
-
-async function airtablePatch(table: string, recordId: string, fields: Record<string, unknown>): Promise<void> {
-  const r = await fetchWithTimeout(`https://api.airtable.com/v0/${BASE_ID}/${table}/${recordId}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ fields, typecast: true }),
-    timeoutMs: 15_000,
-  });
-  if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`Airtable PATCH ${r.status}: ${text.slice(0, 200)}`);
-  }
-}
-
-// Retry a stuck post by bumping its Schedule Time to "now + 1 minute" so the Native
-// Scheduler picks it up on its next cron tick. Also sets Status back to "To Be Scheduled"
-// in case it was stuck in "Publishing".
-export async function retryStuckPost(recordId: string): Promise<void> {
-  const newTime = new Date(Date.now() + 60_000).toISOString();
-  const r = await fetchWithTimeout(`https://api.airtable.com/v0/${BASE_ID}/${POST_SCHEDULER_TABLE}/${recordId}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fields: {
-        "Schedule Time": newTime,
-        Status: "To Be Scheduled",
-      },
-      typecast: true,
-    }),
-    timeoutMs: 15_000,
-  });
-  if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`Airtable PATCH ${r.status}: ${text.slice(0, 200)}`);
-  }
 }
