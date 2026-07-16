@@ -25,7 +25,7 @@ export async function GET() {
 
     const { data, error } = await sb
       .from("mh_posts")
-      .select("id, particulars, status, sbu, type, caption, content, output_link, media_urls, publish_to, publish_to_page, publishing_date, priority, updated_at")
+      .select("id, particulars, status, sbu, type, caption, content, output_link, media_urls, publish_to, publish_to_page, publishing_date, priority, updated_at, airtable_record_id")
       .in("status", READY_STATUSES)
       // don't re-list anything already pushed into the publish queue
       .is("publish_status", null)
@@ -51,6 +51,7 @@ export async function GET() {
       publishingDate: r.publishing_date,
       priority: r.priority,
       updatedAt: r.updated_at,
+      airtableRecordId: r.airtable_record_id || null,
     }));
 
     return NextResponse.json({ posts, count: posts.length });

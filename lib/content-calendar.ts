@@ -116,6 +116,29 @@ export async function fetchContentCalendarBody(
   }
 }
 
+// The team writes the ready-to-post caption inside the Content rich-text field,
+// under a "Caption:" heading (e.g. "### Caption:"), followed by the caption text
+// and a trailing bracketed keyword/hashtag block. Pull just that section so the
+// scheduler can auto-fill the Caption field. Light markdown strip for cleanliness.
+export function extractCaptionFromContent(content: string): string {
+  if (!content) return "";
+  let body: string;
+  // Prefer a line that is only "Caption:" (with optional #/*/> markdown around it).
+  const heading = content.match(/^[#>*_\s]*caption\s*:?\s*$/im);
+  if (heading && heading.index != null) {
+    body = content.slice(heading.index + heading[0].length);
+  } else {
+    // Fall back to an inline "Caption:" marker anywhere in the content.
+    const idx = content.search(/caption\s*:/i);
+    if (idx < 0) return "";
+    body = content.slice(idx).replace(/^\s*caption\s*:/i, "");
+  }
+  return body
+    .replace(/\*\*/g, "")        // bold markers
+    .replace(/^#{1,6}\s*/gm, "") // stray headings
+    .trim();
+}
+
 export type ScheduledPost = {
   id: string;
   particulars: string;

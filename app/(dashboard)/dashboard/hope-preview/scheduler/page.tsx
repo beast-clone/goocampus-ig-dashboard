@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin } from "@tabler/icons-react";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -126,6 +127,7 @@ function Scheduler() {
     id: string; title: string; status: string; sbu: string | null; type: string | null;
     caption: string | null; content: string | null; mediaUrls: string[]; assetLink: string | null;
     channel: string | null; defaultPage: string; publishingDate: string | null;
+    airtableRecordId?: string | null;
   };
   const [schedTab, setSchedTab] = useState<"to_schedule" | "publish">("to_schedule");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
@@ -143,6 +145,13 @@ function Scheduler() {
   // so publishing UPDATES that mh_posts row (and it leaves "To schedule"). null =
   // a brand-new manual post (INSERT).
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null);
+  // "To schedule" tab view: the new inline master-detail (list + live preview, no
+  // popup) vs the classic card grid. selectedTaskId = which row's editor is open.
+  const [toScheduleView, setToScheduleView] = useState<"list" | "cards">("list");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const openTaskRef = useRef<string | null>(null); // guards the async caption fetch against fast task switches
+  // Which network the live preview mocks. IG/FB share the handle; LinkedIn uses the page name.
+  const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>("instagram");
   // Open the manual composer pre-filled from an Output-Ready task.
   function scheduleFromTask(t: ToScheduleItem) {
     setSchedulingTaskId(t.id);
@@ -151,6 +160,34 @@ function Scheduler() {
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setShowCreateForm(true);
+  }
+  // Inline (no-modal) counterpart of scheduleFromTask: prefill the SAME composer
+  // state the modal uses, but open the editor in place inside the list row. Clicking
+  // an already-open row collapses it.
+  function selectTask(t: ToScheduleItem) {
+    if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; return; }
+    setSchedulingTaskId(t.id);
+    setParticulars(t.title);
+    setPublishToPage(t.defaultPage as PublishToPage);
+    setCaption(t.caption || "");
+    setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
+    setScheduleEnabled(false);
+    setResult(null);
+    setSelectedTaskId(t.id);
+    openTaskRef.current = t.id;
+    // Auto-fill the caption from the Marketing Hub content (Airtable "Caption:" section).
+    // mh_posts doesn't mirror the caption, so fetch it live when there isn't one already.
+    if (!(t.caption && t.caption.trim()) && t.airtableRecordId) {
+      fetch(`/api/scheduler/caption?recordId=${encodeURIComponent(t.airtableRecordId)}`)
+        .then((r) => r.json())
+        .then((d: { caption?: string }) => {
+          // apply only if this task is still open and the user hasn't typed a caption
+          if (d.caption && openTaskRef.current === t.id) {
+            setCaption((cur) => (cur && cur.trim() ? cur : d.caption!));
+          }
+        })
+        .catch(() => {});
+    }
   }
   const openManualComposer = () => { setSchedulingTaskId(null); setShowCreateForm(true); };
   // Filters for the queue
@@ -298,7 +335,7 @@ function Scheduler() {
         setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
         setResult({ ok: true, recordId: d.id });
-        setParticulars(""); setCaption(""); setMediaUrls([""]); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null);
+        setParticulars(""); setCaption(""); setMediaUrls([""]); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null);
         loadToSchedule();               // the scheduled task leaves "To schedule"
         setTimeout(loadQueue, 800);
       }
@@ -312,6 +349,10 @@ function Scheduler() {
   const previewImage = cleanMediaUrls[0] || null;
   const previewHandle = publishToPage === "GooCampus Main" ? "goocampus" :
                         publishToPage === "GooCampus World" ? "goocampusworld" : "12thplusdotcom";
+  const pageHandle = (p: string) => p === "GooCampus Main" ? "@goocampus" :
+                        p === "GooCampus World" ? "@goocampusworld" : "@12thplusdotcom";
+  const previewName = publishToPage === "GooCampus Main" ? "GooCampus" :
+                      publishToPage === "GooCampus World" ? "GooCampus World" : "12th Plus · GC India";
 
   // Filter derived data for the queue view — computed here so we can also use it for
   // the status-counter strip.
@@ -393,7 +434,159 @@ function Scheduler() {
       </div>
 
       {schedTab === "to_schedule" && (
-        <ToScheduleList items={toSchedule} loading={toScheduleLoading} onRefresh={loadToSchedule} onSchedule={scheduleFromTask} onAddManual={openManualComposer} />
+        <div>
+          {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <div className="text-base font-semibold text-gray-900">Ready to schedule</div>
+              <div className="text-[12px] text-gray-500">Produced content awaiting a publish action — click a post to open it right here.</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
+                <button onClick={() => setToScheduleView("list")} className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${toScheduleView === "list" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>List</button>
+                <button onClick={() => setToScheduleView("cards")} className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${toScheduleView === "cards" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>Cards</button>
+              </div>
+              <button onClick={loadToSchedule} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
+              <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
+            </div>
+          </div>
+
+          {toScheduleView === "cards" ? (
+            <ToScheduleList items={toSchedule} loading={toScheduleLoading} onRefresh={loadToSchedule} onSchedule={scheduleFromTask} onAddManual={openManualComposer} hideHeader />
+          ) : (
+            <>
+              {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
+              {!toScheduleLoading && toSchedule.length === 0 && (
+                <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">Nothing waiting — everything produced has been scheduled. 🎉</div>
+              )}
+              {!toScheduleLoading && toSchedule.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  {/* LEFT — clickable list; the selected row expands its editor inline */}
+                  <div className="lg:col-span-7 space-y-2">
+                    {toSchedule.map((t) => {
+                      const open = selectedTaskId === t.id;
+                      return (
+                        <div key={t.id} className={`bg-white rounded-xl border ${open ? "border-brand" : "border-gray-200"}`}>
+                          <button onClick={() => selectTask(t)} className={`w-full flex items-center gap-3 px-3.5 py-3 text-left ${open ? "bg-brand-light/30 rounded-t-xl" : "hover:bg-gray-50 rounded-xl"}`}>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-gray-900 truncate">{t.title}</div>
+                              <div className="text-[11px] text-gray-500 truncate">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</div>
+                            </div>
+                            {/* Publishing date at the right corner — when it's set to go out */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {(() => {
+                                if (!t.publishingDate) return <span className="text-[11px] text-gray-300">no date</span>;
+                                const d = new Date(t.publishingDate);
+                                const label = Number.isNaN(d.getTime()) ? t.publishingDate : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+                                return <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
+                              })()}
+                              <IconChevronRight size={16} stroke={2.2} className={`transition-transform ${open ? "text-brand rotate-90" : "text-gray-400"}`} />
+                            </div>
+                          </button>
+
+                          {open && (
+                            <div className="border-t border-gray-100 px-3 py-3 space-y-3">
+                              <div>
+                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post name</label>
+                                <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2" />
+                              </div>
+                              <div>
+                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post to</label>
+                                <div className="mt-1"><PageDropdown value={publishToPage} onChange={setPublishToPage} /></div>
+                              </div>
+                              <div>
+                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
+                                <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} /></div>
+                              </div>
+                              <div>
+                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
+                                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                                <div className="text-right text-[10px] text-gray-400 mt-0.5">{caption.length} / 2200</div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">{scheduleEnabled ? "Publish at the time below" : "Publishes ~2 hours from now"}</span>
+                                <button onClick={() => setScheduleEnabled(!scheduleEnabled)} className={`relative inline-flex items-center h-5 rounded-full w-9 transition ${scheduleEnabled ? "bg-brand" : "bg-gray-200"}`} aria-label="Toggle schedule">
+                                  <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow transition ${scheduleEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                                </button>
+                              </div>
+                              {scheduleEnabled && (
+                                <div className="space-y-2">
+                                  <div className="flex gap-2">
+                                    <HopeDatePicker value={scheduleDate} onChange={setScheduleDate} />
+                                    <HopeTimePicker value={scheduleTime} onChange={setScheduleTime} />
+                                  </div>
+                                  {/* Friendly, unambiguous confirmation of the exact date it'll go out */}
+                                  {(() => {
+                                    if (!scheduleDate || !scheduleTime) return null;
+                                    const dt = new Date(`${scheduleDate}T${scheduleTime}`);
+                                    if (Number.isNaN(dt.getTime())) return null;
+                                    const label = dt.toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+                                    return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">📅 Goes out <span className="font-medium">{label}</span></div>;
+                                  })()}
+                                  {timeSuggestions.length > 0 && (
+                                    <div>
+                                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Best time to post — when your audience is most online</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {timeSuggestions.map((s, i) => {
+                                          const d = new Date(s.nextOccurrenceISO);
+                                          const dateLbl = Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+                                          return (
+                                            <button key={i} type="button" onClick={() => applyTimeSuggestion(s)}
+                                              className="text-xs bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-800 rounded-lg px-2.5 py-1.5 transition"
+                                              title={`Scheduled for ${s.weekdayLabel} ${dateLbl} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}>
+                                              <span className="font-semibold">{s.weekdayLabel} {dateLbl} · {s.hourLabel}</span>
+                                              <span className="text-violet-600 ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                                <span className="text-[11px]">
+                                  {result?.ok === true ? <span className="text-green-700">✓ Scheduled — moved to the queue.</span>
+                                    : result?.ok === false ? <span className="text-red-700">✗ {result.error}</span>
+                                    : <span className="text-gray-500">to <b className="text-gray-700">{pageHandle(publishToPage)}</b></span>}
+                                </span>
+                                <button onClick={submit} disabled={!canSubmit} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed">
+                                  {submitting ? "Sending…" : scheduleEnabled ? "Schedule →" : "Publish →"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* RIGHT — sticky live preview with an Instagram / Facebook / LinkedIn switcher */}
+                  <div className="lg:col-span-5">
+                    <div className="sticky top-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
+                        <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
+                          {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
+                            <button key={p} onClick={() => setPreviewPlatform(p)}
+                              className={`text-[11px] font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {selectedTaskId ? (
+                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={cleanMediaUrls} caption={caption} />
+                      ) : (
+                        <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400 max-w-sm mx-auto">Select a post on the left to preview it here.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {schedTab === "publish" && (<>
@@ -754,18 +947,8 @@ function Scheduler() {
             {scheduleEnabled && (
               <>
                 <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="text-sm rounded-lg border border-gray-200 px-3 py-2"
-                  />
-                  <input
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="text-sm rounded-lg border border-gray-200 px-3 py-2"
-                  />
+                  <HopeDatePicker value={scheduleDate} onChange={setScheduleDate} />
+                  <HopeTimePicker value={scheduleTime} onChange={setScheduleTime} />
                 </div>
 
                 {/* Smart time suggestions */}
@@ -929,9 +1112,9 @@ type ToScheduleCard = {
   caption: string | null; content: string | null; mediaUrls: string[]; assetLink: string | null;
   channel: string | null; defaultPage: string; publishingDate: string | null;
 };
-function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual }: {
+function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hideHeader }: {
   items: ToScheduleCard[]; loading: boolean; onRefresh: () => void;
-  onSchedule: (t: ToScheduleCard) => void; onAddManual: () => void;
+  onSchedule: (t: ToScheduleCard) => void; onAddManual: () => void; hideHeader?: boolean;
 }) {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Direct upload for a task: file → Supabase Storage (post-media) → save on the
@@ -961,6 +1144,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual }: 
   };
   return (
     <div>
+      {!hideHeader && (
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <div className="text-base font-semibold text-gray-900">Ready to schedule</div>
@@ -971,6 +1155,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual }: 
           <button onClick={onAddManual} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
         </div>
       </div>
+      )}
 
       {loading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
       {!loading && items.length === 0 && (
@@ -1613,10 +1798,31 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
   );
 }
 
+// Instagram's in-app carousel allows 20 slides, but the Graph API this scheduler
+// publishes through still caps carousels at 10 items — so 10 is the hard max here.
+// (When Meta raises the API limit, bump this one constant.)
+const MAX_MEDIA = 10;
 function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pasteVal, setPasteVal] = useState("");
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null); // read in onDrop (state closure would be stale)
+  // The real media = non-empty urls. We render these as small thumbnails (not URL rows).
+  const media = mediaUrls.map((u) => u.trim()).filter(Boolean);
+  const isVideo = (u: string) => /\.(mp4|mov|webm)(\?|$)/i.test(u);
+  const removeAt = (i: number) => { const nc = media.filter((_, j) => j !== i); setMediaUrls(nc.length ? nc : [""]); };
+  const addPasted = () => { const v = pasteVal.trim(); if (!v) return; setMediaUrls([...media, v]); setPasteVal(""); };
+  // Drag-to-reorder the carousel: move the dragged thumbnail into the drop slot.
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...media];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setMediaUrls(next.length ? next : [""]);
+  };
 
   async function uploadFiles(files: FileList | File[]) {
     setUploadError(null);
@@ -1627,7 +1833,7 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
       const filtered = base.length === 1 && !base[0].trim() ? [] : base.filter((u) => u.trim());
       const next = [...filtered];
       for (const file of Array.from(files)) {
-        if (next.length >= 10) { setUploadError("Max 10 media items per post"); break; }
+        if (next.length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} media items per post`); break; }
         const fd = new FormData();
         fd.append("file", file);
         const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
@@ -1645,7 +1851,8 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
 
   return (
     <div className="space-y-3">
-      {/* Upload zone */}
+      {/* Big upload zone — shown only before any media is added */}
+      {media.length === 0 && (
       <label
         onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -1681,44 +1888,69 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
           )}
         </div>
       </label>
+      )}
 
       {uploadError && (
         <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">⚠ {uploadError}</div>
       )}
 
-      {/* OR paste URL */}
-      <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">— or paste URL —</div>
-      <div className="space-y-2">
-        {mediaUrls.map((url, i) => (
-          <div key={i} className="flex gap-2">
+      {/* Thumbnails fill the full box width; drag to reorder; + tile adds more. */}
+      {media.length > 0 && (
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {media.map((url, i) => (
+              <div key={url + i}
+                draggable
+                onDragStart={() => { dragIdxRef.current = i; setDragIdx(i); }}
+                onDragEnter={() => setOverIdx(i)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                onDragEnd={() => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                title="Drag to reorder"
+                className={`relative group w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border cursor-grab active:cursor-grabbing transition ${overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${dragIdx === i ? "opacity-40" : ""}`}>
+                {isVideo(url)
+                  ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
+                  : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
+                <span className="absolute bottom-0 left-0 text-[9px] font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
+                <button type="button" onClick={() => removeAt(i)} title="Remove"
+                  className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
+              </div>
+            ))}
+            {media.length < MAX_MEDIA && (
+              <label
+                onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files); }}
+                title="Add media"
+                className={`w-16 h-16 flex-shrink-0 rounded-md border border-dashed flex items-center justify-center cursor-pointer transition ${dragOver ? "border-brand bg-brand-light/40 text-brand" : "border-gray-300 text-gray-400 hover:border-brand hover:text-brand"} ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files); e.target.value = ""; }} />
+                {uploading ? <span className="inline-block w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" /> : <IconPlus size={20} stroke={2} />}
+              </label>
+            )}
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5">{media.length}/{MAX_MEDIA} · drag to reorder{media.length < MAX_MEDIA ? " · tap + to add more" : ""}</div>
+        </div>
+      )}
+
+      {/* Paste a URL to add one more (Slack / Drive / direct link) */}
+      {media.length < MAX_MEDIA && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">— or paste a URL —</div>
+          <div className="flex gap-2">
             <input
               type="url"
-              value={url}
-              onChange={(e) => { const n = [...mediaUrls]; n[i] = e.target.value; setMediaUrls(n); }}
+              value={pasteVal}
+              onChange={(e) => setPasteVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPasted(); } }}
               placeholder="https://… (image, video, reel, or Slack/Drive link)"
               className="flex-1 text-sm rounded-lg border border-gray-200 px-3 py-2"
             />
-            {url.trim() && (
-              <span className="text-xs text-green-600 self-center" title="Ready to use">✓</span>
-            )}
-            {mediaUrls.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setMediaUrls(mediaUrls.filter((_, j) => j !== i))}
-                className="text-gray-400 hover:text-red-600 px-2"
-                title="Remove"
-              >×</button>
-            )}
+            <button type="button" onClick={addPasted} disabled={!pasteVal.trim()}
+              className="text-xs font-medium bg-brand text-white px-3 rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed">Add</button>
           </div>
-        ))}
-        {mediaUrls.length < 10 && (
-          <button
-            type="button"
-            onClick={() => setMediaUrls([...mediaUrls, ""])}
-            className="text-xs text-brand hover:underline"
-          >+ Add another URL (for carousel)</button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1925,6 +2157,251 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Textarea that grows to fit its content — so the full caption is always visible
+// (no inner scrollbar). Height recomputes whenever the value changes (incl. autofill).
+function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; className?: string; minHeight?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`;
+  }, [value, minHeight]);
+  return (
+    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      className={className} style={{ overflow: "hidden", resize: "none", minHeight }} />
+  );
+}
+
+// Hope-UI styled account picker — a custom popover (dot + label + subtitle, check on
+// the selected row) instead of a native <select>, matching My Day's StatusDropdown.
+const PAGE_DOT: Record<string, string> = {
+  "GooCampus Main": "#8B5CF6", "GooCampus World": "#0EA5E9", "12Plus / GC India": "#10B981",
+};
+function PageDropdown({ value, onChange }: { value: PublishToPage; onChange: (v: PublishToPage) => void }) {
+  const [open, setOpen] = useState(false);
+  const current = PAGE_OPTIONS.find((o) => o.value === value) || PAGE_OPTIONS[0];
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 text-left hover:border-gray-300 focus:outline-none focus:border-brand">
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[current.value] || "#94A3B8" }} />
+        <span className="flex-1 truncate text-gray-900">{current.label} <span className="text-gray-400">— {current.subtitle}</span></span>
+        <IconChevronDown size={16} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1 max-h-72 overflow-auto">
+            {PAGE_OPTIONS.map((o) => (
+              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full flex items-center gap-2.5 text-left rounded-lg px-3 py-2 ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
+                <span className="flex-1 min-w-0">
+                  <span className={`block text-sm truncate ${o.value === value ? "font-medium text-gray-900" : "text-gray-700"}`}>{o.label}</span>
+                  <span className="block text-[11px] text-gray-500 truncate">{o.subtitle}</span>
+                </span>
+                {o.value === value && <IconCheck size={16} stroke={2.5} className="text-brand flex-shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Hope-UI date picker — native <input type="date"> renders the un-themeable OS
+// calendar, so this is a custom popover styled to match the rest of the scheduler.
+// value/onChange use the native "YYYY-MM-DD" string so all existing logic is unchanged.
+function ymdStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function HopeDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? new Date(value + "T00:00:00") : null;
+  const today = new Date();
+  const [view, setView] = useState(() => { const b = selected || today; return { y: b.getFullYear(), m: b.getMonth() }; });
+  const monthLabel = new Date(view.y, view.m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const firstDow = new Date(view.y, view.m, 1).getDay();
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(view.y, view.m, d));
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const label = selected ? selected.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Pick a date";
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-2 text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 ${selected ? "text-gray-900" : "text-gray-400"}`}>
+        <IconCalendarEvent size={16} stroke={1.8} className="text-gray-400" />
+        <span className="whitespace-nowrap">{label}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 bottom-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-64">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium text-gray-900">{monthLabel}</div>
+              <div className="flex items-center gap-1">
+                <button type="button" aria-label="Previous month" onClick={() => setView((v) => { const m = v.m - 1; return m < 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m }; })} className="p-1 rounded hover:bg-gray-100 text-gray-500"><IconChevronLeft size={16} stroke={2} /></button>
+                <button type="button" aria-label="Next month" onClick={() => setView((v) => { const m = v.m + 1; return m > 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m }; })} className="p-1 rounded hover:bg-gray-100 text-gray-500"><IconChevronRight size={16} stroke={2} /></button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 mb-1">
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="text-[10px] text-gray-400 text-center font-medium">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-0.5">
+              {cells.map((d, i) => d === null ? <div key={i} /> : (
+                <button key={i} type="button" onClick={() => { onChange(ymdStr(d)); setOpen(false); }}
+                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-lg transition ${
+                    selected && sameDay(d, selected) ? "bg-brand text-white font-medium"
+                      : sameDay(d, today) ? "border border-brand text-brand"
+                      : "text-gray-700 hover:bg-gray-100"}`}>
+                  {d.getDate()}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+              <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-xs text-gray-500 hover:text-gray-800">Clear</button>
+              <button type="button" onClick={() => { onChange(ymdStr(today)); setView({ y: today.getFullYear(), m: today.getMonth() }); setOpen(false); }} className="text-xs text-brand font-medium hover:underline">Today</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Hope-UI time picker — 15-min slots in a themed popover (12-hour labels). value is
+// the native "HH:MM" 24h string so submit()'s date math is unchanged.
+function to12h(hhmm: string) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+function HopeTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const slots: string[] = [];
+  for (let h = 0; h < 24; h++) for (const m of [0, 15, 30, 45]) slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  useEffect(() => {
+    if (open && listRef.current) {
+      const el = listRef.current.querySelector('[data-sel="1"]') as HTMLElement | null;
+      if (el) el.scrollIntoView({ block: "center" });
+    }
+  }, [open]);
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-2 text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 ${value ? "text-gray-900" : "text-gray-400"}`}>
+        <IconClock size={16} stroke={1.8} className="text-gray-400" />
+        <span className="whitespace-nowrap">{value ? to12h(value) : "Time"}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div ref={listRef} className="absolute left-0 bottom-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1 w-32 max-h-56 overflow-auto">
+            {slots.map((s) => (
+              <button key={s} type="button" data-sel={s === value ? "1" : undefined} onClick={() => { onChange(s); setOpen(false); }}
+                className={`w-full text-left text-xs rounded-lg px-3 py-1.5 ${s === value ? "bg-brand-light/50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                {to12h(s)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Live post preview, mocked per network. IG = square + handle; FB = text-above-media
+// feed post; LinkedIn = professional post with a reaction bar. Caption binds live.
+type PreviewPlatform = "instagram" | "facebook" | "linkedin";
+function SocialPreview({ platform, handle, name, images, caption }: {
+  platform: PreviewPlatform; handle: string; name: string; images: string[]; caption: string;
+}) {
+  const shell = "bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden max-w-sm mx-auto";
+  const capNode = caption
+    ? <span className="whitespace-pre-wrap">{caption.length > 220 ? caption.slice(0, 220) + "… more" : caption}</span>
+    : <span className="text-gray-400 italic">Your caption will appear here</span>;
+  // Carousel: swipe through every creative with the arrows. Reset to slide 1 when
+  // the media list changes (e.g. switching tasks).
+  const [idx, setIdx] = useState(0);
+  useEffect(() => { setIdx(0); }, [images.join("|")]);
+  const safeIdx = images.length ? Math.min(idx, images.length - 1) : 0;
+  const image = images[safeIdx] || null;
+  const go = (delta: number) => setIdx((i) => (i + delta + images.length) % images.length);
+  const arrowBtn = "absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center z-10";
+  // Show the WHOLE creative — natural aspect, never cropped — with carousel controls.
+  const media = (placeholderRatio: string) => (
+    <div className={`relative overflow-hidden flex items-center justify-center ${image ? "bg-gray-50" : `${placeholderRatio} bg-gray-100 flex-col text-gray-300`}`}>
+      {image
+        ? <img src={image} alt="" className="w-full h-auto max-h-[520px] object-contain block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        : <><div className="text-4xl mb-1">🖼️</div><div className="text-xs">Add media to preview</div></>}
+      {images.length > 1 && (
+        <>
+          <button type="button" aria-label="Previous" onClick={() => go(-1)} className={`${arrowBtn} left-2`}><IconChevronLeft size={16} stroke={2.5} /></button>
+          <button type="button" aria-label="Next" onClick={() => go(1)} className={`${arrowBtn} right-2`}><IconChevronRight size={16} stroke={2.5} /></button>
+          <div className="absolute top-2 right-2 bg-black/55 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full z-10">{safeIdx + 1}/{images.length}</div>
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-10">
+            {images.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === safeIdx ? "bg-white" : "bg-white/50"}`} />)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  if (platform === "facebook") {
+    return (
+      <div className={shell}>
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <div className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center text-white"><IconBrandFacebook size={22} stroke={2} /></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-[11px] text-gray-500">Sponsored · 🌐</div></div>
+          <div className="ml-auto text-gray-400">⋯</div>
+        </div>
+        <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
+        {media("aspect-[4/5]")}
+        <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
+          <span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span>
+        </div>
+      </div>
+    );
+  }
+  if (platform === "linkedin") {
+    return (
+      <div className={shell}>
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <div className="w-9 h-9 rounded-md bg-[#0A66C2] flex items-center justify-center text-white"><IconBrandLinkedin size={22} stroke={2} /></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-[11px] text-gray-500">Promoted · 🌐</div></div>
+          <div className="ml-auto text-gray-400">⋯</div>
+        </div>
+        <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
+        {media("aspect-[1.91/1]")}
+        <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
+          <span>👍 Like</span><span>💬 Comment</span><span>🔁 Repost</span><span>➤ Send</span>
+        </div>
+      </div>
+    );
+  }
+  // instagram
+  return (
+    <div className={shell}>
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ background: "linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)" }}><IconBrandInstagram size={17} stroke={2} /></div>
+        <div className="text-sm font-semibold text-gray-900">{handle}</div>
+        <div className="ml-auto text-gray-400">⋯</div>
+      </div>
+      {media("aspect-[4/5]")}
+      <div className="flex items-center gap-4 px-3 py-2 text-xl"><span>♡</span><span>💬</span><span>↗</span><span className="ml-auto">🔖</span></div>
+      <div className="px-3 pb-3 text-xs"><span className="font-semibold mr-1.5">{handle}</span><span className="text-gray-800">{capNode}</span></div>
     </div>
   );
 }
