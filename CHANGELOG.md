@@ -3,6 +3,24 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-17 — Marketing Hub Content Calendar reskinned to match the Publishing Calendar
+
+Restyled the Marketing Hub's **Content Calendar** tab (`/dashboard/hope-preview/marketing-hub?tab=calendar`) so it reads as a sibling of the Hope UI Publishing Calendar — same visual DNA (gradient hero, overlapping title card, full-width month card, colored event pills), same Hope V1 event-pill style. The old flat white-card layout is gone.
+
+**What changed** in `app/(dashboard)/dashboard/hope-preview/marketing-hub/page.tsx`:
+
+- **Hero band** — indigo→violet gradient, deliberately distinct from the Publishing Calendar's blue so team members don't confuse "team calendar" with "socials-only calendar". "Team calendar" tag, "Content Calendar" headline, one-line subtitle, and a live "N tasks in view" stat card on the right that reflects the active brand filter.
+- **Title card** overlapping the hero, showing the month + a live entry count and the "drag any card to reschedule" hint.
+- **Brand quick-filter chips** above the grid — one chip per SBU with an SBU-color dot and count; one click isolates that brand across the whole calendar (active chip goes to filled-dark). The hero stat + title-card counter both update to reflect the active brand.
+- **Event pills** adopt the Hope V1 look — 1px border matching a soft-tint background, colored text driven by task **status** (Content-Pending = gray, Content-In-Progress = amber, Content-Approved = green, Output-Ready = blue, Ready-to-Publish = green-mint, Published/Scheduled = purple). Status meaning is now legible across the grid.
+- **Primary interest visible on every pill** — small SBU-color square at the left + SBU name on the right (ellipsis-truncated), so brand reads at a glance even without a filter set.
+- **Status legend** at the bottom auto-hides statuses not currently in view (dropped the old all-SBU legend — the brand chips do that job).
+- **Kept intact** — drag-to-reschedule (writes `publishing_date` to Supabase via `saveField`), click-to-open modal, range prop driven by the hub-level range picker, "+ N more" overflow.
+
+Scoped under `.mhcal-*` class prefix so nothing collides with `.hcal-*` (Publishing Calendar). No other tabs touched. V1 (`/dashboard/marketing-hub`) is untouched and separate.
+
+Shipped as commit `7d6eb60` on `feat/hope-ui-reskin`.
+
 ## 2026-07-16 — Scheduler goes Supabase-only + Post Planner becomes a Perplexity-ranked drag-drop calendar
 
 All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_posts`) — no Airtable writes; the only remaining Airtable use is reading post captions from the Content Calendar's Content field.
