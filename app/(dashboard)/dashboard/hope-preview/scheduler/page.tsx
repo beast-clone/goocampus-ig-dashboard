@@ -207,7 +207,7 @@ function Scheduler() {
   // Real published IG posts (last 20) — shown alongside scheduled posts in the Content Calendar
   const [publishedIG, setPublishedIG] = useState([] as PublishedIG[]);
   useEffect(() => {
-    fetch("/api/posts?accountId=goocampus&limit=20&insights=false")
+    fetch("/api/posts?accountId=goocampus&limit=20&insights=true")
       .then((r) => r.ok ? r.json() : { posts: [] })
       .then((d) => setPublishedIG(d.posts || []))
       .catch(() => {});
@@ -431,7 +431,7 @@ function Scheduler() {
           onClick={() => setSchedTab("publish")}
           className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
-          Publish &amp; queue
+          Posts
         </button>
       </div>
 
@@ -590,27 +590,13 @@ function Scheduler() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-base font-semibold text-gray-900">Publishing queue</div>
+            <div className="text-base font-semibold text-gray-900">Posts</div>
             <div className="text-[12px] text-gray-500">
-              Add a post and it publishes to Instagram &amp; Facebook automatically.
+              Everything scheduled and published — click a post to open it.
               {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
             </div>
           </div>
           <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={openTopPerformers}
-            className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300"
-          >
-            Start from a top post
-          </button>
-          <button
-            onClick={openManualComposer}
-            className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark"
-          >
-            + Add post
-          </button>
         </div>
       </div>
 
@@ -1567,6 +1553,20 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
               <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
               {account && <span className="text-xs text-gray-500">{account}</span>}
             </div>
+            {isPub && (
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Likes", value: p.likes ?? 0 },
+                  { label: "Comments", value: p.comments ?? 0 },
+                  { label: "Reach", value: p.reach ?? 0 },
+                ].map((m) => (
+                  <div key={m.label} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-lg font-semibold text-gray-900 tabular-nums leading-none">{(m.value || 0).toLocaleString("en-IN")}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div>
               <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
               <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{caption || <span className="text-gray-400 italic">No caption</span>}</div>
@@ -1634,6 +1634,14 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
     return b.localeCompare(a);
   });
 
+  // Flat, dense ordering: upcoming soonest-first, then most-recent past — rendered
+  // in ONE grid so every row fills the full width (no big empty gaps per day).
+  const flatItems = [...items].sort((a, b) => {
+    const aF = a.whenMs >= todayStart, bF = b.whenMs >= todayStart;
+    if (aF !== bF) return aF ? -1 : 1;
+    return aF ? a.whenMs - b.whenMs : b.whenMs - a.whenMs;
+  });
+
   const filterChips: Array<{ key: CalFilter; label: string; count: number }> = [
     { key: "all", label: "All", count: rawItems.length },
     { key: "today", label: "Today", count: rawItems.filter((i) => i.whenMs >= todayStart && i.whenMs < tomorrowStart).length },
@@ -1692,26 +1700,17 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
         </div>
       </div>
 
-      {dayKeys.length === 0 && (
+      {flatItems.length === 0 && (
         <div className="p-4 text-center text-[11px] text-gray-400">Nothing matches this filter.</div>
       )}
 
-      <div className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-y-auto p-2 space-y-3">
-        {dayKeys.map((key) => {
-          const { weekday, date, sub } = fmtDay(key);
-          const dayItems = byDay.get(key) || [];
-          dayItems.sort((a, b) => b.whenMs - a.whenMs);
-          return (
-            <div key={key}>
-              <div className="flex items-baseline gap-1 mb-1 px-1">
-                <div className="text-[10px] font-semibold text-gray-900">{weekday}</div>
-                <div className="text-[9px] text-gray-500">{date}</div>
-                {sub && <div className="text-[8px] text-violet-700 ml-auto">{sub}</div>}
-              </div>
-              {/* Compact tiles — more per row when the feed is full-width */}
-              <div className={`grid gap-2 ${wide ? "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10" : "grid-cols-5"}`}>
-                {dayItems.map((it) => {
-                  const t = new Date(it.whenMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+      <div className="max-h-[calc(100vh-220px)] min-h-[500px] overflow-y-auto p-2">
+        {/* ONE dense grid over all posts so every row fills the width — no empty gaps.
+            Each tile carries its own date + time. */}
+        <div className="grid gap-2" style={{ gridTemplateColumns: wide ? "repeat(auto-fill, minmax(112px, 1fr))" : "repeat(auto-fill, minmax(84px, 1fr))" }}>
+          {flatItems.map((it) => {
+                  const dt = new Date(it.whenMs);
+                  const t = `${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ${dt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
                   // Map "Publish To Page" → short handle chip shown under each tile.
                   const handleFor = (page: string): { short: string; color: string } => {
                     if (page === "GooCampus Main") return { short: "@goocampus", color: "bg-violet-50 text-violet-700 border-violet-200" };
@@ -1782,11 +1781,8 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                       </div>
                     </button>
                   );
-                })}
-              </div>
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
     </div>
   );
