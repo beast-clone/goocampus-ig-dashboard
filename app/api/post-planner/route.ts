@@ -32,11 +32,13 @@ type MhRow = {
   sbu: string | null; caption: string | null; content: string | null; priority: string | null;
   publishing_date: string | null; instagram_url: string | null; updated_at: string | null;
   owner_key: string | null; media_urls: string[] | null; planner_note: string | null;
+  airtable_record_id: string | null; output_link: string | null;
 };
 
 type PlannedPost = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
   status: string; owner: string; publishingDate: string | null; suggestedTime: string; reason: string; tags: string[];
+  mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 
 // A post on the actual Publishing Calendar (tab 2) — the team's real dates, owner and
@@ -44,7 +46,7 @@ type PlannedPost = {
 type CalendarPost = {
   id: string; title: string; type: string; status: string; owner: string;
   publishingDate: string | null; thumbnailUrl: string | null; instagramUrl: string | null;
-  note: string | null;
+  note: string | null; mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 
 const snippet = (s: string | null, n = 140) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -72,7 +74,7 @@ export async function GET(req: Request) {
 
     const [{ data, error }, times, top] = await Promise.all([
       sb.from("mh_posts")
-        .select("id,particulars,type,status,sbu,caption,content,priority,publishing_date,instagram_url,updated_at,owner_key,media_urls,planner_note")
+        .select("id,particulars,type,status,sbu,caption,content,priority,publishing_date,instagram_url,updated_at,owner_key,media_urls,planner_note,airtable_record_id,output_link")
         .eq("sbu", SBU)
         .order("publishing_date", { ascending: true, nullsFirst: false }),
       getTopTimeSuggestions(PAGE, 4).catch(() => []),
@@ -97,6 +99,10 @@ export async function GET(req: Request) {
         thumbnailUrl: (r.media_urls && r.media_urls[0]) || null,
         instagramUrl: r.instagram_url,
         note: r.planner_note,
+        mediaUrls: r.media_urls || [],
+        caption: r.caption || "",
+        airtableRecordId: r.airtable_record_id,
+        assetLink: r.output_link,
       }));
 
     // Last thing actually out — anchor for the 24h gap + "don't repeat this".
@@ -190,6 +196,8 @@ export async function GET(req: Request) {
         id: post.id, title: post.particulars || "", type: post.type || "", interest: SBU,
         thumbnailUrl: (post.media_urls && post.media_urls[0]) || null, status: post.status || "",
         owner: post.owner_key || "", publishingDate: post.publishing_date,
+        mediaUrls: post.media_urls || [], caption: post.caption || "",
+        airtableRecordId: post.airtable_record_id, assetLink: post.output_link,
         suggestedTime: slot.toISOString(),
         reason: reason || "Spaced a full day after the previous post, at your audience's peak hour — keeps the feed varied and gives each post room to breathe.",
         tags: tags.length ? tags : ["24h gap"],

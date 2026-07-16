@@ -5,10 +5,12 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
   status: string; owner: string; publishingDate: string | null; suggestedTime: string; reason: string; tags: string[];
+  mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 type CalendarPost = {
   id: string; title: string; type: string; status: string; owner: string;
   publishingDate: string | null; thumbnailUrl: string | null; instagramUrl: string | null; note: string | null;
+  mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 type Payload = {
   account: string; minGapHours: number;
@@ -25,7 +27,7 @@ type Payload = {
 type CalCard = {
   id: string; title: string; type: string; owner: string; status: string;
   eff: string; note: string | null; reason: string; tags: string[]; beingWorkedOn: boolean;
-  thumbnailUrl: string | null;
+  thumbnailUrl: string | null; mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 
 // The team starts working a post ~this many days before its publish date, so an
@@ -121,6 +123,7 @@ function Planner() {
           return {
             id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
             eff, note: p.note, reason: "", tags: [], thumbnailUrl: p.thumbnailUrl,
+            mediaUrls: p.mediaUrls, caption: p.caption, airtableRecordId: p.airtableRecordId, assetLink: p.assetLink,
             beingWorkedOn: beingWorkedOn(p.status, pubOverride[p.id] || p.publishingDate),
           } as CalCard;
         })
@@ -130,6 +133,7 @@ function Planner() {
       id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
       eff: planOverride[p.id] || p.suggestedTime, note: null, reason: p.reason, tags: p.tags,
       beingWorkedOn: false, thumbnailUrl: p.thumbnailUrl,
+      mediaUrls: p.mediaUrls, caption: p.caption, airtableRecordId: p.airtableRecordId, assetLink: p.assetLink,
     }));
   }, [data, tab, pubOverride, planOverride]);
 
@@ -197,7 +201,7 @@ function Planner() {
   const monthLabel = view ? new Date(view.y, view.m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "";
 
   return (
-    <div className="max-w-[1100px]">
+    <div className="max-w-[1500px]">
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
@@ -215,7 +219,8 @@ function Planner() {
       {err && !data && <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">Couldn&rsquo;t build the plan — {err}</div>}
 
       {data && (
-        <>
+        <div className="flex flex-col lg:flex-row gap-4 items-start">
+          <div className="flex-1 min-w-0 w-full">
           {tab === "plan" ? (
             <div className="bg-brand/5 border border-brand/20 rounded-2xl p-4 mb-4 flex items-start gap-3 flex-wrap">
               <div className="min-w-0 flex-1">
@@ -265,7 +270,9 @@ function Planner() {
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#BA7517" }} />Being worked on — asks first</span>
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#888780" }} />Not started</span>
           </div>
-        </>
+          </div>
+          <DetailSidebar card={detail} isPlan={tab === "plan"} onClose={() => setDetail(null)} />
+        </div>
       )}
 
       {/* Ownership guard modal */}
@@ -296,50 +303,112 @@ function Planner() {
         </div>
       )}
 
-      {/* Post detail — "why this slot" on the AI tab, full info on the publishing tab */}
-      {detail && (() => {
-        const chip = typeChip(detail.type);
-        const oc = ownerColor(detail.owner);
-        const when = new Date(detail.eff).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
-        const isPlan = !!detail.reason;
-        return (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
-                <div className="min-w-0">
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
-                  <div className="text-[15px] font-semibold text-gray-900 leading-snug mt-1.5">{detail.title || "(untitled)"}</div>
-                </div>
-                <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
+    </div>
+  );
+}
+
+// Right-hand detail panel — shows the selected post's creative, caption and details
+// (and "why the AI put it here" on the planner tab). Captions live in the Airtable
+// Content field, so we fetch them on demand by airtable_record_id.
+function DetailSidebar({ card, isPlan, onClose }: { card: CalCard | null; isPlan: boolean; onClose: () => void }) {
+  const [caption, setCaption] = useState("");
+  const [capLoading, setCapLoading] = useState(false);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+    if (!card) { setCaption(""); return; }
+    if (card.caption) { setCaption(card.caption); return; }
+    if (!card.airtableRecordId) { setCaption(""); return; }
+    setCapLoading(true); setCaption("");
+    const ctrl = new AbortController();
+    fetch(`/api/scheduler/caption?recordId=${encodeURIComponent(card.airtableRecordId)}`, { signal: ctrl.signal })
+      .then((r) => r.json()).then((d) => setCaption(d.caption || "")).catch(() => {}).finally(() => setCapLoading(false));
+    return () => ctrl.abort();
+  }, [card]);
+
+  if (!card) {
+    return (
+      <aside className="w-full lg:w-[360px] shrink-0 lg:sticky lg:top-4">
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center">
+          <div className="text-3xl text-gray-200 mb-2">▢</div>
+          <div className="text-[13px] text-gray-500">Click any post to see its creative, caption and details here.</div>
+        </div>
+      </aside>
+    );
+  }
+
+  const chip = typeChip(card.type);
+  const oc = ownerColor(card.owner);
+  const when = new Date(card.eff).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const slides = card.mediaUrls || [];
+  const cur = slides[Math.min(idx, Math.max(0, slides.length - 1))] || null;
+  const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+
+  return (
+    <aside className="w-full lg:w-[360px] shrink-0 lg:sticky lg:top-4">
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-gray-100">
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+            <div className="text-[14px] font-semibold text-gray-900 leading-snug mt-1.5">{card.title || "(untitled)"}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0" aria-label="Close">×</button>
+        </div>
+
+        <div className="max-h-[calc(100vh-140px)] overflow-y-auto">
+          {/* Creative */}
+          <div className="bg-gray-900 relative aspect-square flex items-center justify-center">
+            {cur ? (
+              isVideo(cur)
+                ? <video key={cur} src={cur} controls playsInline className="max-w-full max-h-full" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="max-w-full max-h-full object-contain" />
+            ) : (
+              <div className="text-center px-4">
+                <div className="text-gray-600 text-4xl mb-2">🖼️</div>
+                <div className="text-[11px] text-gray-400">Creative isn&rsquo;t uploaded to the dashboard yet.</div>
+                {card.assetLink && <a href={card.assetLink} target="_blank" rel="noreferrer" className="inline-block mt-2 text-[11px] text-brand-light hover:underline">View creative in Slack ↗</a>}
               </div>
-              <div className="px-5 py-4 space-y-3">
-                {detail.thumbnailUrl && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={detail.thumbnailUrl} alt="" className="w-full max-h-52 object-contain rounded-lg bg-gray-50 border border-gray-100" />
-                )}
-                {isPlan && (
-                  <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
-                    <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
-                    <div className="text-[13px] text-gray-700 leading-relaxed">{detail.reason}</div>
-                    {detail.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {detail.tags.map((t) => <span key={t} className="text-[10.5px] px-2 py-0.5 rounded-full bg-brand-light/60 text-brand">{t}</span>)}
-                      </div>
-                    )}
+            )}
+            {slides.length > 1 && cur && (
+              <>
+                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center">‹</button>
+                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center">›</button>
+                <div className="absolute top-2 right-2 text-[10px] text-white bg-black/50 rounded-full px-1.5 py-0.5 tabular-nums">{Math.min(idx, slides.length - 1) + 1}/{slides.length}</div>
+              </>
+            )}
+          </div>
+
+          <div className="p-4 space-y-3">
+            {isPlan && card.reason && (
+              <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
+                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
+                <div className="text-[12.5px] text-gray-700 leading-relaxed">{card.reason}</div>
+                {card.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {card.tags.map((t) => <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-light/60 text-brand">{t}</span>)}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[12.5px] pt-1">
-                  <div><div className="text-gray-400 text-[11px] mb-0.5">{isPlan ? "Suggested for" : "Publishing on"}</div><div className="text-gray-800 font-medium">{when}</div></div>
-                  <div><div className="text-gray-400 text-[11px] mb-0.5">Owner</div><div className="text-gray-800 font-medium flex items-center gap-1.5">{detail.owner ? <><span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center" style={{ background: oc.bg, color: oc.fg }}>{detail.owner[0].toUpperCase()}</span>{detail.owner}</> : "—"}</div></div>
-                  <div><div className="text-gray-400 text-[11px] mb-0.5">Workflow status</div><div className="text-gray-800 font-medium">{detail.status || "—"}</div></div>
-                  {detail.note && <div><div className="text-gray-400 text-[11px] mb-0.5">Last change</div><div className="text-amber-700 font-medium">{detail.note}</div></div>}
-                </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px]">
+              <div><div className="text-gray-400 text-[10.5px] mb-0.5">{isPlan ? "Suggested for" : "Publishing on"}</div><div className="text-gray-800 font-medium">{when}</div></div>
+              <div><div className="text-gray-400 text-[10.5px] mb-0.5">Owner</div><div className="text-gray-800 font-medium flex items-center gap-1.5">{card.owner ? <><span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center" style={{ background: oc.bg, color: oc.fg }}>{card.owner[0].toUpperCase()}</span>{card.owner}</> : "—"}</div></div>
+              <div><div className="text-gray-400 text-[10.5px] mb-0.5">Status</div><div className="text-gray-800 font-medium">{card.status || "—"}</div></div>
+              {card.note && <div><div className="text-gray-400 text-[10.5px] mb-0.5">Last change</div><div className="text-amber-700 font-medium">{card.note}</div></div>}
+            </div>
+
+            <div>
+              <div className="text-[10.5px] uppercase tracking-widest text-gray-400 font-semibold mb-1">Caption</div>
+              {capLoading ? <div className="text-[12px] text-gray-400">Loading caption…</div>
+                : caption ? <div className="text-[12.5px] text-gray-700 whitespace-pre-wrap leading-relaxed">{caption}</div>
+                : <div className="text-[12px] text-gray-400 italic">No caption yet.</div>}
             </div>
           </div>
-        );
-      })()}
-    </div>
+        </div>
+      </div>
+    </aside>
   );
 }
 
