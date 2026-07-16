@@ -745,9 +745,9 @@ function Scheduler() {
       {/* Header — queue actions strip */}
       <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <div className="text-base font-semibold text-gray-900">Content calendar</div>
+          <div className="text-base font-semibold text-gray-900">Published</div>
           <div className="text-[12px] text-gray-500">
-            Everything scheduled and published — click a post to open it.
+            Everything that&apos;s gone live — click a post to open it. Scheduled posts live on the “To schedule” tab.
             {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
           </div>
         </div>
@@ -765,45 +765,10 @@ function Scheduler() {
         )}
       </div>
 
-      {/* Actionable queue (failed / publishing / waiting) — stacked full-width above
-          the calendar so nothing needing attention gets buried. */}
-      {(failed.length > 0 || publishing.length > 0 || readyToSchedule.length > 0) && (
-        <div className="space-y-4 mb-4">
-          {failed.length > 0 && (
-            <QueueSection
-              title="Failed — needs attention"
-              subtitle={`${failed.length} post${failed.length === 1 ? "" : "s"} didn't publish — retry or fix the media`}
-              posts={failed}
-              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="rose" expanded
-            />
-          )}
-          {publishing.length > 0 && (
-            <QueueSection
-              title="Publishing now"
-              subtitle="Going out to Instagram / Facebook right now"
-              posts={publishing}
-              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="blue" expanded
-            />
-          )}
-          {readyToSchedule.length > 0 && (
-            <QueueSection
-              title="Waiting to publish"
-              subtitle={`${readyToSchedule.length} post${readyToSchedule.length === 1 ? "" : "s"} queued — set a time or publish now`}
-              posts={readyToSchedule}
-              onReschedule={handleReschedule} onPublishNow={handlePublishNow}
-              onEdit={(p) => { setEditingCaptionId(p.id); setEditingCaptionText(p.fullCaption || p.caption || ""); }}
-              onScheduleNow={(p) => setScheduleModalPost(p)} rowActionId={rowActionId} accent="amber" expanded
-            />
-          )}
-        </div>
-      )}
-
-      {/* Full-width calendar of everything scheduled & published — click a post to open it big. */}
-      <MiniPlanner posts={queueFiltered} publishedIG={publishedFiltered} wide onSelect={setCalItem} />
+      {/* Published-only calendar — the archive of what actually went live. Scheduled /
+          publishing / failed posts live on the "To schedule" tab's status filters, so
+          they're intentionally NOT shown here (no repetition). */}
+      <MiniPlanner posts={[]} publishedIG={publishedFiltered} wide onSelect={setCalItem} />
 
       </>)}
 
@@ -1958,7 +1923,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
   return (
     <div className={`bg-white rounded-lg border border-gray-100 overflow-hidden ${wide ? "w-full" : "lg:sticky lg:top-4"}`}>
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm font-semibold text-gray-900">Scheduled &amp; published</div>
+        <div className="text-sm font-semibold text-gray-900">Published posts</div>
         <div className="flex flex-wrap gap-1">
           {filterChips.map((c) => (
             <button
