@@ -20,6 +20,7 @@ type Payload = {
   calendar: CalendarPost[];
   hold: { id: string; title: string; reason: string }[];
   bestHours: number[];
+  rankedBy?: string;
   generatedAt: string;
 };
 
@@ -261,6 +262,11 @@ function Planner() {
           {tab === "plan" ? (
             <div className="bg-brand/5 border border-brand/20 rounded-2xl p-4 mb-4 flex items-start gap-3 flex-wrap">
               <div className="min-w-0 flex-1">
+                {data.rankedBy && /perplexity|search/.test(data.rankedBy) && (
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
+                    🔎 Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
+                  </span>
+                )}
                 <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
                 {data.insight && <p className="text-[12.5px] text-gray-600 mt-1.5 leading-relaxed"><b className="text-brand">What works here:</b> {data.insight}</p>}
                 <p className="text-[11px] text-gray-500 mt-1.5">Drag cards to tweak the order, then apply — it writes these dates onto the Publishing calendar.</p>

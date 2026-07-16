@@ -170,6 +170,7 @@ export async function GET(req: Request) {
 
     type AIOrder = { summary?: string; insight?: string; order?: { id: string; reason?: string; tags?: string[] }[]; hold?: { id: string; reason?: string }[] };
     let ai: AIOrder = {};
+    let rankedBy = "none";
     const openaiKey = process.env.OPENAI_API_KEY;
     // The search provider (Perplexity when PLANNER_SEARCH_KEY is set, else OpenAI).
     const searchKey = process.env.PLANNER_SEARCH_KEY || openaiKey;
@@ -193,7 +194,8 @@ export async function GET(req: Request) {
           messages: [ { role: "system", content: searchSystem }, { role: "user", content: JSON.stringify(ctx) } ],
         });
         ai = parseLooseJson<AIOrder>(resp.choices[0]?.message?.content || "") || {};
-      } catch { ai = {}; }
+        if (ai.order && ai.order.length) rankedBy = SEARCH_BASE_URL ? `perplexity:${SEARCH_MODEL}` : `openai-search:${SEARCH_MODEL}`;
+      } catch (e) { console.error("[planner] search-rank failed, falling back:", (e as Error).message); ai = {}; }
 
       // 2) Fallback to a plain (non-search) OpenAI ranker if the search model failed / returned
       //    nothing — only if an OpenAI key exists (skipped in a Perplexity-only setup).
@@ -209,6 +211,7 @@ export async function GET(req: Request) {
           ],
         });
         ai = JSON.parse(resp.choices[0]?.message?.content || "{}") as AIOrder;
+        if (ai.order && ai.order.length) rankedBy = "openai-fallback:gpt-4o-mini";
       } catch { ai = {}; }
     }
 
@@ -248,7 +251,7 @@ export async function GET(req: Request) {
       last: last ? { title: last.particulars, type: last.type, interest: SBU, at: last.publishing_date } : null,
       summary: ai.summary || `Sequenced ${plan.length} post${plan.length === 1 ? "" : "s"} with a 24-hour minimum gap so they don't compete for reach.`,
       insight: ai.insight || "",
-      plan, hold, calendar,
+      plan, hold, calendar, rankedBy,
       generatedAt: new Date().toISOString(),
     };
     cache = { at: Date.now(), payload };
