@@ -492,9 +492,10 @@ function Scheduler() {
             </div>
           </div>
 
-          {/* Publishing pipeline status — at-a-glance health of the queue */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <StatusCounter label="Ready to schedule" count={readyToSchedule.length} color="amber" />
+          {/* Pipeline status: content awaiting scheduling → scheduled → publishing → published/failed */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+            <StatusCounter label="Ready to schedule" count={toSchedule.length} color="amber" />
+            <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" />
             <StatusCounter label="Publishing" count={publishing.length} color="blue" />
             <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" />
             <StatusCounter label="Failed" count={failed.length} color="rose" />
@@ -1117,9 +1118,9 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
   );
 }
 
-function StatusCounter({ label, count, color }: { label: string; count: number; color: "amber" | "blue" | "green" | "rose" }) {
+function StatusCounter({ label, count, color }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose" }) {
   // Hope UI stat card: clean white card, a small colour-coded dot, big number.
-  const dot: Record<string, string> = { amber: "#F59E0B", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
+  const dot: Record<string, string> = { amber: "#F59E0B", violet: "#7C3AED", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
   return (
     <div className="bg-white rounded-lg border border-gray-100 px-5 py-4">
       <div className="flex items-center gap-2 mb-2">
