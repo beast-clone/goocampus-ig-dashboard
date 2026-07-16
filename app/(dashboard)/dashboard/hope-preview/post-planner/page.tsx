@@ -116,13 +116,17 @@ function Planner() {
   const cards: CalCard[] = useMemo(() => {
     if (!data) return [];
     if (tab === "pub") {
+      // Carry the AI's rationale (matched by post id) onto the real calendar so clicking
+      // a post shows "why the AI suggests this" here too, not just on the planner tab.
+      const planById = new Map(data.plan.map((pp) => [pp.id, pp]));
       return data.calendar
         .map((p) => {
           const eff = pubOverride[p.id] || p.publishingDate;
           if (!eff) return null;
+          const ai = planById.get(p.id);
           return {
             id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
-            eff, note: p.note, reason: "", tags: [], thumbnailUrl: p.thumbnailUrl,
+            eff, note: p.note, reason: ai?.reason || "", tags: ai?.tags || [], thumbnailUrl: p.thumbnailUrl,
             mediaUrls: p.mediaUrls, caption: p.caption, airtableRecordId: p.airtableRecordId, assetLink: p.assetLink,
             beingWorkedOn: beingWorkedOn(p.status, pubOverride[p.id] || p.publishingDate),
           } as CalCard;
@@ -380,9 +384,9 @@ function DetailSidebar({ card, isPlan, onClose }: { card: CalCard | null; isPlan
           </div>
 
           <div className="p-4 space-y-3">
-            {isPlan && card.reason && (
+            {card.reason && (
               <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
-                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
+                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">{isPlan ? "Why the AI put it here" : "Why the AI suggests this slot"}</div>
                 <div className="text-[12.5px] text-gray-700 leading-relaxed">{card.reason}</div>
                 {card.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
