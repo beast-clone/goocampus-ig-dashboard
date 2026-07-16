@@ -535,7 +535,7 @@ function Scheduler() {
                             <div className="border-t border-gray-100 px-3 py-3 space-y-3">
                               <div>
                                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post name</label>
-                                <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2" />
+                                <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2" />
                               </div>
                               <div>
                                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post to</label>
@@ -547,11 +547,11 @@ function Scheduler() {
                               </div>
                               <div>
                                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                                 <div className="text-right text-[10px] text-gray-400 mt-0.5">{caption.length} / 2200</div>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-500">{scheduleEnabled ? "Publish at the time below" : "Publishes ~2 hours from now"}</span>
+                                <span className="text-xs text-gray-700">{scheduleEnabled ? "Publish at the time below" : "Publish now"}</span>
                                 <button onClick={() => setScheduleEnabled(!scheduleEnabled)} className={`relative inline-flex items-center h-5 rounded-full w-9 transition ${scheduleEnabled ? "bg-brand" : "bg-gray-200"}`} aria-label="Toggle schedule">
                                   <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow transition ${scheduleEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
                                 </button>
@@ -795,7 +795,7 @@ function Scheduler() {
               value={editingCaptionText}
               onChange={(e) => setEditingCaptionText(e.target.value)}
               rows={12}
-              className="w-full text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
+              className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans"
             />
             <div className="flex items-center justify-between mt-3">
               <div className="text-[11px] text-gray-500">{editingCaptionText.length} / 2200 characters</div>
@@ -847,7 +847,7 @@ function Scheduler() {
                   value={particulars}
                   onChange={(e) => setParticulars(e.target.value)}
                   placeholder="e.g. AMC August intake — reel #3"
-                  className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2"
+                  className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
                 />
                 <div className="text-[10px] text-gray-400 mt-1">For your team — not shown on Instagram.</div>
               </div>
@@ -859,14 +859,14 @@ function Scheduler() {
                   onChange={(e) => setContentBrief(e.target.value)}
                   placeholder="e.g. New AMC Part 1 syllabus changes for 2026 IMG candidates, focus on OSCE additions and 3-month study plan"
                   rows={2}
-                  className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans"
+                  className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans"
                 />
                 <div className="text-[10px] text-gray-400 mt-1">Never sent to Instagram — this is just for you and the AI suggester.</div>
               </div>
 
               <div>
                 <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-[10px] text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
@@ -920,8 +920,8 @@ function Scheduler() {
 
           <Card title="Schedule">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500">
-                {scheduleEnabled ? "Publish at the exact time below" : "Defaults to ~2 hours from now"}
+              <span className="text-xs text-gray-700">
+                {scheduleEnabled ? "Publish at the time below" : "Publish now"}
               </span>
               <button
                 onClick={() => setScheduleEnabled(!scheduleEnabled)}
