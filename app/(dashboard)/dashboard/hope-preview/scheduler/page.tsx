@@ -1363,7 +1363,7 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={onPickAnother}>
       <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header bar */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-amber-100 bg-amber-50">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="w-4 h-4">
