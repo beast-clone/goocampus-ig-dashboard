@@ -66,9 +66,17 @@ const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] 
   { value: "12Plus / GC India",  label: "GooCampus India",      subtitle: "@12thplusdotcom + GC India page" },
 ];
 
-// Soft daily cap per account — warn (don't hard-block) before a day exceeds this many
-// posts, so we don't over-post. Scheduling the (MAX+1)th post on a day triggers the popup.
-const MAX_POSTS_PER_DAY = 4;
+// Soft daily post limits per account — warn (don't hard-block) before a day exceeds the
+// account's max, so we don't over-post. Scheduling the (max+1)th post triggers the popup.
+// min is the team's daily target (informational); max is what the guard enforces.
+const DAILY_POST_LIMITS: Record<string, { min: number; max: number }> = {
+  "GooCampus Main": { min: 2, max: 4 },   // @goocampus
+  "GooCampus World": { min: 1, max: 2 },  // @goocampusworld
+  "12Plus / GC India": { min: 1, max: 2 }, // @12thplusdotcom
+};
+function maxPostsPerDay(page: string): number {
+  return DAILY_POST_LIMITS[page]?.max ?? 4;
+}
 
 const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = [
   { value: "Instagram/Facebook", label: "Instagram + Facebook", icon: "📱" },
@@ -216,10 +224,10 @@ function Scheduler() {
   const [scheduleModalPost, setScheduleModalPost] = useState<ScheduledPost | null>(null);
   // Post pending a delete/reschedule choice (the confirm popup from a Delete click).
   const [deletePost, setDeletePost] = useState<ScheduledPost | null>(null);
-  // Over-posting guard: when a target day already has MAX_POSTS_PER_DAY posts, hold the
+  // Over-posting guard: when a target day already hit the account's daily max, hold the
   // pending schedule here and show the warning popup instead of committing straight away.
   const [capWarn, setCapWarn] = useState<{
-    dateLabel: string; page: string; existing: ScheduledPost[];
+    dateLabel: string; page: string; limit: number; existing: ScheduledPost[];
     onProceed: () => void | Promise<void>; onPickAnother: () => void;
   } | null>(null);
 
@@ -384,10 +392,11 @@ function Scheduler() {
     // Over-posting guard — if that day+account is already full, warn before committing.
     if (scheduleTimeISO) {
       const existing = postsOnDay(scheduleTimeISO, publishToPage, schedulingTaskId || undefined);
-      if (existing.length >= MAX_POSTS_PER_DAY) {
+      const limit = maxPostsPerDay(publishToPage);
+      if (existing.length >= limit) {
         const iso = scheduleTimeISO;
         setCapWarn({
-          dateLabel: dayLabel(iso), page: publishToPage, existing,
+          dateLabel: dayLabel(iso), page: publishToPage, limit, existing,
           onProceed: () => { setCapWarn(null); doEnqueue(iso); },
           onPickAnother: () => setCapWarn(null),
         });
@@ -869,9 +878,10 @@ function Scheduler() {
             // Over-posting guard — check the primary account for that day (exclude self).
             const primary = pages[0] || post.publishToPage;
             const existing = postsOnDay(iso, primary, post.id);
-            if (existing.length >= MAX_POSTS_PER_DAY) {
+            const limit = maxPostsPerDay(primary);
+            if (existing.length >= limit) {
               setCapWarn({
-                dateLabel: dayLabel(iso), page: primary, existing,
+                dateLabel: dayLabel(iso), page: primary, limit, existing,
                 onProceed: async () => { setCapWarn(null); await commit(); },
                 onPickAnother: () => setCapWarn(null), // leaves the picker open to choose again
               });
@@ -882,11 +892,12 @@ function Scheduler() {
         />
       )}
 
-      {/* Over-posting warning — a day already has MAX_POSTS_PER_DAY posts */}
+      {/* Over-posting warning — a day already hit the account's daily max */}
       {capWarn && (
         <DayCapWarningModal
           dateLabel={capWarn.dateLabel}
           page={capWarn.page}
+          limit={capWarn.limit}
           existing={capWarn.existing}
           pageHandle={pageHandle}
           onProceed={capWarn.onProceed}
@@ -1335,9 +1346,10 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
 // Over-posting guard popup. Lists the posts already committed to that day (name + time),
 // each expandable inline to show its creative + caption, with "Schedule anyway" / "Pick
 // another date" at the bottom.
-function DayCapWarningModal({ dateLabel, page, existing, pageHandle, onProceed, onPickAnother }: {
+function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onProceed, onPickAnother }: {
   dateLabel: string;
   page: string;
+  limit: number;
   existing: ScheduledPost[];
   pageHandle: (page: string) => string;
   onProceed: () => void | Promise<void>;
@@ -1353,9 +1365,9 @@ function DayCapWarningModal({ dateLabel, page, existing, pageHandle, onProceed, 
         <div className="flex items-start gap-2">
           <span className="text-lg leading-none">⚠️</span>
           <div>
-            <div className="text-base font-semibold text-gray-900">Already {existing.length} post{existing.length === 1 ? "" : "s"} scheduled that day</div>
+            <div className="text-base font-semibold text-gray-900">Daily limit reached — {pageHandle(page)}&apos;s limit is {limit}/day</div>
             <div className="text-[13px] text-gray-500 mt-1">
-              {pageHandle(page)} already has {existing.length} post{existing.length === 1 ? "" : "s"} going out on <span className="font-medium text-gray-700">{dateLabel}</span>. Scheduling this makes it {existing.length + 1}. Review what&apos;s planned, then schedule anyway or pick another date.
+              {pageHandle(page)} already has {existing.length} post{existing.length === 1 ? "" : "s"} going out on <span className="font-medium text-gray-700">{dateLabel}</span> (its daily limit is {limit}). Scheduling this makes it {existing.length + 1}. Review what&apos;s planned, then schedule anyway or pick another date.
             </div>
           </div>
         </div>
