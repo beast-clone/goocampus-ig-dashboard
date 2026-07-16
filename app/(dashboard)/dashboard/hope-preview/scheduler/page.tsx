@@ -431,7 +431,7 @@ function Scheduler() {
           onClick={() => setSchedTab("publish")}
           className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
-          Posts
+          Calendar
         </button>
       </div>
 
@@ -447,6 +447,14 @@ function Scheduler() {
               <button onClick={loadToSchedule} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
               <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
             </div>
+          </div>
+
+          {/* Publishing pipeline status — at-a-glance health of the queue */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <StatusCounter label="Ready to schedule" count={readyToSchedule.length} color="amber" />
+            <StatusCounter label="Publishing" count={publishing.length} color="blue" />
+            <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" />
+            <StatusCounter label="Failed" count={failed.length} color="rose" />
           </div>
 
           {(
@@ -590,7 +598,7 @@ function Scheduler() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-base font-semibold text-gray-900">Posts</div>
+            <div className="text-base font-semibold text-gray-900">Content calendar</div>
             <div className="text-[12px] text-gray-500">
               Everything scheduled and published — click a post to open it.
               {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
@@ -598,14 +606,6 @@ function Scheduler() {
           </div>
           <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
         </div>
-      </div>
-
-      {/* Status counters */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <StatusCounter label="Ready to schedule" count={readyToSchedule.length} color="amber" />
-        <StatusCounter label="Publishing" count={publishing.length} color="blue" />
-        <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" />
-        <StatusCounter label="Failed" count={failed.length} color="rose" />
       </div>
 
       {/* Filters */}
