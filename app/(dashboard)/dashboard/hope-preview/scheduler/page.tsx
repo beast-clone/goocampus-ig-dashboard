@@ -318,13 +318,23 @@ function Scheduler() {
   useEffect(() => { if (schedTab === "top") loadTopPerformers(); }, [schedTab, topAccount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Click a winner → open the manual composer pre-filled to reschedule/repost it.
-  function rescheduleTopPerformer(p: TopPerformer) {
+  // For a carousel we pull EVERY slide so all images come across, not just the cover.
+  async function rescheduleTopPerformer(p: TopPerformer) {
     setSchedulingTaskId(null);
     if (p.publishToPage) setPublishToPage(p.publishToPage as PublishToPage);
     setParticulars(`Repost: ${(p.caption || "").slice(0, 60)}`);
     setCaption(p.caption || "");
     setMediaUrls(p.thumbnail ? [p.thumbnail] : [""]);
     setShowCreateForm(true);
+    if (p.mediaType === "CAROUSEL_ALBUM") {
+      const accId = p.publishToPage === "GooCampus World" ? "goocampusworld"
+        : p.publishToPage === "12Plus / GC India" ? "12thplusdotcom" : "goocampus";
+      try {
+        const r = await fetch(`/api/scheduler/media-children?mediaId=${encodeURIComponent(p.id)}&accountId=${accId}`);
+        const d = await r.json();
+        if (Array.isArray(d.urls) && d.urls.length) setMediaUrls(d.urls);
+      } catch { /* keep the thumbnail fallback */ }
+    }
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
@@ -704,33 +714,32 @@ function Scheduler() {
             <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">No posts found for this account in the last 90 days.</div>
           )}
           {!topLoading && topPerformers.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {topPerformers.map((p, i) => {
                 const handle = p.publishToPage === "GooCampus World" ? "@goocampusworld" : p.publishToPage === "12Plus / GC India" ? "@12thplusdotcom" : "@goocampus";
+                const fmt = (n: number) => n >= 100000 ? `${(n / 100000).toFixed(1)}L` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                 return (
-                  <div key={`${p.publishToPage}-${p.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+                  <button key={`${p.publishToPage}-${p.id}`} type="button" onClick={() => rescheduleTopPerformer(p)}
+                    title={p.caption || "(no caption)"}
+                    className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-brand hover:shadow-md transition">
                     <div className="relative aspect-square bg-gray-100">
                       {p.thumbnail
                         ? <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">{p.mediaType === "VIDEO" ? "🎬" : "🖼️"}</div>}
-                      <div className="absolute top-2 left-2 text-[10px] font-semibold bg-black/60 text-white px-2 py-0.5 rounded-full">#{i + 1}</div>
-                      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5 text-[10px] text-white">
-                        <span className="bg-black/60 px-1.5 py-0.5 rounded-full">{p.reach.toLocaleString("en-IN")} reach</span>
-                        <span className="bg-black/60 px-1.5 py-0.5 rounded-full">{p.likes.toLocaleString("en-IN")} ♥</span>
+                        : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">{p.mediaType === "VIDEO" ? "🎬" : "🖼️"}</div>}
+                      <div className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-full">#{i + 1}</div>
+                      {p.mediaType === "CAROUSEL_ALBUM" && <div className="absolute top-1.5 right-1.5 text-white/90">▦</div>}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 flex items-center gap-2 text-[10px] text-white">
+                        <span>{fmt(p.reach)} reach</span><span>{fmt(p.likes)} ♥</span>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition">
+                        <span className="text-[11px] font-medium bg-white text-brand px-2.5 py-1 rounded-lg shadow">Reschedule →</span>
                       </div>
                     </div>
-                    <div className="p-3 flex flex-col gap-2 flex-1">
-                      <div className="flex items-center justify-between text-[11px] text-gray-500">
-                        <span>{handle}</span>
-                        <span>{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
-                      </div>
-                      <div className="text-xs text-gray-700 line-clamp-2 flex-1">{p.caption || "(no caption)"}</div>
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <a href={p.permalink} target="_blank" rel="noreferrer" className="text-[11px] text-gray-400 hover:text-brand hover:underline">View ↗</a>
-                        <button onClick={() => rescheduleTopPerformer(p)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark">Reschedule →</button>
-                      </div>
+                    <div className="px-2 py-1.5 flex items-center justify-between text-[10px] text-gray-500">
+                      <span className="truncate">{handle}</span>
+                      <span className="flex-shrink-0 ml-1">{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
