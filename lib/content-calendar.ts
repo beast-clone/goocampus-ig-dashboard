@@ -152,6 +152,7 @@ export type ScheduledPost = {
   igCaption: string;               // Instagram-specific override, if any
   fbCaption: string;               // Facebook-specific override, if any
   thumbnailUrl: string | null;     // first attachment thumbnail for the card
+  mediaUrls: string[];             // all media (carousel slides / video), in order
   scheduleTime: string | null;
   status: string;                  // raw Airtable status
   effectiveStatus: EffectiveStatus; // what the UI should show
@@ -249,6 +250,7 @@ export async function fetchScheduledPosts(limit = 100): Promise<ScheduledPost[]>
       igCaption,
       fbCaption,
       thumbnailUrl,
+      mediaUrls: attachments.map((a) => a.thumbnails?.large?.url || a.url || "").filter(Boolean),
       scheduleTime: f["Schedule Time"] ? String(f["Schedule Time"]) : null,
       status: selectName(f.Status) || String(f.Status || "Unknown"),
       instagramUrl: f["Instagram URL"] ? String(f["Instagram URL"]) : null,
@@ -337,6 +339,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       igCaption: "",
       fbCaption: "",
       thumbnailUrl: (r.media_urls && r.media_urls[0]) || null,
+      mediaUrls: r.media_urls || [],
       scheduleTime: r.schedule_time,
       status: r.publish_status || "",
       effectiveStatus: effective,

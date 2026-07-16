@@ -19,6 +19,7 @@ type ScheduledPost = {
   igCaption: string;
   fbCaption: string;
   thumbnailUrl: string | null;
+  mediaUrls: string[];
   scheduleTime: string | null;
   status: string;
   effectiveStatus: "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
@@ -380,7 +381,14 @@ function Scheduler() {
     });
   }
   function dayLabel(iso: string): string {
-    return new Date(iso).toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    const d = new Date(iso);
+    const full = d.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diffDays = Math.round((startOf(d) - startOf(new Date())) / 86400000);
+    // Read naturally for the day actually picked: today / tomorrow / the exact date.
+    if (diffDays === 0) return `today (${full})`;
+    if (diffDays === 1) return `tomorrow (${full})`;
+    return full;
   }
 
   async function submit() {
@@ -1763,7 +1771,14 @@ type CalFilter = "all" | "today" | "yesterday" | "week" | "upcoming";
 function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: () => void }) {
   const isPub = item.kind === "published";
   const p = item.post as ScheduledPost & PublishedIG;
-  const img: string | null = isPub ? (p.mediaUrl || null) : (p.thumbnailUrl || null);
+  // All slides for this post: carousels navigate slide-by-slide; videos play inline.
+  const slides: string[] = isPub
+    ? (p.mediaUrl ? [p.mediaUrl] : [])
+    : (p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : (p.thumbnailUrl ? [p.thumbnailUrl] : []));
+  const [idx, setIdx] = useState(0);
+  const safeIdx = Math.min(idx, Math.max(0, slides.length - 1));
+  const cur = slides[safeIdx] || null;
+  const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
   const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
   const when = new Date(item.whenMs).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
   const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
@@ -1788,10 +1803,26 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
         <div className="grid md:grid-cols-2 min-h-0 overflow-auto">
-          <div className="bg-gray-900 flex items-center justify-center p-4 min-h-[320px]">
-            {img
-              ? <img src={img} alt="" className="max-w-full max-h-[78vh] object-contain rounded-lg" />
+          <div className="bg-gray-900 flex items-center justify-center p-4 min-h-[320px] relative">
+            {cur
+              ? (isVideo(cur)
+                  ? <video key={cur} src={cur} controls playsInline className="max-w-full max-h-[78vh] rounded-lg" />
+                  : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="max-w-full max-h-[78vh] object-contain rounded-lg" />)
               : <div className="text-gray-500 text-6xl">🖼️</div>}
+            {slides.length > 1 && (
+              <>
+                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Previous">‹</button>
+                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Next">›</button>
+                <div className="absolute top-3 right-3 text-[11px] font-medium text-white bg-black/50 rounded-full px-2 py-0.5 tabular-nums">{safeIdx + 1}/{slides.length}</div>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {slides.map((_, i) => (
+                    <button key={i} onClick={() => setIdx(i)} className={`w-2 h-2 rounded-full transition ${i === safeIdx ? "bg-white" : "bg-white/40 hover:bg-white/70"}`} aria-label={`Slide ${i + 1}`} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div className="p-5 space-y-4 overflow-auto">
             <div className="flex items-center gap-2 flex-wrap">

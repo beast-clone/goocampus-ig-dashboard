@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { updatePostCaption } from "@/lib/content-calendar";
+import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
-// Edit a post's caption from the queue view. Writes into all three caption fields
-// (Caption / Instagram Caption / Facebook Caption) so whichever the n8n workflow reads,
-// it sees the update. Optional per-platform overrides.
+export const dynamic = "force-dynamic";
+
+// Edit a post's caption from the queue view — writes mh_posts.caption in Supabase.
 export async function POST(req: Request) {
-  let body: { recordId?: string; caption?: string; igCaption?: string; fbCaption?: string };
+  let body: { recordId?: string; caption?: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  if (!body.recordId || !/^rec[A-Za-z0-9]{14}$/.test(body.recordId)) {
-    return NextResponse.json({ error: "Valid Airtable recordId required" }, { status: 400 });
+  if (!body.recordId || typeof body.recordId !== "string") {
+    return NextResponse.json({ error: "recordId required" }, { status: 400 });
   }
   if (typeof body.caption !== "string") {
     return NextResponse.json({ error: "caption required (string)" }, { status: 400 });
@@ -21,7 +21,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    await updatePostCaption(body.recordId, body.caption, body.igCaption, body.fbCaption);
+    const sb = getSupabase();
+    if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    const { error } = await sb
+      .from("mh_posts")
+      .update({ caption: body.caption })
+      .eq("id", body.recordId);
+    if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Caption update failed"), { status: 502 });
