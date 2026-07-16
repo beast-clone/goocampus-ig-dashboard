@@ -31,11 +31,20 @@ type MhRow = {
   id: string; particulars: string | null; type: string | null; status: string | null;
   sbu: string | null; caption: string | null; content: string | null; priority: string | null;
   publishing_date: string | null; instagram_url: string | null; updated_at: string | null;
+  owner_key: string | null; media_urls: string[] | null; planner_note: string | null;
 };
 
 type PlannedPost = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
-  status: string; suggestedTime: string; reason: string; tags: string[];
+  status: string; owner: string; publishingDate: string | null; suggestedTime: string; reason: string; tags: string[];
+};
+
+// A post on the actual Publishing Calendar (tab 2) — the team's real dates, owner and
+// workflow status. Anything with a publishing_date shows up here.
+type CalendarPost = {
+  id: string; title: string; type: string; status: string; owner: string;
+  publishingDate: string | null; thumbnailUrl: string | null; instagramUrl: string | null;
+  note: string | null;
 };
 
 const snippet = (s: string | null, n = 140) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -63,7 +72,7 @@ export async function GET(req: Request) {
 
     const [{ data, error }, times, top] = await Promise.all([
       sb.from("mh_posts")
-        .select("id,particulars,type,status,sbu,caption,content,priority,publishing_date,instagram_url,updated_at")
+        .select("id,particulars,type,status,sbu,caption,content,priority,publishing_date,instagram_url,updated_at,owner_key,media_urls,planner_note")
         .eq("sbu", SBU)
         .order("publishing_date", { ascending: true, nullsFirst: false }),
       getTopTimeSuggestions(PAGE, 4).catch(() => []),
@@ -73,6 +82,22 @@ export async function GET(req: Request) {
 
     const rows = ((data || []) as MhRow[]).filter((r) => IG_TYPES.includes(r.type || ""));
     const nowMs = Date.now();
+
+    // Tab 2 (Publishing Calendar): every 12thplus post that isn't already published,
+    // with its ACTUAL publishing_date + owner + workflow status. The team drags these.
+    const calendar: CalendarPost[] = rows
+      .filter((r) => r.status !== PUBLISHED_STATUS)
+      .map((r) => ({
+        id: r.id,
+        title: r.particulars || "",
+        type: r.type || "",
+        status: r.status || "",
+        owner: r.owner_key || "",
+        publishingDate: r.publishing_date,
+        thumbnailUrl: (r.media_urls && r.media_urls[0]) || null,
+        instagramUrl: r.instagram_url,
+        note: r.planner_note,
+      }));
 
     // Last thing actually out — anchor for the 24h gap + "don't repeat this".
     const published = rows
@@ -93,6 +118,7 @@ export async function GET(req: Request) {
         last: last ? { title: last.particulars, type: last.type, interest: SBU, at: last.publishing_date } : null,
         summary: `No 12thplus posts are waiting in the Marketing Hub pipeline right now (SBU "${SBU}"). Add content there and I'll sequence it.`,
         insight: "", plan: [] as PlannedPost[], hold: [] as { id: string; title: string; reason: string }[],
+        calendar,
         generatedAt: new Date().toISOString(),
       };
       cache = { at: Date.now(), payload };
@@ -162,7 +188,8 @@ export async function GET(req: Request) {
       cursor = slot.getTime() + MIN_GAP_MS;
       return {
         id: post.id, title: post.particulars || "", type: post.type || "", interest: SBU,
-        thumbnailUrl: null, status: post.status || "",
+        thumbnailUrl: (post.media_urls && post.media_urls[0]) || null, status: post.status || "",
+        owner: post.owner_key || "", publishingDate: post.publishing_date,
         suggestedTime: slot.toISOString(),
         reason: reason || "Spaced a full day after the previous post, at your audience's peak hour — keeps the feed varied and gives each post room to breathe.",
         tags: tags.length ? tags : ["24h gap"],
@@ -178,7 +205,7 @@ export async function GET(req: Request) {
       last: last ? { title: last.particulars, type: last.type, interest: SBU, at: last.publishing_date } : null,
       summary: ai.summary || `Sequenced ${plan.length} post${plan.length === 1 ? "" : "s"} with a 24-hour minimum gap so they don't compete for reach.`,
       insight: ai.insight || "",
-      plan, hold,
+      plan, hold, calendar,
       generatedAt: new Date().toISOString(),
     };
     cache = { at: Date.now(), payload };
