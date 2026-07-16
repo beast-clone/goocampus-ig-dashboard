@@ -2,7 +2,22 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getSupabase } from "@/lib/supabase";
 import { getTopTimeSuggestions, getTopPerformers } from "@/lib/scheduler-helpers";
+import { fetchContentCalendarBody } from "@/lib/content-calendar";
 import { safeError } from "@/lib/errors";
+
+// Web-search-grounded ranking. Defaults to OpenAI's web-search model; swap to Perplexity
+// later purely via env (PLANNER_SEARCH_BASE_URL=https://api.perplexity.ai, _KEY, _MODEL=sonar).
+const SEARCH_MODEL = process.env.PLANNER_SEARCH_MODEL || "gpt-4o-mini-search-preview";
+const SEARCH_BASE_URL = process.env.PLANNER_SEARCH_BASE_URL || undefined;
+
+// Pull a plain-JSON object out of a model reply that may wrap it in prose / code fences.
+function parseLooseJson<T>(text: string): T | null {
+  if (!text) return null;
+  try { return JSON.parse(text) as T; } catch { /* fall through */ }
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1] : text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  try { return JSON.parse(candidate) as T; } catch { return null; }
+}
 
 // Post Planner — "what should we publish next, and when."
 //
@@ -131,45 +146,60 @@ export async function GET(req: Request) {
       return NextResponse.json({ ...payload, cached: false });
     }
 
-    // ---- AI: decide the ORDER ----
+    // ---- Pull each candidate's REAL content (slides / body) from the Content field,
+    // so the ranker searches the web for the actual topic, not just the title. ----
+    const contentPairs = await Promise.all(candidates.map(async (c) => {
+      if (!c.airtable_record_id) return [c.id, ""] as const;
+      try { const { content } = await fetchContentCalendarBody(c.airtable_record_id); return [c.id, snippet(content, 400)] as const; }
+      catch { return [c.id, ""] as const; }
+    }));
+    const contentById = new Map(contentPairs);
+
+    // ---- AI: decide the ORDER (web-search-grounded) ----
     const ctx = {
       lastPublished: last ? { title: last.particulars, type: last.type, caption: snippet(last.caption || last.content) } : null,
       whatWorks: top.map((t) => ({ type: t.mediaType, caption: snippet(t.caption, 80), reach: t.reach })),
       candidates: candidates.map((c) => ({
         id: c.id, title: c.particulars || "", type: c.type || "", status: c.status || "",
-        priority: c.priority || "", caption: snippet(c.caption || c.content, 120),
+        priority: c.priority || "",
+        content: contentById.get(c.id) || snippet(c.caption || c.content, 200),
       })),
     };
 
     type AIOrder = { summary?: string; insight?: string; order?: { id: string; reason?: string; tags?: string[] }[]; hold?: { id: string; reason?: string }[] };
     let ai: AIOrder = {};
     const key = process.env.OPENAI_API_KEY;
+
+    const searchSystem = [
+      "You schedule Instagram posts for @12thplus — an Indian education account for students after 12th grade (NEET UG, courses/careers after 12th, competitive exams, colleges).",
+      "Each CANDIDATE has a title and its ACTUAL content (the carousel slides / body). First, for EACH candidate, derive its real topic from the content (e.g. 'top BSc courses', 'NEET UG cutoff', 'IT courses after 12th') and SEARCH THE WEB to judge how much interest/attention that topic has RIGHT NOW in India — recent news, seasonality (results/admissions/exam dates), rising search interest.",
+      "THEN decide the ORDER to publish the candidates. A 24-HOUR minimum gap is enforced separately — focus on order and topic/format spacing, not exact times.",
+      "RANK by, in priority: (a) topics that are TRENDING or timely right now go earlier; (b) what has historically performed for this account (whatWorks); (c) 'priority' where set; (d) never place two SAME-topic or SAME-format posts back-to-back (they cannibalise each other's reach); (e) alternate formats for feed variety; (f) if a candidate is too similar to the LAST published post, push it later or move it to hold.",
+      "In each reason, cite the REAL trend finding when relevant, e.g. 'BSc course searches spike right after board results — lead with this'.",
+      "Return ONLY a JSON object, no prose around it: { summary: string (1 sentence), insight: string (1 sentence on what's timely/works for this account right now), order: [{ id, reason (1 concrete sentence), tags: string[] }] (every candidate id, in publish order), hold: [{ id, reason }] (optional) }.",
+      "tags are short labels like: 'trending now', 'timely', 'proven format', 'different topic', 'format variety', 'complements last post', 'fresh angle', 'priority'.",
+    ].join("\n");
+
     if (key) {
+      // 1) Web-search-grounded ranker (OpenAI search model by default; Perplexity via env).
       try {
+        const sc = new OpenAI({ apiKey: process.env.PLANNER_SEARCH_KEY || key, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
+        const resp = await sc.chat.completions.create({
+          model: SEARCH_MODEL,
+          messages: [ { role: "system", content: searchSystem }, { role: "user", content: JSON.stringify(ctx) } ],
+        });
+        ai = parseLooseJson<AIOrder>(resp.choices[0]?.message?.content || "") || {};
+      } catch { ai = {}; }
+
+      // 2) Fallback to a plain (non-search) ranker if the search model failed / returned nothing.
+      if (!ai.order || ai.order.length === 0) try {
         const client = new OpenAI({ apiKey: key });
         const resp = await client.chat.completions.create({
           model: "gpt-4o-mini",
           temperature: 0.4,
           response_format: { type: "json_object" },
           messages: [
-            {
-              role: "system",
-              content: [
-                "You schedule Instagram posts for @12thplus — an Indian education account for students after 12th grade (NEET UG, courses/careers after 12th, competitive exams, colleges).",
-                "You get the LAST published post, a list of CANDIDATE posts waiting in the pipeline, and what has historically performed.",
-                "Decide the ORDER to publish the candidates. A minimum 24-HOUR gap is ENFORCED for you separately — focus ONLY on order and topic/format spacing, NOT exact times.",
-                "",
-                "RULES:",
-                "  1. Never place two posts of the SAME topic or SAME format back-to-back — they compete for the same viewers and split each other's reach (cannibalisation). Separate similar posts.",
-                "  2. Lead with the candidate most likely to perform — use what has historically worked (high-reach formats/topics) and 'priority' where set.",
-                "  3. Alternate formats where possible (reel → carousel → reel) for feed variety.",
-                "  4. A strong post should be FOLLOWED by something complementary (a different angle / next step for the same audience), not a near-duplicate.",
-                "  5. If a candidate is too similar to the LAST published post, push it later or move it to `hold`.",
-                "",
-                "Return JSON: { summary: string (1 sentence), insight: string (1 sentence on what works for this account), order: [{ id, reason (1 concrete sentence), tags: string[] }] (every candidate id, in publish order), hold: [{ id, reason }] (candidates to NOT put next, optional) }.",
-                "tags are short labels like: 'proven format', 'different topic', 'format variety', 'complements last post', 'fresh angle', 'priority'.",
-              ].join("\n"),
-            },
+            { role: "system", content: searchSystem.replace("and SEARCH THE WEB to judge how much interest/attention that topic has RIGHT NOW in India — recent news, seasonality (results/admissions/exam dates), rising search interest.", "and judge how timely it is from the content.") },
             { role: "user", content: JSON.stringify(ctx) },
           ],
         });
