@@ -33,6 +33,9 @@ type CalCard = {
 // The team starts working a post ~this many days before its publish date, so an
 // approved post due within this window counts as "being worked on" (guarded on move).
 const WORK_LEAD_DAYS = 1;
+// @12thplus daily post cap — accepting/moving a post onto a day already at this many
+// posts asks first (min 2 / max 2 for this account).
+const LIMIT_PER_DAY = 2;
 
 const OWNER_COLORS: Record<string, { bg: string; fg: string }> = {
   nikhil: { bg: "#E6F1FB", fg: "#0C447C" },
@@ -86,6 +89,8 @@ function Planner() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [guard, setGuard] = useState<{ card: CalCard; targetISO: string } | null>(null);
   const [detail, setDetail] = useState<CalCard | null>(null);
+  const [accepted, setAccepted] = useState<Set<string>>(new Set());
+  const [limitWarn, setLimitWarn] = useState<{ card: CalCard; targetISO: string; existing: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
   // Optimistic local date overrides so drags feel instant.
@@ -168,6 +173,34 @@ function Planner() {
       });
       const d = await r.json();
       if (!r.ok || d.error) { alert(`Move failed: ${d.error || r.status}`); setPubOverride((o) => { const n = { ...o }; delete n[card.id]; return n; }); }
+    } finally { setBusy(false); }
+  }
+
+  // Accept one AI suggestion — write that post's suggested date to publishing_date,
+  // guarded by the @12thplus daily cap.
+  function acceptPost(card: CalCard) {
+    if (!data) return;
+    const targetISO = card.eff;
+    const dayKey = ymd(new Date(targetISO));
+    const existing = data.calendar.filter((p) => {
+      if (p.id === card.id) return false;
+      const eff = pubOverride[p.id] || p.publishingDate;
+      return !!eff && ymd(new Date(eff)) === dayKey;
+    }).length;
+    if (existing >= LIMIT_PER_DAY) { setLimitWarn({ card, targetISO, existing }); return; }
+    doAccept(card, targetISO);
+  }
+  async function doAccept(card: CalCard, targetISO: string) {
+    setBusy(true);
+    setPubOverride((o) => ({ ...o, [card.id]: targetISO }));
+    setAccepted((s) => new Set(s).add(card.id));
+    try {
+      const r = await fetch("/api/post-planner/move", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: card.id, dateISO: targetISO, note: "Added from AI plan" }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) { alert(`Couldn't add: ${d.error || r.status}`); setAccepted((s) => { const n = new Set(s); n.delete(card.id); return n; }); }
     } finally { setBusy(false); }
   }
 
@@ -275,7 +308,8 @@ function Planner() {
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#888780" }} />Not started</span>
           </div>
           </div>
-          <DetailSidebar card={detail} isPlan={tab === "plan"} onClose={() => setDetail(null)} />
+          <DetailSidebar card={detail} isPlan={tab === "plan"} onClose={() => setDetail(null)}
+            onAccept={acceptPost} accepted={detail ? accepted.has(detail.id) : false} busy={busy} />
         </div>
       )}
 
@@ -307,6 +341,30 @@ function Planner() {
         </div>
       )}
 
+      {/* Daily-limit guard — accepting/moving onto a day already at the @12thplus cap */}
+      {limitWarn && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setLimitWarn(null)}>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 bg-amber-50">
+              <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">!</span>
+              <div className="min-w-0">
+                <div className="text-[15px] font-semibold text-amber-600 leading-tight">Daily limit reached</div>
+                <div className="text-[12px] text-gray-500">@12thplus · limit {LIMIT_PER_DAY}/day</div>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <div className="text-[13px] text-gray-600 leading-relaxed">
+                <b className="text-gray-900">{new Date(limitWarn.targetISO).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</b> already has <b className="text-gray-900">{limitWarn.existing}</b> post{limitWarn.existing === 1 ? "" : "s"} scheduled — its daily limit of {LIMIT_PER_DAY}. Adding this makes it {limitWarn.existing + 1}.
+              </div>
+              <div className="flex items-center justify-end gap-2 mt-5">
+                <button onClick={() => setLimitWarn(null)} className="text-xs font-medium px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">Pick another day</button>
+                <button onClick={() => { const w = limitWarn; setLimitWarn(null); doAccept(w.card, w.targetISO); }} className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark">Add anyway</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -314,7 +372,7 @@ function Planner() {
 // Right-hand detail panel — shows the selected post's creative, caption and details
 // (and "why the AI put it here" on the planner tab). Captions live in the Airtable
 // Content field, so we fetch them on demand by airtable_record_id.
-function DetailSidebar({ card, isPlan, onClose }: { card: CalCard | null; isPlan: boolean; onClose: () => void }) {
+function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { card: CalCard | null; isPlan: boolean; onClose: () => void; onAccept: (card: CalCard) => void; accepted: boolean; busy: boolean }) {
   const [caption, setCaption] = useState("");
   const [capLoading, setCapLoading] = useState(false);
   const [idx, setIdx] = useState(0);
@@ -384,6 +442,12 @@ function DetailSidebar({ card, isPlan, onClose }: { card: CalCard | null; isPlan
           </div>
 
           <div className="p-4 space-y-3">
+            {isPlan && (
+              <button onClick={() => onAccept(card)} disabled={busy || accepted}
+                className={`w-full text-[13px] font-semibold px-4 py-2.5 rounded-lg transition disabled:opacity-60 ${accepted ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-brand text-white hover:bg-brand-dark"}`}>
+                {accepted ? "✓ Added to the calendar" : `Add to ${new Date(card.eff).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`}
+              </button>
+            )}
             {isPlan && card.reason && (
               <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
                 <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
