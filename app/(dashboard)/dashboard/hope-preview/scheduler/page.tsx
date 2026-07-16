@@ -210,6 +210,8 @@ function Scheduler() {
   const [rowActionId, setRowActionId] = useState<string | null>(null); // shows spinner on the row being acted on
   // Schedule-now modal — set to a post when the user clicks the button on a queue card.
   const [scheduleModalPost, setScheduleModalPost] = useState<ScheduledPost | null>(null);
+  // Post pending a delete/reschedule choice (the confirm popup from a Delete click).
+  const [deletePost, setDeletePost] = useState<ScheduledPost | null>(null);
 
   // Real published IG posts across ALL 3 GooCampus accounts — shown alongside the
   // scheduled posts in the Content Calendar. Each post is tagged with its account
@@ -445,6 +447,19 @@ function Scheduler() {
       else loadQueue();
     } finally { setRowActionId(null); }
   }
+  async function handleCancel(recordId: string) {
+    setRowActionId(recordId);
+    try {
+      const r = await fetch("/api/scheduler/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) alert(`Delete failed: ${d.error || "HTTP " + r.status}`);
+      else { loadQueue(); loadToSchedule(); }   // it drops back into the backlog
+    } finally { setRowActionId(null); }
+  }
   async function handleSaveCaption() {
     if (!editingCaptionId) return;
     setCaptionSaving(true);
@@ -659,6 +674,8 @@ function Scheduler() {
               }
               pageHandle={pageHandle}
               onOpen={(p) => setCalItem({ kind: "scheduled", whenMs: new Date(p.scheduleTime || p.publishedAt || 0).getTime(), post: p })}
+              onReschedule={(p) => setScheduleModalPost(p)}
+              onDelete={(p) => setDeletePost(p)}
             />
           )}
         </div>
@@ -805,6 +822,27 @@ function Scheduler() {
             setScheduleModalPost(null);
           }}
         />
+      )}
+
+      {/* Delete / reschedule confirm popup */}
+      {deletePost && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePost(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-semibold text-gray-900">Remove this post from the schedule?</div>
+            <div className="text-[13px] text-gray-500 mt-1">
+              <span className="font-medium text-gray-700">{deletePost.particulars || "Untitled"}</span> — {pageHandle(deletePost.publishToPage)}.
+              Deleting takes it off the schedule and returns it to “Ready to schedule” (nothing is permanently lost). Or reschedule it to a new time.
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button onClick={() => setDeletePost(null)}
+                className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { const p = deletePost; setDeletePost(null); setScheduleModalPost(p); }}
+                className="text-xs font-medium px-3 py-2 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40">Reschedule</button>
+              <button onClick={() => { const id = deletePost.id; setDeletePost(null); handleCancel(id); }}
+                className="text-xs font-semibold px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700">Delete</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Big full-screen view of a scheduled / published post */}
@@ -1167,11 +1205,13 @@ function StatusCounter({ label, count, color, active, onClick }: { label: string
 
 // Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
 // is the active filter. Click a row to open the big preview/analytics modal.
-function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen }: {
+function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onDelete }: {
   posts: ScheduledPost[];
   emptyLabel: string;
   pageHandle: (page: string) => string;
   onOpen: (p: ScheduledPost) => void;
+  onReschedule: (p: ScheduledPost) => void;
+  onDelete: (p: ScheduledPost) => void;
 }) {
   if (posts.length === 0) {
     return <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">{emptyLabel}</div>;
@@ -1192,20 +1232,31 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen }: {
   return (
     <div className="space-y-2">
       {posts.map((p) => (
-        <button key={p.id} onClick={() => onOpen(p)}
-          className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3.5 py-3 text-left hover:border-brand hover:bg-brand-light/20 transition">
-          <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-            {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
-            <div className="text-[11px] text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
-          </div>
-          <div className="text-[11px] text-gray-500 flex-shrink-0 text-right tabular-nums">
+        <div key={p.id}
+          className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3.5 py-3 hover:border-brand transition">
+          <button onClick={() => onOpen(p)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
+            <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+              {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
+              <div className="text-[11px] text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
+            </div>
+          </button>
+          <div className="text-[11px] text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
             {fmt(p.effectiveStatus === "published" ? p.publishedAt : p.scheduleTime)}
           </div>
           <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus}</span>
-        </button>
+          {/* Row actions — only for posts that are still actionable (not already published) */}
+          {p.effectiveStatus !== "published" && (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button onClick={() => onReschedule(p)}
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
+              <button onClick={() => onDelete(p)}
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition">Delete</button>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
