@@ -1364,9 +1364,18 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
       <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header bar */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
-          <div className="min-w-0">
-            <div className="text-[15px] font-semibold text-gray-900 leading-tight">Daily limit reached</div>
-            <div className="text-[12px] text-gray-500 mt-0.5">{pageHandle(page)} · limit {limit}/day</div>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="w-4 h-4">
+                <circle cx="12" cy="12" r="9" />
+                <line x1="12" y1="7.5" x2="12" y2="13" />
+                <line x1="12" y1="16.5" x2="12" y2="16.5" />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <div className="text-[15px] font-semibold text-amber-600 leading-tight">Daily limit reached</div>
+              <div className="text-[12px] text-gray-500 mt-0.5">{pageHandle(page)} · limit {limit}/day</div>
+            </div>
           </div>
           <button onClick={onPickAnother} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
         </div>
