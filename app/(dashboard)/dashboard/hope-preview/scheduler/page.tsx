@@ -622,11 +622,8 @@ function Scheduler() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
         <span className="text-gray-500 uppercase tracking-wide font-medium mr-1">Filter:</span>
-        <select value={filterPage} onChange={(e) => setFilterPage(e.target.value)}
-          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
-          <option value="all">All accounts</option>
-          {availablePages.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <HopeSelect value={filterPage} onChange={setFilterPage}
+          options={[{ value: "all", label: "All accounts" }, ...availablePages.map((p) => ({ value: p, label: p }))]} />
         {filterPage !== "all" && (
           <button onClick={() => setFilterPage("all")}
             className="text-gray-500 hover:text-gray-800 underline">clear</button>
@@ -2332,6 +2329,36 @@ function HopeTimePicker({ value, onChange }: { value: string; onChange: (v: stri
               <button key={s} type="button" data-sel={s === value ? "1" : undefined} onClick={() => { onChange(s); setOpen(false); }}
                 className={`w-full text-left text-xs rounded-lg px-3 py-1.5 ${s === value ? "bg-brand-light/50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
                 {to12h(s)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Hope-UI dropdown for simple {value,label} options (e.g. the account filter) —
+// a themed popover instead of a native OS <select>.
+function HopeSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value) || options[0];
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:border-gray-300 text-gray-800">
+        <span className="whitespace-nowrap">{current?.label}</span>
+        <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1 min-w-[190px] max-h-72 overflow-auto">
+            {options.map((o) => (
+              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full flex items-center gap-2 text-left rounded-lg px-3 py-1.5 text-xs ${o.value === value ? "bg-brand-light/50 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-50"}`}>
+                <span className="flex-1">{o.label}</span>
+                {o.value === value && <IconCheck size={14} stroke={2.5} className="text-brand flex-shrink-0" />}
               </button>
             ))}
           </div>
