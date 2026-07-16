@@ -204,13 +204,25 @@ function Scheduler() {
   // Schedule-now modal — set to a post when the user clicks the button on a queue card.
   const [scheduleModalPost, setScheduleModalPost] = useState<ScheduledPost | null>(null);
 
-  // Real published IG posts (last 20) — shown alongside scheduled posts in the Content Calendar
+  // Real published IG posts across ALL 3 GooCampus accounts — shown alongside the
+  // scheduled posts in the Content Calendar. Each post is tagged with its account
+  // (publishToPage) so tiles/filters can tell them apart.
   const [publishedIG, setPublishedIG] = useState([] as PublishedIG[]);
   useEffect(() => {
-    fetch("/api/posts?accountId=goocampus&limit=20&insights=true")
-      .then((r) => r.ok ? r.json() : { posts: [] })
-      .then((d) => setPublishedIG(d.posts || []))
-      .catch(() => {});
+    const accounts: { id: string; page: string }[] = [
+      { id: "goocampus", page: "GooCampus Main" },
+      { id: "goocampusworld", page: "GooCampus World" },
+      { id: "12thplusdotcom", page: "12Plus / GC India" },
+    ];
+    Promise.all(accounts.map((a) =>
+      fetch(`/api/posts?accountId=${a.id}&limit=20&insights=true`)
+        .then((r) => r.ok ? r.json() : { posts: [] })
+        .then((d) => ((d.posts || []) as PublishedIG[]).map((p) => ({ ...p, publishToPage: a.page })))
+        .catch(() => [] as PublishedIG[])
+    )).then((results) => {
+      const merged = results.flat().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setPublishedIG(merged);
+    });
   }, []);
 
   const loadQueue = () => {
@@ -372,7 +384,8 @@ function Scheduler() {
     .sort((a, b) => new Date(b.publishedAt || b.scheduleTime || 0).getTime() - new Date(a.publishedAt || a.scheduleTime || 0).getTime())
     .slice(0, 20);
   // Populate filter dropdown options from the actual data so we don't hardcode.
-  const availablePages = Array.from(new Set(queue.map((p) => p.publishToPage).filter(Boolean))).sort();
+  const availablePages = PAGE_OPTIONS.map((o) => o.value); // the 3 GooCampus accounts, always
+  const publishedFiltered = filterPage === "all" ? publishedIG : publishedIG.filter((p) => p.publishToPage === filterPage);
   const availableInterests = Array.from(new Set(queue.map((p) => p.primaryInterest).filter(Boolean))).sort();
 
   async function handleReschedule(recordId: string, iso: string) {
@@ -658,7 +671,7 @@ function Scheduler() {
       )}
 
       {/* Full-width calendar of everything scheduled & published — click a post to open it big. */}
-      <MiniPlanner posts={queueFiltered} publishedIG={publishedIG} wide onSelect={setCalItem} />
+      <MiniPlanner posts={queueFiltered} publishedIG={publishedFiltered} wide onSelect={setCalItem} />
 
       </>)}
 
@@ -1492,6 +1505,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
 type PublishedIG = {
   id: string; caption: string; mediaUrl: string; permalink: string; type: string;
   timestamp: string; likes: number; comments: number; reach: number;
+  publishToPage: string; // which account it was published from (matches PAGE_OPTIONS values)
 };
 
 type CalendarItem =
@@ -1512,7 +1526,9 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   const status: string = isPub ? "published" : (p.effectiveStatus || "scheduled");
   const igUrl: string | null = isPub ? (p.permalink || null) : (p.instagramUrl || null);
   const fbUrl: string | null = isPub ? null : (p.facebookUrl || null);
-  const account: string = isPub ? "@goocampus" : (p.publishToPage || "");
+  const account: string = (p.publishToPage === "GooCampus World") ? "@goocampusworld"
+    : (p.publishToPage === "12Plus / GC India") ? "@12thplusdotcom"
+    : isPub ? "@goocampus" : (p.publishToPage || "");
   const statusColor: Record<string, string> = {
     published: "bg-emerald-50 text-emerald-700", publishing: "bg-blue-50 text-blue-700",
     failed: "bg-rose-50 text-rose-700", scheduled: "bg-amber-50 text-amber-700",
@@ -1706,8 +1722,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                   if (it.kind === "published") {
                     const p = it.post;
                     const isReel = p.type === "REEL";
-                    // Published posts today only come from the goocampus fetch (see loadQueue).
-                    const handle = handleFor("GooCampus Main");
+                    const handle = handleFor(p.publishToPage);
                     return (
                       <button
                         key={`pub-${p.id}`}
