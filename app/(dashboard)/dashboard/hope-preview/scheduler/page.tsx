@@ -595,17 +595,15 @@ function Scheduler() {
 
       {schedTab === "publish" && (<>
       {/* Header — queue actions strip */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="text-base font-semibold text-gray-900">Content calendar</div>
-            <div className="text-[12px] text-gray-500">
-              Everything scheduled and published — click a post to open it.
-              {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
-            </div>
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div>
+          <div className="text-base font-semibold text-gray-900">Content calendar</div>
+          <div className="text-[12px] text-gray-500">
+            Everything scheduled and published — click a post to open it.
+            {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
           </div>
-          <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
         </div>
+        <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} />
       </div>
 
       {/* Filters */}
@@ -616,21 +614,8 @@ function Scheduler() {
           <option value="all">All accounts</option>
           {availablePages.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
-        <select value={filterInterest} onChange={(e) => setFilterInterest(e.target.value)}
-          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
-          <option value="all">All primary interests</option>
-          {availableInterests.map((i) => <option key={i} value={i}>{i}</option>)}
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-200 rounded-md px-2 py-1 bg-white">
-          <option value="all">All statuses</option>
-          <option value="scheduled">Ready to schedule</option>
-          <option value="publishing">Publishing</option>
-          <option value="published">Published</option>
-          <option value="failed">Failed</option>
-        </select>
-        {(filterPage !== "all" || filterInterest !== "all" || filterStatus !== "all") && (
-          <button onClick={() => { setFilterPage("all"); setFilterInterest("all"); setFilterStatus("all"); }}
+        {filterPage !== "all" && (
+          <button onClick={() => setFilterPage("all")}
             className="text-gray-500 hover:text-gray-800 underline">clear</button>
         )}
       </div>
