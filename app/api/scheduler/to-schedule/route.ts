@@ -34,7 +34,8 @@ export async function GET() {
       // don't re-list anything already pushed into the publish queue
       .is("publish_status", null)
       .order("updated_at", { ascending: false })
-      .limit(20); // testing cap — show a manageable batch, not all 41
+      .limit(200); // show the full backlog so the "Ready to schedule" count is real
+                   // and decrements by one each time a post is scheduled
 
     if (error) throw new Error(error.message);
 

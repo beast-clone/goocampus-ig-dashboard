@@ -130,6 +130,9 @@ function Scheduler() {
     airtableRecordId?: string | null;
   };
   const [schedTab, setSchedTab] = useState<"to_schedule" | "publish" | "top">("to_schedule");
+  // Which status the counter strip is filtering the list to. "ready" = produced content
+  // awaiting scheduling (the default To-schedule master list); the rest slice the queue.
+  const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "publishing" | "published" | "failed">("ready");
   const [topAccount, setTopAccount] = useState<string>("all");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
@@ -400,6 +403,9 @@ function Scheduler() {
     if (filterStatus !== "all" && p.effectiveStatus !== filterStatus) return false;
     return true;
   });
+  // True count of produced content still awaiting a schedule action (the API now
+  // returns the full set, so this decrements by one each time a post is scheduled).
+  const toScheduleTotal = toSchedule.length;
   const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled");
   const publishing = queueFiltered.filter((p) => p.effectiveStatus === "publishing");
   const failed = queueFiltered.filter((p) => p.effectiveStatus === "failed");
@@ -483,25 +489,34 @@ function Scheduler() {
           {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
-              <div className="text-base font-semibold text-gray-900">Ready to schedule</div>
-              <div className="text-[12px] text-gray-500">Produced content awaiting a publish action — click a post to open it right here.</div>
+              <div className="text-base font-semibold text-gray-900">{
+                listFilter === "ready" ? "Ready to schedule"
+                : listFilter === "scheduled" ? "Scheduled"
+                : listFilter === "publishing" ? "Publishing"
+                : listFilter === "published" ? "Published" : "Failed"
+              }</div>
+              <div className="text-[12px] text-gray-500">{
+                listFilter === "ready"
+                  ? "Produced content awaiting a publish action — click a post to open it right here."
+                  : "Click a post to open its full preview and analytics."
+              }</div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={loadToSchedule} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
+              <button onClick={() => { if (listFilter === "ready") loadToSchedule(); else loadQueue(); }} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
               <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
             </div>
           </div>
 
           {/* Pipeline status: content awaiting scheduling → scheduled → publishing → published/failed */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
-            <StatusCounter label="Ready to schedule" count={toSchedule.length} color="amber" />
-            <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" />
-            <StatusCounter label="Publishing" count={publishing.length} color="blue" />
-            <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" />
-            <StatusCounter label="Failed" count={failed.length} color="rose" />
+            <StatusCounter label="Ready to schedule" count={toScheduleTotal} color="amber" active={listFilter === "ready"} onClick={() => setListFilter("ready")} />
+            <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" active={listFilter === "scheduled"} onClick={() => setListFilter("scheduled")} />
+            <StatusCounter label="Publishing" count={publishing.length} color="blue" active={listFilter === "publishing"} onClick={() => setListFilter("publishing")} />
+            <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" active={listFilter === "published"} onClick={() => setListFilter("published")} />
+            <StatusCounter label="Failed" count={failed.length} color="rose" active={listFilter === "failed"} onClick={() => setListFilter("failed")} />
           </div>
 
-          {(
+          {listFilter === "ready" ? (
             <>
               {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
               {!toScheduleLoading && toSchedule.length === 0 && (
@@ -633,6 +648,18 @@ function Scheduler() {
                 </div>
               )}
             </>
+          ) : (
+            <StatusFilterList
+              posts={listFilter === "scheduled" ? readyToSchedule : listFilter === "publishing" ? publishing : listFilter === "published" ? publishedRecent : failed}
+              emptyLabel={
+                listFilter === "scheduled" ? "No scheduled posts yet — schedule one from the Ready to schedule list."
+                : listFilter === "publishing" ? "Nothing publishing right now."
+                : listFilter === "published" ? "No published posts in this window."
+                : "No failed posts — all clear. 🎉"
+              }
+              pageHandle={pageHandle}
+              onOpen={(p) => setCalItem({ kind: "scheduled", whenMs: new Date(p.scheduleTime || p.publishedAt || 0).getTime(), post: p })}
+            />
           )}
         </div>
       )}
@@ -1118,16 +1145,68 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
   );
 }
 
-function StatusCounter({ label, count, color }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose" }) {
+function StatusCounter({ label, count, color, active, onClick }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose"; active?: boolean; onClick?: () => void }) {
   // Hope UI stat card: clean white card, a small colour-coded dot, big number.
+  // Clickable — acts as a filter chip for the list below; the active one gets a ring.
   const dot: Record<string, string> = { amber: "#F59E0B", violet: "#7C3AED", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
+  const ring: Record<string, string> = { amber: "ring-amber-400", violet: "ring-violet-500", blue: "ring-blue-500", green: "ring-emerald-500", rose: "ring-rose-500" };
   return (
-    <div className="bg-white rounded-lg border border-gray-100 px-5 py-4">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left bg-white rounded-lg border px-5 py-4 transition ${active ? `border-transparent ring-2 ${ring[color]}` : "border-gray-100 hover:border-gray-200"}`}
+    >
       <div className="flex items-center gap-2 mb-2">
         <span className="w-2 h-2 rounded-full" style={{ background: dot[color] }} />
-        <span className="text-[11px] uppercase tracking-wide font-medium text-gray-400">{label}</span>
+        <span className={`text-[11px] uppercase tracking-wide font-medium ${active ? "text-gray-600" : "text-gray-400"}`}>{label}</span>
       </div>
       <div className="text-[26px] font-semibold text-gray-900 tabular-nums leading-none">{count}</div>
+    </button>
+  );
+}
+
+// Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
+// is the active filter. Click a row to open the big preview/analytics modal.
+function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen }: {
+  posts: ScheduledPost[];
+  emptyLabel: string;
+  pageHandle: (page: string) => string;
+  onOpen: (p: ScheduledPost) => void;
+}) {
+  if (posts.length === 0) {
+    return <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">{emptyLabel}</div>;
+  }
+  const fmt = (iso: string | null) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+  };
+  const pill: Record<string, string> = {
+    scheduled: "bg-violet-50 text-violet-700",
+    publishing: "bg-blue-50 text-blue-700",
+    published: "bg-emerald-50 text-emerald-700",
+    failed: "bg-rose-50 text-rose-700",
+    draft: "bg-gray-100 text-gray-600",
+    unknown: "bg-gray-100 text-gray-600",
+  };
+  return (
+    <div className="space-y-2">
+      {posts.map((p) => (
+        <button key={p.id} onClick={() => onOpen(p)}
+          className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3.5 py-3 text-left hover:border-brand hover:bg-brand-light/20 transition">
+          <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+            {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
+            <div className="text-[11px] text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
+          </div>
+          <div className="text-[11px] text-gray-500 flex-shrink-0 text-right tabular-nums">
+            {fmt(p.effectiveStatus === "published" ? p.publishedAt : p.scheduleTime)}
+          </div>
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus}</span>
+        </button>
+      ))}
     </div>
   );
 }
