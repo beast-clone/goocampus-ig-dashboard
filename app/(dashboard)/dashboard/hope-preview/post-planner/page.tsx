@@ -384,9 +384,9 @@ function DetailSidebar({ card, isPlan, onClose }: { card: CalCard | null; isPlan
           </div>
 
           <div className="p-4 space-y-3">
-            {card.reason && (
+            {isPlan && card.reason && (
               <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
-                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">{isPlan ? "Why the AI put it here" : "Why the AI suggests this slot"}</div>
+                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
                 <div className="text-[12.5px] text-gray-700 leading-relaxed">{card.reason}</div>
                 {card.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
