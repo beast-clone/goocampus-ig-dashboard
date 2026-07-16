@@ -67,6 +67,8 @@ type CalendarPost = {
 };
 
 const snippet = (s: string | null, n = 140) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
+// Perplexity adds inline source markers like [2][5] — strip them for clean copy.
+const stripCites = (s: string) => (s || "").replace(/\s*\[\d+\](?:\s*\[\d+\])*/g, "").replace(/\s{2,}/g, " ").trim();
 
 function nextSlot(afterMs: number, bestHours: number[]): Date {
   const d = new Date(afterMs);
@@ -220,7 +222,7 @@ export async function GET(req: Request) {
     const ordered: { post: MhRow; reason: string; tags: string[] }[] = [];
     for (const o of ai.order || []) {
       const post = byId.get(o.id);
-      if (post && !holdIds.has(o.id)) { ordered.push({ post, reason: o.reason || "", tags: o.tags || [] }); byId.delete(o.id); }
+      if (post && !holdIds.has(o.id)) { ordered.push({ post, reason: stripCites(o.reason || ""), tags: o.tags || [] }); byId.delete(o.id); }
     }
     for (const c of candidates) if (byId.has(c.id) && !holdIds.has(c.id)) ordered.push({ post: c, reason: "", tags: [] });
 
@@ -249,8 +251,8 @@ export async function GET(req: Request) {
     const payload = {
       page: PAGE, account: "@12thplus", sbu: SBU, minGapHours: 24, bestHours,
       last: last ? { title: last.particulars, type: last.type, interest: SBU, at: last.publishing_date } : null,
-      summary: ai.summary || `Sequenced ${plan.length} post${plan.length === 1 ? "" : "s"} with a 24-hour minimum gap so they don't compete for reach.`,
-      insight: ai.insight || "",
+      summary: stripCites(ai.summary || "") || `Sequenced ${plan.length} post${plan.length === 1 ? "" : "s"} with a 24-hour minimum gap so they don't compete for reach.`,
+      insight: stripCites(ai.insight || ""),
       plan, hold, calendar, rankedBy,
       generatedAt: new Date().toISOString(),
     };

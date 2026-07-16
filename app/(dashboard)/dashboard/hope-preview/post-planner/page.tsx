@@ -164,6 +164,13 @@ function Planner() {
     return map;
   }, [cards]);
 
+  // The AI's recommended publish order (1 = publish first) — shown as a number on each
+  // planner card so the summary's "publish X first" maps to a visible card.
+  const rankById = useMemo(
+    () => (tab === "plan" && data ? new Map(data.plan.map((p, i) => [p.id, i + 1])) : new Map<string, number>()),
+    [tab, data],
+  );
+
   async function doMove(card: CalCard, targetISO: string) {
     setBusy(true);
     setPubOverride((o) => ({ ...o, [card.id]: targetISO }));
@@ -269,7 +276,7 @@ function Planner() {
                 )}
                 <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
                 {data.insight && <p className="text-[12.5px] text-gray-600 mt-1.5 leading-relaxed"><b className="text-brand">What works here:</b> {data.insight}</p>}
-                <p className="text-[11px] text-gray-500 mt-1.5">Drag cards to tweak the order, then apply — it writes these dates onto the Publishing calendar.</p>
+                <p className="text-[11px] text-gray-500 mt-1.5"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand text-white text-[8px] font-semibold align-middle mr-1">1</span>on each card = the AI&rsquo;s recommended publish order. Click a card to see it highlighted with its full details. Drag to tweak, then apply.</p>
               </div>
               <button onClick={applyPlan} disabled={applying || data.plan.length === 0} className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50 whitespace-nowrap">{applying ? "Applying…" : "Apply plan →"}</button>
             </div>
@@ -288,7 +295,7 @@ function Planner() {
             <MonthGrid
               view={view} byDay={byDay} mode={tab}
               dragId={dragId} onDragStart={setDragId} onDrop={onDropDay} busy={busy}
-              onOpen={setDetail}
+              onOpen={setDetail} rankById={rankById} selectedId={detail?.id || null}
             />
           )}
 
@@ -486,7 +493,7 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
   );
 }
 
-function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpen }: {
+function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpen, rankById, selectedId }: {
   view: { y: number; m: number };
   byDay: Record<string, CalCard[]>;
   mode: "plan" | "pub";
@@ -495,6 +502,8 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
   onDrop: (dayKey: string) => void;
   busy: boolean;
   onOpen: (card: CalCard) => void;
+  rankById: Map<string, number>;
+  selectedId: string | null;
 }) {
   const first = new Date(view.y, view.m, 1);
   const startOffset = (first.getDay() + 6) % 7; // Monday-first
@@ -531,8 +540,11 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
                   return (
                     <div key={c.id} draggable onDragStart={() => onDragStart(c.id)} onDragEnd={() => onDragStart("")}
                       onClick={() => onOpen(c)} title="Click for details · drag to reschedule"
-                      className="bg-white border border-gray-200 rounded-lg p-1.5 cursor-grab active:cursor-grabbing hover:border-brand transition">
+                      className={`rounded-lg p-1.5 cursor-grab active:cursor-grabbing transition border ${selectedId === c.id ? "border-brand ring-2 ring-brand/30 bg-brand-light/20" : "bg-white border-gray-200 hover:border-brand"}`}>
                       <div className="flex items-center gap-1">
+                        {mode === "plan" && rankById.get(c.id) != null && (
+                          <span className="w-4 h-4 rounded-full bg-brand text-white text-[9px] font-semibold flex items-center justify-center flex-shrink-0 tabular-nums" title={`AI recommended order #${rankById.get(c.id)}`}>{rankById.get(c.id)}</span>
+                        )}
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         {mode === "pub" && <span className="w-1.5 h-1.5 rounded-full ml-auto flex-shrink-0" style={{ background: statusDot(c) }} />}
                       </div>
