@@ -192,7 +192,10 @@ function Scheduler() {
         .catch(() => {});
     }
   }
-  const openManualComposer = () => { setSchedulingTaskId(null); setShowCreateForm(true); };
+  // When rescheduling a top performer, the creatives are locked (view-only) — you're
+  // reposting the SAME media, only the caption changes.
+  const [mediaLocked, setMediaLocked] = useState(false);
+  const openManualComposer = () => { setSchedulingTaskId(null); setMediaLocked(false); setShowCreateForm(true); };
   // Filters for the queue
   const [filterPage, setFilterPage] = useState<string>("all");
   const [filterInterest, setFilterInterest] = useState<string>("all");
@@ -321,6 +324,7 @@ function Scheduler() {
   // For a carousel we pull EVERY slide so all images come across, not just the cover.
   async function rescheduleTopPerformer(p: TopPerformer) {
     setSchedulingTaskId(null);
+    setMediaLocked(true);
     if (p.publishToPage) setPublishToPage(p.publishToPage as PublishToPage);
     setParticulars(`Repost: ${(p.caption || "").slice(0, 60)}`);
     setCaption(p.caption || "");
@@ -831,8 +835,8 @@ function Scheduler() {
             <PageDropdown value={publishToPage} onChange={setPublishToPage} />
           </Card>
 
-          <Card title="Media" subtitle="Drop a file to upload, or paste a URL (Slack / Drive / direct image / video). For carousels add multiple (max 10).">
-            <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} />
+          <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop a file to upload, or paste a URL (Slack / Drive / direct image / video). For carousels add multiple (max 10)."}>
+            <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
           <Card title="Post details">
@@ -1769,7 +1773,7 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
 // publishes through still caps carousels at 10 items — so 10 is the hard max here.
 // (When Meta raises the API limit, bump this one constant.)
 const MAX_MEDIA = 10;
-function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void }) {
+function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void; locked?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -1818,8 +1822,8 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
 
   return (
     <div className="space-y-3">
-      {/* Big upload zone — shown only before any media is added */}
-      {media.length === 0 && (
+      {/* Big upload zone — shown only before any media is added (and never when locked) */}
+      {!locked && media.length === 0 && (
       <label
         onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -1867,23 +1871,25 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
           <div className="flex flex-wrap gap-1.5">
             {media.map((url, i) => (
               <div key={url + i}
-                draggable
-                onDragStart={() => { dragIdxRef.current = i; setDragIdx(i); }}
-                onDragEnter={() => setOverIdx(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
-                onDragEnd={() => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
-                title="Drag to reorder"
-                className={`relative group w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border cursor-grab active:cursor-grabbing transition ${overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${dragIdx === i ? "opacity-40" : ""}`}>
+                draggable={!locked}
+                onDragStart={locked ? undefined : () => { dragIdxRef.current = i; setDragIdx(i); }}
+                onDragEnter={locked ? undefined : () => setOverIdx(i)}
+                onDragOver={locked ? undefined : (e) => e.preventDefault()}
+                onDrop={locked ? undefined : () => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                onDragEnd={locked ? undefined : () => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                title={locked ? undefined : "Drag to reorder"}
+                className={`relative group w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
                 {isVideo(url)
                   ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
                   : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
                 <span className="absolute bottom-0 left-0 text-[9px] font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
-                <button type="button" onClick={() => removeAt(i)} title="Remove"
-                  className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
+                {!locked && (
+                  <button type="button" onClick={() => removeAt(i)} title="Remove"
+                    className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
+                )}
               </div>
             ))}
-            {media.length < MAX_MEDIA && (
+            {!locked && media.length < MAX_MEDIA && (
               <label
                 onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -1896,12 +1902,12 @@ function MediaUploader({ mediaUrls, setMediaUrls }: { mediaUrls: string[]; setMe
               </label>
             )}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">{media.length}/{MAX_MEDIA} · drag to reorder{media.length < MAX_MEDIA ? " · tap + to add more" : ""}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${media.length}/${MAX_MEDIA} · drag to reorder${media.length < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
         </div>
       )}
 
       {/* Paste a URL to add one more (Slack / Drive / direct link) */}
-      {media.length < MAX_MEDIA && (
+      {!locked && media.length < MAX_MEDIA && (
         <div>
           <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">— or paste a URL —</div>
           <div className="flex gap-2">
