@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
@@ -173,7 +173,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   // <Link> updates useSearchParams without a reload (a URL #hash would not fire
   // a hashchange on Link's pushState, so tabs wouldn't switch until refresh).
   const searchParams = useSearchParams();
-  const TABS = ["team", "master", "pipeline", "calendar", "tables"];
+  const TABS = ["team", "master", "pipeline", "calendar"];
   const tabParam = searchParams.get("tab") || "team";
   const tab = TABS.includes(tabParam) ? tabParam : "master";
 
@@ -221,7 +221,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       {/* Top bar: entries count · global search · live. Workload + Master drive their
           own filtering (person cards / views rail), so they hide the count + search. */}
       <div className="flex items-center gap-4">
-        {tab !== "team" && tab !== "master" && tab !== "tables" && (
+        {tab !== "team" && tab !== "master" && (
           <>
             <div className="text-base text-gray-500 flex-shrink-0">
               {data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
@@ -244,7 +244,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       </div>
 
       {/* Compact filter dropdowns — hidden on Pipeline (whole picture), Workload + Master (own controls). */}
-      {tab !== "pipeline" && tab !== "team" && tab !== "master" && tab !== "tables" && (
+      {tab !== "pipeline" && tab !== "team" && tab !== "master" && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 uppercase tracking-wide mr-1">Filter</span>
           <CompactFacet label="SBU" value={filters.sbu} options={data?.facets.sbu || []} onChange={(v) => setFilters({ ...filters, sbu: v })} />
@@ -273,8 +273,6 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       {tab === "calendar" && (
         <CalendarView rows={filtered} range={range} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
       )}
-
-      {tab === "tables" && <TablesView />}
 
       {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
 
@@ -1738,165 +1736,6 @@ function AddColumnModal({ onClose, onCreated }: { onClose: () => void; onCreated
           <button onClick={create} disabled={saving || !label.trim()} className="bg-brand text-white text-[13px] font-medium rounded-lg px-4 py-2 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Adding…" : "Add column"}</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Phase 3: generic user-created tables (dashboard-owned mini-Airtable) ──────
-type GField = { id: string; key: string; label: string; type: CustomColType; options: string[] };
-type GTable = { id: string; name: string; icon: string | null; fields: GField[] };
-type GRecord = { id: string; data: Record<string, unknown>; position: number };
-
-function genCell(f: GField, rec: GRecord, save: (recId: string, key: string, value: unknown) => void) {
-  const v = rec.data?.[f.key];
-  if (f.type === "checkbox") return <button onClick={() => save(rec.id, f.key, !v)} className={`w-4 h-4 rounded border flex items-center justify-center ${v ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{v ? <IconCheck size={11} stroke={3} /> : null}</button>;
-  return <EditableCell display={v != null && v !== "" ? <span className="text-gray-700">{f.type === "date" ? fmtDate(String(v)) : String(v)}</span> : <span className="text-gray-300">—</span>} editControl={(done) => (
-    f.type === "select" ? <select autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={(e) => { save(rec.id, f.key, e.target.value); done(); }}><option value="">—</option>{f.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
-    : f.type === "date" ? <input type="date" autoFocus defaultValue={String(v ?? "").slice(0, 10)} onBlur={done} className={EDIT_SELECT_CLS} onChange={(e) => { save(rec.id, f.key, e.target.value); done(); }} />
-    : <input type={f.type === "number" ? "number" : "text"} autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={(e) => { save(rec.id, f.key, e.target.value); done(); }} />
-  )} />;
-}
-
-function NewTableModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
-  const create = async () => {
-    if (!name.trim()) return; setSaving(true);
-    try {
-      const res = await fetch("/api/marketing-hub/tables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }) });
-      const j = await res.json(); if (!res.ok) { window.alert(j.error || "Could not create table."); return; }
-      onCreated(j.table.id);
-    } finally { setSaving(false); }
-  };
-  return (
-    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6 hope-scope" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100"><div className="flex items-center gap-2"><IconPlus size={18} className="text-brand" /><h2 className="text-[16px] font-semibold text-[#232D42]">New table</h2></div><button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button></div>
-        <div className="p-5">
-          <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Table name</label>
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} placeholder="e.g. Vendors, Ad budgets, Ideas" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" />
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100"><button onClick={onClose} className="text-[13px] font-medium text-gray-600 hover:text-gray-900 px-3 py-2">Cancel</button><button onClick={create} disabled={saving || !name.trim()} className="bg-brand text-white text-[13px] font-medium rounded-lg px-4 py-2 hover:brightness-105 disabled:opacity-40">{saving ? "Creating…" : "Create table"}</button></div>
-      </div>
-    </div>
-  );
-}
-
-function AddFieldModal({ tableId, onClose, onCreated }: { tableId: string; onClose: () => void; onCreated: () => void }) {
-  const [label, setLabel] = useState("");
-  const [type, setType] = useState<CustomColType>("text");
-  const [optionsText, setOptionsText] = useState("");
-  const [saving, setSaving] = useState(false);
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
-  const create = async () => {
-    if (!label.trim()) return; setSaving(true);
-    try {
-      const options = type === "select" ? optionsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) : [];
-      const res = await fetch("/api/marketing-hub/tables/fields", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tableId, label: label.trim(), type, options }) });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not add column."); return; }
-      onCreated();
-    } finally { setSaving(false); }
-  };
-  const TYPE_META: { t: CustomColType; label: string }[] = [{ t: "text", label: "Text" }, { t: "number", label: "Number" }, { t: "select", label: "Select" }, { t: "date", label: "Date" }, { t: "checkbox", label: "Checkbox" }];
-  return (
-    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6 hope-scope" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100"><div className="flex items-center gap-2"><IconPlus size={18} className="text-brand" /><h2 className="text-[16px] font-semibold text-[#232D42]">Add column</h2></div><button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button></div>
-        <div className="p-5 space-y-4">
-          <div><label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Column name</label><input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Contact, Amount, Due" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" /></div>
-          <div><label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Type</label><div className="grid grid-cols-5 gap-1.5">{TYPE_META.map((tm) => <button key={tm.t} onClick={() => setType(tm.t)} className={`rounded-lg border px-1 py-2 text-[11px] font-medium transition ${type === tm.t ? "border-brand bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>{tm.label}</button>)}</div></div>
-          {type === "select" && <div><label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Options <span className="text-gray-400 font-normal">(one per line or comma-separated)</span></label><textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:border-brand" /></div>}
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100"><button onClick={onClose} className="text-[13px] font-medium text-gray-600 hover:text-gray-900 px-3 py-2">Cancel</button><button onClick={create} disabled={saving || !label.trim()} className="bg-brand text-white text-[13px] font-medium rounded-lg px-4 py-2 hover:brightness-105 disabled:opacity-40">{saving ? "Adding…" : "Add column"}</button></div>
-      </div>
-    </div>
-  );
-}
-
-function TablesView() {
-  const { data: tData, refresh: refreshTables } = useApi<{ tables: GTable[] }>("/api/marketing-hub/tables");
-  const tables = useMemo(() => tData?.tables || [], [tData]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const active = tables.find((t) => t.id === activeId) || tables[0] || null;
-  const [records, setRecords] = useState<GRecord[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(false);
-  const [newTableOpen, setNewTableOpen] = useState(false);
-  const [addFieldOpen, setAddFieldOpen] = useState(false);
-
-  const loadRecords = useCallback(async (tid: string) => {
-    setLoadingRecs(true);
-    try { const r = await fetch(`/api/marketing-hub/tables/records?tableId=${tid}`).then((x) => x.json()); setRecords(r.records || []); }
-    catch { setRecords([]); }
-    finally { setLoadingRecs(false); }
-  }, []);
-  useEffect(() => { if (active) loadRecords(active.id); else setRecords([]); }, [active?.id, loadRecords]);
-
-  const saveCell = async (recId: string, key: string, value: unknown) => {
-    await fetch("/api/marketing-hub/tables/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: recId, key, value }) });
-    if (active) loadRecords(active.id);
-  };
-  const addRow = async () => { if (!active) return; await fetch("/api/marketing-hub/tables/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tableId: active.id }) }); loadRecords(active.id); };
-  const delRow = async (id: string) => { await fetch(`/api/marketing-hub/tables/records?id=${id}`, { method: "DELETE" }); if (active) loadRecords(active.id); };
-  const delField = async (id: string) => { if (!window.confirm("Delete this column?")) return; await fetch(`/api/marketing-hub/tables/fields?id=${id}`, { method: "DELETE" }); refreshTables(); };
-  const delTable = async (id: string) => { if (!window.confirm("Delete this whole table and all its rows?")) return; await fetch(`/api/marketing-hub/tables?id=${id}`, { method: "DELETE" }); setActiveId(null); refreshTables(); };
-
-  return (
-    <div className="flex gap-4 items-start">
-      <div className="w-52 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
-        <button onClick={() => setNewTableOpen(true)} className="w-full flex items-center justify-center gap-1.5 mb-2 bg-brand text-white rounded-lg py-2 text-[12.5px] font-medium hover:brightness-105"><IconPlus size={15} />New table</button>
-        <div className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tables</div>
-        {tables.length === 0 && <div className="px-2 py-2 text-[12px] text-gray-400">No tables yet.</div>}
-        {tables.map((t) => (
-          <button key={t.id} onClick={() => setActiveId(t.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${t.id === active?.id ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
-            <IconColumns size={14} className="flex-shrink-0" /><span className="truncate">{t.name}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl overflow-hidden">
-        {!active ? (
-          <div className="p-12 text-center text-gray-400 text-sm">Create a table to get started — add your own columns and rows.</div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
-              <div className="text-base font-medium text-[#232D42]">{active.name}</div>
-              <span className="text-[11px] text-gray-400">{records.length} rows · {active.fields.length} columns</span>
-              <div className="ml-auto flex items-center gap-3">
-                <button onClick={() => setAddFieldOpen(true)} className="text-[12px] font-medium text-brand inline-flex items-center gap-1"><IconPlus size={13} />Add column</button>
-                <button onClick={() => delTable(active.id)} className="text-gray-400 hover:text-rose-500" title="Delete table"><IconTrash size={14} /></button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead className="border-b border-gray-100 bg-gray-50">
-                  <tr className="text-gray-500 text-left">
-                    {active.fields.map((f) => (
-                      <th key={f.id} className="px-4 py-2.5 font-normal group">
-                        <span className="inline-flex items-center gap-1.5">{f.label}{f.key !== "name" && <button onClick={() => delField(f.id)} className="hidden group-hover:inline text-gray-300 hover:text-rose-500" title="Delete column"><IconX size={12} /></button>}</span>
-                      </th>
-                    ))}
-                    <th className="px-4 py-2.5 w-8" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.length === 0 && <tr><td colSpan={active.fields.length + 1} className="px-4 py-8 text-center text-gray-400">{loadingRecs ? "Loading…" : "No rows yet."}</td></tr>}
-                  {records.map((rec) => (
-                    <tr key={rec.id} className="border-b border-gray-50 hover:bg-gray-50 group">
-                      {active.fields.map((f) => <td key={f.id} className="px-4 py-2.5">{genCell(f, rec, saveCell)}</td>)}
-                      <td className="px-4 py-2.5"><button onClick={() => delRow(rec.id)} className="hidden group-hover:inline text-gray-300 hover:text-rose-500" title="Delete row"><IconTrash size={13} /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <button onClick={addRow} className="w-full flex items-center gap-1.5 px-4 py-2.5 text-[13px] text-gray-500 hover:bg-gray-50 border-t border-gray-100"><IconPlus size={14} />Add row</button>
-          </>
-        )}
-      </div>
-
-      {newTableOpen && <NewTableModal onClose={() => setNewTableOpen(false)} onCreated={(id) => { setNewTableOpen(false); refreshTables(); setActiveId(id); }} />}
-      {addFieldOpen && active && <AddFieldModal tableId={active.id} onClose={() => setAddFieldOpen(false)} onCreated={() => { setAddFieldOpen(false); refreshTables(); }} />}
     </div>
   );
 }
