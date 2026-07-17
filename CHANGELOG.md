@@ -3,6 +3,14 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-18 — Handoff note (work continues next session)
+
+Search-indexing follow-up: all 6 live goocampusevents.com landing pages were submitted to **Google Search Console** (URL Inspection → Request Indexing) and **Bing** (URL Submission). Every landing page inspected as *"URL is not on Google — no referring sitemaps, no referring pages"* (home was the only page already indexed) — i.e. Google/Bing can't discover them on their own.
+
+**Still to do next session:**
+- **Deploy `sitemap.xml` + `robots.txt`** to the goocampusevents.com site — this is the *permanent* fix (the site is a separate Netlify project `goocampus-university-webinar`, NOT this repo; needs its source repo/folder). Files are generated (see the AI/SEO entry below). Then submit the sitemap URL in Google Search Console + Bing.
+- Optional: retire the legacy `/api/ai-insights` POST route (unused after the Perplexity migration); decide on deploying the dashboard.
+
 ## 2026-07-17 — AI insights (Perplexity) on the Website tab + sitemap/robots + Bing URL submission
 
 **AI insights** — the dashboard now *suggests*, not just displays. Added a reusable "Analyze with AI" panel powered by **Perplexity** (Sonar, live web search + citations).
