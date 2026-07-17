@@ -1380,7 +1380,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const [activeId, setActiveId] = useState("all");
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<MasterDraft>(EMPTY_DRAFT);
-  const [saving, setSaving] = useState(false);
+  const [newViewOpen, setNewViewOpen] = useState(false);
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
 
@@ -1432,21 +1432,9 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const setField = (k: keyof MasterDraft, val: string) => { setDraft((d) => ({ ...d, [k]: val })); setActiveId("draft"); };
   const hasFilter = Object.values(draft).some(Boolean);
 
-  const saveNewView = async (defaultName: string) => {
-    const name = window.prompt("Name your new view", defaultName);
-    if (!name || !name.trim()) return;
-    setSaving(true);
-    try {
-      await fetch("/api/marketing-hub/views", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), config: { filters: draft, rangeDays: activeDays } }),
-      });
-      await refreshViews();
-    } finally { setSaving(false); }
-  };
-  // "New view" (rail) captures the current filter state so a view is one click away.
-  const newView = () => saveNewView("New view");
-  const saveView = () => saveNewView(activeCustom?.name || "My view");
+  // "New view" / "Save as view" open the branded builder modal (no native prompt).
+  const newView = () => setNewViewOpen(true);
+  const saveView = () => setNewViewOpen(true);
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
@@ -1575,13 +1563,114 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           <HopeSelect value={draft.type} onChange={(v) => setField("type", v)} placeholder="Any type" options={[{ value: "", label: "Any type" }, ...typeOptions.map((t) => ({ value: t, label: t }))]} />
           <HopeSelect value={draft.sbu} onChange={(v) => setField("sbu", v)} placeholder="Any SBU" options={[{ value: "", label: "Any SBU" }, ...sbuOptions.map((s) => ({ value: s, label: s }))]} />
           {hasFilter && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
-          <button onClick={saveView} disabled={saving || !hasFilter}
+          <button onClick={saveView} disabled={!hasFilter}
             className="ml-auto flex items-center gap-1.5 text-[12px] font-medium text-brand disabled:text-gray-300 disabled:cursor-not-allowed">
-            <IconDeviceFloppy size={14} />{saving ? "Saving…" : "Save as view"}
+            <IconDeviceFloppy size={14} />Save as view
           </button>
         </div>
 
         <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare />
+      </div>
+
+      {newViewOpen && (
+        <NewViewModal
+          draft={draft} rangeDays={activeDays}
+          onClose={() => setNewViewOpen(false)}
+          onCreated={() => { setNewViewOpen(false); refreshViews(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Branded "New view" builder — replaces the native window.prompt. Names the view,
+// picks an access level + optional description, and shows exactly what it captures.
+function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
+  draft: MasterDraft; rangeDays: number; onClose: () => void; onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [access, setAccess] = useState<ViewAccess>("personal");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const chips: string[] = [];
+  if (draft.owner) chips.push(`Owner · ${TEAM.find((m) => m.key === draft.owner)?.label || draft.owner}`);
+  if (draft.status) chips.push(`Status · ${draft.status}`);
+  if (draft.type) chips.push(`Type · ${draft.type}`);
+  if (draft.sbu) chips.push(`SBU · ${draft.sbu}`);
+  if (draft.priority) chips.push(`Priority · ${draft.priority}`);
+  if (!chips.length) chips.push("All tasks");
+
+  const create = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/marketing-hub/views", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config: { filters: draft, rangeDays } }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not create view."); return; }
+      onCreated();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6 hope-scope" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2"><IconPlus size={18} className="text-brand" /><h2 className="text-[16px] font-semibold text-[#232D42]">New view</h2></div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">View name</label>
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") create(); }}
+              placeholder="e.g. Manya · approved reels"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+              placeholder="What is this view for?"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:border-brand" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Access</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["personal", "collaborative", "locked"] as ViewAccess[]).map((a) => {
+                const M = ACCESS_META[a]; const Ic = M.icon; const on = access === a;
+                return (
+                  <button key={a} onClick={() => setAccess(a)} title={M.hint}
+                    className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] font-medium transition ${on ? "border-brand bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                    <Ic size={16} />{M.label.replace(" view", "")}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-1.5">{ACCESS_META[access].hint}</div>
+          </div>
+          <div className="rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-2.5">
+            <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-1.5">Captures</div>
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map((c, i) => <span key={i} className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">{c}</span>)}
+              <span className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">Last {rangeDays} days</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="text-[13px] font-medium text-gray-600 hover:text-gray-900 px-3 py-2">Cancel</button>
+          <button onClick={create} disabled={saving || !name.trim()}
+            className="bg-brand text-white text-[13px] font-medium rounded-lg px-4 py-2 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
+            {saving ? "Creating…" : "Create view"}
+          </button>
+        </div>
       </div>
     </div>
   );
