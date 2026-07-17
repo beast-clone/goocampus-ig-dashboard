@@ -7,7 +7,7 @@ import {
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
-  IconChecklist,
+  IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -56,6 +56,11 @@ const GROUPS: Group[] = [
     ] },
     { key: "facebook", label: "Facebook", icon: IconBrandFacebook, href: `${HUB}/facebook`, children: [
       { label: "Posts", href: `${HUB}/facebook/posts`, icon: IconPhoto },
+    ] },
+    { key: "website", label: "Website", icon: IconWorldWww, href: `${HUB}/website`, children: [
+      { label: "Google Analytics", href: `${HUB}/website`,          icon: IconChartArcs },
+      { label: "Clarity",          href: `${HUB}/website/behavior`, icon: IconClick },
+      { label: "Bing",             href: `${HUB}/website/search`,   icon: IconSearch },
     ] },
   ] },
   { label: "Audience", items: [{ label: "All platforms", href: `${HUB}/audience`, icon: IconUsers }] },

@@ -3,6 +3,56 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-17 — AI insights (Perplexity) on the Website tab + sitemap/robots + Bing URL submission
+
+**AI insights** — the dashboard now *suggests*, not just displays. Added a reusable "Analyze with AI" panel powered by **Perplexity** (Sonar, live web search + citations).
+- `lib/ai.ts` — zero-dep Perplexity client (OpenAI-compatible chat completions). `PERPLEXITY_API_KEY` in `.env.local`.
+- `app/api/website/insights/route.ts` — gathers live GA4 + Clarity + Bing, builds a compact data summary, sends it to Perplexity with a senior-growth-marketer system prompt, returns prioritized recommendations. Cached 30 min per window.
+- `components/AiInsights.tsx` — reusable button+panel with a tiny zero-dep markdown renderer (headings/bold/bullets) + citation footnotes. Used on BOTH the Website (GA) tab and the central AI Insights tab.
+- **Central AI Insights tab** (`ai-insights/page.tsx` rewritten): `app/api/ai-insights/overview/route.ts` gathers the selected account's Instagram (`/api/insights` + `/api/posts`) + Meta ads (`/api/ads`, cookie forwarded for session auth) + the goocampusevents.com website (GA4 direct), summarizes, and asks Perplexity for a prioritized cross-channel plan. Replaced the old OpenAI (out-of-quota) IG-only generator.
+- Verified live: Website-tab analysis referenced 679 sessions / 72.2% bounce / /neet-pg-community 514 views; central tab connected channels — "$168k ad spend → 4,120 leads but 0 website conversions, fix the funnel before scaling," Carousels beat Reels 1.5:1. **Both** "Analyze" halves done. (The old `/api/ai-insights` POST route + AI Reports tab still use OpenAI — left as-is.)
+
+**SEO indexing** — goocampusevents.com had no sitemap/robots (both 404). Submitted the 6 live landing pages to Bing (URL Submission), and generated `sitemap.xml` + `robots.txt` (in scratchpad) for the user to deploy to the site — then submit the sitemap to Google Search Console + Bing.
+
+## 2026-07-17 — Website → Bing tab: Bing Webmaster search performance (completes the 3-source tracker)
+
+Third and final source. The **Website** folder now holds **Google Analytics · Clarity · Bing** for goocampusevents.com — the "one pane instead of three tabs" goal is met.
+
+- goocampusevents.com was already a verified property in Bing Webmaster (imported via the linked Google Search Console account). Generated an account-level API key (Settings → API access → API Key) → `.env.local` as `BING_WEBMASTER_API_KEY` (+ `BING_SITE_URL=https://goocampusevents.com/`).
+- `lib/bing.ts` — calls `GetRankAndTrafficStats` (daily clicks/impressions), `GetQueryStats` (top queries), `GetPageStats` (top pages) on the JSON endpoints; parses the WCF `/Date(ms-offset)/` format.
+- `app/api/website/search/route.ts` — cached 6h.
+- `app/(dashboard)/dashboard/hope-preview/website/search/page.tsx` — Hope UI, Bing-teal accent: Clicks/Impressions/CTR/Avg-position KPIs, clicks-&-impressions area chart, top-queries table, top-pages table, "Open in Bing" link, and an honest empty-state banner.
+- Sidebar: added **Bing** child under the Website folder in `HopeSidebar.tsx`.
+
+Verified live: API returns HTTP 200 but **0 clicks / 0 impressions** (Bing isn't ranking the site yet — every Bing property in the account is flat at zero). The tab is correct and will populate if/when Bing sends traffic; the empty-state banner says so.
+
+## 2026-07-17 — Website → Behavior tab: live Microsoft Clarity for goocampusevents.com
+
+Second source of the web-analytics group. **Website** is now a sidebar folder with **Traffic** (GA4) and **Behavior** (Clarity) children.
+
+- Clarity project: "Univeristy Webinar June 15th 2026" (ID `x258m54ioh`, URL goocampusevents.com). Generated a Data Export API token (Settings → Data export) → `.env.local` as `CLARITY_API_TOKEN` (+ `CLARITY_PROJECT_ID`).
+- `lib/clarity.ts` — fetches `project-live-insights` (last 3 days; the API's hard limit) and reshapes traffic, engagement time, scroll depth, the six frustration/error signals (rage/dead/quick-back/excessive-scroll/error-click/script-error), and Device/Browser/OS/Country/Referrer/PopularPages breakdowns.
+- `app/api/website/behavior/route.ts` — cached **3h** (Clarity caps the API at 10 calls/project/day); client SWR has `revalidateOnFocus:false` to avoid burning calls.
+- `app/(dashboard)/dashboard/hope-preview/website/behavior/page.tsx` — Hope UI, Clarity-violet accent: 6 KPIs, frustration-signal tiles, popular pages, breakdown donuts, "Open in Clarity" link, and an explicit note that heatmaps/recordings aren't API-exposed.
+- Sidebar: Website leaf → folder (Traffic + Behavior) in `HopeSidebar.tsx`.
+
+Verified live (sparse but real: 1 session / 6 users / 3 bot sessions / 8% scroll depth over 3 days — webinar traffic has wound down). **Remaining:** Bing Webmaster.
+
+## 2026-07-17 — New "Website" tab: live Google Analytics for goocampusevents.com
+
+Added a **Website** tab under the Analytics section (`/dashboard/hope-preview/website`) that pulls **live GA4 data** for the GooCampus Events property (`540348377`) — first of a planned 3-source web-analytics group (GA4 done; Microsoft Clarity + Bing Webmaster still to come).
+
+**What was set up (via Google Cloud + GA Admin):**
+- Service account `ig-dashboard-ga-reader@gc-dashboard-analytics.iam.gserviceaccount.com`, Analytics Data API enabled, granted **Viewer** on the GooCampus Events property. Credentials in `.env.local` (`GA4_PROPERTY_ID` / `GA4_CLIENT_EMAIL` / `GA4_PRIVATE_KEY`). For a Netlify deploy these three must be set in the Netlify UI.
+
+**What was built:**
+- `lib/ga4.ts` — **zero-dependency** GA4 Data API + Realtime API client: signs the service-account JWT with Node's built-in `crypto`, caches the access token, runs **16 reports across 4 parallel `:batchRunReports` batches** plus `:runRealtimeReport`, all over `fetch`. No `@google-analytics/data` / `googleapis` added.
+- `app/api/website/traffic/route.ts` — heavy report set cached 10 min; realtime kept fresh (30s, best-effort).
+- `app/(dashboard)/dashboard/hope-preview/website/page.tsx` — Hope UI page (GA-orange accent) rendering the **full Data API surface**: realtime "active now" strip, 6 KPI tiles, users-over-time chart, conversions/events table, top pages + landing pages, channels + source/medium, countries + cities, devices + browsers + OS, and new-vs-returning + age + gender + languages. Age/gender degrade to an empty state (need Google Signals). "Open in GA" deep-link for the reports no API exposes (Explorations/funnels/paths).
+- Nav wiring: `"website"` added to `HopeTab` (`HopeShell.tsx`) + a **Website** leaf under Analytics in `HopeSidebar.tsx`.
+
+Verified live in the authenticated dashboard: real numbers (634 users / 672 sessions / 7 active now; India 86%, Hyderabad 28%, Android Webview 75%, meta/paid_social 68%). **Two GA-config gaps surfaced:** Key events = 0 (no events marked as conversions in GA4) and age/gender withheld (Google Signals off).
+
 ## 2026-07-17 — Marketing Hub Content Calendar reskinned to match the Publishing Calendar
 
 Restyled the Marketing Hub's **Content Calendar** tab (`/dashboard/hope-preview/marketing-hub?tab=calendar`) so it reads as a sibling of the Hope UI Publishing Calendar — same visual DNA (gradient hero, overlapping title card, full-width month card, colored event pills), same Hope V1 event-pill style. The old flat white-card layout is gone.
