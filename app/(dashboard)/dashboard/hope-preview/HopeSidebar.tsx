@@ -6,7 +6,7 @@ import {
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup,
-  IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
+  IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban, IconDatabase,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -30,6 +30,7 @@ const GROUPS: Group[] = [
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
+      { label: "Tables",           href: `${HUB}/marketing-hub?tab=tables`,   icon: IconDatabase },
     ] },
     { label: "My Day",              href: `${HUB}/my-day`,       icon: IconSunHigh },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
