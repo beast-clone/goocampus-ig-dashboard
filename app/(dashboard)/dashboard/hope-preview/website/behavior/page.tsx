@@ -3,6 +3,7 @@ import { ChartCard, PieList } from "@/components/PlatformAudience";
 import { IconExternalLink, IconAlertTriangle, IconFileText } from "@tabler/icons-react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { AiInsights } from "@/components/AiInsights";
 import { useApi } from "@/lib/use-api";
 
 const CL = "#6E48F8"; // Clarity violet
@@ -73,6 +74,8 @@ function Inner() {
       <div className="text-[12px] text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
         Clarity&apos;s heatmaps and session recordings can&apos;t be pulled by any API — for those, use <a href={clarityUrl} target="_blank" rel="noreferrer" className="text-violet-700 underline">Open in Clarity</a>. This page shows the aggregate signals the API does expose.
       </div>
+
+      <AiInsights endpoint="/api/website/insights?source=clarity" accent={CL} label="Analyze this Clarity data with AI" />
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
       {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading Clarity…</div>}

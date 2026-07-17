@@ -3,6 +3,7 @@ import { IconExternalLink, IconSearch, IconFileText } from "@tabler/icons-react"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { AiInsights } from "@/components/AiInsights";
 import { useApi } from "@/lib/use-api";
 
 const BING = "#0F9D8C"; // Bing teal
@@ -56,6 +57,8 @@ function Inner() {
           <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
         </div>
       </div>
+
+      <AiInsights endpoint="/api/website/insights?source=bing" accent={BING} label="Analyze this Bing data with AI" />
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
       {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading Bing Webmaster…</div>}
