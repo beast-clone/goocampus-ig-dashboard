@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconX, IconPlayerPlay } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1714,6 +1714,60 @@ type TaskDetail = {
 const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 const isImageCreative = (name: string, type: string) => type.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif)$/i.test(name);
+type CreativeKind = "image" | "video" | "pdf" | "file";
+const creativeKind = (name: string, type: string): CreativeKind => {
+  if (type.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)) return "image";
+  if (type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(name)) return "video";
+  if (type === "application/pdf" || /\.pdf$/i.test(name)) return "pdf";
+  return "file";
+};
+type Creative = { id: string | undefined; url: string; name: string; type: string; removable: boolean };
+
+// In-dashboard creative viewer: images/videos render large; PDFs open in an
+// embedded iframe (never a new tab); prev/next arrows + ←/→ keys for multiple.
+function CreativeViewer({ creatives, index, setIndex, onClose }: {
+  creatives: Creative[]; index: number; setIndex: (i: number) => void; onClose: () => void;
+}) {
+  const many = creatives.length > 1;
+  const go = (d: number) => setIndex((index + d + creatives.length) % creatives.length);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight" && many) setIndex((index + 1) % creatives.length);
+      else if (e.key === "ArrowLeft" && many) setIndex((index - 1 + creatives.length) % creatives.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, many, creatives.length, onClose, setIndex]);
+
+  const c = creatives[index];
+  const kind = creativeKind(c.name, c.type);
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/85 flex items-center justify-center p-6" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white p-1"><IconX size={26} /></button>
+      <div className="absolute top-5 left-5 text-white/80 text-[13px] font-medium">{index + 1} / {creatives.length}</div>
+      {many && <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 text-white rounded-full p-2.5"><IconChevronLeft size={24} /></button>}
+      <div className="max-w-[92vw] max-h-[88vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        {kind === "image" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={c.url} alt={c.name} className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg" />
+        ) : kind === "video" ? (
+          <video src={c.url} controls autoPlay className="max-w-[92vw] max-h-[82vh] rounded-lg bg-black" />
+        ) : kind === "pdf" ? (
+          <iframe src={c.url} title={c.name} className="w-[90vw] h-[84vh] bg-white rounded-lg" />
+        ) : (
+          <div className="bg-white rounded-xl px-8 py-10 text-center">
+            <IconFileText size={40} className="text-gray-400 mx-auto mb-3" />
+            <div className="text-sm text-gray-700 mb-3">{c.name}</div>
+            <a href={c.url} download className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><IconDownload size={15} />Download</a>
+          </div>
+        )}
+        <div className="mt-3 text-white/80 text-[12px] truncate max-w-[80vw]">{c.name}</div>
+      </div>
+      {many && <button onClick={(e) => { e.stopPropagation(); go(1); }} className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 text-white rounded-full p-2.5"><IconChevronRight size={24} /></button>}
+    </div>
+  );
+}
 
 // Hope-UI card: white surface, hairline border, rounded-xl, labelled header (optional
 // brand accent + trailing slot). The building block that gives the modal real sections.
@@ -1736,6 +1790,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1815,6 +1870,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   );
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 hope-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Hope-UI hero band: brand-tinted, large title */}
@@ -1853,21 +1909,30 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
               onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
             {creatives.length > 0 ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {creatives.map((c, i) => (
-                  <div key={c.id || i} className="group relative border border-gray-100 rounded-lg overflow-hidden bg-gray-50">
-                    {isImageCreative(c.name, c.type) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <a href={c.url} target="_blank" rel="noreferrer"><img src={c.url} alt={c.name} className="w-full h-28 object-cover" /></a>
-                    ) : (
-                      <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-28 flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[10px]">{(c.type || "file").split("/")[1] || "file"}</span></a>
-                    )}
-                    <div className="px-2 py-1 text-[11px] text-gray-600 truncate">{c.name}</div>
-                    {c.removable && c.id && (
-                      <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={13} /></button>
-                    )}
-                  </div>
-                ))}
-                <button onClick={() => fileRef.current?.click()} className="border-2 border-dashed border-gray-200 rounded-lg h-[calc(7rem+26px)] flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
+                {creatives.map((c, i) => {
+                  const kind = creativeKind(c.name, c.type);
+                  return (
+                    <div key={c.id || i} role="button" tabIndex={0} onClick={() => setLightboxIndex(i)} onKeyDown={(e) => { if (e.key === "Enter") setLightboxIndex(i); }}
+                      className="group relative aspect-square rounded-lg overflow-hidden border border-gray-100 bg-gray-100 cursor-pointer">
+                      {kind === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
+                      ) : kind === "video" ? (
+                        <>
+                          <video src={c.url} muted className="w-full h-full object-cover" />
+                          <span className="absolute inset-0 flex items-center justify-center"><span className="bg-black/50 text-white rounded-full p-2"><IconPlayerPlay size={18} /></span></span>
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">{kind === "pdf" ? "PDF" : (c.type || "file").split("/")[1] || "file"}</span></div>
+                      )}
+                      <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{i + 1}</span>
+                      {c.removable && c.id && (
+                        <button onClick={(e) => { e.stopPropagation(); removeCreative(c.id!); }} title="Remove" className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={13} /></button>
+                      )}
+                    </div>
+                  );
+                })}
+                <button onClick={() => fileRef.current?.click()} className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
                   <IconPlus size={20} /><span className="text-[11px] mt-1">{uploading ? "Uploading…" : "Add"}</span>
                 </button>
               </div>
@@ -1999,6 +2064,10 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
         </div>
       </div>
     </div>
+    {lightboxIndex !== null && creatives[lightboxIndex] && (
+      <CreativeViewer creatives={creatives} index={lightboxIndex} setIndex={setLightboxIndex} onClose={() => setLightboxIndex(null)} />
+    )}
+    </>
   );
 }
 
