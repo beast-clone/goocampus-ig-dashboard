@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { fetchContentCalendarBody } from "@/lib/content-calendar";
+import { getSessionUserId } from "@/lib/auth";
 
 // GET /api/marketing-hub/task-detail?id=<uuid>
 // Bundles everything the My Day detail panel needs in one call:
@@ -81,6 +82,7 @@ export async function GET(req: Request) {
         syncedToScheduler: ownerRes.data?.synced_to_scheduler || false,
         startAt: ownerRes.data?.start_at || null,
       },
+      me: getSessionUserId(),
     });
   } catch (err) {
     return NextResponse.json(safeError(err, "Task detail fetch failed"), { status: 502 });

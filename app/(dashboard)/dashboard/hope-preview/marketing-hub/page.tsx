@@ -1709,7 +1709,9 @@ type TaskDetail = {
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string }[];
   activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string }[];
   scheduler: { syncedToScheduler: boolean; startAt: string | null };
+  me?: string | null;
 };
+const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 const isImageCreative = (name: string, type: string) => type.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif)$/i.test(name);
 
@@ -1784,6 +1786,25 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not remove."); return; }
     await loadDetail();
+  };
+
+  // Post a comment as the current user (falls back to the task owner, then maheen).
+  const authorKey = [detail?.me || "", uploaderKey, "maheen"].find((k) => COMMENT_KEYS.has(k)) || "maheen";
+  const [commentText, setCommentText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const postComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    setPosting(true);
+    try {
+      const res = await fetch("/api/marketing-hub/comments", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: row.id, authorKey, body: text }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not post comment."); return; }
+      setCommentText("");
+      await loadDetail();
+    } finally { setPosting(false); }
   };
 
   const detailRow = (label: string, value: React.ReactNode) => (
@@ -1897,6 +1918,23 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                       ))}
                     </div>
                   ) : <div className="text-sm text-gray-400 italic">No comments yet.</div>}
+
+                {/* Composer */}
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-start gap-2.5">
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{authorKey.slice(0, 1).toUpperCase()}</span>
+                  <div className="flex-1 min-w-0">
+                    <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={2}
+                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
+                      placeholder="Write a comment…  (⌘/Ctrl + Enter to post)"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none outline-none focus:border-brand" />
+                    <div className="flex justify-end mt-1.5">
+                      <button onClick={postComment} disabled={posting || !commentText.trim()}
+                        className="bg-brand text-white text-[12px] font-medium rounded-lg px-3.5 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
+                        {posting ? "Posting…" : "Comment"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </Panel>
             </div>
 
