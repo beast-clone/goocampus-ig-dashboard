@@ -319,7 +319,8 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
       const isDone = DONE_STATUSES.includes(r.status);
       if (pd === today && !isDone) today_ += 1;
       if (pd && pd >= today && pd <= weekAhead && !isDone) week += 1;
-      if (dd && dd < today && !isDone) overdue_ += 1;
+      // Overdue = past its due date OR its publishing date, and not yet done.
+      if (!isDone && ((dd && dd < today) || (pd && pd < today))) overdue_ += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) done_ += 1;
     }
     if (m.role === "writer") {
@@ -852,13 +853,19 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
       const pd = r.publishingDate?.slice(0, 10) || "";
       const dd = r.dueDate?.slice(0, 10) || "";
       const ref = pd || dd;
-      if (dd && dd < todayStr) overdue.push(r);
+      // Overdue = past its due date OR its publishing date (whichever exists).
+      if ((dd && dd < todayStr) || (pd && pd < todayStr)) overdue.push(r);
       else if (ref && ref === todayStr) today_.push(r);
       else if (ref && ref > todayStr && ref <= weekAhead) week.push(r);
       else upcoming.push(r);
     }
     const byRef = (a: Row, b: Row) => (a.publishingDate || a.dueDate || "9999").localeCompare(b.publishingDate || b.dueDate || "9999");
-    overdue.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+    // Sort overdue by the earliest past date (most overdue first).
+    const overdueKey = (r: Row) => {
+      const past = [(r.dueDate || "").slice(0, 10), (r.publishingDate || "").slice(0, 10)].filter((d) => d && d < todayStr).sort();
+      return past[0] || "9999";
+    };
+    overdue.sort((a, b) => overdueKey(a).localeCompare(overdueKey(b)));
     [today_, week, upcoming].forEach((g) => g.sort(byRef));
     done.sort((a, b) => (b.completionTime || "").localeCompare(a.completionTime || ""));
     return { overdue, today: today_, week, upcoming, done };
@@ -868,8 +875,9 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
 
   const renderRow = (r: Row, opts?: { overdue?: boolean; done?: boolean }) => {
     const sp = statusPill(r.status);
-    const dd = (r.dueDate || "").slice(0, 10);
-    const daysOver = opts?.overdue && dd ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(dd)) / 86_400_000)) : null;
+    // Days overdue counts from the earliest past date (due date or publishing date).
+    const pastRef = [(r.dueDate || "").slice(0, 10), (r.publishingDate || "").slice(0, 10)].filter((d) => d && d < todayStr).sort()[0] || null;
+    const daysOver = opts?.overdue && pastRef ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(pastRef)) / 86_400_000)) : null;
     const dateShown = opts?.done ? r.completionTime : (r.publishingDate || r.dueDate);
     return (
       <div key={r.id} onClick={() => onOpen(r.id)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer">
