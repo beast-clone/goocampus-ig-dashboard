@@ -430,11 +430,16 @@ function PersonTimelineRow({ card }: {
   const nextBlk = blocks.find((b) => b.kind === "task" && b.start >= nowMin) || blocks.find((b) => b.kind === "task") || null;
   const focus = currentBlk || nextBlk;
 
-  const overloaded = overflow > 0 || free === 0;
-  const freeH = Math.floor(free / 60), freeM = free % 60;
-  const badge = overloaded
-    ? { text: overflow > 0 ? `Full · +${overflow} more` : "Full", cls: "bg-rose-50 text-rose-700" }
-    : { text: `${freeH ? freeH + "h " : ""}${freeM}m free`, cls: freeH >= 2 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" };
+  const freeH = Math.floor(free / 60);
+  const SLOT_MIN = 60;                                  // rough size of "one more task"
+  const roomForMore = Math.floor(free / SLOT_MIN);      // how many extra tasks would still fit today
+  // Badge: overbooked (tasks spilling to later this week) → red; fully booked → red;
+  // otherwise how much of the 9h day is still open.
+  const badge = overflow > 0
+    ? { text: `Overbooked · ${overflow} spill over`, cls: "bg-rose-50 text-rose-700" }
+    : free <= 0
+    ? { text: "Fully booked", cls: "bg-rose-50 text-rose-700" }
+    : { text: `${fmtDur(free)} free`, cls: freeH >= 2 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" };
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4">
@@ -480,20 +485,54 @@ function PersonTimelineRow({ card }: {
 
       {/* Task list — always visible: name · primary interest · time */}
       {taskBlocks.length > 0 && (
-        <div className="mt-2.5 border-t border-gray-100 pt-2.5">
-          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1.5">
-            Today&apos;s tasks{overflow > 0 && <span className="normal-case tracking-normal"> · +{overflow} more this week</span>}
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">
+            Today&apos;s tasks{overflow > 0 && <span className="normal-case tracking-normal text-rose-500"> · {overflow} more queued this week</span>}
           </div>
-          <div className="space-y-1">
+          <div className="space-y-2">
             {taskBlocks.map((b, i) => (
-              <div key={i} className="flex items-center gap-2 text-[11px]">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
+              <div key={i} className="flex items-center gap-2.5 text-[12.5px]">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
                 <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
                 <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-14 text-right">{fmtDur(b.dur)}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.dur)}</span>
               </div>
             ))}
           </div>
+
+          {/* Capacity / free-time line — can this person take on more today? */}
+          <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 flex items-center gap-2 text-[12.5px]">
+            {overflow > 0 ? (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-rose-500" />
+                <span className="text-rose-700 font-medium">Fully booked</span>
+                <span className="text-gray-500">— {overflow} task{overflow > 1 ? "s" : ""} pushed to later this week</span>
+              </>
+            ) : free > 0 ? (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500" />
+                <span className="text-emerald-700 font-medium">Free time · {fmtDur(free)} open</span>
+                <span className="text-gray-500">
+                  — room for {roomForMore >= 1 ? `~${roomForMore} more task${roomForMore > 1 ? "s" : ""}` : "a short task"}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-amber-500" />
+                <span className="text-amber-700 font-medium">Fully booked for today</span>
+                <span className="text-gray-500">— no free slots left</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* No tasks today — still surface that they're free to take work on */}
+      {taskBlocks.length === 0 && (
+        <div className="mt-3 border-t border-gray-100 pt-3 flex items-center gap-2 text-[12.5px]">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500" />
+          <span className="text-emerald-700 font-medium">Fully free today</span>
+          <span className="text-gray-500">— available for a full day of work</span>
         </div>
       )}
 
