@@ -25,7 +25,6 @@ const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 
 const GROUPS: Group[] = [
   { label: "Content", items: [
-    // Order matches V1 (components/Sidebar.tsx) exactly — do NOT reshuffle.
     { key: "marketing-hub", label: "Marketing Hub", icon: IconChartBar, href: `${HUB}/marketing-hub?tab=team`, children: [
       { label: "Workload",         href: `${HUB}/marketing-hub?tab=team`,     icon: IconUsers },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
@@ -33,10 +32,12 @@ const GROUPS: Group[] = [
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     ] },
     { label: "My Day",              href: `${HUB}/my-day`,       icon: IconSunHigh },
+    { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
+  ] },
+  { label: "Social Media", items: [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,     icon: IconCalendarEvent },
     { label: "Scheduler",           href: `${HUB}/scheduler`,    icon: IconClockHour4 },
     { label: "Post Planner",        href: `${HUB}/post-planner`, icon: IconWand },
-    { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
   ] },
   { label: "Analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [

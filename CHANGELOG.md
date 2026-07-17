@@ -21,6 +21,11 @@ Scoped under `.mhcal-*` class prefix so nothing collides with `.hcal-*` (Publish
 
 Shipped as commit `7d6eb60` on `feat/hope-ui-reskin`.
 
+## 2026-07-17 — Sidebar: "Social Media" section + fix the marketing-hub build
+
+- **Sidebar regroup** (`HopeSidebar.tsx`) — moved **Publishing Calendar, Scheduler, and Post Planner** out of Content into a new **Social Media** section. Content now holds Marketing Hub, My Day, and Content Radar.
+- **Build fix** — the 16 Jul marketing-hub commit imported a shared `HopeSelect` from `@/app/(dashboard)/dashboard/hope-preview/HopeSelect`, but that file was never committed (it only existed as a local function in `scheduler/page.tsx`), so the branch failed to compile. Added the missing `HopeSelect.tsx` (same API/styling, extracted from the scheduler) so the marketing-hub calendar reskin builds.
+
 ## 2026-07-16 — Scheduler goes Supabase-only + Post Planner becomes a Perplexity-ranked drag-drop calendar
 
 All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_posts`) — no Airtable writes; the only remaining Airtable use is reading post captions from the Content Calendar's Content field.
