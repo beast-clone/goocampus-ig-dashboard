@@ -390,10 +390,16 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
 // One teammate as a full-width row: a planned day-plan timeline built from their real
 // pending tasks (like the My Day "Team capacity" view, but data-backed), plus the
 // now/next line and the real Today / This week / Overdue / Done counts.
+function blockGradient(type: string): string {
+  if (VIDEO_TYPES.includes(type)) return "linear-gradient(135deg,#5A6FF0,#3A57E8)";   // video — blue
+  if (DESIGN_TYPES.includes(type)) return "linear-gradient(135deg,#8E7BF0,#6D5CE7)";  // design — violet
+  return "linear-gradient(135deg,#2FB98D,#0F9E75)";                                    // writing/other — teal
+}
+const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return `${h ? h + "h " : ""}${mm}m`; };
+
 function PersonTimelineRow({ card }: {
   card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
 }) {
-  const [open, setOpen] = useState(false);
   const { member, mine, today, week, overdue, done, roleHighlight } = card;
 
   // Today's queue = not-done tasks, most urgent (soonest due) first.
@@ -402,19 +408,20 @@ function PersonTimelineRow({ card }: {
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
 
-  type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; type?: string; start: number };
+  type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
   const blocks: Blk[] = [];
   let cur = 0, lunchDone = false, overflow = 0;
   for (const q of queue) {
     if (!lunchDone && cur >= LUNCH_AT_MIN) { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: cur }); cur += LUNCH_MIN; lunchDone = true; }
     if (cur >= SPAN_MIN - (lunchDone ? 0 : LUNCH_MIN)) { overflow++; continue; }
     const d = taskDurMin(q.r.type);
-    blocks.push({ kind: "task", label: q.r.particulars || q.r.type || "Task", dur: d, type: q.r.type, start: cur });
+    blocks.push({ kind: "task", label: q.r.particulars || q.r.type || "Task", dur: d, row: q.r, start: cur });
     cur += d;
   }
   if (!lunchDone) { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: cur }); cur += LUNCH_MIN; }
   const free = Math.max(0, SPAN_MIN - cur);
   if (free > 0) blocks.push({ kind: "free", label: "Free", dur: free, start: cur });
+  const taskBlocks = blocks.filter((b) => b.kind === "task");
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
@@ -430,30 +437,30 @@ function PersonTimelineRow({ card }: {
     : { text: `${freeH ? freeH + "h " : ""}${freeM}m free`, cls: freeH >= 2 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 transition">
-      <div className="flex items-center gap-3 mb-3">
-        <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.av}</span>
+    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+      <div className="flex items-center gap-3 mb-2.5">
+        <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.av}</span>
         <div className="min-w-0">
           <div className="text-[15px] font-semibold text-gray-900 leading-tight">{member.label}</div>
           <div className="text-[11px] text-gray-500">{member.displayRole} · <span className="font-medium text-gray-700">{roleHighlight}</span> {ROLE_HIGHLIGHT[member.role].toLowerCase()}</div>
         </div>
         <span className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full ${badge.cls}`}>{badge.text}</span>
-        <button onClick={() => setOpen((o) => !o)} className="text-[11px] font-medium text-brand hover:underline whitespace-nowrap">{open ? "Hide tasks" : "Today's tasks ↓"}</button>
       </div>
 
+      {/* Timeline bar (theme: gradient blocks, tall track, now-line) */}
       <div className="flex text-[9px] text-gray-300 mb-1 select-none">
         {HOUR_TICKS.map((h, i) => <div key={i} className="flex-1 text-left">{h}</div>)}
       </div>
-      <div className="relative flex h-9 rounded-lg overflow-hidden border border-gray-100">
+      <div className="relative flex h-12 rounded-lg overflow-hidden border border-gray-100">
         {blocks.map((b, i) => {
-          if (b.kind === "lunch") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#e5e7eb_4px,#e5e7eb_8px)]">Lunch</div>;
-          if (b.kind === "free") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-gray-50">Free</div>;
-          const c = blockColor(b.type || "");
+          if (b.kind === "lunch") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_5px,#DFE3EE_5px,#DFE3EE_10px)]">Lunch</div>;
+          if (b.kind === "free") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_5px,#E9ECF2_5px,#E9ECF2_10px)]">Free</div>;
           const isNow = b === currentBlk;
           return (
-            <div key={i} style={{ flexGrow: b.dur, background: isNow ? c.fg : c.bg, color: isNow ? "#fff" : c.fg }}
-              className="min-w-0 flex items-center px-2 text-[10px] font-medium border-r border-white/70" title={b.label}>
-              <span className="truncate">{b.label}</span>
+            <div key={i} style={{ flexGrow: b.dur, backgroundImage: blockGradient(b.row?.type || ""), opacity: isNow ? 1 : 0.9 }}
+              className={`min-w-0 flex flex-col justify-center px-2 text-[10px] font-medium text-white border-r border-white/20 ${isNow ? "ring-2 ring-inset ring-white/60" : ""}`} title={b.label}>
+              <span className="truncate leading-tight">{b.label}</span>
+              {isNow && <span className="text-[8px] opacity-90 leading-none mt-0.5">now</span>}
             </div>
           );
         })}
@@ -464,35 +471,38 @@ function PersonTimelineRow({ card }: {
         )}
       </div>
 
-      <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-2.5 text-[11px]">
-        {focus ? (
-          <span className="text-gray-600"><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle mr-1.5" />{currentBlk ? "Now" : "Next up"}: <b className="text-gray-900">{focus.label}</b></span>
-        ) : <span className="text-gray-400">Nothing pending — all clear.</span>}
-        <span className="ml-auto flex items-center gap-3 text-gray-500 tabular-nums">
-          <span>Today <b className="text-gray-900">{today}</b></span>
-          <span>This week <b className="text-gray-900">{week}</b></span>
-          <span>Overdue <b className={overdue ? "text-rose-600" : "text-gray-900"}>{overdue}</b></span>
-          <span>Done · 7d <b className="text-gray-900">{done}</b></span>
-        </span>
+      {/* Currently on / next */}
+      <div className="mt-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">
+        {focus
+          ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle mr-1.5" />{currentBlk ? "Now" : "Next up"}: <b className="text-gray-900">{focus.label}</b></>
+          : <span className="text-gray-400">Nothing pending — all clear.</span>}
       </div>
 
-      {open && (
-        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-          {queue.length === 0 ? (
-            <div className="text-[11px] text-gray-400">No pending tasks — all clear.</div>
-          ) : queue.map(({ r }, i) => {
-            const dur = taskDurMin(r.type), h = Math.floor(dur / 60), m = dur % 60;
-            return (
-              <div key={r.id} className="flex items-center gap-2 text-[11px]">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: blockColor(r.type).fg }} />
-                <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={r.particulars}>{i + 1}. {r.particulars || r.type}</span>
-                <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{r.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-14 text-right">{h ? `${h}h ` : ""}{m}m</span>
+      {/* Task list — always visible: name · primary interest · time */}
+      {taskBlocks.length > 0 && (
+        <div className="mt-2.5 border-t border-gray-100 pt-2.5">
+          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1.5">
+            Today&apos;s tasks{overflow > 0 && <span className="normal-case tracking-normal"> · +{overflow} more this week</span>}
+          </div>
+          <div className="space-y-1">
+            {taskBlocks.map((b, i) => (
+              <div key={i} className="flex items-center gap-2 text-[11px]">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
+                <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
+                <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-14 text-right">{fmtDur(b.dur)}</span>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       )}
+
+      <div className="flex items-center justify-end gap-3 mt-2.5 pt-2.5 border-t border-gray-100 text-[11px] text-gray-500 tabular-nums">
+        <span>Today <b className="text-gray-900">{today}</b></span>
+        <span>This week <b className="text-gray-900">{week}</b></span>
+        <span>Overdue <b className={overdue ? "text-rose-600" : "text-gray-900"}>{overdue}</b></span>
+        <span>Done · 7d <b className="text-gray-900">{done}</b></span>
+      </div>
     </div>
   );
 }
