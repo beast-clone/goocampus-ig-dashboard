@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1277,7 +1277,7 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 type MasterDraft = { owner: string; status: string; type: string; sbu: string; priority: string };
 type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; filter?: FilterModel };
 type ViewAccess = "personal" | "collaborative" | "locked";
-type SavedView = { id: string; name: string; section: string; config: { filter?: FilterModel; filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
+type SavedView = { id: string; name: string; section: string; config: { filter?: FilterModel; filters?: Partial<MasterDraft>; sorts?: SortSpec[]; hiddenCols?: string[]; color?: string; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
 const ACCESS_META: Record<ViewAccess, { label: string; hint: string; icon: typeof IconBookmark }> = {
   personal: { label: "Personal view", hint: "Only you can edit the view configuration", icon: IconUser },
   collaborative: { label: "Collaborative view", hint: "Any teammate can edit the view configuration", icon: IconUsers },
@@ -1387,6 +1387,46 @@ function summarizeFilter(f: FilterModel): string[] {
     return `${label} ${opLabel}${val ? ` ${val}` : ""}`.trim();
   });
 }
+
+// ── Sort (multi-field) ──────────────────────────────────────────────────────
+type SortSpec = { field: string; dir: "asc" | "desc" };
+function sortRows(rows: Row[], sorts: SortSpec[]): Row[] {
+  if (!sorts.length) return rows;
+  const idx = rows.map((r, i) => [r, i] as const);
+  idx.sort(([a, ai], [b, bi]) => {
+    for (const s of sorts) {
+      const def = FILTER_FIELDS.find((f) => f.key === s.field);
+      if (!def) continue;
+      const av = def.get(a), bv = def.get(b);
+      let cmp: number;
+      if (typeof av === "boolean" || typeof bv === "boolean") cmp = (av === true ? 1 : 0) - (bv === true ? 1 : 0);
+      else cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+      if (cmp !== 0) return s.dir === "desc" ? -cmp : cmp;
+    }
+    return ai - bi;
+  });
+  return idx.map(([r]) => r);
+}
+
+// ── Grid columns (order + labels; render lives in MasterSheet) ──────────────
+const MASTER_COLUMNS: { key: string; label: string }[] = [
+  { key: "particulars", label: "Task name" },
+  { key: "sbu", label: "SBU / interest" },
+  { key: "type", label: "Type" },
+  { key: "status", label: "Status" },
+  { key: "owner", label: "Owner" },
+  { key: "priority", label: "Priority" },
+  { key: "publishingDate", label: "Publishing" },
+  { key: "dueDate", label: "Due date" },
+  { key: "platforms", label: "Platforms" },
+  { key: "attachments", label: "Files" },
+  { key: "caption", label: "Caption" },
+  { key: "needsReview", label: "Needs review" },
+];
+// Fields you can colour rows by (each has a colour map).
+const COLOR_FIELDS: { key: string; label: string }[] = [
+  { key: "status", label: "Status" }, { key: "sbu", label: "SBU / interest" }, { key: "priority", label: "Priority" },
+];
 
 // Per-view ⋯ menu (mirrors Airtable): access level, reassign, rename, description,
 // duplicate, copy-another-view's-config, download CSV, print, delete. Edit actions
@@ -1548,6 +1588,82 @@ function FilterBuilder({ filter, facets, onChange }: {
   );
 }
 
+// Toolbar button + popover wrapper (Filter / Sort / Columns / Colour).
+function ToolButton({ icon: Ic, label, active, open, onToggle, children }: {
+  icon: typeof IconFilter; label: string; active: boolean; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <button onClick={onToggle} className={`flex items-center gap-1.5 text-[12px] font-medium rounded-lg border px-3 py-1.5 ${active ? "border-brand/40 bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+        <Ic size={14} />{label}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={onToggle} />
+          <div className="absolute left-0 top-[calc(100%+6px)] z-50">{children}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Multi-field sort builder.
+function SortBuilder({ sorts, onChange }: { sorts: SortSpec[]; onChange: (s: SortSpec[]) => void }) {
+  const update = (i: number, patch: Partial<SortSpec>) => onChange(sorts.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[380px] max-w-[92vw]">
+      {sorts.length === 0 && <div className="text-[12px] text-gray-400 px-1 pb-2">No sort — default order.</div>}
+      <div className="space-y-2">
+        {sorts.map((s, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-[11px] text-gray-400 w-8">{i === 0 ? "Sort" : "then"}</span>
+            <div className="flex-1 min-w-0"><HopeSelect value={s.field} onChange={(v) => update(i, { field: v })} options={FILTER_FIELDS.map((f) => ({ value: f.key, label: f.label }))} /></div>
+            <div className="w-[132px] flex-shrink-0"><HopeSelect value={s.dir} onChange={(v) => update(i, { dir: v as "asc" | "desc" })} options={[{ value: "asc", label: "First → last" }, { value: "desc", label: "Last → first" }]} /></div>
+            <button onClick={() => onChange(sorts.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-rose-500 flex-shrink-0"><IconTrash size={14} /></button>
+          </div>
+        ))}
+      </div>
+      <button onClick={() => onChange([...sorts, { field: "publishingDate", dir: "asc" }])} className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-brand"><IconPlus size={14} />Add sort</button>
+    </div>
+  );
+}
+
+// Show/hide columns.
+function ColumnsMenu({ hidden, onChange }: { hidden: string[]; onChange: (h: string[]) => void }) {
+  const toggle = (k: string) => onChange(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]);
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[240px] max-h-80 overflow-auto">
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Columns</div>
+      {MASTER_COLUMNS.map((c) => {
+        const show = !hidden.includes(c.key);
+        return (
+          <button key={c.key} onClick={() => toggle(c.key)} disabled={c.key === "particulars"} className="w-full flex items-center gap-2.5 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left disabled:opacity-50">
+            <span className={`relative w-8 h-4 rounded-full flex-shrink-0 transition ${show ? "bg-brand" : "bg-gray-200"}`}><span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${show ? "left-[18px]" : "left-0.5"}`} /></span>
+            <span className="text-gray-700">{c.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Colour rows by a select field.
+function ColorMenu({ colorField, onChange }: { colorField: string; onChange: (f: string) => void }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[210px]">
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Colour rows by</div>
+      <button onClick={() => onChange("")} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left text-gray-700">
+        <span className="w-3.5 h-3.5 rounded border border-gray-300 flex-shrink-0" />None{colorField === "" && <IconCheck size={13} className="text-brand ml-auto" />}
+      </button>
+      {COLOR_FIELDS.map((f) => (
+        <button key={f.key} onClick={() => onChange(f.key)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left text-gray-700">
+          <span className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ background: "linear-gradient(90deg,#3A57E8,#0F9E75)" }} />{f.label}{colorField === f.key && <IconCheck size={13} className="text-brand ml-auto" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
   onOpen: (id: string) => void; onSaved: () => void; loading: boolean;
@@ -1555,7 +1671,10 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const [activeId, setActiveId] = useState("all");
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<FilterModel>(EMPTY_FILTER);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [sorts, setSorts] = useState<SortSpec[]>([]);
+  const [hiddenCols, setHiddenCols] = useState<string[]>([]);
+  const [colorField, setColorField] = useState<string>("");
+  const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
@@ -1582,21 +1701,26 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu} ${r.type} ${r.owner}`.toLowerCase().includes(q));
+    const filtered = allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu} ${r.type} ${r.owner}`.toLowerCase().includes(q));
+    return sortRows(filtered, sorts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, activeId, draft, search]);
+  }, [allRows, activeId, draft, search, sorts]);
+  const visibleCols = MASTER_COLUMNS.filter((c) => !hiddenCols.includes(c.key)).map((c) => c.key);
+  const currentConfig = { filter: draft, sorts, hiddenCols, color: colorField, rangeDays: activeDays };
 
   const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER)).length;
   const countCustom = (c: SavedView) => allRows.filter((r) => evalFilter(r, c.config.filter || legacyToFilter(c.config.filters))).length;
 
-  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); };
+  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); };
   const selectCustom = (c: SavedView) => {
     setActiveId(c.id);
     setDraft(c.config.filter || legacyToFilter(c.config.filters));
+    setSorts(c.config.sorts || []); setHiddenCols(c.config.hiddenCols || []); setColorField(c.config.color || "");
     if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
   };
   const setFilter = (f: FilterModel) => { setDraft(f); setActiveId("draft"); };
   const hasFilter = draft.conditions.length > 0;
+  const dirty = hasFilter || sorts.length > 0 || hiddenCols.length > 0 || !!colorField;
 
   // "New view" / "Save as view" open the branded builder modal (no native prompt).
   const newView = () => setNewViewOpen(true);
@@ -1604,7 +1728,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
-    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); }
+    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); }
     await refreshViews();
   };
 
@@ -1721,35 +1845,33 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           </div>
         </div>
 
-        {/* Filter bar — Airtable-style condition builder; save the result as a view */}
+        {/* Toolbar — Airtable-style Filter / Sort / Columns / Colour; save the result as a view */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
-          <div className="relative">
-            <button onClick={() => setFilterOpen((o) => !o)}
-              className={`flex items-center gap-1.5 text-[12px] font-medium rounded-lg border px-3 py-1.5 ${hasFilter ? "border-brand/40 bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
-              <IconFilter size={14} />{hasFilter ? `Filtered · ${draft.conditions.length} rule${draft.conditions.length > 1 ? "s" : ""}` : "Filter"}
-            </button>
-            {filterOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
-                <div className="absolute left-0 top-[calc(100%+6px)] z-50">
-                  <FilterBuilder filter={draft} facets={facets} onChange={setFilter} />
-                </div>
-              </>
-            )}
-          </div>
-          {hasFilter && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
-          <button onClick={saveView} disabled={!hasFilter}
+          <ToolButton icon={IconFilter} active={hasFilter} label={hasFilter ? `Filtered · ${draft.conditions.length}` : "Filter"} open={openTool === "filter"} onToggle={() => setOpenTool(openTool === "filter" ? null : "filter")}>
+            <FilterBuilder filter={draft} facets={facets} onChange={setFilter} />
+          </ToolButton>
+          <ToolButton icon={IconArrowsSort} active={sorts.length > 0} label={sorts.length ? `Sorted · ${sorts.length}` : "Sort"} open={openTool === "sort"} onToggle={() => setOpenTool(openTool === "sort" ? null : "sort")}>
+            <SortBuilder sorts={sorts} onChange={setSorts} />
+          </ToolButton>
+          <ToolButton icon={IconColumns} active={hiddenCols.length > 0} label={hiddenCols.length ? `Columns · ${MASTER_COLUMNS.length - hiddenCols.length}` : "Columns"} open={openTool === "cols"} onToggle={() => setOpenTool(openTool === "cols" ? null : "cols")}>
+            <ColumnsMenu hidden={hiddenCols} onChange={setHiddenCols} />
+          </ToolButton>
+          <ToolButton icon={IconPalette} active={!!colorField} label={colorField ? `Colour · ${COLOR_FIELDS.find((f) => f.key === colorField)?.label || colorField}` : "Colour"} open={openTool === "color"} onToggle={() => setOpenTool(openTool === "color" ? null : "color")}>
+            <ColorMenu colorField={colorField} onChange={setColorField} />
+          </ToolButton>
+          {dirty && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
+          <button onClick={saveView} disabled={!dirty}
             className="ml-auto flex items-center gap-1.5 text-[12px] font-medium text-brand disabled:text-gray-300 disabled:cursor-not-allowed">
             <IconDeviceFloppy size={14} />Save as view
           </button>
         </div>
 
-        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare />
+        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} />
       </div>
 
       {newViewOpen && (
         <NewViewModal
-          draft={draft} rangeDays={activeDays}
+          config={currentConfig}
           onClose={() => setNewViewOpen(false)}
           onCreated={() => { setNewViewOpen(false); refreshViews(); }}
         />
@@ -1760,8 +1882,8 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
 
 // Branded "New view" builder — replaces the native window.prompt. Names the view,
 // picks an access level + optional description, and shows exactly what it captures.
-function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
-  draft: FilterModel; rangeDays: number; onClose: () => void; onCreated: () => void;
+function NewViewModal({ config, onClose, onCreated }: {
+  config: { filter: FilterModel; sorts: SortSpec[]; hiddenCols: string[]; color: string; rangeDays: number }; onClose: () => void; onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -1774,8 +1896,11 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const chips = summarizeFilter(draft);
+  const chips = summarizeFilter(config.filter);
   if (!chips.length) chips.push("All tasks");
+  if (config.sorts.length) chips.push(`Sorted · ${config.sorts.length}`);
+  if (config.hiddenCols.length) chips.push(`${MASTER_COLUMNS.length - config.hiddenCols.length} columns`);
+  if (config.color) chips.push(`Coloured by ${COLOR_FIELDS.find((f) => f.key === config.color)?.label || config.color}`);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -1783,7 +1908,7 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
     try {
       const res = await fetch("/api/marketing-hub/views", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config: { filter: draft, rangeDays } }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not create view."); return; }
       onCreated();
@@ -1830,7 +1955,7 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
             <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-1.5">Captures</div>
             <div className="flex flex-wrap gap-1.5">
               {chips.map((c, i) => <span key={i} className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">{c}</span>)}
-              <span className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">Last {rangeDays} days</span>
+              <span className="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">Last {config.rangeDays} days</span>
             </div>
           </div>
         </div>
@@ -1846,7 +1971,7 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
   );
 }
 
-function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean }) {
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string }) {
   const allSbus = facets?.sbu || [];
   const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
   const priorityOptions = facets?.priority || ["Urgent", "High", "Medium", "Low"];
@@ -1854,97 +1979,54 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare }: { rows: R
     const ok = await saveField(id, fields);
     if (ok) onSaved();
   };
+  const cols = MASTER_COLUMNS.filter((c) => !visibleCols || visibleCols.includes(c.key));
+  const colorOf = (r: Row): string | undefined =>
+    colorField === "status" ? statusColor(r.status)
+    : colorField === "sbu" ? sbuColor(r.sbu, allSbus)
+    : colorField === "priority" ? priorityColor(r.priority) : undefined;
+
+  const cell = (key: string, r: Row) => {
+    const sp = statusPill(r.status); const pp = priorityPill(r.priority);
+    const ownerKey = TEAM.find((m) => ownerMatches(r.owner, m))?.key ?? "";
+    switch (key) {
+      case "particulars": return <span className="text-gray-800 block max-w-[280px] truncate">{r.particulars || "(untitled)"}</span>;
+      case "sbu": return <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />{r.sbu || "—"}</span>;
+      case "type": return <span className="text-gray-600">{r.type || "—"}</span>;
+      case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>{statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
+      case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">Unassigned</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
+      case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
+      case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDate(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { publishing_date: e.target.value || null }); done(); }} />)} />;
+      case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDate(r.dueDate) : "—"}</span>;
+      case "platforms": return <PlatformIcons platforms={r.platforms} />;
+      case "attachments": return r.attachments.length ? <span className="inline-flex items-center gap-0.5 text-gray-400"><IconPaperclip size={13} />{r.attachments.length}</span> : <span className="text-gray-300">—</span>;
+      case "caption": return <span className="text-gray-500 block max-w-[220px] truncate">{r.caption || "—"}</span>;
+      case "needsReview": return r.needsReview ? <span className="text-[11px] bg-amber-50 text-amber-700 rounded-full px-2 py-0.5">Yes</span> : <span className="text-gray-300">—</span>;
+      default: return <span className="text-gray-300">—</span>;
+    }
+  };
 
   const table = (
     <div className="overflow-x-auto">
       <table className="w-full text-sm whitespace-nowrap">
-          <thead className="border-b border-gray-100 bg-gray-50">
-            <tr className="text-gray-500 text-left">
-              <th className="px-4 py-2.5 font-normal">Particulars</th>
-              <th className="px-4 py-2.5 font-normal">SBU</th>
-              <th className="px-4 py-2.5 font-normal">Type</th>
-              <th className="px-4 py-2.5 font-normal">Status</th>
-              <th className="px-4 py-2.5 font-normal">Owner</th>
-              <th className="px-4 py-2.5 font-normal">Priority</th>
-              <th className="px-4 py-2.5 font-normal">Publish</th>
-              <th className="px-4 py-2.5 font-normal">Platforms</th>
-              <th className="px-4 py-2.5 font-normal" aria-label="Attachments"><IconPaperclip size={14} className="text-gray-400" /></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">{loading ? "Loading…" : "No entries match"}</td></tr>
-            )}
-            {rows.map((r) => {
-              const sp = statusPill(r.status);
-              const pp = priorityPill(r.priority);
-              const ownerKey = TEAM.find((m) => ownerMatches(r.owner, m))?.key ?? "";
-              return (
-                <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                  <td className="px-4 py-2.5 text-gray-800 max-w-[280px] truncate">{r.particulars || "(untitled)"}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />
-                      {r.sbu || "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-600">{r.type || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <EditableCell
-                      display={r.status
-                        ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>
-                        : <span className="text-gray-300">— set</span>}
-                      editControl={(done) => (
-                        <select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS}
-                          onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>
-                          {statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      )}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <EditableCell
-                      display={r.owner
-                        ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span>
-                        : <span className="text-gray-300">— assign</span>}
-                      editControl={(done) => (
-                        <select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS}
-                          onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}>
-                          <option value="">Unassigned</option>
-                          {TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-                        </select>
-                      )}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <EditableCell
-                      display={r.priority
-                        ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span>
-                        : <span className="text-gray-300">— set</span>}
-                      editControl={(done) => (
-                        <select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS}
-                          onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>
-                          {priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      )}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-500">
-                    <EditableCell
-                      display={r.publishingDate ? <span>{fmtDate(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>}
-                      editControl={(done) => (
-                        <input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS}
-                          onChange={async (e) => { await save(r.id, { publishing_date: e.target.value || null }); done(); }} />
-                      )}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5"><PlatformIcons platforms={r.platforms} /></td>
-                  <td className="px-4 py-2.5 text-gray-400">{r.attachments.length ? <span className="inline-flex items-center gap-0.5"><IconPaperclip size={13} />{r.attachments.length}</span> : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <thead className="border-b border-gray-100 bg-gray-50">
+          <tr className="text-gray-500 text-left">
+            {cols.map((c) => <th key={c.key} className="px-4 py-2.5 font-normal">{c.key === "attachments" ? <IconPaperclip size={14} className="text-gray-400" /> : c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr><td colSpan={cols.length} className="px-4 py-10 text-center text-gray-400">{loading ? "Loading…" : "No entries match"}</td></tr>
+          )}
+          {rows.map((r) => {
+            const cc = colorOf(r);
+            return (
+              <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" style={cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
+                {cols.map((c) => <td key={c.key} className="px-4 py-2.5">{cell(c.key, r)}</td>)}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 
