@@ -77,15 +77,16 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 type Role = "writer" | "designer" | "editor" | "manager";
-type TeamMember = { key: string; label: string; role: Role; aliases: string[]; color: string };
+type TeamMember = { key: string; label: string; role: Role; aliases: string[]; color: string; displayRole: string; av: string };
 
-// Maheen assigns work, doesn't receive it — kept out of team cards. The
-// dashboard's top strip + Today's line-up IS her oversight view.
+// Same roster + roles/colours/avatars as the My Day team (HopeMyDay.tsx), so the
+// workload reads consistently with the team's day view. Maheen assigns work, doesn't
+// receive it — kept out of the workload cards.
 const TEAM: TeamMember[] = [
-  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#D4537E" },
-  { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#378ADD" },
-  { key: "nikhil", label: "Nikhil", role: "editor", aliases: ["NIKHI Shyamraj", "Nikhil Shyamraj", "Nikhil"],       color: "#EF9F27" },
-  { key: "nandu", label: "Nandu", role: "editor", aliases: ["Nandu C", "Nandu"],                                   color: "#5DCAA5" },
+  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#E0791F", displayRole: "Content", av: "M" },
+  { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#C2410C", displayRole: "Ads · Senior Graphic Designer", av: "P" },
+  { key: "nikhil", label: "Nikhil", role: "editor", aliases: ["NIKHI Shyamraj", "Nikhil Shyamraj", "Nikhil"],       color: "#3A57E8", displayRole: "Video editor · short-form", av: "N" },
+  { key: "nandu", label: "Nandu", role: "editor", aliases: ["Nandu C", "Nandu"],                                   color: "#3A57E8", displayRole: "Video editor · long-form", av: "Nd" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -297,6 +298,7 @@ function CompactFacet({ label, value, options, onChange }: { label: string; valu
 // list INLINE below the cards (all statuses), not a pop-up.
 function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<"today" | "week">("today");
   const today = ymd(new Date());
   const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
@@ -332,17 +334,35 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
   const selMember = selected ? TEAM.find((m) => m.key === selected) ?? null : null;
 
   return (
-    <div className="space-y-3">
-      {teamCards.map((c) => (
-        <PersonTimelineRow
-          key={c.member.key}
-          card={c}
-          selected={c.member.key === selected}
-          onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
-        />
-      ))}
-      {selMember && (
-        <PersonPanel member={selMember} allRows={allRows} facets={facets} onOpen={onOpen} onClose={() => setSelected(null)} />
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
+          <button onClick={() => setView("today")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "today" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Today</button>
+          <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>This period</button>
+        </div>
+        <span className="text-[11px] text-gray-400">{view === "today" ? "Each person's plan for today — timeline + tasks." : "Full task overview for the selected date range — click a person to drill in."}</span>
+      </div>
+
+      {view === "today" ? (
+        <div className="space-y-3">
+          {teamCards.map((c) => <PersonTimelineRow key={c.member.key} card={c} />)}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-4">
+            {teamCards.map((c) => (
+              <TeamMemberCard
+                key={c.member.key}
+                card={c}
+                selected={c.member.key === selected}
+                onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
+              />
+            ))}
+          </div>
+          {selMember && (
+            <PersonPanel member={selMember} allRows={allRows} facets={facets} onOpen={onOpen} onClose={() => setSelected(null)} />
+          )}
+        </div>
       )}
     </div>
   );
@@ -351,11 +371,10 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
 // One teammate as a full-width row: a planned day-plan timeline built from their real
 // pending tasks (like the My Day "Team capacity" view, but data-backed), plus the
 // now/next line and the real Today / This week / Overdue / Done counts.
-function PersonTimelineRow({ card, selected, onOpenPanel }: {
+function PersonTimelineRow({ card }: {
   card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
-  selected: boolean;
-  onOpenPanel: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const { member, mine, today, week, overdue, done, roleHighlight } = card;
 
   // Today's queue = not-done tasks, most urgent (soonest due) first.
@@ -392,15 +411,15 @@ function PersonTimelineRow({ card, selected, onOpenPanel }: {
     : { text: `${freeH ? freeH + "h " : ""}${freeM}m free`, cls: freeH >= 2 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" };
 
   return (
-    <div className={`bg-white border rounded-2xl p-4 transition ${selected ? "border-brand ring-1 ring-brand/20" : "border-gray-100"}`}>
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 transition">
       <div className="flex items-center gap-3 mb-3">
-        <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[13px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.label[0]}</span>
+        <span className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.av}</span>
         <div className="min-w-0">
           <div className="text-[15px] font-semibold text-gray-900 leading-tight">{member.label}</div>
-          <div className="text-[11px] text-gray-500">{ROLE_LABEL[member.role]} · <span className="font-medium text-gray-700">{roleHighlight}</span> {ROLE_HIGHLIGHT[member.role].toLowerCase()}</div>
+          <div className="text-[11px] text-gray-500">{member.displayRole} · <span className="font-medium text-gray-700">{roleHighlight}</span> {ROLE_HIGHLIGHT[member.role].toLowerCase()}</div>
         </div>
         <span className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full ${badge.cls}`}>{badge.text}</span>
-        <button onClick={onOpenPanel} className="text-[11px] font-medium text-brand hover:underline whitespace-nowrap">{selected ? "Hide tasks" : "All tasks ↓"}</button>
+        <button onClick={() => setOpen((o) => !o)} className="text-[11px] font-medium text-brand hover:underline whitespace-nowrap">{open ? "Hide tasks" : "Today's tasks ↓"}</button>
       </div>
 
       <div className="flex text-[9px] text-gray-300 mb-1 select-none">
@@ -437,6 +456,24 @@ function PersonTimelineRow({ card, selected, onOpenPanel }: {
           <span>Done · 7d <b className="text-gray-900">{done}</b></span>
         </span>
       </div>
+
+      {open && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+          {queue.length === 0 ? (
+            <div className="text-[11px] text-gray-400">No pending tasks — all clear.</div>
+          ) : queue.map(({ r }, i) => {
+            const dur = taskDurMin(r.type), h = Math.floor(dur / 60), m = dur % 60;
+            return (
+              <div key={r.id} className="flex items-center gap-2 text-[11px]">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: blockColor(r.type).fg }} />
+                <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={r.particulars}>{i + 1}. {r.particulars || r.type}</span>
+                <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{r.sbu || "—"}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-14 text-right">{h ? `${h}h ` : ""}{m}m</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -656,12 +693,12 @@ function TeamMemberCard({ card, onOpenPanel, selected }: {
       className={`bg-white border rounded-lg p-5 flex flex-col cursor-pointer hover:border-brand hover:shadow-sm transition ${selected ? "border-brand ring-1 ring-brand/30" : "border-gray-100"}`}
     >
       <div className="flex items-center gap-3 mb-4 w-full">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-medium" style={{ background: m.color + "22", color: m.color }}>
-          {m.label.slice(0, 1)}
+        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ background: m.color }}>
+          {m.av}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="text-base font-medium">{m.label}</div>
-          <div className="text-xs text-gray-500">{ROLE_LABEL[m.role]}</div>
+          <div className="text-xs text-gray-500 truncate">{m.displayRole}</div>
         </div>
         <div className={`text-xs ${selected ? "text-brand font-medium" : "text-gray-400"}`}>{selected ? "Showing ↓" : "Open ↓"}</div>
       </div>
