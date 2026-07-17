@@ -217,28 +217,33 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
 
   return (
     <div className="space-y-6">
-      {/* Top bar: entries count · global search · live */}
+      {/* Top bar: entries count · global search · live. The Workload tab drives its
+          own filtering (person cards + date range), so it hides the count + search. */}
       <div className="flex items-center gap-4">
-        <div className="text-base text-gray-500 flex-shrink-0">
-          {data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
-        </div>
-        <div className="relative flex-1 max-w-md">
-          <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks by title, caption…"
-            className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm"
-          />
-        </div>
+        {tab !== "team" && (
+          <>
+            <div className="text-base text-gray-500 flex-shrink-0">
+              {data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
+            </div>
+            <div className="relative flex-1 max-w-md">
+              <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tasks by title, caption…"
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm"
+              />
+            </div>
+          </>
+        )}
         <div className="ml-auto flex-shrink-0">
           <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 
-      {/* Compact filter dropdowns — hidden on Pipeline (it shows the whole picture). */}
-      {tab !== "pipeline" && (
+      {/* Compact filter dropdowns — hidden on Pipeline (whole picture) and Workload (own controls). */}
+      {tab !== "pipeline" && tab !== "team" && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 uppercase tracking-wide mr-1">Filter</span>
           <CompactFacet label="SBU" value={filters.sbu} options={data?.facets.sbu || []} onChange={(v) => setFilters({ ...filters, sbu: v })} />
