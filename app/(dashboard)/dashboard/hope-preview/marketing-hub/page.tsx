@@ -463,26 +463,37 @@ function PersonTimelineRow({ card }: {
         <span className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full ${badge.cls}`}>{badge.text}</span>
       </div>
 
-      {/* Timeline bar (theme: gradient blocks, tall track, now-line) */}
-      <div className="flex text-[9px] text-gray-300 mb-1 select-none">
+      {/* Timeline bar — matches My Day "Today's plan": tall 116px track, gradient
+          blocks with a name + "Type · duration" meta line, hatched lunch/free. */}
+      <div className="flex font-mono text-[10px] text-gray-400 mb-1.5 select-none px-px">
         {HOUR_TICKS.map((h, i) => <div key={i} className="flex-1 text-left">{h}</div>)}
       </div>
-      <div className="relative flex h-12 rounded-lg overflow-hidden border border-gray-100">
+      <div className="relative flex h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
         {blocks.map((b, i) => {
-          if (b.kind === "lunch") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_5px,#DFE3EE_5px,#DFE3EE_10px)]">Lunch</div>;
-          if (b.kind === "free") return <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex items-center justify-center text-[9px] text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_5px,#E9ECF2_5px,#E9ECF2_10px)]">Free</div>;
+          if (b.kind === "lunch") return (
+            <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-500 border-r border-white/50 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_6px,#DFE3EE_6px,#DFE3EE_12px)]">
+              <span className="text-[13px] font-semibold leading-tight truncate">Lunch</span>
+              <span className="text-[10px] opacity-90 mt-0.5 truncate">1h · protected</span>
+            </div>
+          );
+          if (b.kind === "free") return (
+            <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_6px,#E9ECF2_6px,#E9ECF2_12px)]">
+              <span className="text-[13px] font-semibold leading-tight truncate">Free</span>
+              <span className="text-[10px] opacity-90 mt-0.5 truncate">{fmtDur(b.dur)} open</span>
+            </div>
+          );
           const isNow = b === currentBlk;
           return (
-            <div key={i} style={{ flexGrow: b.dur, backgroundImage: blockGradient(b.row?.type || ""), opacity: isNow ? 1 : 0.9 }}
-              className={`min-w-0 flex flex-col justify-center px-2 text-[10px] font-medium text-white border-r border-white/20 ${isNow ? "ring-2 ring-inset ring-white/60" : ""}`} title={b.label}>
-              <span className="truncate leading-tight">{b.label}</span>
-              {isNow && <span className="text-[8px] opacity-90 leading-none mt-0.5">now</span>}
+            <div key={i} style={{ flexGrow: b.dur, backgroundImage: blockGradient(b.row?.type || "") }}
+              className={`min-w-0 flex flex-col justify-center px-3 text-white border-r border-white/20 ${isNow ? "ring-2 ring-inset ring-white/70" : ""}`} title={b.label}>
+              <span className="text-[13px] font-semibold leading-tight truncate">{b.label}</span>
+              <span className="text-[10px] opacity-85 mt-0.5 truncate">{b.row?.type || "Task"} · {fmtDur(b.dur)}{isNow ? " · now" : ""}</span>
             </div>
           );
         })}
         {nowPct != null && (
-          <div className="absolute top-0 bottom-0 w-0.5 bg-rose-500" style={{ left: `${nowPct}%` }}>
-            <span className="absolute -top-1 -left-[3px] w-2 h-2 rounded-full bg-rose-500" />
+          <div className="absolute top-0 bottom-0 w-0.5 bg-[#DC2E2E] z-10" style={{ left: `${nowPct}%` }}>
+            <span className="absolute -top-[3px] -left-[3px] w-2 h-2 rounded-full bg-[#DC2E2E]" />
           </div>
         )}
       </div>
