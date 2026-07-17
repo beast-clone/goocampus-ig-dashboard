@@ -217,10 +217,10 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
 
   return (
     <div className="space-y-6">
-      {/* Top bar: entries count · global search · live. The Workload tab drives its
-          own filtering (person cards + date range), so it hides the count + search. */}
+      {/* Top bar: entries count · global search · live. Workload + Master drive their
+          own filtering (person cards / views rail), so they hide the count + search. */}
       <div className="flex items-center gap-4">
-        {tab !== "team" && (
+        {tab !== "team" && tab !== "master" && (
           <>
             <div className="text-base text-gray-500 flex-shrink-0">
               {data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
@@ -242,8 +242,8 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         </div>
       </div>
 
-      {/* Compact filter dropdowns — hidden on Pipeline (whole picture) and Workload (own controls). */}
-      {tab !== "pipeline" && tab !== "team" && (
+      {/* Compact filter dropdowns — hidden on Pipeline (whole picture), Workload + Master (own controls). */}
+      {tab !== "pipeline" && tab !== "team" && tab !== "master" && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 uppercase tracking-wide mr-1">Filter</span>
           <CompactFacet label="SBU" value={filters.sbu} options={data?.facets.sbu || []} onChange={(v) => setFilters({ ...filters, sbu: v })} />
@@ -258,7 +258,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       )}
 
       {tab === "master" && (
-        <MasterSheet rows={filtered} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
+        <MasterTab allRows={data?.rows || []} facets={data?.facets} range={range} setRange={setRange} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
       )}
 
       {tab === "team" && (
@@ -1270,7 +1270,99 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 // MASTER SHEET sub-tab — the single source of truth: every creative, every SBU,
 // mirrored from Airtable. Status · Owner · Priority · Date edit inline; click a
 // row (title/type/etc.) to open the full task.
-function MasterSheet({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
+// Views layer over the Master sheet — an Airtable-style left rail of views (default:
+// All + one per teammate + by status + by content type) with a 7/30/90d/1y period
+// switcher. Each view filters the range-fetched rows; the table + inline editing
+// come from MasterSheet (rendered bare). Custom saved views are added in a later pass.
+type MasterViewDef = { id: string; label: string; av?: string; color?: string; match: (r: Row) => boolean };
+
+function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
+  allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
+  onOpen: (id: string) => void; onSaved: () => void; loading: boolean;
+}) {
+  const [activeId, setActiveId] = useState("all");
+  const [search, setSearch] = useState("");
+  const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
+  const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
+
+  const allView: MasterViewDef = { id: "all", label: "All tasks", color: "#94A3B8", match: () => true };
+  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, match: (r) => ownerMatches(r.owner, m) }));
+  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, match: (r) => r.status === s.key }));
+  const typeViews: MasterViewDef[] = [
+    { id: "type-reel", label: "Reels", color: "#3A57E8", match: (r) => /reel/i.test(r.type) },
+    { id: "type-carousel", label: "Carousels", color: "#6D5CE7", match: (r) => /carousel/i.test(r.type) },
+    { id: "type-video", label: "Long videos", color: "#2138B0", match: (r) => /youtube|long-form|short-form/i.test(r.type) },
+    { id: "type-thumb", label: "Thumbnails", color: "#0F9E75", match: (r) => /thumbnail/i.test(r.type) },
+    { id: "type-post", label: "Posts & stories", color: "#E0791F", match: (r) => /post|story|\btext\b/i.test(r.type) },
+  ];
+  const everyView = [allView, ...teamViews, ...statusViews, ...typeViews];
+  const active = everyView.find((v) => v.id === activeId) || allView;
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allRows.filter(active.match).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu}`.toLowerCase().includes(q));
+  }, [allRows, active, search]);
+
+  const RailItem = ({ v }: { v: MasterViewDef }) => {
+    const on = v.id === activeId;
+    const n = allRows.filter(v.match).length;
+    return (
+      <button onClick={() => setActiveId(v.id)}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+        {v.av
+          ? <span className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0" style={{ background: v.color }}>{v.av}</span>
+          : <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: v.color || "#94A3B8" }} />}
+        <span className="truncate flex-1 text-left">{v.label}</span>
+        <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"}`}>{n}</span>
+      </button>
+    );
+  };
+  const Section = ({ title, views }: { title: string; views: MasterViewDef[] }) => (
+    <div className="mb-2">
+      <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{title}</div>
+      {views.map((v) => <RailItem key={v.id} v={v} />)}
+    </div>
+  );
+
+  return (
+    <div className="flex gap-4 items-start">
+      {/* Views rail */}
+      <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
+        <div className="relative mb-1">
+          <IconSearch size={14} stroke={1.8} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find in view…"
+            className="w-full border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 text-[12px]" />
+        </div>
+        <Section title="Default" views={[allView]} />
+        <Section title="Team" views={teamViews} />
+        <Section title="By status" views={statusViews} />
+        <Section title="By content type" views={typeViews} />
+      </div>
+
+      {/* Active view */}
+      <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
+          {active.av
+            ? <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: active.color }}>{active.av}</span>
+            : <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: active.color || "#94A3B8" }} />}
+          <div>
+            <div className="text-base font-medium">{active.label}</div>
+            <div className="text-[11px] text-gray-500">{fmtInt(rows.length)} tasks · last {activeDays} days</div>
+          </div>
+          <div className="ml-auto inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
+            {([[7, "7d"], [30, "30d"], [90, "90d"], [365, "1y"]] as [number, string][]).map(([n, lab]) => (
+              <button key={n} onClick={() => setRange(daysRange(n))}
+                className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition ${activeDays === n ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}>{lab}</button>
+            ))}
+          </div>
+        </div>
+        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare />
+      </div>
+    </div>
+  );
+}
+
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean }) {
   const allSbus = facets?.sbu || [];
   const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
   const priorityOptions = facets?.priority || ["Urgent", "High", "Medium", "Low"];
@@ -1279,14 +1371,9 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; 
     if (ok) onSaved();
   };
 
-  return (
-    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-        <div className="text-base font-medium">Master sheet</div>
-        <div className="text-sm text-gray-400">{fmtInt(rows.length)} records · edit Status · Owner · Priority · Date inline · click a row to open</div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm whitespace-nowrap">
+  const table = (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
           <thead className="border-b border-gray-100 bg-gray-50">
             <tr className="text-gray-500 text-left">
               <th className="px-4 py-2.5 font-normal">Particulars</th>
@@ -1374,7 +1461,17 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; 
             })}
           </tbody>
         </table>
+    </div>
+  );
+
+  if (bare) return table;
+  return (
+    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+        <div className="text-base font-medium">Master sheet</div>
+        <div className="text-sm text-gray-400">{fmtInt(rows.length)} records · edit inline · click a row to open</div>
       </div>
+      {table}
     </div>
   );
 }
