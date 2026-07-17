@@ -1763,6 +1763,10 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     ...(detail?.attachments || []).map((a) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true })),
     ...row.attachments.map((a) => ({ id: undefined as string | undefined, url: a.url, name: a.filename, type: a.type || "", removable: false })),
   ];
+  // Status-aware highlight: while in production the Content brief leads; once a
+  // creative exists or the task reaches the output stage, Creatives jumps to top.
+  const OUTPUT_STAGES = ["Output - Ready", "Ready to Publish", "Published/Scheduled"];
+  const creativesFirst = creatives.length > 0 || OUTPUT_STAGES.includes(row.status);
 
   const upload = async (files: FileList) => {
     setUploading(true);
@@ -1792,11 +1796,12 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 hope-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 flex-shrink-0">
+        {/* Header — Hope-UI hero band: brand-tinted, large title */}
+        <div className="relative flex items-start justify-between gap-4 px-7 py-6 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
+          <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-lg font-semibold text-[#232D42] leading-tight">{row.particulars || "(untitled)"}</h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-[22px] font-semibold text-[#232D42] leading-tight tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
@@ -1804,7 +1809,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
               )}
               {row.needsReview && <span className="text-[11px] font-medium bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">Needs review</span>}
             </div>
-            <div className="flex items-center gap-2 mt-1.5 text-[13px] text-[#8A92A6] flex-wrap">
+            <div className="flex items-center gap-2 mt-2 text-[13px] text-[#8A92A6] flex-wrap">
               <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(row.sbu, []) }} />{row.sbu || "—"}</span>
               <span className="text-gray-300">·</span><span>{row.type || "—"}</span>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
@@ -1813,9 +1818,11 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
         </div>
 
-        {/* Body — light canvas so the white cards read as real sections */}
-        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5 space-y-4">
-          {/* CREATIVES — the priority section */}
+        {/* Body — light canvas so the white cards read as real sections. Order swaps:
+            Content leads in production; Creatives leads once produced (creativesFirst). */}
+        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5 flex flex-col gap-4">
+          {/* CREATIVES */}
+          <div className={creativesFirst ? "order-1" : "order-2"}>
           <Panel icon={IconPhoto} title="Creatives" accent
             right={<>
               <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -1852,9 +1859,10 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
               </div>
             )}
           </Panel>
+          </div>
 
           {/* Two columns: content/comments (main) + details/activity (side) */}
-          <div className="grid md:grid-cols-3 gap-4 items-start">
+          <div className={`grid md:grid-cols-3 gap-4 items-start ${creativesFirst ? "order-2" : "order-1"}`}>
             <div className="md:col-span-2 space-y-4">
               <Panel icon={IconFileText} title="Content">
                 {content ? <div className="text-[13px] leading-relaxed prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
