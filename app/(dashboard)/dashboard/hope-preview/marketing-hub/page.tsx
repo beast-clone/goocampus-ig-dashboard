@@ -794,7 +794,7 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   const [customTo, setCustomTo] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [groupBy, setGroupBy] = useState<string>("none");
+  const [groupBy, setGroupBy] = useState<string>("status");
   const [colorBy, setColorBy] = useState<string>("status");
   const [sortField, setSortField] = useState<string>("status");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -883,9 +883,17 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   const renderRow = (r: Row) => {
     const sp = statusPill(r.status);
     const pp = priorityPill(r.priority);
+    // "Stuck" = days since the row last changed status/state (proxy: lastModified).
+    const isDone = DONE_STATUSES.includes(r.status);
+    const lm = (r.lastModified || "").slice(0, 10);
+    const daysAtStage = /^\d{4}-\d{2}-\d{2}$/.test(lm) ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(lm)) / 86_400_000)) : null;
+    const stuck = !isDone && daysAtStage != null && daysAtStage >= 2;
     return (
       <tr key={r.id} onClick={() => onOpen(r.id)} className="border-t border-gray-50 hover:bg-gray-50 cursor-pointer">
-        <td className="px-4 py-2.5 text-gray-800 max-w-[320px] truncate" style={{ borderLeft: `3px solid ${rowColor(r)}` }}>{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</td>
+        <td className="px-4 py-2.5 text-gray-800 max-w-[360px] truncate" style={{ borderLeft: `3px solid ${rowColor(r)}` }}>
+          <span className="align-middle">{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</span>
+          {stuck && <span className={`ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${daysAtStage! >= 4 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`} title={`No status change for ${daysAtStage} days`}>{daysAtStage}d at stage</span>}
+        </td>
         <td className="px-4 py-2.5 text-gray-600">{r.type || "—"}</td>
         <td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-gray-600"><span className="w-2 h-2 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />{r.sbu || "—"}</span></td>
         <td className="px-4 py-2.5">{r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : "—"}</td>
@@ -900,12 +908,12 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-medium" style={{ background: member.color + "22", color: member.color }}>
-            {member.label.slice(0, 1)}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ background: member.color }}>
+            {member.av}
           </div>
           <div>
             <div className="text-lg font-medium">{member.label}&apos;s tasks</div>
-            <div className="text-sm text-gray-500">{ROLE_LABEL[member.role]} · {mine.length} in this range</div>
+            <div className="text-sm text-gray-500">{member.displayRole} · {mine.length} in this range</div>
           </div>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none" aria-label="Close">×</button>
