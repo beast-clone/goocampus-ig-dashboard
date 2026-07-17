@@ -304,6 +304,16 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
   const today = ymd(new Date());
   const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
+  // Working days (Mon–Fri) in the selected range → the period's total capacity.
+  const periodWorkDays = useMemo(() => {
+    let n = 0;
+    const start = Date.parse(range.from), end = Date.parse(range.to);
+    for (let t = start; t <= end; t += 86_400_000) {
+      const d = new Date(t).getUTCDay();
+      if (d !== 0 && d !== 6) n += 1;
+    }
+    return Math.max(1, n);
+  }, [range.from, range.to]);
 
   const teamCards = useMemo(() => TEAM.map((m) => {
     const mine = rows.filter((r) => ownerMatches(r.owner, m));
@@ -373,6 +383,7 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
               <TeamMemberCard
                 key={c.member.key}
                 card={c}
+                workDays={periodWorkDays}
                 selected={c.member.key === selected}
                 onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
               />
@@ -745,12 +756,24 @@ function BigStat({ label, value, accent, alarm }: { label: string; value: number
   );
 }
 
-function TeamMemberCard({ card, onOpenPanel, selected }: {
+function TeamMemberCard({ card, onOpenPanel, selected, workDays }: {
   card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
   onOpenPanel: () => void;
   selected?: boolean;
+  workDays: number;
 }) {
   const { member: m } = card;
+
+  // Period capacity: pending work (est. hours) vs the working days in the range.
+  const pendingMin = card.mine.filter((r) => !DONE_STATUSES.includes(r.status)).reduce((s, r) => s + taskDurMin(r.type), 0);
+  const capacityMin = workDays * SPAN_MIN;
+  const freeMin = capacityMin - pendingMin;
+  const pct = capacityMin ? Math.round((pendingMin / capacityMin) * 100) : 0;
+  const over = freeMin < 0;
+  const barColor = over ? "#E24B4A" : pct >= 80 ? "#EF9F27" : "#0F9E75";
+  const capLabel = over
+    ? { head: "Overbooked", headCls: "text-rose-600", tail: `${fmtDur(-freeMin)} over capacity` }
+    : { head: `${fmtDur(freeMin)} free`, headCls: pct >= 80 ? "text-amber-600" : "text-emerald-600", tail: `~${Math.max(0, Math.floor(freeMin / 60))}h open this period` };
 
   return (
     <div
@@ -781,6 +804,20 @@ function TeamMemberCard({ card, onOpenPanel, selected }: {
         <MiniStat label="This week" value={card.week} />
         <MiniStat label="Overdue" value={card.overdue} alarm={card.overdue > 0} />
         <MiniStat label="Done · 7d" value={card.done} />
+      </div>
+
+      {/* Period capacity — free time / overbooked across the selected range */}
+      <div className="mt-4 pt-3 border-t border-gray-100">
+        <div className="flex items-baseline justify-between mb-1.5">
+          <span className={`text-xs font-medium ${capLabel.headCls}`}>{capLabel.head}</span>
+          <span className="text-[11px] text-gray-400">{pct}% loaded</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: barColor }} />
+        </div>
+        <div className="text-[11px] text-gray-400 mt-1.5">
+          {fmtDur(pendingMin)} of work · {capLabel.tail}
+        </div>
       </div>
     </div>
   );
