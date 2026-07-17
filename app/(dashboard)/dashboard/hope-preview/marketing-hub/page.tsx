@@ -882,12 +882,12 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
     );
   };
 
-  const GROUPS: { key: string; label: string; dot: string; text: string; rows: Row[]; opts?: { overdue?: boolean; done?: boolean } }[] = [
-    { key: "overdue", label: "Overdue", dot: "#D8342F", text: "#B4231F", rows: sections.overdue, opts: { overdue: true } },
-    { key: "today", label: "Due today", dot: "#3A57E8", text: "#2138B0", rows: sections.today },
-    { key: "week", label: "This week", dot: "#6D5CE7", text: "#4F3FC0", rows: sections.week },
-    { key: "upcoming", label: "Upcoming", dot: "#9AA0AC", text: "#6B7280", rows: sections.upcoming },
-    { key: "done", label: "Done", dot: "#0F9E75", text: "#0F6E56", rows: sections.done, opts: { done: true } },
+  const GROUPS: { key: string; label: string; dot: string; text: string; bg: string; rows: Row[]; opts?: { overdue?: boolean; done?: boolean } }[] = [
+    { key: "overdue", label: "Overdue", dot: "#D8342F", text: "#B4231F", bg: "#FCEBEC", rows: sections.overdue, opts: { overdue: true } },
+    { key: "today", label: "Due today", dot: "#3A57E8", text: "#2138B0", bg: "#E6F1FB", rows: sections.today },
+    { key: "week", label: "This week", dot: "#6D5CE7", text: "#4F3FC0", bg: "#EEEDFE", rows: sections.week },
+    { key: "upcoming", label: "Upcoming", dot: "#7A8290", text: "#5A6472", bg: "#F1F2F5", rows: sections.upcoming },
+    { key: "done", label: "Done", dot: "#0F9E75", text: "#0F6E56", bg: "#E1F5EE", rows: sections.done, opts: { done: true } },
   ];
 
   return (
@@ -914,13 +914,13 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
         {openCount === 0 && sections.done.length === 0 ? (
           <div className="px-2 py-10 text-center text-gray-400 text-sm">No tasks for {member.label} in this range.</div>
         ) : GROUPS.map((g) => g.rows.length > 0 && (
-          <div key={g.key} className="mb-1.5">
-            <div className="flex items-center gap-2 px-2 pt-3 pb-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: g.dot }} />
+          <div key={g.key} className="mb-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: g.bg }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: g.dot }} />
               <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: g.text }}>{g.label}</span>
-              <span className="text-[11px] text-gray-400">{g.rows.length}</span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/70" style={{ color: g.text }}>{g.rows.length}</span>
             </div>
-            {g.rows.map((r) => renderRow(r, g.opts))}
+            <div className="mt-0.5">{g.rows.map((r) => renderRow(r, g.opts))}</div>
           </div>
         ))}
       </div>
