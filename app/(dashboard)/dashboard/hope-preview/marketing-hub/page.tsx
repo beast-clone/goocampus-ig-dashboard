@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconX, IconDeviceFloppy } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1276,8 +1276,102 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 // drives the fetch range. The table + inline editing come from MasterSheet (bare).
 type MasterDraft = { owner: string; status: string; type: string; sbu: string; priority: string };
 type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; preset?: Partial<MasterDraft> };
-type SavedView = { id: string; name: string; section: string; config: { filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number };
+type ViewAccess = "personal" | "collaborative" | "locked";
+type SavedView = { id: string; name: string; section: string; config: { filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
 const EMPTY_DRAFT: MasterDraft = { owner: "", status: "", type: "", sbu: "", priority: "" };
+const ACCESS_META: Record<ViewAccess, { label: string; hint: string; icon: typeof IconBookmark }> = {
+  personal: { label: "Personal view", hint: "Only you can edit the view configuration", icon: IconUser },
+  collaborative: { label: "Collaborative view", hint: "Any teammate can edit the view configuration", icon: IconUsers },
+  locked: { label: "Locked view", hint: "Nobody can edit the view configuration", icon: IconLock },
+};
+
+// CSV of the given rows for a view's Download CSV action.
+function viewRowsToCsv(rows: Row[]): string {
+  const cols: [string, (r: Row) => string | undefined][] = [
+    ["Particulars", (r) => r.particulars], ["SBU", (r) => r.sbu], ["Type", (r) => r.type],
+    ["Status", (r) => r.status], ["Owner", (r) => r.owner], ["Priority", (r) => r.priority],
+    ["Publishing Date", (r) => r.publishingDate?.slice(0, 10)], ["Due Date", (r) => r.dueDate?.slice(0, 10)],
+  ];
+  const esc = (s?: string) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  return [cols.map((c) => esc(c[0])).join(","), ...rows.map((r) => cols.map((c) => esc(c[1](r))).join(","))].join("\n");
+}
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Per-view ⋯ menu (mirrors Airtable): access level, reassign, rename, description,
+// duplicate, copy-another-view's-config, download CSV, print, delete. Edit actions
+// disable when the API says the current user can't edit/manage this view.
+function ViewMenu({ view, otherViews, onAction }: {
+  view: SavedView; otherViews: SavedView[]; onAction: (action: string, payload?: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [sub, setSub] = useState<null | "copy" | "reassign">(null);
+  const close = () => { setOpen(false); setSub(null); };
+  const act = (a: string, p?: string) => { close(); onAction(a, p); };
+  const { canEdit, canManage } = view;
+
+  const item = (key: string, Ic: typeof IconPencil, label: string, onClick: () => void, opts: { disabled?: boolean; danger?: boolean } = {}) => (
+    <button key={key} disabled={opts.disabled} onClick={onClick}
+      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[12.5px] text-left ${opts.disabled ? "text-gray-300 cursor-not-allowed" : opts.danger ? "text-rose-600 hover:bg-rose-50" : "text-gray-700 hover:bg-gray-50"}`}>
+      <Ic size={15} stroke={1.7} className="flex-shrink-0" />{label}
+    </button>
+  );
+
+  return (
+    <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} title="View options"
+        className={`${open ? "flex" : "hidden group-hover:flex"} text-gray-400 hover:text-gray-700`}><IconDots size={15} /></button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={close} />
+          <div className="absolute right-0 top-6 z-50 w-64 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+            <div className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Access</div>
+            {(["personal", "collaborative", "locked"] as ViewAccess[]).map((a) => {
+              const M = ACCESS_META[a]; const Ic = M.icon; const cur = view.access === a;
+              return (
+                <button key={a} disabled={!canManage} onClick={() => act("access", a)}
+                  className={`w-full flex items-start gap-2.5 px-3 py-1.5 text-left ${!canManage ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}`}>
+                  <Ic size={15} stroke={1.7} className="flex-shrink-0 mt-0.5 text-gray-600" />
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-1.5 text-[12.5px] text-gray-800">{M.label}{cur && <IconCheck size={13} className="text-brand" />}</span>
+                    <span className="block text-[11px] text-gray-400 leading-tight">{M.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+            <div className="my-1 border-t border-gray-100" />
+            {item("reassign", IconUserShare, "Reassign to someone else", () => setSub(sub === "reassign" ? null : "reassign"), { disabled: !canManage })}
+            {sub === "reassign" && (
+              <div className="pl-8 pr-2 pb-1">
+                {TEAM.map((m) => <button key={m.key} onClick={() => act("reassign", m.key)} className="w-full text-left px-2 py-1 text-[12px] rounded hover:bg-gray-50">{m.label}</button>)}
+              </div>
+            )}
+            {item("rename", IconPencil, "Rename view", () => act("rename"), { disabled: !canEdit })}
+            {item("description", IconFileDescription, "Edit view description", () => act("description"), { disabled: !canEdit })}
+            <div className="my-1 border-t border-gray-100" />
+            {item("duplicate", IconCopy, "Duplicate view", () => act("duplicate"))}
+            {item("copy", IconClipboardCopy, "Copy another view's configuration", () => setSub(sub === "copy" ? null : "copy"), { disabled: !canEdit || otherViews.length === 0 })}
+            {sub === "copy" && (
+              <div className="pl-8 pr-2 pb-1 max-h-40 overflow-auto">
+                {otherViews.map((v) => <button key={v.id} onClick={() => act("copyConfig", v.id)} className="w-full text-left px-2 py-1 text-[12px] rounded hover:bg-gray-50 truncate">{v.name}</button>)}
+              </div>
+            )}
+            <div className="my-1 border-t border-gray-100" />
+            {item("csv", IconDownload, "Download CSV", () => act("csv"))}
+            {item("print", IconPrinter, "Print view", () => act("print"))}
+            <div className="my-1 border-t border-gray-100" />
+            {item("delete", IconTrash, "Delete view", () => act("delete"), { danger: true, disabled: !canManage })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
@@ -1287,7 +1381,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<MasterDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
-  const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[] }>("/api/marketing-hub/views");
+  const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
 
   const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
@@ -1351,9 +1445,38 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     } finally { setSaving(false); }
   };
   const deleteView = async (id: string) => {
-    await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
     if (activeId === id) { setActiveId("all"); setDraft(EMPTY_DRAFT); }
     await refreshViews();
+  };
+
+  // Per-view menu actions (Airtable's ⋯ menu). Config/name/desc edits and access
+  // changes are permission-gated in the API; on 403 we surface the message.
+  const patchView = async (id: string, body: Record<string, unknown>) => {
+    const res = await fetch("/api/marketing-hub/views", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }),
+    });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not update view."); return; }
+    await refreshViews();
+  };
+  const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter(mkMatch(cfg.filters || {}));
+  const doViewAction = async (action: string, v: SavedView, payload?: string) => {
+    switch (action) {
+      case "access": await patchView(v.id, { access: payload }); break;
+      case "rename": { const n = window.prompt("Rename view", v.name); if (n && n.trim()) await patchView(v.id, { name: n.trim() }); break; }
+      case "description": { const d = window.prompt("View description", v.description || ""); if (d !== null) await patchView(v.id, { description: d }); break; }
+      case "duplicate":
+        await fetch("/api/marketing-hub/views", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: `${v.name} copy`, config: v.config, description: v.description, access: "personal" }) });
+        await refreshViews();
+        break;
+      case "copyConfig": { const src = custom.find((c) => c.id === payload); if (src) await patchView(v.id, { config: src.config }); break; }
+      case "reassign": await patchView(v.id, { createdBy: payload }); break;
+      case "csv": downloadText(`${v.name.replace(/[^a-z0-9]+/gi, "-")}.csv`, viewRowsToCsv(rowsForConfig(v.config))); break;
+      case "print": selectCustom(v); setTimeout(() => window.print(), 150); break;
+      case "delete": if (window.confirm(`Delete view "${v.name}"?`)) await deleteView(v.id); break;
+    }
   };
 
   const RailItem = ({ v }: { v: MasterViewDef }) => {
@@ -1398,14 +1521,15 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
             <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">My views</div>
             {custom.map((c) => {
               const on = c.id === activeId;
+              const AccessIcon = ACCESS_META[c.access].icon;
               return (
                 <div key={c.id} className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
-                  <button onClick={() => selectCustom(c)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                    <IconBookmark size={13} stroke={1.8} className="flex-shrink-0" />
+                  <button onClick={() => selectCustom(c)} className="flex items-center gap-2 flex-1 min-w-0 text-left" title={c.description || undefined}>
+                    <AccessIcon size={13} stroke={1.8} className="flex-shrink-0" />
                     <span className="truncate flex-1">{c.name}</span>
                   </button>
                   <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"} group-hover:hidden`}>{countCustom(c)}</span>
-                  <button onClick={() => deleteView(c.id)} title="Delete view" className="hidden group-hover:flex text-gray-400 hover:text-rose-500 flex-shrink-0"><IconX size={13} /></button>
+                  <ViewMenu view={c} otherViews={custom.filter((v) => v.id !== c.id)} onAction={(a, p) => doViewAction(a, c, p)} />
                 </div>
               );
             })}
