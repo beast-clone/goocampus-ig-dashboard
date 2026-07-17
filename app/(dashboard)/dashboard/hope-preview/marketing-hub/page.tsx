@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconX, IconDeviceFloppy } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1270,11 +1270,14 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 // MASTER SHEET sub-tab — the single source of truth: every creative, every SBU,
 // mirrored from Airtable. Status · Owner · Priority · Date edit inline; click a
 // row (title/type/etc.) to open the full task.
-// Views layer over the Master sheet — an Airtable-style left rail of views (default:
-// All + one per teammate + by status + by content type) with a 7/30/90d/1y period
-// switcher. Each view filters the range-fetched rows; the table + inline editing
-// come from MasterSheet (rendered bare). Custom saved views are added in a later pass.
-type MasterViewDef = { id: string; label: string; av?: string; color?: string; match: (r: Row) => boolean };
+// Views layer over the Master sheet — an Airtable-style left rail of views. Defaults
+// (All + per-teammate + by status + by content type) sit alongside "My views": shared,
+// user-saved filter sets persisted in mh_views (Supabase). A 7/30/90d/1y period switcher
+// drives the fetch range. The table + inline editing come from MasterSheet (bare).
+type MasterDraft = { owner: string; status: string; type: string; sbu: string; priority: string };
+type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; preset?: Partial<MasterDraft> };
+type SavedView = { id: string; name: string; section: string; config: { filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number };
+const EMPTY_DRAFT: MasterDraft = { owner: "", status: "", type: "", sbu: "", priority: "" };
 
 function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
@@ -1282,12 +1285,20 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
 }) {
   const [activeId, setActiveId] = useState("all");
   const [search, setSearch] = useState("");
+  const [draft, setDraft] = useState<MasterDraft>(EMPTY_DRAFT);
+  const [saving, setSaving] = useState(false);
+  const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[] }>("/api/marketing-hub/views");
+  const custom = viewsData?.views || [];
+
   const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
   const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
+  const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
+  const typeOptions = facets?.type || [];
+  const sbuOptions = facets?.sbu || [];
 
-  const allView: MasterViewDef = { id: "all", label: "All tasks", color: "#94A3B8", match: () => true };
-  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, match: (r) => ownerMatches(r.owner, m) }));
-  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, match: (r) => r.status === s.key }));
+  const allView: MasterViewDef = { id: "all", label: "All tasks", color: "#94A3B8", preset: {} };
+  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, preset: { owner: m.key } }));
+  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, preset: { status: s.key } }));
   const typeViews: MasterViewDef[] = [
     { id: "type-reel", label: "Reels", color: "#3A57E8", match: (r) => /reel/i.test(r.type) },
     { id: "type-carousel", label: "Carousels", color: "#6D5CE7", match: (r) => /carousel/i.test(r.type) },
@@ -1295,25 +1306,66 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     { id: "type-thumb", label: "Thumbnails", color: "#0F9E75", match: (r) => /thumbnail/i.test(r.type) },
     { id: "type-post", label: "Posts & stories", color: "#E0791F", match: (r) => /post|story|\btext\b/i.test(r.type) },
   ];
-  const everyView = [allView, ...teamViews, ...statusViews, ...typeViews];
-  const active = everyView.find((v) => v.id === activeId) || allView;
+  const everyDef = [allView, ...teamViews, ...statusViews, ...typeViews];
+  const curDef = everyDef.find((v) => v.id === activeId);
+  const activeCustom = custom.find((c) => c.id === activeId);
+
+  const mkMatch = (d: Partial<MasterDraft>) => (r: Row) => {
+    if (d.owner) { const m = TEAM.find((t) => t.key === d.owner); if (!m || !ownerMatches(r.owner, m)) return false; }
+    if (d.status && r.status !== d.status) return false;
+    if (d.type && r.type !== d.type) return false;
+    if (d.sbu && r.sbu !== d.sbu) return false;
+    if (d.priority && r.priority !== d.priority) return false;
+    return true;
+  };
+  const matchFn = curDef?.match ? curDef.match : mkMatch(draft);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allRows.filter(active.match).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu}`.toLowerCase().includes(q));
-  }, [allRows, active, search]);
+    return allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu}`.toLowerCase().includes(q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, activeId, draft, search]);
+
+  const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : mkMatch(v.preset || {})).length;
+  const countCustom = (c: SavedView) => allRows.filter(mkMatch(c.config.filters || {})).length;
+
+  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft({ ...EMPTY_DRAFT, ...(v.preset || {}) }); };
+  const selectCustom = (c: SavedView) => {
+    setActiveId(c.id);
+    setDraft({ ...EMPTY_DRAFT, ...(c.config.filters || {}) });
+    if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
+  };
+  const setField = (k: keyof MasterDraft, val: string) => { setDraft((d) => ({ ...d, [k]: val })); setActiveId("draft"); };
+  const hasFilter = Object.values(draft).some(Boolean);
+
+  const saveView = async () => {
+    const name = window.prompt("Name this view", activeCustom?.name || "My view");
+    if (!name || !name.trim()) return;
+    setSaving(true);
+    try {
+      await fetch("/api/marketing-hub/views", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), config: { filters: draft, rangeDays: activeDays } }),
+      });
+      await refreshViews();
+    } finally { setSaving(false); }
+  };
+  const deleteView = async (id: string) => {
+    await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
+    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_DRAFT); }
+    await refreshViews();
+  };
 
   const RailItem = ({ v }: { v: MasterViewDef }) => {
     const on = v.id === activeId;
-    const n = allRows.filter(v.match).length;
     return (
-      <button onClick={() => setActiveId(v.id)}
+      <button onClick={() => selectDef(v)}
         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
         {v.av
           ? <span className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0" style={{ background: v.color }}>{v.av}</span>
           : <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: v.color || "#94A3B8" }} />}
         <span className="truncate flex-1 text-left">{v.label}</span>
-        <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"}`}>{n}</span>
+        <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"}`}>{countOf(v)}</span>
       </button>
     );
   };
@@ -1323,6 +1375,10 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
       {views.map((v) => <RailItem key={v.id} v={v} />)}
     </div>
   );
+
+  const title = curDef ? curDef.label : activeCustom ? activeCustom.name : "Custom filter";
+  const headColor = curDef?.color || "#3A57E8";
+  const headAv = curDef?.av;
 
   return (
     <div className="flex gap-4 items-start">
@@ -1337,16 +1393,34 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
         <Section title="Team" views={teamViews} />
         <Section title="By status" views={statusViews} />
         <Section title="By content type" views={typeViews} />
+        {custom.length > 0 && (
+          <div className="mb-2">
+            <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">My views</div>
+            {custom.map((c) => {
+              const on = c.id === activeId;
+              return (
+                <div key={c.id} className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                  <button onClick={() => selectCustom(c)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                    <IconBookmark size={13} stroke={1.8} className="flex-shrink-0" />
+                    <span className="truncate flex-1">{c.name}</span>
+                  </button>
+                  <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"} group-hover:hidden`}>{countCustom(c)}</span>
+                  <button onClick={() => deleteView(c.id)} title="Delete view" className="hidden group-hover:flex text-gray-400 hover:text-rose-500 flex-shrink-0"><IconX size={13} /></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Active view */}
       <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
-          {active.av
-            ? <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: active.color }}>{active.av}</span>
-            : <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: active.color || "#94A3B8" }} />}
+          {headAv
+            ? <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: headColor }}>{headAv}</span>
+            : <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: headColor }} />}
           <div>
-            <div className="text-base font-medium">{active.label}</div>
+            <div className="text-base font-medium">{title}</div>
             <div className="text-[11px] text-gray-500">{fmtInt(rows.length)} tasks · last {activeDays} days</div>
           </div>
           <div className="ml-auto inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
@@ -1356,6 +1430,21 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
             ))}
           </div>
         </div>
+
+        {/* Filter bar — compose a view, then save it under My views */}
+        <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
+          <span className="text-[11px] text-gray-400 uppercase tracking-wide">Filter</span>
+          <HopeSelect value={draft.owner} onChange={(v) => setField("owner", v)} placeholder="Any owner" options={[{ value: "", label: "Any owner" }, ...TEAM.map((m) => ({ value: m.key, label: m.label }))]} />
+          <HopeSelect value={draft.status} onChange={(v) => setField("status", v)} placeholder="Any status" options={[{ value: "", label: "Any status" }, ...statusOptions.map((s) => ({ value: s, label: s }))]} />
+          <HopeSelect value={draft.type} onChange={(v) => setField("type", v)} placeholder="Any type" options={[{ value: "", label: "Any type" }, ...typeOptions.map((t) => ({ value: t, label: t }))]} />
+          <HopeSelect value={draft.sbu} onChange={(v) => setField("sbu", v)} placeholder="Any SBU" options={[{ value: "", label: "Any SBU" }, ...sbuOptions.map((s) => ({ value: s, label: s }))]} />
+          {hasFilter && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
+          <button onClick={saveView} disabled={saving || !hasFilter}
+            className="ml-auto flex items-center gap-1.5 text-[12px] font-medium text-brand disabled:text-gray-300 disabled:cursor-not-allowed">
+            <IconDeviceFloppy size={14} />{saving ? "Saving…" : "Save as view"}
+          </button>
+        </div>
+
         <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare />
       </div>
     </div>
