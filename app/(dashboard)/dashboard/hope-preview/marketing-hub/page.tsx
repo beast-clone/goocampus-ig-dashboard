@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1390,7 +1390,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const typeOptions = facets?.type || [];
   const sbuOptions = facets?.sbu || [];
 
-  const allView: MasterViewDef = { id: "all", label: "All tasks", color: "#94A3B8", preset: {} };
+  const allView: MasterViewDef = { id: "all", label: "Master sheet", color: "#3A57E8", preset: {} };
   const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, preset: { owner: m.key } }));
   const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, preset: { status: s.key } }));
   const typeViews: MasterViewDef[] = [
@@ -1416,7 +1416,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu}`.toLowerCase().includes(q));
+    return allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu} ${r.type} ${r.owner}`.toLowerCase().includes(q));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, activeId, draft, search]);
 
@@ -1432,8 +1432,8 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const setField = (k: keyof MasterDraft, val: string) => { setDraft((d) => ({ ...d, [k]: val })); setActiveId("draft"); };
   const hasFilter = Object.values(draft).some(Boolean);
 
-  const saveView = async () => {
-    const name = window.prompt("Name this view", activeCustom?.name || "My view");
+  const saveNewView = async (defaultName: string) => {
+    const name = window.prompt("Name your new view", defaultName);
     if (!name || !name.trim()) return;
     setSaving(true);
     try {
@@ -1444,6 +1444,9 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
       await refreshViews();
     } finally { setSaving(false); }
   };
+  // "New view" (rail) captures the current filter state so a view is one click away.
+  const newView = () => saveNewView("New view");
+  const saveView = () => saveNewView(activeCustom?.name || "My view");
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
@@ -1507,11 +1510,10 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     <div className="flex gap-4 items-start">
       {/* Views rail */}
       <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
-        <div className="relative mb-1">
-          <IconSearch size={14} stroke={1.8} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find in view…"
-            className="w-full border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 text-[12px]" />
-        </div>
+        <button onClick={() => newView()}
+          className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[12.5px] font-medium hover:brightness-105">
+          <IconPlus size={15} stroke={2} />New view
+        </button>
         <Section title="Default" views={[allView]} />
         <Section title="Team" views={teamViews} />
         <Section title="By status" views={statusViews} />
@@ -1552,6 +1554,16 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
               <button key={n} onClick={() => setRange(daysRange(n))}
                 className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition ${activeDays === n ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}>{lab}</button>
             ))}
+          </div>
+        </div>
+
+        {/* Search bar — searches the whole Master sheet (task name · interest · type · owner). */}
+        <div className="px-5 py-2.5 border-b border-gray-100">
+          <div className="relative">
+            <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search the Marketing Hub — task, interest, type, owner…"
+              className="w-full border border-gray-200 rounded-lg pl-9 pr-8 py-2 text-sm" />
+            {search && <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>}
           </div>
         </div>
 
@@ -1689,24 +1701,57 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare }: { rows: R
   );
 }
 
+type TaskDetail = {
+  content: string; notes: string;
+  collaborators: { key: string; name: string; role: string | null }[];
+  comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string }[];
+  activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string }[];
+  scheduler: { syncedToScheduler: boolean; startAt: string | null };
+};
+const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+
 function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
+  const [detail, setDetail] = useState<TaskDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingDetail(true);
+    fetch(`/api/marketing-hub/task-detail?id=${row.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: TaskDetail | null) => { if (!cancelled) { setDetail(d); setLoadingDetail(false); } })
+      .catch(() => { if (!cancelled) setLoadingDetail(false); });
+    return () => { cancelled = true; };
+  }, [row.id]);
+
+  const content = (detail?.content || row.content || "").trim();
+  const notes = (detail?.notes || row.additionalInfo || "").trim();
+  const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
+  const isDone = DONE_STATUSES.includes(row.status) || !!row.completionTime;
+  const sp = statusPill(row.status);
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={onClose}>
       <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between px-8 py-5 border-b border-gray-100">
-          <div>
-            <div className="text-xl font-medium">{row.particulars || "(untitled)"}</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-xl font-medium">{row.particulars || "(untitled)"}</div>
+              {isDone
+                ? <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 rounded-full px-2.5 py-0.5">✓ Completed{row.completionTime ? ` · ${fmtDate(row.completionTime)}` : ""}</span>
+                : row.status ? <span className="text-[11px] font-medium rounded-full px-2.5 py-0.5" style={{ background: sp.bg, color: sp.text }}>{row.status}</span> : null}
+            </div>
             <div className="text-sm text-gray-500 mt-1">
               {row.sbu || "—"} · {row.type || "—"} · Publishing {fmtDate(row.publishingDate)}
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl leading-none flex-shrink-0">×</button>
         </div>
 
         <div className="flex-1 overflow-auto px-8 py-6 space-y-6">
@@ -1716,16 +1761,26 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
             <MetaField label="Priority" value={row.priority} />
             <MetaField label="Publish to page" value={row.publishToPage} />
             <MetaField label="Platforms" value={row.platforms.join(", ")} />
-            <MetaField label="Collaborators" value={row.collaborators.join(", ")} />
             <MetaField label="Due date" value={fmtDate(row.dueDate)} />
             <MetaField label="Completion time" value={row.completionTime ? new Date(row.completionTime).toLocaleString("en-IN") : ""} />
+            <MetaField label="Publishing date" value={fmtDate(row.publishingDate)} />
           </div>
 
           {row.needsReview && (
             <div className="text-sm bg-amber-50 border border-amber-200 rounded px-4 py-2 text-amber-900">Needs review</div>
           )}
-          {row.syncedToScheduler && (
-            <div className="text-sm bg-green-50 border border-green-200 rounded px-4 py-2 text-green-900">Synced to Scheduler</div>
+
+          {collaborators && (
+            <Section label="Collaborators">
+              <div className="flex flex-wrap gap-2">
+                {collaborators.map((c) => (
+                  <span key={c.key} className="inline-flex items-center gap-1.5 text-sm bg-gray-50 border border-gray-100 rounded-full pl-1 pr-3 py-0.5">
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
+                    {c.name}{c.role ? <span className="text-gray-400 text-xs">· {c.role}</span> : null}
+                  </span>
+                ))}
+              </div>
+            </Section>
           )}
 
           {row.attachments.length > 0 && (
@@ -1747,21 +1802,25 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
             </Section>
           )}
 
+          <Section label="Content">
+            {content ? (
+              <div className="text-sm prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
+            ) : loadingDetail ? (
+              <div className="text-sm text-gray-400">Loading content…</div>
+            ) : (
+              <div className="text-sm text-gray-400 italic">No content written yet.</div>
+            )}
+          </Section>
+
           {row.caption && (
             <Section label="Caption">
               <div className="text-sm whitespace-pre-wrap text-gray-800">{row.caption}</div>
             </Section>
           )}
 
-          {row.content && (
-            <Section label="Content brief">
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: row.content }} />
-            </Section>
-          )}
-
-          {row.additionalInfo && (
+          {notes && (
             <Section label="Additional info">
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: row.additionalInfo }} />
+              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: notes }} />
             </Section>
           )}
 
@@ -1776,6 +1835,41 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
               </div>
             </Section>
           )}
+
+          <Section label={`Comments${detail?.comments?.length ? ` · ${detail.comments.length}` : ""}`}>
+            {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+              : detail?.comments?.length ? (
+                <div className="space-y-3">
+                  {detail.comments.map((c) => (
+                    <div key={c.id} className="text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800">{c.authorName}</span>
+                        <span className="text-xs text-gray-400">{fmtWhen(c.created_at)}</span>
+                        {c.resolved && <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">resolved</span>}
+                      </div>
+                      <div className="text-gray-700 whitespace-pre-wrap mt-0.5">{c.body}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="text-sm text-gray-400 italic">No comments yet.</div>}
+          </Section>
+
+          <Section label="Activity">
+            {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+              : detail?.activity?.length ? (
+                <div className="space-y-2">
+                  {detail.activity.map((a) => (
+                    <div key={a.id} className="flex gap-3 text-sm">
+                      <span className="text-gray-400 w-32 flex-shrink-0">{fmtWhen(a.created_at)}</span>
+                      <span className="text-gray-700">
+                        <span className="font-medium">{a.actorName}</span> {a.action.replace(/_/g, " ")}
+                        {(a.from_value || a.to_value) && <span className="text-gray-500"> {a.from_value ? `${a.from_value} → ` : ""}{a.to_value}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="text-sm text-gray-400 italic">No activity recorded.</div>}
+          </Section>
         </div>
       </div>
     </div>
