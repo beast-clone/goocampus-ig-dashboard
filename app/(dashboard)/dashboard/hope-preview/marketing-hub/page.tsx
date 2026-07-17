@@ -1903,6 +1903,48 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 </Panel>
               )}
 
+            </div>
+
+            <div className="space-y-4">
+              <Panel title="Details">
+                {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
+                {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
+                {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
+                {detailRow("Publish to page", row.publishToPage)}
+                {detailRow("Platforms", row.platforms.length ? row.platforms.join(", ") : null)}
+                {detailRow("Due date", fmtDate(row.dueDate))}
+                {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
+                {detailRow("Publishing", fmtDate(row.publishingDate))}
+
+                {collaborators && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconUsers size={13} />Collaborators</div>
+                    <div className="space-y-2">
+                      {collaborators.map((c) => (
+                        <div key={c.key} className="flex items-center gap-2 text-[13px]">
+                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
+                          <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconExternalLink size={13} />Links</div>
+                    <div className="space-y-1.5">
+                      {row.outputLink && <ModalLink label="Output" href={row.outputLink} />}
+                      {row.instagramUrl && <ModalLink label="Instagram" href={row.instagramUrl} />}
+                      {row.facebookUrl && <ModalLink label="Facebook" href={row.facebookUrl} />}
+                      {row.link && <ModalLink label="Link" href={row.link} />}
+                      {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
+                    </div>
+                  </div>
+                )}
+              </Panel>
+
+              {/* Comments — directly below Details */}
               <Panel icon={IconMessageCircle2} title="Comments" right={detail?.comments?.length ? <span className="text-[11px] text-gray-400">{detail.comments.length}</span> : null}>
                 {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
                   : detail?.comments?.length ? (
@@ -1936,44 +1978,6 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                   </div>
                 </div>
               </Panel>
-            </div>
-
-            <div className="space-y-4">
-              <Panel title="Details">
-                {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
-                {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
-                {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
-                {detailRow("Publish to page", row.publishToPage)}
-                {detailRow("Platforms", row.platforms.length ? row.platforms.join(", ") : null)}
-                {detailRow("Due date", fmtDate(row.dueDate))}
-                {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
-                {detailRow("Publishing", fmtDate(row.publishingDate))}
-              </Panel>
-
-              {collaborators && (
-                <Panel icon={IconUsers} title="Collaborators">
-                  <div className="space-y-2">
-                    {collaborators.map((c) => (
-                      <div key={c.key} className="flex items-center gap-2 text-[13px]">
-                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
-                        <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </Panel>
-              )}
-
-              {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
-                <Panel icon={IconExternalLink} title="Links">
-                  <div className="space-y-1.5">
-                    {row.outputLink && <ModalLink label="Output" href={row.outputLink} />}
-                    {row.instagramUrl && <ModalLink label="Instagram" href={row.instagramUrl} />}
-                    {row.facebookUrl && <ModalLink label="Facebook" href={row.facebookUrl} />}
-                    {row.link && <ModalLink label="Link" href={row.link} />}
-                    {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
-                  </div>
-                </Panel>
-              )}
 
               <Panel icon={IconHistory} title="Activity">
                 {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
