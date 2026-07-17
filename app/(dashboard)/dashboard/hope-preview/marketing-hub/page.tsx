@@ -1722,8 +1722,8 @@ function Panel({ icon: Ic, title, right, accent, children }: {
 }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/60" : ""}`}>
-        {Ic && <Ic size={16} stroke={1.8} className={accent ? "text-brand" : "text-gray-400"} />}
+      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
+        {Ic && <Ic size={16} stroke={1.8} className="text-brand" />}
         <span className="text-[13px] font-medium text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
