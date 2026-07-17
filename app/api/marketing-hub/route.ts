@@ -38,6 +38,7 @@ type Row = {
   link: string;
   slackLink: string;
   attachments: { url: string; filename: string; type?: string }[];
+  custom: Record<string, unknown>;
 };
 
 type Facets = {
@@ -95,6 +96,7 @@ type PostRow = {
   facebook_url: string | null;
   external_link: string | null;
   slack_link: string | null;
+  custom: Record<string, unknown> | null;
 };
 
 type TeamRow = { key: string; full_name: string };
@@ -128,6 +130,7 @@ function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
     link: p.external_link || "",
     slackLink: p.slack_link || "",
     attachments: [], // filled in Phase B.2 when we join mh_attachments
+    custom: (p.custom as Record<string, unknown>) || {},
   };
 }
 

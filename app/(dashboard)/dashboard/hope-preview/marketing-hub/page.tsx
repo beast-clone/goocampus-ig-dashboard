@@ -36,6 +36,7 @@ type Row = {
   link: string;
   slackLink: string;
   attachments: { url: string; filename: string; type?: string }[];
+  custom?: Record<string, unknown>;
 };
 
 type Facets = {
@@ -1317,7 +1318,7 @@ type FilterCondition = { field: string; op: FilterOp; value?: string | string[] 
 type FilterModel = { conjunction: "and" | "or"; conditions: FilterCondition[] };
 const EMPTY_FILTER: FilterModel = { conjunction: "and", conditions: [] };
 
-type FilterFieldDef = { key: string; label: string; type: FieldType; get: (r: Row) => string | boolean };
+type FilterFieldDef = { key: string; label: string; type: FieldType; get: (r: Row) => string | boolean; options?: string[]; custom?: boolean };
 const FILTER_FIELDS: FilterFieldDef[] = [
   { key: "particulars", label: "Task name", type: "text", get: (r) => r.particulars || "" },
   { key: "status", label: "Status", type: "select", get: (r) => r.status || "" },
@@ -1338,8 +1339,8 @@ const OPS_BY_TYPE: Record<FieldType, { op: FilterOp; label: string; arity: "none
   checkbox: [{ op: "isChecked", label: "is checked", arity: "none" }, { op: "isNotChecked", label: "is unchecked", arity: "none" }],
 };
 const ownerMatchesKey = (owner: string, key: string) => { const m = TEAM.find((t) => t.key === key); return m ? ownerMatches(owner, m) : false; };
-function evalCondition(r: Row, c: FilterCondition): boolean {
-  const def = FILTER_FIELDS.find((f) => f.key === c.field);
+function evalCondition(r: Row, c: FilterCondition, fields: FilterFieldDef[] = FILTER_FIELDS): boolean {
+  const def = fields.find((f) => f.key === c.field);
   if (!def) return true;
   const raw = def.get(r);
   const s = typeof raw === "boolean" ? "" : raw;
@@ -1363,9 +1364,9 @@ function evalCondition(r: Row, c: FilterCondition): boolean {
     default: return true;
   }
 }
-function evalFilter(r: Row, f: FilterModel): boolean {
+function evalFilter(r: Row, f: FilterModel, fields: FilterFieldDef[] = FILTER_FIELDS): boolean {
   if (!f.conditions.length) return true;
-  const res = f.conditions.map((c) => evalCondition(r, c));
+  const res = f.conditions.map((c) => evalCondition(r, c, fields));
   return f.conjunction === "or" ? res.some(Boolean) : res.every(Boolean);
 }
 // Back-compat: convert the old simple {owner,status,type,sbu,priority} to a FilterModel.
@@ -1376,9 +1377,9 @@ function legacyToFilter(f?: Partial<MasterDraft>): FilterModel {
   return { conjunction: "and", conditions: conds };
 }
 // Human summary of a filter's conditions (for the New-view "Captures" chips).
-function summarizeFilter(f: FilterModel): string[] {
+function summarizeFilter(f: FilterModel, fields: FilterFieldDef[] = FILTER_FIELDS): string[] {
   return f.conditions.map((c) => {
-    const def = FILTER_FIELDS.find((d) => d.key === c.field);
+    const def = fields.find((d) => d.key === c.field);
     const label = def?.label || c.field;
     const opLabel = (OPS_BY_TYPE[def?.type || "text"].find((o) => o.op === c.op)?.label) || c.op;
     const val = Array.isArray(c.value)
@@ -1390,12 +1391,12 @@ function summarizeFilter(f: FilterModel): string[] {
 
 // ── Sort (multi-field) ──────────────────────────────────────────────────────
 type SortSpec = { field: string; dir: "asc" | "desc" };
-function sortRows(rows: Row[], sorts: SortSpec[]): Row[] {
+function sortRows(rows: Row[], sorts: SortSpec[], fields: FilterFieldDef[] = FILTER_FIELDS): Row[] {
   if (!sorts.length) return rows;
   const idx = rows.map((r, i) => [r, i] as const);
   idx.sort(([a, ai], [b, bi]) => {
     for (const s of sorts) {
-      const def = FILTER_FIELDS.find((f) => f.key === s.field);
+      const def = fields.find((f) => f.key === s.field);
       if (!def) continue;
       const av = def.get(a), bv = def.get(b);
       let cmp: number;
@@ -1427,6 +1428,18 @@ const MASTER_COLUMNS: { key: string; label: string }[] = [
 const COLOR_FIELDS: { key: string; label: string }[] = [
   { key: "status", label: "Status" }, { key: "sbu", label: "SBU / interest" }, { key: "priority", label: "Priority" },
 ];
+
+// ── Custom columns (Phase 2) — user-defined fields stored in mh_posts.custom ─
+type CustomColType = "text" | "number" | "select" | "date" | "checkbox";
+type CustomColumn = { id: string; key: string; label: string; type: CustomColType; options: string[] };
+const customFieldType = (t: CustomColType): FieldType => (t === "select" ? "select" : t === "date" ? "date" : t === "checkbox" ? "checkbox" : "text");
+function customFieldDefs(cols: CustomColumn[]): FilterFieldDef[] {
+  return cols.map((c) => ({
+    key: c.key, label: c.label, type: customFieldType(c.type), custom: true, options: c.options,
+    get: (r: Row) => { const v = (r.custom || {})[c.key]; return c.type === "checkbox" ? !!v : String(v ?? ""); },
+  }));
+}
+const customVal = (r: Row, key: string) => (r.custom || {})[key];
 
 // Per-view ⋯ menu (mirrors Airtable): access level, reassign, rename, description,
 // duplicate, copy-another-view's-config, download CSV, print, delete. Edit actions
@@ -1530,13 +1543,14 @@ function FilterMultiSelect({ options, value, onChange }: {
 
 // Airtable-style filter builder popover — rows of Field · Operator · Value joined
 // by a top-level AND/OR. Operators + value control adapt to the field type.
-function FilterBuilder({ filter, facets, onChange }: {
-  filter: FilterModel; facets?: Facets; onChange: (f: FilterModel) => void;
+function FilterBuilder({ filter, facets, fields, onChange }: {
+  filter: FilterModel; facets?: Facets; fields: FilterFieldDef[]; onChange: (f: FilterModel) => void;
 }) {
   const optionsFor = (fieldKey: string): { value: string; label: string }[] => {
-    const def = FILTER_FIELDS.find((f) => f.key === fieldKey);
+    const def = fields.find((f) => f.key === fieldKey);
     if (!def) return [];
     if (def.type === "owner") return TEAM.map((m) => ({ value: m.key, label: m.label }));
+    if (def.options && def.options.length) return def.options.map((o) => ({ value: o, label: o }));
     if (def.type === "select") {
       const src = fieldKey === "status" ? (facets?.status || PIPELINE_STAGES.map((s) => s.key))
         : fieldKey === "type" ? (facets?.type || [])
@@ -1555,7 +1569,7 @@ function FilterBuilder({ filter, facets, onChange }: {
       {filter.conditions.length === 0 && <div className="text-[12px] text-gray-400 px-1 pb-2">No conditions — showing every task. Add one below.</div>}
       <div className="space-y-2">
         {filter.conditions.map((c, i) => {
-          const def = FILTER_FIELDS.find((f) => f.key === c.field);
+          const def = fields.find((f) => f.key === c.field);
           const ops = OPS_BY_TYPE[def?.type || "text"];
           const opDef = ops.find((o) => o.op === c.op) || ops[0];
           return (
@@ -1566,7 +1580,7 @@ function FilterBuilder({ filter, facets, onChange }: {
                   : <span className="text-gray-400 pl-1">{filter.conjunction}</span>}
               </div>
               <div className="w-[130px] flex-shrink-0">
-                <HopeSelect value={c.field} onChange={(v) => { const nd = FILTER_FIELDS.find((f) => f.key === v)!; const first = OPS_BY_TYPE[nd.type][0]; update(i, { field: v, op: first.op, value: first.arity === "many" ? [] : first.arity === "none" ? undefined : "" }); }} options={FILTER_FIELDS.map((f) => ({ value: f.key, label: f.label }))} />
+                <HopeSelect value={c.field} onChange={(v) => { const nd = fields.find((f) => f.key === v)!; const first = OPS_BY_TYPE[nd.type][0]; update(i, { field: v, op: first.op, value: first.arity === "many" ? [] : first.arity === "none" ? undefined : "" }); }} options={fields.map((f) => ({ value: f.key, label: f.label }))} />
               </div>
               <div className="w-[130px] flex-shrink-0">
                 <HopeSelect value={c.op} onChange={(v) => { const a = ops.find((o) => o.op === v)!.arity; update(i, { op: v as FilterOp, value: a === "many" ? [] : a === "none" ? undefined : (Array.isArray(c.value) ? "" : c.value || "") }); }} options={ops.map((o) => ({ value: o.op, label: o.label }))} />
@@ -1608,7 +1622,7 @@ function ToolButton({ icon: Ic, label, active, open, onToggle, children }: {
 }
 
 // Multi-field sort builder.
-function SortBuilder({ sorts, onChange }: { sorts: SortSpec[]; onChange: (s: SortSpec[]) => void }) {
+function SortBuilder({ sorts, fields, onChange }: { sorts: SortSpec[]; fields: FilterFieldDef[]; onChange: (s: SortSpec[]) => void }) {
   const update = (i: number, patch: Partial<SortSpec>) => onChange(sorts.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[380px] max-w-[92vw]">
@@ -1617,7 +1631,7 @@ function SortBuilder({ sorts, onChange }: { sorts: SortSpec[]; onChange: (s: Sor
         {sorts.map((s, i) => (
           <div key={i} className="flex items-center gap-2">
             <span className="text-[11px] text-gray-400 w-8">{i === 0 ? "Sort" : "then"}</span>
-            <div className="flex-1 min-w-0"><HopeSelect value={s.field} onChange={(v) => update(i, { field: v })} options={FILTER_FIELDS.map((f) => ({ value: f.key, label: f.label }))} /></div>
+            <div className="flex-1 min-w-0"><HopeSelect value={s.field} onChange={(v) => update(i, { field: v })} options={fields.map((f) => ({ value: f.key, label: f.label }))} /></div>
             <div className="w-[132px] flex-shrink-0"><HopeSelect value={s.dir} onChange={(v) => update(i, { dir: v as "asc" | "desc" })} options={[{ value: "asc", label: "First → last" }, { value: "desc", label: "Last → first" }]} /></div>
             <button onClick={() => onChange(sorts.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-rose-500 flex-shrink-0"><IconTrash size={14} /></button>
           </div>
@@ -1628,21 +1642,24 @@ function SortBuilder({ sorts, onChange }: { sorts: SortSpec[]; onChange: (s: Sor
   );
 }
 
-// Show/hide columns.
-function ColumnsMenu({ hidden, onChange }: { hidden: string[]; onChange: (h: string[]) => void }) {
+// Show/hide columns + add a custom column.
+function ColumnsMenu({ columns, hidden, onChange, onAddColumn }: { columns: { key: string; label: string; custom?: boolean }[]; hidden: string[]; onChange: (h: string[]) => void; onAddColumn: () => void }) {
   const toggle = (k: string) => onChange(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]);
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[240px] max-h-80 overflow-auto">
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Columns</div>
-      {MASTER_COLUMNS.map((c) => {
+      {columns.map((c) => {
         const show = !hidden.includes(c.key);
         return (
           <button key={c.key} onClick={() => toggle(c.key)} disabled={c.key === "particulars"} className="w-full flex items-center gap-2.5 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left disabled:opacity-50">
             <span className={`relative w-8 h-4 rounded-full flex-shrink-0 transition ${show ? "bg-brand" : "bg-gray-200"}`}><span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${show ? "left-[18px]" : "left-0.5"}`} /></span>
-            <span className="text-gray-700">{c.label}</span>
+            <span className="text-gray-700 flex-1 truncate">{c.label}</span>
+            {c.custom && <span className="text-[9px] text-brand bg-brand-light/60 rounded px-1">custom</span>}
           </button>
         );
       })}
+      <div className="border-t border-gray-100 my-1" />
+      <button onClick={onAddColumn} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left font-medium text-brand"><IconPlus size={14} />Add column</button>
     </div>
   );
 }
@@ -1664,6 +1681,65 @@ function ColorMenu({ colorField, onChange }: { colorField: string; onChange: (f:
   );
 }
 
+// Define a new custom column (name + type + options).
+function AddColumnModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [label, setLabel] = useState("");
+  const [type, setType] = useState<CustomColType>("text");
+  const [optionsText, setOptionsText] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const create = async () => {
+    if (!label.trim()) return;
+    setSaving(true);
+    try {
+      const options = type === "select" ? optionsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) : [];
+      const res = await fetch("/api/marketing-hub/columns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: label.trim(), type, options }) });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not add column."); return; }
+      onCreated();
+    } finally { setSaving(false); }
+  };
+  const TYPE_META: { t: CustomColType; label: string }[] = [{ t: "text", label: "Text" }, { t: "number", label: "Number" }, { t: "select", label: "Select" }, { t: "date", label: "Date" }, { t: "checkbox", label: "Checkbox" }];
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6 hope-scope" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2"><IconPlus size={18} className="text-brand" /><h2 className="text-[16px] font-semibold text-[#232D42]">Add column</h2></div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Column name</label>
+            <input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Campaign, Est. hours, Reviewed by"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Type</label>
+            <div className="grid grid-cols-5 gap-1.5">
+              {TYPE_META.map((tm) => (
+                <button key={tm.t} onClick={() => setType(tm.t)} className={`rounded-lg border px-1 py-2 text-[11px] font-medium transition ${type === tm.t ? "border-brand bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>{tm.label}</button>
+              ))}
+            </div>
+          </div>
+          {type === "select" && (
+            <div>
+              <label className="block text-[12px] font-medium text-[#232D42] mb-1.5">Options <span className="text-gray-400 font-normal">(one per line or comma-separated)</span></label>
+              <textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={3} placeholder={"Option A\nOption B"} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:border-brand" />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="text-[13px] font-medium text-gray-600 hover:text-gray-900 px-3 py-2">Cancel</button>
+          <button onClick={create} disabled={saving || !label.trim()} className="bg-brand text-white text-[13px] font-medium rounded-lg px-4 py-2 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">{saving ? "Adding…" : "Add column"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
   onOpen: (id: string) => void; onSaved: () => void; loading: boolean;
@@ -1676,8 +1752,13 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const [colorField, setColorField] = useState<string>("");
   const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
+  const [addColOpen, setAddColOpen] = useState(false);
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
+  const { data: colsData, refresh: refreshCols } = useApi<{ columns: CustomColumn[] }>("/api/marketing-hub/columns");
+  const customCols = useMemo(() => colsData?.columns || [], [colsData]);
+  const fields = useMemo(() => [...FILTER_FIELDS, ...customFieldDefs(customCols)], [customCols]);
+  const columns = useMemo(() => [...MASTER_COLUMNS.map((c) => ({ ...c, custom: false })), ...customCols.map((c) => ({ key: c.key, label: c.label, custom: true }))], [customCols]);
 
   const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
   const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
@@ -1697,19 +1778,19 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const curDef = everyDef.find((v) => v.id === activeId);
   const activeCustom = custom.find((c) => c.id === activeId);
 
-  const matchFn = curDef?.match ? curDef.match : (r: Row) => evalFilter(r, draft);
+  const matchFn = curDef?.match ? curDef.match : (r: Row) => evalFilter(r, draft, fields);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = allRows.filter(matchFn).filter((r) => !q || `${r.particulars} ${r.caption} ${r.sbu} ${r.type} ${r.owner}`.toLowerCase().includes(q));
-    return sortRows(filtered, sorts);
+    return sortRows(filtered, sorts, fields);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, activeId, draft, search, sorts]);
-  const visibleCols = MASTER_COLUMNS.filter((c) => !hiddenCols.includes(c.key)).map((c) => c.key);
+  }, [allRows, activeId, draft, search, sorts, fields]);
+  const visibleCols = columns.filter((c) => !hiddenCols.includes(c.key)).map((c) => c.key);
   const currentConfig = { filter: draft, sorts, hiddenCols, color: colorField, rangeDays: activeDays };
 
-  const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER)).length;
-  const countCustom = (c: SavedView) => allRows.filter((r) => evalFilter(r, c.config.filter || legacyToFilter(c.config.filters))).length;
+  const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER, fields)).length;
+  const countCustom = (c: SavedView) => allRows.filter((r) => evalFilter(r, c.config.filter || legacyToFilter(c.config.filters), fields)).length;
 
   const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); };
   const selectCustom = (c: SavedView) => {
@@ -1741,7 +1822,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not update view."); return; }
     await refreshViews();
   };
-  const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter((r) => evalFilter(r, cfg.filter || legacyToFilter(cfg.filters)));
+  const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter((r) => evalFilter(r, cfg.filter || legacyToFilter(cfg.filters), fields));
   const doViewAction = async (action: string, v: SavedView, payload?: string) => {
     switch (action) {
       case "access": await patchView(v.id, { access: payload }); break;
@@ -1848,13 +1929,13 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
         {/* Toolbar — Airtable-style Filter / Sort / Columns / Colour; save the result as a view */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
           <ToolButton icon={IconFilter} active={hasFilter} label={hasFilter ? `Filtered · ${draft.conditions.length}` : "Filter"} open={openTool === "filter"} onToggle={() => setOpenTool(openTool === "filter" ? null : "filter")}>
-            <FilterBuilder filter={draft} facets={facets} onChange={setFilter} />
+            <FilterBuilder filter={draft} facets={facets} fields={fields} onChange={setFilter} />
           </ToolButton>
           <ToolButton icon={IconArrowsSort} active={sorts.length > 0} label={sorts.length ? `Sorted · ${sorts.length}` : "Sort"} open={openTool === "sort"} onToggle={() => setOpenTool(openTool === "sort" ? null : "sort")}>
-            <SortBuilder sorts={sorts} onChange={setSorts} />
+            <SortBuilder sorts={sorts} fields={fields} onChange={setSorts} />
           </ToolButton>
-          <ToolButton icon={IconColumns} active={hiddenCols.length > 0} label={hiddenCols.length ? `Columns · ${MASTER_COLUMNS.length - hiddenCols.length}` : "Columns"} open={openTool === "cols"} onToggle={() => setOpenTool(openTool === "cols" ? null : "cols")}>
-            <ColumnsMenu hidden={hiddenCols} onChange={setHiddenCols} />
+          <ToolButton icon={IconColumns} active={hiddenCols.length > 0} label={hiddenCols.length ? `Columns · ${columns.length - hiddenCols.length}` : "Columns"} open={openTool === "cols"} onToggle={() => setOpenTool(openTool === "cols" ? null : "cols")}>
+            <ColumnsMenu columns={columns} hidden={hiddenCols} onChange={setHiddenCols} onAddColumn={() => { setOpenTool(null); setAddColOpen(true); }} />
           </ToolButton>
           <ToolButton icon={IconPalette} active={!!colorField} label={colorField ? `Colour · ${COLOR_FIELDS.find((f) => f.key === colorField)?.label || colorField}` : "Colour"} open={openTool === "color"} onToggle={() => setOpenTool(openTool === "color" ? null : "color")}>
             <ColorMenu colorField={colorField} onChange={setColorField} />
@@ -1866,24 +1947,25 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           </button>
         </div>
 
-        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} />
+        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} customCols={customCols} />
       </div>
 
       {newViewOpen && (
         <NewViewModal
-          config={currentConfig}
+          config={currentConfig} fields={fields} totalCols={columns.length}
           onClose={() => setNewViewOpen(false)}
           onCreated={() => { setNewViewOpen(false); refreshViews(); }}
         />
       )}
+      {addColOpen && <AddColumnModal onClose={() => setAddColOpen(false)} onCreated={() => { setAddColOpen(false); refreshCols(); onSaved(); }} />}
     </div>
   );
 }
 
 // Branded "New view" builder — replaces the native window.prompt. Names the view,
 // picks an access level + optional description, and shows exactly what it captures.
-function NewViewModal({ config, onClose, onCreated }: {
-  config: { filter: FilterModel; sorts: SortSpec[]; hiddenCols: string[]; color: string; rangeDays: number }; onClose: () => void; onCreated: () => void;
+function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
+  config: { filter: FilterModel; sorts: SortSpec[]; hiddenCols: string[]; color: string; rangeDays: number }; fields: FilterFieldDef[]; totalCols: number; onClose: () => void; onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -1896,10 +1978,10 @@ function NewViewModal({ config, onClose, onCreated }: {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const chips = summarizeFilter(config.filter);
+  const chips = summarizeFilter(config.filter, fields);
   if (!chips.length) chips.push("All tasks");
   if (config.sorts.length) chips.push(`Sorted · ${config.sorts.length}`);
-  if (config.hiddenCols.length) chips.push(`${MASTER_COLUMNS.length - config.hiddenCols.length} columns`);
+  if (config.hiddenCols.length) chips.push(`${totalCols - config.hiddenCols.length} columns`);
   if (config.color) chips.push(`Coloured by ${COLOR_FIELDS.find((f) => f.key === config.color)?.label || config.color}`);
 
   const create = async () => {
@@ -1971,7 +2053,7 @@ function NewViewModal({ config, onClose, onCreated }: {
   );
 }
 
-function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string }) {
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, customCols }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; customCols?: CustomColumn[] }) {
   const allSbus = facets?.sbu || [];
   const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
   const priorityOptions = facets?.priority || ["Urgent", "High", "Medium", "Low"];
@@ -1979,13 +2061,31 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     const ok = await saveField(id, fields);
     if (ok) onSaved();
   };
-  const cols = MASTER_COLUMNS.filter((c) => !visibleCols || visibleCols.includes(c.key));
+  const saveCustom = async (id: string, key: string, value: unknown) => {
+    const res = await fetch("/api/marketing-hub/set-custom", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: id, key, value }) });
+    if (res.ok) onSaved();
+  };
+  const customByKey = new Map((customCols || []).map((c) => [c.key, c]));
+  const allCols = [...MASTER_COLUMNS, ...(customCols || []).map((c) => ({ key: c.key, label: c.label }))];
+  const cols = allCols.filter((c) => !visibleCols || visibleCols.includes(c.key));
   const colorOf = (r: Row): string | undefined =>
     colorField === "status" ? statusColor(r.status)
     : colorField === "sbu" ? sbuColor(r.sbu, allSbus)
     : colorField === "priority" ? priorityColor(r.priority) : undefined;
 
+  const customCell = (cc: CustomColumn, r: Row) => {
+    const v = r.custom?.[cc.key];
+    if (cc.type === "checkbox") return <button onClick={(e) => { e.stopPropagation(); saveCustom(r.id, cc.key, !v); }} className={`w-4 h-4 rounded border flex items-center justify-center ${v ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{v ? <IconCheck size={11} stroke={3} /> : null}</button>;
+    return <EditableCell display={v != null && v !== "" ? <span className="text-gray-700">{cc.type === "date" ? fmtDate(String(v)) : String(v)}</span> : <span className="text-gray-300">—</span>} editControl={(done) => (
+      cc.type === "select" ? <select autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }}><option value="">—</option>{cc.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+      : cc.type === "date" ? <input type="date" autoFocus defaultValue={String(v ?? "").slice(0, 10)} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
+      : <input type={cc.type === "number" ? "number" : "text"} autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
+    )} />;
+  };
+
   const cell = (key: string, r: Row) => {
+    const custom = customByKey.get(key);
+    if (custom) return customCell(custom, r);
     const sp = statusPill(r.status); const pp = priorityPill(r.priority);
     const ownerKey = TEAM.find((m) => ownerMatches(r.owner, m))?.key ?? "";
     switch (key) {
