@@ -3,15 +3,18 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 
 // GET /api/scheduler/to-schedule
-// The "To schedule" tab: content that's produced and awaiting a publish action —
-// mh_posts rows whose content-workflow status is Output-Ready or Ready-to-Publish
-// (and not yet handed to the publish queue). Supabase-native, no Airtable.
+// The "To schedule" tab: content that has cleared Content Review and is awaiting a
+// publish action — mh_posts rows whose status is "Ready to Publish" (and not yet
+// handed to the publish queue). "Output - Ready" no longer lands here directly:
+// it waits in Content Review until a reviewer pushes it to schedule (which flips it
+// to "Ready to Publish"), so nothing reaches the Scheduler until a human approves it.
+// Supabase-native, no Airtable.
 
 // Never cache — must reflect enqueue writes immediately (a just-scheduled post
 // should drop off this list on the next refresh).
 export const dynamic = "force-dynamic";
 
-const READY_STATUSES = ["Output - Ready", "Ready to Publish"];
+const READY_STATUSES = ["Ready to Publish"];
 
 // Best-effort default IG/FB account from the content's SBU (interest). The person
 // can override + cross-post; this just pre-selects the obvious one.

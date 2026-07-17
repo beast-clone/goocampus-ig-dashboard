@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
 
@@ -815,10 +815,11 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
 export function HopeMyDay() {
   const [person, setPerson] = useState("nandu");
   const [sel, setSel] = useState(0);
-  const [claimPool, setClaimPool] = useState<Task[]>(CLAIM_POOL_INIT); // videos up for grabs
+  const [claimPool, setClaimPool] = useState<Task[]>([]);             // videos up for grabs (live)
   const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
-  const [tasks, setTasks] = useState<Task[]>(TASKS);                   // my tasks (status is mutable)
+  const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
+  const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("active");                    // status tab
   const [reminders, setReminders] = useState([
     { text: "Edit YouTube long-form — “Doctors want to marry doctors”.", done: false },
@@ -901,7 +902,35 @@ export function HopeMyDay() {
     upd(); const id = setInterval(upd, 60_000); return () => clearInterval(id);
   }, []);
 
+  // Name of the person being viewed, in a ref so load() (a stable useCallback) can
+  // read the latest value without being recreated.
+  const meNameRef = useRef("");
+
+  // Pull live task + claim-pool data from mh_posts. Called on mount and after any
+  // write (status change / claim) so the board always reflects server truth.
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/my-day", { cache: "no-store" });
+      const d = await r.json();
+      if (r.ok) {
+        const fetched = (d.tasks as Task[]) || [];
+        setTasks(fetched);
+        setClaimPool((d.pool as Task[]) || []);
+        // Reconcile the optimistic claim buffer against server truth: drop a claim once
+        // the server confirms I own it (it now shows via `tasks`, so keeping it would
+        // duplicate the row) or the row is gone — but KEEP a claim the server hasn't yet
+        // reflected as mine, so a concurrent refetch can't wipe an in-flight claim.
+        setClaimedTasks((prev) => prev.filter((c) => {
+          const server = fetched.find((t) => t.id === c.id);
+          return !!server && server.detail.owner !== meNameRef.current;
+        }));
+      }
+    } catch { /* keep whatever we last had */ } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
   const me = useMemo(() => TEAM.find((t) => t.key === person) || TEAM[3], [person]);
+  meNameRef.current = me.name;
   const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
   const showPool = isEditor && claimPool.length > 0;
   // MY DAY = only the SELECTED person's own tasks. A task's Owner (whoever it's
@@ -913,6 +942,18 @@ export function HopeMyDay() {
     [claimedTasks, tasks, me.name],
   );
   const tabCounts = useMemo(() => TASK_TABS.map((tb) => ({ ...tb, n: workingTasks.filter((t) => tb.statuses.includes(t.status)).length })), [workingTasks]);
+  // Header stat tiles — live, for the person being viewed.
+  const stats = useMemo(() => {
+    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name);
+    const n = (fn: (s: CCStatus) => boolean) => mine.filter((t) => fn(t.status)).length;
+    return {
+      pending: n((s) => s === "Content - Pending" || s === "Content - In Progress"),
+      waiting: n((s) => s === "Content - Approved" || s === "Incorporating Feedback"),
+      output: n((s) => s === "Output - Ready" || s === "Output - In Progress"),
+      toPublish: n((s) => s === "Ready to Publish"),
+      done: n((s) => s === "Published/Scheduled"),
+    };
+  }, [tasks, claimedTasks, me.name]);
   const curTab = TASK_TABS.find((t) => t.key === taskTab) || TASK_TABS[0];
   // Tasks in the current tab, sorted by due date (overdue first → today → later).
   const shownTasks = useMemo(() => workingTasks.filter((t) => curTab.statuses.includes(t.status)).sort((a, b) => (a.due || "").localeCompare(b.due || "")), [workingTasks, taskTab]);
@@ -925,6 +966,24 @@ export function HopeMyDay() {
   //  • Output-ready → Output tab; queued/terminal states leave the working view.
   const withManya = (cs: Person[]) => (cs.some((c) => c.name === "Manya") ? cs : [PPL.manya, ...cs]);
   const setTaskStatus = (id: string, status: CCStatus) => {
+    // Persist to the real pipeline (this drives the same handoff logic the Master
+    // sheet & Content Review use), then reconcile the board with server truth.
+    fetch("/api/marketing-hub/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, fields: { status }, actor: person }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setToast({ who: "Save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
+          load(); // resync — the optimistic simulation below never persisted, so revert to server truth
+          return;
+        }
+        load();
+      })
+      .catch((e) => { setToast({ who: "Save failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (!cur) return;
     // Content-first handoff fires only the first time the writer's own task is approved.
@@ -1048,26 +1107,32 @@ export function HopeMyDay() {
   const canCreate = person === "manya"; // the writer creates content tasks
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
-  const createTask = (t: Task, owner: string, note: string) => {
+  const createTask = (t: Task) => {
     setShowNew(false);
-    // If it's created already at Content-Approved (or later), run the handoff now:
-    // video → the editors' claim pool, design → Praveen. Otherwise it stays with Manya.
-    const handoff = STATUS[t.status].stage >= 2 && t.detail.owner === "Manya" ? autoAssign(t.detail.typeLine) : null;
-    if (handoff?.toPool) {
-      const routed: Task = { ...t, meta: `${t.detail.typeLine} · unclaimed`, detail: { ...t.detail, owner: "Unclaimed", collaborators: withManya(t.detail.collaborators) } };
-      setClaimPool((p) => [routed, ...p]);
-      setToast({ who: "→ Claim pool", color: "#3A57E8", av: me.av, body: `${t.detail.typeLine} is in the editors' claim pool for Nikhil / Nandu.` });
-      return;
-    }
-    if (handoff && handoff.owner !== "Manya") {
-      const routed: Task = { ...t, meta: `${t.detail.typeLine} · owned by ${handoff.owner}`, detail: { ...t.detail, owner: handoff.owner, collaborators: withManya(t.detail.collaborators) } };
-      setTasks((p) => [routed, ...p]);
-      setToast({ who: `→ ${handoff.owner}`, color: "#3A57E8", av: (handoff.owner[0] || "?").toUpperCase(), body: note });
-      return;
-    }
-    if (t.detail.owner === "Unclaimed") setClaimPool((p) => [t, ...p]);
-    else setTasks((p) => [t, ...p]);
-    setToast({ who: `Created → ${owner}`, color: "#3A57E8", av: (owner[0] || "?").toUpperCase(), body: note });
+    // Persist to mh_posts. Content-first: every new task starts with the writer
+    // (Manya) at "Content - Pending"; the handoff to Praveen / the editors' pool
+    // fires later when she moves it to "Content - Approved" (see setTaskStatus).
+    fetch("/api/marketing-hub/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: t.title,
+        type: t.detail.typeLine,
+        sbu: t.detail.brand,
+        owner: "manya",
+        publishingDate: t.due || undefined,
+        dueDate: t.due || undefined,
+        priority: t.detail.priority,
+        content: t.detail.content,
+      }),
+    })
+      .then(async (res) => {
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) { setToast({ who: "Create failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); return; }
+        setToast({ who: "Created ✓", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending).` });
+        load();
+      })
+      .catch((e) => setToast({ who: "Create failed", color: "#C03221", av: "!", body: String(e) }));
   };
 
   // ── Capacity pipeline (Accept & Work) ──
@@ -1105,32 +1170,53 @@ export function HopeMyDay() {
     setPipeline("freed");
     setToast({ who: "Room freed ✓", color: "#1AA053", av: me.av, body: "Slid a low-priority reel to tomorrow — Nandu can take the urgent one now." });
   };
-  // Drive the editor's notification stack from the pipeline state (so it survives
-  // switching persons and reflects where the urgent task is in its journey).
+  // Real notifications, polled from the activity log — claims, handoffs, send-backs
+  // and pushes-to-schedule relevant to the person being viewed. Refetched on person
+  // switch and every 20s so a claim/hand-off shows up shortly after it happens.
   useEffect(() => {
-    if (person === "nandu" || person === "nikhil") {
-      const sibling = person === "nandu" ? "Nikhil" : "Nandu";
-      const claim: Notif = { id: "nc1", kind: "claim", emoji: "✓", title: `${sibling} claimed a video`, sub: "“Germany Approbation — Short” is off the board — you're clear on that one." };
-      const stack: Notif[] = [];
-      if (pipeline === "offered") stack.push({ id: "nu1", kind: "urgent", emoji: "🔴", title: "12thPlus Exam Alert — Reel Cut", sub: "Exam-notification reel · must go today · won't fit your day as it stands.", task: URGENT_TASK });
-      else if (pipeline === "waiting") stack.push({ id: "nu2", kind: "message", emoji: "⏳", title: "Waiting on Manya", sub: "You asked her to move a low-priority reel — she'll free a slot for the 12thPlus Exam Alert." });
-      else if (pipeline === "freed") stack.push({ id: "nu3", kind: "freed", emoji: "✓", title: "Room freed by Manya", sub: "A low-priority reel moved to tomorrow — you can take the 12thPlus Exam Alert now.", task: URGENT_TASK });
-      stack.push(claim);
-      setNotifs(stack);
-      setChatOpen(true);
-    } else {
-      setNotifs([]);
-    }
-  }, [person, pipeline]);
+    let alive = true;
+    const pull = async () => {
+      try {
+        const r = await fetch(`/api/my-day/notifications?person=${person}`, { cache: "no-store" });
+        const d = await r.json();
+        if (alive && r.ok) setNotifs((d.notifs as Notif[]) || []);
+      } catch { /* keep the last batch on a transient error */ }
+    };
+    pull();
+    const id = setInterval(pull, 20_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [person]);
   // My-tasks row → expands inline in the "Up next" panel (setSel).
   // Today's-plan block → opens the task in a popup (like the original dashboard).
   // Claim a video → you become the owner; it leaves the pool and lands in My tasks.
   const claimVideo = (v: Task) => {
+    // Optimistic: it leaves the pool and lands in My tasks immediately. Claiming is
+    // ownership only — the status STAYS "Content - Approved" (the editor may not start
+    // cutting for a while), matching what the takeover write persists on the server.
     setClaimPool((p) => p.filter((x) => x.id !== v.id));
-    const claimed: Task = { ...v, status: "Content - In Progress", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: me.name } };
+    const claimed: Task = { ...v, status: "Content - Approved", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: me.name } };
     setClaimedTasks((c) => [claimed, ...c]);
     setSel(0); // open the freshly claimed task in "Up next"
     setToast({ who: "Claimed ✓", color: me.color, av: me.av, body: `You claimed “${v.title}” — it's yours now, added to My tasks.` });
+    // Persist the ownership takeover, then reconcile with server truth. On failure,
+    // roll back the optimistic claim (restore it to the pool) and surface the error —
+    // never leave the editor believing they own a video the server never took over.
+    const rollback = (body: string) => {
+      setClaimedTasks((c) => c.filter((x) => x.id !== v.id));
+      setClaimPool((p) => (p.some((x) => x.id === v.id) ? p : [v, ...p]));
+      setToast({ who: "Claim failed", color: "#C03221", av: "!", body });
+    };
+    fetch("/api/marketing-hub/takeover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: v.id, newOwnerKey: person }),
+    })
+      .then(async (res) => {
+        if (res.ok) { load(); return; }
+        const j = await res.json().catch(() => ({}));
+        rollback(j.error || `HTTP ${res.status}`);
+      })
+      .catch((e) => rollback(String(e)));
   };
   const remOpen = reminders.filter((r) => !r.done).length;
   const remDone = reminders.length - remOpen;
@@ -1253,11 +1339,11 @@ export function HopeMyDay() {
             {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
           </div>
           <div className="stats">
-            <div className="stat"><div className="n w">2</div><div className="k">Pending today</div></div>
-            <div className="stat"><div className="n">6</div><div className="k">Waiting on me</div></div>
-            <div className="stat"><div className="n b">3</div><div className="k">Output ready</div></div>
-            <div className="stat"><div className="n">2</div><div className="k">To publish</div></div>
-            <div className="stat"><div className="n g">0</div><div className="k">Done · 7d</div></div>
+            <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending today</div></div>
+            <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>
+            <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
+            <div className="stat"><div className="n">{stats.toPublish}</div><div className="k">To publish</div></div>
+            <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7d</div></div>
           </div>
         </div>
 

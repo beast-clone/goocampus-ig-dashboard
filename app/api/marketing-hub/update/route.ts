@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { getSessionUserId } from "@/lib/auth";
+import { VIDEO_TYPES } from "@/lib/mh-content-types";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -89,10 +91,6 @@ export async function PATCH(req: Request) {
     //     → NOT auto-assigned; it becomes claimable by an editor (Nikhil/Nandu) via
     //       the Claim button. Whoever claims becomes owner (takeover route).
     //   • The writer (Manya) is added as collaborator; Maheen is NEVER auto-added.
-    const VIDEO_TYPES = new Set([
-      "Reel - Original", "Reel - Cut", "YouTube Long-Form", "YouTube Shorts",
-      "Story (Video)", "Meta Ads - Video",
-    ]);
     if (
       clean.status === "Content - Approved" &&
       before.data.status !== "Content - Approved"
@@ -127,6 +125,28 @@ export async function PATCH(req: Request) {
           detail: "approved — ready for an editor to claim",
         });
       }
+    }
+
+    // Log every OTHER status transition (best-effort) so the My Day notifications feed
+    // can surface send-backs (-> Incorporating Feedback) and pushes-to-schedule
+    // (-> Ready to Publish). The Content-Approved handoff above logs its own event.
+    if (
+      typeof clean.status === "string" &&
+      clean.status !== "Content - Approved" &&
+      before.data.status !== clean.status
+    ) {
+      // Actor = who performed the change: the client-supplied actor (My Day passes the
+      // switched person) or, failing that, the logged-in session user (e.g. the Content
+      // Review reviewer). Needed so the notifications feed can exclude self-actions.
+      const bodyActor = typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor : null;
+      const actor = bodyActor || getSessionUserId() || null;
+      await sb.from("mh_activity").insert({
+        post_id: body.id,
+        actor_key: actor,
+        action: "status",
+        from_value: before.data.status ?? null,
+        to_value: clean.status,
+      });
     }
 
     return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at });

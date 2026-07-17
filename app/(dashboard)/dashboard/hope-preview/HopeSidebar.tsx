@@ -7,6 +7,7 @@ import {
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
+  IconChecklist,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -35,9 +36,10 @@ const GROUPS: Group[] = [
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
   ] },
   { label: "Social Media", items: [
-    { label: "Publishing Calendar", href: `${HUB}/calendar`,     icon: IconCalendarEvent },
-    { label: "Scheduler",           href: `${HUB}/scheduler`,    icon: IconClockHour4 },
-    { label: "Post Planner",        href: `${HUB}/post-planner`, icon: IconWand },
+    { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
+    { label: "Content Review",      href: `${HUB}/content-review`,  icon: IconChecklist },
+    { label: "Scheduler",           href: `${HUB}/scheduler`,       icon: IconClockHour4 },
+    { label: "Post Planner",        href: `${HUB}/post-planner`,    icon: IconWand },
   ] },
   { label: "Analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [
