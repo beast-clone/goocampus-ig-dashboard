@@ -1431,7 +1431,7 @@ const COLOR_FIELDS: { key: string; label: string }[] = [
 
 // ── Custom columns (Phase 2) — user-defined fields stored in mh_posts.custom ─
 type CustomColType = "text" | "number" | "select" | "date" | "checkbox";
-type CustomColumn = { id: string; key: string; label: string; type: CustomColType; options: string[] };
+type CustomColumn = { id: string; key: string; label: string; type: CustomColType; options: string[]; canDelete?: boolean };
 const customFieldType = (t: CustomColType): FieldType => (t === "select" ? "select" : t === "date" ? "date" : t === "checkbox" ? "checkbox" : "text");
 function customFieldDefs(cols: CustomColumn[]): FilterFieldDef[] {
   return cols.map((c) => ({
@@ -1642,20 +1642,23 @@ function SortBuilder({ sorts, fields, onChange }: { sorts: SortSpec[]; fields: F
   );
 }
 
-// Show/hide columns + add a custom column.
-function ColumnsMenu({ columns, hidden, onChange, onAddColumn }: { columns: { key: string; label: string; custom?: boolean }[]; hidden: string[]; onChange: (h: string[]) => void; onAddColumn: () => void }) {
+// Show/hide columns + add / delete custom columns.
+function ColumnsMenu({ columns, hidden, onChange, onAddColumn, onDeleteColumn }: { columns: { key: string; label: string; custom?: boolean; id?: string; canDelete?: boolean }[]; hidden: string[]; onChange: (h: string[]) => void; onAddColumn: () => void; onDeleteColumn: (id: string, label: string) => void }) {
   const toggle = (k: string) => onChange(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]);
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[240px] max-h-80 overflow-auto">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[250px] max-h-80 overflow-auto">
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Columns</div>
       {columns.map((c) => {
         const show = !hidden.includes(c.key);
         return (
-          <button key={c.key} onClick={() => toggle(c.key)} disabled={c.key === "particulars"} className="w-full flex items-center gap-2.5 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left disabled:opacity-50">
-            <span className={`relative w-8 h-4 rounded-full flex-shrink-0 transition ${show ? "bg-brand" : "bg-gray-200"}`}><span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${show ? "left-[18px]" : "left-0.5"}`} /></span>
-            <span className="text-gray-700 flex-1 truncate">{c.label}</span>
-            {c.custom && <span className="text-[9px] text-brand bg-brand-light/60 rounded px-1">custom</span>}
-          </button>
+          <div key={c.key} className="group w-full flex items-center gap-2.5 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50">
+            <button onClick={() => toggle(c.key)} disabled={c.key === "particulars"} className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:opacity-50">
+              <span className={`relative w-8 h-4 rounded-full flex-shrink-0 transition ${show ? "bg-brand" : "bg-gray-200"}`}><span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${show ? "left-[18px]" : "left-0.5"}`} /></span>
+              <span className="text-gray-700 flex-1 truncate">{c.label}</span>
+            </button>
+            {c.custom && <span className="text-[9px] text-brand bg-brand-light/60 rounded px-1 flex-shrink-0">custom</span>}
+            {c.custom && c.id && c.canDelete && <button onClick={() => onDeleteColumn(c.id!, c.label)} title="Delete column" className="hidden group-hover:flex text-gray-400 hover:text-rose-500 flex-shrink-0"><IconTrash size={13} /></button>}
+          </div>
         );
       })}
       <div className="border-t border-gray-100 my-1" />
@@ -1758,7 +1761,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const { data: colsData, refresh: refreshCols } = useApi<{ columns: CustomColumn[] }>("/api/marketing-hub/columns");
   const customCols = useMemo(() => colsData?.columns || [], [colsData]);
   const fields = useMemo(() => [...FILTER_FIELDS, ...customFieldDefs(customCols)], [customCols]);
-  const columns = useMemo(() => [...MASTER_COLUMNS.map((c) => ({ ...c, custom: false })), ...customCols.map((c) => ({ key: c.key, label: c.label, custom: true }))], [customCols]);
+  const columns = useMemo(() => [...MASTER_COLUMNS.map((c) => ({ key: c.key, label: c.label, custom: false })), ...customCols.map((c) => ({ key: c.key, label: c.label, custom: true, id: c.id, canDelete: c.canDelete }))], [customCols]);
 
   const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
   const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
@@ -1811,6 +1814,12 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
     if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); }
     await refreshViews();
+  };
+  const deleteColumn = async (id: string, label: string) => {
+    if (!window.confirm(`Delete the column "${label}"? Its values are removed from the sheet for everyone.`)) return;
+    const res = await fetch(`/api/marketing-hub/columns?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete column."); return; }
+    await refreshCols();
   };
 
   // Per-view menu actions (Airtable's ⋯ menu). Config/name/desc edits and access
@@ -1935,7 +1944,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
             <SortBuilder sorts={sorts} fields={fields} onChange={setSorts} />
           </ToolButton>
           <ToolButton icon={IconColumns} active={hiddenCols.length > 0} label={hiddenCols.length ? `Columns · ${columns.length - hiddenCols.length}` : "Columns"} open={openTool === "cols"} onToggle={() => setOpenTool(openTool === "cols" ? null : "cols")}>
-            <ColumnsMenu columns={columns} hidden={hiddenCols} onChange={setHiddenCols} onAddColumn={() => { setOpenTool(null); setAddColOpen(true); }} />
+            <ColumnsMenu columns={columns} hidden={hiddenCols} onChange={setHiddenCols} onAddColumn={() => { setOpenTool(null); setAddColOpen(true); }} onDeleteColumn={(id, label) => { setOpenTool(null); deleteColumn(id, label); }} />
           </ToolButton>
           <ToolButton icon={IconPalette} active={!!colorField} label={colorField ? `Colour · ${COLOR_FIELDS.find((f) => f.key === colorField)?.label || colorField}` : "Colour"} open={openTool === "color"} onToggle={() => setOpenTool(openTool === "color" ? null : "color")}>
             <ColorMenu colorField={colorField} onChange={setColorField} />
