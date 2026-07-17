@@ -872,12 +872,12 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
     const daysOver = opts?.overdue && dd ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(dd)) / 86_400_000)) : null;
     const dateShown = opts?.done ? r.completionTime : (r.publishingDate || r.dueDate);
     return (
-      <div key={r.id} onClick={() => onOpen(r.id)} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-        <span className="text-[13px] font-medium text-gray-800 flex-1 min-w-0 truncate" title={r.particulars}>{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</span>
-        <span className="text-[11px] text-gray-500 flex-shrink-0 whitespace-nowrap hidden sm:inline">{r.sbu || "—"}</span>
-        {r.status && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>}
-        {daysOver != null && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap bg-rose-100 text-rose-700">{daysOver}d overdue</span>}
-        <span className="text-[11px] text-gray-400 flex-shrink-0 w-20 text-right">{opts?.done ? "done · " : ""}{fmtDate(dateShown)}</span>
+      <div key={r.id} onClick={() => onOpen(r.id)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer">
+        <span className="text-sm text-gray-800 flex-1 min-w-0 truncate" title={r.particulars}>{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</span>
+        <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap hidden sm:inline">{r.sbu || "—"}</span>
+        {r.status && <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>}
+        {daysOver != null && <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap bg-rose-100 text-rose-700">{daysOver}d overdue</span>}
+        <span className="text-xs text-gray-400 flex-shrink-0 w-24 text-right">{opts?.done ? "done · " : ""}{fmtDate(dateShown)}</span>
       </div>
     );
   };
@@ -891,15 +891,15 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   ];
 
   return (
-    <div className="bg-white border border-gray-100 rounded-lg">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div className="space-y-3">
+      {/* Header bar (its own box) */}
+      <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ background: member.color }}>
             {member.av}
           </div>
           <div>
-            <div className="text-lg font-medium">{member.label} · full task list</div>
+            <div className="text-base font-medium">{member.label} · full task list</div>
             <div className="text-sm text-gray-500">{member.displayRole} · everything in the selected range</div>
           </div>
         </div>
@@ -909,21 +909,19 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
         </div>
       </div>
 
-      {/* Grouped task list: Overdue → Due today → This week → Upcoming → Done */}
-      <div className="px-4 py-3">
-        {openCount === 0 && sections.done.length === 0 ? (
-          <div className="px-2 py-10 text-center text-gray-400 text-sm">No tasks for {member.label} in this range.</div>
-        ) : GROUPS.map((g) => g.rows.length > 0 && (
-          <div key={g.key} className="mb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: g.bg }}>
-              <span className="w-2 h-2 rounded-full" style={{ background: g.dot }} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: g.text }}>{g.label}</span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/70" style={{ color: g.text }}>{g.rows.length}</span>
-            </div>
-            <div className="mt-0.5">{g.rows.map((r) => renderRow(r, g.opts))}</div>
+      {/* One separate box per urgency group: Overdue → Due today → This week → Upcoming → Done */}
+      {openCount === 0 && sections.done.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-10 text-center text-gray-400 text-sm">No tasks for {member.label} in this range.</div>
+      ) : GROUPS.map((g) => g.rows.length > 0 && (
+        <div key={g.key} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100" style={{ background: g.bg }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: g.dot }} />
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: g.text }}>{g.label}</span>
+            <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-white/70" style={{ color: g.text }}>{g.rows.length}</span>
           </div>
-        ))}
-      </div>
+          <div className="divide-y divide-gray-50">{g.rows.map((r) => renderRow(r, g.opts))}</div>
+        </div>
+      ))}
     </div>
   );
 }
