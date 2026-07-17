@@ -4,18 +4,23 @@ import { IconChevronDown, IconCheck } from "@tabler/icons-react";
 
 // Hope-themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function HopeSelect({ value, onChange, options }: {
+export function HopeSelect({ value, onChange, options, placeholder }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const current = options.find((o) => o.value === value) || options[0];
+  const current = options.find((o) => o.value === value);
+  // With a placeholder + no selection, show the placeholder (muted); otherwise the
+  // selected option (or the first, matching the original behaviour).
+  const label = current?.label ?? (placeholder ?? options[0]?.label);
+  const isPlaceholder = !current && !!placeholder;
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:border-gray-300 text-gray-800">
-        <span className="whitespace-nowrap">{current?.label}</span>
+        <span className={`whitespace-nowrap ${isPlaceholder ? "text-gray-400" : ""}`}>{label}</span>
         <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (

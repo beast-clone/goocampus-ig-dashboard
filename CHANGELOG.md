@@ -21,6 +21,12 @@ Scoped under `.mhcal-*` class prefix so nothing collides with `.hcal-*` (Publish
 
 Shipped as commit `7d6eb60` on `feat/hope-ui-reskin`.
 
+## 2026-07-17 — Marketing Hub Workload: planned day-timeline per person
+
+- The Workload tab's compact stat cards are now full-width **timeline rows** (like My Day's Team-capacity view) built from each person's **real** `mh_posts` tasks: a 9 AM–6 PM day-plan bar (tasks laid out by type-estimated duration, lunch + free blocks, a live "now" line), the now/next task, a Full / "Xh free" load badge, and the real Today / This week / Overdue / Done counts. "All tasks ↓" still expands the full list.
+- Since the team doesn't log start/stop times, the bar is an honest **plan** (suggested schedule from real pending tasks), not live time-tracking.
+- `HopeSelect` now accepts an optional `placeholder` (the marketing-hub facet filters use it).
+
 ## 2026-07-17 — Sidebar: "Social Media" section + fix the marketing-hub build
 
 - **Sidebar regroup** (`HopeSidebar.tsx`) — moved **Publishing Calendar, Scheduler, and Post Planner** out of Content into a new **Social Media** section. Content now holds Marketing Hub, My Day, and Content Radar.
