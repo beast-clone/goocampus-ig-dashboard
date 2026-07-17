@@ -6,7 +6,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconX, IconPlayerPlay } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1275,10 +1275,9 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 // user-saved filter sets persisted in mh_views (Supabase). A 7/30/90d/1y period switcher
 // drives the fetch range. The table + inline editing come from MasterSheet (bare).
 type MasterDraft = { owner: string; status: string; type: string; sbu: string; priority: string };
-type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; preset?: Partial<MasterDraft> };
+type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; filter?: FilterModel };
 type ViewAccess = "personal" | "collaborative" | "locked";
-type SavedView = { id: string; name: string; section: string; config: { filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
-const EMPTY_DRAFT: MasterDraft = { owner: "", status: "", type: "", sbu: "", priority: "" };
+type SavedView = { id: string; name: string; section: string; config: { filter?: FilterModel; filters?: Partial<MasterDraft>; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
 const ACCESS_META: Record<ViewAccess, { label: string; hint: string; icon: typeof IconBookmark }> = {
   personal: { label: "Personal view", hint: "Only you can edit the view configuration", icon: IconUser },
   collaborative: { label: "Collaborative view", hint: "Any teammate can edit the view configuration", icon: IconUsers },
@@ -1301,6 +1300,92 @@ function downloadText(filename: string, text: string) {
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Airtable-style filter engine ────────────────────────────────────────────
+// A view's filter is a set of conditions (Field → Operator → Value) joined by
+// AND/OR. Operators adapt to the field's type. Pure + data-driven so the same
+// model powers the builder UI, row filtering, and saved-view config.
+type FieldType = "text" | "select" | "owner" | "date" | "checkbox";
+type FilterOp =
+  | "is" | "isNot" | "isAnyOf" | "isNoneOf"
+  | "contains" | "doesNotContain"
+  | "isEmpty" | "isNotEmpty"
+  | "isBefore" | "isAfter"
+  | "isChecked" | "isNotChecked";
+type FilterCondition = { field: string; op: FilterOp; value?: string | string[] };
+type FilterModel = { conjunction: "and" | "or"; conditions: FilterCondition[] };
+const EMPTY_FILTER: FilterModel = { conjunction: "and", conditions: [] };
+
+type FilterFieldDef = { key: string; label: string; type: FieldType; get: (r: Row) => string | boolean };
+const FILTER_FIELDS: FilterFieldDef[] = [
+  { key: "particulars", label: "Task name", type: "text", get: (r) => r.particulars || "" },
+  { key: "status", label: "Status", type: "select", get: (r) => r.status || "" },
+  { key: "type", label: "Type", type: "select", get: (r) => r.type || "" },
+  { key: "sbu", label: "SBU / interest", type: "select", get: (r) => r.sbu || "" },
+  { key: "owner", label: "Owner", type: "owner", get: (r) => r.owner || "" },
+  { key: "priority", label: "Priority", type: "select", get: (r) => r.priority || "" },
+  { key: "publishingDate", label: "Publishing date", type: "date", get: (r) => (r.publishingDate || "").slice(0, 10) },
+  { key: "dueDate", label: "Due date", type: "date", get: (r) => (r.dueDate || "").slice(0, 10) },
+  { key: "caption", label: "Caption", type: "text", get: (r) => r.caption || "" },
+  { key: "needsReview", label: "Needs review", type: "checkbox", get: (r) => !!r.needsReview },
+];
+const OPS_BY_TYPE: Record<FieldType, { op: FilterOp; label: string; arity: "none" | "one" | "many" }[]> = {
+  text: [{ op: "contains", label: "contains", arity: "one" }, { op: "doesNotContain", label: "does not contain", arity: "one" }, { op: "is", label: "is", arity: "one" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
+  select: [{ op: "is", label: "is", arity: "one" }, { op: "isNot", label: "is not", arity: "one" }, { op: "isAnyOf", label: "is any of", arity: "many" }, { op: "isNoneOf", label: "is none of", arity: "many" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
+  owner: [{ op: "is", label: "is", arity: "one" }, { op: "isAnyOf", label: "is any of", arity: "many" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
+  date: [{ op: "is", label: "is", arity: "one" }, { op: "isBefore", label: "is before", arity: "one" }, { op: "isAfter", label: "is after", arity: "one" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
+  checkbox: [{ op: "isChecked", label: "is checked", arity: "none" }, { op: "isNotChecked", label: "is unchecked", arity: "none" }],
+};
+const ownerMatchesKey = (owner: string, key: string) => { const m = TEAM.find((t) => t.key === key); return m ? ownerMatches(owner, m) : false; };
+function evalCondition(r: Row, c: FilterCondition): boolean {
+  const def = FILTER_FIELDS.find((f) => f.key === c.field);
+  if (!def) return true;
+  const raw = def.get(r);
+  const s = typeof raw === "boolean" ? "" : raw;
+  const one = String(c.value ?? "");
+  const many = Array.isArray(c.value) ? c.value : [];
+  const isOwner = def.type === "owner";
+  const eq = (v: string) => (isOwner ? ownerMatchesKey(s, v) : s === v);
+  switch (c.op) {
+    case "isEmpty": return typeof raw === "boolean" ? !raw : !s;
+    case "isNotEmpty": return typeof raw === "boolean" ? !!raw : !!s;
+    case "isChecked": return raw === true;
+    case "isNotChecked": return raw !== true;
+    case "contains": return s.toLowerCase().includes(one.toLowerCase());
+    case "doesNotContain": return !s.toLowerCase().includes(one.toLowerCase());
+    case "isBefore": return !!s && s < one;
+    case "isAfter": return !!s && s > one;
+    case "is": return eq(one);
+    case "isNot": return !eq(one);
+    case "isAnyOf": return many.some(eq);
+    case "isNoneOf": return !many.some(eq);
+    default: return true;
+  }
+}
+function evalFilter(r: Row, f: FilterModel): boolean {
+  if (!f.conditions.length) return true;
+  const res = f.conditions.map((c) => evalCondition(r, c));
+  return f.conjunction === "or" ? res.some(Boolean) : res.every(Boolean);
+}
+// Back-compat: convert the old simple {owner,status,type,sbu,priority} to a FilterModel.
+function legacyToFilter(f?: Partial<MasterDraft>): FilterModel {
+  if (!f) return EMPTY_FILTER;
+  const conds: FilterCondition[] = [];
+  (["owner", "status", "type", "sbu", "priority"] as const).forEach((k) => { if (f[k]) conds.push({ field: k, op: "is", value: f[k] }); });
+  return { conjunction: "and", conditions: conds };
+}
+// Human summary of a filter's conditions (for the New-view "Captures" chips).
+function summarizeFilter(f: FilterModel): string[] {
+  return f.conditions.map((c) => {
+    const def = FILTER_FIELDS.find((d) => d.key === c.field);
+    const label = def?.label || c.field;
+    const opLabel = (OPS_BY_TYPE[def?.type || "text"].find((o) => o.op === c.op)?.label) || c.op;
+    const val = Array.isArray(c.value)
+      ? c.value.map((v) => (def?.type === "owner" ? TEAM.find((m) => m.key === v)?.label || v : v)).join(", ")
+      : def?.type === "owner" ? (TEAM.find((m) => m.key === c.value)?.label || String(c.value ?? "")) : String(c.value ?? "");
+    return `${label} ${opLabel}${val ? ` ${val}` : ""}`.trim();
+  });
 }
 
 // Per-view ⋯ menu (mirrors Airtable): access level, reassign, rename, description,
@@ -1373,26 +1458,115 @@ function ViewMenu({ view, otherViews, onAction }: {
   );
 }
 
+// Multi-select checklist (for "is any of" / "is none of") — compact dropdown.
+function FilterMultiSelect({ options, value, onChange }: {
+  options: { value: string; label: string }[]; value: string[]; onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-1 border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] text-left bg-white">
+        <span className="truncate text-gray-700">{value.length ? `${value.length} selected` : "Select…"}</span>
+        <IconChevronDown size={13} className="text-gray-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-[calc(100%+4px)] z-[56] bg-white border border-gray-200 rounded-lg shadow-lg p-1 min-w-[170px] max-h-56 overflow-auto">
+            {options.length === 0 && <div className="px-2 py-1.5 text-[12px] text-gray-400">No options</div>}
+            {options.map((o) => (
+              <button key={o.value} onClick={() => toggle(o.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] rounded hover:bg-gray-50 text-left">
+                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${value.includes(o.value) ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{value.includes(o.value) && <IconCheck size={10} stroke={3} />}</span>
+                <span className="truncate">{o.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Airtable-style filter builder popover — rows of Field · Operator · Value joined
+// by a top-level AND/OR. Operators + value control adapt to the field type.
+function FilterBuilder({ filter, facets, onChange }: {
+  filter: FilterModel; facets?: Facets; onChange: (f: FilterModel) => void;
+}) {
+  const optionsFor = (fieldKey: string): { value: string; label: string }[] => {
+    const def = FILTER_FIELDS.find((f) => f.key === fieldKey);
+    if (!def) return [];
+    if (def.type === "owner") return TEAM.map((m) => ({ value: m.key, label: m.label }));
+    if (def.type === "select") {
+      const src = fieldKey === "status" ? (facets?.status || PIPELINE_STAGES.map((s) => s.key))
+        : fieldKey === "type" ? (facets?.type || [])
+        : fieldKey === "sbu" ? (facets?.sbu || [])
+        : fieldKey === "priority" ? (facets?.priority || ["Urgent", "High", "Medium", "Low"]) : [];
+      return src.map((o) => ({ value: o, label: o }));
+    }
+    return [];
+  };
+  const update = (i: number, patch: Partial<FilterCondition>) => onChange({ ...filter, conditions: filter.conditions.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) });
+  const remove = (i: number) => onChange({ ...filter, conditions: filter.conditions.filter((_, idx) => idx !== i) });
+  const add = () => onChange({ ...filter, conditions: [...filter.conditions, { field: "status", op: "is", value: "" }] });
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[560px] max-w-[92vw]">
+      {filter.conditions.length === 0 && <div className="text-[12px] text-gray-400 px-1 pb-2">No conditions — showing every task. Add one below.</div>}
+      <div className="space-y-2">
+        {filter.conditions.map((c, i) => {
+          const def = FILTER_FIELDS.find((f) => f.key === c.field);
+          const ops = OPS_BY_TYPE[def?.type || "text"];
+          const opDef = ops.find((o) => o.op === c.op) || ops[0];
+          return (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-[52px] flex-shrink-0 text-[12px]">
+                {i === 0 ? <span className="text-gray-400 pl-1">Where</span>
+                  : i === 1 ? <HopeSelect value={filter.conjunction} onChange={(v) => onChange({ ...filter, conjunction: v as "and" | "or" })} options={[{ value: "and", label: "and" }, { value: "or", label: "or" }]} />
+                  : <span className="text-gray-400 pl-1">{filter.conjunction}</span>}
+              </div>
+              <div className="w-[130px] flex-shrink-0">
+                <HopeSelect value={c.field} onChange={(v) => { const nd = FILTER_FIELDS.find((f) => f.key === v)!; const first = OPS_BY_TYPE[nd.type][0]; update(i, { field: v, op: first.op, value: first.arity === "many" ? [] : first.arity === "none" ? undefined : "" }); }} options={FILTER_FIELDS.map((f) => ({ value: f.key, label: f.label }))} />
+              </div>
+              <div className="w-[130px] flex-shrink-0">
+                <HopeSelect value={c.op} onChange={(v) => { const a = ops.find((o) => o.op === v)!.arity; update(i, { op: v as FilterOp, value: a === "many" ? [] : a === "none" ? undefined : (Array.isArray(c.value) ? "" : c.value || "") }); }} options={ops.map((o) => ({ value: o.op, label: o.label }))} />
+              </div>
+              <div className="flex-1 min-w-0">
+                {opDef.arity === "none" ? <span className="text-[12px] text-gray-300 pl-1">—</span>
+                  : def?.type === "date" ? <input type="date" value={String(c.value || "")} onChange={(e) => update(i, { value: e.target.value })} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] outline-none focus:border-brand" />
+                  : def?.type === "text" ? <input value={String(c.value || "")} onChange={(e) => update(i, { value: e.target.value })} placeholder="value" className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] outline-none focus:border-brand" />
+                  : opDef.arity === "many" ? <FilterMultiSelect options={optionsFor(c.field)} value={Array.isArray(c.value) ? c.value : []} onChange={(vals) => update(i, { value: vals })} />
+                  : <HopeSelect value={String(c.value || "")} onChange={(v) => update(i, { value: v })} placeholder="Select…" options={[{ value: "", label: "Select…" }, ...optionsFor(c.field)]} />}
+              </div>
+              <button onClick={() => remove(i)} className="text-gray-400 hover:text-rose-500 flex-shrink-0"><IconTrash size={14} /></button>
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={add} className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-brand"><IconPlus size={14} />Add condition</button>
+    </div>
+  );
+}
+
 function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
   onOpen: (id: string) => void; onSaved: () => void; loading: boolean;
 }) {
   const [activeId, setActiveId] = useState("all");
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<MasterDraft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<FilterModel>(EMPTY_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
 
   const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
   const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
-  const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
-  const typeOptions = facets?.type || [];
-  const sbuOptions = facets?.sbu || [];
 
-  const allView: MasterViewDef = { id: "all", label: "Master sheet", color: "#3A57E8", preset: {} };
-  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, preset: { owner: m.key } }));
-  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, preset: { status: s.key } }));
+  const oneCond = (field: string, value: string): FilterModel => ({ conjunction: "and", conditions: [{ field, op: "is", value }] });
+  const allView: MasterViewDef = { id: "all", label: "Master sheet", color: "#3A57E8", filter: EMPTY_FILTER };
+  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, filter: oneCond("owner", m.key) }));
+  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, filter: oneCond("status", s.key) }));
   const typeViews: MasterViewDef[] = [
     { id: "type-reel", label: "Reels", color: "#3A57E8", match: (r) => /reel/i.test(r.type) },
     { id: "type-carousel", label: "Carousels", color: "#6D5CE7", match: (r) => /carousel/i.test(r.type) },
@@ -1404,15 +1578,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const curDef = everyDef.find((v) => v.id === activeId);
   const activeCustom = custom.find((c) => c.id === activeId);
 
-  const mkMatch = (d: Partial<MasterDraft>) => (r: Row) => {
-    if (d.owner) { const m = TEAM.find((t) => t.key === d.owner); if (!m || !ownerMatches(r.owner, m)) return false; }
-    if (d.status && r.status !== d.status) return false;
-    if (d.type && r.type !== d.type) return false;
-    if (d.sbu && r.sbu !== d.sbu) return false;
-    if (d.priority && r.priority !== d.priority) return false;
-    return true;
-  };
-  const matchFn = curDef?.match ? curDef.match : mkMatch(draft);
+  const matchFn = curDef?.match ? curDef.match : (r: Row) => evalFilter(r, draft);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1420,17 +1586,17 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, activeId, draft, search]);
 
-  const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : mkMatch(v.preset || {})).length;
-  const countCustom = (c: SavedView) => allRows.filter(mkMatch(c.config.filters || {})).length;
+  const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER)).length;
+  const countCustom = (c: SavedView) => allRows.filter((r) => evalFilter(r, c.config.filter || legacyToFilter(c.config.filters))).length;
 
-  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft({ ...EMPTY_DRAFT, ...(v.preset || {}) }); };
+  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); };
   const selectCustom = (c: SavedView) => {
     setActiveId(c.id);
-    setDraft({ ...EMPTY_DRAFT, ...(c.config.filters || {}) });
+    setDraft(c.config.filter || legacyToFilter(c.config.filters));
     if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
   };
-  const setField = (k: keyof MasterDraft, val: string) => { setDraft((d) => ({ ...d, [k]: val })); setActiveId("draft"); };
-  const hasFilter = Object.values(draft).some(Boolean);
+  const setFilter = (f: FilterModel) => { setDraft(f); setActiveId("draft"); };
+  const hasFilter = draft.conditions.length > 0;
 
   // "New view" / "Save as view" open the branded builder modal (no native prompt).
   const newView = () => setNewViewOpen(true);
@@ -1438,7 +1604,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
-    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_DRAFT); }
+    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); }
     await refreshViews();
   };
 
@@ -1451,7 +1617,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not update view."); return; }
     await refreshViews();
   };
-  const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter(mkMatch(cfg.filters || {}));
+  const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter((r) => evalFilter(r, cfg.filter || legacyToFilter(cfg.filters)));
   const doViewAction = async (action: string, v: SavedView, payload?: string) => {
     switch (action) {
       case "access": await patchView(v.id, { access: payload }); break;
@@ -1555,13 +1721,22 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           </div>
         </div>
 
-        {/* Filter bar — compose a view, then save it under My views */}
+        {/* Filter bar — Airtable-style condition builder; save the result as a view */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
-          <span className="text-[11px] text-gray-400 uppercase tracking-wide">Filter</span>
-          <HopeSelect value={draft.owner} onChange={(v) => setField("owner", v)} placeholder="Any owner" options={[{ value: "", label: "Any owner" }, ...TEAM.map((m) => ({ value: m.key, label: m.label }))]} />
-          <HopeSelect value={draft.status} onChange={(v) => setField("status", v)} placeholder="Any status" options={[{ value: "", label: "Any status" }, ...statusOptions.map((s) => ({ value: s, label: s }))]} />
-          <HopeSelect value={draft.type} onChange={(v) => setField("type", v)} placeholder="Any type" options={[{ value: "", label: "Any type" }, ...typeOptions.map((t) => ({ value: t, label: t }))]} />
-          <HopeSelect value={draft.sbu} onChange={(v) => setField("sbu", v)} placeholder="Any SBU" options={[{ value: "", label: "Any SBU" }, ...sbuOptions.map((s) => ({ value: s, label: s }))]} />
+          <div className="relative">
+            <button onClick={() => setFilterOpen((o) => !o)}
+              className={`flex items-center gap-1.5 text-[12px] font-medium rounded-lg border px-3 py-1.5 ${hasFilter ? "border-brand/40 bg-brand-light/50 text-brand" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+              <IconFilter size={14} />{hasFilter ? `Filtered · ${draft.conditions.length} rule${draft.conditions.length > 1 ? "s" : ""}` : "Filter"}
+            </button>
+            {filterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
+                <div className="absolute left-0 top-[calc(100%+6px)] z-50">
+                  <FilterBuilder filter={draft} facets={facets} onChange={setFilter} />
+                </div>
+              </>
+            )}
+          </div>
           {hasFilter && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
           <button onClick={saveView} disabled={!hasFilter}
             className="ml-auto flex items-center gap-1.5 text-[12px] font-medium text-brand disabled:text-gray-300 disabled:cursor-not-allowed">
@@ -1586,7 +1761,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
 // Branded "New view" builder — replaces the native window.prompt. Names the view,
 // picks an access level + optional description, and shows exactly what it captures.
 function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
-  draft: MasterDraft; rangeDays: number; onClose: () => void; onCreated: () => void;
+  draft: FilterModel; rangeDays: number; onClose: () => void; onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -1599,12 +1774,7 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const chips: string[] = [];
-  if (draft.owner) chips.push(`Owner · ${TEAM.find((m) => m.key === draft.owner)?.label || draft.owner}`);
-  if (draft.status) chips.push(`Status · ${draft.status}`);
-  if (draft.type) chips.push(`Type · ${draft.type}`);
-  if (draft.sbu) chips.push(`SBU · ${draft.sbu}`);
-  if (draft.priority) chips.push(`Priority · ${draft.priority}`);
+  const chips = summarizeFilter(draft);
   if (!chips.length) chips.push("All tasks");
 
   const create = async () => {
@@ -1613,7 +1783,7 @@ function NewViewModal({ draft, rangeDays, onClose, onCreated }: {
     try {
       const res = await fetch("/api/marketing-hub/views", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config: { filters: draft, rangeDays } }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config: { filter: draft, rangeDays } }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not create view."); return; }
       onCreated();
