@@ -11,3 +11,8 @@ tsconfig.tsbuildinfo
 
 # Local API-usage counters (Integrations tab)
 .data/
+
+# Claude Code — personal (per-user, per-machine) settings + ponytail wiring
+.claude/settings.local.json
+# graphify generated knowledge graph (rebuild with `graphify .`)
+graphify-out/
