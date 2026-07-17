@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -1701,18 +1701,40 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare }: { rows: R
   );
 }
 
+type DetailAttachment = { id: string; filename: string; storage_path: string; mime_type: string | null };
 type TaskDetail = {
   content: string; notes: string;
   collaborators: { key: string; name: string; role: string | null }[];
+  attachments: DetailAttachment[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string }[];
   activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string }[];
   scheduler: { syncedToScheduler: boolean; startAt: string | null };
 };
 const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const isImageCreative = (name: string, type: string) => type.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif)$/i.test(name);
+
+// Hope-UI card: white surface, hairline border, rounded-xl, labelled header (optional
+// brand accent + trailing slot). The building block that gives the modal real sections.
+function Panel({ icon: Ic, title, right, accent, children }: {
+  icon?: typeof IconPhoto; title: string; right?: React.ReactNode; accent?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/60" : ""}`}>
+        {Ic && <Ic size={16} stroke={1.8} className={accent ? "text-brand" : "text-gray-400"} />}
+        <span className="text-[13px] font-medium text-[#232D42]">{title}</span>
+        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
 
 function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -1720,159 +1742,222 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadDetail = async () => {
     setLoadingDetail(true);
-    fetch(`/api/marketing-hub/task-detail?id=${row.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: TaskDetail | null) => { if (!cancelled) { setDetail(d); setLoadingDetail(false); } })
-      .catch(() => { if (!cancelled) setLoadingDetail(false); });
-    return () => { cancelled = true; };
-  }, [row.id]);
+    try { const r = await fetch(`/api/marketing-hub/task-detail?id=${row.id}`); setDetail(r.ok ? await r.json() : null); }
+    catch { setDetail(null); }
+    finally { setLoadingDetail(false); }
+  };
+  useEffect(() => { loadDetail(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.id]);
 
   const content = (detail?.content || row.content || "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
   const isDone = DONE_STATUSES.includes(row.status) || !!row.completionTime;
   const sp = statusPill(row.status);
+  const pp = priorityPill(row.priority);
+  const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
+
+  // Creatives = uploaded (deletable) + any Airtable-hosted images already on the row.
+  const creatives = [
+    ...(detail?.attachments || []).map((a) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true })),
+    ...row.attachments.map((a) => ({ id: undefined as string | undefined, url: a.url, name: a.filename, type: a.type || "", removable: false })),
+  ];
+
+  const upload = async (files: FileList) => {
+    setUploading(true);
+    try {
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", f);
+        const res = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Upload failed"); }
+      }
+      await loadDetail();
+    } finally { setUploading(false); }
+  };
+  const removeCreative = async (id: string) => {
+    const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not remove."); return; }
+    await loadDetail();
+  };
+
+  const detailRow = (label: string, value: React.ReactNode) => (
+    <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+      <span className="text-[12px] text-[#8A92A6]">{label}</span>
+      <span className="text-[13px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-8 py-5 border-b border-gray-100">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 hope-scope" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 flex-shrink-0">
           <div className="min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="text-xl font-medium">{row.particulars || "(untitled)"}</div>
-              {isDone
-                ? <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 rounded-full px-2.5 py-0.5">✓ Completed{row.completionTime ? ` · ${fmtDate(row.completionTime)}` : ""}</span>
-                : row.status ? <span className="text-[11px] font-medium rounded-full px-2.5 py-0.5" style={{ background: sp.bg, color: sp.text }}>{row.status}</span> : null}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-lg font-semibold text-[#232D42] leading-tight">{row.particulars || "(untitled)"}</h2>
+              {row.status && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
+                  {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
+                </span>
+              )}
+              {row.needsReview && <span className="text-[11px] font-medium bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">Needs review</span>}
             </div>
-            <div className="text-sm text-gray-500 mt-1">
-              {row.sbu || "—"} · {row.type || "—"} · Publishing {fmtDate(row.publishingDate)}
+            <div className="flex items-center gap-2 mt-1.5 text-[13px] text-[#8A92A6] flex-wrap">
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(row.sbu, []) }} />{row.sbu || "—"}</span>
+              <span className="text-gray-300">·</span><span>{row.type || "—"}</span>
+              <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl leading-none flex-shrink-0">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
         </div>
 
-        <div className="flex-1 overflow-auto px-8 py-6 space-y-6">
-          <div className="grid grid-cols-4 gap-4 text-sm">
-            <MetaField label="Status" value={row.status} />
-            <MetaField label="Owner" value={row.owner} />
-            <MetaField label="Priority" value={row.priority} />
-            <MetaField label="Publish to page" value={row.publishToPage} />
-            <MetaField label="Platforms" value={row.platforms.join(", ")} />
-            <MetaField label="Due date" value={fmtDate(row.dueDate)} />
-            <MetaField label="Completion time" value={row.completionTime ? new Date(row.completionTime).toLocaleString("en-IN") : ""} />
-            <MetaField label="Publishing date" value={fmtDate(row.publishingDate)} />
-          </div>
-
-          {row.needsReview && (
-            <div className="text-sm bg-amber-50 border border-amber-200 rounded px-4 py-2 text-amber-900">Needs review</div>
-          )}
-
-          {collaborators && (
-            <Section label="Collaborators">
-              <div className="flex flex-wrap gap-2">
-                {collaborators.map((c) => (
-                  <span key={c.key} className="inline-flex items-center gap-1.5 text-sm bg-gray-50 border border-gray-100 rounded-full pl-1 pr-3 py-0.5">
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
-                    {c.name}{c.role ? <span className="text-gray-400 text-xs">· {c.role}</span> : null}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {row.attachments.length > 0 && (
-            <Section label="Attachments">
-              <div className="grid grid-cols-4 gap-3">
-                {row.attachments.map((a, i) => (
-                  <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block border border-gray-100 rounded overflow-hidden hover:border-brand">
-                    {a.type?.startsWith("image/") ? (
-                      // Airtable-hosted thumbnails; safe to render as <img>.
+        {/* Body — light canvas so the white cards read as real sections */}
+        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5 space-y-4">
+          {/* CREATIVES — the priority section */}
+          <Panel icon={IconPhoto} title="Creatives" accent
+            right={<>
+              <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
+              {creatives.length > 0 && <button onClick={() => fileRef.current?.click()} className="text-[12px] font-medium text-brand inline-flex items-center gap-1"><IconPlus size={13} />Add</button>}
+            </>}>
+            <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
+              onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
+            {creatives.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {creatives.map((c, i) => (
+                  <div key={c.id || i} className="group relative border border-gray-100 rounded-lg overflow-hidden bg-gray-50">
+                    {isImageCreative(c.name, c.type) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={a.url} alt={a.filename} className="w-full h-32 object-cover" />
+                      <a href={c.url} target="_blank" rel="noreferrer"><img src={c.url} alt={c.name} className="w-full h-28 object-cover" /></a>
                     ) : (
-                      <div className="w-full h-32 flex items-center justify-center bg-gray-50 text-gray-400 text-xs">{a.type || "file"}</div>
+                      <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-28 flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[10px]">{(c.type || "file").split("/")[1] || "file"}</span></a>
                     )}
-                    <div className="p-2 text-xs text-gray-600 truncate">{a.filename}</div>
-                  </a>
+                    <div className="px-2 py-1 text-[11px] text-gray-600 truncate">{c.name}</div>
+                    {c.removable && c.id && (
+                      <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={13} /></button>
+                    )}
+                  </div>
                 ))}
+                <button onClick={() => fileRef.current?.click()} className="border-2 border-dashed border-gray-200 rounded-lg h-[calc(7rem+26px)] flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
+                  <IconPlus size={20} /><span className="text-[11px] mt-1">{uploading ? "Uploading…" : "Add"}</span>
+                </button>
               </div>
-            </Section>
-          )}
-
-          <Section label="Content">
-            {content ? (
-              <div className="text-sm prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
-            ) : loadingDetail ? (
-              <div className="text-sm text-gray-400">Loading content…</div>
             ) : (
-              <div className="text-sm text-gray-400 italic">No content written yet.</div>
-            )}
-          </Section>
-
-          {row.caption && (
-            <Section label="Caption">
-              <div className="text-sm whitespace-pre-wrap text-gray-800">{row.caption}</div>
-            </Section>
-          )}
-
-          {notes && (
-            <Section label="Additional info">
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: notes }} />
-            </Section>
-          )}
-
-          {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
-            <Section label="Links">
-              <div className="text-sm space-y-1">
-                {row.outputLink && <LinkRow label="Output" href={row.outputLink} />}
-                {row.instagramUrl && <LinkRow label="Instagram" href={row.instagramUrl} />}
-                {row.facebookUrl && <LinkRow label="Facebook" href={row.facebookUrl} />}
-                {row.link && <LinkRow label="Link" href={row.link} />}
-                {row.slackLink && <LinkRow label="Slack" href={row.slackLink} />}
+              <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
+                className="border-2 border-dashed border-brand/30 bg-brand-light/40 rounded-xl py-9 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
+                <IconCloudUpload size={30} className="text-brand mb-2" stroke={1.6} />
+                <div className="text-sm font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
+                <div className="text-[12px] text-[#8A92A6] mt-0.5">Drag &amp; drop images or video here, or click to browse</div>
               </div>
-            </Section>
-          )}
+            )}
+          </Panel>
 
-          <Section label={`Comments${detail?.comments?.length ? ` · ${detail.comments.length}` : ""}`}>
-            {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
-              : detail?.comments?.length ? (
-                <div className="space-y-3">
-                  {detail.comments.map((c) => (
-                    <div key={c.id} className="text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-800">{c.authorName}</span>
-                        <span className="text-xs text-gray-400">{fmtWhen(c.created_at)}</span>
-                        {c.resolved && <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">resolved</span>}
+          {/* Two columns: content/comments (main) + details/activity (side) */}
+          <div className="grid md:grid-cols-3 gap-4 items-start">
+            <div className="md:col-span-2 space-y-4">
+              <Panel icon={IconFileText} title="Content">
+                {content ? <div className="text-[13px] leading-relaxed prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
+                  : loadingDetail ? <div className="text-sm text-gray-400">Loading content…</div>
+                  : <div className="text-sm text-gray-400 italic">No content written yet.</div>}
+              </Panel>
+
+              {row.caption && (
+                <Panel icon={IconMessageCircle2} title="Caption">
+                  <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-gray-800">{row.caption}</div>
+                </Panel>
+              )}
+
+              {notes && (
+                <Panel icon={IconFileDescription} title="Additional info">
+                  <div className="text-[13px] prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: notes }} />
+                </Panel>
+              )}
+
+              <Panel icon={IconMessageCircle2} title="Comments" right={detail?.comments?.length ? <span className="text-[11px] text-gray-400">{detail.comments.length}</span> : null}>
+                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+                  : detail?.comments?.length ? (
+                    <div className="space-y-3">
+                      {detail.comments.map((c) => (
+                        <div key={c.id} className="flex gap-2.5">
+                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.authorName.trim().slice(0, 1).toUpperCase()}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2"><span className="text-[13px] font-medium text-[#232D42]">{c.authorName}</span><span className="text-[11px] text-gray-400">{fmtWhen(c.created_at)}</span>{c.resolved && <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}</div>
+                            <div className="text-[13px] text-gray-700 whitespace-pre-wrap mt-0.5">{c.body}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="text-sm text-gray-400 italic">No comments yet.</div>}
+              </Panel>
+            </div>
+
+            <div className="space-y-4">
+              <Panel title="Details">
+                {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
+                {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
+                {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
+                {detailRow("Publish to page", row.publishToPage)}
+                {detailRow("Platforms", row.platforms.length ? row.platforms.join(", ") : null)}
+                {detailRow("Due date", fmtDate(row.dueDate))}
+                {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
+                {detailRow("Publishing", fmtDate(row.publishingDate))}
+              </Panel>
+
+              {collaborators && (
+                <Panel icon={IconUsers} title="Collaborators">
+                  <div className="space-y-2">
+                    {collaborators.map((c) => (
+                      <div key={c.key} className="flex items-center gap-2 text-[13px]">
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
+                        <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
                       </div>
-                      <div className="text-gray-700 whitespace-pre-wrap mt-0.5">{c.body}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="text-sm text-gray-400 italic">No comments yet.</div>}
-          </Section>
+                    ))}
+                  </div>
+                </Panel>
+              )}
 
-          <Section label="Activity">
-            {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
-              : detail?.activity?.length ? (
-                <div className="space-y-2">
-                  {detail.activity.map((a) => (
-                    <div key={a.id} className="flex gap-3 text-sm">
-                      <span className="text-gray-400 w-32 flex-shrink-0">{fmtWhen(a.created_at)}</span>
-                      <span className="text-gray-700">
-                        <span className="font-medium">{a.actorName}</span> {a.action.replace(/_/g, " ")}
-                        {(a.from_value || a.to_value) && <span className="text-gray-500"> {a.from_value ? `${a.from_value} → ` : ""}{a.to_value}</span>}
-                      </span>
+              {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
+                <Panel icon={IconExternalLink} title="Links">
+                  <div className="space-y-1.5">
+                    {row.outputLink && <ModalLink label="Output" href={row.outputLink} />}
+                    {row.instagramUrl && <ModalLink label="Instagram" href={row.instagramUrl} />}
+                    {row.facebookUrl && <ModalLink label="Facebook" href={row.facebookUrl} />}
+                    {row.link && <ModalLink label="Link" href={row.link} />}
+                    {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
+                  </div>
+                </Panel>
+              )}
+
+              <Panel icon={IconHistory} title="Activity">
+                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+                  : detail?.activity?.length ? (
+                    <div className="relative pl-4">
+                      {detail.activity.map((a, i) => (
+                        <div key={a.id} className="relative pb-3 last:pb-0">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-brand" />
+                          {i < detail.activity.length - 1 && <span className="absolute -left-[13px] top-3 bottom-0 w-px bg-gray-200" />}
+                          <div className="text-[12.5px] text-gray-700"><span className="font-medium text-[#232D42]">{a.actorName}</span> {a.action.replace(/_/g, " ")}{(a.from_value || a.to_value) && <span className="text-gray-500"> {a.from_value ? `${a.from_value} → ` : ""}{a.to_value}</span>}</div>
+                          <div className="text-[11px] text-gray-400">{fmtWhen(a.created_at)}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : <div className="text-sm text-gray-400 italic">No activity recorded.</div>}
-          </Section>
+                  ) : <div className="text-sm text-gray-400 italic">No activity recorded.</div>}
+              </Panel>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ModalLink({ label, href }: { label: string; href: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] group">
+      <span className="text-[#8A92A6] w-16 flex-shrink-0">{label}</span>
+      <span className="text-brand group-hover:underline truncate">{href}</span>
+    </a>
   );
 }
 
