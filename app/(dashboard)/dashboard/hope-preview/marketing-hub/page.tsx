@@ -155,13 +155,13 @@ function ymd(d: Date): string {
 
 export default function MarketingHubPage() {
   return (
-    <HopeDashboardShell active="marketing-hub" title="Marketing Hub" subtitle="Content calendar for the marketing team — SBU · Type · Owner · Publishing Date." hideAccountPicker>
-      {({ range }) => <Inner range={range} />}
+    <HopeDashboardShell active="marketing-hub" title="Marketing Hub" subtitle="Content calendar for the marketing team — SBU · Type · Owner · Publishing Date." hideAccountPicker hideRange>
+      {({ range, setRange }) => <Inner range={range} setRange={setRange} />}
     </HopeDashboardShell>
   );
 }
 
-function Inner({ range }: { range: { from: string; to: string } }) {
+function Inner({ range, setRange }: { range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
   // Deep-link: /dashboard/marketing-hub?open=<mh_posts.id> opens that task.
   const openParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("open") || "" : "";
   const qs = new URLSearchParams({ from: range.from, to: range.to, ...(openParam ? { open: openParam } : {}) }).toString();
@@ -257,7 +257,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       )}
 
       {tab === "team" && (
-        <TeamView rows={filtered} allRows={data?.rows || []} facets={data?.facets} onOpen={setOpenId} loading={isLoading} />
+        <TeamView rows={filtered} allRows={data?.rows || []} facets={data?.facets} onOpen={setOpenId} loading={isLoading} range={range} setRange={setRange} />
       )}
 
       {tab === "pipeline" && (
@@ -296,9 +296,11 @@ function CompactFacet({ label, value, options, onChange }: { label: string; valu
 
 // TEAM sub-tab — one card per teammate; click a card to open their full task
 // list INLINE below the cards (all statuses), not a pop-up.
-function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
+function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "week">("today");
+  const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
+  const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
   const today = ymd(new Date());
   const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
@@ -341,6 +343,23 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
           <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>This period</button>
         </div>
         <span className="text-[11px] text-gray-400">{view === "today" ? "Each person's plan for today — timeline + tasks." : "Full task overview for the selected date range — click a person to drill in."}</span>
+        {view === "week" && (
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
+              {[7, 30, 60, 90].map((n) => (
+                <button key={n} onClick={() => setRange(daysRange(n))}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition ${activeDays === n ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}>{n}d</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-gray-400">
+              <input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ from: e.target.value, to: range.to })}
+                className="border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700" />
+              <span>→</span>
+              <input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ from: range.from, to: e.target.value })}
+                className="border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700" />
+            </div>
+          </div>
+        )}
       </div>
 
       {view === "today" ? (

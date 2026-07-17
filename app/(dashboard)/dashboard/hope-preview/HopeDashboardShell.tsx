@@ -33,13 +33,14 @@ function rangeLabel(r: Range): string {
 }
 
 export function HopeDashboardShell({
-  active, title, subtitle, hideAccountPicker, children,
+  active, title, subtitle, hideAccountPicker, hideRange, children,
 }: {
   active: HopeTab;
   title: string;
   subtitle?: string;
   hideAccountPicker?: boolean;
-  children: (ctx: { accountId: string; compareAll: boolean; range: Range }) => React.ReactNode;
+  hideRange?: boolean;   // hide the top date bar (page drives the range itself via setRange)
+  children: (ctx: { accountId: string; compareAll: boolean; range: Range; setRange: (r: Range) => void }) => React.ReactNode;
 }) {
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
   const [range, setRange] = useState<Range>({
@@ -73,7 +74,7 @@ export function HopeDashboardShell({
           <div>
             <h1 className="text-2xl font-semibold flex items-center gap-3 text-[#232D42]">
               {title}
-              <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>
+              {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
               <span className="text-[10px] font-semibold uppercase tracking-wide text-brand bg-brand-light rounded px-2 py-0.5">V2</span>
             </h1>
             <p className="text-sm text-gray-500">{headerSub}</p>
@@ -91,11 +92,11 @@ export function HopeDashboardShell({
               </select>
             ))}
             <TokenExpiryBadge />
-            <DateRangePicker value={range} onChange={setRange} />
-            <PdfExportButton accountId={profile ?? accountId} range={range} />
+            {!hideRange && <DateRangePicker value={range} onChange={setRange} />}
+            {!hideRange && <PdfExportButton accountId={profile ?? accountId} range={range} />}
           </div>
         </div>
-        {children({ accountId: profile ?? accountId, compareAll: false, range })}
+        {children({ accountId: profile ?? accountId, compareAll: false, range, setRange })}
       </div>
     </HopeShell>
   );

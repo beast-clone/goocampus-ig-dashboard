@@ -21,6 +21,12 @@ Scoped under `.mhcal-*` class prefix so nothing collides with `.hcal-*` (Publish
 
 Shipped as commit `7d6eb60` on `feat/hope-ui-reskin`.
 
+## 2026-07-17 — Workload: Today / This-period tabs, My Day team, in-tab date range
+
+- Split the Workload into two sub-tabs: **Today** (the per-person planned timeline; expand a person → each task's name + primary interest + time) and **This period** (the stat cards → click a person to drill into their tasks grouped by status, each showing a "Nd at stage" days-stuck badge from `lastModified`).
+- Roster now matches the My Day team exactly — Manya (Content), Praveen (Ads · Senior Graphic Designer), Nikhil (Video editor · short-form), Nandu (Video editor · long-form) — same colours + avatars.
+- Removed the top date bar on the Marketing Hub (new `hideRange` prop on `HopeDashboardShell`, which now also exposes `setRange`) and moved the range **next to the tabs**: 7d / 30d / 60d / 90d chips + a custom from–to picker, driving the "This period" overview.
+
 ## 2026-07-17 — Marketing Hub Workload: planned day-timeline per person
 
 - The Workload tab's compact stat cards are now full-width **timeline rows** (like My Day's Team-capacity view) built from each person's **real** `mh_posts` tasks: a 9 AM–6 PM day-plan bar (tasks laid out by type-estimated duration, lunch + free blocks, a live "now" line), the now/next task, a Full / "Xh free" load badge, and the real Today / This week / Overdue / Done counts. "All tasks ↓" still expands the full list.
