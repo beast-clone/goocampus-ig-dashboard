@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
 // AI Report generator.
@@ -310,49 +310,37 @@ export async function GET(req: Request) {
         : null,
     };
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (!hasAI()) throw new Error("PERPLEXITY_API_KEY not set");
+    const systemPrompt = [
+      "You are the marketing lead writing a performance report for GooCampus (Indian medical-education Instagram — audience: IMG doctors preparing for AMC/AHPRA Australia, DHA UAE, PLAB UK, NEET PG, MBBS abroad).",
+      "You get PRE-COMPUTED numbers. Your ONLY job is to write the prose that goes with them.",
+      "",
+      "STRICT RULES:",
+      "  1. DO NOT invent numbers. Reference the ones you were given. Do NOT web-search — use only the numbers provided.",
+      "  2. Voice: first-person marketing lead, direct, no fluff, no emoji.",
+      "  3. Each insight cites at least one specific number as evidence.",
+      "  4. Recommendations must be concrete actions ('post 3 Reels on AMC exam prep next week'), not platitudes.",
+      "  5. Executive summary: 3-4 sentences, high-level. If leadsSales is present, tie social performance to leads and revenue (e.g. reach → leads → contracts). End with the ONE thing to focus on next.",
+      "  6. leadsInsight: 2-3 sentences connecting the leads collected to sales — cite leads, conversionPct, revenue, and name the strongest counsellor or source. If leadsSales is null, return an empty string.",
+      "  7. Length caps: executiveSummary ≤ 90 words, leadsInsight ≤ 55 words, each insight ≤ 40 words, each whyItWorked ≤ 25 words, each recommendation.title ≤ 8 words, .why ≤ 30 words, .action ≤ 30 words.",
+      "",
+      "Return ONLY a raw JSON object (no markdown, no code fences) matching:",
+      "  {",
+      "    executiveSummary: string,",
+      "    highlights: [{ metric: 'Followers gained'|'Reach'|'Engagement'|'Profile visits', insight: string }] (exactly 4),",
+      "    contentMixInsight: string,",
+      "    topPostsWhy: [{ rank: number, whyItWorked: string }] (one per top post),",
+      "    followerGrowthInsight: string,",
+      "    reachInsight: string,",
+      "    engagementInsight: string,",
+      "    audienceInsight: string,",
+      "    leadsInsight: string,",
+      "    recommendations: [{ title, why, action }] (3-5 items)",
+      "  }",
+    ].join("\n");
     const t0 = Date.now();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.45,
-      messages: [
-        {
-          role: "system",
-          content: [
-            "You are the marketing lead writing a performance report for GooCampus (Indian medical-education Instagram — audience: IMG doctors preparing for AMC/AHPRA Australia, DHA UAE, PLAB UK, NEET PG, MBBS abroad).",
-            "You get PRE-COMPUTED numbers. Your ONLY job is to write the prose that goes with them.",
-            "",
-            "STRICT RULES:",
-            "  1. DO NOT invent numbers. Reference the ones you were given.",
-            "  2. Voice: first-person marketing lead, direct, no fluff, no emoji.",
-            "  3. Each insight cites at least one specific number as evidence.",
-            "  4. Recommendations must be concrete actions ('post 3 Reels on AMC exam prep next week'), not platitudes.",
-            "  5. Executive summary: 3-4 sentences, high-level. If leadsSales is present, tie social performance to leads and revenue (e.g. reach → leads → contracts). End with the ONE thing to focus on next.",
-            "  6. leadsInsight: 2-3 sentences connecting the leads collected to sales — cite leads, conversionPct, revenue, and name the strongest counsellor or source. If leadsSales is null, return an empty string.",
-            "  7. Length caps: executiveSummary ≤ 90 words, leadsInsight ≤ 55 words, each insight ≤ 40 words, each whyItWorked ≤ 25 words, each recommendation.title ≤ 8 words, .why ≤ 30 words, .action ≤ 30 words.",
-            "",
-            "Return JSON matching:",
-            "  {",
-            "    executiveSummary: string,",
-            "    highlights: [{ metric: 'Followers gained'|'Reach'|'Engagement'|'Profile visits', insight: string }] (exactly 4),",
-            "    contentMixInsight: string,",
-            "    topPostsWhy: [{ rank: number, whyItWorked: string }] (one per top post),",
-            "    followerGrowthInsight: string,",
-            "    reachInsight: string,",
-            "    engagementInsight: string,",
-            "    audienceInsight: string,",
-            "    leadsInsight: string,",
-            "    recommendations: [{ title, why, action }] (3-5 items)",
-            "  }",
-          ].join("\n"),
-        },
-        { role: "user", content: JSON.stringify(context) },
-      ],
-    });
+    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 1600 });
     const latencyMs = Date.now() - t0;
-
-    const raw = completion.choices[0]?.message?.content || "{}";
     type AIPart = {
       executiveSummary?: string;
       highlights?: { metric: string; insight: string }[];
@@ -366,7 +354,14 @@ export async function GET(req: Request) {
       recommendations?: { title: string; why: string; action: string }[];
     };
     let ai: AIPart = {};
-    try { ai = JSON.parse(raw) as AIPart; } catch { ai = {}; }
+    try {
+      let jsonStr = raw.trim();
+      const fence = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      if (fence) jsonStr = fence[1].trim();
+      const a = jsonStr.indexOf("{"), b = jsonStr.lastIndexOf("}");
+      if (a >= 0 && b > a) jsonStr = jsonStr.slice(a, b + 1);
+      ai = JSON.parse(jsonStr) as AIPart;
+    } catch { ai = {}; }
 
     const highlightsMap: Record<string, { value: string; delta?: string }> = {
       "Followers gained": { value: (insights.totals.newFollowers >= 0 ? "+" : "") + insights.totals.newFollowers.toLocaleString("en-IN") },
