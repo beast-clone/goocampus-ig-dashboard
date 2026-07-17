@@ -309,16 +309,6 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
   const today = ymd(new Date());
   const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
-  // Working days (Mon–Fri) in the selected range → the period's total capacity.
-  const periodWorkDays = useMemo(() => {
-    let n = 0;
-    const start = Date.parse(range.from), end = Date.parse(range.to);
-    for (let t = start; t <= end; t += 86_400_000) {
-      const d = new Date(t).getUTCDay();
-      if (d !== 0 && d !== 6) n += 1;
-    }
-    return Math.max(1, n);
-  }, [range.from, range.to]);
 
   const teamCards = useMemo(() => TEAM.map((m) => {
     const mine = rows.filter((r) => ownerMatches(r.owner, m));
@@ -355,9 +345,9 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
           <button onClick={() => setView("today")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "today" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Today</button>
-          <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>This period</button>
+          <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Tasks</button>
         </div>
-        <span className="text-[11px] text-gray-400">{view === "today" ? "Each person's plan for today — timeline + tasks." : "Full task overview for the selected date range — click a person to drill in."}</span>
+        <span className="text-[11px] text-gray-400">{view === "today" ? "Each person's plan for today — timeline + tasks." : "Click a person to open their full task list for the selected range."}</span>
         {view === "week" && (
           <div className="ml-auto flex items-center gap-2 flex-wrap">
             <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
@@ -388,7 +378,6 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
               <TeamMemberCard
                 key={c.member.key}
                 card={c}
-                workDays={periodWorkDays}
                 selected={c.member.key === selected}
                 onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
               />
@@ -772,24 +761,12 @@ function BigStat({ label, value, accent, alarm }: { label: string; value: number
   );
 }
 
-function TeamMemberCard({ card, onOpenPanel, selected, workDays }: {
+function TeamMemberCard({ card, onOpenPanel, selected }: {
   card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
   onOpenPanel: () => void;
   selected?: boolean;
-  workDays: number;
 }) {
   const { member: m } = card;
-
-  // Period capacity: pending work (est. hours) vs the working days in the range.
-  const pendingMin = card.mine.filter((r) => !DONE_STATUSES.includes(r.status)).reduce((s, r) => s + taskDurMin(r.type), 0);
-  const capacityMin = workDays * SPAN_MIN;
-  const freeMin = capacityMin - pendingMin;
-  const pct = capacityMin ? Math.round((pendingMin / capacityMin) * 100) : 0;
-  const over = freeMin < 0;
-  const barColor = over ? "#E24B4A" : pct >= 80 ? "#EF9F27" : "#0F9E75";
-  const capLabel = over
-    ? { head: "Overbooked", headCls: "text-rose-600", tail: `${fmtDur(-freeMin)} over capacity` }
-    : { head: `${fmtDur(freeMin)} free`, headCls: pct >= 80 ? "text-amber-600" : "text-emerald-600", tail: `~${Math.max(0, Math.floor(freeMin / 60))}h open this period` };
 
   return (
     <div
@@ -820,20 +797,6 @@ function TeamMemberCard({ card, onOpenPanel, selected, workDays }: {
         <MiniStat label="This week" value={card.week} />
         <MiniStat label="Overdue" value={card.overdue} alarm={card.overdue > 0} />
         <MiniStat label="Done · 7d" value={card.done} />
-      </div>
-
-      {/* Period capacity — free time / overbooked across the selected range */}
-      <div className="mt-4 pt-3 border-t border-gray-100">
-        <div className="flex items-baseline justify-between mb-1.5">
-          <span className={`text-xs font-medium ${capLabel.headCls}`}>{capLabel.head}</span>
-          <span className="text-[11px] text-gray-400">{pct}% loaded</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: barColor }} />
-        </div>
-        <div className="text-[11px] text-gray-400 mt-1.5">
-          {fmtDur(pendingMin)} of work · {capLabel.tail}
-        </div>
       </div>
     </div>
   );
@@ -880,149 +843,52 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
 
   const mine = useMemo(() => allRows.filter((r) => ownerMatches(r.owner, member)), [allRows, member]);
 
-  const buckets = useMemo(() => {
-    const dueToday: Row[] = [];
-    const overdue: Row[] = [];
-    const awaitingApproval: Row[] = [];
-    const thisWeek: Row[] = [];
-    const completed: Row[] = [];
+  // Mutually-exclusive urgency buckets for the drill-down. A task lands in exactly
+  // one of: overdue → due today → this week → upcoming; done (completed) is separate.
+  const sections = useMemo(() => {
+    const overdue: Row[] = [], today_: Row[] = [], week: Row[] = [], upcoming: Row[] = [], done: Row[] = [];
     for (const r of mine) {
+      if (DONE_STATUSES.includes(r.status)) { done.push(r); continue; }
       const pd = r.publishingDate?.slice(0, 10) || "";
       const dd = r.dueDate?.slice(0, 10) || "";
-      const isDone = DONE_STATUSES.includes(r.status);
-      const doneRecently = r.completionTime && r.completionTime.slice(0, 10) >= weekAgo;
-      if (isDone && doneRecently) completed.push(r);
-      if (r.needsReview) awaitingApproval.push(r);
-      if (!isDone) {
-        if (pd === todayStr) dueToday.push(r);
-        if (dd && dd < todayStr) overdue.push(r);
-        if (pd && pd > todayStr && pd <= weekAhead) thisWeek.push(r);
-      }
+      const ref = pd || dd;
+      if (dd && dd < todayStr) overdue.push(r);
+      else if (ref && ref === todayStr) today_.push(r);
+      else if (ref && ref > todayStr && ref <= weekAhead) week.push(r);
+      else upcoming.push(r);
     }
-    return { dueToday, overdue, awaitingApproval, thisWeek, completed };
-  }, [mine, todayStr, weekAhead, weekAgo]);
+    const byRef = (a: Row, b: Row) => (a.publishingDate || a.dueDate || "9999").localeCompare(b.publishingDate || b.dueDate || "9999");
+    overdue.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+    [today_, week, upcoming].forEach((g) => g.sort(byRef));
+    done.sort((a, b) => (b.completionTime || "").localeCompare(a.completionTime || ""));
+    return { overdue, today: today_, week, upcoming, done };
+  }, [mine, todayStr, weekAhead]);
 
-  const kpis = [
-    { label: "Due today", value: buckets.dueToday.length, bg: "#E6F1FB", tx: "#185FA5" },
-    { label: "Overdue", value: buckets.overdue.length, bg: "#FBEAF0", tx: "#993556" },
-    { label: "Awaiting approval", value: buckets.awaitingApproval.length, bg: "#EEEDFE", tx: "#3C3489" },
-    { label: "This week", value: buckets.thisWeek.length, bg: "#FAEEDA", tx: "#633806" },
-    { label: "Done · 7d", value: buckets.completed.length, bg: "#E1F5EE", tx: "#0F6E56" },
-  ];
+  const openCount = sections.overdue.length + sections.today.length + sections.week.length + sections.upcoming.length;
 
-  const [dateSel, setDateSel] = useState<string>("all");
-  const [customFrom, setCustomFrom] = useState<string>("");
-  const [customTo, setCustomTo] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [groupBy, setGroupBy] = useState<string>("status");
-  const [colorBy, setColorBy] = useState<string>("status");
-  const [sortField, setSortField] = useState<string>("status");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const typeOptions = useMemo(() => Array.from(new Set(mine.map((r) => r.type).filter(Boolean))).sort(), [mine]);
-
-  // 1) Filter by the date window (on publishing date).
-  const dateFiltered = useMemo(() => {
-    if (dateSel === "all") return mine;
-    return mine.filter((r) => {
-      const d = r.publishingDate?.slice(0, 10) || "";
-      if (!d) return false;
-      switch (dateSel) {
-        case "today": return d === todayStr;
-        case "tomorrow": return d === off(1);
-        case "yesterday": return d === off(-1);
-        case "last3": return d >= off(-2) && d <= todayStr;
-        case "week": return d >= off(-6) && d <= todayStr;
-        case "custom": return (!customFrom || d >= customFrom) && (!customTo || d <= customTo);
-        default: return true;
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mine, dateSel, customFrom, customTo, todayStr]);
-
-  // 2) Filter by Type (Airtable-style: Status = pills, Publishing Date = presets).
-  const baseFiltered = useMemo(
-    () => (typeFilter === "all" ? dateFiltered : dateFiltered.filter((r) => r.type === typeFilter)),
-    [dateFiltered, typeFilter],
-  );
-
-  // Status pill counts reflect the date + type window.
-  const statusGroups = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of baseFiltered) { const k = r.status || "No status"; map.set(k, (map.get(k) || 0) + 1); }
-    const order = PIPELINE_STAGES.map((s) => s.key);
-    return [...map.entries()].sort((a, b) => (order.indexOf(a[0]) < 0 ? 99 : order.indexOf(a[0])) - (order.indexOf(b[0]) < 0 ? 99 : order.indexOf(b[0])));
-  }, [baseFiltered]);
-
-  // 3) Filter by status pill, then sort by the chosen column + direction.
-  const tableRows = useMemo(() => {
-    const list = statusFilter === "all" ? baseFiltered : baseFiltered.filter((r) => (r.status || "") === statusFilter);
-    const order = PIPELINE_STAGES.map((s) => s.key);
-    const prRank: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-    const cmp = (a: Row, b: Row): number => {
-      switch (sortField) {
-        case "task": return (a.particulars || "").localeCompare(b.particulars || "");
-        case "type": return (a.type || "").localeCompare(b.type || "");
-        case "sbu": return (a.sbu || "").localeCompare(b.sbu || "");
-        case "publish": return (a.publishingDate || "").localeCompare(b.publishingDate || "");
-        case "priority": return (prRank[(a.priority || "").toLowerCase()] ?? 9) - (prRank[(b.priority || "").toLowerCase()] ?? 9);
-        case "status":
-        default: {
-          const sa = order.indexOf(a.status) < 0 ? 99 : order.indexOf(a.status);
-          const sb = order.indexOf(b.status) < 0 ? 99 : order.indexOf(b.status);
-          if (sa !== sb) return sa - sb;
-          return (a.publishingDate || "").localeCompare(b.publishingDate || "");
-        }
-      }
-    };
-    const sorted = [...list].sort(cmp);
-    return sortDir === "desc" ? sorted.reverse() : sorted;
-  }, [baseFiltered, statusFilter, sortField, sortDir]);
-
-  // 3) Optional grouping (Map preserves first-appearance order).
-  const grouped = useMemo(() => {
-    if (groupBy === "none") return null;
-    const key = (r: Row) =>
-      groupBy === "sbu" ? (r.sbu || "No SBU")
-      : groupBy === "status" ? (r.status || "No status")
-      : groupBy === "type" ? (r.type || "No type")
-      : (r.priority || "No priority");
-    const m = new Map<string, Row[]>();
-    for (const r of tableRows) { const k = key(r); if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); }
-    return [...m.entries()];
-  }, [tableRows, groupBy]);
-
-  const groupColor = (k: string) =>
-    groupBy === "sbu" ? sbuColor(k, allSbus) : groupBy === "status" ? statusColor(k) : "#B4B2A9";
-
-  const rowColor = (r: Row) =>
-    colorBy === "priority" ? priorityColor(r.priority)
-    : colorBy === "sbu" ? sbuColor(r.sbu, allSbus)
-    : colorBy === "none" ? "transparent"
-    : statusColor(r.status);
-
-  const renderRow = (r: Row) => {
+  const renderRow = (r: Row, opts?: { overdue?: boolean; done?: boolean }) => {
     const sp = statusPill(r.status);
-    const pp = priorityPill(r.priority);
-    // "Stuck" = days since the row last changed status/state (proxy: lastModified).
-    const isDone = DONE_STATUSES.includes(r.status);
-    const lm = (r.lastModified || "").slice(0, 10);
-    const daysAtStage = /^\d{4}-\d{2}-\d{2}$/.test(lm) ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(lm)) / 86_400_000)) : null;
-    const stuck = !isDone && daysAtStage != null && daysAtStage >= 2;
+    const dd = (r.dueDate || "").slice(0, 10);
+    const daysOver = opts?.overdue && dd ? Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(dd)) / 86_400_000)) : null;
+    const dateShown = opts?.done ? r.completionTime : (r.publishingDate || r.dueDate);
     return (
-      <tr key={r.id} onClick={() => onOpen(r.id)} className="border-t border-gray-50 hover:bg-gray-50 cursor-pointer">
-        <td className="px-4 py-2.5 text-gray-800 max-w-[360px] truncate" style={{ borderLeft: `3px solid ${rowColor(r)}` }}>
-          <span className="align-middle">{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</span>
-          {stuck && <span className={`ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${daysAtStage! >= 4 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`} title={`No status change for ${daysAtStage} days`}>{daysAtStage}d at stage</span>}
-        </td>
-        <td className="px-4 py-2.5 text-gray-600">{r.type || "—"}</td>
-        <td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-gray-600"><span className="w-2 h-2 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />{r.sbu || "—"}</span></td>
-        <td className="px-4 py-2.5">{r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : "—"}</td>
-        <td className="px-4 py-2.5 text-gray-500">{fmtDate(r.publishingDate)}</td>
-        <td className="px-4 py-2.5">{r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : "—"}</td>
-      </tr>
+      <div key={r.id} onClick={() => onOpen(r.id)} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+        <span className="text-[13px] font-medium text-gray-800 flex-1 min-w-0 truncate" title={r.particulars}>{r.particulars || <span className="text-gray-400 italic">Untitled</span>}</span>
+        <span className="text-[11px] text-gray-500 flex-shrink-0 whitespace-nowrap hidden sm:inline">{r.sbu || "—"}</span>
+        {r.status && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>}
+        {daysOver != null && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap bg-rose-100 text-rose-700">{daysOver}d overdue</span>}
+        <span className="text-[11px] text-gray-400 flex-shrink-0 w-20 text-right">{opts?.done ? "done · " : ""}{fmtDate(dateShown)}</span>
+      </div>
     );
   };
+
+  const GROUPS: { key: string; label: string; dot: string; text: string; rows: Row[]; opts?: { overdue?: boolean; done?: boolean } }[] = [
+    { key: "overdue", label: "Overdue", dot: "#D8342F", text: "#B4231F", rows: sections.overdue, opts: { overdue: true } },
+    { key: "today", label: "Due today", dot: "#3A57E8", text: "#2138B0", rows: sections.today },
+    { key: "week", label: "This week", dot: "#6D5CE7", text: "#4F3FC0", rows: sections.week },
+    { key: "upcoming", label: "Upcoming", dot: "#9AA0AC", text: "#6B7280", rows: sections.upcoming },
+    { key: "done", label: "Done", dot: "#0F9E75", text: "#0F6E56", rows: sections.done, opts: { done: true } },
+  ];
 
   return (
     <div className="bg-white border border-gray-100 rounded-lg">
@@ -1033,133 +899,30 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
             {member.av}
           </div>
           <div>
-            <div className="text-lg font-medium">{member.label}&apos;s tasks</div>
-            <div className="text-sm text-gray-500">{member.displayRole} · {mine.length} in this range</div>
+            <div className="text-lg font-medium">{member.label} · full task list</div>
+            <div className="text-sm text-gray-500">{member.displayRole} · everything in the selected range</div>
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none" aria-label="Close">×</button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-md px-2.5 py-1 whitespace-nowrap">{openCount} open · <span className={sections.overdue.length ? "text-rose-600 font-medium" : ""}>{sections.overdue.length} overdue</span></span>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none" aria-label="Close">×</button>
+        </div>
       </div>
 
-      {/* KPI chips (left) + toolbar: date presets · Type · Group · Color (right) — one band */}
-      <div className="px-6 py-3.5 border-b border-gray-100 flex items-center justify-between gap-x-6 gap-y-3 flex-wrap">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {kpis.map((k) => (
-            <div key={k.label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: k.bg }}>
-              <span className="text-xs" style={{ color: k.tx, opacity: 0.9 }}>{k.label}</span>
-              <span className="text-sm font-medium" style={{ color: k.tx }}>{fmtInt(k.value)}</span>
+      {/* Grouped task list: Overdue → Due today → This week → Upcoming → Done */}
+      <div className="px-4 py-3">
+        {openCount === 0 && sections.done.length === 0 ? (
+          <div className="px-2 py-10 text-center text-gray-400 text-sm">No tasks for {member.label} in this range.</div>
+        ) : GROUPS.map((g) => g.rows.length > 0 && (
+          <div key={g.key} className="mb-1.5">
+            <div className="flex items-center gap-2 px-2 pt-3 pb-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: g.dot }} />
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: g.text }}>{g.label}</span>
+              <span className="text-[11px] text-gray-400">{g.rows.length}</span>
             </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex flex-wrap gap-0.5 bg-gray-100 rounded-lg p-1">
-            {DATE_PRESETS.map(([k, label]) => {
-              const a = dateSel === k;
-              return (
-                <button key={k} onClick={() => setDateSel(k)} className={`px-2.5 py-1 rounded-md text-xs ${a ? "bg-white shadow-sm text-gray-800 font-medium" : "text-gray-500 hover:text-gray-700"}`}>{label}</button>
-              );
-            })}
+            {g.rows.map((r) => renderRow(r, g.opts))}
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-xs text-gray-500">
-            <label className="flex items-center gap-1.5"><IconFilter size={14} className="text-gray-400" aria-hidden="true" /> Type
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700 max-w-[150px]">
-                <option value="all">All</option>
-                {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5"><IconLayoutList size={14} className="text-gray-400" aria-hidden="true" /> Group
-              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700">
-                <option value="none">None</option>
-                <option value="sbu">SBU</option>
-                <option value="status">Status</option>
-                <option value="type">Type</option>
-                <option value="priority">Priority</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5"><IconPalette size={14} className="text-gray-400" aria-hidden="true" /> Color
-              <select value={colorBy} onChange={(e) => setColorBy(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700">
-                <option value="status">Status</option>
-                <option value="priority">Priority</option>
-                <option value="sbu">SBU</option>
-                <option value="none">None</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* Custom date range */}
-      {dateSel === "custom" && (
-        <div className="px-6 pt-3 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-          From
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs" />
-          to
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs" />
-        </div>
-      )}
-
-      {/* Status filter pills */}
-      <div className="px-6 pt-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${statusFilter === "all" ? "border-gray-300 bg-gray-50 text-gray-800 font-medium" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
-        >
-          All <span className="text-gray-400">{baseFiltered.length}</span>
-        </button>
-        {statusGroups.map(([st, n]) => {
-          const active = statusFilter === st;
-          return (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(active ? "all" : st)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${active ? "border-gray-300 bg-gray-50 text-gray-800 font-medium" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
-            >
-              <span className="w-2 h-2 rounded-sm" style={{ background: statusColor(st) }} />
-              {st} <span className="text-gray-400">{n}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Task table (grouped or flat) */}
-      <div className="px-6 pb-5 pt-3">
-        <div className="border border-gray-100 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr className="text-gray-500 text-left">
-                {([["task", "Task"], ["type", "Type"], ["sbu", "SBU"], ["status", "Status"], ["publish", "Publish"], ["priority", "Priority"]] as [string, string][]).map(([key, label]) => {
-                  const active = sortField === key;
-                  return (
-                    <th
-                      key={key}
-                      onClick={() => { if (active) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortField(key); setSortDir("asc"); } }}
-                      className="px-4 py-2.5 font-normal cursor-pointer select-none hover:text-gray-700"
-                      title="Click to sort"
-                    >
-                      <span className="inline-flex items-center gap-1">{label}{active && <span className="text-gray-400">{sortDir === "asc" ? "↑" : "↓"}</span>}</span>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No tasks in this view.</td></tr>
-              ) : grouped
-                ? grouped.flatMap(([k, rows]) => [
-                    <tr key={`h-${k}`}>
-                      <td colSpan={6} className="px-4 py-2" style={{ background: groupColor(k) + "14" }}>
-                        <span className="inline-flex items-center gap-2 text-xs font-medium text-gray-700">
-                          <span className="w-2.5 h-2.5 rounded-sm" style={{ background: groupColor(k) }} />
-                          {k} <span className="text-gray-400">{rows.length}</span>
-                        </span>
-                      </td>
-                    </tr>,
-                    ...rows.map(renderRow),
-                  ])
-                : tableRows.map(renderRow)}
-            </tbody>
-          </table>
-        </div>
+        ))}
       </div>
     </div>
   );
