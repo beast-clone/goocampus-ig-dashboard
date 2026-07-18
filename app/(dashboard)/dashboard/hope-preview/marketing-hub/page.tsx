@@ -969,12 +969,14 @@ const MHCAL_MONTH_NAMES = ["January", "February", "March", "April", "May", "June
 // Status → pill palette. Mirrors the Hope UI publishing calendar's approach: soft-tinted
 // bg + matching border + colored text so status is legible at a glance across the grid.
 // Unmapped statuses fall through to the neutral gray.
+// Near-white fills (a hint of tint, never a saturated block) + a matching border and
+// DARK text — so a bar reads white-ish at a glance but still colour-codes its status.
 const CAL_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "Content - Pending":     { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" },
-  "Content - Approved":    { bg: "#E1F5EE", text: "#0F6E56", border: "#B2E1D0" },
-  "Output - Ready":        { bg: "#E4ECFF", text: "#2138B0", border: "#BBCCF7" },
-  "Ready to Publish":      { bg: "#E3F5EA", text: "#157F3C", border: "#B9E4D2" },
-  "Published/Scheduled":   { bg: "#EEEDFE", text: "#3C3489", border: "#CFCBFA" },
+  "Content - Pending":     { bg: "#F8F9FC", text: "#3F4757", border: "#DDE1E9" },
+  "Content - Approved":    { bg: "#F1FBF7", text: "#0E6A52", border: "#C7E7DA" },
+  "Output - Ready":        { bg: "#F2F6FF", text: "#1E338F", border: "#CFD9F7" },
+  "Ready to Publish":      { bg: "#F1FBF5", text: "#146F36", border: "#CBE9D9" },
+  "Published/Scheduled":   { bg: "#F5F4FE", text: "#372F80", border: "#DAD7FB" },
 };
 function calStatusStyle(s: string): { bg: string; text: string; border: string } {
   return CAL_STATUS_COLORS[s] || { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
@@ -1031,7 +1033,7 @@ const MHCAL_CSS = `
 .mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4;background:#F7F8FC}
 .mhcal-dow span{padding:.55rem .6rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A92A6;border-right:1px solid #EEF0F4}
 .mhcal-dow span:last-child{border-right:none}
-.mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(122px,1fr)}
+.mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(134px,1fr)}
 .mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.35rem;position:relative;min-width:0;transition:background .15s}
 .mhcal-cell:nth-child(7n){border-right:none}
 .mhcal-cell.out{background:#F7F8FC}
@@ -1043,12 +1045,12 @@ const MHCAL_CSS = `
 .mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
 /* Event bar — soft-tinted fill + matching border + DARK readable text (matches the
    reference exactly). SBU shows as a small left dot; brand lives in the filter chips. */
-.mhcal-ev{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:5px;padding:3px 7px;overflow:hidden;transition:filter .1s;cursor:grab}
+.mhcal-ev{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:6px;padding:4px 8px;overflow:hidden;transition:filter .1s;cursor:grab}
 .mhcal-ev:hover{filter:brightness(.97)}
 .mhcal-ev:active{cursor:grabbing}
 .mhcal-ev.block .mhcal-evtitle{white-space:normal}
-.mhcal-evdot{width:7px;height:7px;border-radius:2px;flex:0 0 7px}
-.mhcal-evtitle{font-size:.72rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.004em}
+.mhcal-evdot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
+.mhcal-evtitle{font-size:.82rem;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.006em}
 .mhcal-more{border:none;background:none;font-size:.64rem;color:#8A92A6;text-align:left;padding:1px 5px;font-weight:600}
 .mhcal-more:hover{color:#3A57E8}
 /* week */
@@ -1078,7 +1080,7 @@ const MHCAL_CSS = `
 .mhcal-arow{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:none;padding:.3rem .1rem;border-radius:8px}
 .mhcal-arow:hover{background:#F7F8FC}
 .mhcal-abar{width:4px;height:26px;border-radius:2px;flex:0 0 4px}
-.mhcal-atitle{font-size:.82rem;font-weight:600;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mhcal-atitle{font-size:.86rem;font-weight:700;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mhcal-apill{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px;flex:0 0 auto}
 .mhcal-aowner{font-size:.68rem;color:#8A92A6;flex:0 0 auto}
 @media(max-width:640px){.mhcal-apill,.mhcal-aowner{display:none}}
