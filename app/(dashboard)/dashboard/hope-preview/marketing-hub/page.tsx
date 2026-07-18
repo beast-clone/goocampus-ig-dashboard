@@ -2497,7 +2497,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: Creative[]; index: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Inline editing for the Content brief + Caption. Saving writes to mh_posts,
   // which the activity trigger records (content_edited / caption_edited).
@@ -2726,7 +2726,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     {creatives.map((c, i) => {
                       const kind = creativeKind(c.name, c.type);
                       return (
-                        <div key={c.id || i} role="button" tabIndex={0} onClick={() => setLightboxIndex(i)} onKeyDown={(e) => { if (e.key === "Enter") setLightboxIndex(i); }}
+                        <div key={c.id || i} role="button" tabIndex={0} onClick={() => setLightbox({ items: creatives, index: i })} onKeyDown={(e) => { if (e.key === "Enter") setLightbox({ items: creatives, index: i }); }}
                           className="group relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100 cursor-pointer">
                           {kind === "image" ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -2760,20 +2760,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 )}
               </Panel>
 
-              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
-                {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <div className="text-[15px] leading-relaxed prose prose-sm max-w-none text-gray-800 [&_*]:text-[15px] [&_*]:leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />
-                  : loadingDetail ? <div className="text-[15px] text-gray-400">Loading content…</div>
-                  : <div className="text-[15px] text-gray-400 italic">No content written yet.</div>}
-              </Panel>
-
-              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
-                {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-gray-800">{caption}</div>
-                  : <div className="text-[15px] text-gray-400 italic">No caption yet.</div>}
-              </Panel>
-
-              {/* References — mood-board: upload reference images and/or paste links */}
+              {/* References — mood-board (above Content): reference images and/or links */}
               <Panel icon={IconBookmark} title="References">
                 <input ref={refFileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "reference"); e.currentTarget.value = ""; }} />
@@ -2785,7 +2772,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                         <div key={c.id || i} className="group relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100">
                           {kind === "image" ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
+                            <img src={c.url} alt={c.name} onClick={() => setLightbox({ items: refImages, index: i })} className="w-full h-full object-cover cursor-pointer" />
                           ) : (
                             <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[9px] uppercase">{kind === "pdf" ? "PDF" : "file"}</span></a>
                           )}
@@ -2822,6 +2809,19 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
               </Panel>
 
+              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
+                {editSection === "content" ? editBox(14, "Write the content brief…")
+                  : content ? <div className="text-[15px] leading-relaxed prose prose-sm max-w-none text-gray-800 [&_*]:text-[15px] [&_*]:leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />
+                  : loadingDetail ? <div className="text-[15px] text-gray-400">Loading content…</div>
+                  : <div className="text-[15px] text-gray-400 italic">No content written yet.</div>}
+              </Panel>
+
+              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
+                {editSection === "caption" ? editBox(5, "Write the post caption…")
+                  : caption ? <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-gray-800">{caption}</div>
+                  : <div className="text-[15px] text-gray-400 italic">No caption yet.</div>}
+              </Panel>
+
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
                   <div className="text-[15px] prose prose-sm max-w-none [&_*]:text-[15px]" dangerouslySetInnerHTML={{ __html: notes }} />
@@ -2847,32 +2847,27 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 {detailRow("Due date", fmtDate(row.dueDate))}
                 {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
                 {detailRow("Publishing", fmtDate(row.publishingDate))}
+              </Panel>
 
-                {collaborators && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconUsers size={13} />Collaborators</div>
-                    <div className="space-y-2">
-                      {collaborators.map((c) => (
-                        <div key={c.key} className="flex items-center gap-2 text-[14px]">
-                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
-                          <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
-                        </div>
-                      ))}
-                    </div>
+              {collaborators && (
+                <Panel icon={IconUsers} title="Collaborators">
+                  <div className="space-y-2">
+                    {collaborators.map((c) => (
+                      <div key={c.key} className="flex items-center gap-2 text-[14px]">
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
+                        <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </Panel>
+              )}
 
-                {/* Published-post links — editable, one row per channel (with its logo).
-                    Paste the live URL once published; a weekly job can later find these
-                    + compress the creative images. */}
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-1 flex items-center gap-1.5"><IconExternalLink size={13} />Published links</div>
-                  <div>
-                    {urlRow("instagram_url", "Instagram", igUrl, IconBrandInstagram)}
-                    {urlRow("facebook_url", "Facebook", fbUrl, IconBrandFacebook)}
-                    {urlRow("linkedin_url", "LinkedIn", liUrl, IconBrandLinkedin)}
-                  </div>
-                </div>
+              {/* Published-post links — its own section. Paste the live URL once published;
+                  a weekly job can later find these + compress the creative images. */}
+              <Panel icon={IconExternalLink} title="Published links">
+                {urlRow("instagram_url", "Instagram", igUrl, IconBrandInstagram)}
+                {urlRow("facebook_url", "Facebook", fbUrl, IconBrandFacebook)}
+                {urlRow("linkedin_url", "LinkedIn", liUrl, IconBrandLinkedin)}
               </Panel>
 
               {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
@@ -2970,8 +2965,8 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
         </div>
       </div>
     </div>
-    {lightboxIndex !== null && creatives[lightboxIndex] && (
-      <CreativeViewer creatives={creatives} index={lightboxIndex} setIndex={setLightboxIndex} onClose={() => setLightboxIndex(null)} />
+    {lightbox && lightbox.items[lightbox.index] && (
+      <CreativeViewer creatives={lightbox.items} index={lightbox.index} setIndex={(n) => setLightbox((l) => l ? { items: l.items, index: n } : null)} onClose={() => setLightbox(null)} />
     )}
     </>
   );
