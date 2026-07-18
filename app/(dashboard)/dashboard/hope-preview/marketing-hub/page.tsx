@@ -1050,7 +1050,7 @@ const MHCAL_CSS = `
 .mhcal-ev:active{cursor:grabbing}
 .mhcal-ev.block .mhcal-evtitle{white-space:normal}
 .mhcal-evdot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
-.mhcal-evtitle{font-size:.82rem;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.006em}
+.mhcal-evtitle{font-size:.82rem;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.006em}
 .mhcal-more{border:none;background:none;font-size:.64rem;color:#8A92A6;text-align:left;padding:1px 5px;font-weight:600}
 .mhcal-more:hover{color:#3A57E8}
 /* week */
@@ -1080,7 +1080,7 @@ const MHCAL_CSS = `
 .mhcal-arow{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:none;padding:.3rem .1rem;border-radius:8px}
 .mhcal-arow:hover{background:#F7F8FC}
 .mhcal-abar{width:4px;height:26px;border-radius:2px;flex:0 0 4px}
-.mhcal-atitle{font-size:.86rem;font-weight:700;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mhcal-atitle{font-size:.86rem;font-weight:500;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mhcal-apill{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px;flex:0 0 auto}
 .mhcal-aowner{font-size:.68rem;color:#8A92A6;flex:0 0 auto}
 @media(max-width:640px){.mhcal-apill,.mhcal-aowner{display:none}}
