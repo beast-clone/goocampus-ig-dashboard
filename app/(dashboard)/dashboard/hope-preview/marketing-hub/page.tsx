@@ -2422,13 +2422,23 @@ function Panel({ icon: Ic, title, right, accent, children }: {
 }
 
 // ---------- Activity feed (Airtable-style: who · what changed · when) ----------
+// Fixed per-person avatar colours (like Airtable's coloured initials).
+const PERSON_AV: Record<string, [string, string]> = {
+  manya: ["#FCEEE0", "#B45309"], praveen: ["#FDEBE3", "#C2410C"],
+  nikhil: ["#E4ECFF", "#2138B0"], nandu: ["#E7EEFE", "#1E3FA8"], maheen: ["#EEEDFE", "#3C3489"],
+};
 const FEED_AV = ["#EEEDFE:#3C3489", "#E1F5EE:#0F6E56", "#E4ECFF:#2138B0", "#FDECEC:#B4232D", "#FDF2E2:#9A6212", "#E9F6FE:#0E5E86"];
-function feedAvatar(key: string | null, name: string): { bg: string; fg: string; initials: string } {
-  const s = (key || name || "?").toLowerCase();
-  let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+// system = an un-attributed / imported change (Airtable shows these as "Automations").
+function feedAvatar(key: string | null, name: string): { bg: string; fg: string; initials: string; system: boolean } {
+  const k = (key || "").toLowerCase();
+  const nameOk = !!name && name !== "—" && name !== "?";
+  if (!k && !nameOk) return { bg: "#EEF0F4", fg: "#8A92A6", initials: "", system: true };
+  const initials = (name || k).trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+  const pc = PERSON_AV[k];
+  if (pc) return { bg: pc[0], fg: pc[1], initials, system: false };
+  const s = (k || name).toLowerCase(); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   const [bg, fg] = FEED_AV[h % FEED_AV.length].split(":");
-  const initials = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
-  return { bg, fg, initials };
+  return { bg, fg, initials, system: false };
 }
 function relTime(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -2530,6 +2540,15 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const sp = statusPill(row.status);
   const pp = priorityPill(row.priority);
   const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
+  // "Acting as" — who is doing the edits/comments on this shared screen. Defaults to
+  // the logged-in user (or the owner), and stamps every edit + comment so the feed
+  // reads "Manya edited…" instead of always the one login.
+  const authorKeyDefault = [detail?.me || "", uploaderKey, "maheen"].find((k) => COMMENT_KEYS.has(k)) || "maheen";
+  const [authorOverride, setAuthorOverride] = useState<string | null>(null);
+  const [authorOpen, setAuthorOpen] = useState(false);
+  const activeAuthor = authorOverride || authorKeyDefault;
+  const AUTHORS = [{ key: "manya", label: "Manya" }, { key: "praveen", label: "Praveen" }, { key: "nikhil", label: "Nikhil" }, { key: "nandu", label: "Nandu" }, { key: "maheen", label: "Maheen" }];
+  const authorLabel = (k: string) => AUTHORS.find((a) => a.key === k)?.label || k;
 
   // Creatives = uploaded (deletable) + any Airtable-hosted images already on the row.
   const creatives = [
@@ -2561,7 +2580,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     try {
       const res = await fetch("/api/marketing-hub/update", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id, fields: { [editSection]: draft } }),
+        body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [editSection]: draft } }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not save."); return; }
       setEditSection(null);
@@ -2583,8 +2602,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     </div>
   );
 
-  // Post a comment as the current user (falls back to the task owner, then maheen).
-  const authorKey = [detail?.me || "", uploaderKey, "maheen"].find((k) => COMMENT_KEYS.has(k)) || "maheen";
+  // Post a comment as the selected author (the "acting as" picker).
   const [commentText, setCommentText] = useState("");
   const [posting, setPosting] = useState(false);
   const postComment = async () => {
@@ -2594,7 +2612,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     try {
       const res = await fetch("/api/marketing-hub/comments", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId: row.id, authorKey, body: text }),
+        body: JSON.stringify({ postId: row.id, authorKey: activeAuthor, body: text }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not post comment."); return; }
       setCommentText("");
@@ -2766,19 +2784,19 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 </div>
               }>
                 {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
-                  : feed.length === 0 ? <div className="text-sm text-gray-400 italic">No activity yet.</div>
+                  : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
                   : (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {feed.slice(0, feedLimit).map((it) => {
                         const av = feedAvatar(it.key, it.name);
                         const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
                         const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
                         return (
                           <div key={it.id} className="flex gap-2.5">
-                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5" style={{ background: av.bg, color: av.fg }}>{av.initials}</span>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : it.name}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
                             <div className="min-w-0 flex-1">
                               <div className="text-[12.5px] text-gray-700">
-                                <span className="font-medium text-[#232D42]">{it.name}</span>{" "}
+                                <span className="font-medium text-[#232D42]">{av.system ? "System" : it.name}</span>{" "}
                                 {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
                                 <span className="text-gray-400"> · {relTime(it.at)}</span>
                                 {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
@@ -2813,19 +2831,46 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     </div>
                   )}
 
-                {/* Composer */}
-                <div className="mt-3 pt-3 border-t border-gray-100 flex items-start gap-2.5">
-                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{authorKey.slice(0, 1).toUpperCase()}</span>
-                  <div className="flex-1 min-w-0">
-                    <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={2}
-                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
-                      placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none outline-none focus:border-brand" />
-                    <div className="flex justify-end mt-1.5">
-                      <button onClick={postComment} disabled={posting || !commentText.trim()}
-                        className="bg-brand text-white text-[12px] font-medium rounded-lg px-3.5 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
-                        {posting ? "Posting…" : "Comment"}
+                {/* Composer + "acting as" picker — stamps who is editing / commenting,
+                    so the feed reads by real name on a shared screen. Extra spacing so
+                    the activity section breathes instead of feeling compressed. */}
+                <div className="mt-5 pt-4 border-t border-gray-100 space-y-3">
+                  <div className="flex items-center gap-2 text-[11.5px] text-gray-500">
+                    <span>Acting as</span>
+                    <div className="relative">
+                      <button onClick={() => setAuthorOpen((v) => !v)} className="inline-flex items-center gap-1.5 border border-gray-200 rounded-full pl-1 pr-2 py-0.5 hover:bg-gray-50">
+                        {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
+                        <span className="font-medium text-[#232D42]">{authorLabel(activeAuthor)}</span>
+                        <IconChevronDown size={12} />
                       </button>
+                      {authorOpen && (
+                        <div className="absolute left-0 bottom-full mb-1 w-44 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1">
+                          {AUTHORS.map((m) => {
+                            const a = feedAvatar(m.key, m.label);
+                            return (
+                              <button key={m.key} onClick={() => { setAuthorOverride(m.key); setAuthorOpen(false); }} className={`w-full text-left px-2.5 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-[12.5px] ${m.key === activeAuthor ? "text-brand font-medium" : "text-gray-700"}`}>
+                                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>
+                                {m.label}{m.key === activeAuthor && <IconCheck size={13} className="ml-auto" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
+                    <div className="flex-1 min-w-0">
+                      <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={3}
+                        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
+                        placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[13px] resize-none outline-none focus:border-brand" />
+                      <div className="flex justify-end mt-2">
+                        <button onClick={postComment} disabled={posting || !commentText.trim()}
+                          className="bg-brand text-white text-[12px] font-medium rounded-lg px-4 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
+                          {posting ? "Posting…" : "Comment"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
