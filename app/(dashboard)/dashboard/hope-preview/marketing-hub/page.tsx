@@ -165,8 +165,6 @@ export default function MarketingHubPage() {
 function Inner({ range, setRange }: { range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
   // Deep-link: /dashboard/marketing-hub?open=<mh_posts.id> opens that task.
   const openParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("open") || "" : "";
-  const qs = new URLSearchParams({ from: range.from, to: range.to, ...(openParam ? { open: openParam } : {}) }).toString();
-  const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
 
   // Sub-tab is driven by ?tab= so the sidebar folder (Master sheet · Team ·
   // Pipeline · Content calendar · Next 7 days) deep-links reactively — Next's
@@ -176,6 +174,18 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   const TABS = ["team", "master", "pipeline", "calendar"];
   const tabParam = searchParams.get("tab") || "team";
   const tab = TABS.includes(tabParam) ? tabParam : "master";
+
+  // The Content Calendar is forward-looking: it must show UPCOMING scheduled
+  // content, not the retrospective "last N days" window (to = today) that the
+  // Master/Workload/Pipeline tabs share. Without this the whole future half of
+  // the visible month renders empty even though posts are scheduled there.
+  // Fetch a wide past+future window instead (mh_posts is small, so this is cheap).
+  // ponytail: fixed ±window; months outside it render empty (see byDay note ~L1070).
+  const fetchRange = tab === "calendar"
+    ? { from: ymd(new Date(Date.now() - 180 * 86_400_000)), to: ymd(new Date(Date.now() + 365 * 86_400_000)) }
+    : range;
+  const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to, ...(openParam ? { open: openParam } : {}) }).toString();
+  const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
 
   const [filters, setFilters] = useState<{ sbu: string; type: string; status: string; owner: string; priority: string }>({
     sbu: "", type: "", status: "", owner: "", priority: "",

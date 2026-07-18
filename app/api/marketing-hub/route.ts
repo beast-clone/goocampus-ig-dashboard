@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { mhCacheGet, mhCacheSet } from "@/lib/mh-cache";
 
 // GET /api/marketing-hub?from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -61,8 +62,9 @@ type Payload = {
   openId?: string | null;
 };
 
-const CACHE = new Map<string, { at: number; payload: Payload }>();
 const TTL_MS = 12 * 60 * 60 * 1000;
+// Read cache + its bust helper live in @/lib/mh-cache so the write routes can
+// clear it (a route.ts may only export route handlers).
 
 function uniqSorted(arr: string[]): string[] {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -166,7 +168,7 @@ export async function GET(req: Request) {
     const cacheKey = `${from}|${to}`;
     const now = Date.now();
     let payload: Payload;
-    const cached = CACHE.get(cacheKey);
+    const cached = mhCacheGet<Payload>(cacheKey);
     if (!force && cached && now - cached.at < TTL_MS) {
       payload = { ...cached.payload, cached: true, cachedAt: new Date(cached.at).toISOString() };
     } else {
@@ -209,7 +211,7 @@ export async function GET(req: Request) {
         latencyMs: Date.now() - t0,
         cached: false,
       };
-      CACHE.set(cacheKey, { at: now, payload });
+      mhCacheSet(cacheKey, { at: now, payload });
     }
 
     // Deep-link: ensure the requested task is present + tell the page to open it.

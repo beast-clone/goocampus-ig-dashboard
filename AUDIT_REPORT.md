@@ -11,7 +11,7 @@ Raw working notes live in `AUDIT_LOG.md`; this file is the clean, shared status.
 | Tab | Status | Issues found | Fixed | Notes |
 |---|---|---|---|---|
 | **Overview** (`/`) | ✅ **PASS** | 3 | 3 | done 2026-07-18 |
-| **Marketing Hub** (Workload · Master · Pipeline · Calendar) | ✅ **PASS** | 3 | 3 | done 2026-07-18; 1 data-hygiene flag for you |
+| **Marketing Hub** (Workload · Master · Pipeline · Calendar) | ✅ **PASS** | 5 | 5 | done 2026-07-18; 1 data-hygiene flag for you |
 | My Day | ⬜ not started | – | – | |
 | Content Radar | ⬜ not started | – | – | |
 | Publishing Calendar | ⬜ not started | – | – | |
@@ -121,6 +121,8 @@ Derivation in one line: **can it load → is its data real → do its controls w
 1. **Pipeline data bug — phantom status orphaned 12 tasks** (commit `3e8aa3a`). Code referenced `"Content - In Progress"`, which doesn't exist in Supabase; the real status is `"Content - Approved"`. Result: 12 approved tasks were invisible and the pipeline showed **172 vs the real 184**. Fixed 5 code sites to the real status + deleted 2 dead colour/pill entries. **Now reconciles to 184, APPROVED = 12.** Root-caused against the live Supabase status distribution.
 2. **Redundant meta count on the calendar** — the entry count was shown twice (hero stat + a meta line). Removed the duplicate (your "flag repetitive" rule).
 3. **Content Calendar was off-brand** ("looked like another team's tool"). Rebuilt to Hope UI: a proper `‹ › Today` toolbar, centred month title, defaults to the current month, brand chips retained. Matches the Hope-UI calendar reference.
+4. **🔴 Calendar hid ALL upcoming content** (found via the live drag demo). The calendar shared the other tabs' *retrospective* fetch window (`to = today`), so **25 posts scheduled July 19–31 were completely invisible** — the whole future half of the month read empty even though content was booked there. Fixed: the calendar now fetches a wide past+future window (−180d…+365d) instead of the "last N days." Live count went **184 → 270** (the previously-hidden upcoming + undated tasks now show). `page.tsx` `fetchRange`.
+5. **🟠 Edits snapped back** (also found via the drag demo). The read endpoint cached responses for 12h and writes didn't clear it, so a dragged/edited card reverted on the next refresh until the TTL expired. Fixed: the write routes (`update` / `create` / `takeover`) now bust the read cache via `lib/mh-cache.ts`. **Verified live:** dragged a card July 11→19 (it moved + persisted, no snap-back), dragged it back 19→11 (restored). Supabase confirmed both writes.
 
 ### Data-hygiene flag — YOURS to action (not a code fix)
 
@@ -128,5 +130,6 @@ Derivation in one line: **can it load → is its data real → do its controls w
 
 ### Observations (noted, NOT changed)
 
-- **Drag-to-reschedule** (calendar) and **inline field edits** (status, comments, attach) use the same `saveField → /api/marketing-hub/update` write path proven live above via the View CRUD, and were verified end-to-end in the prior session. I did **not** re-mutate real publishing dates this pass to avoid churning production data — say the word and I'll do a live drag demo (drag one card, show the date persist, drag it back).
-- **"184 TASKS IN VIEW"** on the calendar hero counts all loaded rows, not the visible month — on an empty month (e.g. August) it still reads 184. Minor label wording; not a data bug.
+- **Drag-to-reschedule verified LIVE both ways** — dragged a card 11→19 and back, each move persisted to Supabase with no snap-back (after fixes 4 & 5). Inline field edits share the same `saveField → /api/marketing-hub/update` path, now cache-busted too.
+- **"270 TASKS IN VIEW"** on the calendar hero counts all loaded rows in the wide window, not the visible month — an empty month (e.g. deep future) still shows the total. Minor label wording; not a data bug.
+- **Cache-bust scope:** wired into `update` / `create` / `takeover`. The lighter write routes (`comments`, `notes`, `attach`, `collaborators`, `set-custom`) don't change the calendar/pipeline core payload, so they're not busted — add them if their edits ever need to reflect instantly.

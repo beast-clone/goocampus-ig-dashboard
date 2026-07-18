@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { bustMarketingHubCache } from "@/lib/mh-cache";
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey }
 // Swaps ownership: the incoming person becomes the owner, the old owner is dropped from collabs
@@ -47,6 +48,8 @@ export async function POST(req: Request) {
       action: "claim",
       detail: `claimed the task from ${oldOwner || "unassigned"}`,
     });
+
+    bustMarketingHubCache(); // owner change must reflect on the next hub fetch
 
     return NextResponse.json({ ok: true, newOwnerKey: body.newOwnerKey });
   } catch (err) {

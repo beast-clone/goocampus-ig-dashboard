@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { bustMarketingHubCache } from "@/lib/mh-cache";
 
 // POST /api/marketing-hub/create
 // Creates ONE row in mh_posts (Supabase).
@@ -79,6 +80,8 @@ export async function POST(req: Request) {
       to_value: "Content - Pending",
       detail: { source: "dashboard-form" },
     });
+
+    bustMarketingHubCache(); // new row must appear on the next hub fetch
 
     return NextResponse.json({
       id: data.id,

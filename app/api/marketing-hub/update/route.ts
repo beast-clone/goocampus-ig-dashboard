@@ -3,6 +3,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
+import { bustMarketingHubCache } from "@/lib/mh-cache";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -83,6 +84,10 @@ export async function PATCH(req: Request) {
 
     if (error) throw new Error(error.message);
     if (!data) return NextResponse.json({ error: "row not found" }, { status: 404 });
+
+    // Clear the marketing-hub read cache so this edit reflects on the next fetch
+    // (drag-reschedule / inline edits would otherwise snap back until the 12h TTL).
+    bustMarketingHubCache();
 
     // Auto-handoff when status becomes "Content - Approved":
     //   • Design/static work (post, carousel, thumbnail, static Meta Ads, story-image…)
