@@ -28,6 +28,8 @@ type Row = {
   completionTime: string;
   createdDate: string;
   lastModified: string;
+  startAt: string;
+  endAt: string;
   needsReview: boolean;
   syncedToScheduler: boolean;
   caption: string;
@@ -89,6 +91,8 @@ type PostRow = {
   completion_time: string | null;
   created_at: string;
   updated_at: string;
+  start_at: string | null;
+  end_at: string | null;
   needs_review: boolean;
   synced_to_scheduler: boolean;
   caption: string | null;
@@ -123,6 +127,8 @@ function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
     completionTime: p.completion_time || "",
     createdDate: p.created_at,
     lastModified: p.updated_at,
+    startAt: p.start_at || "",
+    endAt: p.end_at || "",
     needsReview: p.needs_review,
     syncedToScheduler: p.synced_to_scheduler,
     caption: p.caption || "",

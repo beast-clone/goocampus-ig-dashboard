@@ -25,6 +25,8 @@ type Row = {
   completionTime: string;
   createdDate: string;
   lastModified: string;
+  startAt: string;
+  endAt: string;
   needsReview: boolean;
   syncedToScheduler: boolean;
   caption: string;
@@ -996,7 +998,7 @@ const MHCAL_CSS = `
 .mhcal-hero::before{content:"";position:absolute;right:120px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)}
 .mhcal-hero-txt{position:relative;z-index:1;max-width:640px}
 .mhcal-hero-tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:rgba(255,255,255,.22);padding:.22rem .6rem;border-radius:20px;margin-bottom:.5rem}
-.mhcal-hero-txt h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-.018em;line-height:1.15}
+.mhcal-hero-txt h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-.018em;line-height:1.15;color:#fff}
 .mhcal-hero-txt p{margin:.32rem 0 0;font-size:.88rem;color:rgba(255,255,255,.95);line-height:1.45}
 .mhcal-hero-stat{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:.7rem 1rem;border-radius:12px;backdrop-filter:blur(2px);min-width:125px}
 .mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
@@ -2350,6 +2352,17 @@ type TaskDetail = {
 };
 const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+// How long a task took (start → end), e.g. "2h 15m" or "3d 4h".
+function durationBetween(start?: string | null, end?: string | null): string {
+  if (!start || !end) return "";
+  let ms = new Date(end).getTime() - new Date(start).getTime();
+  if (isNaN(ms) || ms < 0) return "";
+  const d = Math.floor(ms / 86_400_000); ms -= d * 86_400_000;
+  const h = Math.floor(ms / 3_600_000); ms -= h * 3_600_000;
+  const m = Math.floor(ms / 60_000);
+  const parts = [d && `${d}d`, h && `${h}h`, (!d && m) && `${m}m`].filter(Boolean);
+  return parts.join(" ") || "0m";
+}
 const isImageCreative = (name: string, type: string) => type.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif)$/i.test(name);
 type CreativeKind = "image" | "video" | "pdf" | "file";
 const creativeKind = (name: string, type: string): CreativeKind => {
@@ -2847,6 +2860,11 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 {detailRow("Due date", fmtDate(row.dueDate))}
                 {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
                 {detailRow("Publishing", fmtDate(row.publishingDate))}
+                {detailRow("Start", row.startAt ? fmtWhen(row.startAt) : null)}
+                {detailRow("End", row.endAt ? fmtWhen(row.endAt) : null)}
+                {row.startAt && row.endAt && detailRow("Time taken", durationBetween(row.startAt, row.endAt))}
+                {detailRow("Created", row.createdDate ? fmtWhen(row.createdDate) : null)}
+                {detailRow("Last modified", row.lastModified ? fmtWhen(row.lastModified) : null)}
               </Panel>
 
               {collaborators && (
