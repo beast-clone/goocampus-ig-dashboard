@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { writeBackLink } from "@/lib/mh-linkback";
 
 // POST /api/scheduler/publish  — app-direct Instagram publish (image).
 // Body: { accountId, imageUrl, caption }  OR  { postId }  (pulls media/caption/
@@ -68,13 +69,12 @@ export async function POST(req: Request) {
       permalink = perm.permalink || null;
     } catch { /* permalink is best-effort */ }
 
-    // 4) mark the row published
+    // 4) mark the row published + write the permalink back onto Published Links.
+    // writeBackLink also logs the link to the activity feed + busts the read
+    // cache, so the URL shows up on the post everywhere immediately.
     if (postId && sb) {
-      await sb.from("mh_posts").update({
-        publish_status: "published",
-        instagram_url: permalink,
-        published_at: new Date().toISOString(),
-      }).eq("id", postId);
+      await sb.from("mh_posts").update({ publish_status: "published" }).eq("id", postId);
+      if (permalink) await writeBackLink({ postId, platform: "instagram", url: permalink });
     }
 
     return NextResponse.json({ ok: true, account: acc.handle, mediaId, permalink });

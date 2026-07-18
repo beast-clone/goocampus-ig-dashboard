@@ -653,7 +653,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
   const stageRows = rows.filter((r) => r.status === selected);
 
   if (loading && rows.length === 0) {
-    return <div className="bg-white border border-gray-100 rounded-lg p-10 text-center text-gray-400">Loading pipeline…</div>;
+    return <div className="bg-white border border-gray-100 rounded-xl p-10 text-center text-[#8A92A6]">Loading pipeline…</div>;
   }
 
   return (
@@ -668,14 +668,8 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       </div>
 
       {/* Stage cards — one card per pipeline stage; click to drill in. */}
-      <div className="bg-white border border-gray-100 rounded-lg p-5">
-        <div className="flex items-baseline justify-between mb-4">
-          <div>
-            <div className="text-lg font-medium">Content pipeline</div>
-            <div className="text-sm text-gray-500">Where everything sits right now — click a stage to see its tasks.</div>
-          </div>
-          <div className="text-sm text-gray-400">{fmtInt(total)} total</div>
-        </div>
+      <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
+        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Where everything sits right now — click a stage to see its tasks.</div>
         <div className="grid grid-cols-5 gap-3">
           {pipeline.map((s) => {
             const isSel = s.key === selected;
@@ -696,12 +690,11 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
             );
           })}
         </div>
-      </div>
+      </Panel>
 
       {/* Bottleneck insight — where in-production work is sitting untouched */}
-      <div className="bg-white border border-gray-100 rounded-lg p-5">
-        <div className="text-lg font-medium mb-1">Where it&apos;s stuck</div>
-        <div className="text-sm text-gray-500 mb-4">How long in-production work has sat untouched — chase the oldest first.</div>
+      <Panel icon={IconHistory} title="Where it's stuck">
+        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">How long in-production work has sat untouched — chase the oldest first.</div>
         <div className="grid grid-cols-3 gap-3 mb-5">
           {attention.perStage.map((s) => (
             <div key={s.key} className="rounded-lg border border-gray-100 p-3">
@@ -732,15 +725,15 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
             ))}
           </div>
         )}
-      </div>
+      </Panel>
 
       {/* Drill-down table — tasks at the selected stage, all SBUs */}
-      <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-brand-light/40">
           <div className="flex items-center gap-2.5">
             <span className="w-3 h-3 rounded-sm" style={{ background: stage.color }} />
-            <span className="text-base font-medium">{stage.label}</span>
-            <span className="text-sm text-gray-400">· {fmtInt(stageRows.length)} tasks · all SBUs</span>
+            <span className="text-[14px] font-medium text-[#232D42]">{stage.label}</span>
+            <span className="text-sm text-[#8A92A6]">· {fmtInt(stageRows.length)} tasks · all SBUs</span>
           </div>
         </div>
         <div className="max-h-[520px] overflow-auto">
@@ -784,9 +777,9 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
 
 function BigStat({ label, value, accent, alarm }: { label: string; value: number; accent: string; alarm?: boolean }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-lg p-5">
-      <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      <div className="text-3xl font-medium mt-2" style={alarm && value > 0 ? { color: accent } : { color: "#111" }}>
+    <div className="bg-white border border-gray-100 rounded-xl p-5">
+      <div className="text-xs uppercase tracking-wide text-[#8A92A6]">{label}</div>
+      <div className="text-3xl font-medium mt-2" style={alarm && value > 0 ? { color: accent } : { color: "#232D42" }}>
         {fmtInt(value)}
       </div>
       <div className="h-1 rounded mt-3" style={{ background: accent + (value > 0 ? "" : "44") }} />
