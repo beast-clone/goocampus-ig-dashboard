@@ -485,36 +485,36 @@ function PersonTimelineRow({ card }: {
         <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.av}</span>
         <div className="min-w-0">
           <div className="text-[15px] font-semibold text-gray-900 leading-tight">{member.label}</div>
-          <div className="text-[11px] text-gray-500">{member.displayRole} · <span className="font-medium text-gray-700">{roleHighlight}</span> {ROLE_HIGHLIGHT[member.role].toLowerCase()}</div>
+          <div className="text-[13px] text-gray-500">{member.displayRole} · <span className="font-medium text-gray-700">{roleHighlight}</span> {ROLE_HIGHLIGHT[member.role].toLowerCase()}</div>
         </div>
         <span className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full ${badge.cls}`}>{badge.text}</span>
       </div>
 
       {/* Timeline bar — matches My Day "Today's plan": tall 116px track, gradient
           blocks with a name + "Type · duration" meta line, hatched lunch/free. */}
-      <div className="flex font-mono text-[10px] text-gray-400 mb-1.5 select-none px-px">
+      <div className="flex font-mono text-[11px] text-gray-400 mb-1.5 select-none px-px">
         {HOUR_TICKS.map((h, i) => <div key={i} className="flex-1 text-left">{h}</div>)}
       </div>
       <div className="relative flex h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
         {blocks.map((b, i) => {
           if (b.kind === "lunch") return (
             <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-500 border-r border-white/50 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_6px,#DFE3EE_6px,#DFE3EE_12px)]">
-              <span className="text-[13px] font-semibold leading-tight truncate">Lunch</span>
-              <span className="text-[10px] opacity-90 mt-0.5 truncate">1h · protected</span>
+              <span className="text-[14px] font-semibold leading-tight truncate">Lunch</span>
+              <span className="text-[11px] opacity-90 mt-0.5 truncate">1h · protected</span>
             </div>
           );
           if (b.kind === "free") return (
             <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_6px,#E9ECF2_6px,#E9ECF2_12px)]">
-              <span className="text-[13px] font-semibold leading-tight truncate">Free</span>
-              <span className="text-[10px] opacity-90 mt-0.5 truncate">{fmtDur(b.dur)} open</span>
+              <span className="text-[14px] font-semibold leading-tight truncate">Free</span>
+              <span className="text-[11px] opacity-90 mt-0.5 truncate">{fmtDur(b.dur)} open</span>
             </div>
           );
           const isNow = b === currentBlk;
           return (
             <div key={i} style={{ flexGrow: b.dur, backgroundImage: blockGradient(b.row?.type || "") }}
               className={`min-w-0 flex flex-col justify-center px-3 text-white border-r border-white/20 ${isNow ? "ring-2 ring-inset ring-white/70" : ""}`} title={b.label}>
-              <span className="text-[13px] font-semibold leading-tight truncate">{b.label}</span>
-              <span className="text-[10px] opacity-85 mt-0.5 truncate">{b.row?.type || "Task"} · {fmtDur(b.dur)}{isNow ? " · now" : ""}</span>
+              <span className="text-[14px] font-semibold leading-tight truncate">{b.label}</span>
+              <span className="text-[11px] opacity-85 mt-0.5 truncate">{b.row?.type || "Task"} · {fmtDur(b.dur)}{isNow ? " · now" : ""}</span>
             </div>
           );
         })}
@@ -526,7 +526,7 @@ function PersonTimelineRow({ card }: {
       </div>
 
       {/* Currently on / next */}
-      <div className="mt-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">
+      <div className="mt-2 text-[13px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">
         {focus
           ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle mr-1.5" />{currentBlk ? "Now" : "Next up"}: <b className="text-gray-900">{focus.label}</b></>
           : <span className="text-gray-400">Nothing pending — all clear.</span>}
@@ -535,12 +535,12 @@ function PersonTimelineRow({ card }: {
       {/* Task list — always visible: name · primary interest · time */}
       {taskBlocks.length > 0 && (
         <div className="mt-3 border-t border-gray-100 pt-3">
-          <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">
+          <div className="text-[12px] uppercase tracking-wide text-gray-400 font-semibold mb-2">
             Today&apos;s tasks{overflow > 0 && <span className="normal-case tracking-normal text-rose-500"> · {overflow} more queued this week</span>}
           </div>
           <div className="space-y-2">
             {taskBlocks.map((b, i) => (
-              <div key={i} className="flex items-center gap-2.5 text-[12.5px]">
+              <div key={i} className="flex items-center gap-2.5 text-[14px]">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
                 <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
                 <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
@@ -550,7 +550,7 @@ function PersonTimelineRow({ card }: {
           </div>
 
           {/* Capacity / free-time line — can this person take on more today? */}
-          <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 flex items-center gap-2 text-[12.5px]">
+          <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 flex items-center gap-2 text-[14px]">
             {overflow > 0 ? (
               <>
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-rose-500" />
@@ -578,7 +578,7 @@ function PersonTimelineRow({ card }: {
 
       {/* No tasks today — still surface that they're free to take work on */}
       {taskBlocks.length === 0 && (
-        <div className="mt-3 border-t border-gray-100 pt-3 flex items-center gap-2 text-[12.5px]">
+        <div className="mt-3 border-t border-gray-100 pt-3 flex items-center gap-2 text-[14px]">
           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500" />
           <span className="text-emerald-700 font-medium">Fully free today</span>
           <span className="text-gray-500">— available for a full day of work</span>
@@ -1636,7 +1636,7 @@ function ViewMenu({ view, otherViews, onAction }: {
 
   const item = (key: string, Ic: typeof IconPencil, label: string, onClick: () => void, opts: { disabled?: boolean; danger?: boolean } = {}) => (
     <button key={key} disabled={opts.disabled} onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[12.5px] text-left ${opts.disabled ? "text-gray-300 cursor-not-allowed" : opts.danger ? "text-rose-600 hover:bg-rose-50" : "text-gray-700 hover:bg-gray-50"}`}>
+      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[14px] text-left ${opts.disabled ? "text-gray-300 cursor-not-allowed" : opts.danger ? "text-rose-600 hover:bg-rose-50" : "text-gray-700 hover:bg-gray-50"}`}>
       <Ic size={15} stroke={1.7} className="flex-shrink-0" />{label}
     </button>
   );
@@ -1657,7 +1657,7 @@ function ViewMenu({ view, otherViews, onAction }: {
                   className={`w-full flex items-start gap-2.5 px-3 py-1.5 text-left ${!canManage ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}`}>
                   <Ic size={15} stroke={1.7} className="flex-shrink-0 mt-0.5 text-gray-600" />
                   <span className="flex-1 min-w-0">
-                    <span className="flex items-center gap-1.5 text-[12.5px] text-gray-800">{M.label}{cur && <IconCheck size={13} className="text-brand" />}</span>
+                    <span className="flex items-center gap-1.5 text-[14px] text-gray-800">{M.label}{cur && <IconCheck size={13} className="text-brand" />}</span>
                     <span className="block text-[11px] text-gray-400 leading-tight">{M.hint}</span>
                   </span>
                 </button>
@@ -1832,7 +1832,7 @@ function ColumnsMenu({ columns, hidden, onChange, onAddColumn, onDeleteColumn }:
       {columns.map((c) => {
         const show = !hidden.includes(c.key);
         return (
-          <div key={c.key} className="group w-full flex items-center gap-2.5 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50">
+          <div key={c.key} className="group w-full flex items-center gap-2.5 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50">
             <button onClick={() => toggle(c.key)} disabled={c.key === "particulars"} className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:opacity-50">
               <span className={`relative w-8 h-4 rounded-full flex-shrink-0 transition ${show ? "bg-brand" : "bg-gray-200"}`}><span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${show ? "left-[18px]" : "left-0.5"}`} /></span>
               <span className="text-gray-700 flex-1 truncate">{c.label}</span>
@@ -1843,7 +1843,7 @@ function ColumnsMenu({ columns, hidden, onChange, onAddColumn, onDeleteColumn }:
         );
       })}
       <div className="border-t border-gray-100 my-1" />
-      <button onClick={onAddColumn} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left font-medium text-brand"><IconPlus size={14} />Add column</button>
+      <button onClick={onAddColumn} className="w-full flex items-center gap-2 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50 text-left font-medium text-brand"><IconPlus size={14} />Add column</button>
     </div>
   );
 }
@@ -1853,11 +1853,11 @@ function ColorMenu({ colorField, onChange }: { colorField: string; onChange: (f:
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[210px]">
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Colour rows by</div>
-      <button onClick={() => onChange("")} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left text-gray-700">
+      <button onClick={() => onChange("")} className="w-full flex items-center gap-2 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50 text-left text-gray-700">
         <span className="w-3.5 h-3.5 rounded border border-gray-300 flex-shrink-0" />None{colorField === "" && <IconCheck size={13} className="text-brand ml-auto" />}
       </button>
       {COLOR_FIELDS.map((f) => (
-        <button key={f.key} onClick={() => onChange(f.key)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] rounded hover:bg-gray-50 text-left text-gray-700">
+        <button key={f.key} onClick={() => onChange(f.key)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50 text-left text-gray-700">
           <span className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ background: "linear-gradient(90deg,#3A57E8,#0F9E75)" }} />{f.label}{colorField === f.key && <IconCheck size={13} className="text-brand ml-auto" />}
         </button>
       ))}
@@ -2060,7 +2060,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
       {/* Views rail */}
       <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
         <button onClick={() => newView()}
-          className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[12.5px] font-medium hover:brightness-105">
+          className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[14px] font-medium hover:brightness-105">
           <IconPlus size={15} stroke={2} />New view
         </button>
         <Section title="Default" views={[allView]} />
@@ -2889,7 +2889,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     <IconChevronDown size={12} />
                   </button>
                   {feedFilterOpen && (
-                    <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1 text-[12.5px]">
+                    <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1 text-[14px]">
                       {(([["all", "All activity"], ["revisions", "Revision history"], ["comments", "Comments"]]) as [typeof feedFilter, string][]).map(([v, l]) => (
                         <button key={v} onClick={() => { setFeedFilter(v); setFeedFilterOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between ${feedFilter === v ? "text-brand font-medium" : "text-gray-700"}`}>{l}{feedFilter === v && <IconCheck size={13} />}</button>
                       ))}
@@ -2927,7 +2927,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                                 </div>
                               ) : DIFF_FIELDS.has(it.action) ? (
                                 <div className="mt-1">
-                                  {expandedDiffs.has(it.id) && <div className="text-[12.5px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
+                                  {expandedDiffs.has(it.id) && <div className="text-[14px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
                                   <button onClick={() => setExpandedDiffs((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })} className="text-[11px] text-brand hover:underline">{expandedDiffs.has(it.id) ? "Hide changes" : "Show what changed"}</button>
                                 </div>
                               ) : (it.from || it.to) ? (
