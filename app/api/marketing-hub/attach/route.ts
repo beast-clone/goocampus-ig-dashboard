@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     const postId = form.get("postId");
     const uploadedBy = form.get("uploadedBy");
     const file = form.get("file");
+    const kind = form.get("kind") === "reference" ? "reference" : "creative";
 
     if (typeof postId !== "string" || !postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     if (typeof uploadedBy !== "string" || !VALID_KEYS.has(uploadedBy)) {
@@ -52,18 +53,18 @@ export async function POST(req: Request) {
         mime_type: file.type || null,
         size_bytes: file.size,
         uploaded_by: uploadedBy,
+        kind,
       })
-      .select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at")
+      .select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, kind")
       .single();
 
     if (error) throw new Error(`db insert: ${error.message}`);
 
-    // Log to the task Activity feed so a creative upload is visible there
-    // (attachments live in mh_attachments, so the mh_posts trigger never sees them).
+    // Log to the task Activity feed so an upload is visible there.
     await sb.from("mh_activity").insert({
       post_id: postId,
       actor_key: uploadedBy,
-      action: "creative_added",
+      action: kind === "reference" ? "reference_added" : "creative_added",
       to_value: file.name,
     });
 
@@ -84,7 +85,7 @@ export async function DELETE(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename").eq("id", id).single();
+    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename, kind").eq("id", id).single();
     if (row.error) throw new Error(row.error.message);
 
     const publicUrl: string = row.data.storage_path;
@@ -101,7 +102,7 @@ export async function DELETE(req: Request) {
     // Log the removal to the task Activity feed.
     await sb.from("mh_activity").insert({
       post_id: row.data.post_id,
-      action: "creative_removed",
+      action: row.data.kind === "reference" ? "reference_removed" : "creative_removed",
       to_value: row.data.filename,
     });
 

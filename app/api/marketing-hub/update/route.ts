@@ -29,6 +29,7 @@ type UpdateBody = {
     instagram_url: string;
     facebook_url: string;
     linkedin_url: string;
+    reference_links: string[];
   }>;
 };
 
@@ -37,6 +38,7 @@ const ALLOWED_FIELDS = [
   "publishing_date", "due_date", "priority", "platforms",
   "content", "caption", "needs_review", "output_link",
   "additional_info", "instagram_url", "facebook_url", "linkedin_url",
+  "reference_links",
 ] as const;
 
 const OWNER_ALIASES: Record<string, string> = {
@@ -110,6 +112,7 @@ export async function PATCH(req: Request) {
       additional_info: "notes_edited", sbu: "sbu_changed", platforms: "platforms_changed",
       needs_review: "review_changed", output_link: "output_link_changed",
       instagram_url: "instagram_url_changed", facebook_url: "facebook_url_changed", linkedin_url: "linkedin_url_changed",
+      reference_links: "reference_links_changed",
     };
     const fmtDate = (d: unknown) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
     const asText = (field: string, v: unknown): string | null => {

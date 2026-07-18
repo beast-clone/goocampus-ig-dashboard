@@ -22,10 +22,10 @@ export async function GET(req: Request) {
 
     const [collabsRes, attachRes, commentsRes, activityRes, ownerRes, teamRes] = await Promise.all([
       sb.from("mh_post_collaborators").select("member_key, added_at").eq("post_id", id),
-      sb.from("mh_attachments").select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at").eq("post_id", id).order("uploaded_at", { ascending: false }),
+      sb.from("mh_attachments").select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, kind").eq("post_id", id).order("uploaded_at", { ascending: false }),
       sb.from("mh_comments").select("id, author_key, body, resolved, created_at").eq("post_id", id).order("created_at", { ascending: false }).limit(20),
       sb.from("mh_activity").select("id, actor_key, action, from_value, to_value, detail, created_at").eq("post_id", id).gte("created_at", new Date(Date.now() - 366 * 86_400_000).toISOString()).order("created_at", { ascending: false }).limit(400),
-      sb.from("mh_posts").select("owner_key, start_at, synced_to_scheduler, airtable_record_id, content, caption, additional_info, instagram_url, facebook_url, linkedin_url, output_link, platforms").eq("id", id).single(),
+      sb.from("mh_posts").select("owner_key, start_at, synced_to_scheduler, airtable_record_id, content, caption, additional_info, instagram_url, facebook_url, linkedin_url, output_link, platforms, reference_links").eq("id", id).single(),
       sb.from("mh_team_members").select("key, display_name, role"),
     ]);
 
@@ -74,6 +74,7 @@ export async function GET(req: Request) {
       linkedinUrl: ownerRes.data?.linkedin_url || "",
       outputLink: ownerRes.data?.output_link || "",
       platforms: (ownerRes.data?.platforms as string[] | null) || [],
+      referenceLinks: (ownerRes.data?.reference_links as string[] | null) || [],
       collaborators,
       attachments: attachRes.data || [],
       comments: (commentsRes.data || []).map((c: { author_key: string; body: string; resolved: boolean; created_at: string; id: string }) => ({

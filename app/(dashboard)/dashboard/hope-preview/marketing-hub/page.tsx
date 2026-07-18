@@ -2337,10 +2337,10 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
   );
 }
 
-type DetailAttachment = { id: string; filename: string; storage_path: string; mime_type: string | null };
+type DetailAttachment = { id: string; filename: string; storage_path: string; mime_type: string | null; kind?: string };
 type TaskDetail = {
   content: string; caption: string; notes: string;
-  instagramUrl?: string; facebookUrl?: string; linkedinUrl?: string; outputLink?: string; platforms?: string[];
+  instagramUrl?: string; facebookUrl?: string; linkedinUrl?: string; outputLink?: string; platforms?: string[]; referenceLinks?: string[];
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string; author_key: string }[];
@@ -2484,6 +2484,8 @@ const ACT_VERB: Record<string, string> = {
   caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
   platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",
   creative_added: "added a creative", creative_removed: "removed a creative", claim: "claimed this",
+  reference_added: "added a reference", reference_removed: "removed a reference", reference_links_changed: "updated the references",
+  instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
 };
 const DIFF_FIELDS = new Set(["content_edited", "caption_edited", "notes_edited"]);
 const PILL_FIELDS = new Set(["status_changed"]);
@@ -2554,7 +2556,6 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const igUrl = detail?.instagramUrl ?? row.instagramUrl ?? "";
   const fbUrl = detail?.facebookUrl ?? row.facebookUrl ?? "";
   const liUrl = detail?.linkedinUrl ?? row.linkedinUrl ?? "";
-  const outLink = detail?.outputLink ?? row.outputLink ?? "";
   const platformsCur = detail?.platforms ?? row.platforms ?? [];
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
@@ -2571,39 +2572,42 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     saveOne("platforms", next);
   };
   const platformChips = Array.from(new Set(["Instagram", "Facebook", "LinkedIn", ...platformsCur]));
-  const urlRow = (field: string, label: string, value: string) => (
-    <div className="flex items-center gap-2 text-[14px]">
-      <span className="text-gray-500 w-[88px] flex-shrink-0">{label}</span>
+  const urlRow = (field: string, label: string, value: string, Icon?: typeof IconBrandInstagram) => (
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0 text-[14px]">
+      <span className="text-[#8A92A6] flex items-center gap-2 flex-shrink-0">{Icon && <Icon size={16} stroke={1.8} />}{label}</span>
       {urlEdit === field ? (
         <span className="flex-1 flex items-center gap-1 min-w-0">
           <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} autoFocus placeholder="Paste URL…"
             onKeyDown={(e) => { if (e.key === "Enter") { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); } if (e.key === "Escape") setUrlEdit(null); }}
-            className="flex-1 min-w-0 border border-gray-200 rounded px-1.5 py-0.5 text-[12px] outline-none focus:border-brand" />
-          <button onClick={() => { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); }} className="text-brand flex-shrink-0"><IconCheck size={13} /></button>
+            className="flex-1 min-w-0 border border-gray-200 rounded px-1.5 py-1 text-[13px] outline-none focus:border-brand" />
+          <button onClick={() => { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); }} className="text-brand flex-shrink-0"><IconCheck size={14} /></button>
         </span>
       ) : value ? (
-        <span className="flex-1 flex items-center gap-1.5 min-w-0">
-          <a href={value} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline inline-flex items-center gap-1"><IconExternalLink size={12} />Open</a>
-          <button onClick={() => { setUrlDraft(value); setUrlEdit(field); }} className="text-gray-400 hover:text-brand flex-shrink-0"><IconPencil size={11} /></button>
+        <span className="flex items-center gap-1.5 min-w-0">
+          <a href={value} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline inline-flex items-center gap-1"><IconExternalLink size={13} />Open</a>
+          <button onClick={() => { setUrlDraft(value); setUrlEdit(field); }} className="text-gray-400 hover:text-brand flex-shrink-0"><IconPencil size={12} /></button>
         </span>
       ) : (
-        <button onClick={() => { setUrlDraft(""); setUrlEdit(field); }} className="flex-1 text-left text-gray-300 hover:text-brand">+ Add</button>
+        <button onClick={() => { setUrlDraft(""); setUrlEdit(field); }} className="text-gray-300 hover:text-brand">+ Add</button>
       )}
     </div>
   );
 
-  // Creatives = uploaded (deletable) + any Airtable-hosted images already on the row.
+  // Attachments split by kind: creatives (the deliverable) vs references (mood-board).
+  const attMap = (a: DetailAttachment) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true });
   const creatives = [
-    ...(detail?.attachments || []).map((a) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true })),
+    ...(detail?.attachments || []).filter((a) => a.kind !== "reference").map(attMap),
     ...row.attachments.map((a) => ({ id: undefined as string | undefined, url: a.url, name: a.filename, type: a.type || "", removable: false })),
   ];
+  const refImages = (detail?.attachments || []).filter((a) => a.kind === "reference").map(attMap);
+  const refLinks = detail?.referenceLinks ?? [];
 
-  const upload = async (files: FileList) => {
+  const upload = async (files: FileList, kind: "creative" | "reference" = "creative") => {
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
         const fd = new FormData();
-        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", f);
+        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", f); fd.append("kind", kind);
         const res = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
         if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Upload failed"); }
       }
@@ -2615,6 +2619,15 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not remove."); return; }
     await loadDetail();
   };
+  const refFileRef = useRef<HTMLInputElement>(null);
+  const [refLinkAdd, setRefLinkAdd] = useState(false);
+  const [refLinkDraft, setRefLinkDraft] = useState("");
+  const addRefLink = async () => {
+    const v = refLinkDraft.trim(); if (!v) { setRefLinkAdd(false); return; }
+    await saveOne("reference_links", [...refLinks, v]);
+    setRefLinkDraft(""); setRefLinkAdd(false);
+  };
+  const removeRefLink = async (link: string) => { await saveOne("reference_links", refLinks.filter((l) => l !== link)); };
   const startEdit = (section: "content" | "caption", current: string) => { setDraft(current); setEditSection(section); };
   const saveEdit = async () => {
     if (!editSection) return;
@@ -2760,6 +2773,55 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                   : <div className="text-[15px] text-gray-400 italic">No caption yet.</div>}
               </Panel>
 
+              {/* References — mood-board: upload reference images and/or paste links */}
+              <Panel icon={IconBookmark} title="References">
+                <input ref={refFileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
+                  onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "reference"); e.currentTarget.value = ""; }} />
+                {refImages.length > 0 && (
+                  <div className="flex flex-wrap gap-2.5 mb-3">
+                    {refImages.map((c, i) => {
+                      const kind = creativeKind(c.name, c.type);
+                      return (
+                        <div key={c.id || i} className="group relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100">
+                          {kind === "image" ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[9px] uppercase">{kind === "pdf" ? "PDF" : "file"}</span></a>
+                          )}
+                          {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={12} /></button>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {refLinks.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {refLinks.map((l) => (
+                      <div key={l} className="flex items-center gap-2 text-[14px] group">
+                        <IconExternalLink size={14} className="text-gray-400 flex-shrink-0" />
+                        <a href={l} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline flex-1 min-w-0">{l}</a>
+                        <button onClick={() => removeRefLink(l)} title="Remove" className="text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 flex-shrink-0"><IconTrash size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {refLinkAdd && (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <input value={refLinkDraft} onChange={(e) => setRefLinkDraft(e.target.value)} autoFocus placeholder="Paste a reference link…"
+                      onKeyDown={(e) => { if (e.key === "Enter") addRefLink(); if (e.key === "Escape") setRefLinkAdd(false); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[14px] outline-none focus:border-brand" />
+                    <button onClick={addRefLink} className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5">Add</button>
+                    <button onClick={() => setRefLinkAdd(false)} className="text-[12px] text-gray-500 px-1">Cancel</button>
+                  </div>
+                )}
+                <div className="flex items-center gap-4">
+                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{uploading ? "Uploading…" : "Add image"}</button>
+                  <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
+                </div>
+                {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
+              </Panel>
+
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
                   <div className="text-[15px] prose prose-sm max-w-none [&_*]:text-[15px]" dangerouslySetInnerHTML={{ __html: notes }} />
@@ -2800,17 +2862,15 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                   </div>
                 )}
 
-                {/* Published-post links — editable. Paste the live URL once published;
-                    a weekly job can later find these + compress the creative images. */}
+                {/* Published-post links — editable, one row per channel (with its logo).
+                    Paste the live URL once published; a weekly job can later find these
+                    + compress the creative images. */}
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconExternalLink size={13} />Published links</div>
-                  <div className="space-y-1.5">
-                    {urlRow("instagram_url", "Instagram", igUrl)}
-                    {urlRow("facebook_url", "Facebook", fbUrl)}
-                    {urlRow("linkedin_url", "LinkedIn", liUrl)}
-                    {urlRow("output_link", "Output", outLink)}
-                    {row.link && <ModalLink label="Link" href={row.link} />}
-                    {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
+                  <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-1 flex items-center gap-1.5"><IconExternalLink size={13} />Published links</div>
+                  <div>
+                    {urlRow("instagram_url", "Instagram", igUrl, IconBrandInstagram)}
+                    {urlRow("facebook_url", "Facebook", fbUrl, IconBrandFacebook)}
+                    {urlRow("linkedin_url", "LinkedIn", liUrl, IconBrandLinkedin)}
                   </div>
                 </div>
               </Panel>
