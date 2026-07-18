@@ -1,5 +1,27 @@
 # Audit Log — `feat/hope-ui-reskin` session
 
+## QA 2026-07-18 — Marketing Hub (`marketing-hub/page.tsx` — Workload · Master · Pipeline · Calendar)
+
+The marketing team's operating base. All 4 subtabs verified LIVE in Chrome (frontend) + cross-checked in Supabase (backend). 3 issues fixed; 1 data-hygiene item handed back.
+
+| # | Issue | Sev | Fix | Verified |
+|---|-------|-----|-----|----------|
+| 1 | **Phantom status `"Content - In Progress"`** (doesn't exist in Supabase) orphaned 12 `Content - Approved` tasks → pipeline showed 172 not 184 | HIGH (wrong data) | Point 5 code sites + PIPELINE_STAGES to real `Content - Approved`; deleted 2 dead colour/pill map entries | Pipeline reconciles 57+12+11+2+102 = **184**, APPROVED=12, live ✓ (commit `3e8aa3a`) |
+| 2 | **Redundant entry count** on calendar (hero stat + meta line) | LOW (repetitive) | Removed the duplicate meta count | Calendar shows count once ✓ |
+| 3 | **Content Calendar off-brand** (no month toolbar, range-derived month) | MED (Hope UI) | Rebuilt CalendarView: `‹ › Today` toolbar, centred month title, `monthCursor` defaulting to current month, brand chips retained; MHCAL_CSS toolbar styles | Opens on July 2026 w/ toolbar; month nav + Today + brand filter all work live ✓ (uncommitted) |
+
+**Backend cross-checks (Supabase `wlhbmzaernchwebapszq`):**
+- `mh_posts` status distribution root-caused issue #1 (real statuses: Published/Scheduled, Content-Pending, Ready to Publish, Output-Ready, Content-Approved — no "In Progress").
+- **New View CRUD round-trip:** created view via UI → row appeared in `mh_views` with EXACT captured config (`filter owner is manya`, `sorts publishingDate asc`, `hiddenCols [priority]`, `color status`, `rangeDays 90`, `created_by maheen`) → deleted via view menu → `count = 0`. Proves the app write path reaches the DB.
+
+**Functions exercised live:** calendar month nav/Today/brand-filter/task-modal; Master team-views/date-frame(30→90d = 184→240)/Filter/Sort/Columns(hide Priority)/Colour(by Status)/New-View create+persist+delete; Workload Today-timeline + Tasks capacity cards; Pipeline stage click-to-filter (Approved→12 tasks). Console clean on all.
+
+**Data-hygiene (handed back, NOT auto-fixed):** `"Test Task"` row (`id 8bac07e8…`, `airtable_record_id recUo3SPfzZ4HUJmI`) is Airtable-sourced junk in the pipeline — delete at Airtable source (Supabase-only delete would re-sync). Not a code issue.
+
+**Not re-mutated this pass:** drag-to-reschedule + inline edits use the same proven `saveField → /api/marketing-hub/update` path (verified prior session); skipped re-mutating live publishing dates. Offer standing to do a live drag demo.
+
+---
+
 ## QA 2026-07-18 — Overview tab (`/dashboard/hope-preview` → `HopeOverview.tsx`)
 
 Thorough tab check (code + APIs + runtime). 3 issues found, all FIXED & verified live.

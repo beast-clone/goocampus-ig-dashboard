@@ -271,7 +271,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       )}
 
       {tab === "calendar" && (
-        <CalendarView rows={filtered} range={range} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
+        <CalendarView rows={filtered} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
       )}
 
       {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
@@ -968,9 +968,14 @@ const MHCAL_CSS = `
 .mhcal-hero-statl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.82)}
 /* Title card, pulled up to overlap the hero */
 .mhcal-titlecard{position:relative;z-index:2;margin:-2.15rem 1rem 0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;box-shadow:0 12px 28px rgba(20,25,60,.10);padding:.85rem 1.35rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:#0F172A;letter-spacing:-.012em}
-.mhcal-titlemeta{font-size:.76rem;color:#6B7280;font-weight:500}
+.mhcal-titlecard h4{margin:0;flex:1;text-align:center;font-size:1.15rem;font-weight:700;color:#0F172A;letter-spacing:-.012em}
+.mhcal-titlemeta{font-size:.76rem;color:#6B7280;font-weight:500;flex:0 0 auto}
 .mhcal-titlemeta b{color:#0F172A;font-weight:600}
+.mhcal-nav{display:flex;align-items:center;gap:.4rem;flex:0 0 auto}
+.mhcal-navbtn{width:30px;height:30px;border-radius:8px;border:1px solid #E5E8EF;background:#fff;color:#4B5563;font-size:1.1rem;line-height:1;display:grid;place-items:center;transition:.15s}
+.mhcal-navbtn:hover{background:#4C4CE2;border-color:#4C4CE2;color:#fff}
+.mhcal-today{height:30px;padding:0 .85rem;border-radius:8px;border:1px solid #4C4CE2;background:#4C4CE2;color:#fff;font-size:.74rem;font-weight:600;transition:.15s}
+.mhcal-today:hover{filter:brightness(1.06)}
 /* Brand filter — pill chips one-click filter across SBUs (primary interest) */
 .mhcal-brands{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;padding:.65rem .8rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;overflow-x:auto;scrollbar-width:thin}
 .mhcal-brands::-webkit-scrollbar{height:6px}
@@ -1013,7 +1018,7 @@ const MHCAL_CSS = `
 .mhcal-slegend-chip{width:14px;height:14px;border-radius:4px;border:1px solid;flex:0 0 14px}
 `;
 
-function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows: Row[]; range: { from: string; to: string }; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
+function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
   const [activeBrand, setActiveBrand] = useState<string>("");
@@ -1061,9 +1066,13 @@ function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows:
 
   // 42-cell month grid (mirrors the publishing calendar's HopeCalendar layout so the two
   // pages read as siblings — always 6 full rows, prev/next-month spillover greyed out).
-  const fromDate = new Date(range.from);
-  const y = fromDate.getFullYear();
-  const mo = fromDate.getMonth();
+  // Month cursor — defaults to the CURRENT month; ‹ › / Today move it. (Data is
+  // range-limited, so months outside the loaded window render empty.)
+  const [monthCursor, setMonthCursor] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const y = monthCursor.getFullYear();
+  const mo = monthCursor.getMonth();
+  const goMonth = (delta: number) => setMonthCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
+  const goToday = () => { const n = new Date(); setMonthCursor(new Date(n.getFullYear(), n.getMonth(), 1)); };
   const monthGrid = useMemo(() => {
     const firstOfMonth = new Date(y, mo, 1);
     const start = new Date(firstOfMonth);
@@ -1097,12 +1106,15 @@ function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows:
         </div>
       </div>
 
-      {/* Title card overlapping the hero */}
+      {/* Title card overlapping the hero — Hope UI calendar toolbar: ‹ › + Today, centred month */}
       <div className="mhcal-titlecard">
-        <h4>{monthLabel}</h4>
-        <div className="mhcal-titlemeta">
-          {loading ? "Syncing…" : <><b>{filteredRows.length}</b>{activeBrand ? <> in <b>{activeBrand}</b></> : ""} · drag any card to reschedule</>}
+        <div className="mhcal-nav">
+          <button className="mhcal-navbtn" onClick={() => goMonth(-1)} aria-label="Previous month">‹</button>
+          <button className="mhcal-navbtn" onClick={() => goMonth(1)} aria-label="Next month">›</button>
+          <button className="mhcal-today" onClick={goToday}>Today</button>
         </div>
+        <h4>{monthLabel}</h4>
+        <div className="mhcal-titlemeta">{loading ? "Syncing…" : "Drag any card to reschedule"}</div>
       </div>
 
       {/* Brand quick-filter — one-click SBU isolate; primary interest is also shown

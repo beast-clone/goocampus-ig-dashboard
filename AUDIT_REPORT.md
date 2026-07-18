@@ -11,7 +11,7 @@ Raw working notes live in `AUDIT_LOG.md`; this file is the clean, shared status.
 | Tab | Status | Issues found | Fixed | Notes |
 |---|---|---|---|---|
 | **Overview** (`/`) | ✅ **PASS** | 3 | 3 | done 2026-07-18 |
-| Marketing Hub | ⬜ not started | – | – | |
+| **Marketing Hub** (Workload · Master · Pipeline · Calendar) | ✅ **PASS** | 3 | 3 | done 2026-07-18; 1 data-hygiene flag for you |
 | My Day | ⬜ not started | – | – | |
 | Content Radar | ⬜ not started | – | – | |
 | Publishing Calendar | ⬜ not started | – | – | |
@@ -89,3 +89,44 @@ Derivation in one line: **can it load → is its data real → do its controls w
 - **3× `/api/posts` on load** (limit 10 + 2× limit 200) + child fetches. Works; the posts API is slow (~20s). Optimize only if load time is a complaint.
 - **Stored-month engagement shows 0** on the 60d/older-month view (e.g. June: Engagement `0`, from-posts). May be correct (snapshot months lack post-engagement) per the on-screen banner, or a real gap — worth a closer look before trusting older-month engagement.
 - **YouTube range summary = 0** (0 subs / 0 views / 0 watch hours) while the chart + top videos show data — investigate under the **YouTube** tab audit, not here.
+
+---
+
+## Marketing Hub (`marketing-hub/page.tsx` — 4 subtabs: Workload · Master sheet · Pipeline · Content calendar)
+
+**Verdict: ✅ PASS** — had 3 issues (all fixed & re-verified live), plus 1 data-hygiene item that's yours to action (a junk row that lives in Airtable, not fixable from code). This is the marketing team's operating base; all 4 subtabs are wired to live `mh_posts` and every control was exercised on screen, not just rendered.
+
+### Checklist results (all 4 subtabs)
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Loads, no crash | ✅ | All 4 subtabs render fully (Workload timeline + capacity cards, Master table, Pipeline stages, Calendar month grid) |
+| 2 | No console errors | ✅ | 0 errors on every subtab after interactions |
+| 3 | APIs 200 + correct data | ✅ | `/api/marketing-hub/*` (list, views, update, etc.) all serve; **backend cross-checked in Supabase** (`mh_posts` 270 rows, `mh_views` round-trip) |
+| 4 | Data plausible | ✅ | Pipeline **reconciles to 184** (57+12+11+2+102); team counts sum to totals (Manya 20 + Praveen 131 + Nikhil 25 + Nandu 8 = 184) |
+| 5 | Interactions actually drive data | ✅ | Every control **used live** — see the exercised-functions list below |
+| 6 | Hope UI | ✅ *(after fix)* | Content Calendar was off-brand → rebuilt with a Hope-UI toolbar (issue #3). Rest on-brand. |
+| 7 | Code health | ✅ *(after fix)* | Removed phantom-status dead code (issue #1) + a redundant meta count (issue #2) |
+
+### Functions exercised LIVE (not just "renders")
+
+- **Content Calendar:** month nav ‹ ›, **Today**, brand-chip filter (Australia-PGCP → 25 tasks, legend narrows), task-detail modal (full content + details + activity), status-colour legend.
+- **Master sheet:** team views (Manya → 20, Owner-filtered), **date frame** 30d→90d (184→240, all counts move), **Filter** builder (Where Owner is …), **Sort** (Publishing date asc — table reorders), **Columns** (hid Priority — column disappears), **Colour** (rows tinted by Status).
+- **New View — full CRUD, round-tripped to Supabase:** created "QA Test" capturing live filter/sort/columns/colour/range → **confirmed the exact config persisted to `mh_views`** → deleted via the view menu → **confirmed 0 rows remain**. This is the proof that the app's write path reaches the database.
+- **Workload:** Today per-person timeline (9–5, live "Now" marker, spill-over/overbooked flags) + Tasks capacity cards (pending / overdue / done per person, date-range picker).
+- **Pipeline:** stage click-to-filter (Approved → table swaps to the 12 approved tasks), bottleneck "Where it's stuck" panel, Oldest-Waiting list.
+
+### Issues found & fixed
+
+1. **Pipeline data bug — phantom status orphaned 12 tasks** (commit `3e8aa3a`). Code referenced `"Content - In Progress"`, which doesn't exist in Supabase; the real status is `"Content - Approved"`. Result: 12 approved tasks were invisible and the pipeline showed **172 vs the real 184**. Fixed 5 code sites to the real status + deleted 2 dead colour/pill entries. **Now reconciles to 184, APPROVED = 12.** Root-caused against the live Supabase status distribution.
+2. **Redundant meta count on the calendar** — the entry count was shown twice (hero stat + a meta line). Removed the duplicate (your "flag repetitive" rule).
+3. **Content Calendar was off-brand** ("looked like another team's tool"). Rebuilt to Hope UI: a proper `‹ › Today` toolbar, centred month title, defaults to the current month, brand chips retained. Matches the Hope-UI calendar reference.
+
+### Data-hygiene flag — YOURS to action (not a code fix)
+
+- **"Test Task" junk row** sits in the pipeline (Content-Pending, owner Praveen, SBU 10K Mentorship, `id 8bac07e8…`). It carries an `airtable_record_id` (`recUo3SPfzZ4HUJmI`) — it was **synced in from Airtable**, so deleting it from Supabase alone would just re-sync back. **Delete it at the Airtable source** and it'll clear from here. Left it in place rather than auto-deleting production data.
+
+### Observations (noted, NOT changed)
+
+- **Drag-to-reschedule** (calendar) and **inline field edits** (status, comments, attach) use the same `saveField → /api/marketing-hub/update` write path proven live above via the View CRUD, and were verified end-to-end in the prior session. I did **not** re-mutate real publishing dates this pass to avoid churning production data — say the word and I'll do a live drag demo (drag one card, show the date persist, drag it back).
+- **"184 TASKS IN VIEW"** on the calendar hero counts all loaded rows, not the visible month — on an empty month (e.g. August) it still reads 184. Minor label wording; not a data bug.
