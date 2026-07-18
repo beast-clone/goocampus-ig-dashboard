@@ -2540,15 +2540,12 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const sp = statusPill(row.status);
   const pp = priorityPill(row.priority);
   const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
-  // "Acting as" — who is doing the edits/comments on this shared screen. Defaults to
-  // the logged-in user (or the owner), and stamps every edit + comment so the feed
-  // reads "Manya edited…" instead of always the one login.
-  const authorKeyDefault = [detail?.me || "", uploaderKey, "maheen"].find((k) => COMMENT_KEYS.has(k)) || "maheen";
-  const [authorOverride, setAuthorOverride] = useState<string | null>(null);
-  const [authorOpen, setAuthorOpen] = useState(false);
-  const activeAuthor = authorOverride || authorKeyDefault;
-  const AUTHORS = [{ key: "manya", label: "Manya" }, { key: "praveen", label: "Praveen" }, { key: "nikhil", label: "Nikhil" }, { key: "nandu", label: "Nandu" }, { key: "maheen", label: "Maheen" }];
-  const authorLabel = (k: string) => AUTHORS.find((a) => a.key === k)?.label || k;
+  // Account-specific: every comment + edit is stamped with the LOGGED-IN user
+  // (detail.me from the session), never a manual picker. Whoever is signed in owns
+  // the action, so the feed reads by their real name.
+  const activeAuthor = (detail?.me && COMMENT_KEYS.has(detail.me)) ? detail.me : "maheen";
+  const AUTHOR_LABELS: Record<string, string> = { manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen" };
+  const authorLabel = (k: string) => AUTHOR_LABELS[k] || k;
 
   // Creatives = uploaded (deletable) + any Airtable-hosted images already on the row.
   const creatives = [
@@ -2831,32 +2828,12 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     </div>
                   )}
 
-                {/* Composer + "acting as" picker — stamps who is editing / commenting,
-                    so the feed reads by real name on a shared screen. Extra spacing so
-                    the activity section breathes instead of feeling compressed. */}
-                <div className="mt-5 pt-4 border-t border-gray-100 space-y-3">
-                  <div className="flex items-center gap-2 text-[11.5px] text-gray-500">
-                    <span>Acting as</span>
-                    <div className="relative">
-                      <button onClick={() => setAuthorOpen((v) => !v)} className="inline-flex items-center gap-1.5 border border-gray-200 rounded-full pl-1 pr-2 py-0.5 hover:bg-gray-50">
-                        {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
-                        <span className="font-medium text-[#232D42]">{authorLabel(activeAuthor)}</span>
-                        <IconChevronDown size={12} />
-                      </button>
-                      {authorOpen && (
-                        <div className="absolute left-0 bottom-full mb-1 w-44 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1">
-                          {AUTHORS.map((m) => {
-                            const a = feedAvatar(m.key, m.label);
-                            return (
-                              <button key={m.key} onClick={() => { setAuthorOverride(m.key); setAuthorOpen(false); }} className={`w-full text-left px-2.5 py-1.5 hover:bg-gray-50 flex items-center gap-2 text-[12.5px] ${m.key === activeAuthor ? "text-brand font-medium" : "text-gray-700"}`}>
-                                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>
-                                {m.label}{m.key === activeAuthor && <IconCheck size={13} className="ml-auto" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                {/* Composer — account-specific: comments + edits are stamped with the
+                    logged-in user (no manual picker). Extra spacing so the section breathes. */}
+                <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
+                  <div className="flex items-center gap-1.5 text-[11.5px] text-gray-500">
+                    {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
+                    <span>Commenting as <span className="font-medium text-[#232D42]">{authorLabel(activeAuthor)}</span></span>
                   </div>
                   <div className="flex items-start gap-2.5">
                     {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
