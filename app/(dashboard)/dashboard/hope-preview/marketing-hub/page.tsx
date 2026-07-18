@@ -2572,8 +2572,8 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   };
   const platformChips = Array.from(new Set(["Instagram", "Facebook", "LinkedIn", ...platformsCur]));
   const urlRow = (field: string, label: string, value: string) => (
-    <div className="flex items-center gap-2 text-[12px]">
-      <span className="text-gray-500 w-[74px] flex-shrink-0">{label}</span>
+    <div className="flex items-center gap-2 text-[12.5px]">
+      <span className="text-gray-500 w-[82px] flex-shrink-0">{label}</span>
       {urlEdit === field ? (
         <span className="flex-1 flex items-center gap-1 min-w-0">
           <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} autoFocus placeholder="Paste URL…"
@@ -2663,16 +2663,16 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   };
 
   const detailRow = (label: string, value: React.ReactNode) => (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-      <span className="text-[12px] text-[#8A92A6]">{label}</span>
-      <span className="text-[13px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
+    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      <span className="text-[13px] text-[#8A92A6]">{label}</span>
+      <span className="text-[13.5px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 
   return (
     <>
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 hope-scope" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Hope-UI hero band: brand-tinted, large title */}
         <div className="relative flex items-start justify-between gap-4 px-7 py-6 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
           <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
@@ -2699,8 +2699,8 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
         <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5">
-          <div className="grid md:grid-cols-3 gap-4 items-start">
-            <div className="md:col-span-2 space-y-4">
+          <div className="grid md:grid-cols-5 gap-5 items-start">
+            <div className="md:col-span-3 space-y-4">
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -2768,7 +2768,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
 
             </div>
 
-            <div className="space-y-4">
+            <div className="md:col-span-2 space-y-4">
               <Panel title="Details">
                 {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
@@ -2845,7 +2845,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                           <div key={it.id} className="flex gap-2.5">
                             <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : it.name}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
                             <div className="min-w-0 flex-1">
-                              <div className="text-[12.5px] text-gray-700">
+                              <div className="text-[13px] text-gray-700">
                                 <span className="font-medium text-[#232D42]">{av.system ? "System" : it.name}</span>{" "}
                                 {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
                                 <span className="text-gray-400"> · {relTime(it.at)}</span>
