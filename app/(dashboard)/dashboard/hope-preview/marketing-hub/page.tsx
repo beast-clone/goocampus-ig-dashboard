@@ -109,7 +109,7 @@ function ownerMatches(owner: string, m: TeamMember): boolean {
   return m.aliases.some((a) => owner.toLowerCase() === a.toLowerCase());
 }
 
-const PENDING_STATUSES = ["Content - Pending", "Content - In Progress"];
+const PENDING_STATUSES = ["Content - Pending", "Content - Approved"];
 const DONE_STATUSES = ["Ready to Publish", "Published/Scheduled"];
 
 const VIDEO_TYPES = ["Reel - Cut", "Reel - Original", "YouTube Long-Form", "YouTube Shorts"];
@@ -141,7 +141,7 @@ function blockColor(type: string): { bg: string; fg: string } {
 // Muted, cohesive stage palette (all one tone — no neon, no harsh navy).
 const PIPELINE_STAGES = [
   { key: "Content - Pending",     label: "Content Pending",     color: "#94A3B8" },
-  { key: "Content - In Progress", label: "In Progress",         color: "#D9A05B" },
+  { key: "Content - Approved",    label: "Approved",            color: "#D9A05B" },
   { key: "Output - Ready",        label: "Output Ready",        color: "#6F9BD1" },
   { key: "Ready to Publish",      label: "Ready to Publish",    color: "#5FB196" },
   { key: "Published/Scheduled",   label: "Published",           color: "#7A74C9" },
@@ -581,7 +581,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       if (dd && dd < today && !isDone) overdue += 1;
       if (r.needsReview) awaitingApproval += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) completedThisWeek += 1;
-      if (r.status === "Content - In Progress") inProgress += 1;
+      if (r.status === "Content - Approved") inProgress += 1;
     }
     return { publishingToday, overdue, awaitingApproval, completedThisWeek, inProgress };
   }, [rows, today, weekAgo]);
@@ -630,7 +630,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       {/* Team-wide totals */}
       <div className="grid grid-cols-5 gap-4">
         <BigStat label="Publishing today" value={totals.publishingToday} accent="#378ADD" />
-        <BigStat label="In progress" value={totals.inProgress} accent="#EF9F27" />
+        <BigStat label="Approved" value={totals.inProgress} accent="#EF9F27" />
         <BigStat label="Overdue" value={totals.overdue} accent="#D4537E" alarm />
         <BigStat label="Awaiting approval" value={totals.awaitingApproval} accent="#7F77DD" />
         <BigStat label="Completed this week" value={totals.completedThisWeek} accent="#5DCAA5" />
@@ -943,7 +943,6 @@ const MHCAL_MONTH_NAMES = ["January", "February", "March", "April", "May", "June
 // Unmapped statuses fall through to the neutral gray.
 const CAL_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   "Content - Pending":     { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" },
-  "Content - In Progress": { bg: "#FEF3E2", text: "#B45309", border: "#F4DBB0" },
   "Content - Approved":    { bg: "#E1F5EE", text: "#0F6E56", border: "#B2E1D0" },
   "Output - Ready":        { bg: "#E4ECFF", text: "#2138B0", border: "#BBCCF7" },
   "Ready to Publish":      { bg: "#E3F5EA", text: "#157F3C", border: "#B9E4D2" },
@@ -1205,7 +1204,6 @@ function CalendarView({ rows, range, facets, onOpen, onSaved, loading }: { rows:
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
 const STATUS_PILL: Record<string, { bg: string; text: string }> = {
   "Content - Pending":     { bg: "#F1EFE8", text: "#444441" },
-  "Content - In Progress": { bg: "#FAEEDA", text: "#633806" },
   "Content - Approved":    { bg: "#E1F5EE", text: "#0F6E56" },
   "Output - Ready":        { bg: "#E6F1FB", text: "#0C447C" },
   "Ready to Publish":      { bg: "#E1F5EE", text: "#0F6E56" },
