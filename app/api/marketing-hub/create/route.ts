@@ -62,6 +62,9 @@ export async function POST(req: Request) {
       content: body.content || null,
       caption: body.caption || null,
       needs_review: body.needsReview === true,
+      // Capture the start of the task clock now, so "Time taken" can measure
+      // start → completion once it's published.
+      start_at: new Date().toISOString(),
     };
 
     const { data, error } = await sb

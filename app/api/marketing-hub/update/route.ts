@@ -79,7 +79,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -138,6 +138,13 @@ export async function PATCH(req: Request) {
       }];
     });
     if (activityRows.length) await sb.from("mh_activity").insert(activityRows);
+
+    // Capture the END of the task clock the first time it reaches a done state,
+    // so "Time taken" = start_at → end_at reflects how long the task took.
+    const DONE_STATES = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
+    if (typeof clean.status === "string" && DONE_STATES.has(clean.status) && !before.data.end_at) {
+      await sb.from("mh_posts").update({ end_at: new Date().toISOString() }).eq("id", body.id);
+    }
 
     // Auto-handoff when status becomes "Content - Approved" (assignment + collaborator
     // only — the status_changed / owner_changed rows above already record it, and the

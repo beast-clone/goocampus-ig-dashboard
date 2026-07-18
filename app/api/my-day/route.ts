@@ -58,6 +58,7 @@ type Row = {
   content: string | null; caption: string | null; media_urls: string[] | null;
   publishing_date: string | null; due_date: string | null; updated_at: string | null;
   reference_links: string[] | null;
+  created_at: string | null; start_at: string | null; end_at: string | null;
 };
 type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 
@@ -86,6 +87,9 @@ function toTask(r: Row, refImages: RefItem[] = []) {
       collaborators: [] as unknown[],
       activity: [] as unknown[],
       references,
+      createdAt: r.created_at || "",
+      startAt: r.start_at || "",
+      endAt: r.end_at || "",
     },
   };
 }
@@ -96,7 +100,7 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
     const cols =
-      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links";
+      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, created_at, start_at, end_at";
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
     const [working, doneRecent] = await Promise.all([

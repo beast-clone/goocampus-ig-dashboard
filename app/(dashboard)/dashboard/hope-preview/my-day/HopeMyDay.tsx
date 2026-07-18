@@ -85,6 +85,7 @@ type Task = {
     references?: RefItem[];                             // links + images the team adds for context
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
+    createdAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
   };
 };
 
@@ -179,6 +180,16 @@ const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
 const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
+const fmtDT = (iso?: string) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
+function durBetween(a?: string, b?: string): string {
+  if (!a || !b) return "—";
+  let ms = new Date(b).getTime() - new Date(a).getTime();
+  if (isNaN(ms) || ms < 0) return "—";
+  const d = Math.floor(ms / 86_400_000); ms -= d * 86_400_000;
+  const h = Math.floor(ms / 3_600_000); ms -= h * 3_600_000;
+  const m = Math.floor(ms / 60_000);
+  return [d && `${d}d`, h && `${h}h`, (!d && m) && `${m}m`].filter(Boolean).join(" ") || "0m";
+}
 // Minutes-since-9AM → a clock label like "2:00 PM" (for the drag drop-guide).
 const clockOf = (m: number) => { const t = DAY_START_H * 60 + m; const h = Math.floor(t / 60), mm = t % 60; const ap = h >= 12 ? "PM" : "AM"; const h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2, "0")} ${ap}`; };
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
@@ -474,6 +485,13 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           <div className="mlbl">Priority</div>
           <span className="pill" style={{ background: PRIO[task.detail.priority].bg, color: PRIO[task.detail.priority].fg }}>{task.detail.priority}</span>
         </div>
+      </div>
+
+      {/* Task clock — captured on create → done, so you can see how long it took */}
+      <div className="meta-grid" style={{ marginTop: ".1rem" }}>
+        <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
+        <div><div className="mlbl">Started</div><div className="mval">{fmtDT(task.detail.startAt)}</div></div>
+        <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
       </div>
 
       <div className="section-head">
