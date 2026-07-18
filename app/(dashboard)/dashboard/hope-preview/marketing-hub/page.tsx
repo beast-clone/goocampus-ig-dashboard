@@ -2536,10 +2536,6 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     ...(detail?.attachments || []).map((a) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true })),
     ...row.attachments.map((a) => ({ id: undefined as string | undefined, url: a.url, name: a.filename, type: a.type || "", removable: false })),
   ];
-  // Status-aware highlight: while in production the Content brief leads; once a
-  // creative exists or the task reaches the output stage, Creatives jumps to top.
-  const OUTPUT_STAGES = ["Output - Ready", "Ready to Publish", "Published/Scheduled"];
-  const creativesFirst = creatives.length > 0 || OUTPUT_STAGES.includes(row.status);
 
   const upload = async (files: FileList) => {
     setUploading(true);
@@ -2639,61 +2635,58 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
         </div>
 
-        {/* Body — light canvas so the white cards read as real sections. Order swaps:
-            Content leads in production; Creatives leads once produced (creativesFirst). */}
-        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5 flex flex-col gap-4">
-          {/* CREATIVES */}
-          <div className={creativesFirst ? "order-1" : "order-2"}>
-          <Panel icon={IconPhoto} title="Creatives" accent
-            right={<>
-              <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
-              {creatives.length > 0 && <button onClick={() => fileRef.current?.click()} className="text-[12px] font-medium text-brand inline-flex items-center gap-1"><IconPlus size={13} />Add</button>}
-            </>}>
-            <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
-              onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
-            {creatives.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {creatives.map((c, i) => {
-                  const kind = creativeKind(c.name, c.type);
-                  return (
-                    <div key={c.id || i} role="button" tabIndex={0} onClick={() => setLightboxIndex(i)} onKeyDown={(e) => { if (e.key === "Enter") setLightboxIndex(i); }}
-                      className="group relative aspect-square rounded-lg overflow-hidden border border-gray-100 bg-gray-100 cursor-pointer">
-                      {kind === "image" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
-                      ) : kind === "video" ? (
-                        <>
-                          <video src={c.url} muted className="w-full h-full object-cover" />
-                          <span className="absolute inset-0 flex items-center justify-center"><span className="bg-black/50 text-white rounded-full p-2"><IconPlayerPlay size={18} /></span></span>
-                        </>
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">{kind === "pdf" ? "PDF" : (c.type || "file").split("/")[1] || "file"}</span></div>
-                      )}
-                      <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{i + 1}</span>
-                      {c.removable && c.id && (
-                        <button onClick={(e) => { e.stopPropagation(); removeCreative(c.id!); }} title="Remove" className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={13} /></button>
-                      )}
-                    </div>
-                  );
-                })}
-                <button onClick={() => fileRef.current?.click()} className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
-                  <IconPlus size={20} /><span className="text-[11px] mt-1">{uploading ? "Uploading…" : "Add"}</span>
-                </button>
-              </div>
-            ) : (
-              <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
-                className="border-2 border-dashed border-brand/30 bg-brand-light/40 rounded-xl py-9 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
-                <IconCloudUpload size={30} className="text-brand mb-2" stroke={1.6} />
-                <div className="text-sm font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
-                <div className="text-[12px] text-[#8A92A6] mt-0.5">Drag &amp; drop images or video here, or click to browse</div>
-              </div>
-            )}
-          </Panel>
-          </div>
-
-          {/* Two columns: content/comments (main) + details/activity (side) */}
-          <div className={`grid md:grid-cols-3 gap-4 items-start ${creativesFirst ? "order-2" : "order-1"}`}>
+        {/* Body — light canvas so the white cards read as real sections.
+            Creatives sits in the content column (compact), so the Details + Activity
+            column reaches the top and the feed is visible without deep scrolling. */}
+        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5">
+          <div className="grid md:grid-cols-3 gap-4 items-start">
             <div className="md:col-span-2 space-y-4">
+              <Panel icon={IconPhoto} title="Creatives" accent
+                right={<>
+                  <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
+                  {creatives.length > 0 && <button onClick={() => fileRef.current?.click()} className="text-[12px] font-medium text-brand inline-flex items-center gap-1"><IconPlus size={13} />Add</button>}
+                </>}>
+                <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
+                  onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
+                {creatives.length > 0 ? (
+                  <div className="flex flex-wrap gap-2.5">
+                    {creatives.map((c, i) => {
+                      const kind = creativeKind(c.name, c.type);
+                      return (
+                        <div key={c.id || i} role="button" tabIndex={0} onClick={() => setLightboxIndex(i)} onKeyDown={(e) => { if (e.key === "Enter") setLightboxIndex(i); }}
+                          className="group relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100 cursor-pointer">
+                          {kind === "image" ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
+                          ) : kind === "video" ? (
+                            <>
+                              <video src={c.url} muted className="w-full h-full object-cover" />
+                              <span className="absolute inset-0 flex items-center justify-center"><span className="bg-black/50 text-white rounded-full p-2"><IconPlayerPlay size={18} /></span></span>
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">{kind === "pdf" ? "PDF" : (c.type || "file").split("/")[1] || "file"}</span></div>
+                          )}
+                          <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{i + 1}</span>
+                          {c.removable && c.id && (
+                            <button onClick={(e) => { e.stopPropagation(); removeCreative(c.id!); }} title="Remove" className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={13} /></button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button onClick={() => fileRef.current?.click()} className="w-24 h-24 flex-shrink-0 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
+                      <IconPlus size={18} /><span className="text-[10px] mt-1">{uploading ? "…" : "Add"}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
+                    className="border-2 border-dashed border-brand/30 bg-brand-light/40 rounded-xl py-5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
+                    <IconCloudUpload size={24} className="text-brand mb-1.5" stroke={1.6} />
+                    <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
+                    <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop or click to browse</div>
+                  </div>
+                )}
+              </Panel>
+
               <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
                 {editSection === "content" ? editBox(14, "Write the content brief…")
                   : content ? <div className="text-[13px] leading-relaxed prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
