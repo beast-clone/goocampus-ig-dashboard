@@ -37,6 +37,7 @@ const GROUPS: Group[] = [
   ] },
   { label: "Social Media", items: [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
+    { label: "Publishing Calendar (New)", href: `${HUB}/calendar-v2`, icon: IconCalendarEvent },
     { label: "Content Review",      href: `${HUB}/content-review`,  icon: IconChecklist },
     { label: "Scheduler",           href: `${HUB}/scheduler`,       icon: IconClockHour4 },
     { label: "Post Planner",        href: `${HUB}/post-planner`,    icon: IconWand },

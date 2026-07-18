@@ -9,9 +9,9 @@ import { IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-re
 // filters / drafts dock (those were the "old V1" bits). Data is still the real
 // /api/scheduler/queue posts (+ demo sample). V1 page.tsx is untouched.
 
-type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
+export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
 
-type ScheduledPost = {
+export type ScheduledPost = {
   id: string; particulars: string; publishToPage: string; primaryInterest: string;
   type: string; caption: string; thumbnailUrl: string | null; scheduleTime: string | null;
   status: string; effectiveStatus: EffectiveStatus; failureReason: string | null;
@@ -20,7 +20,7 @@ type ScheduledPost = {
 
 // Event-chip colour. Like the reference, each event is a soft-tinted bar; we drive the
 // tint from status so the colours still MEAN something (green=published, etc.).
-const STATUS_STYLE: Record<EffectiveStatus, { bg: string; text: string; dot: string; label: string }> = {
+export const STATUS_STYLE: Record<EffectiveStatus, { bg: string; text: string; dot: string; label: string }> = {
   scheduled:  { bg: "#FEF3E2", text: "#B45309", dot: "#F59E0B", label: "Scheduled" },
   publishing: { bg: "#E4ECFF", text: "#2138B0", dot: "#3A57E8", label: "Publishing" },
   published:  { bg: "#E3F5EA", text: "#157F3C", dot: "#1AA053", label: "Published" },
@@ -29,14 +29,14 @@ const STATUS_STYLE: Record<EffectiveStatus, { bg: string; text: string; dot: str
   unknown:    { bg: "#F1F3F8", text: "#6B7280", dot: "#C3C9D4", label: "Unknown" },
 };
 
-type AccountKey = "main" | "world" | "india" | "other";
-const ACCOUNT_STYLE: Record<AccountKey, { name: string; handle: string; color: string; soft: string }> = {
+export type AccountKey = "main" | "world" | "india" | "other";
+export const ACCOUNT_STYLE: Record<AccountKey, { name: string; handle: string; color: string; soft: string }> = {
   main:  { name: "GooCampus Main",    handle: "@goocampus",      color: "#6E48F8", soft: "#EFEBFE" },
   world: { name: "GooCampus World",   handle: "@goocampusworld", color: "#0EA5E9", soft: "#E4F4FD" },
   india: { name: "12Plus / GC India", handle: "@12thplusdotcom", color: "#E11D48", soft: "#FCE8EC" },
   other: { name: "—",                 handle: "—",               color: "#9AA3B2", soft: "#F1F3F8" },
 };
-function accountKeyFor(publishToPage: string): AccountKey {
+export function accountKeyFor(publishToPage: string): AccountKey {
   if (publishToPage === "GooCampus Main") return "main";
   if (publishToPage === "GooCampus World") return "world";
   if (publishToPage === "12Plus / GC India") return "india";
@@ -44,7 +44,7 @@ function accountKeyFor(publishToPage: string): AccountKey {
 }
 
 // Sample posts (unchanged from V1) so the tab reads populated even when Airtable is empty.
-function makeSamplePosts(): ScheduledPost[] {
+export function makeSamplePosts(): ScheduledPost[] {
   const today = new Date();
   const anchorYear = today.getMonth() > 7 ? today.getFullYear() + 1 : today.getFullYear();
   const iso = (day: number, hour: number, minute = 0) => new Date(anchorYear, 7, day, hour, minute).toISOString();
@@ -100,15 +100,15 @@ function makeSamplePosts(): ScheduledPost[] {
   ];
 }
 
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function ymd(d: Date): string {
+export function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function timeShort(ts: string): string {
+export function timeShort(ts: string): string {
   const d = new Date(ts); let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? "p" : "a";
   h = h % 12; if (h === 0) h = 12;
   return m ? `${h}:${String(m).padStart(2, "0")}${ap}` : `${h}${ap}`;
