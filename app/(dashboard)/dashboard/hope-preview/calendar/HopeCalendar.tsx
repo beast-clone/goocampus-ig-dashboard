@@ -395,7 +395,7 @@ function EventChip({ post, onClick, block }: { post: ScheduledPost; onClick: () 
 // Creative preview: the post's actual media. Image → shown; Carousel → slideshow
 // (‹ › + dots); Reel/video → inline <video controls> (real posts) or a poster with
 // a ▶ that opens the Instagram permalink (demo / when only a thumbnail exists).
-function MediaPreview({ post }: { post: ScheduledPost }) {
+function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
   const media = (post.mediaUrls && post.mediaUrls.length) ? post.mediaUrls : (post.thumbnailUrl ? [post.thumbnailUrl] : []);
   const [idx, setIdx] = useState(0);
   if (!media.length) return <div className="hcal-media-empty">No creative attached to this post.</div>;
@@ -403,7 +403,7 @@ function MediaPreview({ post }: { post: ScheduledPost }) {
   const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(cur);
   const isReel = /reel/i.test(post.type);
   return (
-    <div className="hcal-media">
+    <div className={`hcal-media ${pane ? "pane" : ""}`}>
       <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
         {isVideo
           ? <video className="hcal-media-el" src={cur} controls playsInline poster={post.thumbnailUrl || undefined} />
@@ -418,14 +418,12 @@ function MediaPreview({ post }: { post: ScheduledPost }) {
             <button className="hcal-media-nav prev" onClick={() => setIdx((i) => (i - 1 + media.length) % media.length)} aria-label="Previous slide">‹</button>
             <button className="hcal-media-nav next" onClick={() => setIdx((i) => (i + 1) % media.length)} aria-label="Next slide">›</button>
             <span className="hcal-media-count">{idx + 1}/{media.length}</span>
+            <div className="hcal-media-dots">
+              {media.map((_, i) => <button key={i} className={`hcal-media-dot ${i === idx ? "on" : ""}`} onClick={() => setIdx(i)} aria-label={`Slide ${i + 1}`} />)}
+            </div>
           </>
         )}
       </div>
-      {media.length > 1 && (
-        <div className="hcal-media-dots">
-          {media.map((_, i) => <button key={i} className={`hcal-media-dot ${i === idx ? "on" : ""}`} onClick={() => setIdx(i)} aria-label={`Slide ${i + 1}`} />)}
-        </div>
-      )}
     </div>
   );
 }
@@ -451,51 +449,81 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
     ? `Scheduled for ${new Date(post.scheduleTime).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
     : "No schedule";
 
+  // Reels (portrait) + carousels get a WIDE landscape modal: media in a left
+  // column sized to its shape (no letterbox bars) with the details beside it.
+  // A single image keeps the compact top-media layout.
+  const media = (post.mediaUrls && post.mediaUrls.length) ? post.mediaUrls : (post.thumbnailUrl ? [post.thumbnailUrl] : []);
+  const isReel = /reel/i.test(post.type);
+  const isCarousel = /carousel/i.test(post.type) || media.length > 1;
+  const wide = media.length > 0 && (isReel || isCarousel);
+  const paneW = isReel ? 300 : 360;
+
+  const headerEl = (
+    <div className="hcal-modal-head" style={{ background: st.bg, borderLeftColor: acct.color }}>
+      <div className="hcal-modal-headl">
+        <span className="hcal-sdot" style={{ background: st.dot }} />
+        <span className="hcal-modal-status" style={{ color: st.text }}>{st.label}</span>
+        <span className="hcal-modal-acct" style={{ background: acct.soft, color: acct.color }}>{acct.handle}</span>
+      </div>
+      <button className="hcal-modal-x" onClick={onClose}>×</button>
+    </div>
+  );
+  const detailsEl = (
+    <>
+      <div>
+        <div className="hcal-modal-lbl">Title</div>
+        <div className="hcal-modal-title">{post.particulars || "(no title)"}</div>
+      </div>
+      <div className="hcal-modal-grid">
+        <div><div className="hcal-modal-lbl">Brand</div><div className="hcal-modal-val">{post.publishToPage}</div></div>
+        <div><div className="hcal-modal-lbl">Type</div><div className="hcal-modal-val">{post.type || "—"}</div></div>
+        <div><div className="hcal-modal-lbl">Interest</div><div className="hcal-modal-val">{post.primaryInterest || "—"}</div></div>
+        <div><div className="hcal-modal-lbl">Time</div><div className="hcal-modal-val">{whenLabel}</div></div>
+      </div>
+      {post.caption && (
+        <div>
+          <div className="hcal-modal-lbl">Caption preview</div>
+          <div className="hcal-modal-caption">{post.caption}</div>
+        </div>
+      )}
+      {post.effectiveStatus === "failed" && post.failureReason && (
+        <div className="hcal-modal-fail">
+          <div className="hcal-modal-faillbl">Why it failed</div>
+          <div className="hcal-modal-failtxt">{post.failureReason}</div>
+          <button onClick={retry} disabled={retrying} className="hcal-modal-retry">{retrying ? "Retrying…" : "↻ Retry — bump back into the queue"}</button>
+          {error && <div className="hcal-modal-failtxt" style={{ marginTop: ".5rem" }}>{error}</div>}
+        </div>
+      )}
+      {(post.instagramUrl || post.facebookUrl) && (
+        <div className="hcal-modal-links">
+          {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer">View on Instagram ↗</a>}
+          {post.facebookUrl && <a href={post.facebookUrl.split("\n")[0]} target="_blank" rel="noreferrer">View on Facebook ↗</a>}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="hcal-modal-bg" onClick={onClose}>
-      <div className="hcal-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="hcal-modal-head" style={{ background: st.bg, borderLeftColor: acct.color }}>
-          <div className="hcal-modal-headl">
-            <span className="hcal-sdot" style={{ background: st.dot }} />
-            <span className="hcal-modal-status" style={{ color: st.text }}>{st.label}</span>
-            <span className="hcal-modal-acct" style={{ background: acct.soft, color: acct.color }}>{acct.handle}</span>
+      {wide ? (
+        <div className="hcal-modal hcal-modal-wide" onClick={(e) => e.stopPropagation()}>
+          <div className="hcal-modal-mediapane" style={{ flexBasis: paneW }}>
+            <MediaPreview post={post} pane />
           </div>
-          <button className="hcal-modal-x" onClick={onClose}>×</button>
+          <div className="hcal-modal-detail">
+            {headerEl}
+            <div className="hcal-modal-body">{detailsEl}</div>
+          </div>
         </div>
-        <div className="hcal-modal-body">
-          <MediaPreview post={post} />
-          <div>
-            <div className="hcal-modal-lbl">Title</div>
-            <div className="hcal-modal-title">{post.particulars || "(no title)"}</div>
+      ) : (
+        <div className="hcal-modal" onClick={(e) => e.stopPropagation()}>
+          {headerEl}
+          <div className="hcal-modal-body">
+            <MediaPreview post={post} />
+            {detailsEl}
           </div>
-          <div className="hcal-modal-grid">
-            <div><div className="hcal-modal-lbl">Brand</div><div className="hcal-modal-val">{post.publishToPage}</div></div>
-            <div><div className="hcal-modal-lbl">Type</div><div className="hcal-modal-val">{post.type || "—"}</div></div>
-            <div><div className="hcal-modal-lbl">Interest</div><div className="hcal-modal-val">{post.primaryInterest || "—"}</div></div>
-            <div><div className="hcal-modal-lbl">Time</div><div className="hcal-modal-val">{whenLabel}</div></div>
-          </div>
-          {post.caption && (
-            <div>
-              <div className="hcal-modal-lbl">Caption preview</div>
-              <div className="hcal-modal-caption">{post.caption}</div>
-            </div>
-          )}
-          {post.effectiveStatus === "failed" && post.failureReason && (
-            <div className="hcal-modal-fail">
-              <div className="hcal-modal-faillbl">Why it failed</div>
-              <div className="hcal-modal-failtxt">{post.failureReason}</div>
-              <button onClick={retry} disabled={retrying} className="hcal-modal-retry">{retrying ? "Retrying…" : "↻ Retry — bump back into the queue"}</button>
-              {error && <div className="hcal-modal-failtxt" style={{ marginTop: ".5rem" }}>{error}</div>}
-            </div>
-          )}
-          {(post.instagramUrl || post.facebookUrl) && (
-            <div className="hcal-modal-links">
-              {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer">View on Instagram ↗</a>}
-              {post.facebookUrl && <a href={post.facebookUrl.split("\n")[0]} target="_blank" rel="noreferrer">View on Facebook ↗</a>}
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -616,18 +644,27 @@ const HCAL_CSS = `
 .hcal-modal-links a{color:var(--brand);text-decoration:none}
 .hcal-modal-links a:hover{text-decoration:underline}
 /* creative preview */
+.hcal-media{position:relative}
+.hcal-media.pane,.hcal-media.pane .hcal-media-stage{height:100%;width:100%}
 .hcal-media-stage{position:relative;background:#0F1222;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:340px}
 .hcal-media-stage.reel{max-height:430px}
+.hcal-media.pane .hcal-media-stage{border-radius:0;max-height:90vh}
 .hcal-media-el{width:100%;max-height:340px;object-fit:contain;display:block}
 .hcal-media-stage.reel .hcal-media-el{max-height:430px}
+.hcal-media.pane .hcal-media-el{max-height:90vh;height:auto}
 .hcal-media-play{position:absolute;inset:0;margin:auto;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.94);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:1.15rem;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.34);padding-left:3px}
 .hcal-media-play.static{cursor:default}
 .hcal-media-nav{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.42);color:#fff;border:none;font-size:1.15rem;display:flex;align-items:center;justify-content:center;line-height:1}
 .hcal-media-nav.prev{left:8px}.hcal-media-nav.next{right:8px}
 .hcal-media-nav:hover{background:rgba(0,0,0,.64)}
 .hcal-media-count{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:.62rem;font-weight:600;padding:.12rem .48rem;border-radius:20px}
-.hcal-media-dots{display:flex;gap:5px;justify-content:center;padding:.5rem 0 .1rem}
-.hcal-media-dot{width:6px;height:6px;border-radius:50%;background:#D4D8E2;border:none;padding:0;transition:.15s}
-.hcal-media-dot.on{background:var(--brand);width:16px;border-radius:3px}
+.hcal-media-dots{position:absolute;bottom:8px;left:0;right:0;display:flex;gap:5px;justify-content:center}
+.hcal-media-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);border:none;padding:0;transition:.15s}
+.hcal-media-dot.on{background:#fff;width:16px;border-radius:3px}
 .hcal-media-empty{padding:1.4rem;text-align:center;color:var(--muted);font-size:.78rem;background:var(--panel-2);border-radius:12px}
+/* wide (landscape) modal for reels + carousels: media pane | details pane */
+.hcal-modal-wide{max-width:760px;display:flex;align-items:stretch;overflow:hidden}
+.hcal-modal-mediapane{flex-grow:0;flex-shrink:0;background:#0F1222;display:flex;align-items:center;justify-content:center;max-height:90vh;overflow:hidden}
+.hcal-modal-detail{flex:1;min-width:0;display:flex;flex-direction:column;max-height:90vh;overflow-y:auto}
+@media(max-width:640px){.hcal-modal-wide{flex-direction:column;max-width:420px}.hcal-modal-mediapane{flex-basis:auto!important;max-height:46vh;width:100%}}
 `;
