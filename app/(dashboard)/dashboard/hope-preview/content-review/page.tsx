@@ -191,13 +191,13 @@ function Review() {
                         {p.owner}
                       </span>
                     )}
-                    {p.sbu && <span className="text-[11px] text-[#8A92A6]">{p.sbu}</span>}
+                    {p.sbu && <span className="text-xs text-[#8A92A6]">{p.sbu}</span>}
                   </div>
                   {(p.caption || p.content) && (
                     <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
                   )}
                   {!p.hasCreative && (
-                    <div className="text-[11px] text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+                    <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
                       No creative attached — add media before scheduling.
                     </div>
                   )}

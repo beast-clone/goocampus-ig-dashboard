@@ -275,7 +275,7 @@ function CreativeMedia({
     return (
       <div className="bg-gray-50 flex items-center justify-center relative">
         <img src={poster} alt="" className="w-full h-auto max-h-[70vh] object-contain" />
-        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded">
+        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
           Video URL expired — {permalink ? <a href={permalink} target="_blank" rel="noreferrer" className="underline">open in Ad Library</a> : "open in Ad Library"}
         </div>
       </div>

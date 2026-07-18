@@ -93,7 +93,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Page switcher + status */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         {profile ? (
-          <div className="text-sm font-semibold text-gray-800">{PAGES.find((p) => p.key === page)?.label ?? page}</div>
+          <div className="text-sm font-semibold text-[#232D42]">{PAGES.find((p) => p.key === page)?.label ?? page}</div>
         ) : (
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {PAGES.map((p) => (
@@ -178,9 +178,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-xl font-semibold tabular-nums" style={accent ? { color: LI } : {}}>{value}</div>
-      {sub && <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -188,7 +188,7 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-sm font-semibold text-gray-800 mb-2">{title}</div>
+      <div className="text-base font-medium text-[#232D42] mb-2">{title}</div>
       {children}
     </div>
   );
@@ -216,7 +216,7 @@ function FollowersChart({ data, totalGain, organic, paid }: { data: { date: stri
       {/* Organic vs paid split */}
       {hasSplit && (
         <div className="mb-4">
-          <div className="flex items-center justify-between text-[11px] mb-1">
+          <div className="flex items-center justify-between text-xs mb-1">
             <span className="font-medium text-gray-600">Organic <span className="tabular-nums text-gray-500">+{fmt(organic!)}</span></span>
             <span className="font-medium text-gray-600">Paid <span className="tabular-nums text-gray-500">+{fmt(paid!)}</span></span>
           </div>
@@ -224,7 +224,7 @@ function FollowersChart({ data, totalGain, organic, paid }: { data: { date: stri
             <div className="h-full" style={{ width: `${organicPct}%`, background: LI }} />
             <div className="h-full" style={{ width: `${100 - organicPct}%`, background: "#86BCF3" }} />
           </div>
-          <div className="text-[10px] text-gray-400 mt-1">{organicPct}% organic · {100 - organicPct}% paid</div>
+          <div className="text-xs text-gray-400 mt-1">{organicPct}% organic · {100 - organicPct}% paid</div>
         </div>
       )}
 
@@ -363,7 +363,7 @@ function PostPerformance({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) =
                 </div>
                 <div className="p-3">
                   <div className="text-sm text-gray-800 line-clamp-2 min-h-[2.5rem]">{p.text ? cleanText(p.text) : <span className="text-gray-400 italic">No caption</span>}</div>
-                  <div className="text-[11px] text-gray-400 mt-1">{p.date}</div>
+                  <div className="text-xs text-gray-400 mt-1">{p.date}</div>
                   <div className="mt-3 grid grid-cols-3 gap-1 text-center">
                     <MiniMetric label="Impr." value={fmt(p.impressions)} />
                     <MiniMetric label="Eng." value={`${p.engagementRate}%`} accent />
@@ -385,7 +385,7 @@ function MiniMetric({ label, value, accent }: { label: string; value: string; ac
   return (
     <div>
       <div className="text-sm font-semibold tabular-nums" style={accent ? { color: LI } : {}}>{value}</div>
-      <div className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</div>
+      <div className="text-xs text-gray-400 uppercase tracking-wide">{label}</div>
     </div>
   );
 }
@@ -396,7 +396,7 @@ function PostsTable({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => voi
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
+            <tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b border-gray-100">
               <th className="px-4 py-2.5 font-medium">Post</th>
               <th className="px-3 py-2.5 font-medium text-right">Impr.</th>
               <th className="px-3 py-2.5 font-medium text-right">Unique</th>
@@ -410,13 +410,13 @@ function PostsTable({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => voi
           </thead>
           <tbody>
             {posts.map((p, i) => (
-              <tr key={p.id} onClick={() => onOpen(p)} className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${i === 0 ? "bg-blue-50/40" : ""}`}>
+              <tr key={p.id} onClick={() => onOpen(p)} className={`border-b border-gray-50 cursor-pointer hover:bg-brand-light/40 ${i === 0 ? "bg-brand-light/40" : ""}`}>
                 <td className="px-4 py-3 max-w-md">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: (TYPE_STYLE[p.type] || TYPE_STYLE.IMAGE).bg, color: (TYPE_STYLE[p.type] || TYPE_STYLE.IMAGE).text }}>{(TYPE_STYLE[p.type] || TYPE_STYLE.IMAGE).label}</span>
                     <span className="truncate text-gray-800">{cleanText(p.text) || "—"}</span>
                   </div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{p.date}{i === 0 && <span className="ml-2 text-blue-600 font-medium">· Top post</span>}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{p.date}{i === 0 && <span className="ml-2 text-brand font-medium">· Top post</span>}</div>
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums font-medium">{fmt(p.impressions)}</td>
                 <td className="px-3 py-3 text-right tabular-nums text-gray-600">{fmt(p.uniqueImpressions)}</td>
@@ -455,7 +455,7 @@ function PostModal({ post, pageName, onClose }: { post: Post; pageName: string; 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="text-sm font-semibold text-gray-800">Post detail</div>
+          <div className="text-base font-medium text-[#232D42]">Post detail</div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
 
@@ -464,15 +464,15 @@ function PostModal({ post, pageName, onClose }: { post: Post; pageName: string; 
           <div className="p-5 border-b lg:border-b-0 lg:border-r border-gray-100">
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
               <div className="flex items-center gap-3 p-3">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold" style={{ background: LI }}>in</div>
+                <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold" style={{ background: LI }}>in</div>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate">{pageName}</div>
-                  <div className="text-[11px] text-gray-500">{post.date} · Company page</div>
+                  <div className="text-xs text-gray-500">{post.date} · Company page</div>
                 </div>
               </div>
               {post.text && <div className="px-3 pb-3 text-sm text-gray-800 whitespace-pre-wrap">{cleanText(post.text)}</div>}
               <PostMedia post={post} tall interactive />
-              <div className="flex items-center justify-between px-3 py-2 text-[11px] text-gray-500 border-t border-gray-100">
+              <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-500 border-t border-gray-100">
                 <span>👍💬 {fmt(post.reactions + post.comments)}</span>
                 <span>{fmt(post.comments)} comments · {fmt(post.shares)} shares</span>
               </div>
@@ -544,7 +544,7 @@ function PostModal({ post, pageName, onClose }: { post: Post; pageName: string; 
 function BigMetric({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg p-2.5">
-      <div className="text-[10px] uppercase tracking-wide text-gray-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-400">{label}</div>
       <div className="text-lg font-semibold tabular-nums mt-0.5" style={accent ? { color: LI } : {}}>{value}</div>
     </div>
   );
@@ -687,7 +687,7 @@ function RankCard({ title, rows }: { title: string; rows: DemoRow[] }) {
       <div className="space-y-3">
         {top.map((r, i) => (
           <div key={r.label} className="flex items-center gap-3">
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${i === 0 ? "text-white" : "text-gray-500 bg-gray-100"}`} style={i === 0 ? { background: LI } : {}}>{i + 1}</span>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0 ${i === 0 ? "text-white" : "text-gray-500 bg-gray-100"}`} style={i === 0 ? { background: LI } : {}}>{i + 1}</span>
             <div className="flex-1 min-w-0">
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-gray-700 truncate">{r.label}</span>

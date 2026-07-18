@@ -79,7 +79,7 @@ function TeamManager() {
 
   return (
     <div className="max-w-6xl space-y-4">
-      <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-900">
+      <div className="rounded-xl bg-brand-light border border-brand/20 px-4 py-3 text-sm text-brand">
         Admin and active changes apply the next time that person signs in. Someone with a
         <span className="font-medium"> personal password</span> can only sign in with it — the shared
         team password stops working for them. People without one keep using the shared password.
@@ -156,7 +156,7 @@ function TeamManager() {
                           flash(`${m.first} is ${e.target.checked ? "now an admin" : "no longer an admin"} (from their next sign-in).`);
                         }
                       }}
-                      className="w-4 h-4 accent-[#6D5CE7]"
+                      className="w-4 h-4 accent-[#3A57E8]"
                     />
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -169,7 +169,7 @@ function TeamManager() {
                           flash(e.target.checked ? `${m.first} can sign in again.` : `${m.first} can no longer sign in.`);
                         }
                       }}
-                      className="w-4 h-4 accent-[#6D5CE7]"
+                      className="w-4 h-4 accent-[#3A57E8]"
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -241,7 +241,7 @@ function TeamManager() {
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
         {showAdd ? (
           <div className="space-y-3">
-            <div className="text-sm font-medium">Add a team member</div>
+            <div className="text-base font-medium text-[#232D42]">Add a team member</div>
             <div className="grid grid-cols-2 gap-3 max-w-xl">
               <input
                 value={add.name}

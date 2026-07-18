@@ -100,7 +100,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     <>
       <div className="flex items-end justify-between mb-5">
         <div>
-          <h2 className="text-xl font-semibold">Competitor Benchmark <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
+          <h2 className="text-base font-medium text-[#232D42]">Competitor Benchmark <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
           <p className="text-sm text-gray-500 mt-0.5">Public Instagram accounts tracked via Meta&apos;s public data — followers, posting cadence, engagement rate.</p>
         </div>
         <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={() => load({ niche })} loading={loading} />
@@ -115,8 +115,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
             onClick={() => { setCustomHandles(""); load({ niche: n }); }}
             className={`text-xs px-3 py-1.5 rounded-full border transition ${
               n === niche
-                ? "bg-violet-600 text-white border-violet-600"
-                : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+                ? "bg-brand text-white border-brand"
+                : "bg-white text-gray-700 border-gray-200 hover:border-brand"
             }`}
           >
             {n}
@@ -127,11 +127,11 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           value={customHandles}
           onChange={(e) => setCustomHandles(e.target.value)}
           placeholder="custom: @handle1, @handle2"
-          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-violet-400 min-w-[260px]"
+          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-brand min-w-[260px]"
           onKeyDown={(e) => { if (e.key === "Enter" && customHandles.trim()) load({ handles: customHandles }); }}
         />
         {customHandles.trim() && (
-          <button onClick={() => load({ handles: customHandles })} className="text-xs px-3 py-1.5 rounded-full bg-violet-600 text-white">
+          <button onClick={() => load({ handles: customHandles })} className="text-xs px-3 py-1.5 rounded-full bg-brand text-white">
             Track
           </button>
         )}
@@ -163,7 +163,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           <div key={c.username} className="bg-white rounded-2xl p-5 border border-amber-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <div className="font-mono text-sm">@{c.username}</div>
-              <span className="text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+              <span className="text-xs uppercase tracking-wide bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
                 error
               </span>
             </div>
@@ -190,8 +190,8 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function CompetitorCard({ c, medianER }: { c: Competitor; medianER: number }) {
   const erDelta = c.engagementRatePct - medianER;
   const erBadge = c.engagementRatePct >= medianER
-    ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">+{erDelta.toFixed(2)}pp</span>
-    : <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">{erDelta.toFixed(2)}pp</span>;
+    ? <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">+{erDelta.toFixed(2)}pp</span>
+    : <span className="text-xs px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">{erDelta.toFixed(2)}pp</span>;
   const top3 = [...c.recent].sort((a, b) => (b.like_count + b.comments_count) - (a.like_count + a.comments_count)).slice(0, 3);
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition">
@@ -220,11 +220,11 @@ function CompetitorCard({ c, medianER }: { c: Competitor; medianER: number }) {
 
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-gray-400">Engagement rate</div>
+            <div className="text-xs uppercase tracking-wide text-gray-400">Engagement rate</div>
             <div className="text-lg font-semibold tabular-nums">{c.engagementRatePct.toFixed(2)}%</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wide text-gray-400">vs niche median</div>
+            <div className="text-xs uppercase tracking-wide text-gray-400">vs niche median</div>
             <div className="mt-1">{erBadge}</div>
           </div>
         </div>
@@ -237,7 +237,7 @@ function CompetitorCard({ c, medianER }: { c: Competitor; medianER: number }) {
 
       {top3.length > 0 && (
         <div className="border-t border-gray-100 px-5 py-3 bg-gray-50/50">
-          <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-2">Top recent posts</div>
+          <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Top recent posts</div>
           <div className="grid grid-cols-3 gap-2">
             {top3.map((m) => (
               <a key={m.id} href={m.permalink} target="_blank" rel="noopener noreferrer" className="relative block aspect-square rounded-lg overflow-hidden bg-gray-100 group">
@@ -245,7 +245,7 @@ function CompetitorCard({ c, medianER }: { c: Competitor; medianER: number }) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
                 ) : null}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 flex justify-between">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white text-xs px-1.5 py-1 flex justify-between">
                   <span>♥ {fmt(m.like_count)}</span>
                   <span>💬 {fmt(m.comments_count)}</span>
                 </div>
@@ -261,7 +261,7 @@ function CompetitorCard({ c, medianER }: { c: Competitor; medianER: number }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wide text-gray-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-400">{label}</div>
       <div className="text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );

@@ -89,7 +89,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Channel switcher + status */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         {profile ? (
-          <div className="text-sm font-semibold text-gray-800">{CHANNELS.find((c) => c.key === channel)?.label ?? channel} channel</div>
+          <div className="text-base font-medium text-[#232D42]">{CHANNELS.find((c) => c.key === channel)?.label ?? channel} channel</div>
         ) : (
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {CHANNELS.map((c) => (
@@ -170,7 +170,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums" style={accent ? { color: YT } : {}}>{value}</div>
       {sub && <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>}
     </div>
@@ -180,7 +180,7 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-sm font-semibold text-gray-800 mb-2">{title}</div>
+      <div className="text-base font-medium text-[#232D42] mb-2">{title}</div>
       {children}
     </div>
   );
@@ -213,7 +213,7 @@ function ViewsChart({ data, totalViews, totalWatch }: { data: { date: string; vi
                 const p = payload[0].payload as { date: string; views: number; watchHours: number };
                 return (
                   <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs min-w-[150px]">
-                    <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
                     <div className="text-base font-semibold text-gray-900">{p.views.toLocaleString("en-IN")} views</div>
                     <div className="text-xs text-gray-500">{p.watchHours.toLocaleString("en-IN")} watch hours</div>
                   </div>
@@ -257,7 +257,7 @@ function SubsChart({ data, gain }: { data: { date: string; subscribers: number; 
                 const p = payload[0].payload as { date: string; subscribers: number; gained: number; lost: number };
                 return (
                   <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs min-w-[150px]">
-                    <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
                     <div className="text-base font-semibold text-gray-900">{p.subscribers.toLocaleString("en-IN")}</div>
                     <div className="text-xs text-emerald-600">+{p.gained} gained</div>
                     <div className="text-xs text-rose-500">−{p.lost} lost</div>
@@ -294,9 +294,9 @@ function VideoCards({ videos }: { videos: Video[] }) {
             {v.thumbnail
               ? <img src={v.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
               : <div className="w-full h-full" />}
-            <span className="absolute top-2 left-2 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
+            <span className="absolute top-2 left-2 text-xs font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
             {i === 0 && (
-              <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] font-semibold text-white rounded-full px-2 py-0.5" style={{ background: YT }}>
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-xs font-semibold text-white rounded-full px-2 py-0.5" style={{ background: YT }}>
                 <IconTrophy size={11} stroke={2} /> Top video
               </span>
             )}

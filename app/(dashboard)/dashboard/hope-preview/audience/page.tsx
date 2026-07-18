@@ -26,7 +26,7 @@ type AudienceData = {
 
 const AGE_ORDER = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
 const GENDER_LABELS: Record<string, string> = { M: "Male", F: "Female", U: "Unspecified" };
-const GENDER_COLORS: Record<string, string> = { Male: "#7c3aed", Female: "#ec4899", Unspecified: "#cbd5e1" };
+const GENDER_COLORS: Record<string, string> = { Male: "#3A57E8", Female: "#ec4899", Unspecified: "#cbd5e1" };
 
 function sortAge<T extends { label?: string; age?: string }>(arr: T[], key: "label" | "age"): T[] {
   return [...arr].sort((a, b) => AGE_ORDER.indexOf((a[key] as string) || "") - AGE_ORDER.indexOf((b[key] as string) || ""));
@@ -184,8 +184,8 @@ function Audience({ accountId }: { accountId: string }) {
   const dominant = maleShare >= femaleShare ? "M" : "F";
   const skin = "#F5D0A9";
   const hair = "#2C1810";
-  const shirt = dominant === "M" ? "#7c3aed" : "#ec4899";
-  const shirtDark = dominant === "M" ? "#5b21b6" : "#be185d";
+  const shirt = dominant === "M" ? "#3A57E8" : "#ec4899";
+  const shirtDark = dominant === "M" ? "#2138B0" : "#be185d";
 
   return (
     <>
@@ -197,7 +197,7 @@ function Audience({ accountId }: { accountId: string }) {
         <span>{data.account.followers.toLocaleString("en-IN")} followers</span>
         {/* Compact info icon replaces the loud yellow banner — hover for the "why doesn't range change?" explainer. */}
         <span className="ml-2 group relative inline-flex items-center cursor-help">
-          <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold" title="Meta only returns demographics as a single lifetime snapshot — not by date range">i</span>
+          <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-brand-light text-brand text-xs font-semibold" title="Meta only returns demographics as a single lifetime snapshot — not by date range">i</span>
           <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-[11px] text-gray-700 w-72 opacity-0 group-hover:opacity-100 pointer-events-none transition z-10">
             Meta returns demographics as a single &ldquo;lifetime&rdquo; snapshot, not by date range. So switching 7d / 30d / 90d up top has no effect here (it does change Overview, Posts, Reels, Ads).
           </span>
@@ -217,7 +217,7 @@ function Audience({ accountId }: { accountId: string }) {
           replaces the previous separate donut (the pyramid already shows M vs F, so a
           second visual added noise). Pyramid bars are now anchored to the center label
           column and percentages sit inside the bar when they fit. */}
-      <section className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
         <div className="px-6 md:px-8 py-5 border-b border-gray-100">
           <div className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold">🎂 Age &times; gender</div>
           <div className="text-xs text-gray-500 mt-1">Overall split first, then a full pyramid across every age band.</div>
@@ -233,7 +233,7 @@ function Audience({ accountId }: { accountId: string }) {
           ) : sortedAge.length > 0 ? (
             <div className="space-y-2">
               {sortedAge.map((a) => (
-                <SimpleBar key={a.label} label={a.label} value={a.value} pct={pctOf(a.value, ageTotal)} color="#7c3aed" />
+                <SimpleBar key={a.label} label={a.label} value={a.value} pct={pctOf(a.value, ageTotal)} color="#3A57E8" />
               ))}
             </div>
           ) : (
@@ -244,9 +244,9 @@ function Audience({ accountId }: { accountId: string }) {
 
       {/* ═════════════════════ SECTION 2 — WHERE ═════════════════════
           One panel that holds countries + cities so the geo story is unified. */}
-      <section className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-        <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gradient-to-r from-sky-50 to-cyan-50">
-          <div className="text-[11px] uppercase tracking-widest text-sky-700 font-semibold">🌍 Where they are</div>
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-brand-light">
+          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold">🌍 Where they are</div>
           <div className="text-sm text-gray-700 mt-1">
             Followers span <b>{data.countries.length}</b> countries. Top country: <b>{COUNTRY_NAME[data.countries[0]?.label] || data.countries[0]?.label || "—"}</b>
             {data.cities[0]?.label && <> · Top city: <b>{data.cities[0].label.split(",")[0]}</b></>}
@@ -260,7 +260,7 @@ function Audience({ accountId }: { accountId: string }) {
             <div className="aspect-[16/10] w-full bg-white rounded-xl overflow-hidden border border-gray-100">
               <CountriesWorldMap entries={data.countries.slice(0, 20)} />
             </div>
-            <div className="text-[10px] text-gray-400 mt-2">Deeper purple = higher follower share. Hover a country for %.</div>
+            <div className="text-xs text-gray-400 mt-2">Deeper purple = higher follower share. Hover a country for %.</div>
           </div>
         </div>
 
@@ -272,19 +272,19 @@ function Audience({ accountId }: { accountId: string }) {
             <div className="aspect-[16/10] w-full bg-white rounded-xl overflow-hidden border border-gray-100">
               <CitiesRegionMap entries={data.cities.slice(0, 20)} />
             </div>
-            <div className="text-[10px] text-gray-400 mt-2">Bigger cyan dot = more followers in that city.</div>
+            <div className="text-xs text-gray-400 mt-2">Bigger cyan dot = more followers in that city.</div>
           </div>
         </div>
       </section>
 
       {/* ═════════════════════ SECTION 3 — WHEN ═════════════════════
           Peak hour headline + heatmap + hourly area chart, all one panel. */}
-      <section className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-        <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
-          <div className="text-[11px] uppercase tracking-widest text-amber-700 font-semibold">⏰ When they&apos;re active</div>
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-brand-light">
+          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold">⏰ When they&apos;re active</div>
           {peakHour ? (
             <div className="text-sm text-gray-700 mt-1">
-              Peak hour: <b className="text-amber-700">{String(peakHour.hour).padStart(2, "0")}:00</b> — <b>{peakHour.value.toLocaleString("en-IN")}</b> followers online
+              Peak hour: <b className="text-brand">{String(peakHour.hour).padStart(2, "0")}:00</b> — <b>{peakHour.value.toLocaleString("en-IN")}</b> followers online
               <span className="text-gray-500"> · Schedule posts ~30 min before this window for max reach.</span>
             </div>
           ) : (
@@ -309,14 +309,14 @@ function Audience({ accountId }: { accountId: string }) {
               <AreaChart data={onlineSeries} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="onlineG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#3A57E8" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#3A57E8" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} stroke="#94a3b8" tickMargin={6} interval={2} />
                 <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" width={48} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                <Area type="monotone" dataKey="followers" stroke="#7c3aed" strokeWidth={2} fill="url(#onlineG)" />
+                <Area type="monotone" dataKey="followers" stroke="#3A57E8" strokeWidth={2} fill="url(#onlineG)" />
               </AreaChart>
             </ResponsiveContainer>
             </div>
@@ -347,7 +347,7 @@ function CountryRows({ countries }: { countries: DemoEntry[] }) {
                     <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-sky-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                    <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
                   </div>
                 </div>
               </div>
@@ -383,7 +383,7 @@ function CityRows({ cities }: { cities: DemoEntry[] }) {
                     <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-cyan-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                    <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
                   </div>
                 </div>
               </div>
@@ -464,7 +464,7 @@ function AgeGenderBars({ rows, total }: { rows: { age: string; M: number; F: num
       {/* Legend — proper person-figure icons instead of biology symbols */}
       <div className="flex items-center gap-5 mb-4 text-xs">
         <div className="flex items-center gap-2">
-          <MaleIcon className="w-4 h-4 text-violet-600" />
+          <MaleIcon className="w-4 h-4 text-brand" />
           <span className="text-gray-700 font-medium">Male</span>
         </div>
         <div className="flex items-center gap-2">
@@ -486,14 +486,14 @@ function AgeGenderBars({ rows, total }: { rows: { age: string; M: number; F: num
                   <div className="flex-1 flex flex-col justify-end items-center" title={`${r.age} years · Male · ${r.M.toLocaleString("en-IN")}`}>
                     <div className="w-full rounded-t transition-all" style={{
                       height: `${mPx}px`,
-                      background: mIsPeak ? "linear-gradient(180deg, #ec4899, #7c3aed)" : "linear-gradient(180deg, #a78bfa, #7c3aed)",
+                      background: mIsPeak ? "linear-gradient(180deg, #ec4899, #3A57E8)" : "linear-gradient(180deg, #6B82F0, #3A57E8)",
                       opacity: mIsPeak ? 1 : 0.6,
                     }} />
                   </div>
                   <div className="flex-1 flex flex-col justify-end items-center" title={`${r.age} years · Female · ${r.F.toLocaleString("en-IN")}`}>
                     <div className="w-full rounded-t transition-all" style={{
                       height: `${fPx}px`,
-                      background: fIsPeak ? "linear-gradient(180deg, #7c3aed, #ec4899)" : "linear-gradient(180deg, #f9a8d4, #ec4899)",
+                      background: fIsPeak ? "linear-gradient(180deg, #3A57E8, #ec4899)" : "linear-gradient(180deg, #f9a8d4, #ec4899)",
                       opacity: fIsPeak ? 1 : 0.6,
                     }} />
                   </div>
@@ -543,7 +543,7 @@ function Pyramid({ rows, total }: { rows: { age: string; M: number; F: number; U
               {!mLabelInside && <span className="text-[11px] text-gray-500 tabular-nums mr-2">{mShare.toFixed(1)}%</span>}
               <div
                 className="h-6 rounded-l-md flex items-center justify-start pl-2 text-[11px] font-medium text-white tabular-nums shadow-sm"
-                style={{ width: `${Math.max(mWidth, 0.5)}%`, background: "linear-gradient(90deg, #6d28d9, #7c3aed)" }}
+                style={{ width: `${Math.max(mWidth, 0.5)}%`, background: "linear-gradient(90deg, #2138B0, #3A57E8)" }}
                 title={`${r.M.toLocaleString("en-IN")} male`}
               >
                 {mLabelInside && `${mShare.toFixed(1)}%`}
@@ -633,7 +633,7 @@ function GenderSplitRibbon({ gender, total }: { gender: DemoEntry[]; total: numb
             style={{
               width: `${s.pct}%`,
               background: s.name === "Male"
-                ? "linear-gradient(90deg, #6d28d9, #7c3aed)"
+                ? "linear-gradient(90deg, #2138B0, #3A57E8)"
                 : s.name === "Female"
                   ? "linear-gradient(90deg, #ec4899, #db2777)"
                   : "linear-gradient(90deg, #94a3b8, #cbd5e1)",
@@ -650,7 +650,7 @@ function GenderSplitRibbon({ gender, total }: { gender: DemoEntry[]; total: numb
             <span
               className="inline-block w-2.5 h-2.5 rounded-sm"
               style={{
-                background: s.name === "Male" ? "#7c3aed" : s.name === "Female" ? "#ec4899" : "#cbd5e1",
+                background: s.name === "Male" ? "#3A57E8" : s.name === "Female" ? "#ec4899" : "#cbd5e1",
               }}
             />
             <span>{s.name}</span>
@@ -681,7 +681,7 @@ function CountryCard({ countries }: { countries: DemoEntry[] }) {
                   <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-violet-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                  <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
                 </div>
               </div>
             </div>
@@ -716,7 +716,7 @@ function CityCard({ cities }: { cities: DemoEntry[] }) {
                   <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-pink-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                  <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
                 </div>
               </div>
             </div>
@@ -770,9 +770,9 @@ function SummaryCell({ emoji, label, value, sub, className = "" }: {
     <div className={`px-5 py-4 md:py-5 ${className}`}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-base leading-none">{emoji}</span>
-        <span className="text-[10px] uppercase tracking-widest text-gray-800/70 font-semibold">{label}</span>
+        <span className="text-xs uppercase tracking-widest text-gray-800/70 font-semibold">{label}</span>
       </div>
-      <div className="text-lg md:text-xl font-bold text-gray-900 leading-tight truncate">{value}</div>
+      <div className="text-lg md:text-xl font-semibold text-gray-900 leading-tight truncate">{value}</div>
       {sub && <div className="text-[11px] text-gray-800/65 mt-0.5">{sub}</div>}
     </div>
   );
@@ -786,8 +786,8 @@ function PersonaCharacter({ skin, hair, shirt, shirtDark }: { skin: string; hair
       <svg viewBox="0 0 260 340" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-xl">
         <defs>
           <radialGradient id="persAura" cx="50%" cy="50%" r="55%">
-            <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+            <stop offset="0%" stopColor="#6B82F0" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#6B82F0" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="persShirt" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={shirt} />
@@ -868,9 +868,9 @@ function OrbitChip({ className = "", emoji, label, value, sub, tint = "violet", 
       <div className="flex items-start gap-2.5">
         <div className="text-xl leading-none">{emoji}</div>
         <div className="flex-1 min-w-0">
-          <div className={`text-[9px] uppercase tracking-wider ${labelColors[tint]} font-bold`}>{label}</div>
-          <div className="text-sm font-bold text-gray-900 leading-tight truncate">{value}</div>
-          {sub && <div className="text-[10px] text-gray-500 mt-0.5 leading-snug">{sub}</div>}
+          <div className={`text-xs uppercase tracking-wider ${labelColors[tint]} font-semibold`}>{label}</div>
+          <div className="text-sm font-semibold text-gray-900 leading-tight truncate">{value}</div>
+          {sub && <div className="text-xs text-gray-500 mt-0.5 leading-snug">{sub}</div>}
         </div>
       </div>
     </div>

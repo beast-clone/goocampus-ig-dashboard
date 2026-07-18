@@ -79,17 +79,17 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           {data.totals.all > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-medium">Where leads came from</div>
+                <div className="text-base font-medium text-[#232D42]">Where leads came from</div>
                 <div className="text-xs text-gray-500">{fmt(data.totals.all)} total in this range</div>
               </div>
               {/* 100% split bar */}
               <div className="flex h-3.5 rounded-full overflow-hidden mb-4">
-                <div className="bg-blue-500 h-full" style={{ width: `${data.totals.all ? (data.totals.ads / data.totals.all) * 100 : 0}%` }} title="Meta Ads" />
+                <div className="bg-brand h-full" style={{ width: `${data.totals.all ? (data.totals.ads / data.totals.all) * 100 : 0}%` }} title="Meta Ads" />
                 <div className="bg-emerald-500 h-full" style={{ width: `${data.totals.all ? (data.totals.comments / data.totals.all) * 100 : 0}%` }} title="Comments" />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                 <SourceRow
-                  color="bg-blue-500"
+                  color="bg-brand"
                   label="Meta Ads"
                   value={data.totals.ads}
                   pct={data.totals.all ? (data.totals.ads / data.totals.all) * 100 : 0}
@@ -103,7 +103,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                   extra={`${(data.commentReplyRate * 100).toFixed(1)}% reply rate · ${fmt(data.totalComments)} comments`}
                 />
               </div>
-              <div className="text-[11px] text-gray-500 leading-relaxed pt-3 mt-3 border-t border-gray-100">
+              <div className="text-xs text-gray-500 leading-relaxed pt-3 mt-3 border-t border-gray-100">
                 The comments path is essentially free — only Meta Ads cost money. This split tells you whether
                 paid spend or organic conversation is doing the heavy lifting.
               </div>
@@ -114,7 +114,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Top funnel keywords */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="text-sm font-medium mb-3">Top funnel keywords</div>
+              <div className="text-base font-medium text-[#232D42] mb-3">Top funnel keywords</div>
               {data.topKeywords.length === 0 ? (
                 <div className="text-sm text-gray-400 text-center py-8">No keywords detected.</div>
               ) : (
@@ -126,7 +126,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                       <div key={k.keyword} className="flex items-center gap-3">
                         <div className="w-20 text-xs font-medium text-gray-700 uppercase truncate">{k.keyword}</div>
                         <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${pct}%` }} />
+                          <div className="h-full bg-brand rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                         <div className="w-10 text-right text-xs font-medium text-gray-900">{k.leads}</div>
                       </div>
@@ -138,7 +138,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
 
             {/* Posts that pulled the most leads */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="text-sm font-medium mb-3">Posts that pulled the most leads</div>
+              <div className="text-base font-medium text-[#232D42] mb-3">Posts that pulled the most leads</div>
               {(data.topPosts?.length ?? 0) === 0 ? (
                 <div className="text-sm text-gray-400 text-center py-8">Hit refresh to load top posts.</div>
               ) : (
@@ -151,11 +151,11 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                       rel="noreferrer"
                       className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition"
                     >
-                      <div className="w-6 h-6 rounded-md bg-violet-50 text-violet-700 text-xs font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</div>
+                      <div className="w-6 h-6 rounded-md bg-brand-light text-brand text-xs font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</div>
                       <div className="flex-1 min-w-0 text-[13px] text-gray-800 truncate">{p.caption || "(no caption)"}</div>
                       <div className="text-right flex-shrink-0">
-                        <span className="text-sm font-bold text-gray-900">{p.leads}</span>
-                        <span className="text-[11px] text-gray-500 ml-1">leads</span>
+                        <span className="text-sm font-semibold text-gray-900">{p.leads}</span>
+                        <span className="text-xs text-gray-500 ml-1">leads</span>
                       </div>
                     </a>
                   ))}
@@ -178,14 +178,14 @@ function SourceRow({ color, label, value, pct, extra }: { color: string; label: 
           <span className="text-sm font-medium text-gray-900">{label}</span>
         </div>
         <div className="text-right">
-          <span className="text-lg font-bold text-gray-900 tabular-nums">{fmt(value)}</span>
+          <span className="text-lg font-semibold text-gray-900 tabular-nums">{fmt(value)}</span>
           <span className="text-xs text-gray-500 ml-1.5">({pct.toFixed(1)}%)</span>
         </div>
       </div>
       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
-      {extra && <div className="text-[11px] text-gray-500 mt-1.5">{extra}</div>}
+      {extra && <div className="text-xs text-gray-500 mt-1.5">{extra}</div>}
     </div>
   );
 }
@@ -193,9 +193,9 @@ function SourceRow({ color, label, value, pct, extra }: { color: string; label: 
 function MiniTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5">
-      <div className="text-[11px] uppercase tracking-wide text-gray-400 font-medium truncate">{label}</div>
-      <div className="text-xl font-bold text-gray-900 mt-1 truncate">{value}</div>
-      {hint && <div className="text-[11px] text-gray-400 mt-0.5 truncate">{hint}</div>}
+      <div className="text-xs uppercase tracking-wide text-gray-400 font-medium truncate">{label}</div>
+      <div className="text-xl font-semibold text-gray-900 mt-1 truncate">{value}</div>
+      {hint && <div className="text-xs text-gray-400 mt-0.5 truncate">{hint}</div>}
     </div>
   );
 }
@@ -204,7 +204,7 @@ function BigCard({ label, value, sub }: { label: string; value: string; sub?: st
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">{label}</div>
-      <div className="text-3xl font-bold text-gray-900 mt-1">{value}</div>
+      <div className="text-3xl font-semibold text-gray-900 mt-1">{value}</div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
     </div>
   );

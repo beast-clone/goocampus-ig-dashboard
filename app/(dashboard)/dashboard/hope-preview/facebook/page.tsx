@@ -71,13 +71,13 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
             ? <img src={data.page.picture} alt="" className="w-9 h-9 rounded-full border border-gray-200 bg-gray-100" />
             : <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200" />}
           <div>
-            <div className="text-sm font-semibold text-gray-800">{data?.page.name ?? "Facebook Page"}</div>
+            <div className="text-sm font-semibold text-[#232D42]">{data?.page.name ?? "Facebook Page"}</div>
             {data?.page.link ? (
-              <a href={data.page.link} target="_blank" rel="noreferrer" className="text-[11px] hover:underline" style={{ color: FB }}>
+              <a href={data.page.link} target="_blank" rel="noreferrer" className="text-xs hover:underline" style={{ color: FB }}>
                 View page on Facebook ↗
               </a>
             ) : (
-              <div className="text-[11px] text-gray-400">Page ID {data?.account.pageId ?? "…"}</div>
+              <div className="text-xs text-gray-400">Page ID {data?.account.pageId ?? "…"}</div>
             )}
           </div>
         </div>
@@ -112,7 +112,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           {data.audience?.available && data.audience.countries.length > 0 && (
             <Section title="Where your audience is">
               <CountryBars countries={data.audience.countries} />
-              <p className="text-[11px] text-gray-400 mt-2">
+              <p className="text-xs text-gray-400 mt-2">
                 Current followers by country — the only audience breakdown Meta still provides for Facebook Pages (city, age and gender were removed from the API).
               </p>
             </Section>
@@ -135,7 +135,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
               </div>
             )}
             {data.posts.available && data.posts.items.length > 0 && data.posts.items.every((p) => p.likes === null) && (
-              <p className="text-[11px] text-gray-400 mt-2">
+              <p className="text-xs text-gray-400 mt-2">
                 Per-post likes and comments show “—” — the page token lacks the <span className="font-mono">pages_read_engagement</span> permission.
               </p>
             )}
@@ -148,10 +148,10 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
 
 function Stat({ label, value, sub, accent, subMuted }: { label: string; value: string; sub?: string; accent?: boolean; subMuted?: boolean }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-lg p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{label}</div>
+    <div className="bg-white border border-gray-100 rounded-xl p-3">
+      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums" style={accent ? { color: FB } : {}}>{value}</div>
-      {sub && <div className={`text-[11px] mt-0.5 ${subMuted ? "text-gray-400 italic" : "text-gray-500"}`}>{sub}</div>}
+      {sub && <div className={`text-xs mt-0.5 ${subMuted ? "text-gray-400 italic" : "text-gray-500"}`}>{sub}</div>}
     </div>
   );
 }
@@ -185,7 +185,7 @@ function CountryBars({ countries }: { countries: { code: string; count: number; 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-sm font-semibold text-gray-800 mb-2">{title}</div>
+      <div className="text-base font-medium text-[#232D42] mb-2">{title}</div>
       {children}
     </div>
   );
@@ -206,9 +206,9 @@ function PostCard({ post }: { post: Post }) {
           </div>
         )}
       <div className="p-3">
-        <div className="text-[11px] text-gray-400 mb-1">{date}</div>
+        <div className="text-xs text-gray-400 mb-1">{date}</div>
         <p className="text-xs text-gray-700 line-clamp-3 min-h-[3em]">{post.message || <span className="text-gray-400 italic">No caption</span>}</p>
-        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 text-[11px] text-gray-500 tabular-nums">
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 text-xs text-gray-500 tabular-nums">
           <span title="Likes — not readable with the current page token"><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.likes)}</span>
           <span title="Comments — not readable with the current page token"><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.comments)}</span>
           <span title="Shares"><IconShare3 size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.shares)}</span>

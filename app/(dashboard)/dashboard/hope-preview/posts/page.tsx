@@ -199,7 +199,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
         return (
           <div className="bg-amber-50/50 rounded-2xl border border-amber-200 overflow-hidden mb-6">
             <div className="px-5 py-3.5 border-b border-amber-100 flex items-center justify-between">
-              <div className="text-base font-semibold text-gray-900">🏆 Top performers <span className="text-gray-500 font-normal text-sm">· by reach</span></div>
+              <div className="text-base font-medium text-[#232D42]">🏆 Top performers <span className="text-gray-500 font-normal text-sm">· by reach</span></div>
               {insightsProgress && (
                 <span className="text-xs text-brand">loading engagement {insightsProgress.done}/{insightsProgress.total}</span>
               )}
@@ -213,7 +213,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="text-sm font-medium">
+          <div className="text-base font-medium">
             All posts <span className="text-gray-400 font-normal">({range.from} → {range.to}, {totalPosts} loaded</span>
             {insightsProgress && (
               <span className="ml-2 text-xs text-brand">· loading engagement {insightsProgress.done}/{insightsProgress.total}</span>
@@ -263,8 +263,8 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3.5">
-      <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
-      <div className="text-2xl font-bold text-gray-900 tabular-nums leading-tight mt-1 truncate">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
+      <div className="text-2xl font-semibold text-gray-900 tabular-nums leading-tight mt-1 truncate">{value}</div>
     </div>
   );
 }
@@ -304,12 +304,12 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
           </div>
         )}
         {/* Type badge (top-left) */}
-        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
           <span>{TYPE_ICON[post.type] ?? ""}</span>
           <span>{TYPE_LABEL[post.type] ?? post.type}</span>
         </div>
         {isTop && (
-          <div className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
             🏆 Top
           </div>
         )}
@@ -317,7 +317,7 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
 
       {/* Meta strip */}
       <div className="p-3 space-y-2">
-        <div className="text-[10px] text-gray-500 uppercase tracking-wide">
+        <div className="text-xs text-gray-500 uppercase tracking-wide">
           {format(parseISO(post.timestamp), "d MMM yyyy")}
         </div>
         <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
@@ -338,8 +338,8 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
 function Stat({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] text-gray-500" title={label}>{icon}</div>
-      <div className="text-[11px] font-semibold text-gray-900 tabular-nums leading-tight">{value}</div>
+      <div className="text-xs text-gray-500" title={label}>{icon}</div>
+      <div className="text-xs font-semibold text-gray-900 tabular-nums leading-tight">{value}</div>
     </div>
   );
 }
@@ -384,7 +384,7 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
         <div className="md:w-1/2 flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{TYPE_LABEL[post.type] ?? post.type}</span>
+              <span className="text-xs uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{TYPE_LABEL[post.type] ?? post.type}</span>
               <span className="text-xs text-gray-500">{format(parseISO(post.timestamp), "d MMM yyyy · h:mm a")}</span>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
@@ -393,7 +393,7 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
           <div className="px-5 py-4 space-y-4">
             {/* Full caption */}
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Caption</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">Caption</div>
               <div className="text-sm text-gray-900 whitespace-pre-wrap break-words leading-relaxed">
                 {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
               </div>
@@ -401,7 +401,7 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
 
             {/* Metrics grid */}
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-2">Performance</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Performance</div>
               <div className="grid grid-cols-2 gap-3">
                 <MetricRow label="Reach" value={insightsLoaded ? post.reach.toLocaleString("en-IN") : dash} />
                 <MetricRow label="Engagement" value={insightsLoaded ? engagement.toLocaleString("en-IN") : dash} />
@@ -429,8 +429,8 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
 function MetricRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="bg-gray-50 rounded-lg px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="text-base font-bold text-gray-900 tabular-nums leading-tight mt-0.5">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-base font-semibold text-gray-900 tabular-nums leading-tight mt-0.5">{value}</div>
     </div>
   );
 }
@@ -441,7 +441,7 @@ function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null
   if (!post) {
     return (
       <div className="p-4">
-        <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-2">{label}</div>
+        <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">{label}</div>
         <div className="text-xs text-gray-400 italic py-6 text-center">
           Waiting for insights…
         </div>
@@ -459,22 +459,22 @@ function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null
           <div className="w-36 h-36 rounded-xl bg-gray-100 shrink-0 flex items-center justify-center text-2xl text-gray-300">{TYPE_LABEL[post.type]?.[0] ?? "?"}</div>
         )}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="text-[11px] text-gray-500">{TYPE_LABEL[post.type] ?? post.type} · {format(parseISO(post.timestamp), "d MMM")}</div>
+          <div className="text-xs text-gray-500">{TYPE_LABEL[post.type] ?? post.type} · {format(parseISO(post.timestamp), "d MMM")}</div>
           <div className="text-sm text-gray-900 leading-snug mt-1 line-clamp-3 group-hover:text-brand">
             {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
           </div>
           <div className="grid grid-cols-3 gap-2 mt-auto pt-3 text-center">
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Reach</div>
-              <div className="text-xl font-bold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500">Reach</div>
+              <div className="text-xl font-semibold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Likes</div>
-              <div className="text-xl font-bold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500">Likes</div>
+              <div className="text-xl font-semibold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Engage</div>
-              <div className="text-xl font-bold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500">Engage</div>
+              <div className="text-xl font-semibold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
             </div>
           </div>
         </div>

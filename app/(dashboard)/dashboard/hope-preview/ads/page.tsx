@@ -249,7 +249,7 @@ function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows
               </span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-violet-500 rounded-full" style={{ width: `${(r.spend / max) * 100}%` }} />
+              <div className="h-full bg-brand rounded-full" style={{ width: `${(r.spend / max) * 100}%` }} />
             </div>
           </div>
         ))}
@@ -294,8 +294,8 @@ function BudgetHero({
         {/* LEFT: budget context — total + max cap */}
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">Total daily budget</div>
-            <div className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">{fmtINR(totalDailyBudget)}</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Total daily budget</div>
+            <div className="text-3xl font-semibold text-gray-900 mt-1 tabular-nums">{fmtINR(totalDailyBudget)}</div>
             <div className="text-[11px] text-gray-500 mt-1">
               across {activeCampaigns.length} active campaign{activeCampaigns.length === 1 ? "" : "s"}
             </div>
@@ -303,8 +303,8 @@ function BudgetHero({
 
           {totalDailyBudget > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">Max spend cap</div>
-              <div className="text-xl font-bold text-gray-700 mt-1 tabular-nums">{fmtINR(maxSpendCap)}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Max spend cap</div>
+              <div className="text-xl font-semibold text-gray-700 mt-1 tabular-nums">{fmtINR(maxSpendCap)}</div>
               <div className="text-[11px] text-gray-500 mt-1 leading-snug">
                 Meta may burn up to 25% over budget on a high-performing day before pausing.
               </div>
@@ -317,14 +317,14 @@ function BudgetHero({
           {/* Spent — with % of budget bar underneath so utilization is visible without a separate visual */}
           <div>
             <div className="flex items-baseline justify-between">
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">Total spent yesterday</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Total spent yesterday</div>
               {utilization !== null && (
                 <div className={`text-[11px] font-semibold tabular-nums ${overBudget ? "text-rose-600" : "text-emerald-600"}`}>
                   {utilization.toFixed(0)}% of budget
                 </div>
               )}
             </div>
-            <div className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">{fmtINR(summary.spend)}</div>
+            <div className="text-3xl font-semibold text-gray-900 mt-1 tabular-nums">{fmtINR(summary.spend)}</div>
             {utilizationClamped !== null && (
               <div className="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
                 <div
@@ -337,16 +337,16 @@ function BudgetHero({
 
           {/* Reach — total across all active campaigns yesterday */}
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">Total reach yesterday</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{fmtNum(summary.reach)}</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Total reach yesterday</div>
+            <div className="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">{fmtNum(summary.reach)}</div>
             <div className="text-[11px] text-gray-500 mt-0.5">unique accounts reached across all active campaigns</div>
           </div>
 
           {/* Leads — total across all active campaigns yesterday */}
           {hasLeads && (
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">Total leads yesterday</div>
-              <div className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{fmtNum(summary.leads)}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Total leads yesterday</div>
+              <div className="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">{fmtNum(summary.leads)}</div>
               <div className="text-[11px] text-gray-500 mt-0.5">form submissions across all active campaigns</div>
             </div>
           )}
@@ -378,7 +378,7 @@ function YesterdayCampaignSpend({ rows, campaigns }: { rows: DayCampaignSpend[];
               <div className="col-span-6 min-w-0 flex items-center gap-2">
                 <span className={`inline-block w-1.5 h-4 rounded-full ${cat.color} shrink-0`} />
                 <span className="text-sm text-gray-900 truncate" title={r.campaign_name}>{r.campaign_name}</span>
-                <span className="text-[10px] text-gray-400 shrink-0">{cat.emoji}</span>
+                <span className="text-xs text-gray-400 shrink-0">{cat.emoji}</span>
               </div>
               <div className="col-span-2 text-right text-sm font-semibold tabular-nums text-gray-900">{fmtINR(r.spend)}</div>
               <div className="col-span-2 text-right text-[11px] text-gray-500 tabular-nums">
@@ -390,7 +390,7 @@ function YesterdayCampaignSpend({ rows, campaigns }: { rows: DayCampaignSpend[];
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${over ? "bg-rose-500" : "bg-emerald-500"}`} style={{ width: `${usage}%` }} />
                     </div>
-                    <div className={`text-[10px] font-semibold tabular-nums w-8 text-right ${over ? "text-rose-600" : "text-gray-600"}`}>
+                    <div className={`text-xs font-semibold tabular-nums w-8 text-right ${over ? "text-rose-600" : "text-gray-600"}`}>
                       {usage.toFixed(0)}%
                     </div>
                   </div>
@@ -438,7 +438,7 @@ function DailySnapshot({
 
       {top3.length > 0 && (
         <div className="border-t border-gray-100 bg-gray-50/50">
-          <div className="px-5 py-2.5 text-[10px] uppercase tracking-wide text-gray-500 font-medium">
+          <div className="px-5 py-2.5 text-xs uppercase tracking-wide text-gray-500 font-medium">
             Top {top3.length} active ad{top3.length === 1 ? "" : "s"} yesterday
           </div>
           <div className="divide-y divide-gray-100 bg-white">
@@ -451,7 +451,7 @@ function DailySnapshot({
                     {ad.leads > 0 && <> &middot; {fmtNum(ad.leads)} leads</>}
                   </div>
                   <div className="h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                    <div className="h-full bg-violet-500 rounded-full" style={{ width: topSpend > 0 ? `${(ad.spend / topSpend) * 100}%` : "0%" }} />
+                    <div className="h-full bg-brand rounded-full" style={{ width: topSpend > 0 ? `${(ad.spend / topSpend) * 100}%` : "0%" }} />
                   </div>
                 </div>
                 <div className="text-xs font-semibold text-gray-900 shrink-0">{fmtINR(ad.spend)}</div>
@@ -481,8 +481,8 @@ function DeltaStat({ label, value, delta, lowerIsBetter }: { label: string; valu
   const isBad = lowerIsBetter ? positive : negative;
   return (
     <div className="px-5 py-4">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">{label}</div>
-      <div className="text-2xl font-bold text-gray-900 mt-0.5 tabular-nums">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">{label}</div>
+      <div className="text-2xl font-semibold text-gray-900 mt-0.5 tabular-nums">{value}</div>
       {delta !== null && Math.abs(delta) > 0.5 ? (
         <div className={`text-[11px] mt-1 flex items-center gap-1 ${isGood ? "text-emerald-600" : isBad ? "text-rose-600" : "text-gray-500"}`}>
           <span>{positive ? "▲" : "▼"}</span>
@@ -510,7 +510,7 @@ function MiniSparkline({ data }: { data: { date: string; spend: number }[] }) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
   return (
-    <svg width={w} height={h} className="text-violet-500 shrink-0" aria-label="14-day spend trend">
+    <svg width={w} height={h} className="text-brand shrink-0" aria-label="14-day spend trend">
       <polyline fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" points={points} />
     </svg>
   );
@@ -631,7 +631,7 @@ function CampaignsTable({ campaigns, onSelect, showLeads }: { campaigns: Campaig
                     </span>
                   </td>
                   <td className="px-3 py-3">
-                    <span className={`inline-block text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                    <span className={`inline-block text-xs uppercase tracking-wide px-1.5 py-0.5 rounded ${
                       isActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
                     }`}>{c.status}</span>
                   </td>
@@ -684,20 +684,20 @@ function InterestCard({
           <span className="text-xl">{emoji}</span>
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold text-gray-900 leading-tight truncate">{label}</div>
-            <div className="text-[10px] text-gray-500 mt-0.5">{sub}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{sub}</div>
           </div>
         </div>
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-baseline justify-between gap-2">
           <div>
-            <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">Spend</div>
-            <div className="text-base font-bold text-gray-900 tabular-nums">{fmtINR(spend)}</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Spend</div>
+            <div className="text-base font-semibold text-gray-900 tabular-nums">{fmtINR(spend)}</div>
           </div>
           {showLeads && (
             <div className="text-right">
-              <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">
                 {leads > 0 ? "Cost / Lead" : "Leads"}
               </div>
-              <div className="text-base font-bold text-gray-900 tabular-nums">
+              <div className="text-base font-semibold text-gray-900 tabular-nums">
                 {leads > 0 ? fmtINR(cpl) : "—"}
               </div>
             </div>
@@ -741,7 +741,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <div className="text-xs text-gray-500 uppercase">Campaign</div>
-            <div className="text-lg font-semibold">{campaign.campaign_name}</div>
+            <div className="text-base font-medium text-[#232D42]">{campaign.campaign_name}</div>
             <div className="text-xs text-gray-500 mt-1">
               {fmtINR(campaign.spend)} spend &middot; {fmtNum(campaign.impressions)} impressions
               {campaign.leads > 0 && <> &middot; {fmtNum(campaign.leads)} leads @ {fmtINR(campaign.costPerLead)}</>}
@@ -803,7 +803,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-gray-400 uppercase tracking-wide" style={{ fontSize: 10 }}>{label}</div>
+      <div className="text-gray-400 uppercase tracking-wide" style={{ fontSize: 12 }}>{label}</div>
       <div className="font-medium text-gray-900">{value}</div>
     </div>
   );

@@ -125,7 +125,7 @@ function Radar() {
       {/* Header */}
       <div className="flex items-baseline gap-3 mb-4 flex-wrap">
         <div>
-          <div className="text-[11px] text-gray-500">
+          <div className="text-xs text-gray-500">
             {alerts.filter((a) => a.active).length} active alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} ·{" "}
             {items.length} headline{items.length === 1 ? "" : "s"} in the last pull
           </div>
@@ -196,8 +196,8 @@ function Radar() {
         {grouped.map(([interest, list]) => (
           <section key={interest} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-baseline gap-3 px-5 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">{interest}</h2>
-              <span className="text-[11px] text-gray-500">{list.length} headline{list.length === 1 ? "" : "s"}</span>
+              <h2 className="text-base font-medium text-[#232D42]">{interest}</h2>
+              <span className="text-xs text-gray-500">{list.length} headline{list.length === 1 ? "" : "s"}</span>
             </div>
             <ul className="divide-y divide-gray-100">
               {list.map((it) => (
@@ -262,7 +262,7 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
               {item.snippet}
             </div>
           )}
-          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-500">
+          <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
             {item.source && (
               <span className="font-medium text-gray-700">{item.source}</span>
             )}
@@ -290,7 +290,7 @@ function EmptyState({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
       <div className="max-w-xl mx-auto text-center">
         <div className="text-4xl mb-3">📡</div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Track your first topic</h2>
+        <h2 className="text-base font-medium text-[#232D42] mb-2">Track your first topic</h2>
         <p className="text-sm text-gray-600 mb-5">
           Type in a topic — like <i>AMC exam 2026</i>, <i>DHA licensing</i>, or <i>NEET PG cutoff</i> — and
           the Radar pulls fresh news for it every time you hit refresh. Read the article body inline,
@@ -399,13 +399,13 @@ function SettingsModal({ alerts, onClose, onChanged }: {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <div className="text-sm font-semibold">⚙ Track topics</div>
-            <div className="text-[11px] text-gray-500">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
+            <div className="text-xs text-gray-500">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-xl">×</button>
         </div>
 
         <form onSubmit={addAlert} className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
-          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-2">Add a topic</div>
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Add a topic</div>
           {!showAdvanced && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2">
@@ -458,17 +458,17 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                 className="w-full mt-2 text-xs px-3 py-2 rounded-md border border-gray-200 bg-white font-mono"
                 required
               />
-              <div className="text-[10px] text-gray-500 mt-1.5">
+              <div className="text-xs text-gray-500 mt-1.5">
                 Advanced: paste an RSS URL from a Google Alert you set up manually.
               </div>
             </>
           )}
-          {error && <div className="text-[11px] text-rose-600 mt-2">{error}</div>}
+          {error && <div className="text-xs text-rose-600 mt-2">{error}</div>}
           <div className="flex items-center justify-between mt-3">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-[11px] text-gray-500 hover:text-brand underline"
+              className="text-xs text-gray-500 hover:text-brand underline"
             >
               {showAdvanced ? "← Use topic search instead" : "Use a Google Alerts RSS URL instead →"}
             </button>
@@ -494,7 +494,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                 </label>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900">{a.name}</div>
-                  <div className="text-[11px] text-gray-500">
+                  <div className="text-xs text-gray-500">
                     <span className="text-brand">{a.primaryInterest}</span>
                     <span className="mx-1.5">·</span>
                     {a.searchQuery ? (
@@ -506,10 +506,10 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                     )}
                   </div>
                   {a.lastError && (
-                    <div className="text-[11px] text-rose-600 mt-1">⚠ {a.lastError}</div>
+                    <div className="text-xs text-rose-600 mt-1">⚠ {a.lastError}</div>
                   )}
                   {a.lastFetchedAt && !a.lastError && (
-                    <div className="text-[10px] text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-400 mt-0.5">
                       Last pulled {new Date(a.lastFetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                     </div>
                   )}
@@ -518,14 +518,14 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                   <button
                     onClick={() => pullOne(a.id)}
                     disabled={rowBusy === a.id}
-                    className="text-[11px] px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+                    className="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {rowBusy === a.id ? "…" : "↻ Pull"}
                   </button>
                   <button
                     onClick={() => del(a.id)}
                     disabled={rowBusy === a.id}
-                    className="text-[11px] px-2.5 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                    className="text-xs px-2.5 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                   >
                     Delete
                   </button>
@@ -602,17 +602,17 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] text-gray-500 flex items-center gap-2 mb-1">
+            <div className="text-xs text-gray-500 flex items-center gap-2 mb-1">
               <span className="font-medium text-brand">{item.primaryInterest}</span>
               <span>·</span>
               <span>{item.source || "unknown"}</span>
               <span>·</span>
               <span>{new Date(item.publishedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 leading-snug">
+            <h2 className="text-base font-medium text-[#232D42] leading-snug">
               {item.title || articleTitle}
             </h2>
-            {byline && <div className="text-[11px] text-gray-500 mt-1 italic">{byline}</div>}
+            {byline && <div className="text-xs text-gray-500 mt-1 italic">{byline}</div>}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-2xl leading-none">×</button>
         </div>
@@ -650,8 +650,8 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
             :global(.reader-content h2) { font-size: 18px; font-weight: 600; margin: 22px 0 10px; color: #111827; line-height: 1.35; }
             :global(.reader-content h3) { font-size: 16px; font-weight: 600; margin: 18px 0 8px; color: #111827; }
             :global(.reader-content p) { margin: 12px 0; }
-            :global(.reader-content a) { color: #6D5AE6; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-            :global(.reader-content a:hover) { color: #4C3AD0; }
+            :global(.reader-content a) { color: #3A57E8; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+            :global(.reader-content a:hover) { color: #2138B0; }
             :global(.reader-content ul), :global(.reader-content ol) { margin: 12px 0; padding-left: 24px; }
             :global(.reader-content li) { margin: 4px 0; }
             :global(.reader-content blockquote) { border-left: 3px solid #E5E7EB; padding: 4px 0 4px 14px; margin: 14px 0; color: #4B5563; font-style: italic; }

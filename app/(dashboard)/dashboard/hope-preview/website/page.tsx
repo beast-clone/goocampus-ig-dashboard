@@ -69,7 +69,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: GA }} />
-          <span className="text-sm font-semibold text-gray-800">{SITE}</span>
+          <span className="text-base font-medium text-[#232D42]">{SITE}</span>
         </div>
         <div className="flex items-center gap-3">
           {data?.source === "live" && (
@@ -200,7 +200,7 @@ function MiniInline({ label, items }: { label: string; items: { name: string; va
   if (!items.length) return null;
   return (
     <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">{label}</div>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {items.map((it) => (
           <span key={it.name} className="text-[12px] text-gray-600">{it.name} <b className="text-gray-900 tabular-nums">{it.value}</b></span>
@@ -213,7 +213,7 @@ function MiniInline({ label, items }: { label: string; items: { name: string; va
 function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums" style={accent ? { color: GA } : {}}>{value}</div>
       {sub && <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>}
     </div>
@@ -224,7 +224,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   return (
     <div>
       <div className="flex items-baseline gap-2 mb-2">
-        <div className="text-sm font-semibold text-gray-800">{title}</div>
+        <div className="text-base font-medium text-[#232D42]">{title}</div>
         {hint && <div className="text-[11px] text-gray-400">{hint}</div>}
       </div>
       {children}
@@ -236,7 +236,7 @@ function Titled({ title, hint, children }: { title: string; hint?: string; child
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
       <div className="flex items-baseline justify-between px-4 py-2.5 border-b border-gray-50">
-        <div className="text-[13px] font-semibold text-gray-800">{title}</div>
+        <div className="text-base font-medium text-[#232D42]">{title}</div>
         {hint && <div className="text-[11px] text-gray-400">{hint}</div>}
       </div>
       {children}
@@ -322,7 +322,7 @@ function UsersChart({ data, totalUsers, totalSessions }: { data: { date: string;
                 const p = payload[0].payload as { date: string; users: number; sessions: number; keyEvents: number };
                 return (
                   <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs min-w-[150px]">
-                    <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{p.date}</div>
                     <div className="text-base font-semibold text-gray-900">{p.users.toLocaleString("en-IN")} users</div>
                     <div className="text-xs text-gray-500">{p.sessions.toLocaleString("en-IN")} sessions · {p.keyEvents} key events</div>
                   </div>

@@ -47,6 +47,9 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
    semibold/bold/extrabold on real heading tags. */
 .hope-scope h1, .hope-scope h2, .hope-scope h3, .hope-scope h4,
 .hope-scope h5, .hope-scope h6 { font-weight: 500 !important; color: #232D42; }
+/* Emphasis weight tops out at semibold (600) in Hope — never 700 "bold".
+   Catches the KPI-number `font-bold` drift on div-based content app-wide. */
+.hope-scope .font-bold, .hope-scope .font-black { font-weight: 600 !important; }
 /* Cards are FLAT in Hope — no drop shadow (the biggest V1 tell), gentle
    8px radius, hairline edge instead of the V1 border+shadow combo. */
 .hope-scope .shadow-sm, .hope-scope .shadow, .hope-scope .shadow-md,

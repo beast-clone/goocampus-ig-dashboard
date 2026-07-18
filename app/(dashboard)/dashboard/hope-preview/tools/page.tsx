@@ -62,11 +62,11 @@ export default function ToolsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {g.tools.map((t) => (
                   <div key={t.name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: t.color }}>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ background: t.color }}>
                       {t.mark}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900">{t.name}</div>
+                      <div className="text-base font-medium text-[#232D42]">{t.name}</div>
                       <div className="text-[12px] text-gray-500 leading-snug mt-0.5">{t.purpose}</div>
                     </div>
                   </div>

@@ -116,7 +116,7 @@ function Integrations() {
         <Stat n={data.integrations.length} label="Integrations" />
         <Stat n={healthy} label="Healthy" tone="emerald" />
         <Stat n={attention} label="Need attention" tone={attention ? "rose" : "gray"} />
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-gray-500">
+        <div className="ml-auto flex items-center gap-3 text-xs text-gray-500">
           <span>Updated {relTime(fetchedAt)}</span>
           <button onClick={() => load(true)} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-700 font-medium">↻ Refresh now</button>
         </div>
@@ -125,7 +125,7 @@ function Integrations() {
       {/* Token-expiry warnings up top (the whole point of the monitor) */}
       {expiringSoon.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <div className="text-[12px] font-semibold text-amber-900 mb-1">⏳ Tokens expiring soon</div>
+          <div className="text-xs font-semibold text-amber-900 mb-1">⏳ Tokens expiring soon</div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-amber-900">
             {expiringSoon.map((i) => (
               <span key={i.key}><b>{i.name.split(" —")[0]}</b>: {i.daysRemaining} day{i.daysRemaining === 1 ? "" : "s"} left</span>
@@ -138,8 +138,8 @@ function Integrations() {
       {data.rateLimit && (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
           <div className="flex items-baseline justify-between mb-3">
-            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Meta Graph rate limit (rolling)</div>
-            <div className="text-[11px] text-gray-400">% of Meta&rsquo;s hourly allowance used</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Meta Graph rate limit (rolling)</div>
+            <div className="text-xs text-gray-400">% of Meta&rsquo;s hourly allowance used</div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Meter label="Call volume" pct={data.rateLimit.callPct} />
@@ -157,10 +157,10 @@ function Integrations() {
             <div key={i.key} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 leading-snug">{i.name}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{i.category} · {i.tokenType}</div>
+                  <div className="text-base font-medium text-[#232D42] leading-snug">{i.name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{i.category} · {i.tokenType}</div>
                 </div>
-                <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-medium text-gray-600">
+                <span className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium text-gray-600">
                   <span className={`w-2 h-2 rounded-full ${DOT[i.status]}`} />
                   {LABEL[i.status]}
                 </span>
@@ -176,9 +176,9 @@ function Integrations() {
               )}
 
               <div className="text-[12px] text-gray-600 mt-2 leading-snug">{i.detail}</div>
-              {i.note && <div className="text-[11.5px] text-rose-600 mt-1.5">⚠ {i.note}</div>}
+              {i.note && <div className="text-xs text-rose-600 mt-1.5">⚠ {i.note}</div>}
               {i.expiresAt && (
-                <div className="text-[10.5px] text-gray-400 mt-2">Expires {new Date(i.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+                <div className="text-xs text-gray-400 mt-2">Expires {new Date(i.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
               )}
 
               {/* This integration's own API-call counts */}
@@ -191,7 +191,7 @@ function Integrations() {
                     {i.usage.errors > 0 && <CallStat n={i.usage.errors} label="Errors" danger />}
                   </div>
                 ) : (
-                  <div className="text-[11px] text-gray-400">
+                  <div className="text-xs text-gray-400">
                     {i.usage ? "No API calls tracked yet" : "Usage not tracked"}
                   </div>
                 )}
@@ -201,11 +201,11 @@ function Integrations() {
               {i.quota && (
                 <div className="mt-3">
                   <div className="flex items-baseline justify-between mb-1">
-                    <span className="text-[10.5px] uppercase tracking-wide text-gray-500 font-medium">{i.quota.label}</span>
+                    <span className="text-xs uppercase tracking-wide text-gray-500 font-medium">{i.quota.label}</span>
                     {typeof i.quota.usedPct === "number" ? (
-                      <span className="text-[11px] font-semibold tabular-nums text-gray-900">{i.quota.usedPct.toFixed(i.quota.usedPct < 1 ? 2 : 0)}%</span>
+                      <span className="text-xs font-semibold tabular-nums text-gray-900">{i.quota.usedPct.toFixed(i.quota.usedPct < 1 ? 2 : 0)}%</span>
                     ) : i.quota.resetAt ? (
-                      <span className="text-[10.5px] tabular-nums text-gray-400">resets in {untilReset(i.quota.resetAt)}</span>
+                      <span className="text-xs tabular-nums text-gray-400">resets in {untilReset(i.quota.resetAt)}</span>
                     ) : null}
                   </div>
                   {typeof i.quota.usedPct === "number" && (
@@ -213,8 +213,8 @@ function Integrations() {
                       <div className={`h-full rounded-full ${i.quota.usedPct >= 90 ? "bg-rose-500" : i.quota.usedPct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.max(1, i.quota.usedPct)}%` }} />
                     </div>
                   )}
-                  <div className="text-[11.5px] text-gray-700 mt-1">{i.quota.detail}</div>
-                  {i.quota.note && <div className="text-[10.5px] text-gray-400 mt-1 leading-snug">{i.quota.note}</div>}
+                  <div className="text-xs text-gray-700 mt-1">{i.quota.detail}</div>
+                  {i.quota.note && <div className="text-xs text-gray-400 mt-1 leading-snug">{i.quota.note}</div>}
                 </div>
               )}
             </div>
@@ -226,7 +226,7 @@ function Integrations() {
       <div>
         <div className="flex items-baseline justify-between mb-3">
           <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">API call usage — number of calls per provider</div>
-          <div className="text-[11px] text-gray-400">Tracking since {new Date(data.usage.firstAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+          <div className="text-xs text-gray-400">Tracking since {new Date(data.usage.firstAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
         </div>
         {data.usage.rows.length === 0 ? (
           <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center text-sm text-gray-500">
@@ -236,7 +236,7 @@ function Integrations() {
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
-                <thead className="bg-gray-50 text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold">
+                <thead className="bg-gray-50 text-xs uppercase tracking-widest text-gray-500 font-semibold">
                   <tr>
                     <th className="text-left px-4 py-2.5">Provider</th>
                     <th className="text-right px-4 py-2.5">All-time</th>
@@ -263,7 +263,7 @@ function Integrations() {
                             <div className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                               <div className="h-full bg-brand rounded" style={{ width: `${pct}%` }} />
                             </div>
-                            <span className="text-[10.5px] tabular-nums text-gray-400 w-8 text-right">{pct.toFixed(0)}%</span>
+                            <span className="text-xs tabular-nums text-gray-400 w-8 text-right">{pct.toFixed(0)}%</span>
                           </div>
                         </td>
                       </tr>
@@ -281,7 +281,7 @@ function Integrations() {
             </div>
           </div>
         )}
-        <div className="text-[11px] text-gray-400 mt-2">All-time &amp; today persist across restarts; session resets on restart. Counts calls the dashboard makes — not traffic from n8n or other apps.</div>
+        <div className="text-xs text-gray-400 mt-2">All-time &amp; today persist across restarts; session resets on restart. Counts calls the dashboard makes — not traffic from n8n or other apps.</div>
       </div>
     </div>
   );
@@ -292,7 +292,7 @@ function Stat({ n, label, tone = "gray", big }: { n: number; label: string; tone
   return (
     <div className={`bg-white rounded-xl border shadow-sm px-4 py-2.5 ${big ? "border-brand/30" : "border-gray-100"}`}>
       <div className={`${big ? "text-[26px]" : "text-[20px]"} font-semibold tabular-nums leading-none ${color}`}>{n.toLocaleString("en-IN")}</div>
-      <div className="text-[10.5px] uppercase tracking-wide text-gray-500 mt-1">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 mt-1">{label}</div>
     </div>
   );
 }
@@ -302,7 +302,7 @@ function CallStat({ n, label, primary, danger }: { n: number; label: string; pri
   return (
     <div className={`flex-1 rounded-lg px-2.5 py-1.5 ${primary ? "bg-brand/5" : "bg-gray-50"}`}>
       <div className={`text-[16px] font-semibold tabular-nums leading-none ${color}`}>{n.toLocaleString("en-IN")}</div>
-      <div className="text-[9.5px] uppercase tracking-wide text-gray-500 mt-1">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 mt-1">{label}</div>
     </div>
   );
 }

@@ -255,7 +255,7 @@ function Planner() {
         </div>
         <span className="text-[12px] font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-700">@12thplus.com</span>
         <div className="ml-auto flex items-center gap-2">
-          {data && <span className="text-[11px] text-gray-400">Updated {new Date(data.generatedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</span>}
+          {data && <span className="text-xs text-gray-400">Updated {new Date(data.generatedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</span>}
           <button onClick={() => load(true)} disabled={loading} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-700 disabled:opacity-50">{loading ? "Thinking…" : "↻ Re-plan"}</button>
         </div>
       </div>
@@ -270,13 +270,13 @@ function Planner() {
             <div className="bg-brand/5 border border-brand/20 rounded-2xl p-4 mb-4 flex items-start gap-3 flex-wrap">
               <div className="min-w-0 flex-1">
                 {data.rankedBy && /perplexity|search/.test(data.rankedBy) && (
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
                     🔎 Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
                   </span>
                 )}
                 <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
                 {data.insight && <p className="text-[12.5px] text-gray-600 mt-1.5 leading-relaxed"><b className="text-brand">What works here:</b> {data.insight}</p>}
-                <p className="text-[11px] text-gray-500 mt-1.5"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand text-white text-[8px] font-semibold align-middle mr-1">1</span>on each card = the AI&rsquo;s recommended publish order. Click a card to see it highlighted with its full details. Drag to tweak, then apply.</p>
+                <p className="text-xs text-gray-500 mt-1.5"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand text-white text-xs font-semibold align-middle mr-1">1</span>on each card = the AI&rsquo;s recommended publish order. Click a card to see it highlighted with its full details. Drag to tweak, then apply.</p>
               </div>
               <button onClick={applyPlan} disabled={applying || data.plan.length === 0} className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50 whitespace-nowrap">{applying ? "Applying…" : "Apply plan →"}</button>
             </div>
@@ -302,7 +302,7 @@ function Planner() {
           {/* Hold (AI tab only) */}
           {tab === "plan" && data.hold.length > 0 && (
             <div className="mt-6">
-              <div className="text-[10.5px] uppercase tracking-widest text-amber-600 font-semibold mb-2">⏸ Hold for later — would clash if posted next</div>
+              <div className="text-xs uppercase tracking-widest text-amber-600 font-semibold mb-2">⏸ Hold for later — would clash if posted next</div>
               <div className="space-y-2">
                 {data.hold.map((h) => (
                   <div key={h.id} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -315,7 +315,7 @@ function Planner() {
           )}
 
           {/* Legend */}
-          <div className="flex gap-4 mt-4 flex-wrap text-[11px] text-gray-400">
+          <div className="flex gap-4 mt-4 flex-wrap text-xs text-gray-400">
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#639922" }} />Ready — free to move</span>
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#BA7517" }} />Being worked on — asks first</span>
             <span><span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: "#888780" }} />Not started</span>
@@ -333,14 +333,14 @@ function Planner() {
             <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 bg-amber-50">
               <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">!</span>
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold text-amber-600 leading-tight">Already being worked on</div>
+                <div className="text-base font-semibold text-amber-600 leading-tight">Already being worked on</div>
                 <div className="text-[12px] text-gray-500 truncate">{guard.card.title || "(untitled)"}</div>
               </div>
             </div>
             <div className="px-5 py-4">
               <div className="text-[13px] text-gray-600 leading-relaxed">
                 <span className="inline-flex items-center gap-1.5 align-middle">
-                  <span className="w-5 h-5 rounded-full text-[10px] flex items-center justify-center" style={{ background: ownerColor(guard.card.owner).bg, color: ownerColor(guard.card.owner).fg }}>{(guard.card.owner || "?")[0].toUpperCase()}</span>
+                  <span className="w-5 h-5 rounded-full text-xs flex items-center justify-center" style={{ background: ownerColor(guard.card.owner).bg, color: ownerColor(guard.card.owner).fg }}>{(guard.card.owner || "?")[0].toUpperCase()}</span>
                   <b className="text-gray-900">{guard.card.owner || "someone"}</b>
                 </span>{" "}
                 is on this — status <b className="text-gray-900">{guard.card.status}</b>. Moving it to <b className="text-gray-900">{new Date(guard.targetISO).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</b> will notify them in their table.
@@ -361,7 +361,7 @@ function Planner() {
             <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 bg-amber-50">
               <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">!</span>
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold text-amber-600 leading-tight">Daily limit reached</div>
+                <div className="text-base font-semibold text-amber-600 leading-tight">Daily limit reached</div>
                 <div className="text-[12px] text-gray-500">@12thplus · limit {LIMIT_PER_DAY}/day</div>
               </div>
             </div>
@@ -425,8 +425,8 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-gray-100">
           <div className="min-w-0">
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
-            <div className="text-[14px] font-semibold text-gray-900 leading-snug mt-1.5">{card.title || "(untitled)"}</div>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+            <div className="text-base font-medium text-[#232D42] leading-snug mt-1.5">{card.title || "(untitled)"}</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0" aria-label="Close">×</button>
         </div>
@@ -441,15 +441,15 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
             ) : (
               <div className="text-center px-4">
                 <div className="text-gray-600 text-4xl mb-2">🖼️</div>
-                <div className="text-[11px] text-gray-400">Creative isn&rsquo;t uploaded to the dashboard yet.</div>
-                {card.assetLink && <a href={card.assetLink} target="_blank" rel="noreferrer" className="inline-block mt-2 text-[11px] text-brand-light hover:underline">View creative in Slack ↗</a>}
+                <div className="text-xs text-gray-400">Creative isn&rsquo;t uploaded to the dashboard yet.</div>
+                {card.assetLink && <a href={card.assetLink} target="_blank" rel="noreferrer" className="inline-block mt-2 text-xs text-brand-light hover:underline">View creative in Slack ↗</a>}
               </div>
             )}
             {slides.length > 1 && cur && (
               <>
                 <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center">‹</button>
                 <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center">›</button>
-                <div className="absolute top-2 right-2 text-[10px] text-white bg-black/50 rounded-full px-1.5 py-0.5 tabular-nums">{Math.min(idx, slides.length - 1) + 1}/{slides.length}</div>
+                <div className="absolute top-2 right-2 text-xs text-white bg-black/50 rounded-full px-1.5 py-0.5 tabular-nums">{Math.min(idx, slides.length - 1) + 1}/{slides.length}</div>
               </>
             )}
           </div>
@@ -463,25 +463,25 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
             )}
             {isPlan && card.reason && (
               <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">
-                <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
+                <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-1">Why the AI put it here</div>
                 <div className="text-[12.5px] text-gray-700 leading-relaxed">{card.reason}</div>
                 {card.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {card.tags.map((t) => <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-light/60 text-brand">{t}</span>)}
+                    {card.tags.map((t) => <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-brand-light/60 text-brand">{t}</span>)}
                   </div>
                 )}
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px]">
-              <div><div className="text-gray-400 text-[10.5px] mb-0.5">{isPlan ? "Suggested for" : "Publishing on"}</div><div className="text-gray-800 font-medium">{when}</div></div>
-              <div><div className="text-gray-400 text-[10.5px] mb-0.5">Owner</div><div className="text-gray-800 font-medium flex items-center gap-1.5">{card.owner ? <><span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center" style={{ background: oc.bg, color: oc.fg }}>{card.owner[0].toUpperCase()}</span>{card.owner}</> : "—"}</div></div>
-              <div><div className="text-gray-400 text-[10.5px] mb-0.5">Status</div><div className="text-gray-800 font-medium">{card.status || "—"}</div></div>
-              {card.note && <div><div className="text-gray-400 text-[10.5px] mb-0.5">Last change</div><div className="text-amber-700 font-medium">{card.note}</div></div>}
+              <div><div className="text-gray-400 text-xs mb-0.5">{isPlan ? "Suggested for" : "Publishing on"}</div><div className="text-gray-800 font-medium">{when}</div></div>
+              <div><div className="text-gray-400 text-xs mb-0.5">Owner</div><div className="text-gray-800 font-medium flex items-center gap-1.5">{card.owner ? <><span className="w-4 h-4 rounded-full text-xs flex items-center justify-center" style={{ background: oc.bg, color: oc.fg }}>{card.owner[0].toUpperCase()}</span>{card.owner}</> : "—"}</div></div>
+              <div><div className="text-gray-400 text-xs mb-0.5">Status</div><div className="text-gray-800 font-medium">{card.status || "—"}</div></div>
+              {card.note && <div><div className="text-gray-400 text-xs mb-0.5">Last change</div><div className="text-amber-700 font-medium">{card.note}</div></div>}
             </div>
 
             <div>
-              <div className="text-[10.5px] uppercase tracking-widest text-gray-400 font-semibold mb-1">Caption</div>
+              <div className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-1">Caption</div>
               {capLoading ? <div className="text-[12px] text-gray-400">Loading caption…</div>
                 : caption ? <div className="text-[12.5px] text-gray-700 whitespace-pre-wrap leading-relaxed">{caption}</div>
                 : <div className="text-[12px] text-gray-400 italic">No caption yet.</div>}
@@ -518,7 +518,7 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
   return (
     <div className={`bg-white border border-gray-100 rounded-2xl overflow-hidden ${busy ? "opacity-70" : ""}`}>
       <div className="grid grid-cols-7 border-b border-gray-100">
-        {dows.map((d) => <div key={d} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide text-center py-2">{d}</div>)}
+        {dows.map((d) => <div key={d} className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-center py-2">{d}</div>)}
       </div>
       <div className="grid grid-cols-7">
         {cells.map((key, i) => {
@@ -532,7 +532,7 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
               onDrop={() => onDrop(key)}
               className={`min-h-[112px] border-b border-r border-gray-50 p-1.5 align-top ${isToday ? "bg-brand-light/20" : ""} ${dragId ? "hover:bg-brand-light/30" : ""}`}
             >
-              <div className={`text-[11px] font-medium mb-1 px-1 ${isToday ? "text-brand" : "text-gray-400"}`}>{dayNum}{isToday && " · today"}</div>
+              <div className={`text-xs font-medium mb-1 px-1 ${isToday ? "text-brand" : "text-gray-400"}`}>{dayNum}{isToday && " · today"}</div>
               <div className="space-y-1">
                 {posts.map((c) => {
                   const chip = typeChip(c.type);
@@ -543,19 +543,19 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
                       className={`rounded-lg p-1.5 cursor-grab active:cursor-grabbing transition border ${selectedId === c.id ? "border-brand ring-2 ring-brand/30 bg-brand-light/20" : "bg-white border-gray-200 hover:border-brand"}`}>
                       <div className="flex items-center gap-1">
                         {mode === "plan" && rankById.get(c.id) != null && (
-                          <span className="w-4 h-4 rounded-full bg-brand text-white text-[9px] font-semibold flex items-center justify-center flex-shrink-0 tabular-nums" title={`AI recommended order #${rankById.get(c.id)}`}>{rankById.get(c.id)}</span>
+                          <span className="w-4 h-4 rounded-full bg-brand text-white text-xs font-semibold flex items-center justify-center flex-shrink-0 tabular-nums" title={`AI recommended order #${rankById.get(c.id)}`}>{rankById.get(c.id)}</span>
                         )}
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         {mode === "pub" && <span className="w-1.5 h-1.5 rounded-full ml-auto flex-shrink-0" style={{ background: statusDot(c) }} />}
                       </div>
-                      <div className="text-[11px] text-gray-800 leading-tight mt-1 line-clamp-2">{c.title || "(untitled)"}</div>
+                      <div className="text-xs text-gray-800 leading-tight mt-1 line-clamp-2">{c.title || "(untitled)"}</div>
                       {mode === "pub" ? (
                         <div className="flex items-center gap-1 mt-1">
-                          {c.owner && <span className="w-4 h-4 rounded-full text-[8px] flex items-center justify-center flex-shrink-0" style={{ background: oc.bg, color: oc.fg }}>{c.owner[0].toUpperCase()}</span>}
-                          {c.note && <span className="text-[9px] text-amber-700 bg-amber-50 rounded px-1 py-0.5 truncate" title={c.note}>moved</span>}
+                          {c.owner && <span className="w-4 h-4 rounded-full text-xs flex items-center justify-center flex-shrink-0" style={{ background: oc.bg, color: oc.fg }}>{c.owner[0].toUpperCase()}</span>}
+                          {c.note && <span className="text-xs text-amber-700 bg-amber-50 rounded px-1 py-0.5 truncate" title={c.note}>moved</span>}
                         </div>
                       ) : (
-                        c.tags[0] && <div className="mt-1"><span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand-light/50 text-brand">{c.tags[0]}</span></div>
+                        c.tags[0] && <div className="mt-1"><span className="text-xs px-1.5 py-0.5 rounded-full bg-brand-light/50 text-brand">{c.tags[0]}</span></div>
                       )}
                     </div>
                   );

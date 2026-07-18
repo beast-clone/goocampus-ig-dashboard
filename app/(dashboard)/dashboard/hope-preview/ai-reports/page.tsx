@@ -137,7 +137,7 @@ function AIReports({ accountId }: { accountId: string }) {
         <>
           <div className="bg-gradient-to-r from-brand to-brand-dark text-white rounded-2xl p-6 mb-6">
             <div className="text-[11px] uppercase tracking-widest opacity-80">Pick a cadence</div>
-            <h1 className="text-[22px] font-semibold mt-1">Generate a live performance report</h1>
+            <h1 className="text-base font-medium mt-1">Generate a live performance report</h1>
             <p className="text-[13px] opacity-90 mt-2 max-w-2xl leading-relaxed">
               Pulls your @{accountId} insights, posts, audience and follower data — synthesizes into a
               structured report. Runs in ~10 seconds. Cached 12h so re-opening is instant.
@@ -156,7 +156,7 @@ function AIReports({ accountId }: { accountId: string }) {
                   className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-brand hover:shadow-md transition text-left disabled:opacity-60"
                 >
                   <div className="text-3xl mb-3">{meta.icon}</div>
-                  <div className="text-[15px] font-semibold text-gray-900">{meta.title}</div>
+                  <div className="text-base font-medium text-[#232D42]">{meta.title}</div>
                   <div className="text-[12px] text-gray-500 mt-1 leading-snug">{meta.sub}</div>
                   <div className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-brand">
                     {isLoading ? "Generating…" : "Generate now →"}
@@ -241,7 +241,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
         <div className="text-[11px] uppercase tracking-widest text-brand font-semibold mb-2">
           {report.meta.period === "weekly" ? "Weekly performance" : report.meta.period === "monthly" ? "Monthly performance" : "Quarterly performance"}
         </div>
-        <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight leading-tight">
+        <h1 className="text-base font-medium text-[#232D42] tracking-tight leading-tight">
           {report.meta.label}
         </h1>
         <div className="text-[12.5px] text-gray-500 mt-1">
@@ -252,18 +252,18 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Executive summary */}
       {report.executiveSummary && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-2">Executive summary</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Executive summary</div>
           <p className="text-[15px] text-gray-800 leading-relaxed">{report.executiveSummary}</p>
         </section>
       )}
 
       {/* Highlights */}
       <section>
-        <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Highlights</div>
+        <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Highlights</div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {report.highlights.map((h) => (
             <div key={h.label} className="border border-gray-200 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold">{h.label}</div>
+              <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">{h.label}</div>
               <div className="flex items-baseline gap-2 mt-1">
                 <div className="text-[24px] font-semibold tabular-nums tracking-tight">{h.value}</div>
                 {h.delta && (
@@ -281,7 +281,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Performance trend — reach & engagement over the period */}
       {report.trend && report.trend.length > 1 && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Performance trend</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Performance trend</div>
           <div className="border border-gray-200 rounded-xl p-4">
             <TrendLineChart data={report.trend} />
           </div>
@@ -290,16 +290,16 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
 
       {/* Content mix */}
       <section>
-        <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Content mix</div>
+        <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Content mix</div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-5 items-start">
           <div className="border border-gray-200 rounded-xl overflow-hidden">
             <table className="w-full text-[12.5px]">
               <thead className="bg-gray-50 text-gray-500">
                 <tr>
-                  <th className="text-left px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Format</th>
-                  <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Posts</th>
-                  <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Avg reach</th>
-                  <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">ER</th>
+                  <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-widest">Format</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Posts</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Avg reach</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">ER</th>
                 </tr>
               </thead>
               <tbody>
@@ -322,7 +322,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
           </div>
           {report.contentMix.insight && (
             <div className="border border-brand/30 bg-brand/5 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-2">Read on the mix</div>
+              <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on the mix</div>
               <p className="text-[13px] text-gray-800 leading-relaxed">{report.contentMix.insight}</p>
             </div>
           )}
@@ -332,7 +332,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Top posts */}
       {report.topPosts.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Top 5 posts by reach</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Top 5 posts by reach</div>
           <div className="space-y-3">
             {report.topPosts.map((p) => (
               <a
@@ -347,7 +347,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
                   {p.mediaUrl ? <img src={p.mediaUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">▢</div>}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
+                  <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">
                     {p.type === "REEL" ? "Reel" : p.type === "CAROUSEL_ALBUM" ? "Carousel" : "Static"} · {new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                   </div>
                   <div className="text-[13.5px] font-medium text-gray-900 leading-snug mt-0.5 line-clamp-2">{p.title}</div>
@@ -366,7 +366,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
 
       {/* Follower growth */}
       <section>
-        <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Follower growth</div>
+        <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Follower growth</div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-5 items-stretch">
           <div className="border border-gray-200 rounded-xl p-4">
             <div className="grid grid-cols-3 gap-3">
@@ -375,7 +375,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
               <MiniFact big={report.followerGrowth.bestDay ? `+${fmtNum(report.followerGrowth.bestDay.gain)}` : "—"} lbl={report.followerGrowth.bestDay ? `Best (${new Date(report.followerGrowth.bestDay.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })})` : "Best day"} />
             </div>
             <div className="mt-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-2">Best vs worst day</div>
+              <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Best vs worst day</div>
               <div className="flex items-center gap-2">
                 <div className="text-[11px] text-gray-500 tabular-nums w-24">Best day</div>
                 <div className="flex-1 h-3 bg-gray-100 rounded overflow-hidden">
@@ -394,7 +394,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
           </div>
           {report.followerGrowth.insight && (
             <div className="border border-brand/30 bg-brand/5 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-2">Read on follower growth</div>
+              <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on follower growth</div>
               <p className="text-[13px] text-gray-800 leading-relaxed">{report.followerGrowth.insight}</p>
             </div>
           )}
@@ -411,8 +411,8 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {report.leadsSales && (
         <section>
           <div className="flex items-baseline justify-between mb-3">
-            <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold">Leads &amp; sales</div>
-            <div className="text-[10.5px] text-gray-400">Sales Hub CRM · same date range</div>
+            <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">Leads &amp; sales</div>
+            <div className="text-xs text-gray-400">Sales Hub CRM · same date range</div>
           </div>
 
           {/* Top-line numbers */}
@@ -427,14 +427,14 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
             {/* Leads inflow chart */}
             {report.leadsSales.inflowByDay.length > 1 && (
               <div className="border border-gray-200 rounded-xl p-4">
-                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Leads inflow</div>
-                <VBars data={report.leadsSales.inflowByDay.map((d) => ({ label: d.date, value: d.count }))} color="#5142C4" />
+                <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Leads inflow</div>
+                <VBars data={report.leadsSales.inflowByDay.map((d) => ({ label: d.date, value: d.count }))} color="#3A57E8" />
               </div>
             )}
             {/* Revenue trend (last 6 months) */}
             {report.leadsSales.revenueTrend.length > 0 && (
               <div className="border border-gray-200 rounded-xl p-4">
-                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Revenue trend · last 6 months</div>
+                <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Revenue trend · last 6 months</div>
                 <VBars
                   data={report.leadsSales.revenueTrend.map((m) => ({ label: m.month, value: m.revenue }))}
                   color="#059669"
@@ -451,11 +451,11 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
               <table className="w-full text-[12.5px]">
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
-                    <th className="text-left px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Counsellor</th>
-                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Assigned</th>
-                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Contracts</th>
-                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Conv.</th>
-                    <th className="text-right px-3 py-2 font-semibold text-[10.5px] uppercase tracking-widest">Revenue</th>
+                    <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-widest">Counsellor</th>
+                    <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Assigned</th>
+                    <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Contracts</th>
+                    <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Conv.</th>
+                    <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-widest">Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -476,14 +476,14 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
           {/* Lead source split */}
           {report.leadsSales.bySource.length > 0 && (
             <div className="mt-4 border border-gray-200 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Where leads came from</div>
+              <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Where leads came from</div>
               <RankBars data={report.leadsSales.bySource} color="#2B6AB0" />
             </div>
           )}
 
           {report.leadsSales.insight && (
             <div className="mt-4 border border-brand/30 bg-brand/5 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-2">Read on leads &amp; sales</div>
+              <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on leads &amp; sales</div>
               <p className="text-[13px] text-gray-800 leading-relaxed">{report.leadsSales.insight}</p>
             </div>
           )}
@@ -493,11 +493,11 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Audience */}
       {(report.audienceInsights.topCountries.length > 0 || report.audienceInsights.topCities.length > 0) && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Who you reached</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Who you reached</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {report.audienceInsights.topCountries.length > 0 && (
               <div className="border border-gray-200 rounded-xl p-4">
-                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-2">Top countries</div>
+                <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Top countries</div>
                 <div className="space-y-1.5 text-[12.5px]">
                   {report.audienceInsights.topCountries.slice(0, 5).map((c) => (
                     <div key={c.label} className="flex items-baseline justify-between">
@@ -509,7 +509,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
             )}
             {report.audienceInsights.topCities.length > 0 && (
               <div className="border border-gray-200 rounded-xl p-4">
-                <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-2">Top cities</div>
+                <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Top cities</div>
                 <div className="space-y-1.5 text-[12.5px]">
                   {report.audienceInsights.topCities.slice(0, 5).map((c) => (
                     <div key={c.label} className="flex items-baseline justify-between">
@@ -522,7 +522,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
           </div>
           {report.audienceInsights.insight && (
             <div className="mt-3 border border-brand/30 bg-brand/5 rounded-xl p-4">
-              <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-2">Read on audience</div>
+              <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on audience</div>
               <p className="text-[13px] text-gray-800 leading-relaxed">{report.audienceInsights.insight}</p>
             </div>
           )}
@@ -532,7 +532,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Best times */}
       {report.bestTimes.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Best times to post</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Best times to post</div>
           <div className="border border-gray-200 rounded-xl p-4">
             <div className="space-y-2">
               {report.bestTimes.map((t, i) => (
@@ -552,7 +552,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Recommendations */}
       {report.recommendations.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">Recommendations for next {report.meta.period === "weekly" ? "week" : report.meta.period === "monthly" ? "month" : "quarter"}</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Recommendations for next {report.meta.period === "weekly" ? "week" : report.meta.period === "monthly" ? "month" : "quarter"}</div>
           <div className="space-y-3">
             {report.recommendations.map((r, i) => (
               <div key={i} className="border border-gray-200 rounded-xl p-4">
@@ -575,11 +575,11 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       {/* Metrics table */}
       {report.postMetricsTable.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mb-3">All posts in this range</div>
+          <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">All posts in this range</div>
           <div className="border border-gray-200 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">
-                <thead className="bg-gray-50 text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
+                <thead className="bg-gray-50 text-xs uppercase tracking-widest text-gray-500 font-semibold">
                   <tr>
                     <th className="text-left px-3 py-2">Date</th>
                     <th className="text-left px-3 py-2">Type</th>
@@ -624,7 +624,7 @@ function MiniFact({ big, lbl }: { big: string; lbl: string }) {
   return (
     <div className="bg-gray-50 rounded-lg px-3 py-2">
       <div className="text-[18px] font-semibold tabular-nums leading-none">{big}</div>
-      <div className="text-[10px] uppercase tracking-widest text-gray-500 mt-1 leading-tight">{lbl}</div>
+      <div className="text-xs uppercase tracking-widest text-gray-500 mt-1 leading-tight">{lbl}</div>
     </div>
   );
 }
@@ -632,7 +632,7 @@ function MiniFact({ big, lbl }: { big: string; lbl: string }) {
 function TwoLineCard({ title, value, delta, insight, extra }: { title: string; value: string; delta: number; insight: string; extra?: string }) {
   return (
     <div className="border border-gray-200 rounded-xl p-4">
-      <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold">{title}</div>
+      <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">{title}</div>
       <div className="flex items-baseline gap-2 mt-1">
         <div className="text-[24px] font-semibold tabular-nums tracking-tight">{value}</div>
         <div className={`text-[12px] font-semibold ${delta < 0 ? "text-rose-700" : "text-emerald-700"}`}>
@@ -649,7 +649,7 @@ function LeadStat({ big, lbl, accent }: { big: string; lbl: string; accent?: boo
   return (
     <div className={`rounded-xl p-4 border ${accent ? "border-brand/30 bg-brand/5" : "border-gray-200"}`}>
       <div className={`text-[22px] font-semibold tabular-nums tracking-tight ${accent ? "text-brand" : "text-gray-900"}`}>{big}</div>
-      <div className="text-[10.5px] uppercase tracking-widest text-gray-500 font-semibold mt-1">{lbl}</div>
+      <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mt-1">{lbl}</div>
     </div>
   );
 }
@@ -670,14 +670,14 @@ function TrendLineChart({ data }: { data: { date: string; reach: number; engagem
   return (
     <div>
       <div className="flex items-center gap-4 mb-2 text-[11px]">
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#5142C4" }} /> Reach <span className="text-gray-400 tabular-nums">(peak {maxReach.toLocaleString("en-IN")})</span></span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#3A57E8" }} /> Reach <span className="text-gray-400 tabular-nums">(peak {maxReach.toLocaleString("en-IN")})</span></span>
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#059669" }} /> Engagement <span className="text-gray-400 tabular-nums">(peak {maxEng.toLocaleString("en-IN")})</span></span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "auto" }} preserveAspectRatio="xMidYMid meet">
         {[0.25, 0.5, 0.75].map((g) => (
           <line key={g} x1={PL} x2={W - PR} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke="#f1f1f4" strokeWidth={1} />
         ))}
-        <path d={path("reach", maxReach)} fill="none" stroke="#5142C4" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path("reach", maxReach)} fill="none" stroke="#3A57E8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         <path d={path("engagement", maxEng)} fill="none" stroke="#059669" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {ticks.map((i) => (
           <text key={i} x={x(i)} y={H - 6} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"} className="fill-gray-400" style={{ fontSize: 10 }}>
@@ -685,7 +685,7 @@ function TrendLineChart({ data }: { data: { date: string; reach: number; engagem
           </text>
         ))}
       </svg>
-      <div className="text-[10.5px] text-gray-400 mt-1 italic">Each line indexed to its own peak — shows the trend, not the absolute scale.</div>
+      <div className="text-xs text-gray-400 mt-1 italic">Each line indexed to its own peak — shows the trend, not the absolute scale.</div>
     </div>
   );
 }
@@ -710,7 +710,7 @@ function VBars({ data, color, fmt, labelFmt }: {
           </div>
         ))}
       </div>
-      <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 tabular-nums">
+      <div className="flex justify-between mt-1.5 text-xs text-gray-400 tabular-nums">
         {data.filter((_, i) => i % step === 0 || i === data.length - 1).map((d, i) => (
           <span key={i}>{labelFmt ? labelFmt(d.label) : new Date(d.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
         ))}

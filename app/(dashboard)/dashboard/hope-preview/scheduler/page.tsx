@@ -564,7 +564,7 @@ function Scheduler() {
           {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
-              <div className="text-base font-semibold text-gray-900">{
+              <div className="text-base font-medium text-[#232D42]">{
                 listFilter === "ready" ? "Ready to schedule"
                 : listFilter === "scheduled" ? "Scheduled"
                 : listFilter === "publishing" ? "Publishing"
@@ -608,15 +608,15 @@ function Scheduler() {
                           <button onClick={() => selectTask(t)} className={`w-full flex items-center gap-3 px-3.5 py-3 text-left ${open ? "bg-brand-light/30 rounded-t-xl" : "hover:bg-gray-50 rounded-xl"}`}>
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium text-gray-900 truncate">{t.title}</div>
-                              <div className="text-[11px] text-gray-500 truncate">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</div>
+                              <div className="text-xs text-gray-500 truncate">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</div>
                             </div>
                             {/* Publishing date at the right corner — when it's set to go out */}
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {(() => {
-                                if (!t.publishingDate) return <span className="text-[11px] text-gray-300">no date</span>;
+                                if (!t.publishingDate) return <span className="text-xs text-gray-300">no date</span>;
                                 const d = new Date(t.publishingDate);
                                 const label = Number.isNaN(d.getTime()) ? t.publishingDate : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-                                return <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
+                                return <span className="inline-flex items-center gap-1 text-xs text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
                               })()}
                               <IconChevronRight size={16} stroke={2.2} className={`transition-transform ${open ? "text-brand rotate-90" : "text-gray-400"}`} />
                             </div>
@@ -625,21 +625,21 @@ function Scheduler() {
                           {open && (
                             <div className="border-t border-gray-100 px-3 py-3 space-y-3">
                               <div>
-                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post name</label>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post name</label>
                                 <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2" />
                               </div>
                               <div>
-                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Post to</label>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
                                 <div className="mt-1"><PageDropdown value={publishToPage} onChange={setPublishToPage} /></div>
                               </div>
                               <div>
-                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
                                 <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} /></div>
                               </div>
                               <div>
-                                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
                                 <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
-                                <div className="text-right text-[10px] text-gray-400 mt-0.5">{caption.length} / 2200</div>
+                                <div className="text-right text-xs text-gray-400 mt-0.5">{caption.length} / 2200</div>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-gray-700">{scheduleEnabled ? "Publish at the time below" : "Publish now"}</span>
@@ -663,17 +663,17 @@ function Scheduler() {
                                   })()}
                                   {timeSuggestions.length > 0 && (
                                     <div>
-                                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Best time to post — when your audience is most online</div>
+                                      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Best time to post — when your audience is most online</div>
                                       <div className="flex flex-wrap gap-2">
                                         {timeSuggestions.map((s, i) => {
                                           const d = new Date(s.nextOccurrenceISO);
                                           const dateLbl = Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
                                           return (
                                             <button key={i} type="button" onClick={() => applyTimeSuggestion(s)}
-                                              className="text-xs bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-800 rounded-lg px-2.5 py-1.5 transition"
+                                              className="text-xs bg-brand-light hover:bg-brand-light border border-brand/30 text-brand rounded-lg px-2.5 py-1.5 transition"
                                               title={`Scheduled for ${s.weekdayLabel} ${dateLbl} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}>
                                               <span className="font-semibold">{s.weekdayLabel} {dateLbl} · {s.hourLabel}</span>
-                                              <span className="text-violet-600 ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
+                                              <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
                                             </button>
                                           );
                                         })}
@@ -683,7 +683,7 @@ function Scheduler() {
                                 </div>
                               )}
                               <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                                <span className="text-[11px]">
+                                <span className="text-xs">
                                   {result?.ok === true ? <span className="text-green-700">✓ Scheduled — moved to the queue.</span>
                                     : result?.ok === false ? <span className="text-red-700">✗ {result.error}</span>
                                     : <span className="text-gray-500">to <b className="text-gray-700">{pageHandle(publishToPage)}</b></span>}
@@ -703,11 +703,11 @@ function Scheduler() {
                   <div className="lg:col-span-5">
                     <div className="sticky top-6">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
                         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
                           {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
                             <button key={p} onClick={() => setPreviewPlatform(p)}
-                              className={`text-[11px] font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                              className={`text-xs font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
                               {p}
                             </button>
                           ))}
@@ -745,7 +745,7 @@ function Scheduler() {
       {/* Header — queue actions strip */}
       <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <div className="text-base font-semibold text-gray-900">Published</div>
+          <div className="text-base font-medium text-[#232D42]">Published</div>
           <div className="text-[12px] text-gray-500">
             Everything that&apos;s gone live — click a post to open it. Scheduled posts live on the “To schedule” tab.
             {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
@@ -776,7 +776,7 @@ function Scheduler() {
         <div>
           <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
             <div>
-              <div className="text-base font-semibold text-gray-900">Top performers</div>
+              <div className="text-base font-medium text-[#232D42]">Top performers</div>
               <div className="text-[12px] text-gray-500">Your best posts by reach (last 90 days) — click one to reschedule it.</div>
             </div>
             <HopeSelect value={topAccount} onChange={setTopAccount}
@@ -800,16 +800,16 @@ function Scheduler() {
                       {p.thumbnail
                         ? <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">{p.mediaType === "VIDEO" ? "🎬" : "🖼️"}</div>}
-                      <div className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-full">#{i + 1}</div>
+                      <div className="absolute top-1.5 left-1.5 text-xs font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-full">#{i + 1}</div>
                       {p.mediaType === "CAROUSEL_ALBUM" && <div className="absolute top-1.5 right-1.5 text-white/90">▦</div>}
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 flex items-center gap-2 text-[10px] text-white">
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 flex items-center gap-2 text-xs text-white">
                         <span>{fmt(p.reach)} reach</span><span>{fmt(p.likes)} ♥</span>
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition">
-                        <span className="text-[11px] font-medium bg-white text-brand px-2.5 py-1 rounded-lg shadow">Reschedule →</span>
+                        <span className="text-xs font-medium bg-white text-brand px-2.5 py-1 rounded-lg shadow">Reschedule →</span>
                       </div>
                     </div>
-                    <div className="px-2 py-1.5 flex items-center justify-between text-[10px] text-gray-500">
+                    <div className="px-2 py-1.5 flex items-center justify-between text-xs text-gray-500">
                       <span className="truncate">{handle}</span>
                       <span className="flex-shrink-0 ml-1">{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
                     </div>
@@ -882,7 +882,7 @@ function Scheduler() {
       {deletePost && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePost(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="text-base font-semibold text-gray-900">Remove this post from the schedule?</div>
+            <div className="text-base font-medium text-[#232D42]">Remove this post from the schedule?</div>
             <div className="text-[13px] text-gray-500 mt-1">
               <span className="font-medium text-gray-700">{deletePost.particulars || "Untitled"}</span> — {pageHandle(deletePost.publishToPage)}.
               Deleting takes it off the schedule and returns it to “Ready to schedule” (nothing is permanently lost). Or reschedule it to a new time.
@@ -918,7 +918,7 @@ function Scheduler() {
               className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans"
             />
             <div className="flex items-center justify-between mt-3">
-              <div className="text-[11px] text-gray-500">{editingCaptionText.length} / 2200 characters</div>
+              <div className="text-xs text-gray-500">{editingCaptionText.length} / 2200 characters</div>
               <div className="flex gap-2">
                 <button onClick={() => setEditingCaptionId(null)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200">
                   Cancel
@@ -943,7 +943,7 @@ function Scheduler() {
           <div className="min-h-screen py-8 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <div className="text-lg font-semibold">Add a new post</div>
+                <div className="text-base font-medium text-[#232D42]">Add a new post</div>
                 <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
               </div>
 
@@ -962,18 +962,18 @@ function Scheduler() {
           <Card title="Post details">
             <div className="space-y-3">
               <div>
-                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Internal title (Particulars)</label>
+                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Internal title (Particulars)</label>
                 <input
                   value={particulars}
                   onChange={(e) => setParticulars(e.target.value)}
                   placeholder="e.g. AMC August intake — reel #3"
                   className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
                 />
-                <div className="text-[10px] text-gray-400 mt-1">For your team — not shown on Instagram.</div>
+                <div className="text-xs text-gray-400 mt-1">For your team — not shown on Instagram.</div>
               </div>
               {/* Content brief — topic anchor for the AI caption suggester */}
               <div>
-                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">📝 What&apos;s this post about? <span className="normal-case text-gray-400 font-normal">(optional — helps AI write better captions)</span></label>
+                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">📝 What&apos;s this post about? <span className="normal-case text-gray-400 font-normal">(optional — helps AI write better captions)</span></label>
                 <textarea
                   value={contentBrief}
                   onChange={(e) => setContentBrief(e.target.value)}
@@ -981,13 +981,13 @@ function Scheduler() {
                   rows={2}
                   className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans"
                 />
-                <div className="text-[10px] text-gray-400 mt-1">Never sent to Instagram — this is just for you and the AI suggester.</div>
+                <div className="text-xs text-gray-400 mt-1">Never sent to Instagram — this is just for you and the AI suggester.</div>
               </div>
 
               <div>
-                <label className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Caption</label>
+                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
                 <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
-                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
                 </div>
@@ -1061,18 +1061,18 @@ function Scheduler() {
                 {/* Smart time suggestions */}
                 {timeSuggestions.length > 0 && (
                   <div className="mt-3">
-                    <div className="text-[10px] uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Smart suggestions — when your audience is most online</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Smart suggestions — when your audience is most online</div>
                     <div className="flex flex-wrap gap-2">
                       {timeSuggestions.map((s, i) => (
                         <button
                           key={i}
                           type="button"
                           onClick={() => applyTimeSuggestion(s)}
-                          className="text-xs bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-800 rounded-lg px-3 py-1.5 transition"
+                          className="text-xs bg-brand-light hover:bg-brand-light border border-brand/30 text-brand rounded-lg px-3 py-1.5 transition"
                           title={`Next ${s.weekdayLabel} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}
                         >
                           <span className="font-semibold">{s.weekdayLabel} {s.hourLabel}</span>
-                          <span className="text-violet-600 ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
+                          <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
                         </button>
                       ))}
                     </div>
@@ -1087,11 +1087,11 @@ function Scheduler() {
         <div className="lg:col-span-5">
           <div className="sticky top-6">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
               <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
                 {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
                   <button key={p} type="button" onClick={() => setPreviewPlatform(p)}
-                    className={`text-[11px] font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                    className={`text-xs font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
                     {p}
                   </button>
                 ))}
@@ -1170,7 +1170,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
       {!hideHeader && (
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <div className="text-base font-semibold text-gray-900">Ready to schedule</div>
+          <div className="text-base font-medium text-[#232D42]">Ready to schedule</div>
           <div className="text-[12px] text-gray-500">Produced content awaiting a publish action — straight from the Content Calendar. Click Schedule to add the caption &amp; go out.</div>
         </div>
         <div className="flex items-center gap-2">
@@ -1194,19 +1194,19 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
             <div key={t.id} className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="text-sm font-semibold text-gray-900 leading-snug">{t.title}</div>
-                <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: sc.bg, color: sc.text }}>{t.status.replace("Output - ", "").replace(" to Publish", "")}</span>
+                <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: sc.bg, color: sc.text }}>{t.status.replace("Output - ", "").replace(" to Publish", "")}</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {t.sbu && <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-light text-brand">{t.sbu}</span>}
-                {t.type && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{t.type}</span>}
+                {t.sbu && <span className="text-xs px-2 py-0.5 rounded-full bg-brand-light text-brand">{t.sbu}</span>}
+                {t.type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{t.type}</span>}
               </div>
               {t.mediaUrls.length > 0 ? (
                 <div className="relative">
                   {/\.(mp4|mov|webm)(\?|$)/i.test(t.mediaUrls[0])
                     ? <video src={t.mediaUrls[0]} className="w-full h-28 object-cover rounded-md border border-gray-100" muted />
                     : <img src={t.mediaUrls[0]} alt="" className="w-full h-28 object-cover rounded-md border border-gray-100" />}
-                  {t.mediaUrls.length > 1 && <span className="absolute top-1 right-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-full">+{t.mediaUrls.length - 1}</span>}
-                  <label className="absolute bottom-1 right-1 text-[10px] bg-white/90 text-gray-700 border border-gray-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white">
+                  {t.mediaUrls.length > 1 && <span className="absolute top-1 right-1 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded-full">+{t.mediaUrls.length - 1}</span>}
+                  <label className="absolute bottom-1 right-1 text-xs bg-white/90 text-gray-700 border border-gray-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white">
                     replace
                     <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadForTask(t.id, e.target.files); e.currentTarget.value = ""; }} />
                   </label>
@@ -1220,13 +1220,13 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
                     <>
                       <span className="text-lg">↑</span>
                       <span className="text-xs text-gray-600 font-medium">Upload media</span>
-                      {t.assetLink && <a href={t.assetLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] text-gray-400 hover:text-brand hover:underline">or grab from Slack ↗</a>}
+                      {t.assetLink && <a href={t.assetLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-gray-400 hover:text-brand hover:underline">or grab from Slack ↗</a>}
                     </>
                   )}
                 </label>
               )}
               <div className="flex items-center justify-between mt-auto pt-1 border-t border-gray-50">
-                <span className="text-[11px] text-gray-500">defaults to <b className="text-gray-700">{pageChip[t.defaultPage] || t.defaultPage}</b></span>
+                <span className="text-xs text-gray-500">defaults to <b className="text-gray-700">{pageChip[t.defaultPage] || t.defaultPage}</b></span>
                 <button onClick={() => onSchedule(t)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark">Schedule →</button>
               </div>
             </div>
@@ -1240,8 +1240,8 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
 function StatusCounter({ label, count, color, active, onClick }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose"; active?: boolean; onClick?: () => void }) {
   // Hope UI stat card: clean white card, a small colour-coded dot, big number.
   // Clickable — acts as a filter chip for the list below; the active one gets a ring.
-  const dot: Record<string, string> = { amber: "#F59E0B", violet: "#7C3AED", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
-  const ring: Record<string, string> = { amber: "ring-amber-400", violet: "ring-violet-500", blue: "ring-blue-500", green: "ring-emerald-500", rose: "ring-rose-500" };
+  const dot: Record<string, string> = { amber: "#F59E0B", violet: "#3A57E8", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
+  const ring: Record<string, string> = { amber: "ring-amber-400", violet: "ring-[#3A57E8]", blue: "ring-blue-500", green: "ring-emerald-500", rose: "ring-rose-500" };
   return (
     <button
       type="button"
@@ -1250,7 +1250,7 @@ function StatusCounter({ label, count, color, active, onClick }: { label: string
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="w-2 h-2 rounded-full" style={{ background: dot[color] }} />
-        <span className={`text-[11px] uppercase tracking-wide font-medium ${active ? "text-gray-600" : "text-gray-400"}`}>{label}</span>
+        <span className={`text-xs uppercase tracking-wide font-medium ${active ? "text-gray-600" : "text-gray-400"}`}>{label}</span>
       </div>
       <div className="text-[26px] font-semibold text-gray-900 tabular-nums leading-none">{count}</div>
     </button>
@@ -1276,7 +1276,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
     return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
   };
   const pill: Record<string, string> = {
-    scheduled: "bg-violet-50 text-violet-700",
+    scheduled: "bg-brand-light text-brand",
     publishing: "bg-blue-50 text-blue-700",
     published: "bg-emerald-50 text-emerald-700",
     failed: "bg-rose-50 text-rose-700",
@@ -1294,20 +1294,20 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
-              <div className="text-[11px] text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
+              <div className="text-xs text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
             </div>
           </button>
-          <div className="text-[11px] text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
+          <div className="text-xs text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
             {fmt(p.effectiveStatus === "published" ? p.publishedAt : p.scheduleTime)}
           </div>
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus}</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus}</span>
           {/* Row actions — only for posts that are still actionable (not already published) */}
           {p.effectiveStatus !== "published" && (
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button onClick={() => onReschedule(p)}
-                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
               <button onClick={() => onDelete(p)}
-                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition">Delete</button>
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition">Delete</button>
             </div>
           )}
         </div>
@@ -1358,7 +1358,7 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
           <div className="text-[13px] text-gray-600">
             {pageHandle(page)} already has <span className="font-semibold text-gray-900">{existing.length}</span> post{existing.length === 1 ? "" : "s"} scheduled for <span className="font-medium text-gray-800">{dateLabel}</span>, which is its daily limit of {limit}. Scheduling this one makes it <span className="font-semibold text-gray-900">{existing.length + 1}</span>.
           </div>
-          <div className="text-[11px] uppercase tracking-wide font-medium text-gray-400 mt-4 mb-2">Already planned that day</div>
+          <div className="text-xs uppercase tracking-wide font-medium text-gray-400 mt-4 mb-2">Already planned that day</div>
           <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
             {existing.map((p) => (
               <div key={p.id}>
@@ -1366,10 +1366,10 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
                   className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
-                    <div className="text-[11px] text-gray-500">{p.type || "Post"}</div>
+                    <div className="text-xs text-gray-500">{p.type || "Post"}</div>
                   </div>
-                  <div className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">{fmtTime(p.scheduleTime || p.publishedAt)}</div>
-                  <span className="text-gray-300 text-[10px] flex-shrink-0">{openId === p.id ? "▲" : "▼"}</span>
+                  <div className="text-xs text-gray-500 tabular-nums flex-shrink-0">{fmtTime(p.scheduleTime || p.publishedAt)}</div>
+                  <span className="text-gray-300 text-xs flex-shrink-0">{openId === p.id ? "▲" : "▼"}</span>
                 </button>
                 {openId === p.id && (
                   <div className="px-3.5 pb-3 flex gap-3 bg-gray-50/60">
@@ -1425,8 +1425,8 @@ function QueueSection({
       <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
         <div className={`w-1 h-8 rounded-full ${bandColors[accent]}`} />
         <div className="flex-1">
-          <div className="text-sm font-semibold text-gray-900">{title}</div>
-          <div className="text-[11px] text-gray-500">{subtitle}</div>
+          <div className="text-base font-medium text-[#232D42]">{title}</div>
+          <div className="text-xs text-gray-500">{subtitle}</div>
         </div>
       </div>
       {posts.length === 0 && emptyOK && (
@@ -1488,17 +1488,17 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
           {post.particulars || "(no title)"}
         </div>
         {post.primaryInterest && (
-          <div className="inline-block text-[10px] bg-violet-50 text-violet-700 rounded-full px-2 py-0.5 mb-1 mr-1">
+          <div className="inline-block text-xs bg-brand-light text-brand rounded-full px-2 py-0.5 mb-1 mr-1">
             {post.primaryInterest}
           </div>
         )}
         {post.type && (
-          <div className="inline-block text-[10px] bg-amber-50 text-amber-700 rounded-full px-2 py-0.5">
+          <div className="inline-block text-xs bg-amber-50 text-amber-700 rounded-full px-2 py-0.5">
             {post.type}
           </div>
         )}
         {post.publishToPage && (
-          <div className="text-[10px] text-gray-500 mt-1">{post.publishToPage}</div>
+          <div className="text-xs text-gray-500 mt-1">{post.publishToPage}</div>
         )}
       </div>
 
@@ -1523,7 +1523,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
           <div className="text-xs text-gray-400 italic">No caption yet.</div>
         )}
         {post.failureReason && (
-          <div className="text-[11px] text-rose-700 mt-2 bg-rose-50 border border-rose-100 rounded px-2 py-1">
+          <div className="text-xs text-rose-700 mt-2 bg-rose-50 border border-rose-100 rounded px-2 py-1">
             ⚠ {post.failureReason}
           </div>
         )}
@@ -1531,7 +1531,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
 
       {/* Column 4 — status + Schedule now button */}
       <div className="w-36 shrink-0 flex flex-col items-end gap-2">
-        <span className={`text-[10px] font-medium uppercase tracking-wide rounded-full border px-2 py-0.5 ${statusColor}`}>
+        <span className={`text-xs font-medium uppercase tracking-wide rounded-full border px-2 py-0.5 ${statusColor}`}>
           {statusLabel}
         </span>
         {!readonly && (
@@ -1539,21 +1539,21 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
             type="button"
             onClick={() => onScheduleNow?.(post)}
             disabled={busy}
-            className="text-xs font-medium bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
+            className="text-xs font-medium bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
           >
             📅 Schedule now
           </button>
         )}
         {!readonly && post.scheduleTime && (
-          <div className="text-[10px] text-gray-500 text-right leading-tight">
+          <div className="text-xs text-gray-500 text-right leading-tight">
             Current time slot:<br />
             <span className="text-gray-800 font-medium">{whenLabel}</span>
           </div>
         )}
         {readonly && (
           <>
-            <div className="text-[10px] text-gray-500 text-right">Published {whenLabel}</div>
-            {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer" className="text-[11px] text-violet-700 hover:underline">View on Instagram ↗</a>}
+            <div className="text-xs text-gray-500 text-right">Published {whenLabel}</div>
+            {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline">View on Instagram ↗</a>}
           </>
         )}
       </div>
@@ -1612,12 +1612,12 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
           <div className="text-sm font-semibold">📅 Schedule this post</div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
         </div>
-        <div className="text-[11px] text-gray-500 mb-4 line-clamp-1">{post.particulars || "(no title)"}</div>
+        <div className="text-xs text-gray-500 mb-4 line-clamp-1">{post.particulars || "(no title)"}</div>
 
         {/* Pages — tick one or more to cross-post */}
         <div className="mb-4">
-          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-            Publish to {selectedPages.length > 1 && <span className="ml-1 text-violet-700 normal-case font-normal">· cross-posting to {selectedPages.length} pages</span>}
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Publish to {selectedPages.length > 1 && <span className="ml-1 text-brand normal-case font-normal">· cross-posting to {selectedPages.length} pages</span>}
           </div>
           <div className="space-y-1.5">
             {ALL_PAGES.map((page) => {
@@ -1628,28 +1628,28 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
                 <label
                   key={page}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition ${
-                    checked ? "border-violet-400 bg-violet-50" : "border-gray-200 bg-white hover:border-gray-300"
+                    checked ? "border-brand/50 bg-brand-light" : "border-gray-200 bg-white hover:border-gray-300"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => togglePage(page)}
-                    className="w-4 h-4 accent-violet-600"
+                    className="w-4 h-4 accent-[#3A57E8]"
                   />
                   <div className="flex-1">
                     <div className="text-xs font-medium text-gray-900">{page}</div>
-                    <div className="text-[10px] text-gray-500">{handle}</div>
+                    <div className="text-xs text-gray-500">{handle}</div>
                   </div>
                   {page === post.publishToPage && (
-                    <span className="text-[9px] font-medium text-violet-700 uppercase tracking-wide">Original</span>
+                    <span className="text-xs font-medium text-brand uppercase tracking-wide">Original</span>
                   )}
                 </label>
               );
             })}
           </div>
           {post.platform && (
-            <div className="text-[10px] text-gray-500 mt-1.5">
+            <div className="text-xs text-gray-500 mt-1.5">
               Platform: <span className="text-gray-700 font-medium">{post.platform}</span>
             </div>
           )}
@@ -1657,7 +1657,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
 
         {/* Best-time suggestions */}
         <div className="mb-4">
-          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
             Good times to schedule
             <span className="text-gray-400 normal-case font-normal ml-1">— based on when your audience is most active</span>
           </div>
@@ -1675,13 +1675,13 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
                     key={i}
                     onClick={() => pickAndConfirm(s.nextOccurrenceISO)}
                     disabled={saving}
-                    className="w-full flex items-center justify-between text-left bg-white border border-gray-200 hover:border-violet-400 hover:bg-violet-50/40 rounded-lg px-3 py-2 disabled:opacity-50 transition"
+                    className="w-full flex items-center justify-between text-left bg-white border border-gray-200 hover:border-brand/50 hover:bg-brand-light/40 rounded-lg px-3 py-2 disabled:opacity-50 transition"
                   >
                     <div>
                       <div className="text-sm font-medium text-gray-900">{label}</div>
-                      <div className="text-[10px] text-gray-500">{s.followersOnline.toLocaleString()} followers online at {s.hourLabel}</div>
+                      <div className="text-xs text-gray-500">{s.followersOnline.toLocaleString()} followers online at {s.hourLabel}</div>
                     </div>
-                    <div className="text-xs text-violet-700 font-medium">Schedule →</div>
+                    <div className="text-xs text-brand font-medium">Schedule →</div>
                   </button>
                 );
               })}
@@ -1691,7 +1691,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
 
         {/* Custom time */}
         <div>
-          <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Or pick a custom time</div>
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Or pick a custom time</div>
           <div className="flex items-center gap-2">
             <input
               type="datetime-local"
@@ -1702,7 +1702,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
             <button
               onClick={() => customLocal && pickAndConfirm(new Date(customLocal).toISOString())}
               disabled={!customLocal || saving}
-              className="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+              className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md disabled:opacity-50"
             >
               {saving ? "Saving…" : "Confirm"}
             </button>
@@ -1762,8 +1762,8 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
-            <div className="text-base font-semibold text-gray-900">{title}</div>
-            <div className="text-[11px] text-gray-500">{when}</div>
+            <div className="text-base font-medium text-[#232D42]">{title}</div>
+            <div className="text-xs text-gray-500">{when}</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
@@ -1780,7 +1780,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
                   className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Previous">‹</button>
                 <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Next">›</button>
-                <div className="absolute top-3 right-3 text-[11px] font-medium text-white bg-black/50 rounded-full px-2 py-0.5 tabular-nums">{safeIdx + 1}/{slides.length}</div>
+                <div className="absolute top-3 right-3 text-xs font-medium text-white bg-black/50 rounded-full px-2 py-0.5 tabular-nums">{safeIdx + 1}/{slides.length}</div>
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                   {slides.map((_, i) => (
                     <button key={i} onClick={() => setIdx(i)} className={`w-2 h-2 rounded-full transition ${i === safeIdx ? "bg-white" : "bg-white/40 hover:bg-white/70"}`} aria-label={`Slide ${i + 1}`} />
@@ -1791,7 +1791,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
           </div>
           <div className="p-5 space-y-4 overflow-auto">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
               {account && <span className="text-xs text-gray-500">{account}</span>}
             </div>
             {isPub && (
@@ -1803,13 +1803,13 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
                 ].map((m) => (
                   <div key={m.label} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
                     <div className="text-lg font-semibold text-gray-900 tabular-nums leading-none">{(m.value || 0).toLocaleString("en-IN")}</div>
-                    <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
                   </div>
                 ))}
               </div>
             )}
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
+              <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
               <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{caption || <span className="text-gray-400 italic">No caption</span>}</div>
             </div>
             {(igUrl || fbUrl) && (
@@ -1923,13 +1923,13 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
   return (
     <div className={`bg-white rounded-lg border border-gray-100 overflow-hidden ${wide ? "w-full" : "lg:sticky lg:top-4"}`}>
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm font-semibold text-gray-900">Published posts</div>
+        <div className="text-base font-medium text-[#232D42]">Published posts</div>
         <div className="flex flex-wrap gap-1">
           {filterChips.map((c) => (
             <button
               key={c.key}
               onClick={() => setFilter(c.key)}
-              className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
+              className={`text-xs px-2.5 py-1 rounded-full border transition ${
                 filter === c.key
                   ? "bg-brand text-white border-brand"
                   : "bg-white text-gray-600 border-gray-200 hover:border-brand"
@@ -1942,7 +1942,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
       </div>
 
       {flatItems.length === 0 && (
-        <div className="p-4 text-center text-[11px] text-gray-400">Nothing matches this filter.</div>
+        <div className="p-4 text-center text-xs text-gray-400">Nothing matches this filter.</div>
       )}
 
       <div className="max-h-[calc(100vh-220px)] min-h-[500px] overflow-y-auto p-2">
@@ -1954,7 +1954,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                   const t = `${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ${dt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
                   // Map "Publish To Page" → short handle chip shown under each tile.
                   const handleFor = (page: string): { short: string; color: string } => {
-                    if (page === "GooCampus Main") return { short: "@goocampus", color: "bg-violet-50 text-violet-700 border-violet-200" };
+                    if (page === "GooCampus Main") return { short: "@goocampus", color: "bg-brand-light text-brand border-brand/30" };
                     if (page === "GooCampus World") return { short: "@goocampusworld", color: "bg-sky-50 text-sky-700 border-sky-200" };
                     if (page === "12Plus / GC India") return { short: "@12thplusdotcom", color: "bg-rose-50 text-rose-700 border-rose-200" };
                     return { short: page || "—", color: "bg-gray-50 text-gray-600 border-gray-200" };
@@ -1969,7 +1969,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                         type="button"
                         onClick={() => onSelect?.(it)}
                         title={p.caption ? truncate(p.caption, 140) : "View post"}
-                        className="group block w-full text-left rounded-md overflow-hidden border border-gray-200 hover:border-violet-400 hover:shadow-md transition"
+                        className="group block w-full text-left rounded-md overflow-hidden border border-gray-200 hover:border-brand/50 hover:shadow-md transition"
                       >
                         <div className="relative">
                           {p.mediaUrl ? (
@@ -1980,7 +1980,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                             </div>
                           )}
                           <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-xs text-white tabular-nums text-right">
                             {t}
                           </div>
                         </div>
@@ -2012,7 +2012,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                           </div>
                         )}
                         <div className={`absolute top-1 left-1 w-1.5 h-1.5 rounded-full ring-2 ring-white ${dot}`} />
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-[9px] text-white tabular-nums text-right">
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1 text-xs text-white tabular-nums text-right">
                           {t}
                         </div>
                       </div>
@@ -2032,7 +2032,7 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
   const statusColor =
     post.status === "Published" ? "bg-green-50 text-green-700 border-green-200" :
     post.status === "Publishing" ? "bg-amber-50 text-amber-800 border-amber-200" :
-    post.status === "To Be Scheduled" ? "bg-violet-50 text-violet-700 border-violet-200" :
+    post.status === "To Be Scheduled" ? "bg-brand-light text-brand border-brand/30" :
     "bg-gray-50 text-gray-600 border-gray-200";
 
   const when = post.publishedAt || post.scheduleTime;
@@ -2043,8 +2043,8 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-gray-900 truncate">{post.particulars || "(no title)"}</span>
-          <span className={`text-[10px] font-medium uppercase tracking-wide rounded-full border px-2 py-0.5 ${statusColor}`}>{post.status}</span>
-          <span className="text-[10px] text-gray-400">{post.publishToPage}</span>
+          <span className={`text-xs font-medium uppercase tracking-wide rounded-full border px-2 py-0.5 ${statusColor}`}>{post.status}</span>
+          <span className="text-xs text-gray-400">{post.publishToPage}</span>
         </div>
         {post.caption && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{post.caption}</div>}
       </div>
@@ -2142,7 +2142,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
             <>
               <div className="text-2xl mb-1">📎</div>
               <div className="text-sm font-medium text-gray-700">Drag a file here or click to upload</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">jpg · png · webp · gif · mp4 · mov · webm · up to 300 MB</div>
+              <div className="text-xs text-gray-500 mt-0.5">jpg · png · webp · gif · mp4 · mov · webm · up to 300 MB</div>
             </>
           )}
         </div>
@@ -2170,10 +2170,10 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 {isVideo(url)
                   ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
                   : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
-                <span className="absolute bottom-0 left-0 text-[9px] font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
+                <span className="absolute bottom-0 left-0 text-xs font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
                 {!locked && (
                   <button type="button" onClick={() => removeAt(i)} title="Remove"
-                    className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
+                    className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
                 )}
               </div>
             ))}
@@ -2190,14 +2190,14 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
               </label>
             )}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${media.length}/${MAX_MEDIA} · drag to reorder${media.length < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${media.length}/${MAX_MEDIA} · drag to reorder${media.length < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
         </div>
       )}
 
       {/* Paste a URL to add one more (Slack / Drive / direct link) */}
       {!locked && media.length < MAX_MEDIA && (
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">— or paste a URL —</div>
+          <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">— or paste a URL —</div>
           <div className="flex gap-2">
             <input
               type="url"
@@ -2249,7 +2249,7 @@ function AISuggestBar({
           disabled={!canFetch}
           className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
             canFetch
-              ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90"
+              ? "bg-gradient-to-r from-brand to-brand-dark text-white hover:opacity-90"
               : "bg-gray-100 text-gray-400 cursor-not-allowed"
           }`}
           title={contentBrief.trim().length < 10 ? "Fill in the 'What's this post about?' field first" : "Generate 3 caption variants"}
@@ -2257,17 +2257,17 @@ function AISuggestBar({
           {loading ? "✨ Thinking…" : "✨ Get 3 AI caption variants"}
         </button>
         {!canFetch && contentBrief.trim().length < 10 && (
-          <span className="text-[10px] text-gray-500">Add a topic in &ldquo;What&apos;s this post about?&rdquo; to enable</span>
+          <span className="text-xs text-gray-500">Add a topic in &ldquo;What&apos;s this post about?&rdquo; to enable</span>
         )}
         {suggestions && suggestions.length > 0 && (
-          <button type="button" onClick={onDismiss} className="text-[11px] text-gray-500 hover:text-gray-800 underline">
+          <button type="button" onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-800 underline">
             Dismiss suggestions
           </button>
         )}
       </div>
 
       {error && (
-        <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
           Suggestion failed: {error}
         </div>
       )}
@@ -2277,26 +2277,26 @@ function AISuggestBar({
           {suggestions.map((v, i) => {
             const meta = kindMeta[v.kind] || { emoji: "🪄", label: v.kind, sub: "" };
             return (
-              <div key={i} className="bg-white border border-violet-200 rounded-xl p-3 flex flex-col shadow-sm">
+              <div key={i} className="bg-white border border-brand/30 rounded-xl p-3 flex flex-col shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-base">{meta.emoji}</span>
                   <div>
                     <div className="text-xs font-semibold text-gray-900">{meta.label}</div>
-                    <div className="text-[10px] text-gray-500">{meta.sub}</div>
+                    <div className="text-xs text-gray-500">{meta.sub}</div>
                   </div>
                 </div>
                 <div className="text-xs text-gray-800 whitespace-pre-wrap break-words leading-snug flex-1 mb-2 max-h-56 overflow-y-auto">
                   {v.caption}
                 </div>
                 {v.hashtags.length > 0 && (
-                  <div className="text-[11px] text-violet-700 mb-2 leading-snug">
+                  <div className="text-xs text-brand mb-2 leading-snug">
                     {v.hashtags.slice(0, 8).map((h) => "#" + h).join(" ")}
                   </div>
                 )}
                 {v.prediction && v.prediction.basis !== "no-data" && (
-                  <div className="bg-violet-50 rounded-lg px-2.5 py-1.5 mb-2 text-[11px] text-violet-900">
+                  <div className="bg-brand-light rounded-lg px-2.5 py-1.5 mb-2 text-xs text-brand">
                     📈 <b>Expected reach ~{v.prediction.avgReach.toLocaleString("en-IN")}</b>
-                    <div className="text-[10px] text-violet-700/80 leading-snug">
+                    <div className="text-xs text-brand/80 leading-snug">
                       {v.prediction.basis === "hashtag-overlap" && "strong hashtag match with past posts"}
                       {v.prediction.basis === "topic-keyword" && `topic match on ${v.prediction.matchedPosts} past post${v.prediction.matchedPosts === 1 ? "" : "s"}`}
                       {v.prediction.basis === "recent-avg" && "baseline: last 10 posts on this account"}
@@ -2304,7 +2304,7 @@ function AISuggestBar({
                   </div>
                 )}
                 {v.prediction?.basis === "no-data" && (
-                  <div className="text-[11px] text-gray-500 mb-2">No past-post data yet to score this variant.</div>
+                  <div className="text-xs text-gray-500 mb-2">No past-post data yet to score this variant.</div>
                 )}
                 <button
                   type="button"
@@ -2320,7 +2320,7 @@ function AISuggestBar({
       )}
 
       {loading && !suggestions && (
-        <div className="text-[11px] text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+        <div className="text-xs text-brand bg-brand-light border border-brand/30 rounded-lg px-3 py-2">
           Reading your recent captions + generating 3 variants…
         </div>
       )}
@@ -2336,16 +2336,16 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
 }) {
   if (loading && !prediction) {
     return (
-      <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
-        <div className="text-xs text-violet-700">📊 Analyzing similar past posts…</div>
+      <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3">
+        <div className="text-xs text-brand">📊 Analyzing similar past posts…</div>
       </div>
     );
   }
   if (!prediction) return null;
   if (prediction.basis === "no-data") {
     return (
-      <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
-        <div className="text-xs text-violet-700">📊 No past posts yet on this account to predict from.</div>
+      <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3">
+        <div className="text-xs text-brand">📊 No past posts yet on this account to predict from.</div>
       </div>
     );
   }
@@ -2354,7 +2354,7 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   const basisChip = prediction.basis === "hashtag-overlap"
     ? { bg: "bg-emerald-100", text: "text-emerald-800", label: "STRONG MATCH" }
     : prediction.basis === "topic-keyword"
-      ? { bg: "bg-violet-100", text: "text-violet-800", label: "TOPIC MATCH" }
+      ? { bg: "bg-brand-light", text: "text-brand", label: "TOPIC MATCH" }
       : { bg: "bg-amber-100", text: "text-amber-800", label: "BASELINE" };
 
   // Coaching messages — different per state
@@ -2381,17 +2381,17 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+    <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3 space-y-2">
       {/* Headline numbers */}
       <div className="flex items-baseline gap-3 flex-wrap">
-        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${basisChip.bg} ${basisChip.text}`}>{basisChip.label}</span>
-        <span className="text-[10px] uppercase tracking-wide text-violet-600 font-semibold">Expected reach</span>
-        <span className="text-lg font-bold tabular-nums text-violet-900">~{prediction.avgReach.toLocaleString("en-IN")}</span>
-        <span className="text-xs text-violet-700">· {prediction.avgEngagement.toLocaleString("en-IN")} engagements · {prediction.avgLikes.toLocaleString("en-IN")} likes</span>
+        <span className={`text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full ${basisChip.bg} ${basisChip.text}`}>{basisChip.label}</span>
+        <span className="text-xs uppercase tracking-wide text-brand font-semibold">Expected reach</span>
+        <span className="text-lg font-semibold tabular-nums text-brand">~{prediction.avgReach.toLocaleString("en-IN")}</span>
+        <span className="text-xs text-brand">· {prediction.avgEngagement.toLocaleString("en-IN")} engagements · {prediction.avgLikes.toLocaleString("en-IN")} likes</span>
       </div>
 
       {/* Match basis explanation */}
-      <div className="text-[11px] text-violet-700/90">
+      <div className="text-xs text-brand/90">
         {prediction.note}
         {prediction.hashtagsMatched.length > 0 && <> · matched: {prediction.hashtagsMatched.map((t) => `#${t}`).join(" ")}</>}
         {prediction.keywordsMatched.length > 0 && <> · keywords: {prediction.keywordsMatched.join(", ")}</>}
@@ -2399,19 +2399,19 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
 
       {/* Coaching line */}
       {coachingLine && (
-        <div className="text-[11px] text-violet-800 leading-relaxed pt-1 border-t border-violet-200">{coachingLine}</div>
+        <div className="text-xs text-brand leading-relaxed pt-1 border-t border-brand/30">{coachingLine}</div>
       )}
 
       {/* Hashtag suggestions — only when caption has none AND hashtags help */}
       {!prediction.captionHasHashtags && liftHelps && prediction.suggestedHashtags.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <span className="text-[10px] uppercase tracking-wide text-violet-600 font-medium mr-1">Tap to add:</span>
+          <span className="text-xs uppercase tracking-wide text-brand font-medium mr-1">Tap to add:</span>
           {prediction.suggestedHashtags.map((tag) => (
             <button
               key={tag}
               type="button"
               onClick={() => onAddHashtag(tag)}
-              className="text-[11px] bg-white hover:bg-violet-100 border border-violet-300 text-violet-700 rounded-full px-2 py-0.5"
+              className="text-xs bg-white hover:bg-brand-light border border-brand/40 text-brand rounded-full px-2 py-0.5"
             >
               #{tag}
             </button>
@@ -2465,7 +2465,7 @@ function PageDropdown({ value, onChange }: { value: PublishToPage; onChange: (v:
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
                 <span className="flex-1 min-w-0">
                   <span className={`block text-sm truncate ${o.value === value ? "font-medium text-gray-900" : "text-gray-700"}`}>{o.label}</span>
-                  <span className="block text-[11px] text-gray-500 truncate">{o.subtitle}</span>
+                  <span className="block text-xs text-gray-500 truncate">{o.subtitle}</span>
                 </span>
                 {o.value === value && <IconCheck size={16} stroke={2.5} className="text-brand flex-shrink-0" />}
               </button>
@@ -2515,7 +2515,7 @@ function HopeDatePicker({ value, onChange }: { value: string; onChange: (v: stri
               </div>
             </div>
             <div className="grid grid-cols-7 gap-0.5 mb-1">
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="text-[10px] text-gray-400 text-center font-medium">{d}</div>)}
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="text-xs text-gray-400 text-center font-medium">{d}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-0.5">
               {cells.map((d, i) => d === null ? <div key={i} /> : (
@@ -2673,7 +2673,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
         <>
           <button type="button" aria-label="Previous" onClick={() => go(-1)} className={`${arrowBtn} left-2`}><IconChevronLeft size={16} stroke={2.5} /></button>
           <button type="button" aria-label="Next" onClick={() => go(1)} className={`${arrowBtn} right-2`}><IconChevronRight size={16} stroke={2.5} /></button>
-          <div className="absolute top-2 right-2 bg-black/55 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full z-10">{safeIdx + 1}/{images.length}</div>
+          <div className="absolute top-2 right-2 bg-black/55 text-white text-xs font-medium px-1.5 py-0.5 rounded-full z-10">{safeIdx + 1}/{images.length}</div>
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-10">
             {images.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === safeIdx ? "bg-white" : "bg-white/50"}`} />)}
           </div>
@@ -2687,7 +2687,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <FacebookLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-[11px] text-gray-500">Sponsored · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-500">Sponsored · 🌐</div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
         <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
@@ -2703,7 +2703,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <LinkedInLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-[11px] text-gray-500">Promoted · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-500">Promoted · 🌐</div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
         <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
@@ -2732,8 +2732,8 @@ function SocialPreview({ platform, handle, name, images, caption }: {
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-      <div className="text-sm font-semibold text-gray-900">{title}</div>
-      {subtitle && <div className="text-[11px] text-gray-500 mt-0.5 mb-3">{subtitle}</div>}
+      <div className="text-base font-medium text-[#232D42]">{title}</div>
+      {subtitle && <div className="text-xs text-gray-500 mt-0.5 mb-3">{subtitle}</div>}
       {!subtitle && <div className="mt-3" />}
       {children}
     </div>

@@ -103,7 +103,7 @@ function fmtHrs(n: number | null): string {
   return `${n.toFixed(1)} hrs`;
 }
 
-const COLORS = ["#378ADD", "#5DCAA5", "#EF9F27", "#B4B2A9", "#D4537E", "#7F77DD"];
+const COLORS = ["#3A57E8", "#5DCAA5", "#EF9F27", "#B4B2A9", "#D4537E", "#7F77DD"];
 
 export default function SalesOpsPage() {
   return (
@@ -161,7 +161,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="grid grid-cols-5 gap-5">
         <Card className="col-span-3">
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Lead inflow — daily</div>
+            <div className="text-base font-medium">Lead inflow — daily</div>
             <div className="text-sm text-gray-500">
               {data ? `${data.range.days} days · ${data.range.from} → ${data.range.to}` : ""}
             </div>
@@ -183,8 +183,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                 </div>
               </div>
               <svg viewBox="0 0 400 90" preserveAspectRatio="none" className="w-full h-32">
-                <polyline points={inflowChart.points} fill="none" stroke="#378ADD" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                <polyline points={`${inflowChart.points} 400,90 0,90`} fill="#378ADD" fillOpacity="0.08" stroke="none" />
+                <polyline points={inflowChart.points} fill="none" stroke="#3A57E8" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                <polyline points={`${inflowChart.points} 400,90 0,90`} fill="#3A57E8" fillOpacity="0.08" stroke="none" />
               </svg>
               <div className="flex justify-between text-sm text-gray-500 mt-2">
                 <span>{range.from}</span>
@@ -196,7 +196,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           )}
         </Card>
         <Card className="col-span-2">
-          <div className="text-lg font-medium mb-4">Source split</div>
+          <div className="text-base font-medium mb-4">Source split</div>
           <div className="space-y-3 text-sm">
             {data?.bySource.slice(0, 6).map((s, i) => (
               <div key={s.name}>
@@ -214,13 +214,13 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {/* Counsellor activity */}
       <div>
-        <div className="text-lg font-medium mb-3">Counsellor activity</div>
+        <div className="text-base font-medium mb-3">Counsellor activity</div>
         <div className="grid grid-cols-3 gap-5">
           {(data?.counsellors.slice(0, 6) || []).map((c, i) => (
             <button
               key={c.name}
               onClick={() => setDrillCounsellor(c.name)}
-              className="bg-white rounded-lg border border-gray-100 p-6 text-left hover:border-brand hover:shadow-sm transition"
+              className="bg-white rounded-xl border border-gray-100 p-6 text-left hover:border-brand hover:shadow-sm transition"
             >
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
@@ -261,12 +261,12 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Status + Interest */}
       <div className="grid grid-cols-2 gap-5">
         <Card>
-          <div className="text-lg font-medium">Current CRM status</div>
+          <div className="text-base font-medium">Current CRM status</div>
           <div className="text-sm text-gray-500 mb-4">Snapshot of the Lead Status field</div>
           <TableList rows={data?.byStatus || []} total={totalStatus} loading={isLoading} />
         </Card>
         <Card>
-          <div className="text-lg font-medium">Interest mix</div>
+          <div className="text-base font-medium">Interest mix</div>
           <div className="text-sm text-gray-500 mb-4">Primary Interest</div>
           <TableList rows={data?.byInterest || []} total={totalInterest} loading={isLoading} />
         </Card>
@@ -274,7 +274,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {/* Campaign attribution */}
       <Card>
-        <div className="text-lg font-medium">Campaign attribution</div>
+        <div className="text-base font-medium">Campaign attribution</div>
         <div className="text-sm text-gray-500 mb-4">Campaign Name → leads and downstream revenue</div>
         {(data?.campaigns.length ?? 0) > 0 ? (
           <table className="w-full text-sm">
@@ -305,7 +305,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Awaiting activity */}
       <Card>
         <div className="flex justify-between items-baseline">
-          <div className="text-lg font-medium">Awaiting activity</div>
+          <div className="text-base font-medium">Awaiting activity</div>
           <div className="text-sm text-gray-500">Days Untouched formula</div>
         </div>
         <div className="text-sm text-gray-500 mb-4">
@@ -347,7 +347,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && data.revenueTrend.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Revenue trend</div>
+            <div className="text-base font-medium">Revenue trend</div>
             <div className="text-sm text-gray-500">Last 6 months · independent of range</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts generated per month.</div>
@@ -359,7 +359,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Call activity</div>
+            <div className="text-base font-medium">Call activity</div>
             <div className="text-sm text-gray-500">Performance Metrics table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Inbound + outbound call counts and durations logged in this range.</div>
@@ -398,7 +398,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Meetings</div>
+            <div className="text-base font-medium">Meetings</div>
             <div className="text-sm text-gray-500">Sales System v2.0 table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Counsellor meetings held, ratings, and what&apos;s coming up.</div>
@@ -475,7 +475,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Attendance × Distribution</div>
+            <div className="text-base font-medium">Attendance × Distribution</div>
             <div className="text-sm text-gray-500">Attendance + Lead Distribution tables</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Days available crossed with leads allocated. Context for why a counsellor&apos;s volume is what it is.</div>
@@ -514,7 +514,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Re-enquiries</div>
+            <div className="text-base font-medium">Re-enquiries</div>
             <div className="text-sm text-gray-500">Repeat inquirers — warm signal</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Leads that came back a second time.</div>
@@ -559,7 +559,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Walk-in enquiries</div>
+            <div className="text-base font-medium">Walk-in enquiries</div>
             <div className="text-sm text-gray-500">Office Enquiries table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">In-person funnel — separate from digital DM leads.</div>
@@ -596,7 +596,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && data.geography.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-lg font-medium">Geography</div>
+            <div className="text-base font-medium">Geography</div>
             <div className="text-sm text-gray-500">Location field on CRM</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Where leads are physically located.</div>
@@ -665,7 +665,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl w-full max-w-7xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
           <div>
             <div className="text-xl font-medium">{name} — assigned leads</div>
@@ -743,7 +743,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
 
 function KpiTile({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-100 p-6">
+    <div className="bg-white rounded-xl border border-gray-100 p-6">
       <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
       <div className="text-3xl font-medium mt-2">{value}</div>
       <div className="text-sm text-gray-500 mt-1.5">{hint}</div>
@@ -752,7 +752,7 @@ function KpiTile({ label, value, hint }: { label: string; value: string; hint: s
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white rounded-lg border border-gray-100 p-6 ${className}`}>{children}</div>;
+  return <div className={`bg-white rounded-xl border border-gray-100 p-6 ${className}`}>{children}</div>;
 }
 
 function RevenueTrendChart({ data }: { data: { month: string; revenue: number; contracts: number }[] }) {
@@ -766,7 +766,7 @@ function RevenueTrendChart({ data }: { data: { month: string; revenue: number; c
             <div className="text-xs text-gray-500 mb-1">{fmtMonth(d.month)}</div>
             <div className="w-full flex flex-col items-center gap-1">
               <div className="w-full h-40 flex items-end justify-center gap-1">
-                <div className="w-8 rounded-t" style={{ height: `${(d.revenue / maxRev) * 100}%`, background: "#378ADD", minHeight: d.revenue > 0 ? "4px" : 0 }} title={`₹${d.revenue.toLocaleString("en-IN")}`}></div>
+                <div className="w-8 rounded-t" style={{ height: `${(d.revenue / maxRev) * 100}%`, background: "#3A57E8", minHeight: d.revenue > 0 ? "4px" : 0 }} title={`₹${d.revenue.toLocaleString("en-IN")}`}></div>
                 <div className="w-8 rounded-t" style={{ height: `${(d.contracts / maxCon) * 100}%`, background: "#5DCAA5", minHeight: d.contracts > 0 ? "4px" : 0 }} title={`${d.contracts} contracts`}></div>
               </div>
               <div className="text-sm font-medium">{fmtInr(d.revenue)}</div>
@@ -776,7 +776,7 @@ function RevenueTrendChart({ data }: { data: { month: string; revenue: number; c
         ))}
       </div>
       <div className="flex justify-center gap-6 mt-4 text-xs text-gray-500">
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ background: "#378ADD" }}></span>Revenue booked</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ background: "#3A57E8" }}></span>Revenue booked</div>
         <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ background: "#5DCAA5" }}></span>Contracts generated</div>
       </div>
     </div>

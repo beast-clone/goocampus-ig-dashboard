@@ -37,7 +37,7 @@ const DEMO_STORIES: StoryWithStats[] = [
 
 // Soft gradient backgrounds (no external images needed) so the demo grid looks polished.
 const DEMO_GRADIENTS = [
-  "from-violet-400 to-fuchsia-500",
+  "from-brand to-brand-dark",
   "from-blue-400 to-cyan-500",
   "from-emerald-400 to-teal-500",
   "from-amber-400 to-orange-500",
@@ -115,7 +115,7 @@ function StoriesView({ accountId }: { accountId: string }) {
       {hasReal && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="text-sm font-medium flex items-center gap-2">
+            <div className="text-base font-medium text-[#232D42] flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               Live stories <span className="text-gray-400 font-normal">({realStories.length} currently active)</span>
             </div>
@@ -133,7 +133,7 @@ function StoriesView({ accountId }: { accountId: string }) {
       {historical && historical.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="text-sm font-medium">📚 Historical stories <span className="text-gray-400 font-normal">(from Supabase — persists forever)</span></div>
+            <div className="text-base font-medium text-[#232D42]">📚 Historical stories <span className="text-gray-400 font-normal">(from Supabase — persists forever)</span></div>
             <div className="text-xs text-gray-400">{historical.length} snapshotted</div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
@@ -145,7 +145,7 @@ function StoriesView({ accountId }: { accountId: string }) {
       )}
 
       {/* PREVIEW / DEMO section — always renders. Banner explains what the demo grid is. */}
-      <div className="bg-violet-50 border border-violet-200 text-violet-900 rounded-lg px-4 py-3 mb-3 text-sm">
+      <div className="bg-brand-light border border-brand/30 text-brand rounded-lg px-4 py-3 mb-3 text-sm">
         📸 <strong>Preview</strong> — {historicalNote
           ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
           : (historical && historical.length > 0
@@ -155,7 +155,7 @@ function StoriesView({ accountId }: { accountId: string }) {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="text-sm font-medium">Demo — how the tab looks</div>
+          <div className="text-base font-medium text-[#232D42]">Demo — how the tab looks</div>
           <div className="text-xs text-gray-400">dummy data</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
@@ -185,18 +185,18 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
             <div className="text-xs font-medium leading-snug drop-shadow">{s.caption}</div>
           </div>
         )}
-        <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full">
+        <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-sm text-white text-xs px-2 py-0.5 rounded-full">
           {timeAgo(s.timestamp)}
         </div>
         {isLive && (
-          <div className="absolute top-2 left-2 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+          <div className="absolute top-2 left-2 bg-green-500 text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             LIVE
           </div>
         )}
       </div>
       <div className="mt-2 space-y-1.5">
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+        <div className="grid grid-cols-2 gap-1.5 text-xs">
           <Stat label="Views" value={hasStats ? s.views.toLocaleString("en-IN") : dash} />
           <Stat label="Reach" value={hasStats ? s.reach.toLocaleString("en-IN") : dash} />
           <Stat label="Replies" value={hasStats ? `${s.replies} (${replyRate}%)` : dash} />
@@ -209,20 +209,20 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
           } />
         </div>
         {hasStats && useModernMetrics && (
-          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
             <span title="Profile visits from this story">👤 {(s.profileVisits ?? 0).toLocaleString("en-IN")}</span>
             <span title="Navigation events (taps / swipes / exits)">⇄ {(s.navigation ?? 0).toLocaleString("en-IN")}</span>
           </div>
         )}
         {hasStats && !useModernMetrics && (
-          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
             <span>→ {s.tapsForward.toLocaleString("en-IN")}</span>
             <span>← {s.tapsBack.toLocaleString("en-IN")}</span>
             <span>× {s.exits.toLocaleString("en-IN")}</span>
           </div>
         )}
         {isLive && !hasStats && (
-          <div className="text-[10px] text-gray-400 italic">Fetching insights…</div>
+          <div className="text-xs text-gray-400 italic">Fetching insights…</div>
         )}
       </div>
     </a>
@@ -232,7 +232,7 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="bg-gray-50 rounded-md px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">{label}</div>
       <div className="font-semibold text-gray-900 truncate">{value}</div>
     </div>
   );
