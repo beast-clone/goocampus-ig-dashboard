@@ -614,7 +614,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
       )}
 
       <footer className="pt-6 border-t border-gray-100 text-[11px] text-gray-400 italic">
-        Live data from Meta&rsquo;s Instagram Graph API for @{report.meta.account}. AI prose written by GPT-4o-mini from the pre-computed numbers above.
+        Live data from Meta&rsquo;s Instagram Graph API for @{report.meta.account}. AI prose written by Perplexity from the pre-computed numbers above.
       </footer>
     </article>
   );
