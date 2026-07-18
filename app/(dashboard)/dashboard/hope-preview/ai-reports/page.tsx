@@ -137,7 +137,7 @@ function AIReports({ accountId }: { accountId: string }) {
         <>
           <div className="bg-gradient-to-r from-brand to-brand-dark text-white rounded-2xl p-6 mb-6">
             <div className="text-[11px] uppercase tracking-widest opacity-80">Pick a cadence</div>
-            <h1 className="text-base font-medium mt-1">Generate a live performance report</h1>
+            <h1 className="text-base font-medium mt-1 !text-white">Generate a live performance report</h1>
             <p className="text-[13px] opacity-90 mt-2 max-w-2xl leading-relaxed">
               Pulls your @{accountId} insights, posts, audience and follower data — synthesizes into a
               structured report. Runs in ~10 seconds. Cached 12h so re-opening is instant.

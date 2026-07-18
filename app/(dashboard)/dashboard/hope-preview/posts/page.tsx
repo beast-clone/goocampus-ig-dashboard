@@ -213,7 +213,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="text-base font-medium">
+          <div className="text-base font-medium text-[#232D42]">
             All posts <span className="text-gray-400 font-normal">({range.from} → {range.to}, {totalPosts} loaded</span>
             {insightsProgress && (
               <span className="ml-2 text-xs text-brand">· loading engagement {insightsProgress.done}/{insightsProgress.total}</span>

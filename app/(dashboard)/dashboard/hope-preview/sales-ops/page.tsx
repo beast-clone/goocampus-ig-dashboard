@@ -161,7 +161,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="grid grid-cols-5 gap-5">
         <Card className="col-span-3">
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Lead inflow — daily</div>
+            <div className="text-base font-medium text-[#232D42]">Lead inflow — daily</div>
             <div className="text-sm text-gray-500">
               {data ? `${data.range.days} days · ${data.range.from} → ${data.range.to}` : ""}
             </div>
@@ -170,15 +170,15 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <>
               <div className="flex items-baseline gap-6 mb-3">
                 <div>
-                  <div className="text-3xl font-medium">{fmtInt(data?.totals.leads || 0)}</div>
+                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(data?.totals.leads || 0)}</div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Total leads</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-medium">{fmtInt(Math.round((data?.totals.leads || 0) / (data?.range.days || 1)))}</div>
+                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(Math.round((data?.totals.leads || 0) / (data?.range.days || 1)))}</div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Avg per day</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-medium">{fmtInt(inflowChart.peak.count)}</div>
+                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(inflowChart.peak.count)}</div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Peak · {inflowChart.peak.date}</div>
                 </div>
               </div>
@@ -196,7 +196,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           )}
         </Card>
         <Card className="col-span-2">
-          <div className="text-base font-medium mb-4">Source split</div>
+          <div className="text-base font-medium text-[#232D42] mb-4">Source split</div>
           <div className="space-y-3 text-sm">
             {data?.bySource.slice(0, 6).map((s, i) => (
               <div key={s.name}>
@@ -214,7 +214,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {/* Counsellor activity */}
       <div>
-        <div className="text-base font-medium mb-3">Counsellor activity</div>
+        <div className="text-base font-medium text-[#232D42] mb-3">Counsellor activity</div>
         <div className="grid grid-cols-3 gap-5">
           {(data?.counsellors.slice(0, 6) || []).map((c, i) => (
             <button
@@ -224,22 +224,22 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             >
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-medium"
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-medium text-[#232D42]"
                     style={{ background: [ "#CECBF6", "#9FE1CB", "#FAC775", "#F4C0D1", "#B5D4F4", "#F5C4B3" ][i % 6], color: "#333" }}>
                     {c.name.slice(0, 1).toUpperCase()}
                   </div>
-                  <div className="text-base font-medium">{c.name}</div>
+                  <div className="text-base font-medium text-[#232D42]">{c.name}</div>
                 </div>
                 <div className="text-xs text-gray-400">Click to view leads →</div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <div className="text-gray-500 text-xs uppercase tracking-wide">Assigned</div>
-                  <div className="text-2xl font-medium mt-1">{fmtInt(c.assigned)}</div>
+                  <div className="text-2xl font-medium text-[#232D42] mt-1">{fmtInt(c.assigned)}</div>
                 </div>
                 <div>
                   <div className="text-gray-500 text-xs uppercase tracking-wide">Avg first activity</div>
-                  <div className="text-2xl font-medium mt-1">{fmtHrs(c.firstActivityAvgHrs)}</div>
+                  <div className="text-2xl font-medium text-[#232D42] mt-1">{fmtHrs(c.firstActivityAvgHrs)}</div>
                 </div>
                 <div>
                   <div className="text-gray-500 text-xs uppercase tracking-wide">Contracts</div>
@@ -261,12 +261,12 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Status + Interest */}
       <div className="grid grid-cols-2 gap-5">
         <Card>
-          <div className="text-base font-medium">Current CRM status</div>
+          <div className="text-base font-medium text-[#232D42]">Current CRM status</div>
           <div className="text-sm text-gray-500 mb-4">Snapshot of the Lead Status field</div>
           <TableList rows={data?.byStatus || []} total={totalStatus} loading={isLoading} />
         </Card>
         <Card>
-          <div className="text-base font-medium">Interest mix</div>
+          <div className="text-base font-medium text-[#232D42]">Interest mix</div>
           <div className="text-sm text-gray-500 mb-4">Primary Interest</div>
           <TableList rows={data?.byInterest || []} total={totalInterest} loading={isLoading} />
         </Card>
@@ -274,7 +274,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {/* Campaign attribution */}
       <Card>
-        <div className="text-base font-medium">Campaign attribution</div>
+        <div className="text-base font-medium text-[#232D42]">Campaign attribution</div>
         <div className="text-sm text-gray-500 mb-4">Campaign Name → leads and downstream revenue</div>
         {(data?.campaigns.length ?? 0) > 0 ? (
           <table className="w-full text-sm">
@@ -305,7 +305,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Awaiting activity */}
       <Card>
         <div className="flex justify-between items-baseline">
-          <div className="text-base font-medium">Awaiting activity</div>
+          <div className="text-base font-medium text-[#232D42]">Awaiting activity</div>
           <div className="text-sm text-gray-500">Days Untouched formula</div>
         </div>
         <div className="text-sm text-gray-500 mb-4">
@@ -347,7 +347,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && data.revenueTrend.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Revenue trend</div>
+            <div className="text-base font-medium text-[#232D42]">Revenue trend</div>
             <div className="text-sm text-gray-500">Last 6 months · independent of range</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts generated per month.</div>
@@ -359,7 +359,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Call activity</div>
+            <div className="text-base font-medium text-[#232D42]">Call activity</div>
             <div className="text-sm text-gray-500">Performance Metrics table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Inbound + outbound call counts and durations logged in this range.</div>
@@ -398,7 +398,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Meetings</div>
+            <div className="text-base font-medium text-[#232D42]">Meetings</div>
             <div className="text-sm text-gray-500">Sales System v2.0 table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Counsellor meetings held, ratings, and what&apos;s coming up.</div>
@@ -407,17 +407,17 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <div className="grid grid-cols-3 gap-5 mb-6">
                 <div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Meetings held</div>
-                  <div className="text-3xl font-medium mt-1">{fmtInt(data.meetings.totalMeetings)}</div>
+                  <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.meetings.totalMeetings)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Avg lead rating</div>
-                  <div className="text-3xl font-medium mt-1">
+                  <div className="text-3xl font-medium text-[#232D42] mt-1">
                     {data.meetings.avgRating != null ? `${data.meetings.avgRating}/5` : "—"}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Upcoming</div>
-                  <div className="text-3xl font-medium mt-1">{fmtInt(data.meetings.upcoming.length)}</div>
+                  <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.meetings.upcoming.length)}</div>
                 </div>
               </div>
 
@@ -475,7 +475,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Attendance × Distribution</div>
+            <div className="text-base font-medium text-[#232D42]">Attendance × Distribution</div>
             <div className="text-sm text-gray-500">Attendance + Lead Distribution tables</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Days available crossed with leads allocated. Context for why a counsellor&apos;s volume is what it is.</div>
@@ -514,18 +514,18 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Re-enquiries</div>
+            <div className="text-base font-medium text-[#232D42]">Re-enquiries</div>
             <div className="text-sm text-gray-500">Repeat inquirers — warm signal</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Leads that came back a second time.</div>
           <div className="grid grid-cols-2 gap-5 mb-4">
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Total re-enquiries in range</div>
-              <div className="text-3xl font-medium mt-1">{fmtInt(data.reEnquiries.total)}</div>
+              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.reEnquiries.total)}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">With re-enquiry timestamp</div>
-              <div className="text-3xl font-medium mt-1">{fmtInt(data.reEnquiries.withinRange)}</div>
+              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.reEnquiries.withinRange)}</div>
             </div>
           </div>
           {data.reEnquiries.recent.length > 0 ? (
@@ -559,22 +559,22 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Walk-in enquiries</div>
+            <div className="text-base font-medium text-[#232D42]">Walk-in enquiries</div>
             <div className="text-sm text-gray-500">Office Enquiries table</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">In-person funnel — separate from digital DM leads.</div>
           <div className="grid grid-cols-3 gap-5 mb-6">
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Walk-ins in range</div>
-              <div className="text-3xl font-medium mt-1">{fmtInt(data.walkIns.total)}</div>
+              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.total)}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Countries of interest</div>
-              <div className="text-3xl font-medium mt-1">{fmtInt(data.walkIns.byCountry.length)}</div>
+              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.byCountry.length)}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Specialties mentioned</div>
-              <div className="text-3xl font-medium mt-1">{fmtInt(data.walkIns.byInterest.length)}</div>
+              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.byInterest.length)}</div>
             </div>
           </div>
           {data.walkIns.total > 0 && (
@@ -596,7 +596,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && data.geography.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium">Geography</div>
+            <div className="text-base font-medium text-[#232D42]">Geography</div>
             <div className="text-sm text-gray-500">Location field on CRM</div>
           </div>
           <div className="text-sm text-gray-500 mb-5">Where leads are physically located.</div>
@@ -745,7 +745,7 @@ function KpiTile({ label, value, hint }: { label: string; value: string; hint: s
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
       <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      <div className="text-3xl font-medium mt-2">{value}</div>
+      <div className="text-3xl font-medium text-[#232D42] mt-2">{value}</div>
       <div className="text-sm text-gray-500 mt-1.5">{hint}</div>
     </div>
   );

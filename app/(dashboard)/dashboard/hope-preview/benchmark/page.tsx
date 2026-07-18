@@ -182,7 +182,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
       <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-2xl font-semibold mt-1 tabular-nums">{value}</div>
+      <div className="text-2xl font-semibold mt-1 tabular-nums text-[#232D42]">{value}</div>
     </div>
   );
 }
