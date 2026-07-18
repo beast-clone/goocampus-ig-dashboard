@@ -16,7 +16,31 @@ export type ScheduledPost = {
   type: string; caption: string; thumbnailUrl: string | null; scheduleTime: string | null;
   status: string; effectiveStatus: EffectiveStatus; failureReason: string | null;
   instagramUrl: string | null; facebookUrl: string | null; publishedAt: string | null;
+  mediaUrls?: string[]; // all slides / the reel video, in order (from the queue API)
 };
+
+// ── Demo creatives ────────────────────────────────────────────────────────────
+// Real posts carry real media (mediaUrls from /api/scheduler/queue). The calendar
+// is mostly demo data, so we generate self-contained SVG "creatives" per type
+// (data: URIs — no network) so the preview's image / carousel / reel behaviours
+// are demonstrable. Reels get one portrait poster; carousels get 4 square slides.
+const DEMO_GRADS: [string, string][] = [
+  ["#3A57E8", "#6E8BF5"], ["#6E48F8", "#9B7BFB"], ["#0EA5E9", "#38BDF8"],
+  ["#E11D48", "#F43F5E"], ["#F59E0B", "#FBBF24"], ["#1AA053", "#34D399"],
+];
+function svgCreative(title: string, tag: string, w: number, h: number, grad: [string, string]): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const t = title.length > 24 ? title.slice(0, 23) + "…" : title;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='${grad[0]}'/><stop offset='1' stop-color='${grad[1]}'/></linearGradient></defs><rect width='${w}' height='${h}' fill='url(#g)'/><circle cx='${Math.round(w * 0.82)}' cy='${Math.round(h * 0.16)}' r='${Math.round(w * 0.3)}' fill='rgba(255,255,255,0.10)'/><text x='50%' y='47%' fill='#ffffff' font-family='Inter,Arial,sans-serif' font-size='${Math.round(w / 13)}' font-weight='700' text-anchor='middle'>${esc(t)}</text><text x='50%' y='57%' fill='rgba(255,255,255,0.82)' font-family='Inter,Arial,sans-serif' font-size='${Math.round(w / 26)}' text-anchor='middle'>${esc(tag)}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+function demoMedia(type: string, seed: string): string[] {
+  const gi = Math.abs([...seed].reduce((a, c) => a + c.charCodeAt(0), 0));
+  const grad = DEMO_GRADS[gi % DEMO_GRADS.length];
+  if (/reel/i.test(type)) return [svgCreative(seed, "Reel", 720, 1280, grad)];
+  if (/carousel/i.test(type)) return Array.from({ length: 4 }, (_, i) => svgCreative(seed, `Slide ${i + 1} / 4`, 1080, 1080, DEMO_GRADS[(gi + i) % DEMO_GRADS.length]));
+  return [svgCreative(seed, "Post", 1080, 1080, grad)];
+}
 
 // Event-chip colour. Like the reference, each event is a soft-tinted bar; we drive the
 // tint from status so the colours still MEAN something (green=published, etc.).
@@ -61,6 +85,7 @@ export function makeSamplePosts(): ScheduledPost[] {
     effectiveStatus: status,
     failureReason: status === "failed" ? "Meta API rejected the media — check the source video's aspect ratio, then Retry." : null,
     instagramUrl: null, facebookUrl: null,
+    mediaUrls: demoMedia(type, particulars),
   });
   return [
     p("cv", "CV that stands out in 2026", "GooCampus Main", "Mentorship Platform", "Post", 2, 18, 59, "published"),
@@ -367,6 +392,44 @@ function EventChip({ post, onClick, block }: { post: ScheduledPost; onClick: () 
   );
 }
 
+// Creative preview: the post's actual media. Image → shown; Carousel → slideshow
+// (‹ › + dots); Reel/video → inline <video controls> (real posts) or a poster with
+// a ▶ that opens the Instagram permalink (demo / when only a thumbnail exists).
+function MediaPreview({ post }: { post: ScheduledPost }) {
+  const media = (post.mediaUrls && post.mediaUrls.length) ? post.mediaUrls : (post.thumbnailUrl ? [post.thumbnailUrl] : []);
+  const [idx, setIdx] = useState(0);
+  if (!media.length) return <div className="hcal-media-empty">No creative attached to this post.</div>;
+  const cur = media[Math.min(idx, media.length - 1)];
+  const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(cur);
+  const isReel = /reel/i.test(post.type);
+  return (
+    <div className="hcal-media">
+      <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
+        {isVideo
+          ? <video className="hcal-media-el" src={cur} controls playsInline poster={post.thumbnailUrl || undefined} />
+          : <img className="hcal-media-el" src={cur} alt={post.particulars} />}
+        {isReel && !isVideo && (
+          post.instagramUrl
+            ? <a className="hcal-media-play" href={post.instagramUrl} target="_blank" rel="noreferrer" title="Play reel on Instagram">▶</a>
+            : <span className="hcal-media-play static" title="Reel">▶</span>
+        )}
+        {media.length > 1 && (
+          <>
+            <button className="hcal-media-nav prev" onClick={() => setIdx((i) => (i - 1 + media.length) % media.length)} aria-label="Previous slide">‹</button>
+            <button className="hcal-media-nav next" onClick={() => setIdx((i) => (i + 1) % media.length)} aria-label="Next slide">›</button>
+            <span className="hcal-media-count">{idx + 1}/{media.length}</span>
+          </>
+        )}
+      </div>
+      {media.length > 1 && (
+        <div className="hcal-media-dots">
+          {media.map((_, i) => <button key={i} className={`hcal-media-dot ${i === idx ? "on" : ""}`} onClick={() => setIdx(i)} aria-label={`Slide ${i + 1}`} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClose: () => void; onRetried: () => void }) {
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -400,6 +463,7 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
           <button className="hcal-modal-x" onClick={onClose}>×</button>
         </div>
         <div className="hcal-modal-body">
+          <MediaPreview post={post} />
           <div>
             <div className="hcal-modal-lbl">Title</div>
             <div className="hcal-modal-title">{post.particulars || "(no title)"}</div>
@@ -551,4 +615,19 @@ const HCAL_CSS = `
 .hcal-modal-links{display:flex;gap:1rem;font-size:.76rem;padding-top:.7rem;border-top:1px solid var(--line)}
 .hcal-modal-links a{color:var(--brand);text-decoration:none}
 .hcal-modal-links a:hover{text-decoration:underline}
+/* creative preview */
+.hcal-media-stage{position:relative;background:#0F1222;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:340px}
+.hcal-media-stage.reel{max-height:430px}
+.hcal-media-el{width:100%;max-height:340px;object-fit:contain;display:block}
+.hcal-media-stage.reel .hcal-media-el{max-height:430px}
+.hcal-media-play{position:absolute;inset:0;margin:auto;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.94);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:1.15rem;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.34);padding-left:3px}
+.hcal-media-play.static{cursor:default}
+.hcal-media-nav{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.42);color:#fff;border:none;font-size:1.15rem;display:flex;align-items:center;justify-content:center;line-height:1}
+.hcal-media-nav.prev{left:8px}.hcal-media-nav.next{right:8px}
+.hcal-media-nav:hover{background:rgba(0,0,0,.64)}
+.hcal-media-count{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:.62rem;font-weight:600;padding:.12rem .48rem;border-radius:20px}
+.hcal-media-dots{display:flex;gap:5px;justify-content:center;padding:.5rem 0 .1rem}
+.hcal-media-dot{width:6px;height:6px;border-radius:50%;background:#D4D8E2;border:none;padding:0;transition:.15s}
+.hcal-media-dot.on{background:var(--brand);width:16px;border-radius:3px}
+.hcal-media-empty{padding:1.4rem;text-align:center;color:var(--muted);font-size:.78rem;background:var(--panel-2);border-radius:12px}
 `;
