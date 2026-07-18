@@ -2572,8 +2572,8 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   };
   const platformChips = Array.from(new Set(["Instagram", "Facebook", "LinkedIn", ...platformsCur]));
   const urlRow = (field: string, label: string, value: string) => (
-    <div className="flex items-center gap-2 text-[12.5px]">
-      <span className="text-gray-500 w-[82px] flex-shrink-0">{label}</span>
+    <div className="flex items-center gap-2 text-[14px]">
+      <span className="text-gray-500 w-[88px] flex-shrink-0">{label}</span>
       {urlEdit === field ? (
         <span className="flex-1 flex items-center gap-1 min-w-0">
           <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} autoFocus placeholder="Paste URL…"
@@ -2665,7 +2665,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const detailRow = (label: string, value: React.ReactNode) => (
     <div className="flex items-start justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
       <span className="text-[14px] text-[#8A92A6]">{label}</span>
-      <span className="text-[14.5px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
+      <span className="text-[14px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 
@@ -2791,7 +2791,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconUsers size={13} />Collaborators</div>
                     <div className="space-y-2">
                       {collaborators.map((c) => (
-                        <div key={c.key} className="flex items-center gap-2 text-[13px]">
+                        <div key={c.key} className="flex items-center gap-2 text-[14px]">
                           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
                           <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
                         </div>
@@ -2852,7 +2852,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                                 {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
                               </div>
                               {it.kind === "comment" ? (
-                                <div className="text-[14.5px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
+                                <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
                               ) : stFrom || stTo ? (
                                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                   {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
