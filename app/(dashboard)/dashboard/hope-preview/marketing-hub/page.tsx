@@ -2338,7 +2338,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
 
 type DetailAttachment = { id: string; filename: string; storage_path: string; mime_type: string | null };
 type TaskDetail = {
-  content: string; notes: string;
+  content: string; caption: string; notes: string;
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string }[];
@@ -2427,6 +2427,11 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Inline editing for the Content brief + Caption. Saving writes to mh_posts,
+  // which the activity trigger records (content_edited / caption_edited).
+  const [editSection, setEditSection] = useState<"content" | "caption" | null>(null);
+  const [draft, setDraft] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -2443,6 +2448,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   useEffect(() => { loadDetail(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.id]);
 
   const content = (detail?.content || row.content || "").trim();
+  const caption = (detail?.caption ?? row.caption ?? "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
   const isDone = DONE_STATUSES.includes(row.status) || !!row.completionTime;
@@ -2477,6 +2483,34 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not remove."); return; }
     await loadDetail();
   };
+  const startEdit = (section: "content" | "caption", current: string) => { setDraft(current); setEditSection(section); };
+  const saveEdit = async () => {
+    if (!editSection) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch("/api/marketing-hub/update", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id, fields: { [editSection]: draft } }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not save."); return; }
+      setEditSection(null);
+      await loadDetail(); // refreshes the field + surfaces the new Activity entry
+    } finally { setSavingEdit(false); }
+  };
+  const editBtn = (section: "content" | "caption", current: string) =>
+    editSection !== section ? (
+      <button onClick={() => startEdit(section, current)} className="text-[11px] text-brand hover:underline flex items-center gap-1"><IconPencil size={12} stroke={2} />Edit</button>
+    ) : null;
+  const editBox = (rows: number, placeholder: string) => (
+    <div className="space-y-2">
+      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={rows} autoFocus placeholder={placeholder}
+        className="w-full border border-gray-200 rounded-lg p-2.5 text-[13px] leading-relaxed font-normal focus:outline-none focus:ring-1 focus:ring-brand" />
+      <div className="flex items-center gap-2">
+        <button onClick={saveEdit} disabled={savingEdit} className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 disabled:opacity-60">{savingEdit ? "Saving…" : "Save"}</button>
+        <button onClick={() => setEditSection(null)} className="text-[12px] text-gray-500 hover:text-gray-800 px-2">Cancel</button>
+      </div>
+    </div>
+  );
 
   // Post a comment as the current user (falls back to the task owner, then maheen).
   const authorKey = [detail?.me || "", uploaderKey, "maheen"].find((k) => COMMENT_KEYS.has(k)) || "maheen";
@@ -2585,17 +2619,18 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
           {/* Two columns: content/comments (main) + details/activity (side) */}
           <div className={`grid md:grid-cols-3 gap-4 items-start ${creativesFirst ? "order-2" : "order-1"}`}>
             <div className="md:col-span-2 space-y-4">
-              <Panel icon={IconFileText} title="Content">
-                {content ? <div className="text-[13px] leading-relaxed prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
+              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
+                {editSection === "content" ? editBox(14, "Write the content brief…")
+                  : content ? <div className="text-[13px] leading-relaxed prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: content }} />
                   : loadingDetail ? <div className="text-sm text-gray-400">Loading content…</div>
                   : <div className="text-sm text-gray-400 italic">No content written yet.</div>}
               </Panel>
 
-              {row.caption && (
-                <Panel icon={IconMessageCircle2} title="Caption">
-                  <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-gray-800">{row.caption}</div>
-                </Panel>
-              )}
+              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
+                {editSection === "caption" ? editBox(5, "Write the post caption…")
+                  : caption ? <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-gray-800">{caption}</div>
+                  : <div className="text-sm text-gray-400 italic">No caption yet.</div>}
+              </Panel>
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
