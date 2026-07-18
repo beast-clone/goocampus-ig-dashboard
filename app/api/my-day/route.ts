@@ -61,14 +61,20 @@ type Row = {
   created_at: string | null; start_at: string | null; end_at: string | null;
 };
 type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
+type Creative = { name: string; type: "image" | "video" | "doc"; url: string; attId?: string };
 
-function toTask(r: Row, refImages: RefItem[] = []) {
+function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []) {
   const owner = ownerName(r.owner_key);
   const type = r.type || "Post";
   const media = r.media_urls || [];
   const references: RefItem[] = [
     ...(r.reference_links || []).map((l) => ({ kind: "link" as const, label: l.replace(/^https?:\/\//i, ""), url: l })),
     ...refImages,
+  ];
+  // Creatives = the post's own media (media_urls) + any uploaded creative attachments.
+  const creatives: Creative[] = [
+    ...media.map((u) => ({ name: basename(u), type: (isVideo(u) ? "video" : "image") as "image" | "video", url: u })),
+    ...creativeAtts,
   ];
   return {
     id: r.id,
@@ -83,7 +89,7 @@ function toTask(r: Row, refImages: RefItem[] = []) {
       priority: normPriority(r.priority),
       brand: r.sbu || "GooCampus",
       content: r.content || r.caption || "",
-      creatives: media.map((u) => ({ name: basename(u), type: isVideo(u) ? "video" : "image" })),
+      creatives,
       collaborators: [] as unknown[],
       activity: [] as unknown[],
       references,
@@ -117,13 +123,20 @@ export async function GET() {
     // Reference images are rare, so fetch them all (avoids a huge .in() URL over
     // ~1200 task ids) and map by post; only the tasks in view read from it.
     const refByPost = new Map<string, RefItem[]>();
-    const { data: refAtt } = await sb.from("mh_attachments").select("id, post_id, filename, storage_path").eq("kind", "reference");
-    (refAtt || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string }) => {
-      const arr = refByPost.get(a.post_id) || [];
-      arr.push({ kind: "image", label: a.filename, url: a.storage_path, attId: a.id });
-      refByPost.set(a.post_id, arr);
+    const creativeByPost = new Map<string, Creative[]>();
+    const { data: atts } = await sb.from("mh_attachments").select("id, post_id, filename, storage_path, kind").in("kind", ["reference", "creative"]);
+    (atts || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string; kind: string }) => {
+      if (a.kind === "creative") {
+        const arr = creativeByPost.get(a.post_id) || [];
+        arr.push({ name: a.filename, type: isVideo(a.storage_path) ? "video" : "image", url: a.storage_path, attId: a.id });
+        creativeByPost.set(a.post_id, arr);
+      } else {
+        const arr = refByPost.get(a.post_id) || [];
+        arr.push({ kind: "image", label: a.filename, url: a.storage_path, attId: a.id });
+        refByPost.set(a.post_id, arr);
+      }
     });
-    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || []));
+    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || []));
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
     // Nandu) owns it, it's been claimed — so it drops out of the pool.
     const EDITORS = new Set(["nikhil", "nandu"]);
@@ -134,7 +147,7 @@ export async function GET() {
           VIDEO_TYPES.has(r.type || "") &&
           !EDITORS.has((r.owner_key || "").toLowerCase()),
       )
-      .map((r) => toTask(r, refByPost.get(r.id) || []));
+      .map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || []));
 
     return NextResponse.json({ tasks, pool, count: tasks.length });
   } catch (err) {

@@ -81,7 +81,7 @@ type Task = {
     priority: "High" | "Medium" | "Low"; brand: string;
     duration?: number;                                  // minutes — the producer sets how long it'll take → feeds Today's plan
     content: string;                                    // full write-up (paragraphs split on blank lines)
-    creatives: { name: string; type: "image" | "video" | "doc" }[]; // uploaded assets → thumbnails
+    creatives: { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string }[]; // post media + uploaded assets
     references?: RefItem[];                             // links + images the team adds for context
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
@@ -431,6 +431,96 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
   );
 }
 
+type CreativeItem = { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string };
+
+// Creatives & files — the task's post media + uploaded creative files. Upload (click
+// or drag-drop) persists to mh_attachments (kind='creative') and shows immediately;
+// click any creative to open the preview (image / carousel slideshow / video play).
+function CreativesSection({ creatives, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
+  const viewable = creatives.filter((c) => c.url && c.type !== "doc");
+  const addFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setBusy(true);
+    try {
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "creative"); fd.append("file", f);
+        await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
+      }
+    } finally { setBusy(false); onSaved(); }
+  };
+  const remove = async (attId: string) => { await fetch(`/api/marketing-hub/attach?id=${attId}`, { method: "DELETE" }); onSaved(); };
+  const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
+  return (
+    <>
+      <div className="section-lbl">Creatives &amp; files</div>
+      {creatives.length ? (
+        <div className="thumbs">
+          {creatives.map((f, i) => (
+            <div key={i} className="thumb" title={f.name}>
+              <div
+                className={`thumb-img ${f.url && f.type !== "doc" ? "clk" : ""}`}
+                style={f.url && f.type === "image" ? { backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: THUMB_BG[i % THUMB_BG.length] }}
+                onClick={() => openPreview(f)}
+              >
+                {f.type === "video" && <span className="thumb-play">▶</span>}
+                {f.type === "doc" && <span className="thumb-doc">📄</span>}
+              </div>
+              <div className="thumb-name">{f.name}</div>
+              {f.attId && <button className="ref-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
+            </div>
+          ))}
+          <label className="thumb thumb-add" title="Add creative">
+            <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "Add"}</span>
+            <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          </label>
+        </div>
+      ) : (
+        <label className="upload-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
+          <span className="upload-ic">⬆</span>
+          <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click to add creatives</span></span>
+          <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        </label>
+      )}
+      {preview !== null && viewable.length > 0 && (
+        <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
+      )}
+    </>
+  );
+}
+
+// Fullscreen creative preview — image / carousel slideshow (‹ › + dots) / video play.
+function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeItem[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+  const cur = items[Math.min(index, items.length - 1)];
+  const prev = () => onIndex((index - 1 + items.length) % items.length);
+  const next = () => onIndex((index + 1) % items.length);
+  return (
+    <div className="cv-bg" onClick={onClose}>
+      <div className="cv-box" onClick={(e) => e.stopPropagation()}>
+        <button className="cv-x" onClick={onClose}>×</button>
+        <div className="cv-stage">
+          {cur.type === "video"
+            ? <video className="cv-el" src={cur.url} controls autoPlay playsInline />
+            : <img className="cv-el" src={cur.url} alt={cur.name} />}
+          {items.length > 1 && (
+            <>
+              <button className="cv-nav prev" onClick={prev} aria-label="Previous">‹</button>
+              <button className="cv-nav next" onClick={next} aria-label="Next">›</button>
+              <span className="cv-count">{index + 1}/{items.length}</span>
+            </>
+          )}
+        </div>
+        <div className="cv-name">
+          <span className="cv-fname">{cur.name}</span>
+          {items.length > 1 && <span className="cv-dots">{items.map((_, i) => <button key={i} className={`cv-dot ${i === index ? "on" : ""}`} onClick={() => onIndex(i)} aria-label={`Item ${i + 1}`} />)}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void }) {
   const [copied, setCopied] = useState(false);
   const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
@@ -502,26 +592,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           scroll (the section grows; you scroll the card/page to read it all). */}
       <div className="brief brief-full">{task.detail.content}</div>
 
-      <div className="section-lbl">Creatives &amp; files</div>
-      {task.detail.creatives.length ? (
-        <div className="thumbs">
-          {task.detail.creatives.map((f, i) => (
-            <div key={i} className="thumb" title={f.name}>
-              <div className="thumb-img" style={{ background: THUMB_BG[i % THUMB_BG.length] }}>
-                {f.type === "video" && <span className="thumb-play">▶</span>}
-                {f.type === "doc" && <span className="thumb-doc">📄</span>}
-              </div>
-              <div className="thumb-name">{f.name}</div>
-            </div>
-          ))}
-          <label className="thumb thumb-add"><span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">Add</span></label>
-        </div>
-      ) : (
-        <label className="upload-drop">
-          <span className="upload-ic">⬆</span>
-          <span><b>Upload files</b><span className="upload-sub">Drag &amp; drop or click to add creatives</span></span>
-        </label>
-      )}
+      <CreativesSection creatives={task.detail.creatives} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
@@ -1822,6 +1893,24 @@ const CSS = `
 .hmd .upload-ic{font-size:1.35rem;color:var(--muted)}
 .hmd .upload-drop b{color:var(--ink);font-size:.85rem}
 .hmd .upload-sub{display:block;font-size:.72rem;color:var(--muted);margin-top:.15rem}
+.hmd .thumb-img.clk{cursor:zoom-in}
+.hmd .thumb-img.clk:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(35,45,66,.12)}
+/* creative preview overlay */
+.hmd .cv-bg{position:fixed;inset:0;z-index:80;background:rgba(12,14,26,.72);display:flex;align-items:center;justify-content:center;padding:2rem}
+.hmd .cv-box{position:relative;max-width:min(560px,92vw);width:100%}
+.hmd .cv-x{position:absolute;top:-34px;right:0;border:none;background:none;color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;opacity:.85}
+.hmd .cv-x:hover{opacity:1}
+.hmd .cv-stage{position:relative;background:#0F1222;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:74vh}
+.hmd .cv-el{width:100%;max-height:74vh;object-fit:contain;display:block}
+.hmd .cv-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;border:none;font-size:1.3rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
+.hmd .cv-nav.prev{left:10px}.hmd .cv-nav.next{right:10px}
+.hmd .cv-nav:hover{background:rgba(0,0,0,.68)}
+.hmd .cv-count{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.5);color:#fff;font-size:.66rem;font-weight:600;padding:.15rem .5rem;border-radius:20px}
+.hmd .cv-name{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#fff;font-size:.8rem;padding:.6rem .2rem 0}
+.hmd .cv-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+.hmd .cv-dots{display:flex;gap:5px;flex:0 0 auto}
+.hmd .cv-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);border:none;padding:0;cursor:pointer}
+.hmd .cv-dot.on{background:#fff;width:18px;border-radius:4px}
 .hmd .activity{display:flex;flex-direction:column;gap:.4rem}
 .hmd .act-row{font-size:.78rem;color:var(--muted);line-height:1.4}
 .hmd .act-row b{color:var(--ink-soft);font-weight:600}
