@@ -3,6 +3,39 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-18 (pt 2) — Calendar creatives, V1 retired, My Day creatives
+
+**Publishing Calendar — creative preview in the post modal.** Clicking a post now
+shows its creative: image → shown; carousel → slideshow (‹ › + dots + N/total);
+reel/video → inline `<video controls>` (real posts) or a portrait poster with a ▶
+to the Instagram permalink. Sources `post.mediaUrls` (already returned by
+`/api/scheduler/queue`); demo posts seeded with self-contained data-URI SVG
+creatives so it's demonstrable. **Reels/carousels open a WIDE landscape modal**
+(media in a left column sized to its shape — no black side-bars — details on the
+right); single images keep the compact layout. (`calendar/HopeCalendar.tsx`.)
+
+**V1 dashboard retired / offline.** Admins kept landing on the old `/dashboard`
+(V1) after login. Middleware now lands admins on `/dashboard/hope-preview` (V2)
+and redirects ANY other `/dashboard/*` path to V2, so V1 is never served or opened
+by accident. V2 is a superset of V1's active tabs (V1's extras — discover/dms/
+hashtags/inbox — are already hidden/orphaned; V2 adds Content Review + Website).
+**V1 files are kept on disk** — delete the redirect block in `middleware.ts` to
+bring V1 back. Fully reversible.
+
+**My Day — Creatives & files wired + preview.** The "Creatives & files" box was a
+dead dropzone; now upload (click or drag-drop) persists to `mh_attachments`
+kind='creative' and shows immediately, creatives render as real thumbnails (post
+media + uploads, each removable), and clicking one opens a preview overlay (image /
+carousel slideshow / video play). `/api/my-day` now returns creative URLs + fetches
+kind='creative' attachments. Verified live end-to-end (upload → thumbnail → preview
+→ remove; test data cleaned up).
+
+Also: scrapped the throwaway `/calendar-v2` full-shell comparison tab (kept the
+original gradient-hero calendar + the shared library exports).
+
+All committed on `feat/hope-ui-reskin`. Admin login = Maheen (`maheen@goocampus.in`);
+members land on `/me`. V2 lives at `/dashboard/hope-preview/`.
+
 ## 2026-07-18 — Task timing, publish link write-back & full Hope-UI theme sweep
 
 **My Day — task timing captured + shown.** A new task now stamps `start_at` on
