@@ -36,6 +36,7 @@ type Row = {
   outputLink: string;
   instagramUrl: string;
   facebookUrl: string;
+  linkedinUrl: string;
   link: string;
   slackLink: string;
   attachments: { url: string; filename: string; type?: string }[];
@@ -96,6 +97,7 @@ type PostRow = {
   output_link: string | null;
   instagram_url: string | null;
   facebook_url: string | null;
+  linkedin_url: string | null;
   external_link: string | null;
   slack_link: string | null;
   custom: Record<string, unknown> | null;
@@ -129,6 +131,7 @@ function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
     outputLink: p.output_link || "",
     instagramUrl: p.instagram_url || "",
     facebookUrl: p.facebook_url || "",
+    linkedinUrl: p.linkedin_url || "",
     link: p.external_link || "",
     slackLink: p.slack_link || "",
     attachments: [], // filled in Phase B.2 when we join mh_attachments

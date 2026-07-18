@@ -57,7 +57,8 @@ export async function POST(req: Request) {
       publishing_date: body.publishingDate || null,
       due_date: body.dueDate || null,
       priority: body.priority || null,
-      platforms: body.platforms && body.platforms.length > 0 ? body.platforms : null,
+      // Default a new task to the three channels the team publishes to.
+      platforms: body.platforms && body.platforms.length > 0 ? body.platforms : ["Instagram", "Facebook", "LinkedIn"],
       content: body.content || null,
       caption: body.caption || null,
       needs_review: body.needsReview === true,

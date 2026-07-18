@@ -33,6 +33,7 @@ type Row = {
   outputLink: string;
   instagramUrl: string;
   facebookUrl: string;
+  linkedinUrl: string;
   link: string;
   slackLink: string;
   attachments: { url: string; filename: string; type?: string }[];
@@ -2339,6 +2340,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
 type DetailAttachment = { id: string; filename: string; storage_path: string; mime_type: string | null };
 type TaskDetail = {
   content: string; caption: string; notes: string;
+  instagramUrl?: string; facebookUrl?: string; linkedinUrl?: string; outputLink?: string; platforms?: string[];
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string; author_key: string }[];
@@ -2547,6 +2549,49 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const AUTHOR_LABELS: Record<string, string> = { manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen" };
   const authorLabel = (k: string) => AUTHOR_LABELS[k] || k;
 
+  // Editable post URLs + platforms (Instagram / Facebook / LinkedIn). Read fresh
+  // from detail after a save, falling back to the list row.
+  const igUrl = detail?.instagramUrl ?? row.instagramUrl ?? "";
+  const fbUrl = detail?.facebookUrl ?? row.facebookUrl ?? "";
+  const liUrl = detail?.linkedinUrl ?? row.linkedinUrl ?? "";
+  const outLink = detail?.outputLink ?? row.outputLink ?? "";
+  const platformsCur = detail?.platforms ?? row.platforms ?? [];
+  const [urlEdit, setUrlEdit] = useState<string | null>(null);
+  const [urlDraft, setUrlDraft] = useState("");
+  const saveOne = async (field: string, value: unknown) => {
+    const res = await fetch("/api/marketing-hub/update", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: value } }),
+    });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not save."); return; }
+    await loadDetail();
+  };
+  const togglePlatform = (p: string) => {
+    const next = platformsCur.includes(p) ? platformsCur.filter((x) => x !== p) : [...platformsCur, p];
+    saveOne("platforms", next);
+  };
+  const platformChips = Array.from(new Set(["Instagram", "Facebook", "LinkedIn", ...platformsCur]));
+  const urlRow = (field: string, label: string, value: string) => (
+    <div className="flex items-center gap-2 text-[12px]">
+      <span className="text-gray-500 w-[74px] flex-shrink-0">{label}</span>
+      {urlEdit === field ? (
+        <span className="flex-1 flex items-center gap-1 min-w-0">
+          <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} autoFocus placeholder="Paste URL…"
+            onKeyDown={(e) => { if (e.key === "Enter") { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); } if (e.key === "Escape") setUrlEdit(null); }}
+            className="flex-1 min-w-0 border border-gray-200 rounded px-1.5 py-0.5 text-[12px] outline-none focus:border-brand" />
+          <button onClick={() => { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); }} className="text-brand flex-shrink-0"><IconCheck size={13} /></button>
+        </span>
+      ) : value ? (
+        <span className="flex-1 flex items-center gap-1.5 min-w-0">
+          <a href={value} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline inline-flex items-center gap-1"><IconExternalLink size={12} />Open</a>
+          <button onClick={() => { setUrlDraft(value); setUrlEdit(field); }} className="text-gray-400 hover:text-brand flex-shrink-0"><IconPencil size={11} /></button>
+        </span>
+      ) : (
+        <button onClick={() => { setUrlDraft(""); setUrlEdit(field); }} className="flex-1 text-left text-gray-300 hover:text-brand">+ Add</button>
+      )}
+    </div>
+  );
+
   // Creatives = uploaded (deletable) + any Airtable-hosted images already on the row.
   const creatives = [
     ...(detail?.attachments || []).map((a) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true })),
@@ -2729,7 +2774,14 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
                 {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
                 {detailRow("Publish to page", row.publishToPage)}
-                {detailRow("Platforms", row.platforms.length ? row.platforms.join(", ") : null)}
+                {detailRow("Platforms", (
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {platformChips.map((p) => {
+                      const on = platformsCur.includes(p);
+                      return <button key={p} onClick={() => togglePlatform(p)} className={`text-[10.5px] px-2 py-0.5 rounded-full border transition ${on ? "bg-brand-light text-brand border-brand/30" : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"}`}>{p}</button>;
+                    })}
+                  </div>
+                ))}
                 {detailRow("Due date", fmtDate(row.dueDate))}
                 {detailRow("Completed", row.completionTime ? fmtWhen(row.completionTime) : null)}
                 {detailRow("Publishing", fmtDate(row.publishingDate))}
@@ -2748,18 +2800,19 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                   </div>
                 )}
 
-                {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconExternalLink size={13} />Links</div>
-                    <div className="space-y-1.5">
-                      {row.outputLink && <ModalLink label="Output" href={row.outputLink} />}
-                      {row.instagramUrl && <ModalLink label="Instagram" href={row.instagramUrl} />}
-                      {row.facebookUrl && <ModalLink label="Facebook" href={row.facebookUrl} />}
-                      {row.link && <ModalLink label="Link" href={row.link} />}
-                      {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
-                    </div>
+                {/* Published-post links — editable. Paste the live URL once published;
+                    a weekly job can later find these + compress the creative images. */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-[11px] font-medium text-[#8A92A6] uppercase tracking-wide mb-2 flex items-center gap-1.5"><IconExternalLink size={13} />Published links</div>
+                  <div className="space-y-1.5">
+                    {urlRow("instagram_url", "Instagram", igUrl)}
+                    {urlRow("facebook_url", "Facebook", fbUrl)}
+                    {urlRow("linkedin_url", "LinkedIn", liUrl)}
+                    {urlRow("output_link", "Output", outLink)}
+                    {row.link && <ModalLink label="Link" href={row.link} />}
+                    {row.slackLink && <ModalLink label="Slack" href={row.slackLink} />}
                   </div>
-                )}
+                </div>
               </Panel>
 
               {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
