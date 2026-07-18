@@ -38,9 +38,8 @@ export async function GET(req: Request) {
     const { data: acts, error } = await sb
       .from("mh_activity")
       .select("id, post_id, actor_key, action, from_value, to_value, created_at")
-      // claim/handoff/status are written by the app routes; owner_changed is the
-      // DB trigger's record of a plain reassignment (no matching app event).
-      .in("action", ["claim", "handoff", "status", "owner_changed"])
+      // All edits now log as status_changed / owner_changed / claim (app-attributed).
+      .in("action", ["claim", "status_changed", "owner_changed"])
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(160);
@@ -52,7 +51,7 @@ export async function GET(req: Request) {
     // is already announced by its own event — don't double-notify. Collect those
     // post_ids so the owner_changed branch below skips them.
     const claimedOrHandedOff = new Set(
-      events.filter((e) => e.action === "claim" || e.action === "handoff").map((e) => e.post_id),
+      events.filter((e) => e.action === "claim" || (e.action === "status_changed" && e.to_value === "Content - Approved")).map((e) => e.post_id),
     );
     const ids = [...new Set(events.map((e) => e.post_id).filter(Boolean))];
     const postMap = new Map<string, Post>();
@@ -81,7 +80,8 @@ export async function GET(req: Request) {
           target = [sib];
           n = { kind: "claim", emoji: "✓", title: `${nameOf(e.actor_key)} claimed a video`, sub: `"${short}" is off the board — you're clear on that one.` };
         }
-      } else if (e.action === "handoff") {
+      } else if (e.action === "status_changed" && e.to_value === "Content - Approved") {
+        // Approval = the handoff. Design → Praveen; video → the editor pool.
         if (VIDEO_TYPES.has(post?.type || "")) {
           // Only advertise as "up for grabs" while still unclaimed. Once an editor
           // owns it (claimed via takeover), stop telling editors to claim it.
@@ -93,12 +93,12 @@ export async function GET(req: Request) {
           target = ["praveen"];
           n = { kind: "message", emoji: "📥", title: "Approved — handed to you", sub: `"${short}" is ready for you to produce.` };
         }
-      } else if (e.action === "status" && e.to_value === "Incorporating Feedback") {
+      } else if (e.action === "status_changed" && e.to_value === "Incorporating Feedback") {
         if (post?.owner_key) {
           target = [post.owner_key];
           n = { kind: "message", emoji: "↩️", title: "Sent back for changes", sub: `"${short}" was returned from review — needs changes.` };
         }
-      } else if (e.action === "status" && e.to_value === "Ready to Publish") {
+      } else if (e.action === "status_changed" && e.to_value === "Ready to Publish") {
         if (post?.owner_key) {
           target = [post.owner_key];
           n = { kind: "message", emoji: "📅", title: "Cleared review → scheduled", sub: `"${short}" is queued in the Scheduler.` };

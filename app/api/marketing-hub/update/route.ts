@@ -71,8 +71,12 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "no allowed fields to update" }, { status: 400 });
     }
 
-    // Grab the row BEFORE update so we can detect a status transition into "Content - Approved"
-    const before = await sb.from("mh_posts").select("id, status, type, owner_key").eq("id", body.id).single();
+    // Full before-state so we can log a precise, attributed diff for every field.
+    const before = await sb
+      .from("mh_posts")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link")
+      .eq("id", body.id)
+      .single();
     if (before.error) throw new Error(before.error.message);
 
     const { data, error } = await sb
@@ -89,25 +93,58 @@ export async function PATCH(req: Request) {
     // (drag-reschedule / inline edits would otherwise snap back until the 12h TTL).
     bustMarketingHubCache();
 
-    // Auto-handoff when status becomes "Content - Approved":
-    //   • Design/static work (post, carousel, thumbnail, static Meta Ads, story-image…)
-    //     → auto-assigned to Praveen; the writer stays as a collaborator.
-    //   • Video work (reels, YouTube long-form/shorts, story-video, Meta Ads - Video)
-    //     → NOT auto-assigned; it becomes claimable by an editor (Nikhil/Nandu) via
-    //       the Claim button. Whoever claims becomes owner (takeover route).
-    //   • The writer (Manya) is added as collaborator; Maheen is NEVER auto-added.
-    if (
-      clean.status === "Content - Approved" &&
-      before.data.status !== "Content - Approved"
-    ) {
-      const type = String(data.type || "");
-      const isVideo = VIDEO_TYPES.has(type);
-      const oldOwner = before.data.owner_key; // the writer (Manya)
+    // Actor = the client-supplied person (My Day passes the switched person) or the
+    // logged-in session user. This is what makes the activity feed read "Praveen …".
+    const bodyActor = typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor : null;
+    const actor = bodyActor || getSessionUserId() || null;
 
+    // Log every changed field with before/after + actor. Long text (content/caption)
+    // stores the full old/new so the modal can render a word-level diff.
+    const ACTION: Record<string, string> = {
+      status: "status_changed", owner_key: "owner_changed", publishing_date: "rescheduled",
+      due_date: "due_date_changed", particulars: "renamed", priority: "priority_changed",
+      type: "type_changed", content: "content_edited", caption: "caption_edited",
+      additional_info: "notes_edited", sbu: "sbu_changed", platforms: "platforms_changed",
+      needs_review: "review_changed", output_link: "output_link_changed",
+    };
+    const fmtDate = (d: unknown) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+    const asText = (field: string, v: unknown): string | null => {
+      if (v === null || v === undefined || v === "") return null;
+      if (field === "publishing_date" || field === "due_date") return fmtDate(v);
+      if (Array.isArray(v)) return v.length ? v.join(", ") : null;
+      return String(v);
+    };
+    const beforeRow = before.data as Record<string, unknown>;
+    const activityRows = Object.keys(clean).flatMap((field) => {
+      const oldV = beforeRow[field];
+      const newV = clean[field];
+      const same = Array.isArray(oldV) || Array.isArray(newV)
+        ? JSON.stringify(oldV ?? []) === JSON.stringify(newV ?? [])
+        : (oldV ?? null) === (newV ?? null);
+      if (same) return [];
+      return [{
+        post_id: body.id,
+        actor_key: actor,
+        action: ACTION[field] || "edited",
+        from_value: asText(field, oldV),
+        to_value: asText(field, newV),
+      }];
+    });
+    if (activityRows.length) await sb.from("mh_activity").insert(activityRows);
+
+    // Auto-handoff when status becomes "Content - Approved" (assignment + collaborator
+    // only — the status_changed / owner_changed rows above already record it, and the
+    // notifications feed derives the handoff from status_changed -> Content-Approved):
+    //   • Design/static work → auto-assigned to Praveen; the writer joins as collaborator.
+    //   • Video work → left with the writer, claimable by an editor (Nikhil/Nandu).
+    //   • Maheen is NEVER auto-added.
+    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved") {
+      const isVideo = VIDEO_TYPES.has(String(data.type || ""));
+      const oldOwner = before.data.owner_key;
       if (!isVideo) {
-        // Design → hand to Praveen; writer joins as collaborator (never Maheen).
         if (data.owner_key !== "praveen") {
           await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
+          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
         }
         if (oldOwner && oldOwner !== "praveen" && oldOwner !== "maheen") {
           await sb.from("mh_post_collaborators").upsert(
@@ -115,43 +152,7 @@ export async function PATCH(req: Request) {
             { onConflict: "post_id,member_key", ignoreDuplicates: true },
           );
         }
-        await sb.from("mh_activity").insert({
-          post_id: body.id,
-          actor_key: oldOwner || null,
-          action: "handoff",
-          detail: "approved — handed to Praveen",
-        });
-      } else {
-        // Video → stays with the writer, now open for an editor to claim.
-        await sb.from("mh_activity").insert({
-          post_id: body.id,
-          actor_key: oldOwner || null,
-          action: "handoff",
-          detail: "approved — ready for an editor to claim",
-        });
       }
-    }
-
-    // Log every OTHER status transition (best-effort) so the My Day notifications feed
-    // can surface send-backs (-> Incorporating Feedback) and pushes-to-schedule
-    // (-> Ready to Publish). The Content-Approved handoff above logs its own event.
-    if (
-      typeof clean.status === "string" &&
-      clean.status !== "Content - Approved" &&
-      before.data.status !== clean.status
-    ) {
-      // Actor = who performed the change: the client-supplied actor (My Day passes the
-      // switched person) or, failing that, the logged-in session user (e.g. the Content
-      // Review reviewer). Needed so the notifications feed can exclude self-actions.
-      const bodyActor = typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor : null;
-      const actor = bodyActor || getSessionUserId() || null;
-      await sb.from("mh_activity").insert({
-        post_id: body.id,
-        actor_key: actor,
-        action: "status",
-        from_value: before.data.status ?? null,
-        to_value: clean.status,
-      });
     }
 
     return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at });

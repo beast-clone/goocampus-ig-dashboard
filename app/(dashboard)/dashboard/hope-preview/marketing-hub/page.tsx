@@ -2341,8 +2341,8 @@ type TaskDetail = {
   content: string; caption: string; notes: string;
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
-  comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string }[];
-  activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string }[];
+  comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string; author_key: string }[];
+  activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string; actor_key: string | null }[];
   scheduler: { syncedToScheduler: boolean; startAt: string | null };
   me?: string | null;
 };
@@ -2421,6 +2421,64 @@ function Panel({ icon: Ic, title, right, accent, children }: {
   );
 }
 
+// ---------- Activity feed (Airtable-style: who · what changed · when) ----------
+const FEED_AV = ["#EEEDFE:#3C3489", "#E1F5EE:#0F6E56", "#E4ECFF:#2138B0", "#FDECEC:#B4232D", "#FDF2E2:#9A6212", "#E9F6FE:#0E5E86"];
+function feedAvatar(key: string | null, name: string): { bg: string; fg: string; initials: string } {
+  const s = (key || name || "?").toLowerCase();
+  let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const [bg, fg] = FEED_AV[h % FEED_AV.length].split(":");
+  const initials = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "?";
+  return { bg, fg, initials };
+}
+function relTime(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
+// Word-level diff: added words green, removed words red-strikethrough (LCS).
+function wordDiff(oldStr: string, newStr: string): React.ReactNode {
+  const a = (oldStr || "").split(/(\s+)/), b = (newStr || "").split(/(\s+)/);
+  const n = a.length, m = b.length;
+  if (n * m > 400_000) { // too large to diff cheaply — show before/after blocks
+    return (
+      <div className="space-y-1">
+        {oldStr && <div className="bg-red-50 text-red-600 line-through rounded px-1.5 py-1 whitespace-pre-wrap break-words">{oldStr}</div>}
+        {newStr && <div className="bg-emerald-50 text-emerald-700 rounded px-1.5 py-1 whitespace-pre-wrap break-words">{newStr}</div>}
+      </div>
+    );
+  }
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out: React.ReactNode[] = []; let i = 0, j = 0, k = 0;
+  const push = (t: string, cls: string) => { if (t) out.push(<span key={k++} className={cls}>{t}</span>); };
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { push(a[i], ""); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { push(a[i], "bg-red-50 text-red-600 line-through"); i++; }
+    else { push(b[j], "bg-emerald-50 text-emerald-700"); j++; }
+  }
+  while (i < n) { push(a[i], "bg-red-50 text-red-600 line-through"); i++; }
+  while (j < m) { push(b[j], "bg-emerald-50 text-emerald-700"); j++; }
+  return <span className="whitespace-pre-wrap break-words leading-relaxed">{out}</span>;
+}
+const ACT_VERB: Record<string, string> = {
+  created: "created this", status_changed: "changed the status", owner_changed: "reassigned this",
+  rescheduled: "rescheduled this", due_date_changed: "changed the due date", renamed: "renamed this",
+  priority_changed: "changed the priority", type_changed: "changed the type", content_edited: "edited the content",
+  caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
+  platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",
+  creative_added: "added a creative", creative_removed: "removed a creative", claim: "claimed this",
+};
+const DIFF_FIELDS = new Set(["content_edited", "caption_edited", "notes_edited"]);
+const PILL_FIELDS = new Set(["status_changed"]);
+type FeedItem =
+  | { id: string; kind: "activity"; at: string; name: string; key: string | null; action: string; from: string | null; to: string | null }
+  | { id: string; kind: "comment"; at: string; name: string; key: string | null; body: string; resolved: boolean };
+
 function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
@@ -2432,6 +2490,13 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [editSection, setEditSection] = useState<"content" | "caption" | null>(null);
   const [draft, setDraft] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  // Unified activity feed: filter (All activity / Revision history / Comments),
+  // resolved toggle, expand-diff set, and a Show-more cap.
+  const [feedFilter, setFeedFilter] = useState<"all" | "revisions" | "comments">("all");
+  const [showResolved, setShowResolved] = useState(true);
+  const [feedFilterOpen, setFeedFilterOpen] = useState(false);
+  const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+  const [feedLimit, setFeedLimit] = useState(25);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -2450,6 +2515,16 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const content = (detail?.content || row.content || "").trim();
   const caption = (detail?.caption ?? row.caption ?? "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
+
+  // Merge activity + comments into one chronological feed, honouring the filter.
+  const feed = useMemo<FeedItem[]>(() => {
+    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value }));
+    const coms: FeedItem[] = (detail?.comments || []).filter((c) => showResolved || !c.resolved).map((c) => ({ id: `c${c.id}`, kind: "comment", at: c.created_at, name: c.authorName, key: c.author_key, body: c.body, resolved: c.resolved }));
+    let items: FeedItem[] = [...acts, ...coms];
+    if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");
+    else if (feedFilter === "comments") items = items.filter((i) => i.kind === "comment");
+    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  }, [detail, feedFilter, showResolved]);
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
   const isDone = DONE_STATUSES.includes(row.status) || !!row.completionTime;
   const sp = statusPill(row.status);
@@ -2679,22 +2754,71 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                 )}
               </Panel>
 
-              {/* Comments — directly below Details */}
-              <Panel icon={IconMessageCircle2} title="Comments" right={detail?.comments?.length ? <span className="text-[11px] text-gray-400">{detail.comments.length}</span> : null}>
-                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
-                  : detail?.comments?.length ? (
-                    <div className="space-y-3">
-                      {detail.comments.map((c) => (
-                        <div key={c.id} className="flex gap-2.5">
-                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.authorName.trim().slice(0, 1).toUpperCase()}</span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2"><span className="text-[13px] font-medium text-[#232D42]">{c.authorName}</span><span className="text-[11px] text-gray-400">{fmtWhen(c.created_at)}</span>{c.resolved && <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}</div>
-                            <div className="text-[13px] text-gray-700 whitespace-pre-wrap mt-0.5">{c.body}</div>
-                          </div>
-                        </div>
+              {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
+              <Panel icon={IconHistory} title="Activity" right={
+                <div className="relative">
+                  <button onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
+                    {feedFilter === "all" ? "All activity" : feedFilter === "revisions" ? "Revision history" : "Comments"}
+                    <IconChevronDown size={12} />
+                  </button>
+                  {feedFilterOpen && (
+                    <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1 text-[12.5px]">
+                      {(([["all", "All activity"], ["revisions", "Revision history"], ["comments", "Comments"]]) as [typeof feedFilter, string][]).map(([v, l]) => (
+                        <button key={v} onClick={() => { setFeedFilter(v); setFeedFilterOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between ${feedFilter === v ? "text-brand font-medium" : "text-gray-700"}`}>{l}{feedFilter === v && <IconCheck size={13} />}</button>
                       ))}
+                      <div className="border-t border-gray-100 my-1" />
+                      <button onClick={() => setShowResolved((s) => !s)} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between text-gray-700">Show resolved comments{showResolved && <IconCheck size={13} />}</button>
                     </div>
-                  ) : <div className="text-sm text-gray-400 italic">No comments yet.</div>}
+                  )}
+                </div>
+              }>
+                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+                  : feed.length === 0 ? <div className="text-sm text-gray-400 italic">No activity yet.</div>
+                  : (
+                    <div className="space-y-3">
+                      {feed.slice(0, feedLimit).map((it) => {
+                        const av = feedAvatar(it.key, it.name);
+                        const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
+                        const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
+                        return (
+                          <div key={it.id} className="flex gap-2.5">
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5" style={{ background: av.bg, color: av.fg }}>{av.initials}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[12.5px] text-gray-700">
+                                <span className="font-medium text-[#232D42]">{it.name}</span>{" "}
+                                {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
+                                <span className="text-gray-400"> · {relTime(it.at)}</span>
+                                {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
+                              </div>
+                              {it.kind === "comment" ? (
+                                <div className="text-[13px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
+                              ) : stFrom || stTo ? (
+                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                  {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
+                                  {it.from && it.to && <IconChevronRight size={12} className="text-gray-400" />}
+                                  {it.to && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: stTo!.bg, color: stTo!.text }}>{it.to}</span>}
+                                </div>
+                              ) : DIFF_FIELDS.has(it.action) ? (
+                                <div className="mt-1">
+                                  {expandedDiffs.has(it.id) && <div className="text-[12.5px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
+                                  <button onClick={() => setExpandedDiffs((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })} className="text-[11px] text-brand hover:underline">{expandedDiffs.has(it.id) ? "Hide changes" : "Show what changed"}</button>
+                                </div>
+                              ) : (it.from || it.to) ? (
+                                <div className="text-[12px] mt-0.5">
+                                  {it.from && <span className="line-through text-red-500">{it.from}</span>}
+                                  {it.from && it.to && <span className="text-gray-400"> → </span>}
+                                  {it.to && <span className="text-emerald-700">{it.to}</span>}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {feed.length > feedLimit && (
+                        <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline">Show more ({feed.length - feedLimit})</button>
+                      )}
+                    </div>
+                  )}
 
                 {/* Composer */}
                 <div className="mt-3 pt-3 border-t border-gray-100 flex items-start gap-2.5">
@@ -2702,7 +2826,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                   <div className="flex-1 min-w-0">
                     <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={2}
                       onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
-                      placeholder="Write a comment…  (⌘/Ctrl + Enter to post)"
+                      placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none outline-none focus:border-brand" />
                     <div className="flex justify-end mt-1.5">
                       <button onClick={postComment} disabled={posting || !commentText.trim()}
@@ -2712,22 +2836,6 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
                     </div>
                   </div>
                 </div>
-              </Panel>
-
-              <Panel icon={IconHistory} title="Activity">
-                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
-                  : detail?.activity?.length ? (
-                    <div className="relative pl-4">
-                      {detail.activity.map((a, i) => (
-                        <div key={a.id} className="relative pb-3 last:pb-0">
-                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-brand" />
-                          {i < detail.activity.length - 1 && <span className="absolute -left-[13px] top-3 bottom-0 w-px bg-gray-200" />}
-                          <div className="text-[12.5px] text-gray-700"><span className="font-medium text-[#232D42]">{a.actorName}</span> {a.action.replace(/_/g, " ")}{(a.from_value || a.to_value) && <span className="text-gray-500"> {a.from_value ? `${a.from_value} → ` : ""}{a.to_value}</span>}</div>
-                          <div className="text-[11px] text-gray-400">{fmtWhen(a.created_at)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <div className="text-sm text-gray-400 italic">No activity recorded.</div>}
               </Panel>
             </div>
           </div>
