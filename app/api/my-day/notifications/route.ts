@@ -38,13 +38,22 @@ export async function GET(req: Request) {
     const { data: acts, error } = await sb
       .from("mh_activity")
       .select("id, post_id, actor_key, action, from_value, to_value, created_at")
-      .in("action", ["claim", "handoff", "status"])
+      // claim/handoff/status are written by the app routes; owner_changed is the
+      // DB trigger's record of a plain reassignment (no matching app event).
+      .in("action", ["claim", "handoff", "status", "owner_changed"])
       .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(120);
+      .limit(160);
     if (error) throw new Error(error.message);
 
     const events = (acts || []) as Act[];
+
+    // A reassignment (owner_changed) that is really a claim or an approval-handoff
+    // is already announced by its own event — don't double-notify. Collect those
+    // post_ids so the owner_changed branch below skips them.
+    const claimedOrHandedOff = new Set(
+      events.filter((e) => e.action === "claim" || e.action === "handoff").map((e) => e.post_id),
+    );
     const ids = [...new Set(events.map((e) => e.post_id).filter(Boolean))];
     const postMap = new Map<string, Post>();
     if (ids.length) {
@@ -93,6 +102,12 @@ export async function GET(req: Request) {
         if (post?.owner_key) {
           target = [post.owner_key];
           n = { kind: "message", emoji: "📅", title: "Cleared review → scheduled", sub: `"${short}" is queued in the Scheduler.` };
+        }
+      } else if (e.action === "owner_changed") {
+        // Plain reassignment (not a claim/handoff): tell the new owner it's theirs.
+        if (e.to_value && !claimedOrHandedOff.has(e.post_id)) {
+          target = [e.to_value];
+          n = { kind: "message", emoji: "📌", title: "Assigned to you", sub: `"${short}" was handed to you by ${nameOf(e.from_value)}.` };
         }
       }
 

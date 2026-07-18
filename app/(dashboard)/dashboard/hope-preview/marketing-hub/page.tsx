@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
@@ -154,11 +154,40 @@ function ymd(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
-export default function MarketingHubPage() {
+// Subtab → breadcrumb label, so the header reads "Marketing Hub › Pipeline" etc.
+// and you always know which subtab you're on.
+const SUBTAB_LABEL: Record<string, string> = {
+  team: "Workload", master: "Master sheet", pipeline: "Pipeline", calendar: "Content Calendar",
+};
+const SUBTAB_SUBTITLE: Record<string, string> = {
+  team: "Each teammate's plan and capacity for the day.",
+  master: "The master sheet — every task, every column. Filter, sort, save views.",
+  pipeline: "Where every task sits in production — spot what's stuck.",
+  calendar: "The team's publishing schedule, month at a glance — drag to reschedule.",
+};
+
+function MarketingHubShell() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") || "team";
+  const tab = ["team", "master", "pipeline", "calendar"].includes(tabParam) ? tabParam : "master";
   return (
-    <HopeDashboardShell active="marketing-hub" title="Marketing Hub" subtitle="Content calendar for the marketing team — SBU · Type · Owner · Publishing Date." hideAccountPicker hideRange>
+    <HopeDashboardShell
+      active="marketing-hub"
+      title={`Marketing Hub › ${SUBTAB_LABEL[tab]}`}
+      subtitle={SUBTAB_SUBTITLE[tab]}
+      hideAccountPicker
+      hideRange
+    >
       {({ range, setRange }) => <Inner range={range} setRange={setRange} />}
     </HopeDashboardShell>
+  );
+}
+
+export default function MarketingHubPage() {
+  return (
+    <Suspense fallback={null}>
+      <MarketingHubShell />
+    </Suspense>
   );
 }
 
@@ -253,20 +282,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         </div>
       </div>
 
-      {/* Compact filter dropdowns — hidden on Pipeline (whole picture), Workload + Master (own controls). */}
-      {tab !== "pipeline" && tab !== "team" && tab !== "master" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 uppercase tracking-wide mr-1">Filter</span>
-          <CompactFacet label="SBU" value={filters.sbu} options={data?.facets.sbu || []} onChange={(v) => setFilters({ ...filters, sbu: v })} />
-          <CompactFacet label="Type" value={filters.type} options={data?.facets.type || []} onChange={(v) => setFilters({ ...filters, type: v })} />
-          <CompactFacet label="Status" value={filters.status} options={data?.facets.status || []} onChange={(v) => setFilters({ ...filters, status: v })} />
-          <CompactFacet label="Owner" value={filters.owner} options={data?.facets.owner || []} onChange={(v) => setFilters({ ...filters, owner: v })} />
-          <CompactFacet label="Priority" value={filters.priority} options={data?.facets.priority || []} onChange={(v) => setFilters({ ...filters, priority: v })} />
-          {(filters.sbu || filters.type || filters.status || filters.owner || filters.priority) && (
-            <button onClick={() => setFilters({ sbu: "", type: "", status: "", owner: "", priority: "" })} className="text-sm text-gray-500 hover:text-gray-800 px-2">Clear</button>
-          )}
-        </div>
-      )}
+      {/* The Content Calendar filters inside its own card (brand chips + view toggle),
+          so there's no redundant floating filter row above it — matches the Publishing
+          Calendar's clean layout. Master/Workload/Pipeline have their own controls. */}
 
       {tab === "master" && (
         <MasterTab allRows={data?.rows || []} facets={data?.facets} range={range} setRange={setRange} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
@@ -962,76 +980,125 @@ function calStatusStyle(s: string): { bg: string; text: string; border: string }
   return CAL_STATUS_COLORS[s] || { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
 }
 
+// Mirrors the Publishing Calendar (calendar/HopeCalendar.tsx / Hope reference) so the two
+// pages read as siblings: soft-tinted event bars with dark readable text, a toolbar INSIDE
+// the card (‹ › Today · title · Month/Week/Day/List), taller cells. Tokens hardcoded to the
+// HopeShell values since the Marketing Hub renders under HopeDashboardShell.
 const MHCAL_CSS = `
-.mhcal{color:#0F172A;font-feature-settings:"cv02","cv03","cv04","cv11"}
+.mhcal{color:#232D42}
 .mhcal button{font-family:inherit;cursor:pointer}
 /* Hero band — indigo→violet ramp, distinct from the publishing calendar's blue */
-.mhcal-hero{position:relative;background:linear-gradient(115deg,#4C4CE2 0%,#6F5BEA 50%,#8B6DF2 100%);border-radius:16px;padding:1.35rem 1.7rem 3rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.mhcal-hero{position:relative;background:linear-gradient(115deg,#4C4CE2 0%,#6F5BEA 50%,#8B6DF2 100%);border-radius:16px;padding:1.35rem 1.7rem 3.2rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
 .mhcal-hero::after{content:"";position:absolute;right:-40px;top:-60px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)}
 .mhcal-hero::before{content:"";position:absolute;right:120px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)}
 .mhcal-hero-txt{position:relative;z-index:1;max-width:640px}
 .mhcal-hero-tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:rgba(255,255,255,.22);padding:.22rem .6rem;border-radius:20px;margin-bottom:.5rem}
-.mhcal-hero-txt h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-.018em;line-height:1.15}
-.mhcal-hero-txt p{margin:.3rem 0 0;font-size:.86rem;color:rgba(255,255,255,.95);line-height:1.45}
+.mhcal-hero-txt h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-.018em;line-height:1.15}
+.mhcal-hero-txt p{margin:.32rem 0 0;font-size:.88rem;color:rgba(255,255,255,.95);line-height:1.45}
 .mhcal-hero-stat{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:.7rem 1rem;border-radius:12px;backdrop-filter:blur(2px);min-width:125px}
 .mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
 .mhcal-hero-statl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.82)}
-/* Title card, pulled up to overlap the hero */
-.mhcal-titlecard{position:relative;z-index:2;margin:-2.15rem 1rem 0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;box-shadow:0 12px 28px rgba(20,25,60,.10);padding:.85rem 1.35rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.mhcal-titlecard h4{margin:0;flex:1;text-align:center;font-size:1.15rem;font-weight:700;color:#0F172A;letter-spacing:-.012em}
-.mhcal-titlemeta{font-size:.76rem;color:#6B7280;font-weight:500;flex:0 0 auto}
-.mhcal-titlemeta b{color:#0F172A;font-weight:600}
-.mhcal-nav{display:flex;align-items:center;gap:.4rem;flex:0 0 auto}
-.mhcal-navbtn{width:30px;height:30px;border-radius:8px;border:1px solid #E5E8EF;background:#fff;color:#4B5563;font-size:1.1rem;line-height:1;display:grid;place-items:center;transition:.15s}
-.mhcal-navbtn:hover{background:#4C4CE2;border-color:#4C4CE2;color:#fff}
-.mhcal-today{height:30px;padding:0 .85rem;border-radius:8px;border:1px solid #4C4CE2;background:#4C4CE2;color:#fff;font-size:.74rem;font-weight:600;transition:.15s}
-.mhcal-today:hover{filter:brightness(1.06)}
-/* Brand filter — pill chips one-click filter across SBUs (primary interest) */
+/* Title card, pulled up to overlap the hero — mirrors the reference's "Calendar" card */
+.mhcal-titlecard{position:relative;z-index:2;margin:-2.35rem 1rem 0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;box-shadow:0 10px 30px rgba(35,45,66,.06);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:#232D42;letter-spacing:-.012em}
+.mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:#8A92A6}
+.mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
+/* Brand filter — pill chips, one-click SBU isolate */
 .mhcal-brands{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;padding:.65rem .8rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;overflow-x:auto;scrollbar-width:thin}
 .mhcal-brands::-webkit-scrollbar{height:6px}
 .mhcal-brands::-webkit-scrollbar-thumb{background:#D3D8E1;border-radius:3px}
-.mhcal-brands-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:#94A0AF;font-weight:700;padding-right:.5rem;flex:0 0 auto}
-.mhcal-brand{display:inline-flex;align-items:center;gap:.42rem;padding:.4rem .78rem;border-radius:99px;background:#F5F6FA;color:#4B5563;font-size:.75rem;font-weight:500;border:1px solid transparent;flex:0 0 auto;transition:.15s;white-space:nowrap;letter-spacing:-.003em}
-.mhcal-brand:hover{background:#EAECF3;color:#0F172A}
-.mhcal-brand.on{background:#0F172A;color:#fff}
+.mhcal-brands-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:#A6ACBE;font-weight:700;padding-right:.5rem;flex:0 0 auto}
+.mhcal-brand{display:inline-flex;align-items:center;gap:.42rem;padding:.4rem .78rem;border-radius:99px;background:#F7F8FC;color:#4A5468;font-size:.75rem;font-weight:500;border:1px solid transparent;flex:0 0 auto;transition:.15s;white-space:nowrap}
+.mhcal-brand:hover{background:#EDEFF5;color:#232D42}
+.mhcal-brand.on{background:#232D42;color:#fff}
 .mhcal-brand .bdot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
 .mhcal-brand .bcount{opacity:.7;font-weight:500;font-size:.68rem;font-variant-numeric:tabular-nums}
 .mhcal-brand.on .bcount{opacity:.85}
-/* Calendar card */
-.mhcal-card{background:#fff;border:1px solid #EEF0F4;border-radius:16px;box-shadow:0 6px 16px rgba(20,25,60,.05);overflow:hidden;margin-top:.75rem}
-.mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:#FAFBFC;border-bottom:1px solid #EEF0F4}
-.mhcal-dow span{padding:.65rem .7rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94A0AF;border-right:1px solid #EEF0F4}
+/* Calendar card + toolbar (toolbar INSIDE the card, like the reference) */
+.mhcal-card{background:#fff;border:1px solid #EEF0F4;border-radius:16px;box-shadow:0 10px 30px rgba(35,45,66,.06);overflow:hidden;margin-top:.9rem}
+.mhcal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;flex-wrap:wrap}
+.mhcal-nav{display:flex;align-items:center;gap:.4rem}
+.mhcal-navbtn{width:34px;height:34px;border-radius:9px;border:none;background:#3A57E8;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
+.mhcal-navbtn:hover{background:#2f49c9}
+.mhcal-today{border:none;background:#E9ECFB;color:#2138B0;font-weight:600;font-size:.78rem;padding:.5rem .9rem;border-radius:9px;margin-left:.2rem}
+.mhcal-today:hover{background:#dfe3fa}
+.mhcal-title{font-size:1.35rem;font-weight:700;color:#232D42;text-align:center;flex:1;min-width:180px}
+.mhcal-views{display:flex;background:#F7F8FC;border:1px solid #EEF0F4;border-radius:10px;padding:3px;gap:2px}
+.mhcal-viewbtn{border:none;background:none;font-size:.76rem;font-weight:600;color:#4A5468;padding:.38rem .75rem;border-radius:7px}
+.mhcal-viewbtn:hover{color:#232D42}
+.mhcal-viewbtn.on{background:#3A57E8;color:#fff;box-shadow:0 3px 8px rgba(58,87,232,.24)}
+/* month grid */
+.mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4;background:#F7F8FC}
+.mhcal-dow span{padding:.55rem .6rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A92A6;border-right:1px solid #EEF0F4}
 .mhcal-dow span:last-child{border-right:none}
-.mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(126px,1fr)}
-.mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.4rem;position:relative;min-width:0;transition:background .15s}
+.mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(122px,1fr)}
+.mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.35rem;position:relative;min-width:0;transition:background .15s}
 .mhcal-cell:nth-child(7n){border-right:none}
-.mhcal-cell.out{background:#FAFBFC}
-.mhcal-cell.today{background:rgba(76,76,226,.045)}
-.mhcal-cell.over{background:rgba(76,76,226,.09);box-shadow:inset 0 0 0 2px rgba(76,76,226,.35)}
-.mhcal-daynum{text-align:right;font-size:.75rem;font-weight:600;color:#4B5563;padding:.05rem .3rem .3rem;font-variant-numeric:tabular-nums}
-.mhcal-cell.out .mhcal-daynum{color:#C4CBD4}
-.mhcal-cell.today .mhcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:#4C4CE2;color:#fff;font-weight:700}
+.mhcal-cell.out{background:#F7F8FC}
+.mhcal-cell.today{background:rgba(58,87,232,.05)}
+.mhcal-cell.over{background:rgba(58,87,232,.10);box-shadow:inset 0 0 0 2px rgba(58,87,232,.35)}
+.mhcal-daynum{text-align:right;font-size:.74rem;font-weight:600;color:#4A5468;padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
+.mhcal-cell.out .mhcal-daynum{color:#A6ACBE}
+.mhcal-cell.today .mhcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#3A57E8;color:#fff}
 .mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
-/* Event pill — Hope V1 look: 1px border matching bg-tint, colored text, small SBU dot
-   + brand name on the right so primary interest reads at a glance. */
-.mhcal-ev{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:6px;padding:2.5px 7px;overflow:hidden;transition:filter .1s,transform .1s;cursor:grab}
-.mhcal-ev:hover{filter:brightness(.96);transform:translateX(1px)}
+/* Event bar — soft-tinted fill + matching border + DARK readable text (matches the
+   reference exactly). SBU shows as a small left dot; brand lives in the filter chips. */
+.mhcal-ev{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:5px;padding:3px 7px;overflow:hidden;transition:filter .1s;cursor:grab}
+.mhcal-ev:hover{filter:brightness(.97)}
 .mhcal-ev:active{cursor:grabbing}
+.mhcal-ev.block .mhcal-evtitle{white-space:normal}
 .mhcal-evdot{width:7px;height:7px;border-radius:2px;flex:0 0 7px}
-.mhcal-evtitle{font-size:.7rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.005em}
-.mhcal-evsbu{font-size:.6rem;font-weight:600;opacity:.7;flex:0 0 auto;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.003em}
-.mhcal-more{border:none;background:none;font-size:.66rem;color:#94A0AF;text-align:left;padding:1px 6px;font-weight:600}
-.mhcal-more:hover{color:#4C4CE2}
-/* Status legend — compact strip so the pill color→meaning is obvious */
-.mhcal-slegend{margin-top:.75rem;padding:.7rem 1rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;font-size:.72rem;color:#4B5563;font-weight:500}
+.mhcal-evtitle{font-size:.72rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.004em}
+.mhcal-more{border:none;background:none;font-size:.64rem;color:#8A92A6;text-align:left;padding:1px 5px;font-weight:600}
+.mhcal-more:hover{color:#3A57E8}
+/* week */
+.mhcal-week{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4}
+.mhcal-weekcol{border-right:1px solid #EEF0F4;min-height:360px;transition:background .15s}
+.mhcal-weekcol:last-child{border-right:none}
+.mhcal-weekcol.today{background:rgba(58,87,232,.04)}
+.mhcal-weekcol.over{background:rgba(58,87,232,.09);box-shadow:inset 0 0 0 2px rgba(58,87,232,.3)}
+.mhcal-weekhead{display:flex;flex-direction:column;align-items:center;gap:2px;padding:.5rem;border-bottom:1px solid #EEF0F4}
+.mhcal-weekdow{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8A92A6}
+.mhcal-weeknum{font-size:1rem;font-weight:700;color:#232D42}
+.mhcal-weeknum.today{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#3A57E8;color:#fff}
+.mhcal-weekbody{display:flex;flex-direction:column;gap:4px;padding:.45rem}
+.mhcal-empty{color:#A6ACBE;font-size:.78rem;text-align:center;padding-top:.6rem}
+/* day */
+.mhcal-day{border-top:1px solid #EEF0F4;padding:.7rem 1rem 1rem}
+.mhcal-dayrow{display:flex;align-items:center;gap:.8rem;width:100%;text-align:left;border-bottom:1px solid #F3F5F9;padding:.55rem .2rem}
+.mhcal-dayempty{padding:2.5rem 1rem;text-align:center;color:#8A92A6;font-size:.85rem}
+/* list / agenda */
+.mhcal-agenda{border-top:1px solid #EEF0F4;padding:.4rem 0}
+.mhcal-agroup{display:flex;gap:1rem;padding:.7rem 1.1rem;border-bottom:1px solid #F3F5F9}
+.mhcal-adate{display:flex;flex-direction:column;align-items:center;flex:0 0 46px;padding-top:.2rem}
+.mhcal-adow{font-size:.6rem;font-weight:700;text-transform:uppercase;color:#8A92A6}
+.mhcal-aday{font-size:1.25rem;font-weight:800;color:#232D42;line-height:1.1}
+.mhcal-amon{font-size:.6rem;color:#A6ACBE;text-transform:uppercase}
+.mhcal-aitems{flex:1;display:flex;flex-direction:column;gap:.35rem}
+.mhcal-arow{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:none;padding:.3rem .1rem;border-radius:8px}
+.mhcal-arow:hover{background:#F7F8FC}
+.mhcal-abar{width:4px;height:26px;border-radius:2px;flex:0 0 4px}
+.mhcal-atitle{font-size:.82rem;font-weight:600;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mhcal-apill{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px;flex:0 0 auto}
+.mhcal-aowner{font-size:.68rem;color:#8A92A6;flex:0 0 auto}
+@media(max-width:640px){.mhcal-apill,.mhcal-aowner{display:none}}
+/* Status legend — compact strip so the bar colour→meaning is obvious */
+.mhcal-slegend{margin-top:.75rem;padding:.7rem 1rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;font-size:.72rem;color:#4A5468;font-weight:500}
 .mhcal-slegend-item{display:inline-flex;align-items:center;gap:.45rem}
 .mhcal-slegend-chip{width:14px;height:14px;border-radius:4px;border:1px solid;flex:0 0 14px}
 `;
+
+const MHCAL_DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MHCAL_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+type CalView = "month" | "week" | "day" | "list";
 
 function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
   const [activeBrand, setActiveBrand] = useState<string>("");
+  const [view, setView] = useState<CalView>("month");
+  // Anchor date drives every view; ‹ › shifts by month/week/day, Today resets it.
+  const [anchor, setAnchor] = useState(() => new Date());
 
   // Drag-to-reschedule: drop a task on a day to set its publishing date there.
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -1074,36 +1141,83 @@ function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[];
     return Array.from(s);
   }, [filteredRows]);
 
-  // 42-cell month grid (mirrors the publishing calendar's HopeCalendar layout so the two
-  // pages read as siblings — always 6 full rows, prev/next-month spillover greyed out).
-  // Month cursor — defaults to the CURRENT month; ‹ › / Today move it. (Data is
-  // range-limited, so months outside the loaded window render empty.)
-  const [monthCursor, setMonthCursor] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
-  const y = monthCursor.getFullYear();
-  const mo = monthCursor.getMonth();
-  const goMonth = (delta: number) => setMonthCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
-  const goToday = () => { const n = new Date(); setMonthCursor(new Date(n.getFullYear(), n.getMonth(), 1)); };
+  // 42-cell month grid (always 6 full rows, prev/next-month spillover greyed out).
   const monthGrid = useMemo(() => {
-    const firstOfMonth = new Date(y, mo, 1);
+    const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const start = new Date(firstOfMonth);
     start.setDate(start.getDate() - firstOfMonth.getDay());
     const today = ymd(new Date());
     const cells: { date: Date; inMonth: boolean; isToday: boolean }[] = [];
     for (let i = 0; i < 42; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
-      cells.push({ date: d, inMonth: d.getMonth() === mo, isToday: ymd(d) === today });
+      cells.push({ date: d, inMonth: d.getMonth() === anchor.getMonth(), isToday: ymd(d) === today });
     }
     return cells;
-  }, [y, mo]);
+  }, [anchor]);
+
+  const weekDays = useMemo(() => {
+    const start = new Date(anchor); start.setDate(anchor.getDate() - anchor.getDay());
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+  }, [anchor]);
+
+  // List view: every dated day in the anchor month that has tasks.
+  const agenda = useMemo(() => {
+    const y = anchor.getFullYear(), m = anchor.getMonth();
+    const days: { date: Date; items: Row[] }[] = [];
+    for (let day = 1; day <= 31; day++) {
+      const d = new Date(y, m, day); if (d.getMonth() !== m) break;
+      const items = byDay.get(ymd(d)) || [];
+      if (items.length) days.push({ date: d, items });
+    }
+    return days;
+  }, [anchor, byDay]);
+
+  const shift = (dir: number) => setAnchor((cur) => {
+    const d = new Date(cur);
+    if (view === "week") d.setDate(d.getDate() + dir * 7);
+    else if (view === "day") d.setDate(d.getDate() + dir);
+    else d.setMonth(d.getMonth() + dir);
+    return d;
+  });
+  const jumpToday = () => setAnchor(new Date());
+
+  const title = useMemo(() => {
+    if (view === "day") return `${MHCAL_DAY_FULL[anchor.getDay()]}, ${MHCAL_MONTH_ABBR[anchor.getMonth()]} ${anchor.getDate()}`;
+    if (view === "week") {
+      const s = weekDays[0], e = weekDays[6];
+      const sM = MHCAL_MONTH_ABBR[s.getMonth()], eM = MHCAL_MONTH_ABBR[e.getMonth()];
+      return sM === eM ? `${sM} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}` : `${sM} ${s.getDate()} – ${eM} ${e.getDate()}, ${e.getFullYear()}`;
+    }
+    return `${MHCAL_MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}`;
+  }, [view, anchor, weekDays]);
 
   const allSbus = facets?.sbu || [];
-  const monthLabel = `${MHCAL_MONTH_NAMES[mo]} ${y}`;
+
+  // Shared soft-tinted event bar (dark readable text). Draggable so any view that
+  // shows day cells can reschedule.
+  const EvBar = (r: Row, block?: boolean) => {
+    const st = calStatusStyle(r.status);
+    return (
+      <button
+        key={r.id}
+        draggable
+        onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
+        onClick={() => onOpen(r.id)}
+        title={`${r.particulars} · ${r.type} · ${r.sbu} · ${r.owner || "—"} — drag to reschedule`}
+        className={`mhcal-ev${block ? " block" : ""}`}
+        style={{ background: st.bg, borderColor: st.border, color: st.text }}
+      >
+        <span className="mhcal-evdot" style={{ background: sbuColor(r.sbu, allSbus) }} />
+        <span className="mhcal-evtitle">{r.particulars || "(untitled)"}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="mhcal">
       <style dangerouslySetInnerHTML={{ __html: MHCAL_CSS }} />
 
-      {/* Hero — tightened copy, higher-contrast subtitle */}
+      {/* Hero */}
       <div className="mhcal-hero">
         <div className="mhcal-hero-txt">
           <span className="mhcal-hero-tag">Team calendar</span>
@@ -1116,19 +1230,13 @@ function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[];
         </div>
       </div>
 
-      {/* Title card overlapping the hero — Hope UI calendar toolbar: ‹ › + Today, centred month */}
+      {/* Title card overlapping the hero — mirrors the Publishing Calendar's "Calendar" card */}
       <div className="mhcal-titlecard">
-        <div className="mhcal-nav">
-          <button className="mhcal-navbtn" onClick={() => goMonth(-1)} aria-label="Previous month">‹</button>
-          <button className="mhcal-navbtn" onClick={() => goMonth(1)} aria-label="Next month">›</button>
-          <button className="mhcal-today" onClick={goToday}>Today</button>
-        </div>
-        <h4>{monthLabel}</h4>
-        <div className="mhcal-titlemeta">{loading ? "Syncing…" : "Drag any card to reschedule"}</div>
+        <h4>Calendar</h4>
+        <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
       </div>
 
-      {/* Brand quick-filter — one-click SBU isolate; primary interest is also shown
-          on every task pill, so the brand stays legible even without a filter set. */}
+      {/* Brand quick-filter — one-click SBU isolate (lives inside the calendar, not a top filter) */}
       {allSbus.length > 0 && (
         <div className="mhcal-brands">
           <span className="mhcal-brands-lbl">Brand</span>
@@ -1140,11 +1248,7 @@ function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[];
             if (n === 0) return null;
             const active = activeBrand === s;
             return (
-              <button
-                key={s}
-                className={`mhcal-brand ${active ? "on" : ""}`}
-                onClick={() => setActiveBrand((prev) => prev === s ? "" : s)}
-              >
+              <button key={s} className={`mhcal-brand ${active ? "on" : ""}`} onClick={() => setActiveBrand((prev) => prev === s ? "" : s)}>
                 <span className="bdot" style={{ background: sbuColor(s, allSbus) }} />
                 {s}
                 <span className="bcount">{n}</span>
@@ -1154,55 +1258,114 @@ function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[];
         </div>
       )}
 
-      {/* Calendar card */}
+      {/* Calendar card — toolbar INSIDE the card, then the active view */}
       <div className="mhcal-card">
-        <div className="mhcal-dow">
-          {MHCAL_DAY_LABELS.map((d) => <span key={d}>{d}</span>)}
+        <div className="mhcal-toolbar">
+          <div className="mhcal-nav">
+            <button className="mhcal-navbtn" onClick={() => shift(-1)} aria-label="Previous">‹</button>
+            <button className="mhcal-navbtn" onClick={() => shift(1)} aria-label="Next">›</button>
+            <button className="mhcal-today" onClick={jumpToday}>Today</button>
+          </div>
+          <div className="mhcal-title">{title}</div>
+          <div className="mhcal-views">
+            {(["month", "week", "day", "list"] as CalView[]).map((v) => (
+              <button key={v} className={`mhcal-viewbtn ${view === v ? "on" : ""}`} onClick={() => setView(v)}>
+                {v[0].toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mhcal-grid">
-          {monthGrid.map((cell) => {
-            const key = ymd(cell.date);
-            const list = byDay.get(key) || [];
-            const cls = `mhcal-cell${cell.inMonth ? "" : " out"}${cell.isToday ? " today" : ""}${dragOver === key ? " over" : ""}`;
-            return (
-              <div
-                key={key}
-                className={cls}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
-                onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
-                onDrop={(e) => dropOn(e, key)}
-              >
-                <div className="mhcal-daynum">{cell.date.getDate()}</div>
-                <div className="mhcal-events">
-                  {list.slice(0, 4).map((r) => {
-                    const st = calStatusStyle(r.status);
-                    const c = sbuColor(r.sbu, allSbus);
-                    return (
-                      <button
-                        key={r.id}
-                        draggable
-                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
-                        onClick={() => onOpen(r.id)}
-                        title={`${r.particulars} · ${r.type} · ${r.sbu} · ${r.owner || "—"} — drag to reschedule`}
-                        className="mhcal-ev"
-                        style={{ background: st.bg, borderColor: st.border, color: st.text }}
-                      >
-                        <span className="mhcal-evdot" style={{ background: c }} />
-                        <span className="mhcal-evtitle">{r.particulars || "(untitled)"}</span>
-                        {r.sbu && <span className="mhcal-evsbu">{r.sbu}</span>}
-                      </button>
-                    );
-                  })}
-                  {list.length > 4 && (
-                    <button className="mhcal-more" onClick={() => { const first = list[4]; if (first) onOpen(first.id); }}>
-                      +{list.length - 4} more
-                    </button>
-                  )}
+
+        {view === "month" && (
+          <>
+            <div className="mhcal-dow">{MHCAL_DAY_LABELS.map((d) => <span key={d}>{d}</span>)}</div>
+            <div className="mhcal-grid">
+              {monthGrid.map((cell) => {
+                const key = ymd(cell.date);
+                const list = byDay.get(key) || [];
+                const cls = `mhcal-cell${cell.inMonth ? "" : " out"}${cell.isToday ? " today" : ""}${dragOver === key ? " over" : ""}`;
+                return (
+                  <div key={key} className={cls}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                    onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
+                    onDrop={(e) => dropOn(e, key)}>
+                    <div className="mhcal-daynum">{cell.date.getDate()}</div>
+                    <div className="mhcal-events">
+                      {list.slice(0, 4).map((r) => EvBar(r))}
+                      {list.length > 4 && (
+                        <button className="mhcal-more" onClick={() => { const first = list[4]; if (first) onOpen(first.id); }}>
+                          +{list.length - 4} more
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {view === "week" && (
+          <div className="mhcal-week">
+            {weekDays.map((d) => {
+              const key = ymd(d);
+              const list = byDay.get(key) || [];
+              const isToday = key === ymd(new Date());
+              return (
+                <div key={key} className={`mhcal-weekcol${isToday ? " today" : ""}${dragOver === key ? " over" : ""}`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                  onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
+                  onDrop={(e) => dropOn(e, key)}>
+                  <div className="mhcal-weekhead">
+                    <span className="mhcal-weekdow">{MHCAL_DAY_LABELS[d.getDay()]}</span>
+                    <span className={`mhcal-weeknum${isToday ? " today" : ""}`}>{d.getDate()}</span>
+                  </div>
+                  <div className="mhcal-weekbody">
+                    {list.length === 0 ? <span className="mhcal-empty">—</span> : list.map((r) => EvBar(r, true))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
+
+        {view === "day" && (
+          <div className="mhcal-day">
+            {(() => {
+              const list = byDay.get(ymd(anchor)) || [];
+              if (list.length === 0) return <div className="mhcal-dayempty">No tasks scheduled for this day.</div>;
+              return list.map((r) => <div key={r.id} className="mhcal-dayrow">{EvBar(r, true)}</div>);
+            })()}
+          </div>
+        )}
+
+        {view === "list" && (
+          <div className="mhcal-agenda">
+            {agenda.length === 0 ? <div className="mhcal-dayempty">No tasks this month.</div>
+              : agenda.map(({ date, items }) => (
+                <div key={ymd(date)} className="mhcal-agroup">
+                  <div className="mhcal-adate">
+                    <span className="mhcal-adow">{MHCAL_DAY_LABELS[date.getDay()]}</span>
+                    <span className="mhcal-aday">{date.getDate()}</span>
+                    <span className="mhcal-amon">{MHCAL_MONTH_ABBR[date.getMonth()]}</span>
+                  </div>
+                  <div className="mhcal-aitems">
+                    {items.map((r) => {
+                      const st = calStatusStyle(r.status);
+                      return (
+                        <button key={r.id} className="mhcal-arow" onClick={() => onOpen(r.id)}>
+                          <span className="mhcal-abar" style={{ background: sbuColor(r.sbu, allSbus) }} />
+                          <span className="mhcal-atitle">{r.particulars || "(untitled)"}</span>
+                          <span className="mhcal-apill" style={{ background: st.bg, color: st.text }}>{r.status}</span>
+                          <span className="mhcal-aowner">{r.owner || "—"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Status legend — only surfaces statuses actually present in the current view */}
