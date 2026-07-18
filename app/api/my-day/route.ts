@@ -19,10 +19,11 @@ const OWNER_NAME: Record<string, string> = {
 // HopeMyDay STATUS `inView` set) or a task moved into a missing status would vanish
 // from the board after the post-write reconcile. Recently-published rows are fetched
 // separately for the Done stat.
+// Only real mh_status enum values — "Content - Needs Approval" and
+// "Output - In Progress" are NOT in the enum and 502 the whole query.
 const WORKING = [
-  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
-  "Content - Approved", "Output - In Progress", "Output - Ready",
-  "Incorporating Feedback", "Ready to Publish",
+  "Content - Pending", "Content - In Progress", "Content - Approved",
+  "Incorporating Feedback", "Output - Ready", "Ready to Publish",
 ];
 
 function ownerName(key: string | null): string {
@@ -56,12 +57,18 @@ type Row = {
   sbu: string | null; owner_key: string | null; priority: string | null;
   content: string | null; caption: string | null; media_urls: string[] | null;
   publishing_date: string | null; due_date: string | null; updated_at: string | null;
+  reference_links: string[] | null;
 };
+type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 
-function toTask(r: Row) {
+function toTask(r: Row, refImages: RefItem[] = []) {
   const owner = ownerName(r.owner_key);
   const type = r.type || "Post";
   const media = r.media_urls || [];
+  const references: RefItem[] = [
+    ...(r.reference_links || []).map((l) => ({ kind: "link" as const, label: l.replace(/^https?:\/\//i, ""), url: l })),
+    ...refImages,
+  ];
   return {
     id: r.id,
     title: r.particulars || "Untitled",
@@ -78,6 +85,7 @@ function toTask(r: Row) {
       creatives: media.map((u) => ({ name: basename(u), type: isVideo(u) ? "video" : "image" })),
       collaborators: [] as unknown[],
       activity: [] as unknown[],
+      references,
     },
   };
 }
@@ -88,7 +96,7 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
     const cols =
-      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at";
+      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links";
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
     const [working, doneRecent] = await Promise.all([
@@ -99,7 +107,19 @@ export async function GET() {
     if (doneRecent.error) throw new Error(doneRecent.error.message);
 
     const rows = [...(working.data || []), ...(doneRecent.data || [])] as Row[];
-    const tasks = rows.map(toTask);
+
+    // Pull reference images (mh_attachments kind='reference') for these tasks so the
+    // My Day References section shows/persists the same set as the Marketing Hub modal.
+    // Reference images are rare, so fetch them all (avoids a huge .in() URL over
+    // ~1200 task ids) and map by post; only the tasks in view read from it.
+    const refByPost = new Map<string, RefItem[]>();
+    const { data: refAtt } = await sb.from("mh_attachments").select("id, post_id, filename, storage_path").eq("kind", "reference");
+    (refAtt || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string }) => {
+      const arr = refByPost.get(a.post_id) || [];
+      arr.push({ kind: "image", label: a.filename, url: a.storage_path, attId: a.id });
+      refByPost.set(a.post_id, arr);
+    });
+    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || []));
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
     // Nandu) owns it, it's been claimed — so it drops out of the pool.
     const EDITORS = new Set(["nikhil", "nandu"]);
@@ -110,7 +130,7 @@ export async function GET() {
           VIDEO_TYPES.has(r.type || "") &&
           !EDITORS.has((r.owner_key || "").toLowerCase()),
       )
-      .map(toTask);
+      .map((r) => toTask(r, refByPost.get(r.id) || []));
 
     return NextResponse.json({ tasks, pool, count: tasks.length });
   } catch (err) {

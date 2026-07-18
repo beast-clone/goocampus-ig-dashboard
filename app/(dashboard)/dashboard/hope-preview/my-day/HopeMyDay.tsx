@@ -72,7 +72,7 @@ function dueInfo(due: string, today: string): { label: string; overdue: boolean 
 }
 // A reference the team drops on a task — either a URL (mood board, doc, tweet…) or
 // an image. Mirrors the Airtable "References" field.
-type RefItem = { kind: "link" | "image"; label: string; url?: string };
+type RefItem = { kind: "link" | "image"; label: string; url?: string; attId?: string };
 type Task = {
   id: string; title: string; meta: string;
   status: CCStatus; due: string; // YYYY-MM-DD
@@ -355,22 +355,41 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
 }
 
 // References — links + images the team drops on a task for context. Paste a URL
-// or drop image files; both sit side by side. Local to this session (the mock),
-// seeded from the task's own references. Remounted per task via key={task.id}.
-function ReferencesSection({ initial }: { initial: RefItem[] }) {
+// or upload image files; both persist to the same backend as the Marketing Hub
+// modal (reference links → mh_posts.reference_links, images → mh_attachments
+// kind='reference'). Seeded from the task's own references; remounted per task.
+function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
   const [url, setUrl] = useState("");
-  const addUrl = () => {
+  const [busy, setBusy] = useState(false);
+  const currentLinks = () => refs.filter((r) => r.kind === "link" && r.url).map((r) => r.url!) as string[];
+  const saveLinks = (links: string[]) =>
+    fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: uploadedBy, fields: { reference_links: links } }) });
+  const addUrl = async () => {
     const raw = url.trim(); if (!raw) return;
     const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
     setUrl("");
+    setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
+    await saveLinks([...currentLinks(), href]); onSaved();
   };
-  const addImages = (files: FileList | null) => {
+  const addImages = async (files: FileList | null) => {
     if (!files || !files.length) return;
-    setRefs((r) => [...r, ...Array.from(files).map((f) => ({ kind: "image" as const, label: f.name, url: URL.createObjectURL(f) }))]);
+    setBusy(true);
+    try {
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "reference"); fd.append("file", f);
+        await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
+      }
+    } finally { setBusy(false); onSaved(); }
   };
-  const remove = (i: number) => setRefs((r) => r.filter((_, j) => j !== i));
+  const remove = async (i: number) => {
+    const item = refs[i];
+    setRefs((r) => r.filter((_, j) => j !== i));
+    if (item.kind === "image" && item.attId) await fetch(`/api/marketing-hub/attach?id=${item.attId}`, { method: "DELETE" });
+    else if (item.kind === "link" && item.url) await saveLinks(currentLinks().filter((l) => l !== item.url));
+    onSaved();
+  };
   return (
     <>
       <div className="section-lbl">References</div>
@@ -389,7 +408,7 @@ function ReferencesSection({ initial }: { initial: RefItem[] }) {
           </a>
         ))}
         <label className="thumb thumb-add" title="Add reference image">
-          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">Image</span>
+          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "Image"}</span>
           <input type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
@@ -401,7 +420,7 @@ function ReferencesSection({ initial }: { initial: RefItem[] }) {
   );
 }
 
-function TaskBody({ task, label, onStatusChange, onSetDuration }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void }) {
   const [copied, setCopied] = useState(false);
   const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const tone = TONE[STATUS[task.status].tone];
@@ -486,7 +505,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration }: { task: Task; 
         </label>
       )}
 
-      <ReferencesSection key={task.id} initial={task.detail.references || []} />
+      <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <div className="section-lbl">Recent activity</div>
       <div className="activity">
@@ -1442,7 +1461,7 @@ export function HopeMyDay() {
 
           <div className="card pad detail">
             {task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
             )}
@@ -1531,7 +1550,7 @@ export function HopeMyDay() {
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close">✕</button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} canSchedule={isAdmin} />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
