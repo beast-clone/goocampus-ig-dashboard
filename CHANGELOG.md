@@ -3,6 +3,48 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-18 — Task timing, publish link write-back & full Hope-UI theme sweep
+
+**My Day — task timing captured + shown.** A new task now stamps `start_at` on
+creation and `end_at` the first time it reaches a done state; the My Day task
+detail shows **Created / Started / Time taken** (mirrors the Content Calendar
+modal). Verified live: creating a task set `start_at`; the modal showed the
+timestamps. (`create/route.ts`, `update/route.ts`, `my-day/route.ts`,
+`HopeMyDay.tsx`.)
+
+**Published Links auto-fill on publish.** New write-back seam `lib/mh-linkback.ts`
++ `POST /api/scheduler/link-back`: when a post goes live, its permalink is written
+onto the matching `instagram_url` / `facebook_url` / `linkedin_url` column,
+`published_at` is stamped, the change is logged to the activity feed as "System",
+and the read cache is busted — so Published Links + My Day reflect it everywhere.
+Resolves the post by `mh_posts.id` OR `airtable_record_id` (the n8n integration
+point). The IG app-direct publish route now routes its write-back through the same
+helper. Verified live (DB-level, no real post published). **Still to wire:** the
+n8n IG+FB scheduler must POST to `/link-back` after publishing for FB/LinkedIn/
+scheduled posts to auto-fill.
+
+**Pipeline tab → Hope UI.** Sections now use the brand-tinted `Panel` header
+(icon + `#232D42` title), `rounded-xl` cards, `#232D42`/`#8A92A6` text tokens.
+
+**Whole-app theme sweep (all 22 shell tabs).** Audited every tab against the Hope
+UI reference and normalized to one scale: **section/card headers → 16px
+`text-base font-medium #232D42`**, tiny <12px content raised (labels 12px, body
+14px), `font-bold` → semibold (plus a central `.hope-scope` cap), off-brand
+violet/blue/pink accents → brand `#3A57E8` — keeping platform data colors
+(FB `#1877F2`, LinkedIn `#0A66C2`, GA orange, YT red) and semantic status colors.
+Worst offenders fixed: Social Leads (was zero-brand), Scheduler (38 violet),
+Audience (`rounded-3xl`), AI Reports / Post Planner (tiny type).
+- **Follow-up fix:** the sweep left some Sales Hub / Posts / Benchmark headers &
+  numbers colorless → they inherited the muted grey default and looked washed out.
+  Added explicit `#232D42`; the AI Reports gradient hero got `!text-white`.
+- **Verified live tab-by-tab:** opened all 24 tabs in the browser — every one
+  renders on-brand with dark headers/numbers, no washed-out text, no <12px content.
+- **NOT yet reskinned (deferred):** My Day and the Publishing Calendar tab still
+  use their own custom CSS (`.hmd` / inline). They render fine but aren't on the
+  shell standard — the only remaining theme gap.
+
+Workload tab: bumped its cramped 10–12.5px timeline/task text to the 14px norm.
+
 ## 2026-07-18 — Handoff note (work continues next session)
 
 Search-indexing follow-up: all 6 live goocampusevents.com landing pages were submitted to **Google Search Console** (URL Inspection → Request Indexing) and **Bing** (URL Submission). Every landing page inspected as *"URL is not on Google — no referring sitemaps, no referring pages"* (home was the only page already indexed) — i.e. Google/Bing can't discover them on their own.
