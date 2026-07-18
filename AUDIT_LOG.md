@@ -1,5 +1,18 @@
 # Audit Log — `feat/hope-ui-reskin` session
 
+## QA 2026-07-18 — Task-detail **Activity** log (mh_activity)
+
+**Reported:** Activity only ever showed "created" — moving a task's date (drag) or editing its content recorded nothing. Confirmed: the DB trigger `mh_fn_log_activity` logged only `created` / `status_changed` / `owner_changed`, so reschedules and field/content edits were invisible.
+
+**Fix (Supabase migration `mh_activity_log_reschedule_and_edits`):** extended the trigger — fires on every UPDATE to `mh_posts`, so it catches drag + inline edits + API writes — to also log:
+`rescheduled` (publishing_date, DD Mon YYYY), `due_date_changed`, `renamed` (particulars), `priority_changed`, `type_changed`, `content_edited`/`content_removed`, `caption_edited`/`caption_removed`, `notes_edited`. Long-text edits log the *event* only (no giant before/after dump).
+
+**Verified LIVE:** dragged "Booming careers" 11 Jul → 19 Jul → the task's Activity panel showed **"— rescheduled 11 Jul 2026 → 19 Jul 2026 · 18 Jul 01:39 pm"** (backend row confirmed). Restored the date + deleted the 2 test rows → activity back to just "created" (data pristine).
+
+**Known limitation:** trigger-written events show actor "—" (a Postgres trigger has no session/user context). Attributing them to the editor needs the app to pass the user id into the trigger (session GUC) — noted, not done.
+
+---
+
 ## QA 2026-07-18 — Marketing Hub (`marketing-hub/page.tsx` — Workload · Master · Pipeline · Calendar)
 
 The marketing team's operating base. All 4 subtabs verified LIVE in Chrome (frontend) + cross-checked in Supabase (backend). 3 issues fixed; 1 data-hygiene item handed back.
