@@ -137,7 +137,7 @@ export async function middleware(req: NextRequest) {
     const userId = cookieUserId(cookieVal);
     if (cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "")) {
       const url = req.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/dashboard/hope-preview";
       return NextResponse.redirect(url);
     }
   }
@@ -153,6 +153,16 @@ export async function middleware(req: NextRequest) {
       url.pathname = "/me";
       return NextResponse.redirect(url);
     }
+    // V1 dashboard is RETIRED / OFFLINE (user order 2026-07-18). All live tabs
+    // live under /dashboard/hope-preview (V2, a superset of V1's active tabs).
+    // Any other /dashboard path (the old V1 pages) redirects to V2 so V1 is never
+    // served or accidentally opened. The V1 files are kept on disk — delete this
+    // block to bring V1 back online.
+    if (!pathname.startsWith("/dashboard/hope-preview")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard/hope-preview";
+      return NextResponse.redirect(url);
+    }
   }
 
   if (isAuthed && pathname === "/login") {
@@ -160,7 +170,7 @@ export async function middleware(req: NextRequest) {
     const userId = cookieUserId(cookieVal);
     const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
     const url = req.nextUrl.clone();
-    url.pathname = isAdmin ? "/dashboard" : "/me";
+    url.pathname = isAdmin ? "/dashboard/hope-preview" : "/me";
     return NextResponse.redirect(url);
   }
 
