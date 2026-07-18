@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
 // Overview AI-Tips strip.
@@ -106,35 +106,29 @@ export async function GET(req: Request) {
 
     // Ask gpt-4o-mini for 3 tips. System prompt keeps the model on-brand and
     // asks for concrete, data-cited actions (not generic marketing advice).
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (!hasAI()) throw new Error("PERPLEXITY_API_KEY not set");
+    const systemPrompt = [
+      "You are the growth advisor for GooCampus, a medical-education Instagram (IMG doctors — Australia AMC, UAE DHA, NEET PG, MBBS abroad).",
+      "Given the last N-day KPIs, deltas, and posting patterns, output FOUR recommendations — one for each of Followers, Reach, Engagement, ProfileVisits.",
+      "Each recommendation must:",
+      "  - be short: headline ≤ 60 chars, detail ≤ 90 chars, action ≤ 90 chars",
+      "  - detail: one plain-English line naming what the metric IS ('unique people who saw your content', not 'reach') — the reader already sees the number",
+      "  - action: one concrete imperative move (the HOW to improve it), citing a real number when relevant — never 'you have X, get more'",
+      "Tone: direct, no fluff, no emoji, no 'you should'. Do NOT web-search; use only the numbers given.",
+      "Return ONLY raw JSON (no code fences): { tips: [{metric, headline, detail, action, tone}] }.",
+      "metric ∈ {followers, reach, engagement, profileVisits}. tone: 'grow' if delta positive, 'hold' if flat, 'fix' if negative.",
+    ].join("\n");
     const t0 = Date.now();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.4,
-      messages: [
-        {
-          role: "system",
-          content: [
-            "You are the growth advisor for GooCampus, a medical-education Instagram (IMG doctors — Australia AMC, UAE DHA, NEET PG, MBBS abroad).",
-            "Given the last N-day KPIs, deltas, and posting patterns, output FOUR recommendations — one for each of Followers, Reach, Engagement, ProfileVisits.",
-            "Each recommendation must:",
-            "  - be short: headline ≤ 60 chars, detail ≤ 90 chars, action ≤ 90 chars",
-            "  - detail: one sentence of PLAIN-ENGLISH translation of the metric ('unique people who saw your content', not 'reach')",
-            "  - action: one imperative next move that cites a real number when relevant",
-            "Tone: direct, no fluff, no emoji, no 'you should'.",
-            "Return JSON: { tips: [{metric, headline, detail, action, tone}] }.",
-            "metric ∈ {followers, reach, engagement, profileVisits}. tone: 'grow' if delta positive, 'hold' if flat, 'fix' if negative.",
-          ].join("\n"),
-        },
-        { role: "user", content: JSON.stringify(context) },
-      ],
-    });
+    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 800 });
     const latencyMs = Date.now() - t0;
 
-    const raw = completion.choices[0]?.message?.content || "{}";
     let parsed: { tips?: OverviewTip[] } = {};
-    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+    try {
+      let j = raw.trim();
+      const fence = j.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) j = fence[1].trim();
+      const a = j.indexOf("{"), b = j.lastIndexOf("}"); if (a >= 0 && b > a) j = j.slice(a, b + 1);
+      parsed = JSON.parse(j);
+    } catch { parsed = {}; }
     const tips = (parsed.tips || []).slice(0, 4);
     if (tips.length === 0) throw new Error("Model returned no tips");
 

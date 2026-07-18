@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  IconLayoutGrid, IconChartLine, IconCalendarEvent, IconSpeakerphone,
-  IconUsers, IconWand, IconSettings, IconSearch, IconBell, IconMail,
+  IconLayoutGrid, IconChartLine, IconCalendarEvent, IconSearch, IconBell, IconMail,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
-  IconBrandYoutube, IconClock, IconChartBar, IconTrophy, IconSun,
+  IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
 } from "@tabler/icons-react";
 import { HopeSidebar } from "./HopeSidebar";
 import { OverviewExtras } from "@/components/OverviewExtras";
@@ -389,10 +388,10 @@ export function HopeOverview() {
               {/* Stat cards — now with description + AI action, matching the real Overview */}
               <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 18 }}>
                 {loading && !ins ? [0, 1, 2, 3, 4].map((i) => <div key={i} style={{ height: 168, background: C.card, borderRadius: 14, boxShadow: SHADOW }} />)
-                  : stats.map((s) => (
-                    <StatCard key={s.key} {...s}
-                      detail={tipBy[s.key]?.detail || PLAIN[s.key]?.detail || ""}
-                      action={tipBy[s.key]?.action || PLAIN[s.key]?.action || ""} />
+                  : stats.map(({ key, ...rest }) => (
+                    <StatCard key={key} {...rest}
+                      detail={tipBy[key]?.detail || PLAIN[key]?.detail || ""}
+                      action={tipBy[key]?.action || PLAIN[key]?.action || ""} />
                   ))}
               </section>
 
@@ -807,14 +806,6 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: typeof IconLayoutGrid
     </div>
   );
 }
-function NavGroup({ label }: { label: string }) {
-  return <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#B3B9C6", padding: "18px 10px 6px" }}>{label}</div>;
-}
-function NavItem({ icon: Icon, label, active, href }: { icon: typeof IconLayoutGrid; label: string; active?: boolean; href?: string }) {
-  const style = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, marginBottom: 2, cursor: "pointer", background: active ? C.primary : "transparent", color: active ? "#fff" : C.muted, fontWeight: active ? 600 : 500, fontSize: 14, boxShadow: active ? "0 8px 18px rgba(58,87,232,0.30)" : "none", textDecoration: "none" } as const;
-  const inner = (<><span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: active ? "rgba(255,255,255,0.18)" : C.chip, color: active ? "#fff" : C.muted, flexShrink: 0 }}><Icon size={17} stroke={1.8} /></span>{label}</>);
-  return href ? <a href={href} style={style}>{inner}</a> : <div style={style}>{inner}</div>;
-}
 function StatCard({ label, value, delta, flat, detail, action, badge }: { label: string; value: string; delta: number | null; flat?: boolean; detail: string; action: string; badge?: string }) {
   const hasDelta = !flat && typeof delta === "number";
   const dv = delta ?? 0;
@@ -844,9 +835,6 @@ function StatCard({ label, value, delta, flat, detail, action, badge }: { label:
       {action && <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px dashed ${C.line}`, fontSize: 12.5, color: C.primary, lineHeight: 1.4 }}>{action}</div>}
     </div>
   );
-}
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: C.muted }}><span style={{ width: 9, height: 9, borderRadius: 99, background: color }} /> {label}</span>;
 }
 function GenderDonut({ gender }: { gender: { label: string; value: number }[] }) {
   const total = Math.max(1, gender.reduce((s, g) => s + g.value, 0));

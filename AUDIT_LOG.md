@@ -1,5 +1,23 @@
 # Audit Log — `feat/hope-ui-reskin` session
 
+## QA 2026-07-18 — Overview tab (`/dashboard/hope-preview` → `HopeOverview.tsx`)
+
+Thorough tab check (code + APIs + runtime). 3 issues found, all FIXED & verified live.
+
+| # | Issue | Severity | Fix | Verified |
+|---|---|---|---|---|
+| 1 | **React "key" spread warning** on every render — `<StatCard key={s.key} {...s}/>` spread the `key` field into props (console error ×2). | med (console noise, React anti-pattern) | Destructure key out of the spread: `stats.map(({key, ...rest}) => <StatCard key={key} {...rest} …/>)`. Root cause, one spot. | Console clean after reload ✓ |
+| 2 | **Dead code** — `NavGroup`, `NavItem`, `Legend` defined but never used (sidebar is `HopeSidebar`); 5 unused icon imports (`IconSettings/Sun/Users/Wand/Speakerphone`). | low (lint/bundle) | Deleted the 3 functions + 5 imports. | Compiles + renders ✓ |
+| 3 | **`/api/overview-tips` returned 502** — still on OpenAI `gpt-4o-mini` (out of quota → 429), so the per-KPI AI "action" tips silently fell back to hardcoded plain copy. | high (feature dead) | Swapped OpenAI → `askPerplexity` (reuse `lib/ai.ts`), same as the ai-report migration; prescriptive prompt + robust JSON parse. | `200` via Perplexity; live prescriptive tips render ✓ |
+
+**Observations (NOT changed — noted for later):**
+- Overview is hardcoded to `accountId="goocampus"` and header shows a hardcoded "Maheen Ejaz / CMO" — it's the original "proof page", no account picker. Fine as-is; flag if it should reflect the logged-in user / switch brands.
+- Font-weights use 700/800 throughout, which contradicts CLAUDE.md ("400/500 only"). Deliberate hand-built proof-page style (own `C` tokens, not `.hope-scope`). Left alone — a mass restyle is out of scope for QA.
+- Fires `/api/posts` 3× on load (limit 10 + 2× limit 200) plus child components' own fetches — heavy; posts API is slow (~20s). Works; optimize only if load time becomes a complaint.
+
+---
+
+
 **Date:** 2026-07-17
 **Branch:** `feat/hope-ui-reskin`
 **Status:** ⚠️ **WORK IN PROGRESS — DO NOT PUSH / DEPLOY.** Round-1 fixes applied; **Round-2 findings still OPEN** (see below). Typecheck passes for Round-1 state.
