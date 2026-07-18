@@ -57,6 +57,16 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw new Error(`db insert: ${error.message}`);
+
+    // Log to the task Activity feed so a creative upload is visible there
+    // (attachments live in mh_attachments, so the mh_posts trigger never sees them).
+    await sb.from("mh_activity").insert({
+      post_id: postId,
+      actor_key: uploadedBy,
+      action: "creative_added",
+      to_value: file.name,
+    });
+
     return NextResponse.json({ attachment: data });
   } catch (err) {
     return NextResponse.json(safeError(err, "Upload failed"), { status: 502 });
@@ -74,7 +84,7 @@ export async function DELETE(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const row = await sb.from("mh_attachments").select("storage_path").eq("id", id).single();
+    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename").eq("id", id).single();
     if (row.error) throw new Error(row.error.message);
 
     const publicUrl: string = row.data.storage_path;
@@ -87,6 +97,14 @@ export async function DELETE(req: Request) {
 
     const { error } = await sb.from("mh_attachments").delete().eq("id", id);
     if (error) throw new Error(error.message);
+
+    // Log the removal to the task Activity feed.
+    await sb.from("mh_activity").insert({
+      post_id: row.data.post_id,
+      action: "creative_removed",
+      to_value: row.data.filename,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Delete failed"), { status: 502 });
