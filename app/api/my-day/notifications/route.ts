@@ -16,7 +16,9 @@ const NAME: Record<string, string> = {
   manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
 };
 const EDITORS = ["nandu", "nikhil"];
-const nameOf = (k: string | null) => (k ? NAME[k.toLowerCase()] || k : "Someone");
+// No actor on the event = an automation did it (link write-backs, schedulers…)
+// → say "System", never a vague "Someone" (same convention as the activity feed).
+const nameOf = (k: string | null) => (k ? NAME[k.toLowerCase()] || k : "System");
 const siblingOf = (k: string) => (k === "nandu" ? "nikhil" : k === "nikhil" ? "nandu" : null);
 
 type Act = {
