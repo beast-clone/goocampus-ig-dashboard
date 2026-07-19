@@ -208,7 +208,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           />
         </div>
         <div className="ml-auto flex-shrink-0">
-          <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
+          <LiveIndicator loading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 

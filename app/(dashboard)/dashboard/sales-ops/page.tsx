@@ -146,7 +146,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </>
           ) : isLoading ? "Loading…" : ""}
         </div>
-        <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
+        <LiveIndicator loading={isLoading} onRefresh={refresh} />
       </div>
 
       {/* KPI tiles */}

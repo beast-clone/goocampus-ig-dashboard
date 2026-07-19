@@ -2,13 +2,13 @@
 import { useEffect, useState } from "react";
 
 export function LiveIndicator({
-  fetchedAt,
-  latencyMs,
+  fetchedAt = null,
+  latencyMs = null,
   loading,
   onRefresh,
 }: {
-  fetchedAt: number | null;
-  latencyMs: number | null;
+  fetchedAt?: number | null;
+  latencyMs?: number | null;
   loading: boolean;
   onRefresh: () => void;
 }) {

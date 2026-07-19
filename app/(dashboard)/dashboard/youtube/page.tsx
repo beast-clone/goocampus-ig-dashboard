@@ -112,7 +112,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           ) : (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="YouTube API not yet connected — showing representative sample data.">⚠ Demo data</span>
           )}
-          <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
+          <LiveIndicator loading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 

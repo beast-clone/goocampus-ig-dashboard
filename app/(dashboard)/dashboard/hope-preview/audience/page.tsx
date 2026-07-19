@@ -145,7 +145,7 @@ function Audience({ accountId }: { accountId: string }) {
     return () => clearInterval(id);
   }, []);
 
-  const persona = useMemo(() => buildPersona(data), [data]);
+  const persona = useMemo(() => buildPersona(data ?? null), [data]);
   void tick; // legacy — kept for safety, no-op
 
   if (loading && !data) return <div className="text-sm text-gray-500">Loading live audience…</div>;
@@ -189,7 +189,7 @@ function Audience({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <LiveIndicator fetchedAt={fetchedAt} latencyMs={lastLatencyMs} loading={loading} onRefresh={() => fetchData(true)} />
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={lastLatencyMs} loading={loading} onRefresh={() => fetchData()} />
 
       <div className="flex items-center gap-2 mb-6 text-xs text-gray-500">
         <span>{data.account.handle}</span>

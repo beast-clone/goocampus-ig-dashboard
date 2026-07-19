@@ -162,7 +162,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
   const DAY = 24 * 60 * 60 * 1000;
   function pickTop(withinDays: number): ApiPost | null {
     const cutoff = now - withinDays * DAY;
-    const eligible = posts.filter((p) => new Date(p.timestamp).getTime() >= cutoff && insightsLoaded.has(p.id) && p.reach > 0);
+    const eligible = (posts ?? []).filter((p) => new Date(p.timestamp).getTime() >= cutoff && insightsLoaded.has(p.id) && p.reach > 0);
     if (eligible.length === 0) return null;
     return eligible.reduce((b, p) => (p.reach > b.reach ? p : b), eligible[0]);
   }

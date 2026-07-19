@@ -54,7 +54,7 @@ function Inner() {
           <a href={bingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
             <IconExternalLink size={14} stroke={1.8} /> Open in Bing
           </a>
-          <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
+          <LiveIndicator loading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 

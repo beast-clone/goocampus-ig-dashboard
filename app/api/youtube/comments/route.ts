@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchVideoComments, hasYouTubeAuth } from "@/lib/youtube";
-import { CHANNELS } from "@/app/api/youtube/route";
+import { CHANNELS } from "@/lib/youtube-channels";
 import { cached } from "@/lib/api-cache";
 
 // GET /api/youtube/comments?channel=<key>&video=<id>

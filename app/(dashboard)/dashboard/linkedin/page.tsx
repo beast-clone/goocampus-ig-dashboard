@@ -122,7 +122,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               ⚠ Demo data
             </span>
           )}
-          <LiveIndicator isLoading={isLoading} onRefresh={refresh} />
+          <LiveIndicator loading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 

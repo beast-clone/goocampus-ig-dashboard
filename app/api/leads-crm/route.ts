@@ -376,7 +376,7 @@ export async function GET(req: Request) {
     }
 
     // -------------- Section: Meetings --------------
-    const ratingMap = new Map<number, number>();
+    const ratingMap = new Map<string, number>();
     const meetingsPerCounsellor = new Map<string, { meetings: number; ratingSum: number; ratingN: number }>();
     let ratingSum = 0;
     let ratingN = 0;
@@ -389,7 +389,7 @@ export async function GET(req: Request) {
       const cName = pickName(f["Assigned Counsellor"]);
       const leadName = pickName(f["Particulars"]);
       if (rating > 0) {
-        bumpMap(ratingMap, String(rating) as unknown as string);
+        bumpMap(ratingMap, String(rating));
         ratingSum += rating;
         ratingN += 1;
       }
@@ -414,7 +414,7 @@ export async function GET(req: Request) {
     const meetingsSummary: MeetingSummary = {
       totalMeetings: meetings.length,
       avgRating: ratingN > 0 ? +(ratingSum / ratingN).toFixed(2) : null,
-      ratingDistribution: [1, 2, 3, 4, 5].map((r) => ({ rating: r, count: (ratingMap.get(String(r) as unknown as string) as unknown as number) || 0 })),
+      ratingDistribution: [1, 2, 3, 4, 5].map((r) => ({ rating: r, count: ratingMap.get(String(r)) || 0 })),
       perCounsellor: [...meetingsPerCounsellor.entries()]
         .map(([name, p]) => ({
           name,

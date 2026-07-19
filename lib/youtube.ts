@@ -14,7 +14,7 @@
 //
 // Docs: https://developers.google.com/youtube/analytics/reference/reports/query
 
-import { CHANNELS } from "@/app/api/youtube/route";
+import { CHANNELS } from "@/lib/youtube-channels";
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 

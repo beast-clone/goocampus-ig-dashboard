@@ -521,7 +521,7 @@ export async function buildLive(pageKey: string, from: string, to: string) {
       totalPageViews: pageStats.totalPageViews,
       uniqueVisitors: Math.round(pageStats.totalPageViews * 0.7),
       byPage: pageStats.byPage,
-      overTime: growth.followersOverTime.map((d) => ({ date: d.date, views: 0, unique: 0 })),
+      overTime: growth.followersOverTime.map((d: { date: string }) => ({ date: d.date, views: 0, unique: 0 })),
     },
     demographics,
   };
