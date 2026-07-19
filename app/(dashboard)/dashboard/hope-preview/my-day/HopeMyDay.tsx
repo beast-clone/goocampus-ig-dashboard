@@ -496,7 +496,7 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
   );
 }
 
-function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number } }) {
   const [copied, setCopied] = useState(false);
   const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const tone = TONE[STATUS[task.status].tone];
@@ -566,6 +566,23 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
           scroll (the section grows; you scroll the card/page to read it all). */}
       <div className="brief brief-full">{task.detail.content}</div>
+
+      {/* LIVE TIMER — planned vs on-the-clock (from the plan + real time). Nearing
+          the planned time it asks INLINE (no popup): done, or extend? Extending
+          reshuffles the rest of the day automatically. */}
+      {timing && (
+        <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
+          <span className="timer-num">⏱ {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
+          {timing.elapsed >= timing.planned - 5 && onStatusChange && onSetDuration && (
+            <span className="timer-acts">
+              <span>{timing.elapsed >= timing.planned ? "Over the planned time — finished?" : "Almost at the planned time — finished?"}</span>
+              <button className="btn sm" onClick={() => onStatusChange("Output - Ready")}>Mark done</button>
+              <button className="btn sm" onClick={() => onSetDuration(timing.planned + 15)}>+15m</button>
+              <button className="btn sm" onClick={() => onSetDuration(timing.planned + 30)}>+30m</button>
+            </span>
+          )}
+        </div>
+      )}
 
       <CreativesSection creatives={task.detail.creatives} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
@@ -1211,22 +1228,52 @@ export function HopeMyDay() {
         ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
         : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
     .reduce((s, t) => s + (t.detail.duration || estMins(t.detail.typeLine)), 0), [claimedTasks, tasks]);
-  // CAPACITY GATE: approving design work hands it to Praveen — if his 8h day is
-  // already full, pop the warning first (the writer can still push through).
+  // Lay out ANY teammate's day from their real working tasks (role rule applied):
+  // sequential 9→6 around the pinned 1–2 PM lunch. Powers the approve popup's mini
+  // timeline, the working-now inference and the not-started candidate list.
+  const dayFor = useCallback((name: string) => {
+    const mine = [...claimedTasks, ...tasks]
+      .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+        (name === "Manya"
+          ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
+          : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
+      .map((t) => ({ id: t.id, label: t.title, due: t.due, dur: t.detail.duration || estMins(t.detail.typeLine) }));
+    const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    const LUNCH_END = LUNCH_AT + LUNCH_MIN;
+    type Blk = { kind: "task" | "lunch" | "free"; id?: string; label: string; start: number; dur: number };
+    const blocks: Blk[] = [];
+    let cursor = 0, lunchDone = false;
+    const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); cursor = LUNCH_END; lunchDone = true; };
+    for (const t of mine) {
+      let remaining = t.dur;
+      if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) pushLunch();
+      if (!lunchDone && cursor < LUNCH_AT) {
+        const before = Math.min(remaining, LUNCH_AT - cursor);
+        if (before > 0) { blocks.push({ kind: "task", id: t.id, label: t.label, start: cursor, dur: before }); cursor += before; remaining -= before; }
+        if (remaining > 0) pushLunch();
+      }
+      if (remaining > 0) { blocks.push({ kind: "task", id: t.id, label: t.label, start: cursor, dur: remaining }); cursor += remaining; }
+    }
+    if (!lunchDone) { if (cursor < LUNCH_AT) { blocks.push({ kind: "free", label: "Free", start: cursor, dur: LUNCH_AT - cursor }); cursor = LUNCH_AT; } pushLunch(); }
+    if (cursor < DAY_MINS) blocks.push({ kind: "free", label: "Free", start: cursor, dur: DAY_MINS - cursor });
+    const committed = mine.reduce((s, t) => s + t.dur, 0);
+    const currentBlk = blocks.find((b) => b.kind === "task" && b.start <= now && now < b.start + b.dur) || null;
+    const current = currentBlk ? { id: currentBlk.id!, label: currentBlk.label, endsIn: currentBlk.start + currentBlk.dur - now } : null;
+    const candidates = mine.filter((t) => t.id !== current?.id);
+    return { tasks: mine, blocks, committed, free: WORK_MIN - committed, current, candidates, now };
+  }, [claimedTasks, tasks, nowMin]);
+
+  // APPROVE GATE: approving DESIGN work always shows the target's day first (mini
+  // timeline + working-now) — free → approve; full → move a task or queue in
+  // pipeline. The producer's day is never force-filled.
+  const [approveGate, setApproveGate] = useState<null | { id: string; status: CCStatus; target: string; add: number }>(null);
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
       const handoff = autoAssign(cur.detail.typeLine);
       if (handoff && !handoff.toPool && handoff.owner !== "Manya") {
-        const committed = committedFor(handoff.owner);
-        const add = cur.detail.duration || estMins(cur.detail.typeLine);
-        if (committed + add > WORK_MIN) {
-          // Full → the task is NOT force-assigned. It queues in the producer's
-          // pipeline (notification + chat ping); it joins their board only when
-          // they hit Accept (which does the real ownership takeover).
-          setAssignWarn({ name: handoff.owner, committed, add, cta: `Queue in ${handoff.owner}'s pipeline`, proceed: () => doSetTaskStatus(id, status, true) });
-          return;
-        }
+        setApproveGate({ id, status, target: handoff.owner, add: cur.detail.duration || estMins(cur.detail.typeLine) });
+        return;
       }
     }
     doSetTaskStatus(id, status);
@@ -1337,6 +1384,20 @@ export function HopeMyDay() {
   }, [myPlan, nowMin]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const showNow = nowMin !== null && !isWeekend && nowMin >= 0 && nowMin <= DAY_MINS;
+  // Live timer for a task on MY plan: elapsed = clock since its planned start
+  // (lunch excluded). Undefined until its block starts, so only running work ticks.
+  const taskTiming = (t: Task | null): { planned: number; elapsed: number } | undefined => {
+    if (!t || nowMin == null) return undefined;
+    const blks = planBlocks.filter((b) => b.kind === "reel" && b.taskId === t.id);
+    if (!blks.length || nowMin < blks[0].start) return undefined;
+    const planned = myPlan.find((p) => p.taskId === t.id)?.dur || blks.reduce((s, b) => s + b.dur, 0);
+    let elapsed = nowMin - blks[0].start;
+    if (blks[0].start < LUNCH_AT) {
+      if (nowMin > LUNCH_AT + LUNCH_MIN) elapsed -= LUNCH_MIN;
+      else if (nowMin > LUNCH_AT) elapsed -= nowMin - LUNCH_AT;
+    }
+    return { planned, elapsed: Math.max(0, elapsed) };
+  };
   const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; });
   // Where a dragged block's LEFT EDGE would land, given the cursor. We subtract the
   // grab offset (where inside the block you picked it up) so the block tracks the
@@ -1848,7 +1909,7 @@ export function HopeMyDay() {
 
           <div className="card pad detail">
             {task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
             )}
@@ -1941,7 +2002,7 @@ export function HopeMyDay() {
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close">✕</button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m) => setDuration(planModalTask.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
@@ -2098,6 +2159,88 @@ export function HopeMyDay() {
           </div>
         </div>
       )}
+
+      {/* APPROVE GATE — the target's day, live, BEFORE Manya approves design work */}
+      {approveGate && (() => {
+        const g = approveGate;
+        const tName = PPL[g.target]?.name || g.target;
+        const day = dayFor(tName);
+        const fits = day.committed + g.add <= WORK_MIN;
+        const pending = [...tasks, ...claimedTasks].find((t) => t.id === g.id);
+        const moveCand = (cid: string, due: string | undefined, next: string) => {
+          fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cid, actor: person, fields: { due_date: next } }) })
+            .then(async (res) => {
+              if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Move failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+              else setToast({ who: "Moved ✓", color: "#1AA053", av: me.av, body: `Rescheduled to ${next} — ${tName}'s day just freed up.` });
+              load(); // popup stays open; the timeline + numbers refresh from server truth
+            })
+            .catch((e) => { setToast({ who: "Move failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+        };
+        const plus1 = (due?: string) => {
+          const base = due ? new Date(due) : new Date();
+          base.setDate(base.getDate() + 1);
+          return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+        };
+        return (
+          <div className="modal" onClick={() => setApproveGate(null)}>
+            <div className="modal-card" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setApproveGate(null)} title="Close">✕</button>
+              <div className="lbl" style={{ marginBottom: ".4rem" }}>Approve &amp; hand over</div>
+              <div className="d-title" style={{ marginBottom: ".8rem" }}>“{pending?.title || "Task"}” → {tName}</div>
+
+              {/* THE DAY, VISUALLY: his real timeline with the live now-line */}
+              <div className="lbl" style={{ marginBottom: ".3rem" }}>{tName}&rsquo;s day right now{clock ? ` (${clock.time})` : ""}</div>
+              <div className="tl-ticks" style={{ marginBottom: ".2rem" }}>{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
+              <div className="ag-track">
+                {day.blocks.map((b, i) => (
+                  <div key={i} className={`tcp-blk ${b.kind === "task" ? (b.id === day.current?.id ? "reel now" : "design") : b.kind}`}
+                    style={{ position: "absolute", top: 0, bottom: 0, left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }} title={b.label}>
+                    {b.label}{b.id === day.current?.id && <div className="tcp-bm">now</div>}
+                  </div>
+                ))}
+                {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(day.now / DAY_MINS) * 100}%` }} />}
+              </div>
+              <div className="nt-assign" style={{ margin: ".6rem 0 1rem" }}>
+                <span className="status-dot" style={{ background: fits ? "#1AA053" : "#D97706" }} />
+                <span>
+                  <b>{fmtMins(day.committed)}</b> committed · <b>{fmtMins(Math.max(0, day.free))}</b> free
+                  {day.current ? <> · now: <b>{day.current.label}</b> (~{fmtMins(day.current.endsIn)} left)</> : <> · not on a task right now</>}
+                  {" — "}this adds <b>{fmtMins(g.add)}</b>{fits ? ". It fits." : <b style={{ color: "#C03221" }}>. He&rsquo;s not free for a while.</b>}
+                </span>
+              </div>
+
+              {!fits && (
+                <>
+                  <div className="lbl" style={{ marginBottom: ".3rem" }}>Move one of his NOT-started tasks (the one he&rsquo;s on is locked)</div>
+                  <div className="claim-list" style={{ marginBottom: "1rem" }}>
+                    {day.candidates.length ? day.candidates.map((c) => (
+                      <div key={c.id} className="claim-card">
+                        <div style={{ minWidth: 0 }}>
+                          <div className="claim-title">{c.label}</div>
+                          <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: ".4rem", alignItems: "center", flexShrink: 0 }}>
+                          <button className="btn primary sm" onClick={() => moveCand(c.id, c.due, plus1(c.due))}>Move → next day</button>
+                          <input type="date" className="nt-input" style={{ width: 148, padding: ".3rem .5rem" }} onChange={(e) => { if (e.target.value) moveCand(c.id, c.due, e.target.value); }} title="Pick a date" />
+                        </div>
+                      </div>
+                    )) : <div className="empty" style={{ padding: "1rem 0" }}>Everything he has left is in progress — nothing can move.</div>}
+                  </div>
+                </>
+              )}
+
+              <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <button className="btn" onClick={() => setApproveGate(null)}>Cancel</button>
+                {fits ? (
+                  <button className="btn primary" onClick={() => { setApproveGate(null); doSetTaskStatus(g.id, g.status); }}>Approve &amp; hand over</button>
+                ) : (
+                  <button className="btn primary" style={{ background: "#D97706", borderColor: "#D97706" }} onClick={() => { setApproveGate(null); doSetTaskStatus(g.id, g.status, true); }}>Send anyway → his pipeline</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
       {assignWarn && (
@@ -2586,6 +2729,12 @@ const CSS = `
 /* Team-capacity page */
 .hmd .tcp-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
 .hmd .tcp-span{margin-left:auto}
+/* approve-gate mini timeline (reuses tcp-blk block styles, absolute layout) */
+.hmd .ag-track{position:relative;height:48px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
+/* live task timer strip + inline finished/extend prompt */
+.hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid #D5DCF8;border-radius:10px;padding:.5rem .8rem;margin:.2rem 0 .4rem;font-size:.8rem;color:var(--brand-ink)}
+.hmd .timer-strip.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
+.hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:600}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:#D9DEEA}
 .hmd .tcp-title{font-size:1.2rem;font-weight:700}

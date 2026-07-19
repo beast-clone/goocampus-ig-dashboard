@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Prototype · Assignment & Pipeline flow</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{--bg:#F5F6FA;--panel:#fff;--ink:#232D42;--soft:#4A5468;--muted:#8A92A6;--line:#EEF0F4;--brand:#3A57E8;--brand-l:#E9ECFB;--good:#1AA053;--good-l:#E3F5EA;--warn:#D97706;--warn-l:#FEF3E2;--rose:#E11D48;--rose-l:#FCE8EC}
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--soft);font-size:14px;padding:2rem;line-height:1.45}
+  h1{font-size:22px;color:var(--ink);font-weight:600;margin-bottom:.3rem}
+  .sub{color:var(--muted);margin-bottom:2rem}
+  .step{max-width:760px;margin:0 auto 2.2rem}
+  .step h2{font-size:16px;color:var(--ink);font-weight:600;margin-bottom:.6rem}
+  .step .why{font-size:13px;color:var(--muted);margin-bottom:.8rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.2rem 1.4rem}
+  .modal-title{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:.8rem}
+  .pill{display:inline-block;font-size:12px;font-weight:600;padding:.15rem .6rem;border-radius:99px}
+  .pill.g{background:var(--good-l);color:var(--good)} .pill.w{background:var(--warn-l);color:var(--warn)} .pill.r{background:var(--rose-l);color:var(--rose)}
+  .person{display:flex;align-items:center;gap:.7rem;background:#F7F8FC;border:1px solid var(--line);border-radius:11px;padding:.7rem .9rem;margin:.6rem 0}
+  .av{width:34px;height:34px;border-radius:50%;background:#C2410C;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;flex:0 0 34px}
+  .pn{color:var(--ink);font-weight:600}.pm{font-size:12.5px;color:var(--muted)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;margin:.4rem 0}
+  .rt{color:var(--ink);font-weight:500}.rm{font-size:12px;color:var(--muted)}
+  .btn{display:inline-block;border:1px solid var(--line);background:#fff;border-radius:9px;padding:.45rem .9rem;font-size:13px;font-weight:600;color:var(--soft);cursor:default;white-space:nowrap}
+  .btn.p{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+  .btn.ghost{border-style:dashed}
+  .acts{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+  .note{background:var(--brand-l);border-radius:10px;padding:.6rem .8rem;font-size:12.5px;color:#2138B0;margin-top:.9rem}
+  .notif{display:flex;gap:.7rem;align-items:flex-start;border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:10px;padding:.7rem .9rem;margin:.5rem 0;background:#fff}
+  .notif.over{border-left-color:var(--warn)}
+  .notif b{color:var(--ink)}
+  .tag{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:.35rem}
+  .datepick{display:inline-flex;align-items:center;gap:.3rem;border:1px solid var(--line);border-radius:9px;padding:.4rem .7rem;font-size:12.5px;color:var(--soft)}
+  .arrow{ text-align:center;color:var(--muted);margin:.6rem 0;font-size:18px }
+</style>
+</head>
+<body>
+<h1>Assignment &amp; Pipeline — the full flow (prototype)</h1>
+<p class="sub">Nothing here is built yet. Correct anything that's wrong, then I build exactly this.</p>
+
+<!-- STEP 1 -->
+<div class="step">
+  <h2>1 · Manya sets a task to “Content - Approved”</h2>
+  <p class="why">The popup ALWAYS shows the target person's day first — she never has to open Team capacity separately. Working-now is computed from task durations laid 9→6 vs the clock.</p>
+  <div class="card">
+    <div class="modal-title">Approve “NEET PG — Carousel” → goes to Praveen</div>
+    <div class="tag">Praveen's day right now (11:55 AM)</div>
+    <div class="person">
+      <span class="av">P</span>
+      <div style="flex:1">
+        <div class="pn">Praveen · Designer</div>
+        <div class="pm">4h 30m committed · <b style="color:var(--good)">3h 30m free</b> · now: “Australia SC - Carousel” (until 12:30)</div>
+      </div>
+      <span class="pill g">Has room today</span>
+    </div>
+    <div class="acts"><span class="btn">Cancel</span><span class="btn p">Approve &amp; hand over</span></div>
+  </div>
+
+  <div class="arrow">— or, when his day is FULL —</div>
+
+  <div class="card">
+    <div class="modal-title">Approve “NEET PG — Carousel” → Praveen is NOT free</div>
+    <div class="person">
+      <span class="av">P</span>
+      <div style="flex:1">
+        <div class="pn">Praveen · Designer</div>
+        <div class="pm">8h 15m committed · now: “Australia SC - Carousel” (until 12:30) — <b style="color:var(--rose)">not free for a while</b></div>
+      </div>
+      <span class="pill r">Day is full</span>
+    </div>
+    <div class="tag">Move one of his NOT-STARTED tasks to make room (the one he's working on is locked)</div>
+    <div class="row"><div><div class="rt">Gulf - Carousel</div><div class="rm">1h · due 14 Jul</div></div><div><span class="btn">Move → next day</span> <span class="datepick">📅 pick a date</span></div></div>
+    <div class="row"><div><div class="rt">Germany Webinar - Post</div><div class="rm">30m · due 15 Jul</div></div><div><span class="btn">Move → next day</span> <span class="datepick">📅 pick a date</span></div></div>
+    <div class="row"><div><div class="rt">ALS - Post</div><div class="rm">30m · due 16 Jul</div></div><div><span class="btn">Move → next day</span> <span class="datepick">📅 pick a date</span></div></div>
+    <div class="acts"><span class="btn">Cancel</span><span class="btn warn">Send anyway → his pipeline</span></div>
+    <div class="note">If she moves a task here, it's logged as <b>Manya</b> (never “System”). If she clicks “Send anyway”, the task waits in HIS pipeline — nothing lands on a full day by force.</div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step">
+  <h2>2 · “Send anyway” → the producer's Pipeline</h2>
+  <p class="why">Same as today: he opens ⏳ Pipeline, sees the honest math, and has two choices.</p>
+  <div class="card">
+    <div class="modal-title">Accept “NEET PG”?</div>
+    <div class="pm" style="margin-bottom:.8rem">⏱ You have <b>0m free</b> today — this does NOT fit.</div>
+    <div class="acts" style="justify-content:flex-start">
+      <span class="btn p">Accept &amp; work (overtime)</span>
+      <span class="btn">I'm packed — send my not-started list to Manya</span>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step">
+  <h2>3 · What Manya hears back — always in her 🔔 Requests, always NAMED</h2>
+  <p class="why">Both outcomes notify her. Every entry names the person; “System” appears ONLY for true automations (e.g. publish write-backs).</p>
+  <div class="notif">✅ <div><b>Praveen accepted “NEET PG”</b><br /><span class="pm">It's on his plan — working on it from 2:00 PM.</span></div></div>
+  <div class="notif">🔁 <div><b>Praveen is packed — pick a task to move</b><br /><span class="pm">Offers 5 not-started tasks to swap for “NEET PG”:</span>
+    <div class="row" style="margin-top:.5rem"><div><div class="rt">Gulf - Carousel</div><div class="rm">1h · due 14 Jul</div></div><div><span class="btn p">Move → next day</span> <span class="datepick">📅 pick a date</span></div></div>
+    <div class="row"><div><div class="rt">ALS - Post</div><div class="rm">30m · due 16 Jul</div></div><div><span class="btn p">Move → next day</span> <span class="datepick">📅 pick a date</span></div></div>
+    <span class="pm">Her pick moves that task's date AND puts “NEET PG” on his plan — one click, both logged as her.</span>
+  </div></div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step">
+  <h2>4 · Overrun watch — “planned 45m, still going at 1h 10m”</h2>
+  <p class="why">Working-now = the plan block under the clock. If the clock passes a block's planned end and the task's status hasn't moved, both sides get nudged. This is how we know he's still working: time entered + no status change.</p>
+  <div class="notif over">⏱ <div><b>Praveen is running over on “NEET Thumbnail”</b><br /><span class="pm">Planned 45m — now 1h 10m in, status still Content-Approved. Everything after it shifts ~25m.</span><br />
+    <span class="pm"><b>Praveen sees:</b> “Still on it? Update the duration or mark it done.” · <b>Manya sees:</b> the same overrun note in Requests.</span></div></div>
+</div>
+
+<div class="step">
+  <h2>The one rule</h2>
+  <div class="card" style="border-left:4px solid var(--brand)">
+    A full day is never force-filled. Room is made only by a human: the producer accepting (his overtime, his call), or Manya moving a task (next day or a calendar date she picks). Every move is named.
+  </div>
+</div>
+</body>
+</html>
