@@ -75,7 +75,6 @@ export function HopeDashboardShell({
             <h1 className="text-2xl font-semibold flex items-center gap-3 text-[#232D42]">
               {title}
               {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-brand bg-brand-light rounded px-2 py-0.5">V2</span>
             </h1>
             <p className="text-sm text-gray-500">{headerSub}</p>
           </div>

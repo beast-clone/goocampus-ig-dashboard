@@ -1754,13 +1754,9 @@ export function HopeMyDay() {
 
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
 
-        {/* TOP BAR — title + icon triggers */}
+        {/* TOP BAR — icon triggers (page title lives in the greeting below) */}
         <div className="topbar">
-          <p className="banner">
-            <b>Hope UI theme · My Day</b>
-            <span className="tagchg">Version 2 preview</span>
-            <span>collapsible chat · icon inbox · wider workspace</span>
-          </p>
+          <div className="topspacer" />
           <div className="icons">
             {/* Team capacity — Manya only, a clearly-labelled button next to the day control */}
             {person === "manya" && (

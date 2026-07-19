@@ -533,10 +533,6 @@ export function HopeOverview() {
               </div>
             </>
           )}
-
-          <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", paddingBottom: 8 }}>
-            Hope UI theme · complete Overview (all sections) · real @goocampus data · <span style={{ color: C.primary, fontWeight: 600 }}>second version</span>
-          </div>
         </div>
       </main>
     </div>

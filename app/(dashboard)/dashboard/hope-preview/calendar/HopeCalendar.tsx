@@ -237,7 +237,6 @@ export function HopeCalendar() {
       {/* HERO band (matches the reference's iq-navbar-header) */}
       <div className="hcal-hero">
         <div className="hcal-hero-txt">
-          <span className="hcal-hero-tag">Hope UI · Version 2 preview</span>
           <h1>Publishing Calendar</h1>
           <p>Every scheduled &amp; published post across your accounts, month at a glance.</p>
         </div>

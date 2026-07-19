@@ -29,8 +29,7 @@ export function HopeShell({
             <div className="htopbar">
               <div className="htitle-wrap">
                 <p className="hbanner">
-                  <b>Hope UI theme · {title}</b>
-                  <span className="htag">Version 2 preview</span>
+                  <b>{title}</b>
                 </p>
                 {subtitle && <p className="hsub">{subtitle}</p>}
               </div>
