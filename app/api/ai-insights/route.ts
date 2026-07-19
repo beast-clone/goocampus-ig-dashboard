@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexityJSON, hasAI } from "@/lib/ai";
 
 type Post = {
   id: string;
@@ -133,13 +133,11 @@ export async function POST(req: Request) {
     if (avg > bestHrReach) { bestHrReach = avg; bestHour = { hour: k, avgReach: Math.round(avg) }; }
   }
 
-  // --- Call OpenAI for the narrative + recommendations ---
-  const key = process.env.OPENAI_API_KEY;
+  // --- Call Perplexity for the narrative + recommendations ---
   let ai: Insight["ai"] = {
-    winners: [], patterns: [], captionStyle: [], recommendations: [], nextWeekPlan: [], headline: "(OPENAI_API_KEY not set)",
+    winners: [], patterns: [], captionStyle: [], recommendations: [], nextWeekPlan: [], headline: "(PERPLEXITY_API_KEY not set)",
   };
-  if (key) {
-    const client = new OpenAI({ apiKey: key });
+  if (hasAI()) {
     const sys = `You are an Instagram growth analyst for GooCampus, an Indian medical-education brand. You analyze raw post data and return STRICT JSON in this exact shape (no markdown, no prose around it):
 
 {
@@ -176,17 +174,8 @@ Be direct. Use the actual numbers. No fluff. No emojis except where they appear 
     });
 
     try {
-      const resp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 1800,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: userMsg },
-        ],
-      });
-      const raw = resp.choices[0]?.message?.content || "{}";
-      const parsed = JSON.parse(raw);
+      type AiJson = { headline?: string; winners?: string[]; patterns?: string[]; captionStyle?: string[]; recommendations?: string[]; nextWeekPlan?: Insight["ai"]["nextWeekPlan"] };
+      const parsed = (await askPerplexityJSON<AiJson>(sys, userMsg, { maxTokens: 1800 })) || {};
       ai = {
         headline: parsed.headline || "",
         winners: parsed.winners || [],

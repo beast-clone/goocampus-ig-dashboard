@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexityJSON, hasAI } from "@/lib/ai";
 import { resolveAccountForPage, predictForCaption, type Prediction } from "@/lib/scheduler-helpers";
 import { fetchRecentMedia } from "@/lib/instagram";
 import { safeError } from "@/lib/errors";
@@ -51,8 +51,7 @@ export async function POST(req: Request) {
   const acc = resolveAccountForPage(publishToPage);
   if (!acc) return NextResponse.json({ error: "Unknown brand / account" }, { status: 400 });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
+  if (!hasAI()) return NextResponse.json({ error: "PERPLEXITY_API_KEY not configured" }, { status: 500 });
 
   try {
     // Pull 5 recent captions from THIS brand as a small tone sample — plenty to teach
@@ -64,24 +63,14 @@ export async function POST(req: Request) {
       .filter((c) => c.length > 40 && c.length < 800)
       .slice(0, 5);
 
-    const openai = new OpenAI({ apiKey });
     const prompt = buildPrompt(acc.handle, contentBrief, currentCaption, toneSamples);
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are an Instagram caption writer for a lead-gen brand. Respond ONLY with valid JSON matching the schema described. Never wrap the JSON in markdown fences." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-
-    const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error("Empty response from OpenAI");
-    const parsed = JSON.parse(raw) as { variants?: Array<{ kind?: string; caption?: string; hashtags?: string[] }> };
-    if (!parsed.variants || !Array.isArray(parsed.variants) || parsed.variants.length === 0) {
-      throw new Error("OpenAI returned no variants");
+    const parsed = await askPerplexityJSON<{ variants?: Array<{ kind?: string; caption?: string; hashtags?: string[] }> }>(
+      "You are an Instagram caption writer for a lead-gen brand. Respond ONLY with valid JSON matching the schema described. Never wrap the JSON in markdown fences.",
+      prompt,
+      { temperature: 0.7 },
+    );
+    if (!parsed?.variants || !Array.isArray(parsed.variants) || parsed.variants.length === 0) {
+      throw new Error("Caption model returned no variants");
     }
 
     // Normalize + score each variant through the existing predictor

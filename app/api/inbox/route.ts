@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexityJSON, hasAI } from "@/lib/ai";
 import {
   getAccount,
   fetchRecentMedia, fetchMediaComments, replyToComment, checkDmCapability,
@@ -77,9 +77,7 @@ function detectLead(text: string): { isLead: boolean; reason: string } {
 // ---- Mood via OpenAI, in small batches so the JSON never gets truncated (cheap: gpt-4o-mini) ----
 async function classifyMood(items: { id: string; text: string }[]): Promise<Map<string, Mood>> {
   const out = new Map<string, Mood>();
-  const key = process.env.OPENAI_API_KEY;
-  if (!key || items.length === 0) { for (const it of items) out.set(it.id, "neutral"); return out; }
-  const client = new OpenAI({ apiKey: key });
+  if (!hasAI() || items.length === 0) { for (const it of items) out.set(it.id, "neutral"); return out; }
   const sys = `Label the mood of each Instagram comment as "positive", "neutral", or "negative". Return ONLY JSON: {"results":[{"id":"...","mood":"..."}]}`;
 
   const BATCH = 40;
@@ -88,14 +86,8 @@ async function classifyMood(items: { id: string; text: string }[]): Promise<Map<
 
   await Promise.all(chunks.map(async (chunk) => {
     try {
-      const resp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 1500,
-        response_format: { type: "json_object" },
-        messages: [{ role: "system", content: sys }, { role: "user", content: JSON.stringify(chunk) }],
-      });
-      const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}") as { results?: { id: string; mood: Mood }[] };
-      for (const r of parsed.results ?? []) out.set(r.id, r.mood);
+      const parsed = await askPerplexityJSON<{ results?: { id: string; mood: Mood }[] }>(sys, JSON.stringify(chunk), { maxTokens: 1500 });
+      for (const r of parsed?.results ?? []) out.set(r.id, r.mood);
     } catch { /* leave as neutral default */ }
   }));
   for (const it of items) if (!out.has(it.id)) out.set(it.id, "neutral");

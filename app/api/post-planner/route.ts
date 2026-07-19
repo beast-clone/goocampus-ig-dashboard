@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexity, hasAI } from "@/lib/ai";
 import { getSupabase } from "@/lib/supabase";
 import { getTopTimeSuggestions, getTopPerformers } from "@/lib/scheduler-helpers";
 import { fetchContentCalendarBody } from "@/lib/content-calendar";
 import { safeError } from "@/lib/errors";
 
-// Web-search-grounded ranking. Defaults to OpenAI's web-search model; swap to Perplexity
-// later purely via env (PLANNER_SEARCH_BASE_URL=https://api.perplexity.ai, _KEY, _MODEL=sonar).
-const SEARCH_BASE_URL = process.env.PLANNER_SEARCH_BASE_URL || undefined;
-// When pointed at a custom provider (Perplexity), default to its search model 'sonar';
-// otherwise use OpenAI's web-search model. Override either way with PLANNER_SEARCH_MODEL.
-const SEARCH_MODEL = process.env.PLANNER_SEARCH_MODEL || (SEARCH_BASE_URL ? "sonar" : "gpt-4o-mini-search-preview");
+// Ranking is web-search-grounded via Perplexity 'sonar' (see lib/ai) — the sonar
+// models search the live web, which is exactly what the trend-aware ordering needs.
 
 // Pull a plain-JSON object out of a model reply that may wrap it in prose / code fences.
 function parseLooseJson<T>(text: string): T | null {
@@ -173,9 +169,6 @@ export async function GET(req: Request) {
     type AIOrder = { summary?: string; insight?: string; order?: { id: string; reason?: string; tags?: string[] }[]; hold?: { id: string; reason?: string }[] };
     let ai: AIOrder = {};
     let rankedBy = "none";
-    const openaiKey = process.env.OPENAI_API_KEY;
-    // The search provider (Perplexity when PLANNER_SEARCH_KEY is set, else OpenAI).
-    const searchKey = process.env.PLANNER_SEARCH_KEY || openaiKey;
 
     const searchSystem = [
       "You schedule Instagram posts for @12thplus — an Indian education account for students after 12th grade (NEET UG, courses/careers after 12th, competitive exams, colleges).",
@@ -187,37 +180,14 @@ export async function GET(req: Request) {
       "tags are short labels like: 'trending now', 'timely', 'proven format', 'different topic', 'format variety', 'complements last post', 'fresh angle', 'priority'.",
     ].join("\n");
 
-    if (searchKey) {
-      // 1) Web-search-grounded ranker (Perplexity when configured, else OpenAI search model).
+    if (hasAI()) {
+      // Web-search-grounded ranker via Perplexity 'sonar'. Bounded so the tab never
+      // spins forever — on timeout/failure we fall through to the deterministic order.
       try {
-        // Bound the (slow) web-search model so the tab never spins forever — if it
-        // exceeds this it throws, we fall back to the fast ranker / deterministic order.
-        const sc = new OpenAI({ apiKey: searchKey, timeout: 20_000, maxRetries: 1, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
-        const resp = await sc.chat.completions.create({
-          model: SEARCH_MODEL,
-          max_tokens: 1200,
-          messages: [ { role: "system", content: searchSystem }, { role: "user", content: JSON.stringify(ctx) } ],
-        });
-        ai = parseLooseJson<AIOrder>(resp.choices[0]?.message?.content || "") || {};
-        if (ai.order && ai.order.length) rankedBy = SEARCH_BASE_URL ? `perplexity:${SEARCH_MODEL}` : `openai-search:${SEARCH_MODEL}`;
-      } catch (e) { console.error("[planner] search-rank failed, falling back:", (e as Error).message); ai = {}; }
-
-      // 2) Fallback to a plain (non-search) OpenAI ranker if the search model failed / returned
-      //    nothing — only if an OpenAI key exists (skipped in a Perplexity-only setup).
-      if (openaiKey && (!ai.order || ai.order.length === 0)) try {
-        const client = new OpenAI({ apiKey: openaiKey, timeout: 15_000, maxRetries: 1 });
-        const resp = await client.chat.completions.create({
-          model: "gpt-4o-mini",
-          temperature: 0.4,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: searchSystem.replace("and SEARCH THE WEB to judge how much interest/attention that topic has RIGHT NOW in India — recent news, seasonality (results/admissions/exam dates), rising search interest.", "and judge how timely it is from the content.") },
-            { role: "user", content: JSON.stringify(ctx) },
-          ],
-        });
-        ai = JSON.parse(resp.choices[0]?.message?.content || "{}") as AIOrder;
-        if (ai.order && ai.order.length) rankedBy = "openai-fallback:gpt-4o-mini";
-      } catch { ai = {}; }
+        const { text } = await askPerplexity(searchSystem, JSON.stringify(ctx), { maxTokens: 1200, timeoutMs: 22_000 });
+        ai = parseLooseJson<AIOrder>(text) || {};
+        if (ai.order && ai.order.length) rankedBy = "perplexity:sonar";
+      } catch (e) { console.error("[planner] perplexity rank failed, falling back to deterministic:", (e as Error).message); ai = {}; }
     }
 
     const byId = new Map(candidates.map((c) => [c.id, c]));

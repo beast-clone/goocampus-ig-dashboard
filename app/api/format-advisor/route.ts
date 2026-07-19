@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { askPerplexityJSON } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
 // Format Advisor.
@@ -112,16 +112,8 @@ export async function GET(req: Request) {
       totalRangePosts: rangePosts.length,
     };
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const t0 = Date.now();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.55,
-      messages: [
-        {
-          role: "system",
-          content: [
+    const sys = [
             "You are the marketing lead advising the GooCampus social team on Instagram content mix.",
             "You get REAL performance stats for Reels / Carousels / Static posts across (a) the selected range and (b) a 30-day baseline for comparison.",
             "Your job is to write a 2–3 short paragraph recommendation on the CONTENT MIX for the NEXT WEEK or NEXT MONTH.",
@@ -138,16 +130,9 @@ export async function GET(req: Request) {
             "",
             "Return JSON: { paragraphs: string[] (2-3 short paras, plain text no markdown), suggestedMix: [{type: 'Reels'|'Carousels'|'Static', pct: number, why: string (≤ 20 words)}], disclaimer?: string (only when sample is thin) }.",
             "The suggestedMix percentages must add up to exactly 100.",
-          ].join("\n"),
-        },
-        { role: "user", content: JSON.stringify(context) },
-      ],
-    });
+    ].join("\n");
+    const parsed = (await askPerplexityJSON<Partial<FormatAdvice>>(sys, JSON.stringify(context), { temperature: 0.55 })) || {};
     const latencyMs = Date.now() - t0;
-
-    const raw = completion.choices[0]?.message?.content || "{}";
-    let parsed: Partial<FormatAdvice> = {};
-    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
     if (!parsed.paragraphs || parsed.paragraphs.length === 0) {
       throw new Error("Advisor returned no paragraphs");
     }
