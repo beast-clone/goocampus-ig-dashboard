@@ -74,7 +74,7 @@ function detectLead(text: string): { isLead: boolean; reason: string } {
   return { isLead: false, reason: "" };
 }
 
-// ---- Mood via OpenAI, in small batches so the JSON never gets truncated (cheap: gpt-4o-mini) ----
+// ---- Mood via Perplexity, in small batches so the JSON never gets truncated ----
 async function classifyMood(items: { id: string; text: string }[]): Promise<Map<string, Mood>> {
   const out = new Map<string, Mood>();
   if (!hasAI() || items.length === 0) { for (const it of items) out.set(it.id, "neutral"); return out; }

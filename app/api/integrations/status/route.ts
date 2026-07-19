@@ -41,7 +41,7 @@ const USAGE_MAP: Record<string, string[]> = {
   youtube: ["YouTube"],
   airtable: ["Airtable"],
   sendpulse: ["SendPulse"],
-  openai: ["OpenAI"],
+  perplexity: ["Perplexity"],
   supabase: ["Supabase"],
   apify: ["Apify"],
   hikerapi: ["HikerAPI"],
@@ -171,11 +171,12 @@ async function checkPerplexity(): Promise<Integration> {
   const base: Integration = { key: "perplexity", name: "Perplexity", category: "AI", configured: has(key), status: "unknown", tokenType: "API key (no expiry)", expiresAt: null, daysRemaining: null, detail: "" };
   if (!base.configured) return { ...base, status: "error", note: "API key missing" };
   try {
-    // Minimal (max_tokens:1) sonar call just to confirm the key is live.
+    // Minimal sonar call just to confirm the key is live (Perplexity rejects
+    // max_tokens:1, so keep it small-but-valid).
     const r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+      body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: "ping" }], max_tokens: 16 }),
       cache: "no-store",
     });
     if (!r.ok) return { ...base, status: "error", note: `chat ${r.status}` };

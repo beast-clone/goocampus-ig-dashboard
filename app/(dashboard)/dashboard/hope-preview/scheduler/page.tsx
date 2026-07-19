@@ -102,7 +102,7 @@ function Scheduler() {
   // Content brief — the topic the post is about. Feeds the AI caption suggester
   // so the model can write ON topic instead of averaging tone from mixed past posts.
   const [contentBrief, setContentBrief] = useState("");
-  // Suggestion state — 3 variants from OpenAI, only fetched on button click.
+  // Suggestion state — 3 variants from Perplexity, only fetched on button click.
   type SuggestVariant = { kind: "tone" | "seo" | "punchy"; caption: string; hashtags: string[]; prediction: Prediction | null };
   const [suggestions, setSuggestions] = useState<SuggestVariant[] | null>(null);
   const [suggestLoading, setSuggestLoading] = useState(false);

@@ -184,7 +184,7 @@ export async function GET(req: Request) {
       // Web-search-grounded ranker via Perplexity 'sonar'. Bounded so the tab never
       // spins forever — on timeout/failure we fall through to the deterministic order.
       try {
-        const { text } = await askPerplexity(searchSystem, JSON.stringify(ctx), { maxTokens: 1200, timeoutMs: 22_000 });
+        const { text } = await askPerplexity(searchSystem, JSON.stringify(ctx), { maxTokens: 1200, timeoutMs: 38_000 });
         ai = parseLooseJson<AIOrder>(text) || {};
         if (ai.order && ai.order.length) rankedBy = "perplexity:sonar";
       } catch (e) { console.error("[planner] perplexity rank failed, falling back to deterministic:", (e as Error).message); ai = {}; }

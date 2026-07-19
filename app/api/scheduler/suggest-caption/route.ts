@@ -16,7 +16,7 @@ type Variant = { kind: VariantKind; caption: string; hashtags: string[]; predict
 
 type CacheEntry = { fetchedAt: number; payload: unknown };
 const cache = new Map<string, CacheEntry>();
-const TTL_MS = 10 * 60 * 1000; // 10 min — repeat clicks within the window don't burn OpenAI credits
+const TTL_MS = 10 * 60 * 1000; // 10 min — repeat clicks within the window don't burn AI credits
 
 function keyFor(brand: string, brief: string): string {
   // Trim + collapse whitespace + slice first 200 chars so trivial edits don't miss cache
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       const v = parsed.variants[i];
       const captionText = (v.caption || "").trim();
       if (!captionText) continue;
-      // Prefer the hashtags OpenAI returned; if it embedded them in the caption, extract those too
+      // Prefer the hashtags the model returned; if it embedded them in the caption, extract those too
       const inlineTags = extractHashtags(captionText);
       const explicitTags = Array.isArray(v.hashtags) ? v.hashtags.map((t) => t.replace(/^#/, "")) : [];
       const hashtags = Array.from(new Set([...explicitTags, ...inlineTags])).slice(0, 12);

@@ -27,7 +27,7 @@ const GROUPS: Group[] = [
     { name: "HikerAPI", mark: "Hk", color: "#6366F1", purpose: "Instagram data enrichment" },
   ] },
   { title: "AI", tools: [
-    { name: "OpenAI", mark: "AI", color: "#10A37F", purpose: "Insights, reports, captions & summaries" },
+    { name: "Perplexity", mark: "Px", color: "#20808D", purpose: "Insights, reports, captions & summaries (web-grounded)" },
     { name: "Whisper", mark: "W", color: "#6B7280", purpose: "Voice-note → text transcription" },
   ] },
   { title: "Media & generation", tools: [
