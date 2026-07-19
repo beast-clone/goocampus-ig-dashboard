@@ -165,33 +165,21 @@ async function checkSendPulse(): Promise<Integration> {
   }
 }
 
-// ---- OpenAI (API key — live rate-limit headers via a 1-token chat call) ----
-async function checkOpenAI(): Promise<Integration> {
-  const key = process.env.OPENAI_API_KEY;
-  const base: Integration = { key: "openai", name: "OpenAI", category: "AI", configured: has(key), status: "unknown", tokenType: "API key (no expiry)", expiresAt: null, daysRemaining: null, detail: "" };
+// ---- Perplexity (API key — the dashboard's only LLM provider) ----
+async function checkPerplexity(): Promise<Integration> {
+  const key = process.env.PERPLEXITY_API_KEY;
+  const base: Integration = { key: "perplexity", name: "Perplexity", category: "AI", configured: has(key), status: "unknown", tokenType: "API key (no expiry)", expiresAt: null, daysRemaining: null, detail: "" };
   if (!base.configured) return { ...base, status: "error", note: "API key missing" };
   try {
-    // A minimal (max_tokens:1) call — the only way OpenAI returns its live
-    // x-ratelimit-* headers (the models endpoint doesn't). Cost ≈ nothing.
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Minimal (max_tokens:1) sonar call just to confirm the key is live.
+    const r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+      body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
       cache: "no-store",
     });
-    const limReq = Number(r.headers.get("x-ratelimit-limit-requests") || 0);
-    const remReq = Number(r.headers.get("x-ratelimit-remaining-requests") || 0);
-    const limTok = Number(r.headers.get("x-ratelimit-limit-tokens") || 0);
-    const remTok = Number(r.headers.get("x-ratelimit-remaining-tokens") || 0);
     if (!r.ok) return { ...base, status: "error", note: `chat ${r.status}` };
-    const quota = limReq > 0
-      ? {
-          label: "Rate limit (per minute)",
-          usedPct: Math.max(0, Math.min(100, ((limReq - remReq) / limReq) * 100)),
-          detail: `${remReq.toLocaleString("en-IN")} of ${limReq.toLocaleString("en-IN")} req/min left · ${remTok.toLocaleString("en-IN")} of ${limTok.toLocaleString("en-IN")} tokens/min left`,
-        }
-      : undefined;
-    return { ...base, status: "ok", detail: limReq > 0 ? `${limReq.toLocaleString("en-IN")} req/min · ${limTok.toLocaleString("en-IN")} tokens/min` : "Reachable", quota };
+    return { ...base, status: "ok", detail: "Reachable · sonar" };
   } catch (e) {
     return { ...base, status: "error", note: (e as Error).message.slice(0, 120) };
   }
@@ -211,13 +199,13 @@ export async function GET(req: Request) {
   }
 
   const T = 9000;
-  const [meta, linkedin, youtube, airtable, sendpulse, openai] = await Promise.all([
+  const [meta, linkedin, youtube, airtable, sendpulse, perplexity] = await Promise.all([
     withTimeout(checkMeta(), T, { integ: { key: "meta", name: "Meta — Instagram · Facebook · Ads", category: "Social", configured: true, status: "warn", tokenType: "Long-lived user token", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration, rateLimit: null }),
     withTimeout(checkLinkedIn(), T, { key: "linkedin", name: "LinkedIn", category: "Social", configured: true, status: "warn", tokenType: "OAuth member token", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
     withTimeout(checkYouTube(), T, { key: "youtube", name: "YouTube", category: "Social", configured: true, status: "warn", tokenType: "OAuth", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
     withTimeout(checkAirtable(), T, { key: "airtable", name: "Airtable", category: "Data", configured: true, status: "warn", tokenType: "PAT", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
     withTimeout(checkSendPulse(), T, { key: "sendpulse", name: "SendPulse", category: "Messaging", configured: true, status: "warn", tokenType: "OAuth", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
-    withTimeout(checkOpenAI(), T, { key: "openai", name: "OpenAI", category: "AI", configured: true, status: "warn", tokenType: "API key", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
+    withTimeout(checkPerplexity(), T, { key: "perplexity", name: "Perplexity", category: "AI", configured: true, status: "warn", tokenType: "API key", expiresAt: null, daysRemaining: null, detail: "", note: "check timed out" } as Integration),
   ]);
 
   const integrations: Integration[] = [
@@ -226,7 +214,7 @@ export async function GET(req: Request) {
     youtube,
     airtable,
     sendpulse,
-    openai,
+    perplexity,
     configOnly("supabase", "Supabase", "Data", ["SUPABASE_URL", "SUPABASE_SECRET_KEY"], "Service key (no expiry)"),
     configOnly("apify", "Apify", "Scraping", ["APIFY_API_TOKEN"], "API token (no expiry)"),
     configOnly("hikerapi", "HikerAPI", "Scraping", ["HIKERAPI_KEY"], "API key (no expiry)"),
