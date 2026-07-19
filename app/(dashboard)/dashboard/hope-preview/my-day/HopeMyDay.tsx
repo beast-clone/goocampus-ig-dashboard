@@ -823,7 +823,7 @@ function TeamCapacityBoard() {
 // The Team-capacity PAGE (opened from the 👥 button, next to the bell) — its own
 // screen so Manya never confuses it with her own plan. Each teammate shows their
 // day planner (done faded, current highlighted + now-line) and what they're on now.
-type CapBlock = { k: string; l: string; f: number; s?: "done" | "now" };
+type CapBlock = { k: string; l: string; f: number; s?: "done" | "now"; start?: number; durMin?: number };
 // REAL data: each producer's day is laid out from their actual in-production tasks
 // (duration = estimate by type), sequential from 9 AM around the fixed 1 PM lunch.
 // done/now flags come from the real clock. No fabricated schedules.
@@ -837,7 +837,10 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
   // whole approved backlog against a 5-day (40h) capacity — one person can't do a
   // week's load in a day, so the two must never be conflated.
   const [span, setSpan] = useState<"today" | "week">("today");
-  const capacity = span === "today" ? WORK_MIN : WORK_MIN * 5;
+  // Week capacity = Mon–Fri ONLY (no Sat/Sun), 7 productive hours a day with the
+  // 1–2 PM lunch excluded → 35h. Today stays the 8h working day.
+  const WEEK_MIN = 7 * 60 * 5;
+  const capacity = span === "today" ? WORK_MIN : WEEK_MIN;
   const d0 = new Date();
   const todayStr = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
@@ -857,26 +860,31 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
       // never floating to wherever the tasks happen to end (tasks split around it,
       // and an early finish gets a Free gap so lunch still sits at 1 PM).
       const LUNCH_END = LUNCH_AT + LUNCH_MIN;
+      // Every block carries exact start/duration MINUTES — the track renders them
+      // absolutely (left/width %), so Lunch sits pixel-perfect on the 1 PM tick
+      // (flex layouts drift: long labels push blocks off the grid).
       const pushTask = (label: string, video: boolean, start: number, dur: number) => {
         const s = start + dur <= now ? "done" : start <= now && now < start + dur ? "now" : undefined;
         if (s === "now") current = { label, endsIn: start + dur - now };
-        blocks.push({ k: video ? "reel" : "design", l: label, f: dur / 60, s });
+        blocks.push({ k: video ? "reel" : "design", l: label, f: dur / 60, s, start, durMin: dur });
       };
+      const pushLunch = () => { blocks.push({ k: "lunch", l: "Lunch", f: 1, start: LUNCH_AT, durMin: LUNCH_MIN }); cursor = LUNCH_END; lunchDone = true; };
+      const pushFree = (start: number, dur: number) => blocks.push({ k: "free", l: "Free", f: dur / 60, start, durMin: dur });
       for (const t of mine) {
         let remaining = t.dur;
-        if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true; }
+        if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) pushLunch();
         if (!lunchDone && cursor < LUNCH_AT) {
           const before = Math.min(remaining, LUNCH_AT - cursor);
           if (before > 0) { pushTask(t.label, t.video, cursor, before); cursor += before; remaining -= before; }
-          if (remaining > 0) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true; }
+          if (remaining > 0) pushLunch();
         }
         if (remaining > 0) { pushTask(t.label, t.video, cursor, remaining); cursor += remaining; }
       }
       if (!lunchDone) {
-        if (cursor < LUNCH_AT) { blocks.push({ k: "free", l: "Free", f: (LUNCH_AT - cursor) / 60 }); cursor = LUNCH_AT; }
-        blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true;
+        if (cursor < LUNCH_AT) { pushFree(cursor, LUNCH_AT - cursor); cursor = LUNCH_AT; }
+        pushLunch();
       }
-      if (cursor < DAY_MINS) blocks.push({ k: "free", l: "Free", f: (DAY_MINS - cursor) / 60 });
+      if (cursor < DAY_MINS) pushFree(cursor, DAY_MINS - cursor);
     } else {
       // Week: a proportional strip of the whole approved backlog vs 40h — no
       // clock, no lunch; just how full the week is.
@@ -893,7 +901,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
     <div className="tcp">
       <div className="tcp-head">
         <button className="tc-back" onClick={onBack} title="Back to My Day">‹</button>
-        <div className="tcp-title">Team capacity <span>· {span === "today" ? "due today, vs an 8h day" : "approved backlog, vs a 40h week"} — from each person&apos;s real tasks</span></div>
+        <div className="tcp-title">Team capacity <span>· {span === "today" ? "due today, vs an 8h day" : "approved backlog, vs a 35h week (Mon–Fri · 7h/day, lunch excluded)"} — from each person&apos;s real tasks</span></div>
         <div className="switch tcp-span" role="tablist">
           <button role="tab" aria-selected={span === "today"} className={span === "today" ? "on" : ""} onClick={() => setSpan("today")}>Today</button>
           <button role="tab" aria-selected={span === "week"} className={span === "week" ? "on" : ""} onClick={() => setSpan("week")}>Week</button>
@@ -911,13 +919,24 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
           </div>
           {span === "today" && <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>}
           <div className="tcp-track">
-            {p.blocks.map((b, i) => <div key={i} className={`tcp-blk ${b.k} ${b.s || ""}`} style={{ flex: b.f }} title={b.l}>{b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}</div>)}
+            {p.blocks.map((b, i) => (
+              <div
+                key={i}
+                className={`tcp-blk ${b.k} ${b.s || ""}`}
+                style={span === "today" && b.start !== undefined
+                  ? { position: "absolute", top: 0, bottom: 0, left: `${(b.start / DAY_MINS) * 100}%`, width: `${((b.durMin || 0) / DAY_MINS) * 100}%` }
+                  : { flex: b.f, minWidth: 0 }}
+                title={b.l}
+              >
+                {b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}
+              </div>
+            ))}
             {span === "today" && nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }} />}
           </div>
           <div className="tcp-now">
             <span className="dot" />
             {span === "week"
-              ? <>{p.blocks.filter((b) => b.k !== "free").length ? <>This week&apos;s queue: <b>{p.blocks.filter((b) => b.k !== "free").length} approved task{p.blocks.filter((b) => b.k !== "free").length > 1 ? "s" : ""}</b> <span className="muted">· {fmtMins(p.committed)} of 40h</span></> : <span className="muted">No approved work queued this week.</span>}</>
+              ? <>{p.blocks.filter((b) => b.k !== "free").length ? <>This week&apos;s queue: <b>{p.blocks.filter((b) => b.k !== "free").length} approved task{p.blocks.filter((b) => b.k !== "free").length > 1 ? "s" : ""}</b> <span className="muted">· {fmtMins(p.committed)} of 35h (Mon–Fri)</span></> : <span className="muted">No approved work queued this week.</span>}</>
               : p.current
               ? <>Currently working on: <b>{p.current.label}</b> <span className="muted">· ~{fmtMins(p.current.endsIn)} left in this block</span></>
               : p.next
