@@ -126,11 +126,26 @@ export type AdRow = AdsTotals & {
 
 async function gget<T = unknown>(p: string, token: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ ...params, access_token: token });
-  const res = await metaLimiter(() => fetchWithTimeout(`${GRAPH}/${p}?${qs}`, { cache: "no-store" }));
-  const json = await res.json();
-  recordApiCall("Meta Ads", res.ok && !json.error, res.status);
-  if (!res.ok || json.error) throw new Error(json.error?.message || `Graph error: ${res.status}`);
-  return json;
+  // Meta's Ads Insights endpoint intermittently returns code 2 ("Service temporarily
+  // unavailable", e.g. subcode 1504044) even for valid requests — Meta's own guidance
+  // is to retry. Retry transient errors (code 2 / 5xx) with backoff before giving up.
+  let last = "";
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    const res = await metaLimiter(() => fetchWithTimeout(`${GRAPH}/${p}?${qs}`, { cache: "no-store" }));
+    const json = await res.json();
+    const e = json.error;
+    recordApiCall("Meta Ads", res.ok && !e, res.status);
+    if (res.ok && !e) return json;
+
+    const bits = [e?.code != null ? `code ${e.code}` : "", e?.error_subcode ? `subcode ${e.error_subcode}` : ""].filter(Boolean).join("/");
+    const hint = e?.error_user_msg ? ` — ${e.error_user_msg}` : "";
+    last = `Meta ads ${p} [${bits || res.status}]: ${e?.message || res.status}${hint}`.slice(0, 190);
+
+    const transient = e?.code === 2 || res.status >= 500 || res.status === 429;
+    if (transient && attempt < 2) { await new Promise((r) => setTimeout(r, 700 * (attempt + 1))); continue; }
+    break;
+  }
+  throw new Error(last || `Meta ads ${p}: request failed`);
 }
 
 export async function fetchAdsTotals(acct: AdAccountConfig, from: string, to: string): Promise<AdsTotals> {
