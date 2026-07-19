@@ -152,7 +152,9 @@ export function HopeCalendar() {
     return new Date(anchorYear, 7, 1); // demo content sits in August of the anchor year
   });
   const [selected, setSelected] = useState<ScheduledPost | null>(null);
-  const [showDemo, setShowDemo] = useState(true);
+  // Default OFF — the calendar shows only REAL scheduled/published posts. The toggle
+  // can turn the sample posts back on for a fuller-looking demo if ever needed.
+  const [showDemo, setShowDemo] = useState(false);
   const samplePosts = useMemo(() => makeSamplePosts(), []);
 
   const load = () => {

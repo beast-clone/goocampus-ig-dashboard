@@ -91,12 +91,21 @@ function StoriesView({ accountId }: { accountId: string }) {
   const hasReal = realStories.length > 0;
   const realHaveStats = realStories.some((s) => s.reach > 0);
 
-  // Aggregate metrics for the cards at the top — count real ones for the live numbers,
-  // demo for everything else so the dashboard still shows realistic totals.
-  const totalDisplayed = realStories.length + DEMO_STORIES.length;
-  const demoViews = DEMO_STORIES.reduce((s, x) => s + x.views, 0);
-  const demoReplies = DEMO_STORIES.reduce((s, x) => s + x.replies, 0);
-  const demoAvgCompletion = Math.round(DEMO_STORIES.reduce((s, x) => s + (x.views ? ((x.views - x.exits) / x.views) * 100 : 0), 0) / DEMO_STORIES.length);
+  // KPI tiles + the fallback grid PREFER real data (live + historical). Demo only
+  // fills in when the account has no real story data yet — so the numbers are honest
+  // on a configured env, and the tab is never empty on a fresh one.
+  const realSet = [...realStories, ...(historical ?? [])];
+  const showDemo = realSet.length === 0;
+  const statSet = showDemo ? DEMO_STORIES : realSet;
+  const totalDisplayed = statSet.length;
+  const demoViews = statSet.reduce((s, x) => s + (x.views || 0), 0);
+  const demoReplies = statSet.reduce((s, x) => s + (x.replies || 0), 0);
+  // Completion needs exit data. Live (v25) stories don't carry taps/exits, so only
+  // average over stories that actually have it — else show "—" instead of NaN%.
+  const completable = statSet.filter((x) => (x.views || 0) > 0 && (x.exits || 0) > 0);
+  const demoAvgCompletion = completable.length
+    ? Math.round(completable.reduce((s, x) => s + ((x.views - x.exits) / x.views) * 100, 0) / completable.length)
+    : null;
 
   return (
     <>
@@ -108,7 +117,7 @@ function StoriesView({ accountId }: { accountId: string }) {
         <MetricCard label="Stories shown" value={totalDisplayed.toString()} />
         <MetricCard label="Total views" value={demoViews.toLocaleString("en-IN")} />
         <MetricCard label="Total replies" value={demoReplies.toLocaleString("en-IN")} />
-        <MetricCard label="Avg completion" value={`${demoAvgCompletion}%`} />
+        <MetricCard label="Avg completion" value={demoAvgCompletion === null ? "—" : `${demoAvgCompletion}%`} />
       </div>
 
       {/* LIVE section — only renders when Meta returns active stories (last 24h on the account). */}
@@ -144,26 +153,29 @@ function StoriesView({ accountId }: { accountId: string }) {
         </div>
       )}
 
-      {/* PREVIEW / DEMO section — always renders. Banner explains what the demo grid is. */}
-      <div className="bg-brand-light border border-brand/30 text-brand rounded-lg px-4 py-3 mb-3 text-sm">
-        📸 <strong>Preview</strong> — {historicalNote
-          ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
-          : (historical && historical.length > 0
-              ? "The historical section above holds every story we've snapshotted so far (hourly cron pulls the image + analytics from Meta before it expires). The demo below is just for reference until the archive fills out."
-              : "Once the hourly cron runs, real historical stories will appear above this section instead of these demos.")}
-      </div>
+      {/* PREVIEW / DEMO section — ONLY when the account has no real story data yet.
+          As soon as live/historical stories exist, this drops out entirely. */}
+      {showDemo && (
+        <>
+          <div className="bg-brand-light border border-brand/30 text-brand rounded-lg px-4 py-3 mb-3 text-sm">
+            📸 <strong>Preview</strong> — {historicalNote
+              ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
+              : "No live stories in the last 24h and no snapshots yet — these demo cards show what the tab looks like. Real stories replace them automatically."}
+          </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="text-base font-medium text-[#232D42]">Demo — how the tab looks</div>
-          <div className="text-xs text-gray-400">dummy data</div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
-          {DEMO_STORIES.map((s, i) => (
-            <StoryCard key={s.id} s={s} gradientIdx={i} isLive={false} />
-          ))}
-        </div>
-      </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="text-base font-medium text-[#232D42]">Demo — how the tab looks</div>
+              <div className="text-xs text-gray-400">dummy data</div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+              {DEMO_STORIES.map((s, i) => (
+                <StoryCard key={s.id} s={s} gradientIdx={i} isLive={false} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }
