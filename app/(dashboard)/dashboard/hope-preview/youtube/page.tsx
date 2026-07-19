@@ -105,9 +105,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
         )}
         <div className="flex items-center gap-3">
-          {data?.source === "live" ? (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>
-          ) : data?.liveError ? (
+          {/* When live, the LiveIndicator already says "Live · fetched" — don't
+              double it with a second badge. Only flag the non-live states. */}
+          {data?.source === "live" ? null : data?.liveError ? (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}>⚠ Live call failed · showing demo</span>
           ) : (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="YouTube API not yet connected — showing representative sample data.">⚠ Demo data</span>

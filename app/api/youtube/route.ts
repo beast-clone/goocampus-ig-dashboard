@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildLiveYouTube, hasYouTubeAuth } from "@/lib/youtube";
+import { buildLiveYouTube, hasYouTubeAuth, resolveChannelId } from "@/lib/youtube";
 import { CHANNELS } from "@/lib/youtube-channels";
 import { cached } from "@/lib/api-cache";
 
@@ -173,8 +173,14 @@ export async function GET(req: Request) {
 
     const t0 = Date.now();
 
+    // If no channel-id env is set but OAuth is available, resolve the id from the
+    // channel's @handle so live works with just OAuth (no YOUTUBE_CHANNEL_IDS needed).
+    if (hasYouTubeAuth() && !CHANNELS[channelKey].channelId) {
+      await resolveChannelId(channelKey).catch(() => null);
+    }
+
     // Live when auth is available (access token OR refresh credentials) AND this
-    // channel has a configured channelId.
+    // channel has a channelId (from env or resolved above).
     if (hasYouTubeAuth() && CHANNELS[channelKey].channelId) {
       try {
         // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.

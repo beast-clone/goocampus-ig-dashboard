@@ -83,6 +83,29 @@ function channelFilter(channelId: string): string {
   return channelId ? `channel==${channelId}` : "channel==MINE";
 }
 
+// When YOUTUBE_CHANNEL_IDS isn't configured, resolve a channel's real id from its
+// public @handle (works with the OAuth token) and cache it onto CHANNELS, so live
+// data works with just OAuth — no channel-id env needed. Returns null if it can't.
+export async function resolveChannelId(channelKey: string): Promise<string | null> {
+  const ch = CHANNELS[channelKey];
+  if (!ch) return null;
+  if (ch.channelId) return ch.channelId;
+  try {
+    const token = await freshAccessToken(channelKey);
+    const handle = ch.handle.replace(/^@/, "");
+    const r = await fetchWithTimeout(
+      `https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${encodeURIComponent(handle)}`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    );
+    recordApiCall("YouTube", r.ok, r.status);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const id = j?.items?.[0]?.id;
+    if (typeof id === "string" && id) { ch.channelId = id; return id; }
+  } catch { /* leave on demo */ }
+  return null;
+}
+
 // "PT1H2M3S" → seconds. Data API expresses video length as ISO-8601 duration.
 function parseIsoDuration(iso: string): number {
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
