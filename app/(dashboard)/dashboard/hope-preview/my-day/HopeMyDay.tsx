@@ -195,45 +195,16 @@ const clockOf = (m: number) => { const t = DAY_START_H * 60 + m; const h = Math.
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
 
 type PlanItem = { key: string; taskId: string; label: string; dur: number; at?: number };
-const INITIAL_PLAN: PlanItem[] = [
-  { key: "p1", taskId: "t1", label: "10k Mentorship — Speaking Reel", dur: 90 },
-  { key: "p2", taskId: "t2", label: "Careers other than NEET", dur: 90 },
-  { key: "p3", taskId: "t3", label: "Careers — Speaking Reel", dur: 90 },
-  { key: "p4", taskId: "t4", label: "Australia Ebook — text", dur: 90 },
-  { key: "p5", taskId: "t5", label: "Germany Webinar — Reel", dur: 90 },
-];
+// (Today's plan seeds itself from the person's real in-view tasks — no demo plan.)
 
-const CHAT0 = [
-  { who: "Maheen", av: "Mn", color: "#2F9E6F", tm: "08:30", body: "Morning team — NEET cutoff post did 34k reach overnight.", me: false },
-  { who: "You", av: "Nd", color: "#3A57E8", tm: "08:47", body: "On it — editing the 10k mentorship reel first.", me: true },
-  { who: "Praveen", av: "P", color: "#C2410C", tm: "09:12", body: "Thumbnail for the Australia ebook is up in Drive.", me: false },
-  { who: "Nikhil", av: "N", color: "#3A57E8", tm: "09:30", body: "Handed the Germany reel to you — accept when free.", me: false },
-  { who: "Maheen", av: "Mn", color: "#2F9E6F", tm: "09:58", body: "Push the NEET reel first, ads can wait till noon.", me: false },
-  { who: "Manya", av: "M", color: "#E0791F", tm: "10:24", body: "Reel script is final — B-roll notes are in the doc.", me: false },
-  { who: "You", av: "Nd", color: "#3A57E8", tm: "10:31", body: "Got it. Germany reel accepted 👍", me: true },
-];
-
-// WhatsApp-style: a list of conversations (Team group + 1-on-1 DMs). Click a row
-// to open that thread.
-type ChatMsg = { who: string; av: string; color: string; tm: string; body: string; me: boolean };
+// REAL team chat (mh_messages via /api/my-day/chat). WhatsApp-style: a Team
+// group + 1-on-1 DMs, derived from the fetched messages relative to `person`.
+// kind='system' rows are server-posted pipeline events (handoff/claim/publish).
+type ChatMsg = { who: string; av: string; color: string; tm: string; body: string; me: boolean; sys?: boolean };
 type Convo = { id: string; name: string; group?: boolean; av?: string; color?: string; online?: boolean; unread: number; msgs: ChatMsg[] };
-const CONVOS_INIT: Record<string, Convo> = {
-  team: { id: "team", name: "Team chat", group: true, online: true, unread: 0, msgs: CHAT0 },
-  maheen: { id: "maheen", name: "Maheen Ejaz", av: "Mn", color: "#2F9E6F", online: true, unread: 0, msgs: [
-    { who: "Maheen", av: "Mn", color: "#2F9E6F", tm: "09:58", body: "Push the NEET reel first — ads can wait till noon.", me: false },
-    { who: "You", av: "Nd", color: "#3A57E8", tm: "10:02", body: "On it 👍", me: true },
-  ] },
-  manya: { id: "manya", name: "Manya", av: "M", color: "#E0791F", online: true, unread: 0, msgs: [
-    { who: "Manya", av: "M", color: "#E0791F", tm: "10:24", body: "Reel script is final — B-roll notes are in the doc.", me: false },
-    { who: "You", av: "Nd", color: "#3A57E8", tm: "10:26", body: "Great, starting the cut now.", me: true },
-  ] },
-  praveen: { id: "praveen", name: "Praveen", av: "P", color: "#C2410C", online: false, unread: 0, msgs: [
-    { who: "Praveen", av: "P", color: "#C2410C", tm: "09:12", body: "Thumbnail for the Australia ebook is up in Drive.", me: false },
-  ] },
-  nikhil: { id: "nikhil", name: "Nikhil", av: "N", color: "#3A57E8", online: true, unread: 1, msgs: [
-    { who: "Nikhil", av: "N", color: "#3A57E8", tm: "09:30", body: "Left the Germany short in the pool for you to claim.", me: false },
-  ] },
-};
+type ServerMsg = { id: string; convo: string; sender: string; body: string; kind: "chat" | "system"; at: string };
+const dmConvo = (a: string, b: string) => [a, b].sort().join("~");
+const CHAT_IDS = ["manya", "praveen", "nikhil", "nandu", "maheen"] as const;
 
 const TONE: Record<Tone, { bg: string; fg: string }> = {
   good: { bg: "#E3F5EA", fg: "#1AA053" },
@@ -935,14 +906,15 @@ export function HopeMyDay() {
     { text: "Render final AMC pathway teaser at 4K.", done: true },
   ]);
   const [newRem, setNewRem] = useState("");
-  const [convos, setConvos] = useState(CONVOS_INIT);          // WhatsApp-style conversations
+  const [chatMsgs, setChatMsgs] = useState<ServerMsg[]>([]);   // live messages (team + my DMs)
+  const [chatRead, setChatRead] = useState<Record<string, string>>({}); // convoId → last-read ISO (localStorage)
   const [activeChat, setActiveChat] = useState<string | null>(null); // open thread (null = list)
   const [msg, setMsg] = useState("");
   const [clock, setClock] = useState<{ time: string; date: string; greet: { word: string; emoji: string } } | null>(null);
 
   const [panel, setPanel] = useState<null | "notif" | "rem">(null); // top-bar popover
   const [planModalId, setPlanModalId] = useState<string | null>(null); // Today's-plan popup
-  const [plan, setPlan] = useState<PlanItem[]>(INITIAL_PLAN);         // reorderable plan
+  const [plan, setPlan] = useState<PlanItem[]>([]);   // reorderable plan — seeded from REAL tasks (effect below)
   const dragKey = useRef<string | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const grabDX = useRef(0);                          // px between the cursor and the block's LEFT edge at grab
@@ -957,6 +929,9 @@ export function HopeMyDay() {
   const [notifs, setNotifs] = useState<Notif[]>([]);   // chat-panel notification stack
   const [acceptTask, setAcceptTask] = useState<Task | null>(null); // Accept & Work modal
   const [askManya, setAskManya] = useState(false);     // Ask-Manya reschedule modal
+  // Assign-side capacity warning: "X's day is already full" confirm before an
+  // assignment lands on someone whose 8h is committed.
+  const [assignWarn, setAssignWarn] = useState<null | { name: string; committed: number; add: number; proceed: () => void }>(null);
   // The urgent-task pipeline state, shared across the editor and Manya views:
   // offered → (editor asks) waiting → (Manya frees room) freed → (editor accepts) done.
   const [pipeline, setPipeline] = useState<"offered" | "waiting" | "freed" | "done">("offered");
@@ -979,17 +954,38 @@ export function HopeMyDay() {
     });
   }, []);
 
-  // Gentle auto-open demo: a new message arrives a few seconds in → toast + badge,
-  // and the panel slides in (unless the user just closed it by hand).
+  // REAL chat: load + poll mh_messages for this person (team + DMs). Per-person
+  // read state lives in localStorage (ponytail: per-device unread is enough here;
+  // move to a server table if cross-device unread ever matters).
+  const loadChat = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/my-day/chat?person=${person}`, { cache: "no-store" });
+      const d = await r.json();
+      if (r.ok) setChatMsgs((d.messages as ServerMsg[]) || []);
+    } catch { /* poll again next tick */ }
+  }, [person]);
   useEffect(() => {
-    const id = setTimeout(() => {
-      const m: ChatMsg = { who: "Manya", av: "M", color: "#E0791F", tm: "now", body: "Ping me when the first cut’s ready 👀", me: false };
-      setConvos((cv) => ({ ...cv, manya: { ...cv.manya, msgs: [...cv.manya.msgs, m], unread: cv.manya.unread + 1 } }));
-      setToast({ who: "Manya · new message", color: m.color, av: m.av, body: m.body, convo: "manya" });
+    loadChat();
+    const id = setInterval(loadChat, 15_000);
+    return () => clearInterval(id);
+  }, [loadChat]);
+  useEffect(() => { // person switch: load their read-state, close any open thread
+    try { setChatRead(JSON.parse(localStorage.getItem(`hmd-chat-read-${person}`) || "{}")); } catch { setChatRead({}); }
+    setActiveChat(null);
+  }, [person]);
+  // Toast when a NEW incoming human message lands (not on first load, not my own).
+  const lastMsgId = useRef<string | null>(null);
+  useEffect(() => {
+    const last = chatMsgs[chatMsgs.length - 1];
+    if (!last) return;
+    if (lastMsgId.current && last.id !== lastMsgId.current && last.sender !== person && last.kind === "chat") {
+      const p = PPL[last.sender];
+      const cid = last.convo === "team" ? "team" : last.convo.split("~").find((k) => k !== person) || "team";
+      setToast({ who: `${p?.name || last.sender} · new message`, color: p?.color || "#3A57E8", av: p?.av || "?", body: last.body, convo: cid });
       if (!closedManually.current) setChatOpen(true);
-    }, 3600);
-    return () => clearTimeout(id);
-  }, []);
+    }
+    lastMsgId.current = last.id;
+  }, [chatMsgs, person]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1073,7 +1069,29 @@ export function HopeMyDay() {
   //    the editors' claim pool — and Manya stays on as a collaborator.
   //  • Output-ready → Output tab; queued/terminal states leave the working view.
   const withManya = (cs: Person[]) => (cs.some((c) => c.name === "Manya") ? cs : [PPL.manya, ...cs]);
+  // Committed load (minutes) for ANY teammate — drives the assign-side "already
+  // full" warning. Same filter as Today's plan: own, in-production, not output-ready.
+  const committedFor = useCallback((name: string) => [...claimedTasks, ...tasks]
+    .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready")
+    .reduce((s, t) => s + (t.detail.duration || estMins(t.detail.typeLine)), 0), [claimedTasks, tasks]);
+  // CAPACITY GATE: approving design work hands it to Praveen — if his 8h day is
+  // already full, pop the warning first (the writer can still push through).
   const setTaskStatus = (id: string, status: CCStatus) => {
+    const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
+    if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
+      const handoff = autoAssign(cur.detail.typeLine);
+      if (handoff && !handoff.toPool && handoff.owner !== "Manya") {
+        const committed = committedFor(handoff.owner);
+        const add = cur.detail.duration || estMins(cur.detail.typeLine);
+        if (committed + add > WORK_MIN) {
+          setAssignWarn({ name: handoff.owner, committed, add, proceed: () => doSetTaskStatus(id, status) });
+          return;
+        }
+      }
+    }
+    doSetTaskStatus(id, status);
+  };
+  const doSetTaskStatus = (id: string, status: CCStatus) => {
     // Persist to the real pipeline (this drives the same handoff logic the Master
     // sheet & Content Review use), then reconcile the board with server truth.
     fetch("/api/marketing-hub/update", {
@@ -1117,6 +1135,23 @@ export function HopeMyDay() {
     else if (status === "Output - Ready" || status === "Output - In Progress") setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "Moved to the Output tab." });
     else if (!STATUS[status].inView) setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "It's left your working view." });
   };
+
+  // Seed/sync Today's plan from REAL tasks: the person's own in-production tasks
+  // land on the timeline (duration = producer-set, else estimated by type); tasks
+  // that finished or changed hands drop off automatically. Existing entries keep
+  // their order, duration and pins; new ones append sorted by priority → due.
+  useEffect(() => {
+    const PRANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready");
+    setPlan((p) => {
+      const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
+      const missing = mine
+        .filter((t) => !keep.some((x) => x.taskId === t.id))
+        .sort((a, b) => (PRANK[a.detail.priority] - PRANK[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"))
+        .map((t) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) }));
+      return keep.length === p.length && missing.length === 0 ? p : [...keep, ...missing];
+    });
+  }, [tasks, claimedTasks, me.name]);
 
   // Lay the (reorderable) tasks across the day, dropping the protected 1-hour
   // lunch in around 1 PM and filling the tail with buffer.
@@ -1215,7 +1250,17 @@ export function HopeMyDay() {
   const canCreate = person === "manya"; // the writer creates content tasks
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
+  // Capacity-gated: a new task starts on Manya (writer) — warn if her day is full.
   const createTask = (t: Task) => {
+    const add = estMins(t.detail.typeLine);
+    const committed = committedFor("Manya");
+    if (committed + add > WORK_MIN) {
+      setAssignWarn({ name: "Manya", committed, add, proceed: () => doCreateTask(t) });
+      return;
+    }
+    doCreateTask(t);
+  };
+  const doCreateTask = (t: Task) => {
     setShowNew(false);
     // Persist to mh_posts. Content-first: every new task starts with the writer
     // (Manya) at "Content - Pending"; the handoff to Praveen / the editors' pool
@@ -1329,17 +1374,50 @@ export function HopeMyDay() {
   const remOpen = reminders.filter((r) => !r.done).length;
   const remDone = reminders.length - remOpen;
 
+  // Conversations derived from the live messages, relative to the viewed person.
+  const convos = useMemo<Record<string, Convo>>(() => {
+    const fmt = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const out: Record<string, Convo> = {
+      team: { id: "team", name: "Team chat", group: true, online: true, unread: 0, msgs: [] },
+    };
+    for (const k of CHAT_IDS) {
+      if (k === person) continue;
+      out[k] = { id: k, name: PPL[k].name, av: PPL[k].av, color: PPL[k].color, online: true, unread: 0, msgs: [] };
+    }
+    for (const m of chatMsgs) {
+      const cid = m.convo === "team" ? "team" : m.convo.split("~").find((k) => k !== person);
+      if (!cid || !out[cid]) continue;
+      const p = PPL[m.sender];
+      const mine = m.sender === person;
+      out[cid].msgs.push({ who: mine ? "You" : (p?.name || m.sender), av: p?.av || "?", color: p?.color || "#8A92A6", tm: fmt(m.at), body: m.body, me: mine, sys: m.kind === "system" });
+      if (!mine && m.at > (chatRead[cid] || "")) out[cid].unread++;
+    }
+    if (activeChat && out[activeChat]) out[activeChat].unread = 0; // open thread = read
+    return out;
+  }, [chatMsgs, person, chatRead, activeChat]);
+
   const totalUnread = Object.values(convos).reduce((s, c) => s + c.unread, 0);
   const openChat = () => { setChatOpen(true); closedManually.current = false; };
   const closeChat = () => { if (chatPinned) return; setChatOpen(false); closedManually.current = true; };
-  const openConvo = (id: string) => { setActiveChat(id); setConvos((cv) => ({ ...cv, [id]: { ...cv[id], unread: 0 } })); };
+  const markRead = (cid: string) => setChatRead((r) => {
+    const nr = { ...r, [cid]: new Date().toISOString() };
+    try { localStorage.setItem(`hmd-chat-read-${person}`, JSON.stringify(nr)); } catch { /* private mode */ }
+    return nr;
+  });
+  const openConvo = (id: string) => { setActiveChat(id); markRead(id); };
   const addReminder = () => { const t = newRem.trim(); if (!t) return; setReminders((r) => [{ text: t, done: false }, ...r]); setNewRem(""); };
   const send = () => {
     const t = msg.trim(); if (!t || !activeChat) return;
-    const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-    const mine: ChatMsg = { who: "You", av: me.av, color: me.color, tm: now, body: t, me: true };
-    setConvos((cv) => ({ ...cv, [activeChat]: { ...cv[activeChat], msgs: [...cv[activeChat].msgs, mine] } }));
+    const convo = activeChat === "team" ? "team" : dmConvo(person, activeChat);
+    // Optimistic append; the follow-up loadChat() swaps in server truth.
+    setChatMsgs((ms) => [...ms, { id: `tmp-${Date.now()}`, convo, sender: person, body: t, kind: "chat", at: new Date().toISOString() }]);
     setMsg("");
+    fetch("/api/my-day/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ convo, sender: person, body: t }) })
+      .then(async (res) => {
+        if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Message failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+      })
+      .catch((e) => setToast({ who: "Message failed", color: "#C03221", av: "!", body: String(e) }))
+      .finally(() => loadChat());
   };
 
   return (
@@ -1610,7 +1688,11 @@ export function HopeMyDay() {
                 <>
                   <div className="chat-scroll thread">
                     <div className="chat-day">Today</div>
-                    {active.msgs.map((m, i) => (
+                    {active.msgs.length === 0 && <div className="empty">No messages yet — say hi 👋</div>}
+                    {active.msgs.map((m, i) => m.sys ? (
+                      /* server-posted pipeline event (handoff / claim / publish) */
+                      <div key={i} className="chat-sys"><span>{m.body}</span><span className="chat-sys-tm">{m.tm}</span></div>
+                    ) : (
                       <div key={i} className={`bubble-row ${m.me ? "me" : ""}`}>
                         {!m.me && active.group && <span className="av bubble-av" style={{ background: m.color }}>{m.av}</span>}
                         <div className="bubble">
@@ -1675,6 +1757,25 @@ export function HopeMyDay() {
               </div>
             ) : <div className="empty" style={{ padding: "2.4rem 0" }}>Nothing to claim right now ✓</div>}
             <div className="nt-assign" style={{ marginTop: "1rem" }}><span className="status-dot" style={{ background: "#8A92A6" }} /><span>Claim a video and it lands in your <b>My tasks</b> as <b>In progress</b> — you become the owner.</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
+      {assignWarn && (
+        <div className="modal" onClick={() => setAssignWarn(null)}>
+          <div className="modal-card" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setAssignWarn(null)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Capacity check</div>
+            <div className="d-title" style={{ marginBottom: ".7rem" }}>{assignWarn.name}&rsquo;s day is already full</div>
+            <div className="nt-assign" style={{ marginBottom: "1.1rem" }}>
+              <span className="status-dot" style={{ background: "#D97706" }} />
+              <span><b>{fmtDur(assignWarn.committed)}</b> of {assignWarn.name}&rsquo;s 8h is already committed. This task adds <b>{fmtDur(assignWarn.add)}</b> — it will likely slip past 6 PM or roll to tomorrow.</span>
+            </div>
+            <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end" }}>
+              <button className="btn" onClick={() => setAssignWarn(null)}>Cancel</button>
+              <button className="btn primary" onClick={() => { const go = assignWarn.proceed; setAssignWarn(null); go(); }}>Assign anyway</button>
+            </div>
           </div>
         </div>
       )}
@@ -1949,6 +2050,9 @@ const CSS = `
 .hmd .chat-scroll{flex:1;min-height:0;overflow:auto;padding:.3rem 1.1rem}
 .hmd .chat-foot{padding:.7rem 1.1rem;border-top:1px solid var(--line)}
 .hmd .chat-day{text-align:center;font-size:.64rem;color:var(--faint);margin:.7rem 0 .3rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.hmd .chat-sys{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.45rem 0;text-align:center}
+.hmd .chat-sys span:first-child{background:var(--panel-2);border:1px solid var(--line);border-radius:99px;padding:.28rem .7rem;font-size:.7rem;color:var(--ink-soft);max-width:86%}
+.hmd .chat-sys-tm{font-size:.6rem;color:var(--faint)}
 .hmd .chat-msg{display:flex;gap:.5rem;padding:.28rem 0;font-size:.8rem;border-bottom:1px solid var(--line-2)}
 .hmd .chat-msg:last-child{border-bottom:0}
 .hmd .chat-msg.me .body{color:var(--brand-ink)}

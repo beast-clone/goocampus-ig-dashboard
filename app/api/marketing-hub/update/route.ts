@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -152,6 +153,23 @@ export async function PATCH(req: Request) {
     //   • Design/static work → auto-assigned to Praveen; the writer joins as collaborator.
     //   • Video work → left with the writer, claimable by an editor (Nikhil/Nandu).
     //   • Maheen is NEVER auto-added.
+    // Mirror the key pipeline moments into the team chat (kind='system') so the
+    // handoff also lands as a message, not just a bell notification.
+    const chatActor = actor || before.data.owner_key || "maheen";
+    const title = String(data.particulars || "a task");
+    if (typeof clean.status === "string" && clean.status !== before.data.status) {
+      if (clean.status === "Content - Approved") {
+        const isVideo = VIDEO_TYPES.has(String(data.type || ""));
+        await postTeamMessage(sb, chatActor, isVideo
+          ? `${MH_NAME[chatActor] || chatActor} approved “${title}” — video work, up for grabs in the editors' pool.`
+          : `${MH_NAME[chatActor] || chatActor} approved “${title}” — design work, handed to Praveen.`);
+      } else if (clean.status === "Ready to Publish") {
+        await postTeamMessage(sb, chatActor, `“${title}” is ready to publish.`);
+      } else if (clean.status === "Incorporating Feedback") {
+        await postTeamMessage(sb, chatActor, `${MH_NAME[chatActor] || chatActor} sent “${title}” back with feedback.`);
+      }
+    }
+
     if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved") {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;

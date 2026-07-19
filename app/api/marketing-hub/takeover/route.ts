@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey }
 // Swaps ownership: the incoming person becomes the owner, the old owner is dropped from collabs
@@ -50,6 +51,10 @@ export async function POST(req: Request) {
     });
 
     bustMarketingHubCache(); // owner change must reflect on the next hub fetch
+
+    // Mirror the claim into the team chat so everyone sees who grabbed it.
+    const claimed = await sb.from("mh_posts").select("particulars").eq("id", body.postId).single();
+    await postTeamMessage(sb, body.newOwnerKey, `${MH_NAME[body.newOwnerKey] || body.newOwnerKey} claimed “${claimed.data?.particulars || "a task"}”.`);
 
     return NextResponse.json({ ok: true, newOwnerKey: body.newOwnerKey });
   } catch (err) {
