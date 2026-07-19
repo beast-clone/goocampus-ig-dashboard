@@ -744,7 +744,7 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
         </div>
         <div className="aw-choice">
           <button className="btn primary" onClick={onAcceptWork}>{fits ? "Accept & work" : `Accept & work — finish ${finish}`}</button>
-          {!fits && (<><div className="aw-or">or, if you can't stretch</div><button className="btn" onClick={onAskManya}>I&apos;m packed — ask Manya to free up room</button></>)}
+          {!fits && (<><div className="aw-or">or, if you can't stretch</div><button className="btn" onClick={onAskManya}>I&apos;m packed — move a task to make room</button></>)}
         </div>
       </div>
     </div>
@@ -853,15 +853,29 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
     const blocks: CapBlock[] = [];
     let cursor = 0, lunchDone = false, current: { label: string; endsIn: number } | null = null;
     if (span === "today") {
-      // Sequential layout from 9 AM, lunch pinned at 1 PM, done/now from the clock.
+      // Sequential layout from 9 AM. LUNCH IS THE OFFICE STANDARD 1–2 PM — pinned,
+      // never floating to wherever the tasks happen to end (tasks split around it,
+      // and an early finish gets a Free gap so lunch still sits at 1 PM).
+      const LUNCH_END = LUNCH_AT + LUNCH_MIN;
+      const pushTask = (label: string, video: boolean, start: number, dur: number) => {
+        const s = start + dur <= now ? "done" : start <= now && now < start + dur ? "now" : undefined;
+        if (s === "now") current = { label, endsIn: start + dur - now };
+        blocks.push({ k: video ? "reel" : "design", l: label, f: dur / 60, s });
+      };
       for (const t of mine) {
-        if (!lunchDone && cursor >= LUNCH_AT) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; lunchDone = true; }
-        const s = cursor + t.dur <= now ? "done" : cursor <= now && now < cursor + t.dur ? "now" : undefined;
-        if (s === "now") current = { label: t.label, endsIn: cursor + t.dur - now };
-        blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60, s });
-        cursor += t.dur;
+        let remaining = t.dur;
+        if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true; }
+        if (!lunchDone && cursor < LUNCH_AT) {
+          const before = Math.min(remaining, LUNCH_AT - cursor);
+          if (before > 0) { pushTask(t.label, t.video, cursor, before); cursor += before; remaining -= before; }
+          if (remaining > 0) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true; }
+        }
+        if (remaining > 0) { pushTask(t.label, t.video, cursor, remaining); cursor += remaining; }
       }
-      if (!lunchDone && cursor < LUNCH_AT + LUNCH_MIN) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; }
+      if (!lunchDone) {
+        if (cursor < LUNCH_AT) { blocks.push({ k: "free", l: "Free", f: (LUNCH_AT - cursor) / 60 }); cursor = LUNCH_AT; }
+        blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor = LUNCH_END; lunchDone = true;
+      }
       if (cursor < DAY_MINS) blocks.push({ k: "free", l: "Free", f: (DAY_MINS - cursor) / 60 });
     } else {
       // Week: a proportional strip of the whole approved backlog vs 40h — no
@@ -870,8 +884,10 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
       if (cursor < capacity) blocks.push({ k: "free", l: "Free", f: (capacity - cursor) / 60 });
     }
     const badge: "free" | "some" | "full" = freeMin >= capacity / 4 ? "free" : freeMin > 0 ? "some" : "full";
-    const next = current || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
-    return { ...p, committed, freeMin, badge, blocks, current, next, overflow: cursor > capacity };
+    // (cast: TS can't see the closure assignment inside pushTask)
+    const cur = current as { label: string; endsIn: number } | null;
+    const next = cur || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
+    return { ...p, committed, freeMin, badge, blocks, current: cur, next, overflow: cursor > capacity };
   });
   return (
     <div className="tcp">
@@ -1114,6 +1130,17 @@ export function HopeMyDay() {
   meNameRef.current = me.name;
   const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
   const showPool = isEditor && claimPool.length > 0;
+  // PIPELINE — tasks queued for THIS person, waiting for their accept. Data-derived
+  // and persistent, so it doubles as the history the transient bell doesn't keep.
+  //   Praveen: deferred design handoffs (approved, design-type, not his yet).
+  //   Editors: the claim pool (approved videos, unclaimed).
+  const pipelineTasks = useMemo(() => {
+    if (person === "praveen") return tasks.filter((t) => t.status === "Content - Approved" && !(VIDEO_TYPES as readonly string[]).includes(t.detail.typeLine) && t.detail.owner !== me.name);
+    if (isEditor) return claimPool;
+    return [];
+  }, [tasks, claimPool, person, isEditor, me.name]);
+  const [pipeOpen, setPipeOpen] = useState(false);
+  const [makeRoom, setMakeRoom] = useState<Task | null>(null); // "day packed — move a task" flow
   // MY DAY = only the SELECTED person's own tasks. A task's Owner (whoever it's
   // assigned to / claimed it) must match the person being viewed — so e.g. a
   // Carousel owned by Praveen never shows up under an editor. Then keep only the
@@ -1421,7 +1448,9 @@ export function HopeMyDay() {
       })
       .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
   };
-  const askManyaToMove = () => { setAcceptTask(null); setAskManya(true); };
+  // "I'm packed" → the REAL make-room flow: pick a not-started task, roll it a
+  // day, then the pending pipeline task is accepted. (Replaces the demo Ask-Manya.)
+  const askManyaToMove = () => { const t = acceptTask; setAcceptTask(null); if (t) setMakeRoom(t); };
   // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
   // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
@@ -1581,12 +1610,6 @@ export function HopeMyDay() {
             <span>collapsible chat · icon inbox · wider workspace</span>
           </p>
           <div className="icons">
-            {/* Start / End day — same control for everyone */}
-            {!dayStarted ? (
-              <button className="daybtn" onClick={startDay}>▶ Start day</button>
-            ) : (
-              <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End today</button></span>
-            )}
             {/* Team capacity — Manya only, a clearly-labelled button next to the day control */}
             {person === "manya" && (
               <button className={`teamcapbtn ${screen === "team" ? "on" : ""}`} onClick={() => setScreen(screen === "team" ? "myday" : "team")}>
@@ -1661,12 +1684,26 @@ export function HopeMyDay() {
           <div className="switch" role="tablist" aria-label="Teammate">
             {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
           </div>
-          <div className="stats">
-            <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending today</div></div>
-            <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>
-            <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
-            <div className="stat"><div className="n">{stats.toPublish}</div><div className="k">To publish</div></div>
-            <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7d</div></div>
+          <div className="stats-wrap">
+            {/* Day control + Pipeline live HERE, aligned with the stats (user order
+                2026-07-19) — the bell/reminders/chat icons stay up top. */}
+            <div className="dayctl">
+              {!dayStarted ? (
+                <button className="daybtn" onClick={startDay}>▶ Start day</button>
+              ) : (
+                <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End today</button></span>
+              )}
+              <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
+                ⏳ Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
+              </button>
+            </div>
+            <div className="stats">
+              <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending today</div></div>
+              <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>
+              <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
+              <div className="stat"><div className="n">{stats.toPublish}</div><div className="k">To publish</div></div>
+              <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7d</div></div>
+            </div>
           </div>
         </div>
 
@@ -1931,6 +1968,83 @@ export function HopeMyDay() {
         </div>
       )}
 
+      {/* PIPELINE — tasks queued for me, waiting for MY accept (persistent history) */}
+      {pipeOpen && (
+        <div className="modal" onClick={() => setPipeOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Pipeline · queued for you</div>
+            <div className="d-title" style={{ marginBottom: "1rem" }}>Waiting for your accept</div>
+            {pipelineTasks.length ? (
+              <div className="claim-list">
+                {pipelineTasks.map((v) => (
+                  <div key={v.id} className="claim-card">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="claim-title">{v.title}</div>
+                      <div className="claim-meta">{v.detail.typeLine} · {v.detail.brand} · ~{fmtMins(v.detail.duration || estMins(v.detail.typeLine))}{v.due ? ` · due ${v.due}` : ""}</div>
+                    </div>
+                    <button className="btn primary sm" onClick={() => { setPipeOpen(false); setAcceptTask(v); }}>Open</button>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="empty" style={{ padding: "2.4rem 0" }}>Nothing queued for you ✓</div>}
+            <div className="nt-assign" style={{ marginTop: "1rem" }}><span className="status-dot" style={{ background: "#D97706" }} /><span>Tasks land here when your 8h day is already full. They join your board <b>only when you accept</b> — fits your day → Accept &amp; work; packed → move a not-started task first.</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* MAKE ROOM — day packed: move a NOT-STARTED task, then the pending one is accepted */}
+      {makeRoom && (() => {
+        const nowBlk = planBlocks.find((b) => b.kind === "reel" && nowMin != null && b.start <= nowMin && nowMin < b.start + b.dur);
+        const candidates = myPlan.filter((p) => p.taskId !== nowBlk?.taskId);
+        const pendingDur = makeRoom.detail.duration || estMins(makeRoom.detail.typeLine);
+        const moveOne = (p: PlanItem) => {
+          const t = [...claimedTasks, ...tasks].find((x) => x.id === p.taskId);
+          const base = t?.due ? new Date(t.due) : new Date();
+          base.setDate(base.getDate() + 1);
+          const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+          const pending = makeRoom; setMakeRoom(null);
+          setPlan((arr) => arr.filter((x) => x.taskId !== p.taskId)); // off today's board immediately
+          fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.taskId, actor: person, fields: { due_date: next } }) })
+            .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: pending.id, newOwnerKey: person }) }))
+            .then(async (res) => {
+              if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+              else setToast({ who: "Room made ✓", color: "#1AA053", av: me.av, body: `“${p.label}” moved to tomorrow — “${pending.title}” accepted onto your plan.` });
+              load();
+            })
+            .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+        };
+        return (
+          <div className="modal" onClick={() => setMakeRoom(null)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setMakeRoom(null)} title="Close">✕</button>
+              <div className="lbl" style={{ marginBottom: ".4rem" }}>Day packed · make room</div>
+              <div className="d-title" style={{ marginBottom: ".5rem" }}>Move a task to fit “{makeRoom.title}”</div>
+              <div className="nt-assign" style={{ marginBottom: "1rem" }}>
+                <span className="status-dot" style={{ background: "#D97706" }} />
+                <span><b>{fmtMins(workMin)}</b> committed of 8h — the incoming task needs <b>{fmtMins(pendingDur)}</b>. The task you&apos;re working on now can&apos;t move; pick one you haven&apos;t started:</span>
+              </div>
+              {candidates.length ? (
+                <div className="claim-list">
+                  {candidates.map((p) => {
+                    const t = [...claimedTasks, ...tasks].find((x) => x.id === p.taskId);
+                    return (
+                      <div key={p.key} className="claim-card">
+                        <div style={{ minWidth: 0 }}>
+                          <div className="claim-title">{p.label}</div>
+                          <div className="claim-meta">{fmtMins(p.dur)}{t?.due ? ` · due ${t.due}` : ""} · moving frees {fmtMins(p.dur)}</div>
+                        </div>
+                        <button className="btn primary sm" onClick={() => moveOne(p)}>Move to tomorrow</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <div className="empty" style={{ padding: "1.8rem 0" }}>Everything left today is already in progress — nothing can move.</div>}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
       {assignWarn && (
         <div className="modal" onClick={() => setAssignWarn(null)}>
@@ -2029,6 +2143,10 @@ const CSS = `
 .hmd .btn.sm{font-size:.74rem;padding:.35em .7em}
 .hmd .headband{display:grid;grid-template-columns:1.1fr auto 1.6fr;gap:1.2rem;align-items:center}
 @media(max-width:900px){.hmd .headband{grid-template-columns:1fr;gap:.9rem}}
+/* Day control (Start day + Pipeline) sits WITH the stats — clear gap between. */
+.hmd .stats-wrap{display:flex;align-items:center;justify-content:flex-end;gap:1.6rem;flex-wrap:wrap}
+.hmd .dayctl{display:flex;align-items:center;gap:.5rem;padding-right:1.2rem;border-right:1px solid var(--line)}
+@media(max-width:900px){.hmd .dayctl{border-right:none;padding-right:0}}
 .hmd .who .hi{font-size:1.15rem;font-weight:700;letter-spacing:-.01em}
 .hmd .who .sub{font-size:.8rem;color:var(--muted);margin-top:.15rem}
 .hmd .switch{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.2rem;gap:.15rem}
