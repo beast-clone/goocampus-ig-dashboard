@@ -114,10 +114,11 @@ async function fetchDailyTrends(geo: string): Promise<TrendBreakout[]> {
       source: (tag(n, "ht:news_item_source") || "").trim() || null,
     })).filter((a) => a.title);
 
-    // Match on the query title OR any of its driving article headlines, so a
-    // breakout like "neet pg result" or a doctor-strike story both surface.
-    const haystack = [title, ...articles.map((a) => a.title)].join(" • ");
-    const matched = matchDomain(haystack);
+    // Match on the trending TERM only — not the article headlines. Matching
+    // article text pulled in false positives (a celebrity's "brain cancer" obit
+    // matched "cancer/doctor"), which made the niche radar look broken. A breakout
+    // is only "in your niche" if the search term itself is (e.g. "neet pg result").
+    const matched = matchDomain(title);
     if (matched.length === 0) continue;
 
     const traffic = (tag(item, "ht:approx_traffic") || "").trim() || "—";

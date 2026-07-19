@@ -3,6 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import {
+  IconSearch, IconTrendingUp, IconFlame, IconNews, IconRefresh, IconPencil,
+  IconBrandReddit, IconBrandYoutube, IconBrandGoogle, IconStar, IconMessageQuestion,
+  IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck,
+} from "@tabler/icons-react";
+import type { Icon as TablerIcon } from "@tabler/icons-react";
 
 type Alert = {
   id: string;
@@ -67,6 +73,9 @@ function Radar() {
   // Free trend signals (Google Trends RSS breakouts + autocomplete ideas).
   const [trends, setTrends] = useState<TrendsResp | null>(null);
   const [trendsRefreshing, setTrendsRefreshing] = useState(false);
+  // Real brand mentions (Google News search for the brand) — powers the pulse
+  // row's brand tile and the Brand-watch card.
+  const [brand, setBrand] = useState<MentionResult | null>(null);
 
   const loadTrends = useCallback(async (force = false) => {
     if (force) setTrendsRefreshing(true);
@@ -78,6 +87,13 @@ function Radar() {
     finally { setTrendsRefreshing(false); }
   }, []);
   useEffect(() => { loadTrends(); }, [loadTrends]);
+
+  useEffect(() => {
+    fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setBrand(d as MentionResult); })
+      .catch(() => { /* brand watch is best-effort */ });
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,18 +141,7 @@ function Radar() {
   }, [alerts]);
 
   return (
-    <div className="radar-fx">
-      {/* Radar-only: bring back the soft Hope-template card shadow the global
-          theme strips app-wide, so this tab matches the approved mockup. Scoped
-          to .radar-fx and higher-specificity than the strip, so no other tab is
-          affected. Remove this block to revert Radar to the flat house style. */}
-      <style jsx global>{`
-        .hope-scope .radar-fx .rounded-2xl {
-          box-shadow: 0 8px 24px 0 rgba(17, 38, 146, 0.06) !important;
-          border-color: transparent !important;
-        }
-      `}</style>
-
+    <>
       {/* Header */}
       <div className="flex items-baseline gap-3 mb-4 flex-wrap">
         <div>
@@ -173,14 +178,8 @@ function Radar() {
       {/* Keyword & brand search — "what's the internet saying about X" */}
       <KeywordIntel />
 
-      {/* Source lanes — which signals feed the Radar */}
-      <LanesBar
-        newsCount={items.length}
-        trendCount={(trends?.breakouts.length || 0) + (trends?.ideas.reduce((s, g) => s + g.ideas.length, 0) || 0)}
-        interestChips={interestChips}
-        activeInterest={activeInterest}
-        onInterest={setActiveInterest}
-      />
+      {/* Pulse row — at-a-glance stats from real signals */}
+      <PulseRow brand={brand} trends={trends} items={items} />
 
       {/* Hero strip — breakouts if any, else the top rising searches */}
       <BreakoutStrip trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} />
@@ -195,10 +194,22 @@ function Radar() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] gap-4 items-start">
           {/* LEFT — News feed */}
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
-              <span className="w-2 h-2 rounded-sm bg-brand" />
-              <h2 className="text-base font-medium text-[#232D42]">Trending in your domain</h2>
+            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
+              <IconNews size={17} stroke={1.8} className="text-brand" />
+              <h2 className="text-base font-medium text-[#232D42]">Latest in your domain</h2>
               <span className="text-xs text-gray-500">· {items.length} news headline{items.length === 1 ? "" : "s"}</span>
+              {interestChips.length > 1 && (
+                <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+                  {interestChips.map((i) => (
+                    <button key={i} onClick={() => setActiveInterest(i)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
+                        activeInterest === i ? "bg-brand text-white border-brand" : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
+                      }`}>
+                      {i === "all" ? "All" : i}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {items.length === 0 && !loading ? (
               <div className="p-8 text-center">
@@ -218,11 +229,12 @@ function Radar() {
             )}
           </section>
 
-          {/* RIGHT — rising searches + your-SEO (free now vs needs Search Console) */}
+          {/* RIGHT — brand watch + rising searches + your-SEO */}
           <aside className="flex flex-col gap-4">
+            <BrandWatch brand={brand} />
             <RisingSidebar trends={trends} />
-            <SeoConnectCard icon="🔎" title="Your winning keywords" sub="Search Console" />
-            <SeoConnectCard icon="🎯" title="Striking-distance gaps" sub="rank 11–20" />
+            <SeoConnectCard Icon={IconSeo} title="Your winning keywords" sub="Search Console" />
+            <SeoConnectCard Icon={IconTargetArrow} title="Striking-distance gaps" sub="rank 11–20" />
           </aside>
         </div>
       )}
@@ -243,7 +255,7 @@ function Radar() {
           onClose={() => setReaderItem(null)}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -269,41 +281,33 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
     return new Date(item.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
   }, [item.publishedAt]);
 
+  const src = item.source || item.alertName || "?";
+  const sentiment = sentimentOf(`${item.title} ${item.snippet || ""}`);
+
   return (
-    <li className="px-5 py-3.5 hover:bg-gray-50/70 transition border-l-2 border-l-brand/50">
-      <div className="flex items-start justify-between gap-3">
-        <button type="button" onClick={onRead} className="flex-1 min-w-0 text-left group">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-brand bg-brand-light px-1.5 py-0.5 rounded">🔔 News</span>
-            <span className="text-[10px] text-gray-400">{item.primaryInterest}</span>
-          </div>
-          <div className="text-sm font-medium text-gray-900 group-hover:text-brand leading-snug">
-            {item.title}
-          </div>
-          {item.snippet && (
-            <div className="text-[12px] text-gray-600 mt-1 line-clamp-2 leading-snug">
-              {item.snippet}
-            </div>
-          )}
-          <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
-            {item.source && (
-              <span className="font-medium text-gray-700">{item.source}</span>
-            )}
-            <span>·</span>
-            <span>{relative}</span>
-            <span>·</span>
-            <span className="italic">{item.alertName}</span>
-            <span>·</span>
-            <span className="text-brand group-hover:underline">📖 Read in dashboard</span>
-          </div>
-        </button>
-        <Link
-          href={draftHref}
-          className="shrink-0 text-xs font-medium bg-white text-brand border border-brand/30 px-3 py-1.5 rounded-md hover:bg-brand-light whitespace-nowrap"
-        >
-          Turn into post →
-        </Link>
-      </div>
+    <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
+      <span className="w-[34px] h-[34px] rounded-lg grid place-items-center text-[13px] font-semibold text-white shrink-0"
+        style={{ background: avatarColor(src) }}>
+        {src.replace(/^www\./, "").charAt(0).toUpperCase()}
+      </span>
+      <button type="button" onClick={onRead} className="flex-1 min-w-0 text-left group flex flex-col gap-1">
+        <div className="text-sm font-medium text-[#232D42] group-hover:text-brand leading-snug">{item.title}</div>
+        <div className="flex items-center gap-2 text-[11.5px] text-gray-500 flex-wrap">
+          <span className="font-medium text-gray-600">{src}</span>
+          <span className="opacity-50">·</span>
+          <span>{relative}</span>
+          <span className="opacity-50">·</span>
+          <span className="inline-flex items-center gap-1.5" style={{ color: SENT_COLOR[sentiment] }}>
+            <span className="w-[7px] h-[7px] rounded-full" style={{ background: SENT_COLOR[sentiment] }} />{SENT_LABEL[sentiment]}
+          </span>
+          <span className="opacity-50">·</span>
+          <span>{item.primaryInterest}</span>
+        </div>
+      </button>
+      <Link href={draftHref}
+        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap">
+        <IconPencil size={13} stroke={1.8} /> Post
+      </Link>
     </li>
   );
 }
@@ -350,12 +354,12 @@ const BRAND_QUERY = "GooCampus";
 // The places we watch for mentions. Google News is live & free today; the rest
 // each need a one-time free connect — shown openly so it's clear what's on and
 // what can be switched on next (ordered by value for brand reputation).
-const SOURCES: { platform: string; icon: string; live: boolean; note: string }[] = [
-  { platform: "Google News", icon: "📰", live: true, note: "Web + press mentions. Live and free — no setup." },
-  { platform: "Reddit", icon: "👽", live: false, note: "Candid student threads (r/IMG, r/MBBS). Free Reddit OAuth app (client id + secret)." },
-  { platform: "Quora", icon: "❓", live: false, note: "'Is GooCampus genuine?' Q&A — key for consultancy reputation. Scrape-based (planned)." },
-  { platform: "Google Reviews", icon: "⭐", live: false, note: "Star ratings + complaints on your Google listing. Free Google Places API key." },
-  { platform: "YouTube", icon: "▶️", live: false, note: "Videos + comments mentioning the brand. Free YouTube Data API key." },
+const SOURCES: { platform: string; Icon: TablerIcon; live: boolean; note: string }[] = [
+  { platform: "Google News", Icon: IconBrandGoogle, live: true, note: "Web + press mentions. Live and free — no setup." },
+  { platform: "Reddit", Icon: IconBrandReddit, live: false, note: "Candid student threads (r/IMG, r/MBBS). Free Reddit OAuth app (client id + secret)." },
+  { platform: "Quora", Icon: IconMessageQuestion, live: false, note: "'Is GooCampus genuine?' Q&A — key for consultancy reputation. Scrape-based (planned)." },
+  { platform: "Google Reviews", Icon: IconStar, live: false, note: "Star ratings + complaints on your Google listing. Free Google Places API key." },
+  { platform: "YouTube", Icon: IconBrandYoutube, live: false, note: "Videos + comments mentioning the brand. Free YouTube Data API key." },
 ];
 
 function KeywordIntel() {
@@ -396,7 +400,7 @@ function KeywordIntel() {
     <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center text-sm">🔎</span>
+          <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center"><IconWorldSearch size={16} stroke={1.8} /></span>
           <div>
             <h2 className="text-base font-medium text-[#232D42] leading-tight">Search the web &amp; your brand</h2>
             <div className="text-[11px] text-gray-500">Type any keyword or your brand — see where it&apos;s mentioned online + the mood. Free · Google News</div>
@@ -404,7 +408,7 @@ function KeywordIntel() {
         </div>
         <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus-within:border-brand/50">
-            <span className="text-gray-400 text-sm">🔍</span>
+            <IconSearch size={16} stroke={1.8} className="text-gray-400" />
             <input value={input} onChange={(e) => setInput(e.target.value)}
               placeholder="e.g. GooCampus · AMC exam 2026 · PLAB 2"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400" />
@@ -435,7 +439,7 @@ function KeywordIntel() {
                     ? "bg-[#1aa053]/[0.06] border-[#1aa053]/30 text-[#1aa053]"
                     : "bg-gray-50 border-gray-200 text-gray-600 hover:border-brand/40 hover:text-brand cursor-pointer"
                 }`}>
-                <span aria-hidden>{s.icon}</span>
+                <s.Icon size={15} stroke={1.8} />
                 <span className="font-medium">{s.platform}</span>
                 {s.live
                   ? <span className="text-[10px] font-semibold">✓ Live</span>
@@ -493,7 +497,7 @@ function KeywordIntel() {
                       </div>
                     </div>
                     <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || "web"}\nURL: ${m.url}`)}
-                      className="shrink-0 text-[11px] font-medium text-brand hover:underline whitespace-nowrap mt-0.5">✍ Post</Link>
+                      className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap mt-0.5"><IconPencil size={13} stroke={1.8} /> Post</Link>
                   </li>
                 ))}
               </ul>
@@ -510,44 +514,126 @@ function KeywordIntel() {
   );
 }
 
-// Source-lanes bar. News + Search-trends are live and free; the SEO / YouTube /
-// Community lanes are named but marked "soon" so the roadmap is honest, not faked.
-function LanesBar({ newsCount, trendCount, interestChips, activeInterest, onInterest }: {
-  newsCount: number; trendCount: number; interestChips: string[];
-  activeInterest: string; onInterest: (i: string) => void;
-}) {
-  const lanes = [
-    { label: "News", color: "#3a57e8", count: newsCount, live: true },
-    { label: "Search trends", color: "#6f42c1", count: trendCount, live: true },
-    { label: "Your SEO", color: "#1aa053", live: false },
-    { label: "YouTube", color: "#c03221", live: false },
-    { label: "Community", color: "#001F4D", live: false },
-  ];
+// Lightweight client sentiment for feed rows (mirrors lib/web-mentions lexicon).
+const SENT_POS = ["genuine", "helpful", "best", "success", "cleared", "topper", "scores", "qualify", "grateful", "trusted", "recommend", "achieved", "wins", "great"];
+const SENT_NEG = ["scam", "fraud", "fake", "delay", "delayed", "postponed", "row", "protest", "worst", "warning", "rejected", "rejection", "crisis", "fails", "fail", "shortage", "concern"];
+function sentimentOf(text: string): "positive" | "negative" | "neutral" {
+  const s = ` ${text.toLowerCase()} `;
+  let n = 0;
+  for (const w of SENT_POS) if (s.includes(w)) n++;
+  for (const w of SENT_NEG) if (s.includes(w)) n--;
+  return n > 0 ? "positive" : n < 0 ? "negative" : "neutral";
+}
+const SENT_COLOR = { positive: "#1aa053", negative: "#c03221", neutral: "#8A92A6" } as const;
+const SENT_LABEL = { positive: "Positive", negative: "Negative", neutral: "Neutral" } as const;
+// Deterministic brand colour for a source avatar.
+const AV_COLORS = ["#3A57E8", "#1aa053", "#6f42c1", "#f16a1b", "#079aa2", "#c03221"];
+function avatarColor(seed: string): string {
+  let h = 0; for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AV_COLORS[h % AV_COLORS.length];
+}
+
+// Pulse row — four at-a-glance stat tiles built from real signals.
+function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trends: TrendsResp | null; items: FeedItem[] }) {
+  const risingCount = trends ? trends.ideas.reduce((s, g) => s + g.ideas.length, 0) : 0;
+  const breakoutCount = trends?.breakouts.length ?? 0;
+  const c = brand?.counts;
+  const total = c?.total ?? 0;
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-2.5 mb-4 flex items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1">Signals</span>
-        {lanes.map((l) => (
-          <span key={l.label}
-            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg ${l.live ? "text-gray-700 bg-gray-50" : "text-gray-400"}`}
-            title={l.live ? "Live & free" : "Coming next"}>
-            <span className="w-2 h-2 rounded-sm" style={{ background: l.color, opacity: l.live ? 1 : 0.4 }} />
-            {l.label}
-            {l.live
-              ? <span className="text-[10px] font-semibold text-gray-500">{l.count}</span>
-              : <span className="text-[9px] font-semibold uppercase text-gray-400 border border-gray-200 px-1.5 py-0.5 rounded-full">soon</span>}
-          </span>
-        ))}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* brand mentions + sentiment bar */}
+      <div className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5">
+        <div className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
+          <span className="text-[11.5px] text-gray-500 font-medium">Brand mentions · 30d</span>
+        </div>
+        <div className="text-2xl font-semibold text-[#232D42] leading-none">{total}<span className="text-xs font-medium text-gray-400"> {total === 1 ? "mention" : "mentions"}</span></div>
+        {total > 0 ? (
+          <>
+            <div className="h-1.5 rounded-full flex overflow-hidden bg-gray-100">
+              <span style={{ width: `${pct(c!.positive)}%`, background: "#1aa053" }} />
+              <span style={{ width: `${pct(c!.neutral)}%`, background: "#8A92A6" }} />
+              <span style={{ width: `${pct(c!.negative)}%`, background: "#c03221" }} />
+            </div>
+            <div className="text-[11px] text-gray-500"><b className="text-[#1aa053]">{c!.positive} pos</b> · {c!.neutral} neu · <b className="text-[#c03221]">{c!.negative} neg</b></div>
+          </>
+        ) : (
+          <div className="text-[11px] text-gray-400">Connect Reddit / Reviews to widen brand coverage</div>
+        )}
       </div>
-      <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-        {interestChips.map((i) => (
-          <button key={i} onClick={() => onInterest(i)}
-            className={`text-xs px-3 py-1 rounded-full border transition ${
-              activeInterest === i ? "bg-brand text-white border-brand" : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
-            }`}>
-            {i === "all" ? "All interests" : i}
-          </button>
-        ))}
+      {/* rising */}
+      <PulseTile icon={<IconTrendingUp size={15} stroke={1.8} />} tint="#1aa053" bg="rgba(26,160,83,.1)"
+        label="Rising searches" value={risingCount} meta="around your tracked topics" />
+      {/* headlines */}
+      <PulseTile icon={<IconNews size={15} stroke={1.8} />} tint="#3a57e8" bg="rgba(58,87,232,.1)"
+        label="Headlines today" value={items.length} meta="from your tracked topics" />
+      {/* breakouts */}
+      <PulseTile icon={<IconFlame size={15} stroke={1.8} />} tint="#f16a1b" bg="rgba(241,106,27,.1)"
+        label="Breakouts" value={breakoutCount} meta="national spikes in your niche" />
+    </div>
+  );
+}
+function PulseTile({ icon, tint, bg, label, value, meta }: { icon: React.ReactNode; tint: string; bg: string; label: string; value: number; meta: string }) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5">
+      <div className="flex items-center gap-2">
+        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: tint, background: bg }}>{icon}</span>
+        <span className="text-[11.5px] text-gray-500 font-medium">{label}</span>
+      </div>
+      <div className="text-2xl font-semibold text-[#232D42] leading-none">{value}</div>
+      <div className="text-[11px] text-gray-400">{meta}</div>
+    </div>
+  );
+}
+
+// Brand watch — real sentiment donut + latest brand mentions.
+function BrandWatch({ brand }: { brand: MentionResult | null }) {
+  const c = brand?.counts;
+  const total = c?.total ?? 0;
+  const posPct = total > 0 ? Math.round((c!.positive / total) * 100) : 0;
+  // donut segments (circumference 100)
+  const seg = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  const posLen = seg(c?.positive ?? 0), neuLen = seg(c?.neutral ?? 0), negLen = seg(c?.negative ?? 0);
+  return (
+    <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
+        <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
+        <h3 className="text-sm font-medium text-[#232D42]">Brand watch</h3>
+        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{BRAND_QUERY}</span>
+      </div>
+      <div className="p-4">
+        {total === 0 ? (
+          <div className="text-xs text-gray-500 leading-relaxed">
+            No web mentions of <b className="text-gray-700">{BRAND_QUERY}</b> in Google News right now. Reputation chatter lives on Reddit, Quora &amp; reviews — connect those (free) to track praise and complaints here.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-4">
+              <svg viewBox="0 0 42 42" className="w-[76px] h-[76px] shrink-0">
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#EEF0F4" strokeWidth="6" />
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#1aa053" strokeWidth="6" strokeDasharray={`${posLen} ${100 - posLen}`} strokeDashoffset="25" />
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#8A92A6" strokeWidth="6" strokeDasharray={`${neuLen} ${100 - neuLen}`} strokeDashoffset={`${25 - posLen}`} />
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#c03221" strokeWidth="6" strokeDasharray={`${negLen} ${100 - negLen}`} strokeDashoffset={`${25 - posLen - neuLen}`} />
+                <text x="21" y="20" textAnchor="middle" fontSize="9" fontWeight="600" fill="#232D42">{posPct}%</text>
+                <text x="21" y="27" textAnchor="middle" fontSize="4.5" fill="#8A92A6">positive</text>
+              </svg>
+              <div className="flex flex-col gap-1.5 text-xs">
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#1aa053" }} /><b className="text-[#232D42] font-semibold">{c!.positive}</b> positive</div>
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#8A92A6" }} /><b className="text-[#232D42] font-semibold">{c!.neutral}</b> neutral</div>
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#c03221" }} /><b className="text-[#232D42] font-semibold">{c!.negative}</b> negative</div>
+              </div>
+            </div>
+            <div className="mt-3 border-t border-gray-100 pt-1">
+              {brand!.mentions.slice(0, 3).map((m) => (
+                <a key={m.url} href={m.url} target="_blank" rel="noreferrer" className="block py-2 border-t border-gray-50 first:border-t-0 group">
+                  <div className="text-xs text-[#232D42] leading-snug line-clamp-2 group-hover:text-brand">{m.title}</div>
+                  <div className="text-[10.5px] text-gray-400 mt-0.5">{m.source} · {SENT_LABEL[m.sentiment]}</div>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -567,16 +653,16 @@ function BreakoutStrip({ trends, refreshing, onRefresh }: {
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2 px-1">
         {hasBreak ? (
-          <><span className="text-[11px] font-semibold uppercase tracking-wide text-[#f16a1b]">🔥 Breakout this week</span>
+          <><span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#f16a1b]"><IconFlame size={14} stroke={1.8} /> Breakout this week</span>
             <span className="text-[11px] text-gray-400">national search breakouts in your niche</span></>
         ) : (
-          <><span className="text-[11px] font-semibold uppercase tracking-wide text-[#1aa053]">↑ Rising searches</span>
+          <><span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#1aa053]"><IconTrendingUp size={14} stroke={1.8} /> Rising searches</span>
             <span className="text-[11px] text-gray-400">what people are searching around your topics — tap to draft</span></>
         )}
         <span className="ml-auto text-[10px] text-gray-400">Free · Google Trends + Suggest · {trends.geos.join("/")}</span>
         <button onClick={onRefresh} disabled={refreshing}
-          className="text-[11px] font-medium text-brand hover:underline disabled:opacity-50" title="Refresh trends">
-          {refreshing ? "…" : "↻"}
+          className="inline-flex items-center text-brand hover:text-brand-dark disabled:opacity-50" title="Refresh trends">
+          <IconRefresh size={14} stroke={1.8} className={refreshing ? "animate-spin" : ""} />
         </button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -584,24 +670,24 @@ function BreakoutStrip({ trends, refreshing, onRefresh }: {
           ? trends.breakouts.slice(0, 4).map((b) => (
             <div key={`${b.geo}-${b.title}`} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-brand/30 transition flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[#f16a1b] bg-[#f16a1b]/10 px-2 py-0.5 rounded-full">🔥 {b.traffic}</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#f16a1b] bg-[#f16a1b]/10 px-2 py-0.5 rounded-full"><IconFlame size={12} stroke={2} /> {b.traffic}</span>
                 <span className="text-[10px] text-gray-500">{b.geo}</span>
               </div>
               <div className="text-sm font-medium text-gray-900 capitalize leading-snug">{b.title}</div>
               {b.articles[0] && <div className="text-[11px] text-gray-500 line-clamp-2">{b.articles[0].title}</div>}
               <Link href={draftFromQuery(b.title, `Trending breakout: ${b.title}\nRegion: ${b.geo}`)}
-                className="mt-auto text-[11px] font-medium text-brand hover:underline">✍ Turn into post →</Link>
+                className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"><IconPencil size={13} stroke={1.8} /> Turn into post</Link>
             </div>
           ))
           : rising.map((r) => (
             <div key={r.q} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-brand/30 transition flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[#1aa053] bg-[#1aa053]/10 px-2 py-0.5 rounded-full">↑ Rising</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1aa053] bg-[#1aa053]/10 px-2 py-0.5 rounded-full"><IconTrendingUp size={12} stroke={2} /> Rising</span>
                 <span className="text-[10px] text-gray-500 truncate">{r.seed}</span>
               </div>
               <div className="text-sm font-medium text-gray-900 leading-snug capitalize">{r.q}</div>
               <Link href={draftFromQuery(r.q, `Trending search idea: ${r.q}\nSource: Google Suggest (rising around "${r.seed}")`)}
-                className="mt-auto text-[11px] font-medium text-brand hover:underline">✍ Turn into post →</Link>
+                className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"><IconPencil size={13} stroke={1.8} /> Turn into post</Link>
             </div>
           ))}
       </div>
@@ -615,7 +701,7 @@ function RisingSidebar({ trends }: { trends: TrendsResp | null }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
-        <span className="w-7 h-7 rounded-lg grid place-items-center text-sm" style={{ color: "#6f42c1", background: "rgba(111,66,193,.12)" }}>📈</span>
+        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#6f42c1", background: "rgba(111,66,193,.12)" }}><IconTrendingUp size={16} stroke={1.8} /></span>
         <h3 className="text-sm font-medium text-[#232D42]">Rising searches</h3>
         <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">Google Trends</span>
       </div>
@@ -646,11 +732,11 @@ function RisingSidebar({ trends }: { trends: TrendsResp | null }) {
 }
 
 // Honest placeholder for the lanes that need a Search Console OAuth connect.
-function SeoConnectCard({ icon, title, sub }: { icon: string; title: string; sub: string }) {
+function SeoConnectCard({ Icon, title, sub }: { Icon: TablerIcon; title: string; sub: string }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
-        <span className="w-7 h-7 rounded-lg grid place-items-center text-sm" style={{ color: "#1aa053", background: "rgba(26,160,83,.12)" }}>{icon}</span>
+        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#1aa053", background: "rgba(26,160,83,.12)" }}><Icon size={16} stroke={1.8} /></span>
         <h3 className="text-sm font-medium text-[#232D42]">{title}</h3>
         <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{sub}</span>
       </div>
@@ -659,8 +745,8 @@ function SeoConnectCard({ icon, title, sub }: { icon: string; title: string; sub
           Connect <b className="text-gray-700">Search Console</b> for goocampusevents.com to see your domain&apos;s real {title.toLowerCase()} — free, refreshes weekly.
         </div>
         <button disabled title="Setup coming next"
-          className="text-[11px] font-medium bg-brand-light text-brand px-3 py-1.5 rounded-lg opacity-70 cursor-not-allowed">
-          🔗 Connect Search Console
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-brand-light text-brand px-3 py-1.5 rounded-lg opacity-70 cursor-not-allowed">
+          <IconBrandGoogle size={14} stroke={1.8} /> Connect Search Console
         </button>
       </div>
     </div>
