@@ -2458,7 +2458,13 @@ const CSS = `
 .hmd .work .detail::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 .hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
 .hmd .colhead h3{margin:0;font-size:.95rem}
-.hmd .tasklist{display:flex;flex-direction:column;gap:.4rem;max-height:460px;overflow:auto}
+/* Left "My tasks" card fills the column height (mirrors the sticky detail) so the
+   list uses the whole screen instead of a fixed 460px box with dead space below.
+   The header + tabs stay pinned; only the list scrolls. */
+.hmd .work > .card:not(.detail){position:sticky;top:.8rem;max-height:calc(100vh - 1.6rem);display:flex;flex-direction:column;overflow:hidden}
+.hmd .tasklist{display:flex;flex-direction:column;gap:.4rem;flex:1;min-height:0;overflow:auto}
+.hmd .tasklist::-webkit-scrollbar{width:6px}
+.hmd .tasklist::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 .hmd .task-tabs{display:flex;gap:.25rem;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:.2rem;margin-bottom:.7rem}
 .hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:.7rem;font-weight:600;color:var(--muted);padding:.4em .3em;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
 .hmd .task-tab.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
