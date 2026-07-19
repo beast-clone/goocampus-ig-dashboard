@@ -287,7 +287,7 @@ const MOVABLE = [
 ];
 
 // A notification in the chat-panel stack. `urgent`/`freed` carry an action.
-type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task };
+type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean };
 
 function greetingFor(h: number) {
   if (h < 5) return { word: "Working late", emoji: "🌙" };
@@ -708,7 +708,7 @@ function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs
             {n.kind === "urgent" && <div className="pn-eyebrow">Urgent · must publish today</div>}
             <div className="pn-title">{n.title}</div>
             <div className="pn-sub">{n.sub}</div>
-            {(n.kind === "urgent" || n.kind === "freed") && (
+            {(n.kind === "urgent" || n.kind === "freed" || n.accept) && (
               <div className="pn-acts">
                 <button className="btn primary sm" onClick={() => onAccept(n)}>Accept &amp; work</button>
                 {n.kind === "urgent" && <button className="btn sm" onClick={() => onDismiss(n.id)}>Later</button>}
@@ -833,34 +833,55 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
     { key: "nikhil", name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8" },
     { key: "nandu", name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8" },
   ];
+  // Day = what's actually on their plate TODAY (due today / overdue). Week = the
+  // whole approved backlog against a 5-day (40h) capacity — one person can't do a
+  // week's load in a day, so the two must never be conflated.
+  const [span, setSpan] = useState<"today" | "week">("today");
+  const capacity = span === "today" ? WORK_MIN : WORK_MIN * 5;
+  const d0 = new Date();
+  const todayStr = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
   const rows = PRODUCERS.map((p) => {
     const mine = tasks
-      .filter((t) => t.detail.owner === p.name && STATUS[t.status].inView && t.status !== "Output - Ready")
+      // Producers work only APPROVED content (role rule) …
+      .filter((t) => t.detail.owner === p.name && (t.status === "Content - Approved" || t.status === "Incorporating Feedback"))
+      // … and the Day view narrows to what's actually due by today.
+      .filter((t) => span === "week" || !t.due || t.due <= todayStr)
       .map((t) => ({ label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine), video: /reel|short|video|long-form/i.test(t.detail.typeLine) }));
     const committed = mine.reduce((s, t) => s + t.dur, 0);
-    const freeMin = WORK_MIN - committed;
-    // Sequential layout from 9 AM, lunch pinned at 1 PM.
+    const freeMin = capacity - committed;
     const blocks: CapBlock[] = [];
     let cursor = 0, lunchDone = false, current: { label: string; endsIn: number } | null = null;
-    for (const t of mine) {
-      if (!lunchDone && cursor >= LUNCH_AT) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; lunchDone = true; }
-      const s = cursor + t.dur <= now ? "done" : cursor <= now && now < cursor + t.dur ? "now" : undefined;
-      if (s === "now") current = { label: t.label, endsIn: cursor + t.dur - now };
-      blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60, s });
-      cursor += t.dur;
+    if (span === "today") {
+      // Sequential layout from 9 AM, lunch pinned at 1 PM, done/now from the clock.
+      for (const t of mine) {
+        if (!lunchDone && cursor >= LUNCH_AT) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; lunchDone = true; }
+        const s = cursor + t.dur <= now ? "done" : cursor <= now && now < cursor + t.dur ? "now" : undefined;
+        if (s === "now") current = { label: t.label, endsIn: cursor + t.dur - now };
+        blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60, s });
+        cursor += t.dur;
+      }
+      if (!lunchDone && cursor < LUNCH_AT + LUNCH_MIN) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; }
+      if (cursor < DAY_MINS) blocks.push({ k: "free", l: "Free", f: (DAY_MINS - cursor) / 60 });
+    } else {
+      // Week: a proportional strip of the whole approved backlog vs 40h — no
+      // clock, no lunch; just how full the week is.
+      for (const t of mine) { blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60 }); cursor += t.dur; }
+      if (cursor < capacity) blocks.push({ k: "free", l: "Free", f: (capacity - cursor) / 60 });
     }
-    if (!lunchDone && cursor < LUNCH_AT + LUNCH_MIN) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; }
-    if (cursor < DAY_MINS) blocks.push({ k: "free", l: "Free", f: (DAY_MINS - cursor) / 60 });
-    const badge: "free" | "some" | "full" = freeMin >= 120 ? "free" : freeMin > 0 ? "some" : "full";
+    const badge: "free" | "some" | "full" = freeMin >= capacity / 4 ? "free" : freeMin > 0 ? "some" : "full";
     const next = current || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
-    return { ...p, committed, freeMin, badge, blocks, current, next, overflow: cursor > DAY_MINS };
+    return { ...p, committed, freeMin, badge, blocks, current, next, overflow: cursor > capacity };
   });
   return (
     <div className="tcp">
       <div className="tcp-head">
         <button className="tc-back" onClick={onBack} title="Back to My Day">‹</button>
-        <div className="tcp-title">Team capacity <span>· today, live — from each person&apos;s real tasks</span></div>
+        <div className="tcp-title">Team capacity <span>· {span === "today" ? "due today, vs an 8h day" : "approved backlog, vs a 40h week"} — from each person&apos;s real tasks</span></div>
+        <div className="switch tcp-span" role="tablist">
+          <button role="tab" aria-selected={span === "today"} className={span === "today" ? "on" : ""} onClick={() => setSpan("today")}>Today</button>
+          <button role="tab" aria-selected={span === "week"} className={span === "week" ? "on" : ""} onClick={() => setSpan("week")}>Week</button>
+        </div>
       </div>
       {rows.map((p) => (
         <div key={p.key} className="card pad tcp-card">
@@ -872,18 +893,20 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
               <span className={`cap-badge ${p.badge}`}>{p.freeMin > 0 ? `${fmtMins(p.freeMin)} free` : p.overflow ? `Overbooked · ${fmtMins(-p.freeMin)} over` : "Full"}</span>
             </div>
           </div>
-          <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
+          {span === "today" && <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>}
           <div className="tcp-track">
             {p.blocks.map((b, i) => <div key={i} className={`tcp-blk ${b.k} ${b.s || ""}`} style={{ flex: b.f }} title={b.l}>{b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}</div>)}
-            {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }} />}
+            {span === "today" && nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }} />}
           </div>
           <div className="tcp-now">
             <span className="dot" />
-            {p.current
+            {span === "week"
+              ? <>{p.blocks.filter((b) => b.k !== "free").length ? <>This week&apos;s queue: <b>{p.blocks.filter((b) => b.k !== "free").length} approved task{p.blocks.filter((b) => b.k !== "free").length > 1 ? "s" : ""}</b> <span className="muted">· {fmtMins(p.committed)} of 40h</span></> : <span className="muted">No approved work queued this week.</span>}</>
+              : p.current
               ? <>Currently working on: <b>{p.current.label}</b> <span className="muted">· ~{fmtMins(p.current.endsIn)} left in this block</span></>
               : p.next
               ? <>Up next: <b>{p.next.label}</b></>
-              : <span className="muted">Nothing in production — free to take work.</span>}
+              : <span className="muted">Nothing due today — free to take work.</span>}
           </div>
         </div>
       ))}
@@ -961,7 +984,7 @@ export function HopeMyDay() {
   const [askManya, setAskManya] = useState(false);     // Ask-Manya reschedule modal
   // Assign-side capacity warning: "X's day is already full" confirm before an
   // assignment lands on someone whose 8h is committed.
-  const [assignWarn, setAssignWarn] = useState<null | { name: string; committed: number; add: number; proceed: () => void }>(null);
+  const [assignWarn, setAssignWarn] = useState<null | { name: string; committed: number; add: number; cta?: string; proceed: () => void }>(null);
   // The urgent-task pipeline state, shared across the editor and Manya views:
   // offered → (editor asks) waiting → (Manya frees room) freed → (editor accepts) done.
   const [pipeline, setPipeline] = useState<"offered" | "waiting" | "freed" | "done">("offered");
@@ -1095,8 +1118,13 @@ export function HopeMyDay() {
   // assigned to / claimed it) must match the person being viewed — so e.g. a
   // Carousel owned by Praveen never shows up under an editor. Then keep only the
   // statuses that still need work (queued/terminal states drop out of the view).
+  // ROLE RULE: producers (Praveen/Nikhil/Nandu) work only APPROVED content —
+  // Content-Pending / In-Progress is the writer's phase and must never appear as
+  // their work even if the owner field is pre-assigned.
   const workingTasks = useMemo(
-    () => [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView),
+    () => [...claimedTasks, ...tasks].filter((t) =>
+      t.detail.owner === me.name && STATUS[t.status].inView &&
+      (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress"))),
     [claimedTasks, tasks, me.name],
   );
   const tabCounts = useMemo(() => TASK_TABS.map((tb) => ({ ...tb, n: workingTasks.filter((t) => tb.statuses.includes(t.status)).length })), [workingTasks]);
@@ -1125,8 +1153,14 @@ export function HopeMyDay() {
   const withManya = (cs: Person[]) => (cs.some((c) => c.name === "Manya") ? cs : [PPL.manya, ...cs]);
   // Committed load (minutes) for ANY teammate — drives the assign-side "already
   // full" warning. Same filter as Today's plan: own, in-production, not output-ready.
+  // Role rule applies here too: a producer's committed load counts ONLY approved
+  // work (Content-Approved / Incorporating Feedback) — content-phase tasks are
+  // Manya's, whoever the owner field names.
   const committedFor = useCallback((name: string) => [...claimedTasks, ...tasks]
-    .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready")
+    .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+      (name === "Manya"
+        ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
+        : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
     .reduce((s, t) => s + (t.detail.duration || estMins(t.detail.typeLine)), 0), [claimedTasks, tasks]);
   // CAPACITY GATE: approving design work hands it to Praveen — if his 8h day is
   // already full, pop the warning first (the writer can still push through).
@@ -1138,20 +1172,23 @@ export function HopeMyDay() {
         const committed = committedFor(handoff.owner);
         const add = cur.detail.duration || estMins(cur.detail.typeLine);
         if (committed + add > WORK_MIN) {
-          setAssignWarn({ name: handoff.owner, committed, add, proceed: () => doSetTaskStatus(id, status) });
+          // Full → the task is NOT force-assigned. It queues in the producer's
+          // pipeline (notification + chat ping); it joins their board only when
+          // they hit Accept (which does the real ownership takeover).
+          setAssignWarn({ name: handoff.owner, committed, add, cta: `Queue in ${handoff.owner}'s pipeline`, proceed: () => doSetTaskStatus(id, status, true) });
           return;
         }
       }
     }
     doSetTaskStatus(id, status);
   };
-  const doSetTaskStatus = (id: string, status: CCStatus) => {
+  const doSetTaskStatus = (id: string, status: CCStatus, deferHandoff = false) => {
     // Persist to the real pipeline (this drives the same handoff logic the Master
     // sheet & Content Review use), then reconcile the board with server truth.
     fetch("/api/marketing-hub/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, fields: { status }, actor: person }),
+      body: JSON.stringify({ id, fields: { status }, actor: person, deferHandoff }),
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -1167,7 +1204,9 @@ export function HopeMyDay() {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (!cur) return;
     // Content-first handoff fires only the first time the writer's own task is approved.
-    const handoff = status === "Content - Approved" && cur.detail.owner === "Manya" ? autoAssign(cur.detail.typeLine) : null;
+    // Deferred (pipeline-hold) approvals skip it — ownership moves on Accept instead.
+    const handoff = status === "Content - Approved" && cur.detail.owner === "Manya" && !deferHandoff ? autoAssign(cur.detail.typeLine) : null;
+    if (deferHandoff) setToast({ who: "Queued in pipeline", color: "#D97706", av: "⏳", body: `“${cur.title}” is waiting — it joins their board only when they accept.` });
 
     if (handoff && handoff.toPool) {
       // Video → drop into the editors' claim pool (Nikhil / Nandu).
@@ -1196,7 +1235,9 @@ export function HopeMyDay() {
   // their order, duration and pins; new ones append sorted by priority → due.
   useEffect(() => {
     const PRANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
-    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready");
+    // Same role rule as workingTasks: producers plan only approved work.
+    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+      (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress")));
     setPlan((p) => {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
       const missing = mine
@@ -1219,8 +1260,9 @@ export function HopeMyDay() {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
-    // Remaining work is scheduled from NOW (the morning is already gone), not 9 AM.
-    let cursor = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    // The plan lays out the FULL day from 9 AM (the red now-line marks where you
+    // are) — an empty morning block reads as a bug, not as "morning gone".
+    let cursor = 0;
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of myPlan) {
@@ -1309,7 +1351,7 @@ export function HopeMyDay() {
     const add = estMins(t.detail.typeLine);
     const committed = committedFor("Manya");
     if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: "Manya", committed, add, proceed: () => doCreateTask(t) });
+      setAssignWarn({ name: "Manya", committed, add, cta: "Create anyway", proceed: () => doCreateTask(t) });
       return;
     }
     doCreateTask(t);
@@ -1346,14 +1388,38 @@ export function HopeMyDay() {
   // `workMin` (minutes booked on Today's plan) is the person's committed load.
   const addNotif = (n: Notif) => setNotifs((ns) => [n, ...ns.filter((x) => x.id !== n.id)]);
   const dismissNotif = (id: string) => setNotifs((ns) => ns.filter((n) => n.id !== id));
-  const onAcceptNotif = (n: Notif) => { if (n.task) setAcceptTask(n.task); };
+  const onAcceptNotif = (n: Notif) => {
+    if (n.task) { setAcceptTask(n.task); return; }
+    // Pipelined handoff (server notification with postId): accepting IS the
+    // ownership takeover — that's the only way a queued task joins your board.
+    if (n.postId) {
+      dismissNotif(n.id);
+      fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: person }) })
+        .then(async (res) => {
+          if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+          else setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: "It's yours now — added to My tasks + Today's plan." });
+          load();
+        })
+        .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+    }
+  };
+  // Accepting a pipelined/offered task is the REAL ownership takeover — this is the
+  // moment a queued handoff actually joins your board (never before).
   const acceptWork = () => {
     const t = acceptTask; if (!t) return;
-    setPlan((p) => [...p, { key: `pk${Date.now()}`, taskId: t.id, label: t.title, dur: estMins(t.detail.typeLine) }]);
-    setTasks((a) => [{ ...t, status: "Content - In Progress", meta: `${t.detail.typeLine} · you accepted this`, detail: { ...t.detail, owner: me.name } }, ...a]);
     setAcceptTask(null);
     setPipeline("done");
-    setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: `“${t.title}” added to your plan.` });
+    fetch("/api/marketing-hub/takeover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: t.id, newOwnerKey: person }),
+    })
+      .then(async (res) => {
+        if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+        else setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: `“${t.title}” is yours now — added to your plan.` });
+        load(); // server truth → it appears in My tasks + Today's plan via the sync
+      })
+      .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
   };
   const askManyaToMove = () => { setAcceptTask(null); setAskManya(true); };
   // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
@@ -1406,7 +1472,7 @@ export function HopeMyDay() {
     const add = v.detail.duration || estMins(v.detail.typeLine);
     const committed = committedFor(me.name);
     if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: me.name, committed, add, proceed: () => doClaimVideo(v) });
+      setAssignWarn({ name: me.name, committed, add, cta: "Claim anyway", proceed: () => doClaimVideo(v) });
       return;
     }
     doClaimVideo(v);
@@ -1878,7 +1944,7 @@ export function HopeMyDay() {
             </div>
             <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setAssignWarn(null)}>Cancel</button>
-              <button className="btn primary" onClick={() => { const go = assignWarn.proceed; setAssignWarn(null); go(); }}>Assign anyway</button>
+              <button className="btn primary" onClick={() => { const go = assignWarn.proceed; setAssignWarn(null); go(); }}>{assignWarn.cta || "Assign anyway"}</button>
             </div>
           </div>
         </div>
@@ -2017,6 +2083,11 @@ const CSS = `
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:.68rem;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
 .hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:1rem;margin-top:1rem;align-items:start}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
+/* The task-detail card scrolls INSIDE itself so a long brief/creatives list can
+   never push the page into a mile of whitespace — My tasks stays visible. */
+.hmd .work .detail{position:sticky;top:.8rem;max-height:calc(100vh - 1.6rem);overflow-y:auto}
+.hmd .work .detail::-webkit-scrollbar{width:6px}
+.hmd .work .detail::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 .hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
 .hmd .colhead h3{margin:0;font-size:.95rem}
 .hmd .tasklist{display:flex;flex-direction:column;gap:.4rem;max-height:460px;overflow:auto}
@@ -2342,6 +2413,7 @@ const CSS = `
 .hmd .teamcapbtn.on{background:var(--brand);color:#fff;border-color:transparent}
 /* Team-capacity page */
 .hmd .tcp-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+.hmd .tcp-span{margin-left:auto}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:#D9DEEA}
 .hmd .tcp-title{font-size:1.2rem;font-weight:700}

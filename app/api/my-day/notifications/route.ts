@@ -24,7 +24,7 @@ type Act = {
   from_value: string | null; to_value: string | null; created_at: string;
 };
 type Post = { id: string; particulars: string | null; owner_key: string | null; type: string | null };
-type Notif = { id: string; kind: string; emoji: string; title: string; sub: string };
+type Notif = { id: string; kind: string; emoji: string; title: string; sub: string; postId?: string; accept?: boolean };
 
 export async function GET(req: Request) {
   try {
@@ -89,6 +89,12 @@ export async function GET(req: Request) {
             target = EDITORS;
             n = { kind: "message", emoji: "🎬", title: "New video up for grabs", sub: `"${short}" was approved — claim it from the pool.` };
           }
+        } else if (post && (post.owner_key || "").toLowerCase() !== "praveen") {
+          // Deferred handoff (assigner saw "day full" and queued it): ownership is
+          // still with the writer — Praveen must ACCEPT to take it. postId powers
+          // the Accept button; the task joins his board only via that takeover.
+          target = ["praveen"];
+          n = { kind: "message", emoji: "⏳", title: "Waiting in your pipeline", sub: `"${short}" is approved and queued for you — accept when you have room.`, postId: e.post_id, accept: true };
         } else {
           target = ["praveen"];
           n = { kind: "message", emoji: "📥", title: "Approved — handed to you", sub: `"${short}" is ready for you to produce.` };

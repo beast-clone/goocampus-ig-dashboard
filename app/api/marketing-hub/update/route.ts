@@ -173,6 +173,8 @@ export async function PATCH(req: Request) {
         const isVideo = VIDEO_TYPES.has(String(data.type || ""));
         await postTeamMessage(sb, chatActor, isVideo
           ? `${MH_NAME[chatActor] || chatActor} approved “${title}” — video work, up for grabs in the editors' pool.`
+          : (body as { deferHandoff?: boolean }).deferHandoff
+          ? `${MH_NAME[chatActor] || chatActor} approved “${title}” — Praveen's day is full, so it's WAITING in his pipeline until he accepts.`
           : `${MH_NAME[chatActor] || chatActor} approved “${title}” — design work, handed to Praveen.`);
       } else if (clean.status === "Ready to Publish") {
         await postTeamMessage(sb, chatActor, `“${title}” is ready to publish.`);
@@ -181,7 +183,11 @@ export async function PATCH(req: Request) {
       }
     }
 
-    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved") {
+    // PIPELINE HOLD: when the assigner saw "day already full" and chose to queue it,
+    // we do NOT auto-assign — the task stays with the writer, the producer gets the
+    // notification/chat ping, and ownership only moves when THEY accept (takeover).
+    const deferHandoff = (body as { deferHandoff?: boolean }).deferHandoff === true;
+    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff) {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;
       if (!isVideo) {
