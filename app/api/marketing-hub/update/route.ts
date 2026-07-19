@@ -81,7 +81,7 @@ export async function PATCH(req: Request) {
     // an opaque Postgres error (and two legacy client statuses used to do exactly
     // that). Reject clearly instead.
     const VALID_STATUS = new Set([
-      "Content - Pending", "Content - In Progress", "Content - Approved",
+      "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
       "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
     ]);
     if (typeof clean.status === "string" && !VALID_STATUS.has(clean.status)) {
@@ -156,6 +156,11 @@ export async function PATCH(req: Request) {
     const DONE_STATES = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
     if (typeof clean.status === "string" && DONE_STATES.has(clean.status) && !before.data.end_at) {
       await sb.from("mh_posts").update({ end_at: new Date().toISOString() }).eq("id", body.id);
+    }
+    // START the task clock the moment a producer moves it to "Output - In Progress"
+    // — this stamp is what the live My Day timer counts from (planned vs on-the-clock).
+    if (clean.status === "Output - In Progress" && before.data.status !== "Output - In Progress" && !before.data.start_at) {
+      await sb.from("mh_posts").update({ start_at: new Date().toISOString() }).eq("id", body.id);
     }
 
     // Auto-handoff when status becomes "Content - Approved" (assignment + collaborator

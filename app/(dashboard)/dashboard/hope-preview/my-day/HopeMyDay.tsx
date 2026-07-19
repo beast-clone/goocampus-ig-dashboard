@@ -42,7 +42,7 @@ type CCStatus =
 // ("Content - Needs Approval", "Output - In Progress", …) stay in the TYPE/map so
 // old references render, but they are not selectable.
 const CC_STATUS_ORDER: CCStatus[] = [
-  "Content - Pending", "Content - In Progress", "Content - Approved",
+  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
   "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
 ];
 const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inView: boolean }> = {
@@ -50,7 +50,7 @@ const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inVie
   "Content - In Progress":    { label: "Content - In Progress",    tone: "warn",  stage: 1, inView: true },
   "Content - Needs Approval": { label: "Content - Needs Approval", tone: "warn",  stage: 1, inView: true },
   "Content - Approved":       { label: "Content - Approved",       tone: "good",  stage: 2, inView: true },
-  "Output - In Progress":     { label: "Output - In Progress",     tone: "info",  stage: 3, inView: true },
+  "Output - In Progress":     { label: "In Progress",              tone: "info",  stage: 3, inView: true },
   "Output - Ready":           { label: "Output - Ready",           tone: "info",  stage: 3, inView: true },
   "Incorporating Feedback":   { label: "Incorporating Feedback",   tone: "warn",  stage: 2, inView: true },
   "Ready to Publish":         { label: "Ready to Publish",         tone: "brand", stage: 4, inView: false },
@@ -60,9 +60,9 @@ const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inVie
 };
 // Status tabs in the working view (queued/terminal states drop out of the view).
 const TASK_TABS: { key: string; label: string; statuses: CCStatus[] }[] = [
-  { key: "active",   label: "In progress", statuses: ["Content - Pending", "Content - In Progress", "Content - Needs Approval", "Content - Approved"] },
+  { key: "active",   label: "In progress", statuses: ["Content - Pending", "Content - In Progress", "Content - Needs Approval", "Content - Approved", "Output - In Progress"] },
   { key: "feedback", label: "Feedback",    statuses: ["Incorporating Feedback"] },
-  { key: "output",   label: "Output",      statuses: ["Output - In Progress", "Output - Ready"] },
+  { key: "output",   label: "Output",      statuses: ["Output - Ready"] },
 ];
 function dueInfo(due: string, today: string): { label: string; overdue: boolean } {
   if (!due) return { label: "", overdue: false };
@@ -316,7 +316,7 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
     <div className="status-dd">
       <button className="status-dd-btn" style={{ background: tone.bg, color: tone.fg }} onClick={() => setOpen((o) => !o)}>
         <span className="status-dot" style={{ background: tone.fg }} />
-        <span className="status-dd-val">{value}</span>
+        <span className="status-dd-val">{STATUS[value].label}</span>
         <span className="status-caret" style={{ borderTopColor: tone.fg }} />
       </button>
       {open && (
@@ -328,7 +328,7 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
               return (
                 <button key={s} className={`status-dd-item ${s === value ? "on" : ""}`} onClick={() => { onChange(s); setOpen(false); }}>
                   <span className="status-dot" style={{ background: t.fg }} />
-                  <span className="status-dd-item-lbl">{s}</span>
+                  <span className="status-dd-item-lbl">{STATUS[s].label}</span>
                   {s === value && <span className="status-dd-check">✓</span>}
                 </button>
               );
@@ -559,18 +559,10 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
       </div>
 
-      <div className="section-head">
-        <span className="section-lbl">Content brief</span>
-        <button className="copy-btn" onClick={copyContent}>{copied ? "✓ Copied" : "Copy"}</button>
-      </div>
-      {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
-          scroll (the section grows; you scroll the card/page to read it all). */}
-      <div className="brief brief-full">{task.detail.content}</div>
-
-      {/* LIVE TIMER — planned vs on-the-clock (from the plan + real time). Nearing
-          the planned time it asks INLINE (no popup): done, or extend? Extending
-          reshuffles the rest of the day automatically. */}
-      {timing && (
+      {/* LIVE TIMER — only runs once the task is set to "In Progress" (start_at is
+          stamped then). Counts real time vs the planned duration; nearing/over it
+          asks INLINE (no popup): finished, or extend? Extending reshuffles the day. */}
+      {timing ? (
         <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
           <span className="timer-num">⏱ {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
           {timing.elapsed >= timing.planned - 5 && onStatusChange && onSetDuration && (
@@ -582,7 +574,21 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </span>
           )}
         </div>
-      )}
+      ) : (onStatusChange && task.status === "Content - Approved" && (
+        // Not started yet → one tap to start the clock (sets status → In Progress).
+        <div className="timer-strip idle">
+          <span className="timer-num">⏱ Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)}` : ""}</span>
+          <button className="btn sm primary" onClick={() => onStatusChange("Output - In Progress")}>Start working — start the timer</button>
+        </div>
+      ))}
+
+      <div className="section-head">
+        <span className="section-lbl">Content brief</span>
+        <button className="copy-btn" onClick={copyContent}>{copied ? "✓ Copied" : "Copy"}</button>
+      </div>
+      {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
+          scroll (the section grows; you scroll the card/page to read it all). */}
+      <div className="brief brief-full">{task.detail.content}</div>
 
       <CreativesSection creatives={task.detail.creatives} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
@@ -1201,7 +1207,7 @@ export function HopeMyDay() {
     return {
       pending: n((s) => s === "Content - Pending" || s === "Content - In Progress"),
       waiting: n((s) => s === "Content - Approved" || s === "Incorporating Feedback"),
-      output: n((s) => s === "Output - Ready" || s === "Output - In Progress"),
+      output: n((s) => s === "Output - Ready"),
       toPublish: n((s) => s === "Ready to Publish"),
       done: n((s) => s === "Published/Scheduled"),
     };
@@ -1236,7 +1242,7 @@ export function HopeMyDay() {
       .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
         (name === "Manya"
           ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
-          : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
+          : (t.status === "Content - Approved" || t.status === "Incorporating Feedback" || t.status === "Output - In Progress")))
       .map((t) => ({ id: t.id, label: t.title, due: t.due, dur: t.detail.duration || estMins(t.detail.typeLine) }));
     const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
@@ -1384,18 +1390,22 @@ export function HopeMyDay() {
   }, [myPlan, nowMin]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const showNow = nowMin !== null && !isWeekend && nowMin >= 0 && nowMin <= DAY_MINS;
-  // Live timer for a task on MY plan: elapsed = clock since its planned start
-  // (lunch excluded). Undefined until its block starts, so only running work ticks.
+  // Live timer — starts ONLY when the producer moves a task to "In Progress"
+  // (Output - In Progress), which stamps start_at on the server. Elapsed = real
+  // wall-clock minutes since that stamp, with the 1–2 PM lunch subtracted. Shows
+  // nothing until they hit In Progress, and stops once it's marked done.
   const taskTiming = (t: Task | null): { planned: number; elapsed: number } | undefined => {
     if (!t || nowMin == null) return undefined;
-    const blks = planBlocks.filter((b) => b.kind === "reel" && b.taskId === t.id);
-    if (!blks.length || nowMin < blks[0].start) return undefined;
-    const planned = myPlan.find((p) => p.taskId === t.id)?.dur || blks.reduce((s, b) => s + b.dur, 0);
-    let elapsed = nowMin - blks[0].start;
-    if (blks[0].start < LUNCH_AT) {
-      if (nowMin > LUNCH_AT + LUNCH_MIN) elapsed -= LUNCH_MIN;
-      else if (nowMin > LUNCH_AT) elapsed -= nowMin - LUNCH_AT;
-    }
+    if (t.status !== "Output - In Progress" || !t.detail.startAt) return undefined;
+    const s = new Date(t.detail.startAt);
+    if (Number.isNaN(s.getTime())) return undefined;
+    const sStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+    if (sStr !== todayStr) return undefined; // only live-tick a task started today
+    const startMin = s.getHours() * 60 + s.getMinutes() - DAY_START_H * 60;
+    let elapsed = nowMin - startMin;
+    const lo = Math.max(startMin, LUNCH_AT), hi = Math.min(nowMin, LUNCH_AT + LUNCH_MIN);
+    if (hi > lo) elapsed -= hi - lo; // don't count lunch as work
+    const planned = t.detail.duration || estMins(t.detail.typeLine);
     return { planned, elapsed: Math.max(0, elapsed) };
   };
   const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; });
@@ -2183,7 +2193,7 @@ export function HopeMyDay() {
         };
         return (
           <div className="modal" onClick={() => setApproveGate(null)}>
-            <div className="modal-card" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-card" style={{ maxWidth: 900, width: "94vw" }} onClick={(e) => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setApproveGate(null)} title="Close">✕</button>
               <div className="lbl" style={{ marginBottom: ".4rem" }}>Approve &amp; hand over</div>
               <div className="d-title" style={{ marginBottom: ".8rem" }}>“{pending?.title || "Task"}” → {tName}</div>
@@ -2428,7 +2438,7 @@ const CSS = `
 .hmd .status-box{flex-shrink:0;text-align:right}
 .hmd .status-box .mlbl{margin-bottom:.35rem}
 /* task duration control (next to the status dropdown) */
-.hmd .dur-ctl{display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem;border:1px solid var(--line);border-radius:8px;padding:.25rem .4rem;background:var(--panel-2)}
+.hmd .dur-ctl{display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem;margin-left:.5rem;border:1px solid var(--line);border-radius:8px;padding:.25rem .4rem;background:var(--panel-2)}
 .hmd .dur-ic{font-size:.8rem}
 .hmd .dur-select{border:none;background:transparent;font:inherit;font-size:.74rem;font-weight:600;color:var(--ink-soft);cursor:pointer;outline:none}
 /* claim-pool modal + claim-pool button badge */
@@ -2730,10 +2740,11 @@ const CSS = `
 .hmd .tcp-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
 .hmd .tcp-span{margin-left:auto}
 /* approve-gate mini timeline (reuses tcp-blk block styles, absolute layout) */
-.hmd .ag-track{position:relative;height:48px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
+.hmd .ag-track{position:relative;height:66px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
 /* live task timer strip + inline finished/extend prompt */
-.hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid #D5DCF8;border-radius:10px;padding:.5rem .8rem;margin:.2rem 0 .4rem;font-size:.8rem;color:var(--brand-ink)}
+.hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid #D5DCF8;border-radius:10px;padding:.55rem .85rem;margin:.7rem 0 .2rem;font-size:.82rem;color:var(--brand-ink)}
 .hmd .timer-strip.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
+.hmd .timer-strip.idle{background:var(--panel-2);border-color:var(--line);color:var(--ink-soft)}
 .hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:600}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:#D9DEEA}

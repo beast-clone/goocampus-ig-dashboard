@@ -19,10 +19,12 @@ const OWNER_NAME: Record<string, string> = {
 // HopeMyDay STATUS `inView` set) or a task moved into a missing status would vanish
 // from the board after the post-write reconcile. Recently-published rows are fetched
 // separately for the Done stat.
-// Only real mh_status enum values — "Content - Needs Approval" and
-// "Output - In Progress" are NOT in the enum and 502 the whole query.
+// Only real mh_status enum values — "Content - Needs Approval" is NOT in the enum
+// and 502s the whole query. "Output - In Progress" (the producer's timer-running
+// state) WAS added to the enum on 2026-07-19 and must be included, or a task the
+// producer starts working would vanish from the board.
 const WORKING = [
-  "Content - Pending", "Content - In Progress", "Content - Approved",
+  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
   "Incorporating Feedback", "Output - Ready", "Ready to Publish",
 ];
 
