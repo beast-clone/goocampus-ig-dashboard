@@ -39,7 +39,7 @@ const ALLOWED_FIELDS = [
   "publishing_date", "due_date", "priority", "platforms",
   "content", "caption", "needs_review", "output_link",
   "additional_info", "instagram_url", "facebook_url", "linkedin_url",
-  "reference_links",
+  "reference_links", "duration_min",
 ] as const;
 
 const OWNER_ALIASES: Record<string, string> = {

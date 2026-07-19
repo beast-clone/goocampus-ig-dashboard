@@ -1483,6 +1483,10 @@ export function HopeMyDay() {
       return t ? [...p, { key: `pk${id}`, taskId: id, label: t.title, dur: mins }] : p;
     });
     setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan. Hit Auto-plan to reshuffle.` });
+    // Persist so it survives reload (drives the timer's planned time + plan blocks).
+    fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields: { duration_min: mins } }) })
+      .then(async (res) => { if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); } })
+      .catch((e) => setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: String(e) }));
   };
   // AUTO-PLAN — currently RULE-BASED (no AI): highest priority first, then earliest
   // due date; tasks then flow sequentially from "now", splitting around the 1 PM lunch.
