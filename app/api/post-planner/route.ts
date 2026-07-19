@@ -190,7 +190,9 @@ export async function GET(req: Request) {
     if (searchKey) {
       // 1) Web-search-grounded ranker (Perplexity when configured, else OpenAI search model).
       try {
-        const sc = new OpenAI({ apiKey: searchKey, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
+        // Bound the (slow) web-search model so the tab never spins forever — if it
+        // exceeds this it throws, we fall back to the fast ranker / deterministic order.
+        const sc = new OpenAI({ apiKey: searchKey, timeout: 20_000, maxRetries: 1, ...(SEARCH_BASE_URL ? { baseURL: SEARCH_BASE_URL } : {}) });
         const resp = await sc.chat.completions.create({
           model: SEARCH_MODEL,
           max_tokens: 1200,
@@ -203,7 +205,7 @@ export async function GET(req: Request) {
       // 2) Fallback to a plain (non-search) OpenAI ranker if the search model failed / returned
       //    nothing — only if an OpenAI key exists (skipped in a Perplexity-only setup).
       if (openaiKey && (!ai.order || ai.order.length === 0)) try {
-        const client = new OpenAI({ apiKey: openaiKey });
+        const client = new OpenAI({ apiKey: openaiKey, timeout: 15_000, maxRetries: 1 });
         const resp = await client.chat.completions.create({
           model: "gpt-4o-mini",
           temperature: 0.4,
