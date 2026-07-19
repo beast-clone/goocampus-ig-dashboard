@@ -287,7 +287,8 @@ const MOVABLE = [
 ];
 
 // A notification in the chat-panel stack. `urgent`/`freed` carry an action.
-type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean };
+type SwapCand = { id: string; title: string; dur: number; due?: string };
+type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] } };
 
 function greetingFor(h: number) {
   if (h < 5) return { word: "Working late", emoji: "🌙" };
@@ -744,10 +745,10 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
         </div>
         <div className="aw-choice">
           <button className="btn primary" onClick={onAcceptWork}>{fits ? "Accept & work" : `Accept & work — finish ${finish}`}</button>
-          {/* The swap option is ALWAYS available (user order 2026-07-19) — even
-              when it fits, you may prefer to move a not-started task instead. */}
+          {/* The swap option is ALWAYS available — and the producer never picks:
+              their whole not-started list is sent to MANYA, who chooses the swap. */}
           <div className="aw-or">{fits ? "or, if you'd rather swap" : "or, if you can't stretch"}</div>
-          <button className="btn" onClick={onAskManya}>{fits ? "Move a task instead — pick one I haven't started" : "I'm packed — move a task to make room"}</button>
+          <button className="btn" onClick={onAskManya}>Send my not-started list to Manya — she picks the swap</button>
         </div>
       </div>
     </div>
@@ -1162,7 +1163,6 @@ export function HopeMyDay() {
     return [];
   }, [tasks, claimPool, person, isEditor, me.name]);
   const [pipeOpen, setPipeOpen] = useState(false);
-  const [makeRoom, setMakeRoom] = useState<Task | null>(null); // "day packed — move a task" flow
   // MY DAY = only the SELECTED person's own tasks. A task's Owner (whoever it's
   // assigned to / claimed it) must match the person being viewed — so e.g. a
   // Carousel owned by Praveen never shows up under an editor. Then keep only the
@@ -1470,9 +1470,25 @@ export function HopeMyDay() {
       })
       .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
   };
-  // "I'm packed" → the REAL make-room flow: pick a not-started task, roll it a
-  // day, then the pending pipeline task is accepted. (Replaces the demo Ask-Manya.)
-  const askManyaToMove = () => { const t = acceptTask; setAcceptTask(null); if (t) setMakeRoom(t); };
+  // "Swap" → the producer does NOT pick. Their whole NOT-STARTED list is sent to
+  // Manya automatically ("swap any of these for the incoming task") — SHE picks
+  // which one moves, from her Requests. The currently-running block is excluded.
+  const askManyaToMove = () => {
+    const t = acceptTask; setAcceptTask(null);
+    if (!t) return;
+    const nowBlk = planBlocks.find((b) => b.kind === "reel" && nowMin != null && b.start <= nowMin && nowMin < b.start + b.dur);
+    const all = [...claimedTasks, ...tasks];
+    const candidates = myPlan
+      .filter((p) => p.taskId !== nowBlk?.taskId)
+      .map((p) => ({ id: p.taskId, title: p.label, dur: p.dur, due: all.find((x) => x.id === p.taskId)?.due || "" }));
+    if (!candidates.length) { setToast({ who: "Nothing to offer", color: "#D97706", av: "!", body: "Everything left today is already in progress — nothing can be swapped." }); return; }
+    fetch("/api/my-day/swap-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pendingId: t.id, from: person, candidates }) })
+      .then(async (res) => {
+        if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Send failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+        else setToast({ who: "Sent to Manya ✓", color: "#3A57E8", av: me.av, body: `Your ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} were offered — she'll pick which one moves.` });
+      })
+      .catch((e) => setToast({ who: "Send failed", color: "#C03221", av: "!", body: String(e) }));
+  };
   // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
   // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
@@ -2008,12 +2024,47 @@ export function HopeMyDay() {
             {notifs.length ? (
               <div className="claim-list">
                 {notifs.map((n) => (
-                  <div key={n.id} className="claim-card">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="claim-title">{n.emoji} {n.title}</div>
-                      <div className="claim-meta">{n.sub}</div>
+                  <div key={n.id} className="claim-card" style={n.swap ? { flexDirection: "column", alignItems: "stretch" } : undefined}>
+                    <div style={{ minWidth: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: ".6rem" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="claim-title">{n.emoji} {n.title}</div>
+                        <div className="claim-meta">{n.sub}</div>
+                      </div>
+                      <button className="btn sm" onClick={() => dismissNotif(n.id)}>Dismiss</button>
                     </div>
-                    <button className="btn sm" onClick={() => dismissNotif(n.id)}>Dismiss</button>
+                    {/* SWAP REQUEST: the producer's not-started list — MANYA picks the one
+                        to move; picking rolls it a day AND hands the pending task over. */}
+                    {n.swap && n.postId && (
+                      <div style={{ marginTop: ".6rem", display: "flex", flexDirection: "column", gap: ".4rem" }}>
+                        {n.swap.candidates.map((c) => (
+                          <div key={c.id} className="claim-row" style={{ borderBottom: "none", padding: ".3rem 0" }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div className="claim-title">{c.title}</div>
+                              <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""}</div>
+                            </div>
+                            <button
+                              className="btn primary sm"
+                              onClick={() => {
+                                const base = c.due ? new Date(c.due) : new Date();
+                                base.setDate(base.getDate() + 1);
+                                const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+                                dismissNotif(n.id);
+                                fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, actor: person, fields: { due_date: next } }) })
+                                  .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
+                                  .then(async (res) => {
+                                    if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+                                    else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${next} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
+                                    load();
+                                  })
+                                  .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+                              }}
+                            >
+                              Move this · hand over
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2047,58 +2098,6 @@ export function HopeMyDay() {
           </div>
         </div>
       )}
-
-      {/* MAKE ROOM — day packed: move a NOT-STARTED task, then the pending one is accepted */}
-      {makeRoom && (() => {
-        const nowBlk = planBlocks.find((b) => b.kind === "reel" && nowMin != null && b.start <= nowMin && nowMin < b.start + b.dur);
-        const candidates = myPlan.filter((p) => p.taskId !== nowBlk?.taskId);
-        const pendingDur = makeRoom.detail.duration || estMins(makeRoom.detail.typeLine);
-        const moveOne = (p: PlanItem) => {
-          const t = [...claimedTasks, ...tasks].find((x) => x.id === p.taskId);
-          const base = t?.due ? new Date(t.due) : new Date();
-          base.setDate(base.getDate() + 1);
-          const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
-          const pending = makeRoom; setMakeRoom(null);
-          setPlan((arr) => arr.filter((x) => x.taskId !== p.taskId)); // off today's board immediately
-          fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.taskId, actor: person, fields: { due_date: next } }) })
-            .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: pending.id, newOwnerKey: person }) }))
-            .then(async (res) => {
-              if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-              else setToast({ who: "Room made ✓", color: "#1AA053", av: me.av, body: `“${p.label}” moved to tomorrow — “${pending.title}” accepted onto your plan.` });
-              load();
-            })
-            .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
-        };
-        return (
-          <div className="modal" onClick={() => setMakeRoom(null)}>
-            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setMakeRoom(null)} title="Close">✕</button>
-              <div className="lbl" style={{ marginBottom: ".4rem" }}>Day packed · make room</div>
-              <div className="d-title" style={{ marginBottom: ".5rem" }}>Move a task to fit “{makeRoom.title}”</div>
-              <div className="nt-assign" style={{ marginBottom: "1rem" }}>
-                <span className="status-dot" style={{ background: "#D97706" }} />
-                <span><b>{fmtMins(workMin)}</b> committed of 8h — the incoming task needs <b>{fmtMins(pendingDur)}</b>. The task you&apos;re working on now can&apos;t move; pick one you haven&apos;t started:</span>
-              </div>
-              {candidates.length ? (
-                <div className="claim-list">
-                  {candidates.map((p) => {
-                    const t = [...claimedTasks, ...tasks].find((x) => x.id === p.taskId);
-                    return (
-                      <div key={p.key} className="claim-card">
-                        <div style={{ minWidth: 0 }}>
-                          <div className="claim-title">{p.label}</div>
-                          <div className="claim-meta">{fmtMins(p.dur)}{t?.due ? ` · due ${t.due}` : ""} · moving frees {fmtMins(p.dur)}</div>
-                        </div>
-                        <button className="btn primary sm" onClick={() => moveOne(p)}>Move to tomorrow</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : <div className="empty" style={{ padding: "1.8rem 0" }}>Everything left today is already in progress — nothing can move.</div>}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
       {assignWarn && (

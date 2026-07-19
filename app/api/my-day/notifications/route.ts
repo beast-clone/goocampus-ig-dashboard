@@ -24,7 +24,8 @@ type Act = {
   from_value: string | null; to_value: string | null; created_at: string;
 };
 type Post = { id: string; particulars: string | null; owner_key: string | null; type: string | null };
-type Notif = { id: string; kind: string; emoji: string; title: string; sub: string; postId?: string; accept?: boolean };
+type SwapCand = { id: string; title: string; dur: number; due?: string };
+type Notif = { id: string; kind: string; emoji: string; title: string; sub: string; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] } };
 
 export async function GET(req: Request) {
   try {
@@ -37,9 +38,9 @@ export async function GET(req: Request) {
     const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
     const { data: acts, error } = await sb
       .from("mh_activity")
-      .select("id, post_id, actor_key, action, from_value, to_value, created_at")
+      .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")
       // All edits now log as status_changed / owner_changed / claim (app-attributed).
-      .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled"])
+      .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested"])
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(160);
@@ -108,6 +109,18 @@ export async function GET(req: Request) {
         if (post?.owner_key) {
           target = [post.owner_key];
           n = { kind: "message", emoji: "📅", title: "Cleared review → scheduled", sub: `"${short}" is queued in the Scheduler.` };
+        }
+      } else if (e.action === "swap_requested") {
+        // A packed producer offered their not-started list — MANYA picks which
+        // task to move; the candidates travel in the activity's detail payload.
+        let candidates: SwapCand[] = [];
+        try {
+          const d = (e as { detail?: unknown }).detail;
+          candidates = (typeof d === "string" ? JSON.parse(d) : d) as SwapCand[] || [];
+        } catch { candidates = []; }
+        if (candidates.length && e.actor_key) {
+          target = ["manya"];
+          n = { kind: "message", emoji: "🔁", title: `${nameOf(e.actor_key)} is packed — pick a task to move`, sub: `Offers ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} to swap for "${short}".`, postId: e.post_id, swap: { from: e.actor_key, candidates } };
         }
       } else if (e.action === "due_date_changed" || e.action === "rescheduled") {
         // A producer moved a date (e.g. make-room rolled a task to tomorrow) →
