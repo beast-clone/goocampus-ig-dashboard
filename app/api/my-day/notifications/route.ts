@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       .from("mh_activity")
       .select("id, post_id, actor_key, action, from_value, to_value, created_at")
       // All edits now log as status_changed / owner_changed / claim (app-attributed).
-      .in("action", ["claim", "status_changed", "owner_changed"])
+      .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled"])
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(160);
@@ -109,6 +109,12 @@ export async function GET(req: Request) {
           target = [post.owner_key];
           n = { kind: "message", emoji: "📅", title: "Cleared review → scheduled", sub: `"${short}" is queued in the Scheduler.` };
         }
+      } else if (e.action === "due_date_changed" || e.action === "rescheduled") {
+        // A producer moved a date (e.g. make-room rolled a task to tomorrow) →
+        // Manya, who created/plans the work, gets the change request in HER
+        // Requests feed. Her own date edits don't notify her (self-filter below).
+        target = ["manya"];
+        n = { kind: "message", emoji: "📅", title: `${nameOf(e.actor_key)} moved a date`, sub: `"${short}" → ${e.to_value || "updated"}${e.from_value ? ` (was ${e.from_value})` : ""}.` };
       } else if (e.action === "owner_changed") {
         // Plain reassignment (not a claim/handoff): tell the new owner it's theirs.
         if (e.to_value && !claimedOrHandedOff.has(e.post_id)) {

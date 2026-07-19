@@ -744,7 +744,10 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
         </div>
         <div className="aw-choice">
           <button className="btn primary" onClick={onAcceptWork}>{fits ? "Accept & work" : `Accept & work — finish ${finish}`}</button>
-          {!fits && (<><div className="aw-or">or, if you can't stretch</div><button className="btn" onClick={onAskManya}>I&apos;m packed — move a task to make room</button></>)}
+          {/* The swap option is ALWAYS available (user order 2026-07-19) — even
+              when it fits, you may prefer to move a not-started task instead. */}
+          <div className="aw-or">{fits ? "or, if you'd rather swap" : "or, if you can't stretch"}</div>
+          <button className="btn" onClick={onAskManya}>{fits ? "Move a task instead — pick one I haven't started" : "I'm packed — move a task to make room"}</button>
         </div>
       </div>
     </div>
@@ -1712,9 +1715,17 @@ export function HopeMyDay() {
               ) : (
                 <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End today</button></span>
               )}
-              <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
-                ⏳ Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
-              </button>
+              {person === "manya" ? (
+                /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
+                   any change a producer makes (dates moved, etc.) pops up here. */
+                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Changes the team asked for — date moves, task changes">
+                  🔔 Requests{notifs.length > 0 && <span className="teamcap-n">{notifs.length}</span>}
+                </button>
+              ) : (
+                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
+                  ⏳ Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
+                </button>
+              )}
             </div>
             <div className="stats">
               <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending today</div></div>
@@ -1987,8 +1998,33 @@ export function HopeMyDay() {
         </div>
       )}
 
+      {/* MANYA'S REQUESTS — changes the producers asked for (date moves etc.) */}
+      {pipeOpen && person === "manya" && (
+        <div className="modal" onClick={() => setPipeOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Requests · from the team</div>
+            <div className="d-title" style={{ marginBottom: "1rem" }}>Changes asked of you</div>
+            {notifs.length ? (
+              <div className="claim-list">
+                {notifs.map((n) => (
+                  <div key={n.id} className="claim-card">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="claim-title">{n.emoji} {n.title}</div>
+                      <div className="claim-meta">{n.sub}</div>
+                    </div>
+                    <button className="btn sm" onClick={() => dismissNotif(n.id)}>Dismiss</button>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="empty" style={{ padding: "2.4rem 0" }}>No requests right now ✓</div>}
+            <div className="nt-assign" style={{ marginTop: "1rem" }}><span className="status-dot" style={{ background: "#3A57E8" }} /><span>When a producer moves a date or changes a task (e.g. to make room for a queued handoff), it lands here so you always know what shifted.</span></div>
+          </div>
+        </div>
+      )}
+
       {/* PIPELINE — tasks queued for me, waiting for MY accept (persistent history) */}
-      {pipeOpen && (
+      {pipeOpen && person !== "manya" && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close">✕</button>
