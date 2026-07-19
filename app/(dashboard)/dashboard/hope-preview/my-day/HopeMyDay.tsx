@@ -340,6 +340,41 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
   );
 }
 
+// Reusable Hope-styled dropdown — replaces native <select> everywhere (the OS
+// select can't be themed and looks off-brand). Same menu treatment as the status
+// dropdown: rounded capsule button + floating card. `wide` fills a form field.
+function MenuDropdown({ value, options, onChange, placeholder = "Select…", icon, wide, align = "right" }: {
+  value: string | number | "";
+  options: { value: string | number; label: string }[];
+  onChange: (v: string) => void;
+  placeholder?: string; icon?: React.ReactNode; wide?: boolean; align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const cur = options.find((o) => String(o.value) === String(value));
+  return (
+    <div className={`ui-dd ${wide ? "wide" : ""}`}>
+      <button type="button" className="ui-dd-btn" onClick={() => setOpen((o) => !o)}>
+        {icon && <span className="ui-dd-ic">{icon}</span>}
+        <span className="ui-dd-val">{cur ? cur.label : placeholder}</span>
+        <span className="ui-dd-caret" />
+      </button>
+      {open && (
+        <>
+          <div className="ui-dd-back" onClick={() => setOpen(false)} />
+          <div className="ui-dd-menu" style={wide ? { left: 0, right: 0 } : { [align]: 0 }}>
+            {options.map((o) => (
+              <button type="button" key={String(o.value)} className={`ui-dd-item ${String(o.value) === String(value) ? "on" : ""}`} onClick={() => { onChange(String(o.value)); setOpen(false); }}>
+                <span className="ui-dd-item-lbl">{o.label}</span>
+                {String(o.value) === String(value) && <span className="ui-dd-check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // References — links + images the team drops on a task for context. Paste a URL
 // or upload image files; both persist to the same backend as the Marketing Hub
 // modal (reference links → mh_posts.reference_links, images → mh_attachments
@@ -514,20 +549,28 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         </div>
         <div className="status-box">
           <div className="mlbl">Status</div>
-          {onStatusChange ? (
-            <StatusDropdown value={task.status} onChange={onStatusChange} />
-          ) : (
-            <span className="pill" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
-          )}
-          {onSetDuration && (
-            <div className="dur-ctl">
-              <span className="dur-ic" title="Task duration">⏱</span>
-              <select className="dur-select" value={task.detail.duration ?? ""} onChange={(e) => onSetDuration(Number(e.target.value))}>
-                <option value="" disabled>Set duration…</option>
-                {[15, 30, 45, 60, 90, 120, 150, 180, 240].map((m) => <option key={m} value={m}>{fmtDur(m)}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="status-row">
+            {onStatusChange ? (
+              <StatusDropdown value={task.status} onChange={onStatusChange} />
+            ) : (
+              <span className="pill cap" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
+            )}
+            {onSetDuration && (
+              <MenuDropdown
+                value={task.detail.duration ?? ""}
+                onChange={(v) => onSetDuration(Number(v))}
+                placeholder="Set duration…"
+                icon={<span className="dur-ic" title="Task duration">⏱</span>}
+                options={[15, 30, 45, 60, 90, 120, 150, 180, 240].map((m) => ({ value: m, label: fmtDur(m) }))}
+              />
+            )}
+            {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
+            {timing && (
+              <span className={`cap cap-timer ${timing.elapsed >= timing.planned ? "over" : ""}`} title="Time left vs the planned duration">
+                ⏱ {timing.elapsed >= timing.planned ? `+${fmtMins(timing.elapsed - timing.planned)} over` : `${fmtMins(timing.planned - timing.elapsed)} left`}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -695,13 +738,13 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
         <div className="d-title" style={{ marginBottom: "1.1rem" }}>Create a content task</div>
         <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
         <div className="nt-row">
-          <div className="nt-field"><label className="nt-label">Type</label><select className="nt-input" value={type} onChange={(e) => setType(e.target.value)}>{CC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
-          <div className="nt-field"><label className="nt-label">Priority</label><select className="nt-input" value={priority} onChange={(e) => setPriority(e.target.value as "High" | "Medium" | "Low")}>{["High", "Medium", "Low"].map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
+          <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
+          <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "High" | "Medium" | "Low")} options={["High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
         </div>
         <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
         <div className="nt-row">
-          <div className="nt-field"><label className="nt-label">SBU</label><select className="nt-input" value={sbu} onChange={(e) => setSbu(e.target.value)}>{CC_SBUS.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
-          <div className="nt-field"><label className="nt-label">Status</label><select className="nt-input" value={status} onChange={(e) => setStatus(e.target.value as CCStatus)}>{CC_STATUS_ORDER.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+          <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={CC_SBUS.map((s) => ({ value: s, label: s }))} /></div>
+          <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as CCStatus)} options={CC_STATUS_ORDER.map((s) => ({ value: s, label: STATUS[s].label }))} /></div>
         </div>
         <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
         <div className="nt-assign">
@@ -2459,6 +2502,29 @@ const CSS = `
 .hmd .status-dd-item.on{font-weight:700;background:var(--panel-2)}
 .hmd .status-dd-item-lbl{flex:1;white-space:nowrap}
 .hmd .status-dd-check{color:var(--brand);font-weight:800}
+/* header capsule row — In Progress · duration · live countdown, all equal height */
+.hmd .status-row{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;flex-wrap:wrap}
+.hmd .cap,.hmd .status-dd-btn,.hmd .ui-dd-btn,.hmd .cap-timer{height:32px;box-sizing:border-box}
+.hmd .status-box .pill.cap{display:inline-flex;align-items:center}
+/* generic Hope dropdown — swaps the off-brand native <select> everywhere */
+.hmd .ui-dd{position:relative;display:inline-block}
+.hmd .ui-dd.wide{display:block;width:100%}
+.hmd .ui-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:.42rem 1.55rem .42rem .7rem;font:inherit;font-size:.8rem;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.hmd .ui-dd.wide .ui-dd-btn{width:100%;justify-content:flex-start}
+.hmd .ui-dd-btn:hover{border-color:var(--brand)}
+.hmd .ui-dd-val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hmd .ui-dd-ic{font-size:.8rem;line-height:1}
+.hmd .ui-dd-caret{position:absolute;right:.6rem;top:50%;width:0;height:0;margin-top:-2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--faint);pointer-events:none}
+.hmd .ui-dd-back{position:fixed;inset:0;z-index:40}
+.hmd .ui-dd-menu{position:absolute;top:calc(100% + 6px);z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 46px rgba(20,22,40,.16);padding:.35rem;min-width:180px;max-height:300px;overflow:auto}
+.hmd .ui-dd-item{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:.8rem;font-weight:500;color:var(--ink);padding:.5rem .6rem;border-radius:8px;cursor:pointer}
+.hmd .ui-dd-item:hover{background:var(--panel-2)}
+.hmd .ui-dd-item.on{font-weight:700;background:var(--panel-2)}
+.hmd .ui-dd-item-lbl{flex:1;white-space:nowrap}
+.hmd .ui-dd-check{color:var(--brand);font-weight:800}
+/* live countdown capsule in the task header (brand → amber when over) */
+.hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid #D5DCF8;border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:.8rem;font-weight:700;white-space:nowrap}
+.hmd .cap-timer.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:.76rem;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:.75rem;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
@@ -2740,7 +2806,7 @@ const CSS = `
 .hmd .tcp-head{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
 .hmd .tcp-span{margin-left:auto}
 /* approve-gate mini timeline (reuses tcp-blk block styles, absolute layout) */
-.hmd .ag-track{position:relative;height:66px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
+.hmd .ag-track{position:relative;height:104px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
 /* live task timer strip + inline finished/extend prompt */
 .hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid #D5DCF8;border-radius:10px;padding:.55rem .85rem;margin:.7rem 0 .2rem;font-size:.82rem;color:var(--brand-ink)}
 .hmd .timer-strip.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
