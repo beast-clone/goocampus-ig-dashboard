@@ -75,15 +75,17 @@ export async function POST(req: Request) {
 
     if (error) throw new Error(error.message);
 
-    // Log activity — powers the My Day "Activity" rail once we swap the read
-    // path over to activity-based updates.
-    await sb.from("mh_activity").insert({
-      post_id: data.id,
-      actor_key: normalizeOwner(body.owner),
-      action: "created",
-      to_value: "Content - Pending",
-      detail: { source: "dashboard-form" },
-    });
+    // Log activity — best-effort: the post is already committed, so a logging
+    // hiccup must not 502 the create (the client would retry → duplicate post).
+    try {
+      await sb.from("mh_activity").insert({
+        post_id: data.id,
+        actor_key: normalizeOwner(body.owner),
+        action: "created",
+        to_value: "Content - Pending",
+        detail: { source: "dashboard-form" },
+      });
+    } catch { /* activity is a courtesy trail */ }
 
     bustMarketingHubCache(); // new row must appear on the next hub fetch
 

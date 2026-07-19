@@ -124,7 +124,16 @@ export async function GET() {
     // ~1200 task ids) and map by post; only the tasks in view read from it.
     const refByPost = new Map<string, RefItem[]>();
     const creativeByPost = new Map<string, Creative[]>();
-    const { data: atts } = await sb.from("mh_attachments").select("id, post_id, filename, storage_path, kind").in("kind", ["reference", "creative"]);
+    // Explicit bound: PostgREST silently caps unlimited selects (~1000 rows), which
+    // would drop attachments arbitrarily as the table grows. Newest-first within the
+    // cap so recent creatives always win. ponytail: 5000 flat cap — switch to a
+    // per-post-id .in() filter if the table ever outgrows it.
+    const { data: atts } = await sb
+      .from("mh_attachments")
+      .select("id, post_id, filename, storage_path, kind")
+      .in("kind", ["reference", "creative"])
+      .order("uploaded_at", { ascending: false })
+      .limit(5000);
     (atts || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string; kind: string }) => {
       if (a.kind === "creative") {
         const arr = creativeByPost.get(a.post_id) || [];

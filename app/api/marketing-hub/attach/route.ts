@@ -32,6 +32,11 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
+    // postId lands in the storage key — must be a UUID (blocks path traversal and
+    // catches bad ids BEFORE the file is uploaded and orphaned).
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(postId))) {
+      return NextResponse.json({ error: "postId must be a valid task id" }, { status: 400 });
+    }
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectPath = `mh-creatives/${postId}/${Date.now()}-${safeName}`;
 

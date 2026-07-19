@@ -77,6 +77,17 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "no allowed fields to update" }, { status: 400 });
     }
 
+    // Guard the mh_status enum — a non-enum value would 502 the whole update with
+    // an opaque Postgres error (and two legacy client statuses used to do exactly
+    // that). Reject clearly instead.
+    const VALID_STATUS = new Set([
+      "Content - Pending", "Content - In Progress", "Content - Approved",
+      "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+    ]);
+    if (typeof clean.status === "string" && !VALID_STATUS.has(clean.status)) {
+      return NextResponse.json({ error: `"${clean.status}" is not a valid status` }, { status: 400 });
+    }
+
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")

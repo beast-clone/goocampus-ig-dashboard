@@ -27,7 +27,10 @@ export async function POST(req: Request) {
     const oldOwner = before.data.owner_key;
     if (oldOwner === body.newOwnerKey) return NextResponse.json({ ok: true, noChange: true });
 
-    await sb.from("mh_posts").update({ owner_key: body.newOwnerKey }).eq("id", body.postId);
+    // The ownership swap MUST stick — if it fails, bail before we log/announce a
+    // claim that never happened (activity + chat below would otherwise lie).
+    const swap = await sb.from("mh_posts").update({ owner_key: body.newOwnerKey }).eq("id", body.postId);
+    if (swap.error) throw new Error(swap.error.message);
 
     // Remove new owner from collabs (they were on standby)
     await sb.from("mh_post_collaborators").delete().eq("post_id", body.postId).eq("member_key", body.newOwnerKey);

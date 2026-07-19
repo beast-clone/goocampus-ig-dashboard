@@ -37,11 +37,13 @@ type CCStatus =
   | "Content - Approved" | "Output - In Progress" | "Output - Ready"
   | "Incorporating Feedback" | "Ready to Publish" | "Published/Scheduled"
   | "Rejected/Not Published" | "Failed";
+// ONLY real mh_status enum values — offering anything else in a picker would 502
+// the save (the server now rejects them with a 400). The legacy statuses
+// ("Content - Needs Approval", "Output - In Progress", …) stay in the TYPE/map so
+// old references render, but they are not selectable.
 const CC_STATUS_ORDER: CCStatus[] = [
-  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
-  "Content - Approved", "Output - In Progress", "Output - Ready",
-  "Incorporating Feedback", "Ready to Publish", "Published/Scheduled",
-  "Rejected/Not Published", "Failed",
+  "Content - Pending", "Content - In Progress", "Content - Approved",
+  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
 ];
 const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inView: boolean }> = {
   "Content - Pending":        { label: "Content - Pending",        tone: "muted", stage: 0, inView: true },
@@ -251,6 +253,7 @@ const WORK_MIN = 480;
 const DAY_END_LABEL = "6:00 PM";
 function estMins(type: string): number {
   const t = (type || "").toLowerCase();
+  if (/thumbnail/.test(t)) return 30;         // BEFORE /reel/ — "Reel Thumbnail" is design work, not a 90m video
   if (/long-form/.test(t)) return 120;
   if (/reel - cut|cut/.test(t)) return 60;
   if (/reel|short|story|video/.test(t)) return 90;
@@ -377,13 +380,13 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
       <div className="section-lbl">References</div>
       <div className="refs">
         {refs.map((r, i) => r.kind === "image" ? (
-          <div key={i} className="thumb ref-thumb" title={r.label}>
+          <div key={r.attId || r.url || i} className="thumb ref-thumb" title={r.label}>
             <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
             <div className="thumb-name">{r.label}</div>
             <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
           </div>
         ) : (
-          <a key={i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
+          <a key={r.url || i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
             <span className="ref-link-ic">🔗</span>
             <span className="ref-link-lbl">{r.label}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
@@ -821,38 +824,67 @@ function TeamCapacityBoard() {
 // screen so Manya never confuses it with her own plan. Each teammate shows their
 // day planner (done faded, current highlighted + now-line) and what they're on now.
 type CapBlock = { k: string; l: string; f: number; s?: "done" | "now" };
-type CapPerson = { name: string; role: string; av: string; color: string; started: string; badge: "free" | "some" | "full"; free: string; nowLeft: number; now: { label: string; since: string; left: string }; blocks: CapBlock[] };
-const CAP_PAGE: CapPerson[] = [
-  { name: "Praveen", role: "Designer", av: "P", color: "#C2410C", started: "9:05 AM", badge: "free", free: "2h 30m free", nowLeft: 47,
-    now: { label: "NEET Thumbnail", since: "1:10 PM", left: "~35m left" },
-    blocks: [{ k: "design", l: "Australia Carousel", f: 2, s: "done" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "design", l: "NEET Thumbnail", f: 1.5, s: "now" }, { k: "free", l: "Free", f: 2.5 }] },
-  { name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8", started: "9:18 AM", badge: "some", free: "1h 30m free", nowLeft: 52,
-    now: { label: "Reel B — Which Branch After NEET", since: "1:40 PM", left: "~50m left" },
-    blocks: [{ k: "reel", l: "Reel A", f: 2, s: "done" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2, s: "now" }, { k: "free", l: "Free", f: 1.5 }] },
-  { name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8", started: "9:12 AM", badge: "full", free: "Full", nowLeft: 28,
-    now: { label: "Germany Approbation — Reel", since: "10:40 AM", left: "~40m left" },
-    blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5, s: "done" }, { k: "reel", l: "Germany Reel", f: 1.5, s: "now" }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
-];
-function TeamCapacityPage({ onBack }: { onBack: () => void }) {
+// REAL data: each producer's day is laid out from their actual in-production tasks
+// (duration = estimate by type), sequential from 9 AM around the fixed 1 PM lunch.
+// done/now flags come from the real clock. No fabricated schedules.
+function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks: Task[]; nowMin: number | null }) {
+  const PRODUCERS = [
+    { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
+    { key: "nikhil", name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8" },
+    { key: "nandu", name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8" },
+  ];
+  const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+  const rows = PRODUCERS.map((p) => {
+    const mine = tasks
+      .filter((t) => t.detail.owner === p.name && STATUS[t.status].inView && t.status !== "Output - Ready")
+      .map((t) => ({ label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine), video: /reel|short|video|long-form/i.test(t.detail.typeLine) }));
+    const committed = mine.reduce((s, t) => s + t.dur, 0);
+    const freeMin = WORK_MIN - committed;
+    // Sequential layout from 9 AM, lunch pinned at 1 PM.
+    const blocks: CapBlock[] = [];
+    let cursor = 0, lunchDone = false, current: { label: string; endsIn: number } | null = null;
+    for (const t of mine) {
+      if (!lunchDone && cursor >= LUNCH_AT) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; lunchDone = true; }
+      const s = cursor + t.dur <= now ? "done" : cursor <= now && now < cursor + t.dur ? "now" : undefined;
+      if (s === "now") current = { label: t.label, endsIn: cursor + t.dur - now };
+      blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60, s });
+      cursor += t.dur;
+    }
+    if (!lunchDone && cursor < LUNCH_AT + LUNCH_MIN) { blocks.push({ k: "lunch", l: "Lunch", f: 1 }); cursor += LUNCH_MIN; }
+    if (cursor < DAY_MINS) blocks.push({ k: "free", l: "Free", f: (DAY_MINS - cursor) / 60 });
+    const badge: "free" | "some" | "full" = freeMin >= 120 ? "free" : freeMin > 0 ? "some" : "full";
+    const next = current || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
+    return { ...p, committed, freeMin, badge, blocks, current, next, overflow: cursor > DAY_MINS };
+  });
   return (
     <div className="tcp">
       <div className="tcp-head">
         <button className="tc-back" onClick={onBack} title="Back to My Day">‹</button>
-        <div className="tcp-title">Team capacity <span>· today, live — who&apos;s on what</span></div>
+        <div className="tcp-title">Team capacity <span>· today, live — from each person&apos;s real tasks</span></div>
       </div>
-      {CAP_PAGE.map((p) => (
-        <div key={p.name} className="card pad tcp-card">
+      {rows.map((p) => (
+        <div key={p.key} className="card pad tcp-card">
           <div className="tcp-top">
             <span className="av" style={{ background: p.color }}>{p.av}</span>
             <div><div className="tcp-n">{p.name}</div><div className="tcp-r">{p.role}</div></div>
-            <div className="tcp-status"><span className="st-badge working">● Started {p.started}</span><span className={`cap-badge ${p.badge}`}>{p.free}</span></div>
+            <div className="tcp-status">
+              <span className="st-badge working">{fmtMins(p.committed)} committed</span>
+              <span className={`cap-badge ${p.badge}`}>{p.freeMin > 0 ? `${fmtMins(p.freeMin)} free` : p.overflow ? `Overbooked · ${fmtMins(-p.freeMin)} over` : "Full"}</span>
+            </div>
           </div>
           <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
           <div className="tcp-track">
             {p.blocks.map((b, i) => <div key={i} className={`tcp-blk ${b.k} ${b.s || ""}`} style={{ flex: b.f }} title={b.l}>{b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}</div>)}
-            <div className="tcp-now-line" style={{ left: `${p.nowLeft}%` }} />
+            {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }} />}
           </div>
-          <div className="tcp-now"><span className="dot" /> Currently working on: <b>{p.now.label}</b> <span className="muted">· since {p.now.since} · {p.now.left}</span></div>
+          <div className="tcp-now">
+            <span className="dot" />
+            {p.current
+              ? <>Currently working on: <b>{p.current.label}</b> <span className="muted">· ~{fmtMins(p.current.endsIn)} left in this block</span></>
+              : p.next
+              ? <>Up next: <b>{p.next.label}</b></>
+              : <span className="muted">Nothing in production — free to take work.</span>}
+          </div>
         </div>
       ))}
       <div className="hint" style={{ padding: "0 .3rem" }}>Opened from the 👥 button — a separate page, so it never gets mixed up with your own plan.</div>
@@ -900,11 +932,9 @@ export function HopeMyDay() {
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
   const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("active");                    // status tab
-  const [reminders, setReminders] = useState([
-    { text: "Edit YouTube long-form — “Doctors want to marry doctors”.", done: false },
-    { text: "Add captions to Samvaya reel — English + Hindi.", done: false },
-    { text: "Render final AMC pathway teaser at 4K.", done: true },
-  ]);
+  // Personal reminders — REAL per-person notes, persisted in localStorage (a
+  // scratchpad, not shared team data — server table only if cross-device matters).
+  const [reminders, setReminders] = useState<{ text: string; done: boolean }[]>([]);
   const [newRem, setNewRem] = useState("");
   const [chatMsgs, setChatMsgs] = useState<ServerMsg[]>([]);   // live messages (team + my DMs)
   const [chatRead, setChatRead] = useState<Record<string, string>>({}); // convoId → last-read ISO (localStorage)
@@ -957,11 +987,20 @@ export function HopeMyDay() {
   // REAL chat: load + poll mh_messages for this person (team + DMs). Per-person
   // read state lives in localStorage (ponytail: per-device unread is enough here;
   // move to a server table if cross-device unread ever matters).
+  const personRef = useRef(person); personRef.current = person;
   const loadChat = useCallback(async () => {
+    const p = person;
     try {
-      const r = await fetch(`/api/my-day/chat?person=${person}`, { cache: "no-store" });
+      const r = await fetch(`/api/my-day/chat?person=${p}`, { cache: "no-store" });
       const d = await r.json();
-      if (r.ok) setChatMsgs((d.messages as ServerMsg[]) || []);
+      if (!r.ok || personRef.current !== p) return; // stale response for a previous person — drop it
+      const server = (d.messages as ServerMsg[]) || [];
+      // Keep optimistic (tmp-) sends the server hasn't returned yet, so a racing
+      // poll can't wipe a just-sent bubble.
+      setChatMsgs((prev) => {
+        const pending = prev.filter((m) => m.id.startsWith("tmp-") && !server.some((s) => s.sender === m.sender && s.convo === m.convo && s.body === m.body));
+        return [...server, ...pending];
+      });
     } catch { /* poll again next tick */ }
   }, [person]);
   useEffect(() => {
@@ -969,10 +1008,22 @@ export function HopeMyDay() {
     const id = setInterval(loadChat, 15_000);
     return () => clearInterval(id);
   }, [loadChat]);
-  useEffect(() => { // person switch: load their read-state, close any open thread
+  useEffect(() => { // person switch: fresh chat buffer + their read-state, reminders and day-clock
     try { setChatRead(JSON.parse(localStorage.getItem(`hmd-chat-read-${person}`) || "{}")); } catch { setChatRead({}); }
     setActiveChat(null);
+    setChatMsgs([]);            // never show the previous person's threads while the refetch is in flight
+    lastMsgId.current = null;   // and never toast "new message" for their backlog
+    setSel(0);                  // task selection is per-person
+    try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
+    const startedAt = (() => { try { return localStorage.getItem(`hmd-day-${person}`) || ""; } catch { return ""; } })();
+    setDayStarted(!!startedAt); setDayStartAt(startedAt);
   }, [person]);
+  // Persist reminders as they change (skip the initial empty render).
+  const remLoaded = useRef(false);
+  useEffect(() => {
+    if (!remLoaded.current) { remLoaded.current = true; return; }
+    try { localStorage.setItem(`hmd-rem-${person}`, JSON.stringify(reminders)); } catch { /* private mode */ }
+  }, [reminders, person]);
   // Toast when a NEW incoming human message lands (not on first load, not my own).
   const lastMsgId = useRef<string | null>(null);
   useEffect(() => {
@@ -1025,7 +1076,10 @@ export function HopeMyDay() {
         // duplicate the row) or the row is gone — but KEEP a claim the server hasn't yet
         // reflected as mine, so a concurrent refetch can't wipe an in-flight claim.
         setClaimedTasks((prev) => prev.filter((c) => {
-          const server = fetched.find((t) => t.id === c.id);
+          // Search tasks AND the pool — a takeover the server hasn't committed yet
+          // still lives in the pool; treating it as "gone" would wipe the in-flight
+          // claim from both lists (audit finding).
+          const server = fetched.find((t) => t.id === c.id) || ((d.pool as Task[]) || []).find((t) => t.id === c.id);
           return !!server && server.detail.owner !== meNameRef.current;
         }));
       }
@@ -1305,9 +1359,14 @@ export function HopeMyDay() {
   // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
   // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
-  const startDay = () => { setDayStarted(true); setDayStartAt(clock?.time || "now"); };
+  const startDay = () => {
+    const at = clock?.time || "now";
+    setDayStarted(true); setDayStartAt(at);
+    try { localStorage.setItem(`hmd-day-${person}`, at); } catch { /* private mode */ }
+  };
   const endToday = (doneCount: number, rollCount: number) => {
     setDayStarted(false); setShowEod(false);
+    try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow.` });
   };
   // Editor sends the reschedule ask → the request goes to Manya (pipeline: waiting).
@@ -1342,7 +1401,17 @@ export function HopeMyDay() {
   // My-tasks row → expands inline in the "Up next" panel (setSel).
   // Today's-plan block → opens the task in a popup (like the original dashboard).
   // Claim a video → you become the owner; it leaves the pool and lands in My tasks.
+  // Claiming is self-assignment — same capacity gate: warn if MY 8h is already full.
   const claimVideo = (v: Task) => {
+    const add = v.detail.duration || estMins(v.detail.typeLine);
+    const committed = committedFor(me.name);
+    if (committed + add > WORK_MIN) {
+      setAssignWarn({ name: me.name, committed, add, proceed: () => doClaimVideo(v) });
+      return;
+    }
+    doClaimVideo(v);
+  };
+  const doClaimVideo = (v: Task) => {
     // Optimistic: it leaves the pool and lands in My tasks immediately. Claiming is
     // ownership only — the status STAYS "Content - Approved" (the editor may not start
     // cutting for a while), matching what the takeover write persists on the server.
@@ -1377,12 +1446,14 @@ export function HopeMyDay() {
   // Conversations derived from the live messages, relative to the viewed person.
   const convos = useMemo<Record<string, Convo>>(() => {
     const fmt = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    // online is intentionally NOT set — we have no real presence source, and faking
+    // "● online" misleads (frontend-audit finding).
     const out: Record<string, Convo> = {
-      team: { id: "team", name: "Team chat", group: true, online: true, unread: 0, msgs: [] },
+      team: { id: "team", name: "Team chat", group: true, unread: 0, msgs: [] },
     };
     for (const k of CHAT_IDS) {
       if (k === person) continue;
-      out[k] = { id: k, name: PPL[k].name, av: PPL[k].av, color: PPL[k].color, online: true, unread: 0, msgs: [] };
+      out[k] = { id: k, name: PPL[k].name, av: PPL[k].av, color: PPL[k].color, unread: 0, msgs: [] };
     }
     for (const m of chatMsgs) {
       const cid = m.convo === "team" ? "team" : m.convo.split("~").find((k) => k !== person);
@@ -1512,7 +1583,7 @@ export function HopeMyDay() {
         </div>
 
         {screen === "team" ? (
-          <TeamCapacityPage onBack={() => setScreen("myday")} />
+          <TeamCapacityPage onBack={() => setScreen("myday")} tasks={tasks} nowMin={nowMin} />
         ) : (
         <>
         {/* 1 · HEADER BAND */}
@@ -1649,13 +1720,13 @@ export function HopeMyDay() {
               <div className="chat-head">
                 {active ? (
                   <h3>
-                    <button className="chat-back" onClick={() => setActiveChat(null)} title="All chats">‹</button>
+                    <button className="chat-back" onClick={() => { if (activeChat) markRead(activeChat); setActiveChat(null); }} title="All chats">‹</button>
                     <span className="av av-sm" style={{ background: active.group ? "var(--brand)" : active.color }}>{active.group ? "👥" : active.av}</span>
                     {active.name}
                     {active.online && <span className="online">● online</span>}
                   </h3>
                 ) : (
-                  <h3>Chats <span className="online">● 4 online</span></h3>
+                  <h3>Chats</h3> /* no fake "N online" — no real presence source */
                 )}
                 <div className="chat-head-acts">
                   <button className={`pinbtn ${chatPinned ? "on" : ""}`} onClick={() => setChatPinned((p) => !p)} title={chatPinned ? "Unpin" : "Pin open"}>{chatPinned ? "📌 Pinned" : "Pin"}</button>
@@ -1725,8 +1796,41 @@ export function HopeMyDay() {
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
-                <button className="btn">Move to next week</button>
-                <button className="btn primary">Mark complete</button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    // Roll to next week: push the due date +7d (persists) — the task
+                    // drops off today's plan when it leaves the working window.
+                    const cur = planModalTask;
+                    setPlanModalId(null);
+                    if (!cur) return;
+                    const base = cur.due ? new Date(cur.due) : new Date();
+                    base.setDate(base.getDate() + 7);
+                    const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+                    setPlan((p) => p.filter((x) => x.taskId !== cur.id)); // off today's timeline immediately
+                    fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cur.id, actor: person, fields: { due_date: next } }) })
+                      .then(async (res) => {
+                        if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Move failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+                        else setToast({ who: "Moved ✓", color: "#3A57E8", av: me.av, body: `“${cur.title}” rolled a week — now due ${next}.` });
+                        load();
+                      })
+                      .catch((e) => { setToast({ who: "Move failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+                  }}
+                >
+                  Move to next week
+                </button>
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    // Complete = the producer's output is done → Output - Ready
+                    // (real status write; the task leaves the plan automatically).
+                    const cur = planModalTask;
+                    setPlanModalId(null);
+                    if (cur) setTaskStatus(cur.id, "Output - Ready");
+                  }}
+                >
+                  Mark complete
+                </button>
               </div>
             </div>
           </div>
