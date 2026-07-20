@@ -14,6 +14,7 @@ const YT = "#FF0000"; // YouTube red
 type Video = {
   id: string; title: string; thumbnail: string;
   views: number; watchHours: number; avgViewDurationSec: number; likes: number; comments: number;
+  isShort?: boolean;
 };
 type Bar = { label?: string; source?: string; country?: string; device?: string; group?: string; views?: number; value?: number; pct: number };
 type Resp = {
@@ -22,7 +23,7 @@ type Resp = {
   liveError?: string;
   range: { from: string; to: string };
   latencyMs: number;
-  summary: { subscribers: number; subscriberGain: number; views: number; watchHours: number; avgViewDurationSec: number; videos: number };
+  summary: { subscribers: number; subscriberGain: number; views: number; watchHours: number; avgViewDurationSec: number; videos: number; avgViewPercentage?: number };
   viewsOverTime: { date: string; views: number; watchHours: number }[];
   subscribersOverTime: { date: string; subscribers: number; gained: number; lost: number; net: number }[];
   topVideos: Video[];
@@ -150,6 +151,52 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <div className="text-[11px] text-gray-400 mt-2">Day is from your real view data (the weekdays your videos pull the most views). Time is a suggested posting window — YouTube doesn&apos;t share hour-level audience activity like Instagram does.</div>
             </Section>
           )}
+
+          {(() => {
+            const tv = data.topVideos || [];
+            const totViews = tv.reduce((s, v) => s + v.views, 0);
+            const totEng = tv.reduce((s, v) => s + v.likes + v.comments, 0);
+            const engRate = totViews ? (totEng / totViews) * 100 : 0;
+            const shortViews = tv.filter((v) => v.isShort).reduce((s, v) => s + v.views, 0);
+            const longViews = tv.filter((v) => !v.isShort).reduce((s, v) => s + v.views, 0);
+            const splitTotal = shortViews + longViews;
+            const shortPct = splitTotal ? Math.round((shortViews / splitTotal) * 100) : 0;
+            const hasSplit = tv.some((v) => typeof v.isShort === "boolean") && splitTotal > 0;
+            return (
+              <Section title="Engagement & retention">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                    <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Avg % viewed</div>
+                    <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: YT }}>{data.summary.avgViewPercentage != null ? `${data.summary.avgViewPercentage}%` : "—"}</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">how much of each video people watch</div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                    <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Engagement rate</div>
+                    <div className="mt-1 text-2xl font-semibold tabular-nums text-[#232D42]">{engRate.toFixed(1)}%</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">{fmt(totEng)} likes + comments · on top videos</div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                    <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Shorts vs Long-form</div>
+                    {hasSplit ? (
+                      <>
+                        <div className="mt-2.5 h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
+                          <span className="h-full" style={{ width: `${shortPct}%`, background: YT }} />
+                          <span className="h-full" style={{ width: `${100 - shortPct}%`, background: "#F3B7B7" }} />
+                        </div>
+                        <div className="flex justify-between text-[11px] text-gray-500 mt-1.5">
+                          <span>Shorts {shortPct}%</span>
+                          <span>Long-form {100 - shortPct}%</span>
+                        </div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">share of views · on top videos</div>
+                      </>
+                    ) : (
+                      <div className="mt-2 text-sm text-gray-400">Not enough data</div>
+                    )}
+                  </div>
+                </div>
+              </Section>
+            );
+          })()}
 
           <Section title="Views & watch time">
             <ViewsChart data={data.viewsOverTime} totalViews={data.summary.views} totalWatch={data.summary.watchHours} />

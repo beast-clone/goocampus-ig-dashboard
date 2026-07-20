@@ -144,6 +144,7 @@ function buildDemo(channelKey: string, from: string, to: string) {
       views,
       watchHours,
       avgViewDurationSec: Math.round(avgSec),
+      isShort: rand() < 0.45,   // representative Shorts/Long-form mix for the demo
       likes,
       comments,
       publishedDaysAgo,
@@ -178,6 +179,7 @@ function buildDemo(channelKey: string, from: string, to: string) {
       views: totalViews,
       watchHours: totalWatchHours,
       avgViewDurationSec,
+      avgViewPercentage: Math.round((34 + rand() * 22) * 10) / 10,   // representative for demo
       videos: topVideos.length,
     },
     viewsOverTime,
