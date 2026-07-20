@@ -35,13 +35,14 @@ type Resp = {
     genderSplit: { label: string; pct: number }[];
     ageGender?: { group: string; male: number; female: number }[];
   };
+  bestTimes?: { day: string; time: string; note: string }[];
   error?: string;
 };
 
 const CHANNELS = [
   { key: "goocampus", label: "GooCampus" },
-  { key: "goocampusworld", label: "Study Abroad" },
   { key: "twelfthplus", label: "12thplus" },
+  // Study Abroad (goocampusworld) removed from the switcher — nothing is published there.
 ];
 
 function fmt(n: number): string {
@@ -129,6 +130,26 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <Stat label="Avg view duration" value={duration(data.summary.avgViewDurationSec)} sub="min:sec" />
             <Stat label="Videos" value={String(data.summary.videos)} sub="in top list" />
           </div>
+
+          {data.bestTimes && data.bestTimes.length > 0 && (
+            <Section title="Best times to post next">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {data.bestTimes.map((b, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: i === 0 ? YT : "#FBEAEA", color: i === 0 ? "#fff" : YT }}>
+                      <IconClock size={22} stroke={1.8} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-lg font-semibold text-[#232D42] leading-tight">{b.day}</div>
+                      <div className="text-sm text-[#3B4457]">{b.time}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{b.note}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-gray-400 mt-2">Day is from your real view data (the weekdays your videos pull the most views). Time is a suggested posting window — YouTube doesn&apos;t share hour-level audience activity like Instagram does.</div>
+            </Section>
+          )}
 
           <Section title="Views & watch time">
             <ViewsChart data={data.viewsOverTime} totalViews={data.summary.views} totalWatch={data.summary.watchHours} />

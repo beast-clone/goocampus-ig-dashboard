@@ -3,6 +3,32 @@ import { buildLiveYouTube, hasYouTubeAuth, resolveChannelId } from "@/lib/youtub
 import { CHANNELS } from "@/lib/youtube-channels";
 import { cached } from "@/lib/api-cache";
 
+// Best days to post, from REAL view data: which weekdays the channel's videos pull
+// the most views (viewsOverTime aggregated by day-of-week). YouTube's API doesn't
+// expose hour-level audience activity like Instagram does, so the DAY is data-driven
+// and the TIME is a best-practice window for a student audience (labelled as such).
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function bestTimesFrom(viewsOverTime: { date: string; views: number }[]): { day: string; time: string; note: string }[] {
+  const byDow = new Map<number, { sum: number; n: number }>();
+  for (const d of viewsOverTime || []) {
+    const dow = new Date(`${d.date}T00:00:00`).getDay();
+    if (Number.isNaN(dow)) continue;
+    const b = byDow.get(dow) || { sum: 0, n: 0 };
+    b.sum += d.views || 0; b.n += 1; byDow.set(dow, b);
+  }
+  const ranked = [...byDow.entries()]
+    .map(([dow, b]) => ({ dow, avg: b.n ? b.sum / b.n : 0 }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 3);
+  const weekendTimes = ["11:00 AM", "10:30 AM", "12:00 PM"];
+  const weekdayTimes = ["7:30 PM", "8:30 PM", "6:30 PM"];
+  return ranked.map((r, i) => ({
+    day: WEEKDAYS[r.dow],
+    time: (r.dow === 0 || r.dow === 6 ? weekendTimes : weekdayTimes)[i] || (r.dow === 0 || r.dow === 6 ? "11:00 AM" : "7:30 PM"),
+    note: i === 0 ? "your highest-viewed day" : "strong view day",
+  }));
+}
+
 // GET /api/youtube?channel=<key>&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
 // YouTube channel analytics for the GooCampus channels.
@@ -185,15 +211,15 @@ export async function GET(req: Request) {
       try {
         // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
         const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
-        return NextResponse.json({ ...live, latencyMs: Date.now() - t0 });
+        return NextResponse.json({ ...live, bestTimes: bestTimesFrom(live.viewsOverTime), latencyMs: Date.now() - t0 });
       } catch (e) {
         const payload = buildDemo(channelKey, from, to);
-        return NextResponse.json({ ...payload, source: "demo", liveError: e instanceof Error ? e.message : String(e), latencyMs: Date.now() - t0 });
+        return NextResponse.json({ ...payload, source: "demo", bestTimes: bestTimesFrom(payload.viewsOverTime), liveError: e instanceof Error ? e.message : String(e), latencyMs: Date.now() - t0 });
       }
     }
 
     const payload = buildDemo(channelKey, from, to);
-    return NextResponse.json({ ...payload, source: "demo", latencyMs: Date.now() - t0 });
+    return NextResponse.json({ ...payload, source: "demo", bestTimes: bestTimesFrom(payload.viewsOverTime), latencyMs: Date.now() - t0 });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "YouTube analytics failed" }, { status: 502 });
   }
