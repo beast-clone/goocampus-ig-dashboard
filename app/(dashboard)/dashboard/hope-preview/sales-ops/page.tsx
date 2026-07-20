@@ -283,6 +283,13 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </div>
             );
           })()}
+          {/* TEMP plain-English explainer for the demo — safe to delete this whole block later. */}
+          <div className="mb-3 rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
+            <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
+            <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
+            <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
+            <div className="mt-1"><b>SLA</b> = your response goal. <b>24h target</b> = reach a lead within a day. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
+          </div>
           <div className="space-y-2">
             {(data?.awaiting || []).slice(0, 4).map((a, i) => (
               <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
