@@ -277,6 +277,15 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   const avgPctRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "averageViewPercentage" }, token).catch(() => ({ rows: [[0]] }));
   const avgViewPercentage = Math.round(((avgPctRes.rows?.[0]?.[0]) || 0) * 10) / 10;
 
+  // Subscribers vs non-subscribers (views) — the real, API-available version of
+  // "new vs returning". Separate query so it can't break the summary above.
+  const subRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "subscribedStatus" }, token).catch(() => ({ rows: [] }));
+  let subscribedViews = 0, nonSubscribedViews = 0;
+  for (const r of (subRes.rows || [])) {
+    if (String(r[0]).toUpperCase() === "SUBSCRIBED") subscribedViews += r[1] || 0;
+    else nonSubscribedViews += r[1] || 0;
+  }
+
   // Current subscriber count (lifetime) — from the Data API channels.statistics.
   let currentSubs = ch.baseSubs;
   try {
@@ -411,6 +420,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
       avgViewPercentage,
       videos: topVideos.length,
     },
+    subscriberViews: { subscribed: subscribedViews, nonSubscribed: nonSubscribedViews },
     viewsOverTime,
     subscribersOverTime,
     topVideos,

@@ -37,6 +37,7 @@ type Resp = {
     ageGender?: { group: string; male: number; female: number }[];
   };
   bestTimes?: { day: string; time: string; note: string }[];
+  subscriberViews?: { subscribed: number; nonSubscribed: number };
   error?: string;
 };
 
@@ -162,9 +163,13 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             const splitTotal = shortViews + longViews;
             const shortPct = splitTotal ? Math.round((shortViews / splitTotal) * 100) : 0;
             const hasSplit = tv.some((v) => typeof v.isShort === "boolean") && splitTotal > 0;
+            const subV = data.subscriberViews?.subscribed ?? 0;
+            const nonSubV = data.subscriberViews?.nonSubscribed ?? 0;
+            const subTotal = subV + nonSubV;
+            const subPct = subTotal ? Math.round((subV / subTotal) * 100) : 0;
             return (
               <Section title="Engagement & retention">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                     <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Avg % viewed</div>
                     <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: YT }}>{data.summary.avgViewPercentage != null ? `${data.summary.avgViewPercentage}%` : "—"}</div>
@@ -188,6 +193,24 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                           <span>Long-form {100 - shortPct}%</span>
                         </div>
                         <div className="text-[11px] text-gray-400 mt-0.5">share of views · on top videos</div>
+                      </>
+                    ) : (
+                      <div className="mt-2 text-sm text-gray-400">Not enough data</div>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                    <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Subscribers vs Non-subscribers</div>
+                    {subTotal > 0 ? (
+                      <>
+                        <div className="mt-2.5 h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
+                          <span className="h-full" style={{ width: `${subPct}%`, background: YT }} />
+                          <span className="h-full" style={{ width: `${100 - subPct}%`, background: "#F3B7B7" }} />
+                        </div>
+                        <div className="flex justify-between text-[11px] text-gray-500 mt-1.5">
+                          <span>Subscribers {subPct}%</span>
+                          <span>Non-subs {100 - subPct}%</span>
+                        </div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">share of views · reaching new people vs your base</div>
                       </>
                     ) : (
                       <div className="mt-2 text-sm text-gray-400">Not enough data</div>

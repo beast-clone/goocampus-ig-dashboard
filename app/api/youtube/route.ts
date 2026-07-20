@@ -182,6 +182,7 @@ function buildDemo(channelKey: string, from: string, to: string) {
       avgViewPercentage: Math.round((34 + rand() * 22) * 10) / 10,   // representative for demo
       videos: topVideos.length,
     },
+    subscriberViews: (() => { const sub = Math.round(totalViews * (0.28 + rand() * 0.16)); return { subscribed: sub, nonSubscribed: Math.max(0, totalViews - sub) }; })(),
     viewsOverTime,
     subscribersOverTime,
     topVideos,
