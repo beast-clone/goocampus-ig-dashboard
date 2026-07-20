@@ -40,6 +40,8 @@ type Counsellor = {
   firstActivityAvgHrs: number | null;
   contracts: number;
   revenue: number;
+  untouched: number; // leads with Days Untouched > 7
+  byStatus: Record<string, number>; // status → count, for the mini status-mix bar
 };
 
 type CallStat = {
@@ -82,6 +84,7 @@ type Payload = {
   byInterest: { name: string; count: number }[];
   byStatus: { name: string; count: number }[];
   counsellors: Counsellor[];
+  revenueBySource: { name: string; closings: number; revenue: number }[]; // conversion/ROI by channel
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
   awaiting: { name: string; counsellor: string; source: string; daysUntouched: number }[];
   awaitingTotal: number;
@@ -128,7 +131,7 @@ const CRM_FIELDS = [
 ];
 
 const CONTRACT_FIELDS = ["Generated Date", "Counsellor", "Client's Name"];
-const REVENUE_FIELDS = ["Payment Date", "Revenue", "Owner"];
+const REVENUE_FIELDS = ["Payment Date", "Revenue", "Owner", "Lead Source → n8n"];
 const PERF_FIELDS = [
   "Date",
   "Counsellor",
@@ -165,16 +168,6 @@ function topN<T>(entries: T[], n: number, getCount: (t: T) => number): T[] {
   return [...entries].sort((a, b) => getCount(b) - getCount(a)).slice(0, n);
 }
 
-// Last 6 months window for revenue trend — independent of the user's selected range.
-function last6MonthsWindow() {
-  const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth() - 5, 1);
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || "";
@@ -191,10 +184,8 @@ export async function GET(req: Request) {
 
   const t0 = Date.now();
   try {
-    const revWindow = last6MonthsWindow();
-
     // Fetch everything in parallel. Each is date-scoped so no full-table scans.
-    const [leads, contracts, revenue, perf, meetings, attendance, distribution, walkIns, revenueWide, contractsWide] =
+    const [leads, contracts, revenue, perf, meetings, attendance, distribution, walkIns] =
       await Promise.all([
         airtableList<Record<string, unknown>>(CRM_TABLE, {
           filterByFormula: dateRangeFormula("Created Date", from, to),
@@ -244,19 +235,6 @@ export async function GET(req: Request) {
           pageSize: 100,
           maxRecords: 5_000,
         }),
-        // Wide-window revenue for the trend chart.
-        airtableList<Record<string, unknown>>(REVENUE_TABLE, {
-          filterByFormula: dateRangeFormula("Payment Date", revWindow.from, revWindow.to),
-          fields: REVENUE_FIELDS,
-          pageSize: 100,
-          maxRecords: 10_000,
-        }),
-        airtableList<Record<string, unknown>>(CONTRACT_TABLE, {
-          filterByFormula: dateRangeFormula("Generated Date", revWindow.from, revWindow.to),
-          fields: CONTRACT_FIELDS,
-          pageSize: 100,
-          maxRecords: 10_000,
-        }),
       ]);
 
     // -------------- Core aggregations (unchanged) --------------
@@ -298,10 +276,12 @@ export async function GET(req: Request) {
 
       let c = counsellorMap.get(counsellor);
       if (!c) {
-        c = { name: counsellor, assigned: 0, firstActivityAvgHrs: null, contracts: 0, revenue: 0 };
+        c = { name: counsellor, assigned: 0, firstActivityAvgHrs: null, contracts: 0, revenue: 0, untouched: 0, byStatus: {} };
         counsellorMap.set(counsellor, c);
       }
       c.assigned += 1;
+      c.byStatus[status] = (c.byStatus[status] || 0) + 1;
+      if (daysUntouched > 7) c.untouched += 1;
 
       if (createdIso && modifiedIso) {
         const diffMs = new Date(modifiedIso).getTime() - new Date(createdIso).getTime();
@@ -347,6 +327,7 @@ export async function GET(req: Request) {
     }
 
     let revenueTotal = 0;
+    const revBySourceMap = new Map<string, { closings: number; revenue: number }>();
     for (const rec of revenue) {
       const amount = pickNumber(rec.fields["Revenue"]);
       revenueTotal += amount;
@@ -355,6 +336,11 @@ export async function GET(req: Request) {
         const c = counsellorMap.get(owner);
         if (c) c.revenue += amount;
       }
+      const rsource = pickName(rec.fields["Lead Source → n8n"]) || "Unattributed";
+      const rb = revBySourceMap.get(rsource) || { closings: 0, revenue: 0 };
+      rb.closings += 1;
+      rb.revenue += amount;
+      revBySourceMap.set(rsource, rb);
     }
 
     // -------------- Section: Call activity --------------
@@ -491,9 +477,9 @@ export async function GET(req: Request) {
     }
     walkInRecent.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
-    // -------------- Section: Revenue trend (last 6 months) --------------
+    // -------------- Section: Revenue trend (month-wise, follows the selected window) --------------
     const revByMonth = new Map<string, { revenue: number; contracts: number }>();
-    for (const rec of revenueWide) {
+    for (const rec of revenue) {
       const d = pickName(rec.fields["Payment Date"]);
       if (!d) continue;
       const key = d.slice(0, 7); // YYYY-MM
@@ -504,7 +490,7 @@ export async function GET(req: Request) {
       }
       bucket.revenue += pickNumber(rec.fields["Revenue"]);
     }
-    for (const rec of contractsWide) {
+    for (const rec of contracts) {
       const d = pickName(rec.fields["Generated Date"]);
       if (!d) continue;
       const key = d.slice(0, 7);
@@ -556,6 +542,9 @@ export async function GET(req: Request) {
       byInterest,
       byStatus,
       counsellors,
+      revenueBySource: [...revBySourceMap.entries()]
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.revenue - a.revenue || b.closings - a.closings),
       campaigns,
       awaiting,
       awaitingTotal: awaitingRaw.length,

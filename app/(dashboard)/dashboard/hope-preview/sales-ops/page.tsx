@@ -10,6 +10,8 @@ type Counsellor = {
   firstActivityAvgHrs: number | null;
   contracts: number;
   revenue: number;
+  untouched: number;
+  byStatus: Record<string, number>;
 };
 
 type CallStat = {
@@ -47,6 +49,7 @@ type SalesOpsData = {
   byInterest: { name: string; count: number }[];
   byStatus: { name: string; count: number }[];
   counsellors: Counsellor[];
+  revenueBySource: { name: string; closings: number; revenue: number }[];
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
   awaiting: { name: string; counsellor: string; source: string; daysUntouched: number }[];
   awaitingTotal: number;
@@ -105,6 +108,55 @@ function fmtHrs(n: number | null): string {
 
 const COLORS = ["#3A57E8", "#5DCAA5", "#EF9F27", "#B4B2A9", "#D4537E", "#7F77DD"];
 
+// Maheen isn't a counsellor — it's the holding pool where leads park as New / Re-Enquiry
+// for the assignment automation. Relabel it everywhere in the UI.
+const BUCKET_NAME = "Maheen Ejaz";
+const isBucket = (name: string) => name === BUCKET_NAME;
+const counsellorLabel = (name: string) => (isBucket(name) ? "New Leads (Maheen)" : name);
+
+const STATUS_HEX: Record<string, { bg: string; fg: string }> = {
+  "New": { bg: "#E1F0FB", fg: "#0C447C" },
+  "Attempted to contact": { bg: "#F0F2F8", fg: "#5A6273" },
+  "Junk lead": { bg: "#FBE4EC", fg: "#C0392B" },
+  "SQL": { bg: "#EFEBFE", fg: "#6E48F8" },
+  "Bookings": { bg: "#FEF3E2", fg: "#B7791F" },
+  "Initial discussions": { bg: "#E3F5EA", fg: "#137A3E" },
+  "Hot lead": { bg: "#FDE7DA", fg: "#C05621" },
+  "Interested": { bg: "#DBF3EF", fg: "#0E7C6E" },
+  "Re-Enquiry": { bg: "#E4F4FD", fg: "#0B84C4" },
+  "Contract stage": { bg: "#E9ECFB", fg: "#2138B0" },
+  "Closed won": { bg: "#CDEED9", fg: "#0F6B36" },
+  "Not interested": { bg: "#F0F2F8", fg: "#8A92A6" },
+};
+const stChip = (s: string) => STATUS_HEX[s] || { bg: "#F0F2F8", fg: "#8A92A6" };
+
+// First-touch SLA colouring: <24h good, 24–48h watch, >48h breached.
+function firstTouchStyle(h: number | null): { bg: string; fg: string } {
+  if (h == null) return { bg: "#F0F2F8", fg: "#8A92A6" };
+  if (h < 24) return { bg: "#E3F5EA", fg: "#0F9D58" };
+  if (h <= 48) return { bg: "#FEF3E2", fg: "#B7791F" };
+  return { bg: "#FBE4EC", fg: "#C0392B" };
+}
+
+// Group a counsellor's status counts into the 4-colour mix bar.
+function statusGroupColor(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("junk") || n.includes("not interested")) return "#C0392B"; // lost
+  if (n === "new" || n.includes("re-enquiry") || n === "—") return "#93A9F6"; // fresh
+  if (n.includes("won") || n.includes("sql") || n.includes("hot") || n.includes("booking") || n.includes("contract") || n.includes("interested") || n.includes("initial")) return "#0F9D58"; // qualified+
+  return "#B7791F"; // in-progress (attempted, etc.)
+}
+function mixSegments(byStatus: Record<string, number>): { color: string; pct: number }[] {
+  const total = Object.values(byStatus).reduce((s, n) => s + n, 0) || 1;
+  const grouped = new Map<string, number>();
+  for (const [name, n] of Object.entries(byStatus)) {
+    const c = statusGroupColor(name);
+    grouped.set(c, (grouped.get(c) || 0) + n);
+  }
+  const order = ["#93A9F6", "#B7791F", "#C0392B", "#0F9D58"];
+  return order.filter((c) => grouped.has(c)).map((color) => ({ color, pct: (grouped.get(color)! / total) * 100 }));
+}
+
 export default function SalesOpsPage() {
   return (
     <HopeDashboardShell active="sales" title="Sales Hub" subtitle="Your whole CRM — total leads, counsellor activity, contracts and revenue in the selected range." hideAccountPicker>
@@ -134,6 +186,21 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const totalInterest = useMemo(() => data?.byInterest.reduce((s, i) => s + i.count, 0) || 0, [data]);
   const totalStatus = useMemo(() => data?.byStatus.reduce((s, i) => s + i.count, 0) || 0, [data]);
   const maxSource = useMemo(() => data?.bySource.reduce((m, s) => Math.max(m, s.count), 1) || 1, [data]);
+  const assignedToTeam = useMemo(() => (data?.counsellors || []).filter((c) => c.name !== "Unassigned").reduce((s, c) => s + c.assigned, 0), [data]);
+  const sortedCounsellors = useMemo(
+    () => [...(data?.counsellors || [])].sort((a, b) => (isBucket(b.name) ? 1 : 0) - (isBucket(a.name) ? 1 : 0) || b.assigned - a.assigned),
+    [data],
+  );
+  const sourceRoi = useMemo(() => {
+    if (!data) return [];
+    const rev = new Map(data.revenueBySource.map((r) => [r.name.toLowerCase(), r]));
+    return data.bySource.map((s) => {
+      const rv = rev.get(s.name.toLowerCase());
+      const closings = rv?.closings || 0;
+      return { name: s.name, leads: s.count, closings, revenue: rv?.revenue || 0, conv: s.count ? (closings / s.count) * 100 : 0 };
+    });
+  }, [data]);
+  const maxRoiConv = useMemo(() => Math.max(1, ...sourceRoi.map((r) => r.conv)), [sourceRoi]);
 
   return (
     <div className="space-y-8">
@@ -149,123 +216,266 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <LiveIndicator loading={isLoading} onRefresh={refresh} />
       </div>
 
-      {/* KPI tiles */}
-      <div className="grid grid-cols-4 gap-5">
-        <KpiTile label="Leads this range" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created Date in range" />
-        <KpiTile label="Avg first activity" value={data ? fmtHrs(data.totals.firstActivityAvgHrs) : "—"} hint="Created → first CRM touch" />
-        <KpiTile label="Contracts generated" value={data ? fmtInt(data.totals.contracts) : "—"} hint="Contract Generator table" />
-        <KpiTile label="Revenue booked" value={data ? fmtInr(data.totals.revenue) : "—"} hint="Revenue Tracker payments" />
+      {/* KPI strip */}
+      <div className="grid grid-cols-5 gap-5">
+        <KpiTile label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
+        <KpiTile label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
+        <KpiTile label="Avg first touch" value={data ? fmtHrs(data.totals.firstActivityAvgHrs) : "—"} hint="created → first touch · target <24h" tone={data && (data.totals.firstActivityAvgHrs ?? 0) > 48 ? "warn" : undefined} />
+        <KpiTile label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
+        <KpiTile label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} />
       </div>
 
-      {/* Inflow + Source */}
-      <div className="grid grid-cols-5 gap-5">
+      {/* Leads by source (hero) + Speed to lead */}
+      <div className="grid grid-cols-5 gap-5 items-start">
+        <Card className="col-span-3">
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="text-base font-medium text-[#232D42]">Leads by source</div>
+            <div className="text-sm text-gray-500">{data ? `${fmtInt(data.totals.leads)} in this window` : ""}</div>
+          </div>
+          <div className="space-y-3 text-sm">
+            {data?.bySource.map((s, i) => (
+              <div key={s.name} className="grid grid-cols-[160px_1fr_auto] items-center gap-3">
+                <span className="text-[#3B4457] truncate">{s.name}</span>
+                <span className="h-[9px] rounded-full bg-[#F3F5FA] overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: COLORS[i % COLORS.length] }} />
+                </span>
+                <span className="text-right tabular-nums font-medium min-w-[68px]">
+                  {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
+                </span>
+              </div>
+            ))}
+            {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
+          </div>
+          <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">The date range (top-right) re-scopes every card on this page.</div>
+        </Card>
+
+        <Card className="col-span-2">
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
+            <div className="text-sm text-gray-500">the biggest leak</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstActivityAvgHrs) : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">avg first touch</div>
+            </div>
+            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtInt(data.awaitingTotal) : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">untouched leads</div>
+            </div>
+          </div>
+          {data && (
+            <div className="mb-3">
+              <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
+                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, data.totals.firstActivityAvgHrs || 24)) * 100)}%` }} />
+                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, data.totals.firstActivityAvgHrs || 24)) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
+                <span>24h SLA target</span>
+                <span>avg is {data.totals.firstActivityAvgHrs ? `${(data.totals.firstActivityAvgHrs / 24).toFixed(1)}×` : "—"} over</span>
+              </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            {(data?.awaiting || []).slice(0, 4).map((a, i) => (
+              <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-[13px] truncate">{a.name}</div>
+                  <div className="text-[11px] text-gray-500 truncate">{counsellorLabel(a.counsellor)} · {a.source}</div>
+                </div>
+                <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap">{a.daysUntouched}d</div>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-gray-400 mt-3">Oldest-untouched from the live Days Untouched field.</div>
+        </Card>
+      </div>
+
+      {/* Assigned to counsellors — table (click a row → drill-down) */}
+      <Card>
+        <div className="flex items-baseline justify-between mb-4">
+          <div className="text-base font-medium text-[#232D42]">Assigned to counsellors</div>
+          <div className="text-sm text-gray-500">▸ click a row for the full lead breakdown</div>
+        </div>
+        {data ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-500 text-left border-b border-gray-100">
+                <th className="py-2.5 font-normal">Counsellor</th>
+                <th className="py-2.5 font-normal text-right">Assigned</th>
+                <th className="py-2.5 font-normal text-right">First touch</th>
+                <th className="py-2.5 font-normal text-right">Untouched</th>
+                <th className="py-2.5 font-normal w-[150px]">Status mix</th>
+                <th className="py-2.5 font-normal text-right">Closings</th>
+                <th className="py-2.5 font-normal w-5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCounsellors.map((c) => {
+                const bucket = isBucket(c.name);
+                const ft = firstTouchStyle(c.firstActivityAvgHrs);
+                return (
+                  <tr
+                    key={c.name}
+                    onClick={() => setDrillCounsellor(c.name)}
+                    className={`border-b border-gray-50 cursor-pointer hover:bg-gray-50 ${bucket ? "bg-[#F7FBFE]" : ""}`}
+                  >
+                    <td className={`py-2.5 ${bucket ? "border-l-[3px] border-l-[#0B84C4] pl-3" : ""}`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold"
+                          style={{ background: bucket ? "#E4F4FD" : "#E9ECFB", color: bucket ? "#0B84C4" : "#2138B0" }}>
+                          {bucket ? "◇" : c.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="font-medium text-[#232D42]">{counsellorLabel(c.name)}</span>
+                        {bucket && <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0B84C4] bg-[#E4F4FD] px-2 py-0.5 rounded-full">holding pool</span>}
+                      </div>
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums font-medium">{fmtInt(c.assigned)}</td>
+                    <td className="py-2.5 text-right">
+                      {bucket ? <span className="text-gray-400">n/a</span> : (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums" style={{ background: ft.bg, color: ft.fg }}>{fmtHrs(c.firstActivityAvgHrs)}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums font-medium" style={{ color: bucket ? "#9AA1AF" : c.untouched > 0 ? "#C0392B" : "#232D42" }}>
+                      {bucket ? "—" : fmtInt(c.untouched)}
+                    </td>
+                    <td className="py-2.5">
+                      <span className="flex h-2 rounded-full overflow-hidden bg-[#F3F5FA] min-w-[110px]">
+                        {mixSegments(c.byStatus).map((seg, i) => <span key={i} className="h-full" style={{ width: `${seg.pct}%`, background: seg.color }} />)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums font-medium">{bucket ? <span className="text-gray-400">—</span> : fmtInt(c.contracts)}</td>
+                    <td className="py-2.5 text-right text-gray-300">▸</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "—"}</div>
+        )}
+        <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
+          <span className="font-medium text-[#3B4457]">New Leads (Maheen)</span> is the holding pool — leads park here as New / Re-Enquiry for the assignment automation, not a real counsellor.
+          First touch: <span className="text-[#0F9D58]">green &lt;24h</span> / <span className="text-[#B7791F]">amber 24–48h</span> / <span className="text-[#C0392B]">red &gt;48h</span>.
+          Status mix: <span style={{ color: "#93A9F6" }}>New</span> / <span style={{ color: "#B7791F" }}>In-progress</span> / <span style={{ color: "#C0392B" }}>Junk</span> / <span style={{ color: "#0F9D58" }}>Qualified+</span>.
+        </div>
+      </Card>
+
+      {/* Conversion & revenue by source */}
+      <Card>
+        <div className="flex items-baseline justify-between mb-1">
+          <div className="text-base font-medium text-[#232D42]">Conversion &amp; revenue by source</div>
+          <div className="text-sm text-gray-500">which channel turns leads into money</div>
+        </div>
+        <div className="text-sm text-gray-500 mb-4">Leads created in-window vs closings paid in-window (Revenue Tracker source) — directional channel ROI, independent of the status field.</div>
+        {data && sourceRoi.length > 0 ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-500 text-left border-b border-gray-100">
+                <th className="py-2.5 font-normal">Source</th>
+                <th className="py-2.5 font-normal text-right">Leads</th>
+                <th className="py-2.5 font-normal text-right">Closings</th>
+                <th className="py-2.5 font-normal text-right">Conv %</th>
+                <th className="py-2.5 font-normal w-[200px]">Rate</th>
+                <th className="py-2.5 font-normal text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sourceRoi.map((r) => (
+                <tr key={r.name} className="border-b border-gray-50">
+                  <td className="py-2.5">{r.name}</td>
+                  <td className="py-2.5 text-right tabular-nums">{fmtInt(r.leads)}</td>
+                  <td className="py-2.5 text-right tabular-nums">{fmtInt(r.closings)}</td>
+                  <td className="py-2.5 text-right tabular-nums font-medium">{r.conv > 0 ? `${r.conv.toFixed(1)}%` : "—"}</td>
+                  <td className="py-2.5">
+                    <span className="block h-2 rounded-full bg-[#F3F5FA] overflow-hidden">
+                      <span className="block h-full rounded-full bg-brand" style={{ width: `${(r.conv / maxRoiConv) * 100}%` }} />
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums">{r.revenue > 0 ? fmtInr(r.revenue) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "No revenue attributed in this window"}</div>
+        )}
+      </Card>
+
+      {/* Status snapshot — full-width detail */}
+      <Card>
+        <div className="flex items-baseline justify-between mb-3">
+          <div className="text-base font-medium text-[#232D42]">Status snapshot</div>
+          <div className="text-sm text-gray-500">directional only</div>
+        </div>
+        <div className="flex gap-2.5 items-start bg-[#FEF3E2] border border-[#F3E2C4] rounded-lg px-3.5 py-3 text-[12.5px] text-[#7a5a1a] mb-4">
+          <span>⚠</span>
+          <span>Sales rarely update status — junk leads sit as “New”, and some “New” leads have actually converted. Treat this as <b>directional</b>; real conversions come from <b>Conversion &amp; revenue by source</b> above.</span>
+        </div>
+        {data && data.byStatus.length > 0 ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-500 text-left border-b border-gray-100">
+                <th className="py-2.5 font-normal">Status</th>
+                <th className="py-2.5 font-normal text-right">Leads</th>
+                <th className="py-2.5 font-normal text-right">% of pipeline</th>
+                <th className="py-2.5 font-normal w-[320px]">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.byStatus.map((s) => {
+                const c = stChip(s.name);
+                const pct = totalStatus ? (s.count / totalStatus) * 100 : 0;
+                return (
+                  <tr key={s.name} className="border-b border-gray-50">
+                    <td className="py-2.5"><span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: c.bg, color: c.fg }}>{s.name}</span></td>
+                    <td className="py-2.5 text-right tabular-nums font-medium">{fmtInt(s.count)}</td>
+                    <td className="py-2.5 text-right tabular-nums text-gray-500">{pct.toFixed(1)}%</td>
+                    <td className="py-2.5">
+                      <span className="block h-2 rounded-full bg-[#F3F5FA] overflow-hidden">
+                        <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: c.fg }} />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "—"}</div>
+        )}
+      </Card>
+
+      {/* Lead inflow + Interest mix */}
+      <div className="grid grid-cols-5 gap-5 items-start">
         <Card className="col-span-3">
           <div className="flex items-baseline justify-between mb-1">
             <div className="text-base font-medium text-[#232D42]">Lead inflow — daily</div>
-            <div className="text-sm text-gray-500">
-              {data ? `${data.range.days} days · ${data.range.from} → ${data.range.to}` : ""}
-            </div>
+            <div className="text-sm text-gray-500">{data ? `${data.range.days} days` : ""}</div>
           </div>
           {inflowChart ? (
             <>
               <div className="flex items-baseline gap-6 mb-3">
                 <div>
-                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(data?.totals.leads || 0)}</div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Total leads</div>
+                  <div className="text-2xl font-medium text-[#232D42]">{fmtInt(Math.round((data?.totals.leads || 0) / (data?.range.days || 1)))}</div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Avg / day</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(Math.round((data?.totals.leads || 0) / (data?.range.days || 1)))}</div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Avg per day</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-medium text-[#232D42]">{fmtInt(inflowChart.peak.count)}</div>
+                  <div className="text-2xl font-medium text-[#232D42]">{fmtInt(inflowChart.peak.count)}</div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Peak · {inflowChart.peak.date}</div>
                 </div>
               </div>
-              <svg viewBox="0 0 400 90" preserveAspectRatio="none" className="w-full h-32">
+              <svg viewBox="0 0 400 90" preserveAspectRatio="none" className="w-full h-28">
                 <polyline points={inflowChart.points} fill="none" stroke="#3A57E8" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                 <polyline points={`${inflowChart.points} 400,90 0,90`} fill="#3A57E8" fillOpacity="0.08" stroke="none" />
               </svg>
-              <div className="flex justify-between text-sm text-gray-500 mt-2">
-                <span>{range.from}</span>
-                <span>{range.to}</span>
-              </div>
+              <div className="flex justify-between text-sm text-gray-500 mt-2"><span>{range.from}</span><span>{range.to}</span></div>
             </>
           ) : (
             <div className="text-sm text-gray-400 py-10">{isLoading ? "Loading…" : "No leads in this range"}</div>
           )}
         </Card>
         <Card className="col-span-2">
-          <div className="text-base font-medium text-[#232D42] mb-4">Source split</div>
-          <div className="space-y-3 text-sm">
-            {data?.bySource.slice(0, 6).map((s, i) => (
-              <div key={s.name}>
-                <div className="flex justify-between">
-                  <span>{s.name}</span>
-                  <span className="text-gray-500">{fmtInt(s.count)} · {Math.round((s.count / data.totals.leads) * 100)}%</span>
-                </div>
-                <div className="h-[5px] rounded mt-1.5" style={{ width: `${(s.count / maxSource) * 100}%`, background: COLORS[i % COLORS.length] }} />
-              </div>
-            ))}
-            {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
-          </div>
-        </Card>
-      </div>
-
-      {/* Counsellor activity */}
-      <div>
-        <div className="text-base font-medium text-[#232D42] mb-3">Counsellor activity</div>
-        <div className="grid grid-cols-3 gap-5">
-          {(data?.counsellors.slice(0, 6) || []).map((c, i) => (
-            <button
-              key={c.name}
-              onClick={() => setDrillCounsellor(c.name)}
-              className="bg-white rounded-xl border border-gray-100 p-6 text-left hover:border-brand hover:shadow-sm transition"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-medium text-[#232D42]"
-                    style={{ background: [ "#CECBF6", "#9FE1CB", "#FAC775", "#F4C0D1", "#B5D4F4", "#F5C4B3" ][i % 6], color: "#333" }}>
-                    {c.name.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div className="text-base font-medium text-[#232D42]">{c.name}</div>
-                </div>
-                <div className="text-xs text-gray-400">Click to view leads →</div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-gray-500 text-xs uppercase tracking-wide">Assigned</div>
-                  <div className="text-2xl font-medium text-[#232D42] mt-1">{fmtInt(c.assigned)}</div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs uppercase tracking-wide">Avg first activity</div>
-                  <div className="text-2xl font-medium text-[#232D42] mt-1">{fmtHrs(c.firstActivityAvgHrs)}</div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs uppercase tracking-wide">Contracts</div>
-                  <div className="text-xl font-medium mt-1">{fmtInt(c.contracts)}</div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs uppercase tracking-wide">Revenue</div>
-                  <div className="text-xl font-medium mt-1">{fmtInr(c.revenue)}</div>
-                </div>
-              </div>
-            </button>
-          ))}
-          {!data && Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}><div className="text-sm text-gray-400">{isLoading ? "Loading…" : "—"}</div></Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Status + Interest */}
-      <div className="grid grid-cols-2 gap-5">
-        <Card>
-          <div className="text-base font-medium text-[#232D42]">Current CRM status</div>
-          <div className="text-sm text-gray-500 mb-4">Snapshot of the Lead Status field</div>
-          <TableList rows={data?.byStatus || []} total={totalStatus} loading={isLoading} />
-        </Card>
-        <Card>
           <div className="text-base font-medium text-[#232D42]">Interest mix</div>
           <div className="text-sm text-gray-500 mb-4">Primary Interest</div>
           <TableList rows={data?.byInterest || []} total={totalInterest} loading={isLoading} />
@@ -343,14 +553,14 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         )}
       </Card>
 
-      {/* ── Section: Revenue trend (last 6 months) ── */}
+      {/* ── Section: Revenue trend (month-wise, follows range) ── */}
       {data && data.revenueTrend.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
             <div className="text-base font-medium text-[#232D42]">Revenue trend</div>
-            <div className="text-sm text-gray-500">Last 6 months · independent of range</div>
+            <div className="text-sm text-gray-500">Month-wise · follows the selected range</div>
           </div>
-          <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts generated per month.</div>
+          <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts closed per month. Recent months often show closings before their ₹ amount is entered — revenue trails by a month or two.</div>
           <RevenueTrendChart data={data.revenueTrend} />
         </Card>
       )}
@@ -639,9 +849,11 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
     return () => { cancelled = true; };
   }, [name, range.from, range.to]);
 
-  const statuses = useMemo(() => {
+  const statusCounts = useMemo(() => {
     if (!leads) return [];
-    return Array.from(new Set(leads.map((l) => l.status).filter(Boolean))).sort();
+    const m = new Map<string, number>();
+    for (const l of leads) if (l.status) m.set(l.status, (m.get(l.status) || 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [leads]);
 
   const visible = useMemo(() => {
@@ -668,7 +880,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
       <div className="bg-white rounded-xl w-full max-w-7xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
           <div>
-            <div className="text-xl font-medium">{name} — assigned leads</div>
+            <div className="text-xl font-medium">{counsellorLabel(name)} — assigned leads</div>
             <div className="text-sm text-gray-500 mt-0.5">
               {range.from} → {range.to} · {leads ? `${leads.length} leads` : "loading…"}
             </div>
@@ -677,20 +889,39 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
         </div>
 
         {leads && (
-          <div className="px-8 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3 text-sm">
-            <label className="text-gray-500">Sort</label>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "createdAt" | "daysUntouched" | "status")} className="border border-gray-200 rounded px-3 py-1.5">
-              <option value="createdAt">Newest first</option>
-              <option value="daysUntouched">Most idle first</option>
-              <option value="status">Status</option>
-            </select>
-            <label className="text-gray-500 ml-3">Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5">
-              <option value="">All</option>
-              {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <div className="ml-auto">
-              <button onClick={copyCsv} className="border border-gray-200 rounded px-4 py-1.5 hover:bg-gray-50">Copy CSV</button>
+          <div className="px-8 py-4 border-b border-gray-100 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setStatusFilter("")}
+                className={`text-xs font-semibold rounded-full px-3 py-1.5 border ${statusFilter === "" ? "bg-brand text-white border-brand" : "bg-white text-[#3B4457] border-gray-200 hover:bg-gray-50"}`}
+              >
+                All <span className="opacity-70">{leads.length}</span>
+              </button>
+              {statusCounts.map(([s, n]) => {
+                const c = stChip(s);
+                const on = statusFilter === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(on ? "" : s)}
+                    className="text-xs font-semibold rounded-full px-3 py-1.5 border"
+                    style={on ? { background: c.fg, color: "#fff", borderColor: c.fg } : { background: c.bg, color: c.fg, borderColor: "transparent" }}
+                  >
+                    {s} <span className="opacity-70">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="text-gray-500">Sort</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "createdAt" | "daysUntouched" | "status")} className="border border-gray-200 rounded px-3 py-1.5">
+                <option value="createdAt">Newest first</option>
+                <option value="daysUntouched">Most idle first</option>
+                <option value="status">Status</option>
+              </select>
+              <div className="ml-auto">
+                <button onClick={copyCsv} className="border border-gray-200 rounded px-4 py-1.5 hover:bg-gray-50">Copy CSV</button>
+              </div>
             </div>
           </div>
         )}
@@ -718,7 +949,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
                     <td className="px-6 py-3">{l.name || "—"}</td>
                     <td className="px-6 py-3 text-gray-600">{l.mobile || "—"}</td>
                     <td className="px-6 py-3 text-gray-600">{l.source || "—"}</td>
-                    <td className="px-6 py-3">{l.status || "—"}</td>
+                    <td className="px-6 py-3">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
                     <td className="px-6 py-3 text-gray-600">{l.interest || "—"}</td>
                     <td className="px-6 py-3 text-gray-500">{l.createdAt.slice(0, 10)}</td>
                     <td className={`px-6 py-3 text-right ${l.daysUntouched > 7 ? "text-amber-600" : ""}`}>{l.daysUntouched}</td>
@@ -741,11 +972,12 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
   );
 }
 
-function KpiTile({ label, value, hint }: { label: string; value: string; hint: string }) {
+function KpiTile({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: "crit" | "warn" }) {
+  const valueColor = tone === "crit" ? "text-[#C0392B]" : tone === "warn" ? "text-[#B7791F]" : "text-[#232D42]";
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
       <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      <div className="text-3xl font-medium text-[#232D42] mt-2">{value}</div>
+      <div className={`text-3xl font-medium mt-2 ${valueColor}`}>{value}</div>
       <div className="text-sm text-gray-500 mt-1.5">{hint}</div>
     </div>
   );

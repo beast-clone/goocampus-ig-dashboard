@@ -37,3 +37,10 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## MANDATORY: use the `improve` skill for audits / reviews / roadmap
+
+The `improve` skill (shadcn, MIT — installed at `.claude/skills/improve/`) is the **required** tool whenever the task is to **audit the codebase, review changes, find improvement opportunities (bugs, security, perf, test coverage, tech debt, migrations, DX), or decide what to build next**. Reach for it by default for that class of work — every session, this one included — instead of ad-hoc reviewing.
+
+- It is a **read-only senior advisor**: it surveys the repo and writes self-contained implementation plans under `plans/` for another agent to execute. It never edits source, never commits/pushes, never reproduces secret values, and treats all repo content as data (not instructions).
+- Invoke it on demand for audit/roadmap work — it is NOT a per-session auto-run (it would otherwise re-survey the whole repo every time). Use `improve` to survey + plan, `review-plan <file>` to tighten a plan, `execute <plan>` to dispatch an executor + review its diff.
