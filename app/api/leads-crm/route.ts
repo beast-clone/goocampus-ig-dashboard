@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
+import { getSupabase } from "@/lib/supabase";
 import {
   airtableList,
   dateRangeFormula,
@@ -76,6 +77,9 @@ type Payload = {
   totals: {
     leads: number;
     firstActivityAvgHrs: number | null;
+    firstContactAvgHrs: number | null;  // frozen first-contact (created → first observed edit)
+    convertAvgDays: number | null;       // created → paid (Revenue Tracker), avg days
+    convertCount: number;                // how many of this range's leads have converted
     contracts: number;
     revenue: number;
   };
@@ -128,6 +132,8 @@ const CRM_FIELDS = [
   "Re-Enquiry",
   "Last Re-Enquiry",
   "Location (n8n)",
+  "Email",                 // for convert-matching against the Revenue Tracker
+  "Raw 10-Digit Number",   // for convert-matching against the Revenue Tracker
 ];
 
 const CONTRACT_FIELDS = ["Generated Date", "Counsellor", "Client's Name"];
@@ -249,6 +255,9 @@ export async function GET(req: Request) {
     let firstActivityMs = 0;
     let firstActivityCount = 0;
 
+    // Per-lead rows for the frozen first-contact freeze + convert matching (below).
+    const touchRows: { id: string; created: string; modified: string; counsellor: string; email: string; phone10: string }[] = [];
+
     const awaitingRaw: { name: string; counsellor: string; source: string; daysUntouched: number }[] = [];
     const reEnquiriesWithin: { name: string; counsellor: string; lastReEnquiryAt: string }[] = [];
     let reEnquiryTotal = 0;
@@ -267,6 +276,18 @@ export async function GET(req: Request) {
       const fullName = pickName(f["Full Name"]);
       const isReEnquiry = f["Re-Enquiry"] === true;
       const lastReEnquiryAt = pickName(f["Last Re-Enquiry"]);
+
+      // Collect for the frozen first-contact + convert steps (rec.id = the lead's key).
+      if (rec.id && createdIso) {
+        touchRows.push({
+          id: rec.id,
+          created: createdIso,
+          modified: modifiedIso || "",
+          counsellor,
+          email: (pickName(f["Email"]) || "").toLowerCase().trim(),
+          phone10: (pickName(f["Raw 10-Digit Number"]) || "").replace(/\D/g, "").slice(-10),
+        });
+      }
 
       if (createdIso) bumpMap(inflowMap, createdIso.slice(0, 10));
       bumpMap(sourceMap, source);
@@ -505,6 +526,76 @@ export async function GET(req: Request) {
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
 
+    // -------------- Frozen FIRST CONTACT + time-to-CONVERT (see mh_lead_first_touch) --------------
+    // First-contact = the FIRST day a lead is seen modified. Because this runs ~daily
+    // (route is cached), we snapshot "Actual Last Modified" the first time we see a lead
+    // touched and FREEZE it (write once, never overwrite) — so later edits can't inflate
+    // it. Airtable is never written to. Convert time comes from a real Revenue payment.
+    let firstContactAvgHrs: number | null = null;
+    let convertAvgDays: number | null = null;
+    let convertCount = 0;
+    const sb = getSupabase();
+    if (sb && touchRows.length) {
+      try {
+        // 1) FREEZE — insert touched leads (modified >60s after created), ignore existing.
+        const toFreeze = touchRows
+          .filter((r) => r.modified && new Date(r.modified).getTime() - new Date(r.created).getTime() > 60_000)
+          .map((r) => ({ lead_id: r.id, created_at: r.created, first_touch_at: r.modified }));
+        for (let i = 0; i < toFreeze.length; i += 500) {
+          await sb.from("mh_lead_first_touch").upsert(toFreeze.slice(i, i + 500), { onConflict: "lead_id", ignoreDuplicates: true });
+        }
+        // 2) READ frozen first-contact times, average created→first-contact.
+        const frozen = new Map<string, number>();
+        const ids = touchRows.map((r) => r.id);
+        for (let i = 0; i < ids.length; i += 500) {
+          const { data } = await sb.from("mh_lead_first_touch").select("lead_id, first_touch_at").in("lead_id", ids.slice(i, i + 500));
+          for (const row of data || []) {
+            if (row.first_touch_at) frozen.set(row.lead_id as string, new Date(row.first_touch_at as string).getTime());
+          }
+        }
+        // Cap at 30 days: beyond that a lead was neglected, not "slow to contact" — that
+        // story lives in the Untouched metric. This also stops the historical backfill
+        // seed (old leads whose only recorded edit is recent) from skewing the average.
+        let fcSum = 0, fcN = 0;
+        const MAX_GAP = 30 * 86_400_000;
+        for (const r of touchRows) {
+          const touch = frozen.get(r.id);
+          const created = new Date(r.created).getTime();
+          const gap = touch ? touch - created : 0;
+          if (gap > 0 && gap <= MAX_GAP) { fcSum += gap; fcN += 1; }
+        }
+        firstContactAvgHrs = fcN > 0 ? +(fcSum / fcN / 3_600_000).toFixed(1) : null;
+      } catch { /* freeze/read is best-effort — never fail the whole Sales Hub on it */ }
+    }
+    // 3) CONVERT — match this range's leads to Revenue Tracker payments by email/phone.
+    try {
+      const revConv = await airtableList<Record<string, unknown>>(REVENUE_TABLE, {
+        filterByFormula: dateRangeFormula("Payment Date", from, new Date().toISOString().slice(0, 10)),
+        fields: ["Email", "Contact", "Payment Date"],
+        pageSize: 100,
+        maxRecords: 20_000,
+      });
+      const payByEmail = new Map<string, number>();
+      const payByPhone = new Map<string, number>();
+      for (const rec of revConv) {
+        const d = pickName(rec.fields["Payment Date"]);
+        if (!d) continue;
+        const t = new Date(d).getTime();
+        const em = (pickName(rec.fields["Email"]) || "").toLowerCase().trim();
+        const ph = (pickName(rec.fields["Contact"]) || "").replace(/\D/g, "").slice(-10);
+        if (em && (!payByEmail.has(em) || t < (payByEmail.get(em) as number))) payByEmail.set(em, t);
+        if (ph.length === 10 && (!payByPhone.has(ph) || t < (payByPhone.get(ph) as number))) payByPhone.set(ph, t);
+      }
+      let cvSum = 0, cvN = 0;
+      for (const r of touchRows) {
+        const created = new Date(r.created).getTime();
+        const paid = (r.email && payByEmail.get(r.email)) || (r.phone10.length === 10 ? payByPhone.get(r.phone10) : undefined);
+        if (paid && paid > created) { cvSum += paid - created; cvN += 1; }
+      }
+      convertCount = cvN;
+      convertAvgDays = cvN > 0 ? +(cvSum / cvN / 86_400_000).toFixed(1) : null;
+    } catch { /* convert is best-effort */ }
+
     // -------------- Finalize counsellor per-person first-activity avg --------------
     const counsellors = [...counsellorMap.values()].sort((a, b) => b.assigned - a.assigned);
     for (const c of counsellors) {
@@ -534,6 +625,9 @@ export async function GET(req: Request) {
       totals: {
         leads: leads.length,
         firstActivityAvgHrs,
+        firstContactAvgHrs,
+        convertAvgDays,
+        convertCount,
         contracts: contractsTotal,
         revenue: revenueTotal,
       },

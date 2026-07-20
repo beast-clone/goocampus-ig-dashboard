@@ -41,6 +41,9 @@ type SalesOpsData = {
   totals: {
     leads: number;
     firstActivityAvgHrs: number | null;
+    firstContactAvgHrs: number | null;
+    convertAvgDays: number | null;
+    convertCount: number;
     contracts: number;
     revenue: number;
   };
@@ -217,11 +220,12 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-5 gap-5">
+      <div className="grid grid-cols-6 gap-5">
         <KpiTile label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
         <KpiTile label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
-        <KpiTile label="Avg first touch" value={data ? fmtHrs(data.totals.firstActivityAvgHrs) : "—"} hint="created → first touch · target <24h" tone={data && (data.totals.firstActivityAvgHrs ?? 0) > 48 ? "warn" : undefined} />
+        <KpiTile label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first edit · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
         <KpiTile label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
+        <KpiTile label="Time to convert" value={data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"} hint={data ? `${fmtInt(data.totals.convertCount)} converted · from Revenue Tracker` : "created → paid"} />
         <KpiTile label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} />
       </div>
 
@@ -256,26 +260,29 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstActivityAvgHrs) : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">avg first touch</div>
+              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
             </div>
             <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtInt(data.awaitingTotal) : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">untouched leads</div>
+              <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
             </div>
           </div>
-          {data && (
+          {data && (() => {
+            const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
+            return (
             <div className="mb-3">
               <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
-                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, data.totals.firstActivityAvgHrs || 24)) * 100)}%` }} />
-                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, data.totals.firstActivityAvgHrs || 24)) * 100)}%` }} />
+                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
+                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1.5">
                 <span>24h SLA target</span>
-                <span>avg is {data.totals.firstActivityAvgHrs ? `${(data.totals.firstActivityAvgHrs / 24).toFixed(1)}× ${data.totals.firstActivityAvgHrs > 24 ? "over" : "of"} target` : "—"}</span>
+                <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
               </div>
             </div>
-          )}
+            );
+          })()}
           <div className="space-y-2">
             {(data?.awaiting || []).slice(0, 4).map((a, i) => (
               <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
