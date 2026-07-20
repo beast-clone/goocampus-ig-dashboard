@@ -90,7 +90,9 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
     </div>
   );
 
-  const all = data?.videos ?? [];
+  // Dedupe by id — the uploads feed can return the same video twice, which caused a
+  // React "duplicate key" warning and could duplicate/omit rows in the list.
+  const all = (data?.videos ?? []).filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i);
   const shorts = all.filter((v) => v.isShort);
   const longform = all.filter((v) => v.durationSec > 0 && !v.isShort);
   const pool = kind === "shorts" ? shorts : longform;
