@@ -26,8 +26,8 @@ export const YT_CHANNEL: Record<string, string | null> = {
 // All YouTube channels — pills shown on YouTube pages in MAIN mode only.
 export const YT_CHANNEL_PILLS = [
   { key: "goocampus", label: "GooCampus" },
-  { key: "goocampusworld", label: "Study Abroad" },
   { key: "twelfthplus", label: "12thplus" },
+  // Study Abroad (goocampusworld) removed — nothing is published there.
 ];
 
 export type PlatformKey = "instagram" | "facebook" | "linkedin" | "youtube";
