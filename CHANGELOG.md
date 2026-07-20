@@ -3,6 +3,40 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-21 — Content Radar: Reddit/Quora/MouthShut/ValueMD mention lanes
+
+**New "site:" mention lanes.** Content Radar now watches Reddit, Quora, MouthShut,
+and ValueMD alongside Google News. One combined `(site:reddit.com OR site:quora.com
+OR …) <brand>` query via **Serper.dev** (`lib/site-search.ts`), merged into
+`searchWebMentions` and sentiment-scored. Google News stays a separate free RSS
+source — zero Serper credits. Engine priority: Serper (keyed) → Brave → DuckDuckGo
+(keyless best-effort, blocks datacenter IPs). Gotcha baked in: Serper's FREE tier
+only allows `num=10`.
+
+**Credit guardrails.** Serper's 2,500 free credits are ONE-TIME (no monthly renew),
+so: a monthly cap `SERPER_MONTHLY_BUDGET` (default 200) enforced via
+`callsThisMonth("Serper")` in `lib/api-usage.ts`, plus 6h result caching
+(`SITE_SEARCH_TTL_MS`) so the brand-watch firing on every page load costs 1 credit /
+6h, not per load. Past the cap the lanes return empty; News is unaffected. New
+**Serper** card in Integrations with a credits-used meter (used/2,500 + month/cap).
+
+**Clickable source chips.** "Sources we scan" chips are now filters — click Reddit →
+only reddit.com mentions, etc. — each showing a live per-source count.
+
+**Inline mention reader (`MentionModal`).** Clicking a mention opens it inside the
+dashboard: Reddit → full thread + comments via Reddit's official API
+(`lib/reddit.ts`, `/api/radar/reddit-thread`, app-only OAuth) with snippet fallback;
+Quora → snippet (no API); MouthShut/ValueMD/news → full inline read via Readability.
+A "📖 Read full thread on Reddit" button opens the real thread. NOTE: Reddit closed
+self-service API access in 2026 — the thread reader is built but DORMANT until a
+Reddit app is manually approved; without `REDDIT_CLIENT_ID/SECRET` it shows the
+snippet + Reddit link. Reddit card added to Integrations.
+
+**Layout.** Pulse tiles (Brand mentions · Rising searches · Headlines today ·
+Breakouts) moved to the top and are now clickable — each smooth-scrolls to its
+section. "Search the web & your brand" sits directly below. The separate Brand-watch
+card was removed (redundant with the pulse tile + mentions list).
+
 ## 2026-07-18 (pt 2) — Calendar creatives, V1 retired, My Day creatives
 
 **Publishing Calendar — creative preview in the post modal.** Clicking a post now

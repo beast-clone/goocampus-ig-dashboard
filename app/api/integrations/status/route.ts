@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { usageSnapshot } from "@/lib/api-usage";
+import { usageSnapshot, callsThisMonth, callsAllTime } from "@/lib/api-usage";
 import { authPing as sendpulsePing } from "@/lib/sendpulse";
 import { airtableList, CRM_TABLE } from "@/lib/sales-hub";
 
@@ -42,6 +42,8 @@ const USAGE_MAP: Record<string, string[]> = {
   airtable: ["Airtable"],
   sendpulse: ["SendPulse"],
   perplexity: ["Perplexity"],
+  serper: ["Serper"],
+  reddit: ["Reddit"],
   supabase: ["Supabase"],
   apify: ["Apify"],
   hikerapi: ["HikerAPI"],
@@ -186,6 +188,25 @@ async function checkPerplexity(): Promise<Integration> {
   }
 }
 
+// ---- Serper (web-search key powering Content Radar's Reddit/Quora/… lanes) ----
+// No live ping: every Serper search costs a credit, so we validate by key
+// presence only and show the credit meter from our own call counter.
+function checkSerper(): Integration {
+  const key = process.env.SERPER_API_KEY;
+  const base: Integration = { key: "serper", name: "Serper (web search)", category: "Scraping", configured: has(key), status: "unknown", tokenType: "API key · 2,500 free credits (one-time)", expiresAt: null, daysRemaining: null, detail: "" };
+  if (!base.configured) return { ...base, status: "warn", detail: "No key — Reddit/Quora/MouthShut/ValueMD run best-effort (often empty)", note: "Add SERPER_API_KEY to make the Content Radar site: lanes reliable. Free key at serper.dev." };
+  return { ...base, status: "ok", detail: "Powers Content Radar site: lanes (Reddit · Quora · MouthShut · ValueMD)" };
+}
+
+// ---- Reddit (app-only OAuth — reads full threads for Content Radar) ----
+// No live ping (avoids burning the rate limit); validate by credential presence.
+function checkReddit(): Integration {
+  const configured = has(process.env.REDDIT_CLIENT_ID) && has(process.env.REDDIT_CLIENT_SECRET);
+  const base: Integration = { key: "reddit", name: "Reddit (thread reader)", category: "Social", configured, status: "unknown", tokenType: "App-only OAuth (client id + secret)", expiresAt: null, daysRemaining: null, detail: "" };
+  if (!configured) return { ...base, status: "warn", detail: "No app — Reddit mentions show snippet only (no full thread inline)", note: "Register a free 'script' app at reddit.com/prefs/apps → set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET to read full threads + comments inside the dashboard." };
+  return { ...base, status: "ok", detail: "Full Reddit threads + comments in Content Radar" };
+}
+
 // ---- Config-only providers (no cheap live check / no expiry) ----
 function configOnly(key: string, name: string, category: string, envKeys: string[], tokenType: string): Integration {
   const configured = envKeys.every((k) => has(process.env[k]));
@@ -216,6 +237,8 @@ export async function GET(req: Request) {
     airtable,
     sendpulse,
     perplexity,
+    checkSerper(),
+    checkReddit(),
     configOnly("supabase", "Supabase", "Data", ["SUPABASE_URL", "SUPABASE_SECRET_KEY"], "Service key (no expiry)"),
     configOnly("apify", "Apify", "Scraping", ["APIFY_API_TOKEN"], "API token (no expiry)"),
     configOnly("hikerapi", "HikerAPI", "Scraping", ["HIKERAPI_KEY"], "API key (no expiry)"),
@@ -278,6 +301,22 @@ export async function GET(req: Request) {
       label: "Limits · monthly credits",
       detail: "Monthly API-call allowance per workspace + 5 req/sec per base",
       note: "Airtable's main budget is a MONTHLY API-call allowance per workspace (varies by plan — check Airtable billing) and is SHARED with your n8n workflows. It resets monthly, not daily. The 5 req/sec cap returns 429 + Retry-After when exceeded.",
+    };
+  }
+
+  // Serper: one-time 2,500 free credits (no monthly renew). Show credits spent vs
+  // the free bucket + this month's self-imposed cap (SERPER_MONTHLY_BUDGET).
+  const serperInteg = integrations.find((i) => i.key === "serper");
+  if (serperInteg) {
+    const FREE = 2500;
+    const cap = Number(process.env.SERPER_MONTHLY_BUDGET) || 200;
+    const usedAll = callsAllTime("Serper");
+    const usedMonth = callsThisMonth("Serper");
+    serperInteg.quota = {
+      label: "Free credits · one-time",
+      usedPct: Math.min(100, Math.round((usedAll / FREE) * 100)),
+      detail: `${usedAll.toLocaleString("en-IN")} / ${FREE.toLocaleString("en-IN")} free credits used · ${usedMonth}/${cap} this month`,
+      note: `Serper's 2,500 free credits are ONE-TIME (no monthly renew). The dashboard caps itself at ${cap} searches/month and caches results 6h, so the free bucket lasts ~a year. Past the monthly cap the site: lanes fall back to empty; Google News is unaffected. 1 search = 1 credit.`,
     };
   }
 

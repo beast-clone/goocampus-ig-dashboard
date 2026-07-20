@@ -86,6 +86,23 @@ export function recordApiCall(provider: string, ok = true, status?: number): voi
   scheduleSave();
 }
 
+// Credits/calls a provider has spent in the current calendar month (YYYY-MM) —
+// used to enforce a self-imposed budget (e.g. Serper's one-time free credits).
+// Note: the daily map keeps the last 30 days, so very early-month days can age
+// out near month-end; that only ever UNDERcounts, which is the safe direction.
+export function callsThisMonth(provider: string): number {
+  const ym = today().slice(0, 7);
+  let n = 0;
+  for (const [date, day] of Object.entries(store.daily)) {
+    if (date.startsWith(ym)) n += day[provider]?.calls || 0;
+  }
+  return n;
+}
+// Running total a provider has spent since counting began (survives restarts).
+export function callsAllTime(provider: string): number {
+  return store.allTime[provider]?.calls || 0;
+}
+
 export type UsageRow = {
   provider: string;
   calls: number; // session

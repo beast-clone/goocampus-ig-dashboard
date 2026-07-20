@@ -5,7 +5,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { LiveIndicator } from "@/components/LiveIndicator";
 import {
   IconSearch, IconTrendingUp, IconFlame, IconNews, IconRefresh, IconPencil,
-  IconBrandReddit, IconBrandYoutube, IconBrandGoogle, IconStar, IconMessageQuestion,
+  IconBrandReddit, IconBrandGoogle, IconStar, IconMessageQuestion, IconMessage2, IconStethoscope,
   IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck,
 } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
@@ -175,14 +175,14 @@ function Radar() {
         </div>
       )}
 
-      {/* Keyword & brand search — "what's the internet saying about X" */}
-      <KeywordIntel />
-
-      {/* Pulse row — at-a-glance stats from real signals */}
+      {/* Pulse row — at-a-glance stats from real signals (brand mentions first, on top) */}
       <PulseRow brand={brand} trends={trends} items={items} />
 
+      {/* Keyword & brand search — "what's the internet saying about X" (below the pulse) */}
+      <div id="sec-mentions" className="scroll-mt-24"><KeywordIntel /></div>
+
       {/* Hero strip — breakouts if any, else the top rising searches */}
-      <BreakoutStrip trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} />
+      <div id="sec-rising" className="scroll-mt-24"><BreakoutStrip trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} /></div>
 
       {/* Empty state (no topics tracked yet) */}
       {!loading && alerts.length === 0 && (
@@ -193,7 +193,7 @@ function Radar() {
       {alerts.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] gap-4 items-start">
           {/* LEFT — News feed */}
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <section id="sec-headlines" className="scroll-mt-24 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
               <IconNews size={17} stroke={1.8} className="text-brand" />
               <h2 className="text-base font-medium text-[#232D42]">Latest in your domain</h2>
@@ -229,9 +229,8 @@ function Radar() {
             )}
           </section>
 
-          {/* RIGHT — brand watch + rising searches + your-SEO */}
+          {/* RIGHT — rising searches + your-SEO (Brand watch moved up top) */}
           <aside className="flex flex-col gap-4">
-            <BrandWatch brand={brand} />
             <RisingSidebar trends={trends} />
             <SeoConnectCard Icon={IconSeo} title="Your winning keywords" sub="Search Console" />
             <SeoConnectCard Icon={IconTargetArrow} title="Striking-distance gaps" sub="rank 11–20" />
@@ -354,12 +353,14 @@ const BRAND_QUERY = "GooCampus";
 // The places we watch for mentions. Google News is live & free today; the rest
 // each need a one-time free connect — shown openly so it's clear what's on and
 // what can be switched on next (ordered by value for brand reputation).
-const SOURCES: { platform: string; Icon: TablerIcon; live: boolean; note: string }[] = [
-  { platform: "Google News", Icon: IconBrandGoogle, live: true, note: "Web + press mentions. Live and free — no setup." },
-  { platform: "Reddit", Icon: IconBrandReddit, live: false, note: "Candid student threads (r/IMG, r/MBBS). Free Reddit OAuth app (client id + secret)." },
-  { platform: "Quora", Icon: IconMessageQuestion, live: false, note: "'Is GooCampus genuine?' Q&A — key for consultancy reputation. Scrape-based (planned)." },
-  { platform: "Google Reviews", Icon: IconStar, live: false, note: "Star ratings + complaints on your Google listing. Free Google Places API key." },
-  { platform: "YouTube", Icon: IconBrandYoutube, live: false, note: "Videos + comments mentioning the brand. Free YouTube Data API key." },
+// filterKey matches a mention: "news" → platform==="news"; a domain → that site's hits.
+const SOURCES: { platform: string; Icon: TablerIcon; live: boolean; filterKey: string | null; note: string }[] = [
+  { platform: "Google News", Icon: IconBrandGoogle, live: true, filterKey: "news", note: "Web + press mentions. Live and free — no setup." },
+  { platform: "Reddit", Icon: IconBrandReddit, live: true, filterKey: "reddit.com", note: "Candid student threads (r/IMG, r/MBBS) via web search. Add a free Serper.dev key for reliable results." },
+  { platform: "Quora", Icon: IconMessageQuestion, live: true, filterKey: "quora.com", note: "'Is GooCampus genuine?' Q&A via web search — key for consultancy reputation." },
+  { platform: "MouthShut", Icon: IconMessage2, live: true, filterKey: "mouthshut.com", note: "India consumer reviews / complaints on consultancies via web search." },
+  { platform: "ValueMD", Icon: IconStethoscope, live: true, filterKey: "valuemd.com", note: "IMG / med-student forum threads via web search." },
+  { platform: "Google Reviews", Icon: IconStar, live: false, filterKey: null, note: "Star ratings + complaints on your Google listing. Free Google Places API key." },
 ];
 
 function KeywordIntel() {
@@ -369,11 +370,13 @@ function KeywordIntel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [srcFilter, setSrcFilter] = useState<string | null>(null);   // click a source chip to filter
+  const [readerMention, setReaderMention] = useState<WebMention | null>(null);   // click a mention → read inside the dashboard
 
   const run = useCallback(async (q: string) => {
     const term = q.trim();
     if (!term) return;
-    setLoading(true); setError(null); setExpanded(false); setQuery(term);
+    setLoading(true); setError(null); setExpanded(false); setSrcFilter(null); setQuery(term);
     try {
       const r = await fetch(`/api/radar/search?q=${encodeURIComponent(term)}`);
       const d = await r.json();
@@ -387,8 +390,14 @@ function KeywordIntel() {
   useEffect(() => { run(BRAND_QUERY); }, [run]);
 
   const isBrand = query.toLowerCase() === BRAND_QUERY.toLowerCase();
-  const shown = res ? (expanded ? res.mentions : res.mentions.slice(0, 8)) : [];
+  // A mention belongs to a source when its filterKey matches: "news" → the news
+  // platform; a domain → that site's hits (site hits carry platform===source===domain).
+  const matchesSource = (m: WebMention, key: string) => (key === "news" ? m.platform === "news" : m.source === key || m.platform === key);
+  const countFor = (key: string | null) => (key && res ? res.mentions.filter((m) => matchesSource(m, key)).length : res?.mentions.length ?? 0);
+  const filtered = res ? (srcFilter ? res.mentions.filter((m) => matchesSource(m, srcFilter)) : res.mentions) : [];
+  const shown = expanded ? filtered : filtered.slice(0, 8);
   const relDate = (iso: string) => {
+    if (!iso || Number.isNaN(+new Date(iso))) return "";   // site hits often carry no date
     const days = Math.round((Date.now() - +new Date(iso)) / 86_400_000);
     if (days <= 0) return "today";
     if (days === 1) return "1d ago";
@@ -403,7 +412,7 @@ function KeywordIntel() {
           <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center"><IconWorldSearch size={16} stroke={1.8} /></span>
           <div>
             <h2 className="text-base font-medium text-[#232D42] leading-tight">Search the web &amp; your brand</h2>
-            <div className="text-[11px] text-gray-500">Type any keyword or your brand — see where it&apos;s mentioned online + the mood. Free · Google News</div>
+            <div className="text-[11px] text-gray-500">Type any keyword or your brand — see where it&apos;s mentioned online + the mood. Free · News + Reddit · Quora · MouthShut · ValueMD</div>
           </div>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="flex items-center gap-2">
@@ -432,21 +441,32 @@ function KeywordIntel() {
         <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-0.5">Sources we scan</span>
-            {SOURCES.map((s) => (
-              <span key={s.platform} title={s.note}
-                className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
-                  s.live
-                    ? "bg-[#1aa053]/[0.06] border-[#1aa053]/30 text-[#1aa053]"
-                    : "bg-gray-50 border-gray-200 text-gray-600 hover:border-brand/40 hover:text-brand cursor-pointer"
-                }`}>
-                <s.Icon size={15} stroke={1.8} />
-                <span className="font-medium">{s.platform}</span>
-                {s.live
-                  ? <span className="text-[10px] font-semibold">✓ Live</span>
-                  : <span className="text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 px-1.5 py-0.5 rounded-full">+ Connect</span>}
-              </span>
-            ))}
-            <span className="text-[11px] text-gray-400 ml-1">1 of {SOURCES.length} live — connect the rest free to widen brand coverage</span>
+            {SOURCES.map((s) => {
+              const active = srcFilter !== null && srcFilter === s.filterKey;
+              const clickable = s.live && !!s.filterKey;
+              const n = s.filterKey ? countFor(s.filterKey) : 0;
+              return (
+                <button key={s.platform} type="button" title={clickable ? `Show only ${s.platform} mentions` : s.note}
+                  onClick={() => clickable && setSrcFilter(active ? null : s.filterKey)}
+                  disabled={!clickable}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
+                    active
+                      ? "bg-brand border-brand text-white"
+                      : s.live
+                        ? "bg-[#1aa053]/[0.06] border-[#1aa053]/30 text-[#1aa053] hover:border-[#1aa053]/60 cursor-pointer"
+                        : "bg-gray-50 border-gray-200 text-gray-600 cursor-default"
+                  }`}>
+                  <s.Icon size={15} stroke={1.8} />
+                  <span className="font-medium">{s.platform}</span>
+                  {s.live
+                    ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-white/70 border border-[#1aa053]/20"}`}>{res ? n : "✓"}</span>
+                    : <span className="text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 px-1.5 py-0.5 rounded-full">+ Connect</span>}
+                </button>
+              );
+            })}
+            {srcFilter
+              ? <button type="button" onClick={() => setSrcFilter(null)} className="text-[11px] font-medium text-brand hover:underline ml-1">Show all sources</button>
+              : <span className="text-[11px] text-gray-400 ml-1">Tap a source to see only its mentions · {SOURCES.filter((s) => s.live).length}/{SOURCES.length} live</span>}
           </div>
         </div>
       </div>
@@ -466,8 +486,10 @@ function KeywordIntel() {
             {/* summary line + sentiment split */}
             <div className="flex items-center gap-3 flex-wrap mb-3">
               <div className="text-sm text-[#232D42]">
-                {isBrand ? <><b>{res.counts.total}</b> brand mention{res.counts.total === 1 ? "" : "s"} for <b>{query}</b></>
-                         : <><b>{res.counts.total}</b> result{res.counts.total === 1 ? "" : "s"} for <b>{query}</b></>}
+                {srcFilter
+                  ? <><b>{filtered.length}</b> {SOURCES.find((s) => s.filterKey === srcFilter)?.platform ?? srcFilter} mention{filtered.length === 1 ? "" : "s"} for <b>{query}</b></>
+                  : isBrand ? <><b>{res.counts.total}</b> brand mention{res.counts.total === 1 ? "" : "s"} for <b>{query}</b></>
+                            : <><b>{res.counts.total}</b> result{res.counts.total === 1 ? "" : "s"} for <b>{query}</b></>}
               </div>
               <div className="flex items-center gap-1.5">
                 {(["positive", "neutral", "negative"] as MentionSentiment[]).map((s) => (
@@ -479,9 +501,11 @@ function KeywordIntel() {
               </div>
             </div>
 
-            {res.mentions.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
-                No web mentions found for “{query}”. {isBrand ? "That can be good — or connect Reddit / Reviews to widen the net." : "Try a broader phrase."}
+                {srcFilter
+                  ? <>No {SOURCES.find((s) => s.filterKey === srcFilter)?.platform ?? srcFilter} mentions for “{query}” yet.{srcFilter !== "news" && " Add a free Serper.dev key to reliably pull this source."} <button type="button" onClick={() => setSrcFilter(null)} className="text-brand font-medium hover:underline">Show all sources</button></>
+                  : <>No web mentions found for “{query}”. {isBrand ? "That can be good — or add the Serper key to widen the net." : "Try a broader phrase."}</>}
               </div>
             ) : (
               <ul className="flex flex-col divide-y divide-gray-100 -mx-1">
@@ -489,10 +513,10 @@ function KeywordIntel() {
                   <li key={m.url} className="flex items-start gap-2.5 px-1 py-2.5">
                     <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: SENT_STYLE[m.sentiment].dot }} title={SENT_STYLE[m.sentiment].label} />
                     <div className="min-w-0 flex-1">
-                      <a href={m.url} target="_blank" rel="noreferrer" className="text-sm text-gray-900 hover:text-brand leading-snug line-clamp-2">{m.title}</a>
+                      <button type="button" onClick={() => setReaderMention(m)} className="text-left block w-full text-sm text-gray-900 hover:text-brand leading-snug line-clamp-2">{m.title}</button>
                       <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        {m.source && <span className="font-medium text-gray-600">{m.source}</span>}<span className="opacity-50">·</span>
-                        <span>{relDate(m.publishedAt)}</span><span className="opacity-50">·</span>
+                        {m.source && <><span className="font-medium text-gray-600">{m.source}</span><span className="opacity-50">·</span></>}
+                        {relDate(m.publishedAt) && <><span>{relDate(m.publishedAt)}</span><span className="opacity-50">·</span></>}
                         <span className={SENT_STYLE[m.sentiment].text}>{SENT_STYLE[m.sentiment].label}</span>
                       </div>
                     </div>
@@ -502,14 +526,15 @@ function KeywordIntel() {
                 ))}
               </ul>
             )}
-            {res.mentions.length > 8 && (
+            {filtered.length > 8 && (
               <button onClick={() => setExpanded(!expanded)} className="mt-2 text-[11px] font-medium text-brand hover:underline">
-                {expanded ? "Show less" : `Show all ${res.mentions.length}`}
+                {expanded ? "Show less" : `Show all ${filtered.length}`}
               </button>
             )}
           </>
         )}
       </div>
+      {readerMention && <MentionModal m={readerMention} onClose={() => setReaderMention(null)} />}
     </section>
   );
 }
@@ -540,10 +565,11 @@ function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trend
   const c = brand?.counts;
   const total = c?.total ?? 0;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  const jump = (id: string) => () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-      {/* brand mentions + sentiment bar */}
-      <div className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-4">
+      {/* brand mentions + sentiment bar → jumps to the mentions list */}
+      <div role="button" tabIndex={0} onClick={jump("sec-mentions")} className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5 cursor-pointer hover:border-brand/40 transition">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
           <span className="text-[11.5px] text-gray-500 font-medium">Brand mentions · 30d</span>
@@ -564,19 +590,19 @@ function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trend
       </div>
       {/* rising */}
       <PulseTile icon={<IconTrendingUp size={15} stroke={1.8} />} tint="#1aa053" bg="rgba(26,160,83,.1)"
-        label="Rising searches" value={risingCount} meta="around your tracked topics" />
+        label="Rising searches" value={risingCount} meta="around your tracked topics" onClick={jump("sec-rising")} />
       {/* headlines */}
       <PulseTile icon={<IconNews size={15} stroke={1.8} />} tint="#3a57e8" bg="rgba(58,87,232,.1)"
-        label="Headlines today" value={items.length} meta="from your tracked topics" />
+        label="Headlines today" value={items.length} meta="from your tracked topics" onClick={jump("sec-headlines")} />
       {/* breakouts */}
       <PulseTile icon={<IconFlame size={15} stroke={1.8} />} tint="#f16a1b" bg="rgba(241,106,27,.1)"
-        label="Breakouts" value={breakoutCount} meta="national spikes in your niche" />
+        label="Breakouts" value={breakoutCount} meta="national spikes in your niche" onClick={jump("sec-rising")} />
     </div>
   );
 }
-function PulseTile({ icon, tint, bg, label, value, meta }: { icon: React.ReactNode; tint: string; bg: string; label: string; value: number; meta: string }) {
+function PulseTile({ icon, tint, bg, label, value, meta, onClick }: { icon: React.ReactNode; tint: string; bg: string; label: string; value: number; meta: string; onClick?: () => void }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5">
+    <div role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} className={`bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5${onClick ? " cursor-pointer hover:border-brand/40 transition" : ""}`}>
       <div className="flex items-center gap-2">
         <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: tint, background: bg }}>{icon}</span>
         <span className="text-[11.5px] text-gray-500 font-medium">{label}</span>
@@ -587,57 +613,6 @@ function PulseTile({ icon, tint, bg, label, value, meta }: { icon: React.ReactNo
   );
 }
 
-// Brand watch — real sentiment donut + latest brand mentions.
-function BrandWatch({ brand }: { brand: MentionResult | null }) {
-  const c = brand?.counts;
-  const total = c?.total ?? 0;
-  const posPct = total > 0 ? Math.round((c!.positive / total) * 100) : 0;
-  // donut segments (circumference 100)
-  const seg = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-  const posLen = seg(c?.positive ?? 0), neuLen = seg(c?.neutral ?? 0), negLen = seg(c?.negative ?? 0);
-  return (
-    <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
-        <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
-        <h3 className="text-sm font-medium text-[#232D42]">Brand watch</h3>
-        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{BRAND_QUERY}</span>
-      </div>
-      <div className="p-4">
-        {total === 0 ? (
-          <div className="text-xs text-gray-500 leading-relaxed">
-            No web mentions of <b className="text-gray-700">{BRAND_QUERY}</b> in Google News right now. Reputation chatter lives on Reddit, Quora &amp; reviews — connect those (free) to track praise and complaints here.
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-4">
-              <svg viewBox="0 0 42 42" className="w-[76px] h-[76px] shrink-0">
-                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#EEF0F4" strokeWidth="6" />
-                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#1aa053" strokeWidth="6" strokeDasharray={`${posLen} ${100 - posLen}`} strokeDashoffset="25" />
-                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#8A92A6" strokeWidth="6" strokeDasharray={`${neuLen} ${100 - neuLen}`} strokeDashoffset={`${25 - posLen}`} />
-                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#c03221" strokeWidth="6" strokeDasharray={`${negLen} ${100 - negLen}`} strokeDashoffset={`${25 - posLen - neuLen}`} />
-                <text x="21" y="20" textAnchor="middle" fontSize="9" fontWeight="600" fill="#232D42">{posPct}%</text>
-                <text x="21" y="27" textAnchor="middle" fontSize="4.5" fill="#8A92A6">positive</text>
-              </svg>
-              <div className="flex flex-col gap-1.5 text-xs">
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#1aa053" }} /><b className="text-[#232D42] font-semibold">{c!.positive}</b> positive</div>
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#8A92A6" }} /><b className="text-[#232D42] font-semibold">{c!.neutral}</b> neutral</div>
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: "#c03221" }} /><b className="text-[#232D42] font-semibold">{c!.negative}</b> negative</div>
-              </div>
-            </div>
-            <div className="mt-3 border-t border-gray-100 pt-1">
-              {brand!.mentions.slice(0, 3).map((m) => (
-                <a key={m.url} href={m.url} target="_blank" rel="noreferrer" className="block py-2 border-t border-gray-50 first:border-t-0 group">
-                  <div className="text-xs text-[#232D42] leading-snug line-clamp-2 group-hover:text-brand">{m.title}</div>
-                  <div className="text-[10.5px] text-gray-400 mt-0.5">{m.source} · {SENT_LABEL[m.sentiment]}</div>
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // Hero strip — real Google Trends breakouts when they exist, otherwise the top
 // rising searches, so the strip is never empty and never fabricated.
@@ -1159,6 +1134,127 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           >
             Close
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------- inline mention reader -------- */
+// Reddit → full thread + comments via the official API (/api/radar/reddit-thread,
+// app-only OAuth — bypasses Reddit's scrape wall). Quora → snippet only (no API,
+// login-walled). MouthShut/ValueMD/news → full inline read via Readability
+// (/api/radar/article). Everything renders inside the dashboard.
+type RThread = { title: string; author: string; subreddit: string; selftext: string; score: number; numComments: number; comments: { author: string; body: string; score: number; createdUtc: number }[]; permalink: string };
+function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
+  const isReddit = m.source === "reddit.com";
+  const isQuora = m.source === "quora.com";
+  const useArticle = !isReddit && !isQuora;   // public sites → Readability reader
+  const host = (() => { try { return new URL(m.url).hostname.replace(/^www\./, ""); } catch { return m.source || "the site"; } })();
+
+  // Readability reader (MouthShut / ValueMD / news)
+  const [loading, setLoading] = useState(useArticle);
+  const [rawHtml, setRawHtml] = useState("");
+  const [readErr, setReadErr] = useState<string | null>(null);
+  const [finalUrl, setFinalUrl] = useState(m.url);
+  useEffect(() => {
+    if (!useArticle) return;
+    const ctrl = new AbortController();
+    setLoading(true); setReadErr(null);
+    fetch(`/api/radar/article?url=${encodeURIComponent(m.url)}`, { signal: ctrl.signal })
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
+      .then((d: { html: string; finalUrl: string; error?: string }) => {
+        setRawHtml(d.html || ""); setFinalUrl(d.finalUrl || m.url);
+        if (d.error && !d.html) setReadErr(d.error);
+      })
+      .catch((e) => { if ((e as Error).name !== "AbortError") setReadErr((e as Error).message); })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [m.url, useArticle]);
+  const html = useMemo(() => (rawHtml
+    ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "")
+    : ""), [rawHtml]);
+
+  // Reddit official-API thread + comments
+  const [rLoading, setRLoading] = useState(isReddit);
+  const [thread, setThread] = useState<RThread | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [rErr, setRErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isReddit) return;
+    const ctrl = new AbortController();
+    setRLoading(true); setRErr(null); setNeedsAuth(false);
+    fetch(`/api/radar/reddit-thread?url=${encodeURIComponent(m.url)}`, { signal: ctrl.signal })
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
+      .then((d: RThread & { needsAuth?: boolean }) => { if (d.needsAuth) setNeedsAuth(true); else setThread(d); })
+      .catch((e) => { if ((e as Error).name !== "AbortError") setRErr((e as Error).message); })
+      .finally(() => setRLoading(false));
+    return () => ctrl.abort();
+  }, [m.url, isReddit]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs text-gray-500 flex items-center gap-2 mb-1">
+              <span className="font-medium text-brand">{thread?.subreddit || m.source || host}</span><span>·</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SENT_STYLE[m.sentiment].dot }} />{SENT_STYLE[m.sentiment].label}</span>
+              {thread && <><span>·</span><span>▲ {thread.score} · {thread.numComments} comments</span></>}
+            </div>
+            <h2 className="text-base font-medium text-[#232D42] leading-snug">{m.title}</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-2xl leading-none shrink-0">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {m.snippet && <div className="text-sm text-gray-800 bg-gray-50 border border-gray-100 rounded-lg p-3 mb-4">{m.snippet}</div>}
+
+          {/* Reddit — full thread + comments via the official API */}
+          {isReddit && rLoading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-gray-500 mt-3">Loading the Reddit thread…</div></div>}
+          {isReddit && !rLoading && thread && (
+            <div>
+              {thread.selftext && <p className="text-sm text-gray-800 whitespace-pre-wrap mb-4 leading-relaxed">{thread.selftext}</p>}
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">{thread.comments.length} top comment{thread.comments.length === 1 ? "" : "s"}</div>
+              <ul className="flex flex-col gap-3">
+                {thread.comments.map((c, i) => (
+                  <li key={i} className="border-l-2 border-gray-100 pl-3">
+                    <div className="text-[11px] text-gray-500 mb-0.5"><span className="font-medium text-gray-700">u/{c.author}</span> · ▲ {c.score}</div>
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{c.body}</div>
+                  </li>
+                ))}
+                {thread.comments.length === 0 && <li className="text-xs text-gray-500">No comments on this thread yet.</li>}
+              </ul>
+            </div>
+          )}
+          {isReddit && !rLoading && !thread && needsAuth && (
+            <div className="text-xs text-gray-600 bg-brand-light/50 border border-brand/15 rounded-lg p-3">📖 The full thread + all comments open on Reddit — use the button below.</div>
+          )}
+          {isReddit && !rLoading && !thread && !needsAuth && rErr && (
+            <div className="text-xs text-gray-500">Couldn&apos;t load the thread ({rErr}). The snippet above is the preview — use “Open on reddit.com”.</div>
+          )}
+
+          {/* Quora — no API, login-walled */}
+          {isQuora && <div className="text-xs text-gray-600 bg-brand-light/50 border border-brand/15 rounded-lg p-3">Quora has no API and requires login, so we preview the snippet here. Use <b>Open on {host}</b> to read the full answer.</div>}
+
+          {/* Public sites (MouthShut / ValueMD / news) — Readability reader */}
+          {useArticle && loading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-gray-500 mt-3">Loading the full page inside the dashboard…</div></div>}
+          {useArticle && !loading && html && <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />}
+          {useArticle && !loading && !html && (
+            <div className="text-xs text-gray-500">{readErr ? `Couldn't load the full page (${readErr}). ` : ""}The preview above is what we have — use “Open on {host}” for the full text.</div>
+          )}
+          <style jsx>{`
+            :global(.reader-content){ color:#1F2937; font-size:14.5px; line-height:1.7; }
+            :global(.reader-content h1),:global(.reader-content h2),:global(.reader-content h3){ font-weight:600; color:#111827; margin:16px 0 8px; }
+            :global(.reader-content p){ margin:10px 0; }
+            :global(.reader-content a){ color:#3A57E8; text-decoration:underline; }
+            :global(.reader-content ul),:global(.reader-content ol){ margin:10px 0; padding-left:22px; }
+            :global(.reader-content img){ max-width:100%; height:auto; border-radius:8px; margin:12px 0; }
+          `}</style>
+        </div>
+        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">
+          <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark">✍ Turn into post</Link>
+          <a href={thread?.permalink || finalUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand-light text-brand border border-brand/20 px-3 py-1.5 rounded-md hover:bg-brand hover:text-white transition">{isReddit ? "📖 Read full thread on Reddit ↗" : `Open on ${host} ↗`}</a>
+          <button onClick={onClose} className="ml-auto text-xs text-gray-500 hover:text-gray-900">Close</button>
         </div>
       </div>
     </div>

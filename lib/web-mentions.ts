@@ -11,6 +11,7 @@
 // later if we want nuance. We never present it as certain.
 
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { searchSites } from "@/lib/site-search";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
@@ -18,7 +19,7 @@ const UA =
 export type Sentiment = "positive" | "negative" | "neutral";
 
 export type WebMention = {
-  platform: "news";
+  platform: string;   // "news" | watched site domain, e.g. "reddit.com" | "quora.com"
   title: string;
   url: string;
   source: string | null;   // publisher / outlet
@@ -124,17 +125,27 @@ export async function searchWebMentions(query: string, opts: { limit?: number } 
   const q = query.trim();
   const limit = opts.limit ?? 30;
 
-  let mentions: WebMention[] = [];
-  try {
-    mentions = await fetchGoogleNews(q);
-  } catch {
-    mentions = [];
-  }
-  // Newest first, deduped by URL, capped.
+  // Google News (dated) + the four site: lanes (Reddit/Quora/MouthShut/ValueMD)
+  // in parallel. Each is best-effort — one dead source never kills the rest.
+  const [news, sites] = await Promise.all([
+    fetchGoogleNews(q).catch(() => [] as WebMention[]),
+    searchSites(q, { limit: 12 }).catch(() => []),
+  ]);
+  const siteMentions: WebMention[] = sites.map((s) => ({
+    platform: s.source,          // e.g. "reddit.com" — UI shows this as the source
+    title: s.title,
+    url: s.url,
+    source: s.source,
+    publishedAt: s.publishedAt,  // "" when the engine gives no date
+    snippet: s.snippet,
+    sentiment: scoreSentiment(`${s.title} ${s.snippet}`),
+  }));
+
+  // Dedup by URL; news (dated) first by recency, undated site hits after.
   const seen = new Set<string>();
-  mentions = mentions
+  const mentions = [...news, ...siteMentions]
     .filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)))
-    .sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))
+    .sort((a, b) => (+new Date(b.publishedAt) || 0) - (+new Date(a.publishedAt) || 0))
     .slice(0, limit);
 
   const counts = {
@@ -152,10 +163,11 @@ export async function searchWebMentions(query: string, opts: { limit?: number } 
     // Ordered by how much each adds to *brand* monitoring (candid praise/complaints).
     connectors: [
       { platform: "Google News", icon: "📰", status: "live", note: "Web + press mentions. Live and free — no setup." },
-      { platform: "Reddit", icon: "👽", status: "needs-setup", note: "Candid student threads (r/IMG, r/MBBS). Needs a free Reddit OAuth app (client id + secret)." },
-      { platform: "Quora", icon: "❓", status: "needs-setup", note: "'Is GooCampus genuine?' style Q&A — big for consultancy reputation. No official API; scrape-based (planned)." },
+      { platform: "Reddit", icon: "👽", status: "live", note: "Candid student threads (r/IMG, r/MBBS) via web search. Add a free Serper.dev key for reliable results." },
+      { platform: "Quora", icon: "❓", status: "live", note: "'Is GooCampus genuine?' Q&A via web search — key for consultancy reputation. Free Serper key = reliable." },
+      { platform: "MouthShut", icon: "💬", status: "live", note: "India consumer reviews / complaints on consultancies via web search." },
+      { platform: "ValueMD", icon: "🩺", status: "live", note: "IMG / med-student forum threads via web search." },
       { platform: "Google Reviews", icon: "⭐", status: "needs-setup", note: "Star ratings + complaints on your Google listing. Needs a free Google Places API key." },
-      { platform: "YouTube", icon: "▶️", status: "needs-setup", note: "Videos + comments mentioning the brand. Needs a free YouTube Data API key." },
     ],
     fetchedAt: new Date().toISOString(),
   };
