@@ -272,7 +272,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1.5">
                 <span>24h SLA target</span>
-                <span>avg is {data.totals.firstActivityAvgHrs ? `${(data.totals.firstActivityAvgHrs / 24).toFixed(1)}×` : "—"} over</span>
+                <span>avg is {data.totals.firstActivityAvgHrs ? `${(data.totals.firstActivityAvgHrs / 24).toFixed(1)}× ${data.totals.firstActivityAvgHrs > 24 ? "over" : "of"} target` : "—"}</span>
               </div>
             </div>
           )}
