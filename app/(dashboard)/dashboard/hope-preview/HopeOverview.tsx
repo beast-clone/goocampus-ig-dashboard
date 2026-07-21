@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  IconLayoutGrid, IconChartLine, IconCalendarEvent, IconSearch, IconBell, IconMail,
+  IconLayoutGrid, IconChartLine, IconCalendarEvent, IconSearch,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
 } from "@tabler/icons-react";
 import { HopeSidebar } from "./HopeSidebar";
+import HubNotificationBell from "@/components/HubNotificationBell";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
@@ -302,7 +303,7 @@ export function HopeOverview() {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E9FBEF", color: C.success, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 999 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
             </span>
-            <IconBell size={19} /><IconMail size={19} />
+            <HubNotificationBell />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 38, height: 38, borderRadius: 999, background: `linear-gradient(135deg, ${C.primary}, ${C.teal})`, display: "grid", placeItems: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>ME</span>
               <div style={{ lineHeight: 1.2 }}>
