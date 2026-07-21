@@ -4,7 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
-import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy } from "@tabler/icons-react";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 
 type AdsTotals = {
@@ -330,7 +330,7 @@ type AnalystData = {
   worst: { name: string; cpl: number } | null;
   diagnostics: Diag[];
   table: { name: string; spend: number; leads: number; cpl: number; vsAvg: number | null; frequency: number; ctr: number }[];
-  summary: { verdict: string; recommendations: string[] };
+  summary: { verdict: string; recommendations: { title: string; detail: string }[] };
   aiUsed: boolean;
   error?: string;
 };
@@ -361,6 +361,7 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
   const { data } = useApi<AnalystData>(`/api/ads/analyst?${qs}`);
   const [open, setOpen] = useState(false);
   const [openDiag, setOpenDiag] = useState<string | null>(null);
+  const [openRec, setOpenRec] = useState<number | null>(0);
   if (!data || data.error || !data.summary) return null;
 
   return (
@@ -379,11 +380,16 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
           <div className="text-[13px] text-[#232D42] bg-white border border-gray-100 rounded-lg px-3 py-2.5 mb-3">{data.summary.verdict}</div>
 
           <div className="space-y-1.5">
-            {data.summary.recommendations.map((r, i) => (
-              <div key={i} className="flex gap-2.5 items-start text-[12.5px] bg-white border border-gray-100 rounded-lg px-3 py-2">
-                <RecBadge n={i + 1} /><span className="text-gray-800">{r}</span>
+            {data.summary.recommendations.map((r, i) => { const on = openRec === i; return (
+              <div key={i} className="bg-white border border-gray-100 rounded-lg overflow-hidden">
+                <button onClick={() => setOpenRec(on ? null : i)} className="w-full flex gap-2.5 items-center text-left px-3 py-2 hover:bg-gray-50/60 transition-colors">
+                  <RecBadge n={i + 1} />
+                  <span className="flex-1 text-[12.5px] text-gray-800 font-medium">{r.title}</span>
+                  <IconChevronDown size={15} className={`text-gray-400 shrink-0 transition-transform ${on ? "rotate-180" : ""}`} />
+                </button>
+                {on && <div className="px-3 pb-3 pl-[38px] text-[12px] text-gray-600 leading-relaxed">{r.detail}</div>}
               </div>
-            ))}
+            ); })}
           </div>
 
           <div className="mt-3 pt-3 border-t border-brand/20">
@@ -433,7 +439,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
             <div className="text-sm text-[#232D42] bg-brand-light border border-brand/15 rounded-lg px-3.5 py-3">{data.summary.verdict}</div>
             <div className="mt-3 space-y-1.5">
               {data.summary.recommendations.map((r, i) => (
-                <div key={i} className="flex gap-2.5 items-start text-[13px] bg-[#F6F7FB] border border-gray-100 rounded-lg px-3 py-2"><RecBadge n={i + 1} /><span className="text-gray-800">{r}</span></div>
+                <div key={i} className="flex gap-2.5 items-start text-[13px] bg-[#F6F7FB] border border-gray-100 rounded-lg px-3 py-2"><RecBadge n={i + 1} /><span><b className="text-[#232D42]">{r.title}.</b> <span className="text-gray-600">{r.detail}</span></span></div>
               ))}
             </div>
           </div>

@@ -110,7 +110,8 @@ export async function GET(req: Request) {
     const totals = { spend: Math.round(spend), campaigns: campaigns.length, leads, avgCPL: Math.round(avgCPL), days };
 
     // ---------- AI narrative (grounded on the numbers above) with a fallback ----------
-    let summary: { verdict: string; recommendations: string[] } | null = null;
+    type Rec = { title: string; detail: string };
+    let summary: { verdict: string; recommendations: Rec[] } | null = null;
     let aiUsed = false;
     if (hasAI()) {
       const facts = {
@@ -119,25 +120,31 @@ export async function GET(req: Request) {
         worst: worst && { name: worst.campaign_name, cpl: Math.round(worst.costPerLead) },
         diagnostics: diagnostics.map((d) => ({ label: d.label, status: d.status, evidence: d.evidence })),
       };
-      summary = await askPerplexityJSON<{ verdict: string; recommendations: string[] }>(
+      summary = await askPerplexityJSON<{ verdict: string; recommendations: Rec[] }>(
         `You are explaining Meta (Facebook/Instagram) ads to someone who has NEVER run ads and doesn't know any jargon. Use ONLY the facts given — never invent numbers. Write for a total beginner: no acronyms without a plain explanation, everyday words, friendly and clear. Return a JSON object with:
 - "verdict": 1–2 plain sentences: how much was spent, how many leads (people who shared contact details) that got, roughly the cost per lead in rupees, and the single biggest thing to fix — explained simply.
-- "recommendations": exactly 3 clear actions. Each names a real campaign and explains, in plain words, WHY (what the number means for a beginner), and WHAT to do. No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
+- "recommendations": exactly 3 items, each an object with "title" (the action in max 8 plain words, naming the real campaign) and "detail" (1–2 sentences explaining WHY in beginner words — what the number means — and WHAT to do). No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
         `Facts: ${JSON.stringify(facts)}`,
         { model: "sonar", timeoutMs: 20_000 },
       ).catch(() => null);
-      if (summary?.verdict && Array.isArray(summary.recommendations) && summary.recommendations.length >= 2) aiUsed = true;
-      else summary = null;
+      if (summary?.verdict && Array.isArray(summary.recommendations) && summary.recommendations.filter((r) => r?.title && r?.detail).length >= 2) {
+        summary.recommendations = summary.recommendations.filter((r) => r?.title && r?.detail).slice(0, 3);
+        aiUsed = true;
+      } else summary = null;
     }
     if (!summary || !summary.verdict) {
       // Deterministic fallback — always correct, beginner-friendly, never blocks the demo.
       const topIssue = diagnostics.find((d) => d.status === "crit") || diagnostics[0];
-      const recs: string[] = [];
+      const recs: Rec[] = [];
       if (best && worst && best.campaign_name !== worst.campaign_name)
-        recs.push(`Move budget from “${worst.campaign_name}” — it pays ${inr(worst.costPerLead)} for each lead, which is very expensive — into “${best.campaign_name}”, which gets a lead for just ${inr(best.costPerLead)}. Same money, far more leads.`);
-      if (fatigued[0]) recs.push(`Change the picture or video on “${fatigued[0].campaign_name}”. People have already seen it about ${Math.round(fatigued[0].frequency)} times and are starting to ignore it, so it's slowly wasting money.`);
-      if (learning[0]) recs.push(`Leave “${learning[0].campaign_name}” alone for about 2 days. It's still new and Facebook is figuring out who to show it to — editing it now makes it start over.`);
-      while (recs.length < 3) recs.push("Look at the coloured flags below and start with the red ones — those are the issues costing you the most money.");
+        recs.push({ title: `Move budget to your cheaper campaign`,
+          detail: `“${worst.campaign_name}” pays ${inr(worst.costPerLead)} for each lead — very expensive. “${best.campaign_name}” gets a lead for just ${inr(best.costPerLead)}. Shifting spend there means the same money brings far more leads.` });
+      if (fatigued[0]) recs.push({ title: `Refresh the creative on “${fatigued[0].campaign_name}”`,
+        detail: `People have already seen this ad about ${Math.round(fatigued[0].frequency)} times and are starting to ignore it, so it's slowly wasting money. Swap in a new picture or video, or show it to new people.` });
+      if (learning[0]) recs.push({ title: `Leave “${learning[0].campaign_name}” alone for ~2 days`,
+        detail: `It's still new and Facebook is figuring out who to show it to. Editing it now makes it start over and delays your results.` });
+      while (recs.length < 3) recs.push({ title: `Start with the red flags below`,
+        detail: `The coloured flags under this summary are ranked by cost. The red ones are losing you the most money — fix those first.` });
       summary = {
         verdict: `You spent ${inr(spend)} across ${totals.campaigns} ad campaigns and got ${num(leads)} leads — that's about ${inr(avgCPL)} to get one person's contact details. The main thing to fix: ${PLAIN_ISSUE[topIssue.key] || topIssue.label.toLowerCase()}.`,
         recommendations: recs.slice(0, 3),
