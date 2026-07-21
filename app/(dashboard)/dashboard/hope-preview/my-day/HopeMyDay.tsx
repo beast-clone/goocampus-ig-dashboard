@@ -533,8 +533,6 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
 }
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
   const actor = uploadedBy || "maheen";
@@ -652,7 +650,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       <div className="section-head">
         <span className="section-lbl">Content brief</span>
-        <button className="copy-btn" onClick={copyContent}>{copied ? "✓ Copied" : "Copy"}</button>
       </div>
       {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
           scroll (the section grows; you scroll the card/page to read it all). */}
