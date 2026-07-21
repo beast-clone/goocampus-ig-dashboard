@@ -319,7 +319,7 @@ function BudgetHero({
             <div className="flex items-baseline justify-between">
               <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Total spent yesterday</div>
               {utilization !== null && (
-                <div className={`text-[11px] font-semibold tabular-nums ${overBudget ? "text-rose-600" : "text-emerald-600"}`}>
+                <div className={`text-[11px] font-semibold tabular-nums ${overBudget ? "text-amber-600" : "text-brand"}`}>
                   {utilization.toFixed(0)}% of budget
                 </div>
               )}
@@ -328,7 +328,7 @@ function BudgetHero({
             {utilizationClamped !== null && (
               <div className="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${overBudget ? "bg-rose-500" : "bg-emerald-500"}`}
+                  className="h-full rounded-full transition-all bg-brand"
                   style={{ width: `${utilizationClamped}%` }}
                 />
               </div>
@@ -371,8 +371,12 @@ function YesterdayCampaignSpend({ rows, campaigns }: { rows: DayCampaignSpend[];
         {rows.map((r) => {
           const cat = classifyCampaign(r.campaign_name);
           const budget = budgetById.get(r.campaign_id) ?? 0;
-          const usage = budget > 0 ? Math.min(100, (r.spend / budget) * 100) : null;
-          const over = usage !== null && usage >= 100;
+          // The bar's 100% is Meta's real ceiling (budget + 25% overspend), so the fill
+          // shows true utilisation instead of flat-lining at "100%". The set budget sits
+          // at 80% of the track (1 / 1.25); the hatched tail is Meta's headroom.
+          const max = budget > 0 ? budget * (1 + OVERSPEND_CAP_PCT) : 0;
+          const pctOfMax = max > 0 ? Math.min(100, (r.spend / max) * 100) : null;
+          const overBudget = budget > 0 && r.spend > budget;
           return (
             <div key={r.campaign_id} className="px-5 py-2.5 grid grid-cols-12 items-center gap-3">
               <div className="col-span-6 min-w-0 flex items-center gap-2">
@@ -382,20 +386,25 @@ function YesterdayCampaignSpend({ rows, campaigns }: { rows: DayCampaignSpend[];
               </div>
               <div className="col-span-2 text-right text-sm font-semibold tabular-nums text-gray-900">{fmtINR(r.spend)}</div>
               <div className="col-span-2 text-right text-[11px] text-gray-500 tabular-nums">
-                {budget > 0 ? `of ${fmtINR(budget)}` : <span className="text-gray-300">no budget</span>}
+                {budget > 0 ? `of ${fmtINR(budget)}/day` : <span className="text-gray-300">no budget</span>}
               </div>
               <div className="col-span-2">
-                {usage !== null ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${over ? "bg-rose-500" : "bg-emerald-500"}`} style={{ width: `${usage}%` }} />
+                {pctOfMax !== null ? (
+                  <div className="flex items-center gap-2" title={`Spent ${fmtINR(r.spend)} · budget ${fmtINR(budget)}/day · Meta max ${fmtINR(max)}`}>
+                    <div className="relative flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      {/* Meta's +25% headroom (80→100% of the track) */}
+                      <div className="absolute inset-y-0 right-0 w-1/5" style={{ background: "repeating-linear-gradient(45deg,#C7D0F7,#C7D0F7 3px,transparent 3px,transparent 6px)" }} />
+                      {/* actually spent */}
+                      <div className="absolute inset-y-0 left-0 bg-brand rounded-full" style={{ width: `${pctOfMax}%` }} />
+                      {/* set-budget marker */}
+                      <div className="absolute inset-y-0 w-px bg-gray-500/60" style={{ left: "80%" }} />
                     </div>
-                    <div className={`text-xs font-semibold tabular-nums w-8 text-right ${over ? "text-rose-600" : "text-gray-600"}`}>
-                      {usage.toFixed(0)}%
+                    <div className={`text-xs font-semibold tabular-nums w-8 text-right ${overBudget ? "text-amber-600" : "text-gray-600"}`}>
+                      {pctOfMax.toFixed(0)}%
                     </div>
                   </div>
                 ) : (
-                  <div className="h-1.5 bg-gray-50 rounded-full" />
+                  <div className="h-2 bg-gray-50 rounded-full" />
                 )}
               </div>
             </div>
