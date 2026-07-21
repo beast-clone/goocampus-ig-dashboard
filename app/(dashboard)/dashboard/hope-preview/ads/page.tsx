@@ -4,6 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 
 type AdsTotals = {
@@ -291,12 +292,15 @@ type AnalystData = {
   error?: string;
 };
 
-const SEV: Record<Diag["status"], { chip: string; dot: string }> = {
-  good: { chip: "bg-emerald-50 text-emerald-700", dot: "●" },
-  warn: { chip: "bg-amber-50 text-amber-700", dot: "▲" },
-  crit: { chip: "bg-rose-50 text-rose-700", dot: "▲" },
+const SEV: Record<Diag["status"], { chip: string; Icon: typeof IconAlertTriangle }> = {
+  good: { chip: "bg-emerald-50 text-emerald-700", Icon: IconCircleCheck },
+  warn: { chip: "bg-amber-50 text-amber-700", Icon: IconAlertTriangle },
+  crit: { chip: "bg-rose-50 text-rose-700", Icon: IconAlertTriangle },
 };
-const REC_ICON = ["💸", "🔁", "⏳", "📉", "✅"];
+// Ordered recommendations use numbered badges (professional), not emoji.
+function RecBadge({ n }: { n: number }) {
+  return <span className="shrink-0 w-5 h-5 rounded-md bg-brand-light text-brand text-[11px] font-bold flex items-center justify-center mt-px">{n}</span>;
+}
 
 function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
@@ -309,7 +313,7 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
       <div className="rounded-2xl border-[1.5px] border-brand overflow-hidden mb-4" style={{ background: "linear-gradient(180deg,#E9ECFB,#ffffff)" }}>
         <div className="px-5 py-4">
           <div className="flex items-center gap-3 mb-3">
-            <span className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center text-base shrink-0">✦</span>
+            <span className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center shrink-0"><IconSparkles size={18} stroke={1.8} /></span>
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[#232D42]">AI Ads Analyst</div>
               <div className="text-[11px] text-brand-ink">{data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"} · updated daily</div>
@@ -322,18 +326,18 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
           <div className="space-y-1.5">
             {data.summary.recommendations.map((r, i) => (
               <div key={i} className="flex gap-2.5 items-start text-[12.5px] bg-white border border-gray-100 rounded-lg px-3 py-2">
-                <span className="shrink-0">{REC_ICON[i] || "•"}</span><span className="text-gray-800">{r}</span>
+                <RecBadge n={i + 1} /><span className="text-gray-800">{r}</span>
               </div>
             ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-brand/20">
             <span className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400">Delivery diagnostics</span>
-            {data.diagnostics.map((d) => (
-              <span key={d.key} className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`} title={d.evidence}>
-                {SEV[d.status].dot} {d.label}{d.campaigns.length ? ` · ${d.campaigns.length}` : ""}
+            {data.diagnostics.map((d) => { const I = SEV[d.status].Icon; return (
+              <span key={d.key} className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`} title={d.evidence}>
+                <I size={12} stroke={2.2} /> {d.label}{d.campaigns.length ? ` · ${d.campaigns.length}` : ""}
               </span>
-            ))}
+            ); })}
           </div>
         </div>
       </div>
@@ -349,7 +353,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
       <div className="bg-white rounded-2xl w-full max-w-4xl my-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
           <div>
-            <div className="text-base font-semibold flex items-center gap-2"><span className="text-brand">✦</span> AI Ads Analyst — full report</div>
+            <div className="text-base font-semibold flex items-center gap-2"><IconSparkles size={18} stroke={1.8} className="text-brand" /> AI Ads Analyst — full report</div>
             <div className="text-xs text-gray-500 mt-0.5">{range.from} → {range.to} · {data.totals.campaigns} campaigns · {fmtINR(data.totals.spend)} · {data.aiUsed ? "AI narrative on deterministic diagnostics" : "deterministic diagnostics"}</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
@@ -362,7 +366,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
             <div className="text-sm text-gray-800">{data.summary.verdict}</div>
             <div className="mt-3 space-y-1.5">
               {data.summary.recommendations.map((r, i) => (
-                <div key={i} className="flex gap-2.5 items-start text-[13px]"><span>{REC_ICON[i] || "•"}</span><span>{r}</span></div>
+                <div key={i} className="flex gap-2.5 items-start text-[13px]"><RecBadge n={i + 1} /><span>{r}</span></div>
               ))}
             </div>
           </div>
@@ -408,7 +412,9 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
               {data.diagnostics.map((d) => (
                 <div key={d.key} className="border border-gray-100 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`}>{SEV[d.status].dot} {d.label}</span>
+                    {(() => { const I = SEV[d.status].Icon; return (
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`}><I size={12} stroke={2.2} /> {d.label}</span>
+                    ); })()}
                   </div>
                   <div className="text-[12.5px] text-gray-800"><b className="text-gray-500 font-medium">Proof:</b> {d.evidence}</div>
                   {d.fix && <div className="text-[12px] text-gray-600 mt-1"><b className="text-gray-500 font-medium">Fix:</b> {d.fix}</div>}
