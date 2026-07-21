@@ -4,7 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
-import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb } from "@tabler/icons-react";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 
 type AdsTotals = {
@@ -46,6 +46,18 @@ const OBJECTIVE_LABEL: Record<string, string> = {
   LINK_CLICKS: "Traffic", OUTCOME_ENGAGEMENT: "Engagement", OUTCOME_SALES: "Sales", CONVERSIONS: "Conversions",
   OUTCOME_AWARENESS: "Awareness", MESSAGES: "Messages", OUTCOME_APP_PROMOTION: "App promotion",
 };
+
+// Per-AD deterministic AI suggestion — one prescriptive line from this ad's own
+// numbers (vs the campaign's average CPL). Same rule-based approach as the
+// campaign analyst, so it never guesses.
+function adSuggestion(ad: Ad, avgCpl: number): string {
+  if (ad.frequency > 3.5) return `Ad fatigue — frequency ${ad.frequency.toFixed(1)}. Refresh the creative or widen the audience; the same people are seeing it too often.`;
+  if (ad.ctr > 0 && ad.ctr < 1) return `Low CTR ${ad.ctr.toFixed(2)}% — the hook isn't landing. Test a stronger opening frame.`;
+  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead > avgCpl * 1.4) return `CPL ${fmtINR(ad.costPerLead)} is well above the campaign average (${fmtINR(avgCpl)}). Consider pausing or narrowing the audience.`;
+  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead <= avgCpl * 0.8) return `Top performer — CPL ${fmtINR(ad.costPerLead)} beats the campaign average (${fmtINR(avgCpl)}). Scale this ad's budget.`;
+  if (ad.status && ad.status !== "ACTIVE") return `Paused — ${ad.leads > 0 ? `delivered ${fmtNum(ad.leads)} leads @ ${fmtINR(ad.costPerLead)}` : "no leads recorded"}. Reactivate if it still fits the push.`;
+  return `Healthy — CTR ${ad.ctr.toFixed(2)}%, frequency ${ad.frequency.toFixed(1)}, no issues flagged.`;
+}
 
 type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
 type DayAd = { ad_id: string; ad_name: string; spend: number; reach: number; impressions: number; cpm: number; ctr: number; leads: number };
@@ -914,6 +926,10 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
     ? ads.filter((a) => hasLeads ? a.leads > 0 : a.impressions > 500)
         .sort((a, b) => hasLeads ? a.costPerLead - b.costPerLead : b.ctr - a.ctr)[0]?.ad_id
     : null;
+  // Campaign-average CPL — the baseline each ad's AI suggestion compares against.
+  // Uses the mean of the ads' own costPerLead (same metric as ad.costPerLead), so the
+  // comparison is apples-to-apples, not spend/leads vs Meta's cost_per_action.
+  const avgCpl = ads && ads.length ? (() => { const v = ads.filter((x) => x.leads > 0 && x.costPerLead > 0).map((x) => x.costPerLead); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; })() : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40" onClick={onClose}>
@@ -921,19 +937,22 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
         className="bg-white w-full md:max-w-5xl md:rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-gray-500 uppercase">Campaign</div>
-            <div className="text-base font-medium text-[#232D42]">{campaign.campaign_name}</div>
-            <div className="text-xs text-gray-500 mt-1">
-              {fmtINR(campaign.spend)} spend &middot; {fmtNum(campaign.impressions)} impressions
-              {campaign.leads > 0 && <> &middot; {fmtNum(campaign.leads)} leads @ {fmtINR(campaign.costPerLead)}</>}
+        <div className="px-6 py-4 border-b border-brand/10 bg-brand-light flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-9 h-9 rounded-lg bg-brand text-white flex items-center justify-center shrink-0"><IconSparkles size={19} stroke={1.8} /></span>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-brand-ink uppercase tracking-wide">Campaign · AI report</div>
+              <div className="text-base font-semibold text-[#232D42] truncate">{campaign.campaign_name}</div>
+              <div className="text-xs text-brand-ink/70 mt-0.5">
+                {fmtINR(campaign.spend)} spend &middot; {fmtNum(campaign.impressions)} impressions
+                {campaign.leads > 0 && <> &middot; {fmtNum(campaign.leads)} leads @ {fmtINR(campaign.costPerLead)}</>}
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-xl px-2">×</button>
+          <button onClick={onClose} className="text-brand-ink/50 hover:text-brand-ink text-xl px-2 shrink-0">×</button>
         </div>
 
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-y-auto p-6 bg-[#F6F7FB]">
           {loading && <div className="text-sm text-gray-500">Loading ads…</div>}
           {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded">{error}</div>}
           {ads && ads.length === 0 && <div className="text-sm text-gray-500">No ads in this range.</div>}
@@ -942,7 +961,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
               {ads.map((ad) => (
                 <div
                   key={ad.ad_id}
-                  className={`flex gap-4 p-4 border rounded-xl ${ad.ad_id === topAdId ? "border-brand bg-brand-light" : "border-gray-100"}`}
+                  className={`flex gap-4 p-4 border rounded-xl ${ad.ad_id === topAdId ? "border-brand bg-brand-light" : "border-gray-100 bg-white"}`}
                 >
                   {ad.creative_thumbnail ? (
                     <img src={ad.creative_thumbnail} alt="" className="w-24 h-24 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
@@ -951,8 +970,8 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {ad.ad_id === topAdId && <span title="Top performer">🏆</span>}
-                      <div className="font-medium truncate" title={ad.ad_name}>{ad.ad_name}</div>
+                      {ad.ad_id === topAdId && <IconTrophy size={15} stroke={1.8} className="text-brand shrink-0" />}
+                      <div className="font-medium truncate text-[#232D42]" title={ad.ad_name}>{ad.ad_name}</div>
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">Ad set: {ad.adset_name}</div>
                     {(() => { const fl = flightLabel(ad); return fl ? (
@@ -974,6 +993,11 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
                         ? <Stat label="Cost/Lead" value={ad.costPerLead > 0 ? fmtINR(ad.costPerLead) : "—"} />
                         : <Stat label="CPC" value={fmtINR(ad.cpc)} />}
                       <Stat label="CTR" value={ad.ctr.toFixed(2) + "%"} />
+                    </div>
+                    {/* Per-ad AI suggestion — deterministic, from this ad's own numbers */}
+                    <div className="mt-3 flex gap-2 items-start text-[12px] bg-brand-light border border-brand/15 rounded-lg px-3 py-2">
+                      <IconSparkles size={14} stroke={1.8} className="text-brand shrink-0 mt-px" />
+                      <span className="text-[#232D42]"><b className="text-brand-ink font-semibold">AI · </b>{adSuggestion(ad, avgCpl)}</span>
                     </div>
                     {ad.permalink && (
                       <a href={ad.permalink} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline mt-2 inline-block">
