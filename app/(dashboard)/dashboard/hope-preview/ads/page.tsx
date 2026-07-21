@@ -47,16 +47,47 @@ const OBJECTIVE_LABEL: Record<string, string> = {
   OUTCOME_AWARENESS: "Awareness", MESSAGES: "Messages", OUTCOME_APP_PROMOTION: "App promotion",
 };
 
-// Per-AD deterministic AI suggestion — one prescriptive line from this ad's own
-// numbers (vs the campaign's average CPL). Same rule-based approach as the
-// campaign analyst, so it never guesses.
-function adSuggestion(ad: Ad, avgCpl: number): string {
-  if (ad.frequency > 3.5) return `Ad fatigue — frequency ${ad.frequency.toFixed(1)}. Refresh the creative or widen the audience; the same people are seeing it too often.`;
-  if (ad.ctr > 0 && ad.ctr < 1) return `Low CTR ${ad.ctr.toFixed(2)}% — the hook isn't landing. Test a stronger opening frame.`;
-  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead > avgCpl * 1.4) return `CPL ${fmtINR(ad.costPerLead)} is well above the campaign average (${fmtINR(avgCpl)}). Consider pausing or narrowing the audience.`;
-  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead <= avgCpl * 0.8) return `Top performer — CPL ${fmtINR(ad.costPerLead)} beats the campaign average (${fmtINR(avgCpl)}). Scale this ad's budget.`;
-  if (ad.status && ad.status !== "ACTIVE") return `Paused — ${ad.leads > 0 ? `delivered ${fmtNum(ad.leads)} leads @ ${fmtINR(ad.costPerLead)}` : "no leads recorded"}. Reactivate if it still fits the push.`;
-  return `Healthy — CTR ${ad.ctr.toFixed(2)}%, frequency ${ad.frequency.toFixed(1)}, no issues flagged.`;
+// Per-AD deterministic AI read — written for someone who has NEVER run ads.
+// Plain headline + an explanation that teaches the metric + a clear action.
+// Rule-based (never guesses) from this ad's own numbers vs the campaign average.
+function adSuggestion(ad: Ad, avgCpl: number): { headline: string; explain: string; action: string } {
+  const ctr = ad.ctr.toFixed(2);
+  const freq = ad.frequency.toFixed(1);
+  const seen = Math.max(1, Math.round(ad.frequency));
+  if (ad.frequency > 3.5) return {
+    headline: "People are seeing this ad too many times",
+    explain: `“Frequency” is ${freq} — on average each person has already seen this exact ad about ${seen} times. When people keep seeing the same ad they start to ignore it (and some get annoyed), so clicks and leads slowly fall even though you keep paying for it.`,
+    action: "Swap in a fresh image or video, or show it to a new / wider group of people. A new creative almost always brings performance back up.",
+  };
+  if (ad.ctr > 0 && ad.ctr < 1) return {
+    headline: "Hardly anyone is clicking this ad",
+    explain: `“CTR” (click-through rate) is ${ctr}% — out of every 100 people who saw it, fewer than 1 actually clicked. That usually means the first thing they notice (the picture or the opening line) isn’t catching their eye.`,
+    action: "Try a stronger opening — a bolder image, a clearer benefit, or a question in the first line — and run it against this ad to see which does better.",
+  };
+  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead > avgCpl * 1.4) return {
+    headline: "This ad is costing too much per lead",
+    explain: `Every lead (person who filled the form) from this ad costs ${fmtINR(ad.costPerLead)}. Your other ads in this campaign average about ${fmtINR(avgCpl)} — so you’re paying well over the odds here for the same result.`,
+    action: "Move some budget to the cheaper ads, or narrow who this ad targets. Watch it for a few days — if the cost stays high, switch it off.",
+  };
+  if (ad.leads > 0 && avgCpl > 0 && ad.costPerLead <= avgCpl * 0.8) return {
+    headline: "This is one of your best ads — it’s a bargain",
+    explain: `Each lead from this ad costs only ${fmtINR(ad.costPerLead)}, cheaper than your campaign average of ${fmtINR(avgCpl)}. In simple terms, your money goes further here than on your other ads.`,
+    action: "Give this ad more of your daily budget. Putting money behind your cheapest, best-working ad is the fastest way to get more leads for the same spend.",
+  };
+  if (ad.status && ad.status !== "ACTIVE") return {
+    headline: "This ad is switched off right now",
+    explain: ad.leads > 0
+      ? `It isn’t running or spending at the moment. While it was live, it brought in ${fmtNum(ad.leads)} leads at ${fmtINR(ad.costPerLead)} each.`
+      : "It isn’t running or spending at the moment, and it didn’t record any leads while it was live.",
+    action: ad.leads > 0
+      ? "If those numbers look good to you, turn it back on for your next push. If it was expensive, it’s fine to leave it off."
+      : "Leave it off for now — only bring it back if you give it a new image or message to test.",
+  };
+  return {
+    headline: "This ad is doing fine — nothing to fix",
+    explain: `Its click rate (${ctr}%) and frequency (${freq} — people have seen it about ${seen} time${seen === 1 ? "" : "s"}) are both in a healthy range, so there’s no problem to act on right now.`,
+    action: "Just keep it running as it is and check back in a few days.",
+  };
 }
 
 type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
@@ -994,11 +1025,17 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
                         : <Stat label="CPC" value={fmtINR(ad.cpc)} />}
                       <Stat label="CTR" value={ad.ctr.toFixed(2) + "%"} />
                     </div>
-                    {/* Per-ad AI suggestion — deterministic, from this ad's own numbers */}
-                    <div className="mt-3 flex gap-2 items-start text-[12px] bg-brand-light border border-brand/15 rounded-lg px-3 py-2">
-                      <IconSparkles size={14} stroke={1.8} className="text-brand shrink-0 mt-px" />
-                      <span className="text-[#232D42]"><b className="text-brand-ink font-semibold">AI · </b>{adSuggestion(ad, avgCpl)}</span>
-                    </div>
+                    {/* Per-ad AI read — beginner-friendly: what it means + what to do */}
+                    {(() => { const s = adSuggestion(ad, avgCpl); return (
+                      <div className="mt-3 bg-brand-light border border-brand/15 rounded-lg px-3.5 py-3">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <IconSparkles size={15} stroke={1.8} className="text-brand shrink-0" />
+                          <span className="text-[12.5px] font-semibold text-brand-ink">AI read · {s.headline}</span>
+                        </div>
+                        <div className="text-[12px] text-[#232D42] leading-relaxed">{s.explain}</div>
+                        <div className="text-[12px] text-[#232D42] leading-relaxed mt-1.5"><b className="text-brand-ink font-semibold">What to do: </b>{s.action}</div>
+                      </div>
+                    ); })()}
                     {ad.permalink && (
                       <a href={ad.permalink} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline mt-2 inline-block">
                         Open ad on Facebook ↗
