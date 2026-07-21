@@ -76,7 +76,7 @@ export function HopeDashboardShell({
               {title}
               {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
             </h1>
-            <p className="text-sm text-gray-500">{headerSub}</p>
+            {headerSub && <p className="text-sm text-gray-500 mt-1.5">{headerSub}</p>}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {!hideAccountPicker && (profile ? (

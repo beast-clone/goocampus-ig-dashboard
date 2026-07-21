@@ -121,7 +121,7 @@ function fmtDay(iso: string) {
 
 export default function AdsPage() {
   return (
-    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker>
+    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker subtitle="">
       {({ range }) => <Ads range={range} />}
     </HopeDashboardShell>
   );
@@ -164,9 +164,11 @@ function Ads({ range }: { range: { from: string; to: string } }) {
 
   return (
     <>
-      {live}
-      <div className="mb-4 text-xs text-gray-500">
-        Ad account: <span className="font-medium text-gray-700">{data.account.name}</span> ({data.account.id})
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
+        {live}
+        <div className="text-xs text-gray-500">
+          Ad account: <span className="font-medium text-gray-700">{data.account.name}</span> <span className="text-gray-400">({data.account.id})</span>
+        </div>
       </div>
 
       {/* AI Ads Analyst — summary on top, opens a full report on click */}
