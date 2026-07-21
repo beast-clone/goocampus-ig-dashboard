@@ -277,12 +277,14 @@ export function HopeOverview() {
   const postEngagement = useMemo(() => (rangePosts || []).reduce((s, p) => s + (p.totalInteractions || ((p.likes || 0) + (p.comments || 0))), 0), [rangePosts]);
   const engVal = insStored ? postEngagement : (t?.engagement ?? 0);
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
-  const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string }[] = t ? [
+  const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string; est?: boolean }[] = t ? [
     { key: "followers", label: "Followers", value: fmt(t.followers), delta: insStored ? null : (d?.followers ?? 0), badge: insStored ? "saved" : undefined },
     { key: "reach", label: "Reach", value: fmt(t.reach), delta: insStored ? null : (d?.reach ?? 0), badge: insStored ? "saved" : undefined },
-    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? 0), badge: insStored ? "from posts" : undefined },
-    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? 0), badge: insStored ? "not recorded" : undefined },
-    { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true },
+    // Live-window engagement & profile visits are estimated from reach (Instagram's
+    // account-insights API doesn't expose them directly), so flag them "est".
+    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? 0), badge: insStored ? "from posts" : undefined, est: !insStored },
+    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? 0), badge: insStored ? "not recorded" : undefined, est: !insStored },
+    { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true, est: !insStored },
   ] : [];
 
   return (
@@ -802,7 +804,7 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: typeof IconLayoutGrid
     </div>
   );
 }
-function StatCard({ label, value, delta, flat, detail, action, badge }: { label: string; value: string; delta: number | null; flat?: boolean; detail: string; action: string; badge?: string }) {
+function StatCard({ label, value, delta, flat, detail, action, badge, est }: { label: string; value: string; delta: number | null; flat?: boolean; detail: string; action: string; badge?: string; est?: boolean }) {
   const hasDelta = !flat && typeof delta === "number";
   const dv = delta ?? 0;
   const up = dv >= 0;
@@ -820,7 +822,10 @@ function StatCard({ label, value, delta, flat, detail, action, badge }: { label:
           <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: col }}>{hasDelta ? (up ? <IconArrowUpRight size={19} /> : <IconArrowDownRight size={19} />) : <IconChartLine size={18} />}</span>
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>{label}</div>
+          <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+            {label}
+            {est && <span title="Estimated from reach — Instagram doesn't expose this metric directly" style={{ fontSize: 9, fontWeight: 700, color: C.muted, background: C.bg, border: `1px solid ${C.line}`, padding: "1px 5px", borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "help" }}>est</span>}
+          </div>
           <div style={{ fontSize: 23, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.15 }}>{value}</div>
           {hasDelta
             ? <div style={{ fontSize: 12, fontWeight: 600, color: col }}>{up ? "▲" : "▼"} {Math.abs(dv).toFixed(1)}%</div>

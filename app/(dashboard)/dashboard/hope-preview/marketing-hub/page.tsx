@@ -218,6 +218,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
     : range;
   const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to, ...(openParam ? { open: openParam } : {}) }).toString();
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
+  // Stamp when data lands so the Live chip shows a real "fetched Ns ago" instead of "…".
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
 
   const [filters, setFilters] = useState<{ sbu: string; type: string; status: string; owner: string; priority: string }>({
     sbu: "", type: "", status: "", owner: "", priority: "",
@@ -281,7 +284,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
           </>
         )}
         <div className="ml-auto flex-shrink-0">
-          <LiveIndicator loading={isLoading} onRefresh={refresh} />
+          <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} />
         </div>
       </div>
 
