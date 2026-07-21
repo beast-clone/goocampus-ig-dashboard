@@ -17,3 +17,12 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
   }
   return data;
 }
+
+// Clear cached entries (all, or those whose key starts with `prefix`). Returns
+// how many were dropped. Used by the Diagnostics "clear cache & refetch" repair.
+export function clearCache(prefix?: string): number {
+  if (!prefix) { const n = store.size; store.clear(); return n; }
+  let n = 0;
+  for (const k of store.keys()) if (k.startsWith(prefix)) { store.delete(k); n++; }
+  return n;
+}

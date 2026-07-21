@@ -5,7 +5,7 @@ import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconRadar2,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
-  IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup,
+  IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch,
 } from "@tabler/icons-react";
@@ -79,6 +79,7 @@ const GROUPS: Group[] = [
   ] },
   { label: "System", items: [
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
+    { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
     { label: "Team",         href: `${HUB}/team`,         icon: IconUsersGroup },
   ] },

@@ -7,7 +7,7 @@ export type HopeTab =
   | "my-day" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "sales" | "ai-insights" | "ai-reports"
-  | "integrations" | "tools" | "team";
+  | "integrations" | "diagnostics" | "tools" | "team";
 
 export function HopeShell({
   active, title, subtitle, children, headerRight, hideTopbar,

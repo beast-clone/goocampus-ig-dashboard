@@ -3,6 +3,27 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-21 (pt 2) — Diagnostics tab (self-healing system health)
+
+**New Diagnostics tab** (`/dashboard/hope-preview/diagnostics`, separate from
+Integrations). One click checks all 11 systems live (Meta, YouTube, LinkedIn,
+Airtable, SendPulse, Supabase, Perplexity, Serper, Reddit, Apify, HikerAPI),
+**auto-repairs** what it safely can, and flags the rest — no Claude Code, all
+deterministic server code (`lib/diagnostics.ts`).
+
+- **Auto-repair tiers:** one automatic retry on transient failure · YouTube access
+  token auto-refresh · "clear cache & refetch". Auth/key failures become a
+  **Reconnect** / **Add key** action instead (can't silently re-consent).
+- **Host health:** app RAM (`process.memoryUsage`), system RAM, uptime, per-service
+  latency, avg response — real when self-hosted; on serverless reflects the instance.
+- **Daily run + stored report:** `/api/cron/diagnostics` (x-cron-secret) runs the
+  full check and stores a report row in Supabase `mh_diagnostics_runs`. Point n8n at
+  it once a day (~5 AM IST) at deploy time. History list on the tab reopens any run.
+- **Reconnect without redeploy:** new `mh_integration_tokens` table + `getIntegrationToken()`
+  (reads override first, env fallback). The Reconnect modal saves a fresh pasted
+  token there and the integration goes live immediately.
+- Routes: `/api/diagnostics/{run,history,reconnect,clear-cache}`; nav item + `IconActivityHeartbeat`.
+
 ## 2026-07-21 — Content Radar: Reddit/Quora/MouthShut/ValueMD mention lanes
 
 **New "site:" mention lanes.** Content Radar now watches Reddit, Quora, MouthShut,
