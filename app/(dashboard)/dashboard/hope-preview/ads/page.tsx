@@ -121,7 +121,7 @@ function fmtDay(iso: string) {
 
 export default function AdsPage() {
   return (
-    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker subtitle="">
+    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker subtitle="GooCampus Edu">
       {({ range }) => <Ads range={range} />}
     </HopeDashboardShell>
   );
@@ -166,8 +166,8 @@ function Ads({ range }: { range: { from: string; to: string } }) {
     <>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
         {live}
-        <div className="text-xs text-gray-500">
-          Ad account: <span className="font-medium text-gray-700">{data.account.name}</span> <span className="text-gray-400">({data.account.id})</span>
+        <div className="text-xs text-gray-400">
+          Ad account ID: {data.account.id}
         </div>
       </div>
 
