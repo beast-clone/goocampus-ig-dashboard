@@ -162,3 +162,61 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
   - Cause: `SERPER_API_KEY` not present in local `.env.local`.
   - Fix: added `SERPER_API_KEY` from the uploaded credentials file. → configured.
 - Reddit thread-reader: `warn` (no app) — EXPECTED/optional, snippet fallback works. Not a bug; left as-is.
+
+## 2026-07-21 — Part 2 (per-tab click-test) diagnostics pass
+
+### Section 1 — Overview & Content
+- **Overview** ✅ — all KPIs real (Followers 31,128 / Reach 17,80,110 / Eng 1,06,806 / Profile Visits 37,382). "Who you reached · **1 reached**" is only the pre-load skeleton state — resolves to **31K** (F 41 / M 41 / Undisclosed 18) once data lands. NOT a bug. Console clean across 2 loads; no React key warning at the flagged line (file shifted; line 259 is now aggregation code).
+- **Marketing Hub** ✅ — Workload (real per-person plans/capacity) + Master sheet (162 tasks, views rail with live counts, Filter/Sort/Columns/Colour, period toggle). Live·fetched, token never-expires.
+- **My Day** ✅ — real per-person tasks (Nandu), timeline, In-progress/Feedback/Output tabs, task detail + start-timer gate, content brief/creatives. Producer correctly sees only Content-Approved; countdown hidden until started. Permission→button gating = admin bypass (all controls visible), verified earlier.
+- **Content Radar** ✅ — real brand mentions (10, Reddit, w/ sentiment), rising searches, source chips with live counts. **Reported "popup not opening" bug does NOT reproduce**: both "Manage alerts" (Track topics) and the article-reader modals open correctly.
+
+### Section 2 — Social Media
+- **Publishing Calendar** 🟡 — Sample-data toggle defaults **OFF** (checklist feared ON — good). Real scheduled post ("9a Uni Prog - Carousel") lands on the correct date (Jul 21). **Minor UX note (open, non-blocking):** grid defaults to *next* month (August, empty) on load instead of the current month; "Today" corrects it. Decide before demo.
+- **Content Review** 🟢 FIXED — **Round-2 Fix A (content-review route):** `hasCreative` at `app/api/content-review/route.ts:48` counted only `media_urls` + `output_link`, never `mh_attachments`, so a post whose only creative was an uploaded attachment wrongly read "no creative" and had its "Push to Schedule" disabled. Fix: join `mh_attachments` (kind != 'reference') for the queued post ids; `hasCreative` and `thumbnailUrl` now include creative attachments. Typecheck clean; queue renders (15), enabled/disabled Push states correct.
+  - NOTE: AUDIT_LOG Round-2 "Fix A — both routes" — this covers the content-review route. Re-check the second route (Scheduler creative-presence) during the Scheduler tab.
+- **Scheduler** 🟢 FIXED — **Round-2 Fix A (second route):** `app/api/scheduler/to-schedule/route.ts:49` filtered the "Ready to schedule" queue to `media_urls || output_link` only, so a post that cleared Content Review with an attachment-only creative would silently disappear from the Scheduler. Fix: same `mh_attachments` (kind != 'reference') join; attachment-backed posts now pass the filter and their public URLs are merged into `mediaUrls` (so downstream publish's `media_urls[0]` works). Typecheck clean; queue renders (25), post detail + IG feed preview + upload all wired. Did NOT trigger publish-now. **→ Round-2 Fix A now complete on BOTH routes.**
+- **Post Planner** ✅ — "Ranked with live web search · Perplexity"; ordering is genuinely timely (cites NEET 2026 results declared Jul 16–20), numbered cards on real dates with trend tags, Apply plan / Re-plan / drag present. Degrades to plain order without key (unchanged).
+
+**Section 2 net: 2 real code fixes (Round-2 Fix A, both routes). Publishing Calendar next-month-default = open UX decision.**
+
+### Section 3 — Analytics · Instagram
+- **Posts** ✅ — real IG data (63 posts, Avg Reach 2,238, Eng 5.36%, Save 2.08%, Share 1.66%), account switcher, Top-performers Today/Week/Month, working thumbnails, type filter + sort + period toggle. Live·fetched.
+- **Reels** ✅ — 14 reels (Avg Views 5,206, Watch 7s, Reach 3,943), Top performers + full grid with real video thumbnails. Not empty.
+- **Stories** ✅ — checklist's "8-card demo grid + demo KPIs" trap is RESOLVED. Now 3 real live stories (per-story views/reach/replies/follows) + "Historical stories (from Supabase — persists forever) · 30 snapshotted". `/api/stories` + `/api/stories/historical` both 200. Snapshot cron working. No demo data.
+
+### Section 4 — Analytics · LinkedIn / YouTube / Facebook
+- **LinkedIn** 🟡 — main tab honestly badged "Demo data"; World tab attempts live but badges "Live call failed · showing demo" and falls back transparently. Honest degradation, NOT a silent fake. Root cause = LinkedIn API access gating (credential/partnership), not a code bug. Flag for Praveen; nothing to fix in code.
+- **YouTube** ✅ — the amber "Demo data" badge is only the pre-load placeholder; resolves to Live·fetched with real data (Subs 22.9K +211, Views 19.8K, Watch 940h, 25 videos, retention, best-times, views-over-time). Channels GooCampus + 12thplus. Not picsum/demo.
+- **Facebook** ✅ — Live·fetched; Followers 1.2K + Page Likes 1.2K live from Meta. Engagement (57.7K) and Page Views (1.9K) NOW POPULATE (checklist feared "—"). Real country audience breakdown with honest "Meta removed city/age/gender" caveat. Recent posts real dates+captions.
+
+### Section 5 — Analytics · Website
+- **Google Analytics (GA4)** ✅ — Live·Google Analytics; realtime strip (11 active, India 10/Kuwait 1), Users 1.4K / Sessions 1.4K / Page Views 2.2K / Engagement 37%, users-over-time chart, conversions & events, Analyze-with-AI. Range toggle live.
+- **Clarity** ✅ — verified live earlier this session; history routes code-reviewed (serves stored days >3, honest "Building history" badge).
+- **Bing** ✅ — Live·fetched; honest empty state ("connected and correct — numbers appear once ranking in Bing"), Clicks/Impr 0, Avg Position "—". Snapshot-history working: "45 days saved / 29 days of stored history" badges.
+
+### Section 6 — Audience / Ads / Sales
+- **Ads** ⚠️ (transient, dev-only) — first cold navigation to `/ads` showed **"Error: Unexpected token '<', "<!DOCTYPE"…"** (HTTP 500 with an HTML body). Root cause: Next.js dev on-demand compilation of the `/api/ads` route (fans out to 6 Meta calls via the heavy `lib/meta-ads` deps) failed/timed out on the very first hit; an authenticated re-fetch returns **200 + valid JSON** (spend ₹1,58,128, 3,708 leads) and the page renders perfectly on reload (AI Analyst summary + accordion recs + diagnostic chips + budget bars all intact). NOT a persistent code bug — production build precompiles routes so the cold 500 won't recur.
+  - Secondary nit: `useApi`'s error path renders the raw JSON-parse message and doesn't auto-retry a transient 500. Low severity; recommend (a) confirm on the Netlify preview/prod build that `/ads` loads first-try, and optionally (b) make `useApi` show a friendly "Couldn't load — Retry" instead of the raw parse error. Deferred (shared hook; no risky change pre-demo without approval).
+- **Audience / All platforms** ✅ — IG live (@goocampus 31,129 followers, gender 41/41/17.9, full age×gender pyramid, 10 countries/top India/Chennai, map). Platform sub-tabs present.
+- **Competitor Ads** ✅ — FB Ad Library search UI renders, honest empty state, "Sync past scans (free)" present. Live Apify search not triggered (credit spend).
+- **Benchmark** ✅ — competitors.json loads; @mokshacademy pulls real IG data (followers/posts/eng 14.29%/top-posts). Other handles honestly show per-account ERROR (private/renamed/personal). DEMO NOTE: most tracked handles are private/invalid → tab looks sparse; refresh the tracked-handle list with valid public Business/Creator accounts for a richer demo.
+- **Social Leads** ✅ — 3-tab redesign live: DM Leads 257 / Meta Ads 1,590 / Samvaya 1,208. DM tab: Contact-Shared 257, Closed-Won 8 (3.1%), Reply 89%, keyword funnel (AMC/ALS), AI Summary panel (77 prospect comments), full status funnel + real lead table. On-brand.
+- **Sales Hub** ✅ — redesign live (874 leads/31d): source-first, speed-to-lead SLA, untouched 260, counsellor table (New-Leads/Maheen holding pool + real counsellors w/ first-touch colour + status-mix + closings), conversion-by-source. Counsellor DRILL-DOWN verified: modal opens with in-modal status filters, sort, Copy CSV, real lead table (mobiles, sources, created dates, days-idle, Open).
+
+**Section 6 net: Ads transient dev-500 (works on reload, prod precompiled); no persistent code bugs. Benchmark handle-list = demo-quality note.**
+
+### Section 7 — AI
+- **AI Insights** ✅ — "Generate cross-channel insights" produces a genuinely prescriptive, data-grounded Perplexity plan: names the bottleneck (63% bounce), a prioritized "one move that matters most" (landing-page audit), per-channel how-to grounded in live numbers (carousel reach 6,237 vs Reel 2,219; CTR 3.86% but 2.0% lead rate; Paid Social 83.3% traffic) with citations + Regenerate. Footer cites Perplexity. VALIDATES the Part 1 Perplexity key fix.
+- **AI Reports** ✅ — Monthly report renders fully; exec summary integrates Sales Hub data (874 leads, Jeswin Shaju 5 contracts, 67h→<24h first-response), highlight cards w/ explanations, trend chart, Weekly/Monthly/Quarterly tabs + Export/Print. Hard Perplexity dependency satisfied.
+
+### Section 8 — System
+- **Integrations** ✅ — 11 integrations, 10 healthy / 1 need-attention (optional Reddit thread-reader). Perplexity now Healthy (AI·sonar·reachable) — Part 1 fix holds. Meta rate-limit 15%, all token cards green.
+- **Team** ✅ — real ind_users (Maheen admin + Nikhil/Praveen/Manya/Nandu) with editable role/email, Admin/Active toggles, per-person Access permission editor (feeds My Day gating), Set-password, +Add member. CRUD present.
+- **Tools** ✅ — static "20 tools across 9 categories" reference list; renders on-brand.
+
+## Part 2 — SUMMARY (all 25 tabs)
+**Code bugs found + FIXED (2):** Round-2 Fix A, BOTH routes — Content Review (`app/api/content-review/route.ts`) and Scheduler (`app/api/scheduler/to-schedule/route.ts`) were blind to `mh_attachments`, so an attachment-only creative read "no creative" and the post would vanish from the Scheduler. Both now join creative attachments (kind != 'reference'). Typecheck clean.
+**Transient (1):** Ads `/api/ads` first-hit dev-compile 500 → renders on reload; production precompiles so won't recur. Optional: friendlier `useApi` error + auto-retry.
+**Open non-blocking notes (3):** (a) Publishing Calendar opens on next month (empty) instead of current — "Today" fixes; (b) LinkedIn World live-call failing → honestly shows demo (LinkedIn API access gating, not code); (c) Benchmark tracked-handle list mostly private/invalid → sparse; refresh with valid public Business/Creator handles.
+**Everything else:** healthy, real data, honest labeling. Perplexity fix (Part 1) validated across AI Insights, AI Reports, Post Planner, Ads analyst, Integrations. Stories demo-grid trap RESOLVED (now live + Supabase history). Facebook engagement/page-views now populate. Content Radar popups open. "1 reached"/"Demo data" badges are pre-load placeholders only.

@@ -42,11 +42,33 @@ export async function GET() {
 
     if (error) throw new Error(error.message);
 
+    // A creative may live in mh_attachments (uploaded via the detail modal), not
+    // just media_urls / output_link. Content Review already treats an attachment as
+    // a valid creative; the Scheduler must too, or a post that cleared review would
+    // silently vanish here. Join creative attachments (kind != 'reference' — those
+    // are input briefs) and treat their public URLs as schedulable media.
+    const ids = (data || []).map((r) => r.id);
+    const attByPost = new Map<string, string[]>();
+    if (ids.length) {
+      const { data: atts } = await sb
+        .from("mh_attachments")
+        .select("post_id, storage_path, kind")
+        .in("post_id", ids)
+        .neq("kind", "reference");
+      for (const a of atts || []) {
+        if (!a.storage_path) continue;
+        const arr = attByPost.get(a.post_id) || [];
+        arr.push(a.storage_path as string);
+        attByPost.set(a.post_id, arr);
+      }
+    }
+
     const posts = (data || [])
-      // Only surface rows that actually have a creative to schedule — either an
-      // uploaded media file (Supabase) or a legacy asset link (Slack/Drive). Rows
-      // with neither aren't schedulable yet, so they'd only inflate the count.
-      .filter((r) => ((r.media_urls as string[] | null)?.length ?? 0) > 0 || !!r.output_link)
+      // Only surface rows that actually have a creative to schedule — an uploaded
+      // media file (Supabase), a creative attachment, or a legacy asset link
+      // (Slack/Drive). Rows with none aren't schedulable yet, so they'd only inflate
+      // the count.
+      .filter((r) => ((r.media_urls as string[] | null)?.length ?? 0) > 0 || (attByPost.get(r.id)?.length ?? 0) > 0 || !!r.output_link)
       .map((r) => ({
       id: r.id,
       title: r.particulars,
@@ -55,9 +77,10 @@ export async function GET() {
       type: r.type,
       caption: r.caption,
       content: r.content,
-      // media: prefer uploaded media (Supabase Storage); fall back to the legacy
-      // Slack/output link until everything's migrated to direct upload.
-      mediaUrls: (r.media_urls as string[] | null) || [],
+      // media: prefer uploaded media (Supabase Storage), then creative attachments,
+      // then fall back to the legacy Slack/output link until everything's migrated
+      // to direct upload. All are public URLs, so publish can use mediaUrls[0].
+      mediaUrls: [...((r.media_urls as string[] | null) || []), ...(attByPost.get(r.id) || [])],
       assetLink: r.output_link || null,
       channel: r.publish_to || null,
       defaultPage: r.publish_to_page || defaultPageForSbu(r.sbu),

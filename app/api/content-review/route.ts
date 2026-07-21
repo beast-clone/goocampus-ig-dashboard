@@ -29,8 +29,30 @@ export async function GET() {
 
     if (error) throw new Error(error.message);
 
+    // Creatives may live in the mh_attachments table (uploaded via the detail modal),
+    // not just in media_urls / output_link. Join the actual creative attachments
+    // (kind != 'reference' — reference images are input briefs, not the finished
+    // creative) so a post whose only creative is an attachment isn't wrongly flagged
+    // "no creative" and blocked from the Scheduler.
+    const ids = (data || []).map((r) => r.id);
+    const attByPost = new Map<string, string[]>();
+    if (ids.length) {
+      const { data: atts } = await sb
+        .from("mh_attachments")
+        .select("post_id, storage_path, kind, mime_type")
+        .in("post_id", ids)
+        .neq("kind", "reference");
+      for (const a of atts || []) {
+        if (!a.storage_path) continue;
+        const arr = attByPost.get(a.post_id) || [];
+        arr.push(a.storage_path as string);
+        attByPost.set(a.post_id, arr);
+      }
+    }
+
     const posts = (data || []).map((r) => {
       const media = (r.media_urls as string[] | null) || [];
+      const attUrls = attByPost.get(r.id) || [];
       return {
         id: r.id,
         title: r.particulars,
@@ -42,10 +64,11 @@ export async function GET() {
         content: r.content,
         mediaUrls: media,
         assetLink: r.output_link || null,
-        thumbnailUrl: media[0] || null,
-        // The Scheduler requires a creative, so a post with neither uploaded media
-        // nor a legacy asset link can be reviewed but not yet pushed to schedule.
-        hasCreative: media.length > 0 || !!r.output_link,
+        thumbnailUrl: media[0] || attUrls[0] || null,
+        // The Scheduler requires a creative, so a post with no uploaded media, no
+        // legacy asset link, AND no creative attachment can be reviewed but not yet
+        // pushed to schedule.
+        hasCreative: media.length > 0 || !!r.output_link || attUrls.length > 0,
         publishingDate: r.publishing_date,
         updatedAt: r.updated_at,
       };
