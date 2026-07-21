@@ -108,6 +108,9 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         Ad account: <span className="font-medium text-gray-700">{data.account.name}</span> ({data.account.id})
       </div>
 
+      {/* AI Ads Analyst — summary on top, opens a full report on click */}
+      <AdsAnalyst range={range} />
+
       {/* HEADLINE — Total daily budget vs yesterday's actual spend (with delta chip + sparkline).
           Only ACTIVE campaigns contribute to the budget number since paused campaigns don't burn. */}
       {data.daySummary && (
@@ -253,6 +256,151 @@ function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- AI Ads Analyst ----------------
+type Diag = { key: string; label: string; status: "good" | "warn" | "crit"; evidence: string; fix: string; campaigns: string[] };
+type AnalystData = {
+  totals: { spend: number; campaigns: number; leads: number; avgCPL: number; days: number };
+  best: { name: string; cpl: number } | null;
+  worst: { name: string; cpl: number } | null;
+  diagnostics: Diag[];
+  table: { name: string; spend: number; leads: number; cpl: number; vsAvg: number | null; frequency: number; ctr: number }[];
+  summary: { verdict: string; recommendations: string[] };
+  aiUsed: boolean;
+  error?: string;
+};
+
+const SEV: Record<Diag["status"], { chip: string; dot: string }> = {
+  good: { chip: "bg-emerald-50 text-emerald-700", dot: "●" },
+  warn: { chip: "bg-amber-50 text-amber-700", dot: "▲" },
+  crit: { chip: "bg-rose-50 text-rose-700", dot: "▲" },
+};
+const REC_ICON = ["💸", "🔁", "⏳", "📉", "✅"];
+
+function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
+  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  const { data } = useApi<AnalystData>(`/api/ads/analyst?${qs}`);
+  const [open, setOpen] = useState(false);
+  if (!data || data.error || !data.summary) return null;
+
+  return (
+    <>
+      <div className="rounded-2xl border-[1.5px] border-brand overflow-hidden mb-4" style={{ background: "linear-gradient(180deg,#E9ECFB,#ffffff)" }}>
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center text-base shrink-0">✦</span>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-[#232D42]">AI Ads Analyst</div>
+              <div className="text-[11px] text-brand-ink">{data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"} · updated daily</div>
+            </div>
+            <button onClick={() => setOpen(true)} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">View full report →</button>
+          </div>
+
+          <div className="text-[13px] text-[#232D42] bg-white border border-gray-100 rounded-lg px-3 py-2.5 mb-3">{data.summary.verdict}</div>
+
+          <div className="space-y-1.5">
+            {data.summary.recommendations.map((r, i) => (
+              <div key={i} className="flex gap-2.5 items-start text-[12.5px] bg-white border border-gray-100 rounded-lg px-3 py-2">
+                <span className="shrink-0">{REC_ICON[i] || "•"}</span><span className="text-gray-800">{r}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-brand/20">
+            <span className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400">Delivery diagnostics</span>
+            {data.diagnostics.map((d) => (
+              <span key={d.key} className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`} title={d.evidence}>
+                {SEV[d.status].dot} {d.label}{d.campaigns.length ? ` · ${d.campaigns.length}` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {open && <AnalystReport data={data} range={range} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { from: string; to: string }; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-6 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-4xl my-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+          <div>
+            <div className="text-base font-semibold flex items-center gap-2"><span className="text-brand">✦</span> AI Ads Analyst — full report</div>
+            <div className="text-xs text-gray-500 mt-0.5">{range.from} → {range.to} · {data.totals.campaigns} campaigns · {fmtINR(data.totals.spend)} · {data.aiUsed ? "AI narrative on deterministic diagnostics" : "deterministic diagnostics"}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Executive summary */}
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Executive summary</div>
+            <div className="text-sm text-gray-800">{data.summary.verdict}</div>
+            <div className="mt-3 space-y-1.5">
+              {data.summary.recommendations.map((r, i) => (
+                <div key={i} className="flex gap-2.5 items-start text-[13px]"><span>{REC_ICON[i] || "•"}</span><span>{r}</span></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Budget efficiency table */}
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Budget efficiency — where every rupee goes</div>
+            <div className="overflow-x-auto border border-gray-100 rounded-xl">
+              <table className="w-full text-[13px] min-w-[640px]">
+                <thead><tr className="text-gray-500 text-left border-b border-gray-100">
+                  <th className="py-2.5 px-3 font-normal">Campaign</th>
+                  <th className="py-2.5 px-3 font-normal text-right">Spend</th>
+                  <th className="py-2.5 px-3 font-normal text-right">Leads</th>
+                  <th className="py-2.5 px-3 font-normal text-right">CPL</th>
+                  <th className="py-2.5 px-3 font-normal text-right">vs avg</th>
+                  <th className="py-2.5 px-3 font-normal text-right">Freq</th>
+                </tr></thead>
+                <tbody>
+                  {data.table.map((r) => (
+                    <tr key={r.name} className="border-b border-gray-50 last:border-0">
+                      <td className="py-2.5 px-3 max-w-[280px] truncate" title={r.name}>{r.name}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">{fmtINR(r.spend)}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">{r.leads || "—"}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums font-semibold">{r.leads ? fmtINR(r.cpl) : "—"}</td>
+                      <td className={`py-2.5 px-3 text-right tabular-nums ${r.vsAvg == null ? "text-gray-300" : r.vsAvg <= 0 ? "text-emerald-600" : "text-rose-600"}`}>{r.vsAvg == null ? "—" : `${r.vsAvg > 0 ? "+" : ""}${r.vsAvg}%`}</td>
+                      <td className={`py-2.5 px-3 text-right tabular-nums ${r.frequency > 3.5 ? "text-amber-600 font-semibold" : "text-gray-500"}`}>{r.frequency || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {data.best && data.worst && data.best.name !== data.worst.name && (
+              <div className="text-[12.5px] text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 mt-3">
+                💸 Best CPL: <b>{data.best.name}</b> at {fmtINR(data.best.cpl)} · Worst: <b>{data.worst.name}</b> at {fmtINR(data.worst.cpl)}. Shifting budget toward the best campaign lowers blended CPL.
+              </div>
+            )}
+          </div>
+
+          {/* Delivery diagnostics — evidence */}
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Delivery diagnostics — the actual checks (deterministic)</div>
+            <div className="space-y-2">
+              {data.diagnostics.map((d) => (
+                <div key={d.key} className="border border-gray-100 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`}>{SEV[d.status].dot} {d.label}</span>
+                  </div>
+                  <div className="text-[12.5px] text-gray-800"><b className="text-gray-500 font-medium">Proof:</b> {d.evidence}</div>
+                  {d.fix && <div className="text-[12px] text-gray-600 mt-1"><b className="text-gray-500 font-medium">Fix:</b> {d.fix}</div>}
+                </div>
+              ))}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-3">Each diagnostic is a fixed threshold checked against your live Meta numbers — a flag is true or it doesn&apos;t appear. {data.aiUsed ? "The narrative above is written by Perplexity on top of these numbers." : "The narrative is generated deterministically from these numbers."}</div>
+          </div>
+        </div>
       </div>
     </div>
   );

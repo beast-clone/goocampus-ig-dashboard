@@ -3,7 +3,9 @@
 // model can ground marketing suggestions in current best practices + cite sources.
 // This is the ONLY LLM provider in the dashboard — no OpenAI anywhere.
 
-const KEY = process.env.PERPLEXITY_API_KEY || "";
+// The key is stored as PLANNER_SEARCH_KEY in this project (Post Planner + the
+// Integrations/Diagnostics tab use it); accept either name so the shared AI layer works.
+const KEY = process.env.PERPLEXITY_API_KEY || process.env.PLANNER_SEARCH_KEY || "";
 
 export function hasAI(): boolean {
   return Boolean(KEY);
