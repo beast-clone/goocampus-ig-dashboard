@@ -305,7 +305,7 @@ export function HopeOverview() {
             </span>
             <HubNotificationBell />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 38, height: 38, borderRadius: 999, background: `linear-gradient(135deg, ${C.primary}, ${C.teal})`, display: "grid", placeItems: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>ME</span>
+              <span style={{ width: 38, height: 38, borderRadius: 999, background: `linear-gradient(135deg, ${C.primary}, ${C.teal})`, display: "grid", placeItems: "center", color: "#fff", fontWeight: 600, fontSize: 14 }}>ME</span>
               <div style={{ lineHeight: 1.2 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>Maheen Ejaz</div>
                 <div style={{ fontSize: 11.5, color: C.muted }}>Co-founder &amp; CMO</div>
@@ -335,7 +335,7 @@ export function HopeOverview() {
           {isMonthly && months.length > 0 && (
             <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: "12px 14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginRight: 4 }}><IconCalendarEvent size={15} /> Month</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginRight: 4 }}><IconCalendarEvent size={15} /> Month</span>
                 {months.map((m) => {
                   const on = selectedMonth?.key === m.key;
                   return (
@@ -403,7 +403,7 @@ export function HopeOverview() {
                 <Card>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
                     <div>
-                      <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.4px" }}>{t ? fmt(chartMetric === "reach" ? t.reach : t.engagement) : "—"}</div>
+                      <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.4px" }}>{t ? fmt(chartMetric === "reach" ? t.reach : t.engagement) : "—"}</div>
                       <div style={{ fontSize: 13, color: C.muted }}>{chartMetric === "reach" ? "Reach" : "Engagement"} this period</div>
                     </div>
                     {/* Reach / Engagement toggle — switches the number + graph below */}
@@ -424,7 +424,7 @@ export function HopeOverview() {
                 </Card>
 
                 <Card>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Who you reached</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Who you reached</div>
                   <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Audience split</div>
                   <GenderDonut gender={aud?.gender || []} />
                   <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 9 }}>
@@ -446,7 +446,7 @@ export function HopeOverview() {
               <Card>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                   <IconTrophy size={18} color={C.primary} />
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>Top performing posts</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Top performing posts</div>
                   <span style={{ marginLeft: "auto", fontSize: 12.5, color: C.muted }}>ranked by reach</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
@@ -459,15 +459,15 @@ export function HopeOverview() {
                       <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                          <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 11.5, fontWeight: 700, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
-                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                          <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 11.5, fontWeight: 600, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
+                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
                           <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, color: C.muted, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(post.reach || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(post.likes || 0)}</span>
-                            <span style={{ marginLeft: "auto", color: C.success, fontWeight: 700 }}>{er}% ER</span>
+                            <span style={{ marginLeft: "auto", color: C.success, fontWeight: 600 }}>{er}% ER</span>
                           </div>
                         </div>
                       </div>
@@ -482,7 +482,7 @@ export function HopeOverview() {
               {/* Latest posts — now below Top performing */}
               <Card>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>Latest posts</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Latest posts</div>
                   <span style={{ fontSize: 12.5, color: C.primary, fontWeight: 600 }}>View all →</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
@@ -494,7 +494,7 @@ export function HopeOverview() {
                       <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
                           <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
@@ -609,7 +609,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
   return (
     <Card>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.heading }}>Old winners worth reposting</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth reposting</div>
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Top-reaching posts from the last 90 days that could hit again with fresh eyes. Send to Scheduler in one click.</div>
       </div>
       {loading ? (
@@ -628,7 +628,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
               <div key={p.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, display: "flex", flexDirection: "column" }}>
                 <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
                   {p.mediaUrl ? <img src={p.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                  <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                  <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                 </div>
                 <div style={{ padding: "11px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
                   <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
@@ -661,13 +661,13 @@ function HopePostMix({ mix }: { mix: { total: number; entries: { type: string; c
   const dominant = mix.entries[0];
   return (
     <Card>
-      <div style={{ fontSize: 16, fontWeight: 700, color: C.heading }}>Post mix</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Post mix</div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 18 }}>What formats you posted, and what the split means.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
         <div style={{ position: "relative", width: 132, height: 132, flexShrink: 0 }}>
           <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: gradient }} />
           <div style={{ position: "absolute", inset: 15, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center", textAlign: "center" }}>
-            <div><div style={{ fontSize: 25, fontWeight: 700, color: C.heading }}>{mix.total}</div><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
+            <div><div style={{ fontSize: 25, fontWeight: 600, color: C.heading }}>{mix.total}</div><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 13 }}>
@@ -678,14 +678,14 @@ function HopePostMix({ mix }: { mix: { total: number; entries: { type: string; c
                 <div><span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{m.label}</span> <span style={{ fontSize: 12, color: C.muted }}>· {e.count} posts</span></div>
                 <div style={{ height: 6, background: "#EEF1FB", borderRadius: 99, marginTop: 4, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${e.pct}%`, background: m.color, borderRadius: 99 }} /></div>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: C.heading, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Math.round(e.pct)}%</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.heading, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Math.round(e.pct)}%</span>
             </div>
           ); })}
         </div>
       </div>
       {dominant && (
         <div style={{ marginTop: 18, background: "#F4F6FF", border: "1px solid #E1E7FE", borderRadius: 12, padding: "12px 15px" }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
           <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.55 }}>
             {carouselPct >= 50
               ? <>You&rsquo;re <b>Carousel-heavy</b> — great for the followers you already have, but <b>Reels</b> are the format IG shows to NEW people. Bumping Reels from <b>{Math.round(reelPct)}%</b> toward <b>~40%</b> could grow your audience faster.</>
@@ -708,20 +708,20 @@ function HopeFormatWins({ rows }: { rows: { type: string; count: number; avgReac
   return (
     <Card>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.heading }}>Which format wins</div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "#fff", background: wm.color, padding: "4px 11px", borderRadius: 99 }}><IconTrophy size={13} /> {wm.label} — top reach</span>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Which format wins</div>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#fff", background: wm.color, padding: "4px 11px", borderRadius: 99 }}><IconTrophy size={13} /> {wm.label} — top reach</span>
       </div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>Average performance per format, so you can see what to make more of.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {rows.map((r) => { const m = fmtMeta(r.type); const isWin = r.type === winner.type; return (
           <div key={r.type} style={{ border: `1px solid ${isWin ? m.color + "55" : C.line}`, background: isWin ? `linear-gradient(135deg, ${m.color}0F, #fff)` : "#fff", borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} /><span style={{ fontSize: 14.5, fontWeight: 700, color: C.heading }}>{m.label}</span><span style={{ fontSize: 11.5, color: C.muted }}>· {r.count} posts</span></div>
-              {isWin && <span style={{ fontSize: 10, fontWeight: 700, color: m.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>Top reach</span>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} /><span style={{ fontSize: 14.5, fontWeight: 600, color: C.heading }}>{m.label}</span><span style={{ fontSize: 11.5, color: C.muted }}>· {r.count} posts</span></div>
+              {isWin && <span style={{ fontSize: 10, fontWeight: 600, color: m.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>Top reach</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <span style={{ flex: 1, height: 10, background: "#EEF1FB", borderRadius: 99, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${(r.avgReach / maxReach) * 100}%`, background: m.color, borderRadius: 99 }} /></span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.heading, minWidth: 66, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.avgReach)}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.heading, minWidth: 66, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.avgReach)}</span>
             </div>
             <div style={{ display: "flex", gap: 22, fontSize: 12 }}>
               <span style={{ color: C.muted }}>Avg reach per post</span>
@@ -744,15 +744,15 @@ function HopeHowToRead() {
   ];
   return (
     <Card>
-      <div style={{ fontSize: 16, fontWeight: 700, color: C.heading }}>How to read this — planning your week vs your month</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>How to read this — planning your week vs your month</div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>The longer the range, the more trustworthy the signal.</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 14 }}>
         {steps.map((s) => (
           <div key={s.n} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 12, right: 16, fontSize: 46, fontWeight: 800, color: `${s.color}26`, lineHeight: 1, pointerEvents: "none" }}>{s.n}</div>
+            <div style={{ position: "absolute", top: 12, right: 16, fontSize: 46, fontWeight: 600, color: `${s.color}26`, lineHeight: 1, pointerEvents: "none" }}>{s.n}</div>
             <span style={{ position: "relative", width: 40, height: 40, borderRadius: 11, background: `${s.color}18`, color: s.color, display: "grid", placeItems: "center", marginBottom: 12 }}><s.icon size={21} stroke={1.9} /></span>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.heading }}>{s.title}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{s.range}</div>
+            <div style={{ fontSize: 14.5, fontWeight: 600, color: C.heading }}>{s.title}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{s.range}</div>
             <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, position: "relative" }}>{s.body}</div>
           </div>
         ))}
@@ -799,7 +799,7 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: typeof IconLayoutGrid
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, marginBottom: -8 }}>
       <span style={{ width: 38, height: 38, borderRadius: 10, background: C.chip, color: C.primary, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon size={20} stroke={1.8} /></span>
       <div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: C.heading, letterSpacing: "-0.2px" }}>{title}</div>
+        <div style={{ fontSize: 17, fontWeight: 600, color: C.heading, letterSpacing: "-0.2px" }}>{title}</div>
         <div style={{ fontSize: 12.5, color: C.muted }}>{sub}</div>
       </div>
     </div>
@@ -825,12 +825,12 @@ function StatCard({ label, value, delta, flat, detail, action, badge, est }: { l
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
             {label}
-            {est && <span title="Estimated from reach — Instagram doesn't expose this metric directly" style={{ fontSize: 9, fontWeight: 700, color: C.muted, background: C.bg, border: `1px solid ${C.line}`, padding: "1px 5px", borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "help" }}>est</span>}
+            {est && <span title="Estimated from reach — Instagram doesn't expose this metric directly" style={{ fontSize: 9, fontWeight: 600, color: C.muted, background: C.bg, border: `1px solid ${C.line}`, padding: "1px 5px", borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "help" }}>est</span>}
           </div>
-          <div style={{ fontSize: 23, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.15 }}>{value}</div>
+          <div style={{ fontSize: 23, fontWeight: 600, letterSpacing: "-0.5px", lineHeight: 1.15 }}>{value}</div>
           {hasDelta
             ? <div style={{ fontSize: 12, fontWeight: 600, color: col }}>{up ? "▲" : "▼"} {Math.abs(dv).toFixed(1)}%</div>
-            : badge ? <div style={{ display: "inline-block", marginTop: 3, fontSize: 10, fontWeight: 700, color: C.primary, background: "#EEF1FB", padding: "2px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{badge}</div> : null}
+            : badge ? <div style={{ display: "inline-block", marginTop: 3, fontSize: 10, fontWeight: 600, color: C.primary, background: "#EEF1FB", padding: "2px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{badge}</div> : null}
         </div>
       </div>
       {detail && <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.4 }}>{detail}</div>}
@@ -854,7 +854,7 @@ function GenderDonut({ gender }: { gender: { label: string; value: number }[] })
           })}
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-          <div><div style={{ fontSize: 19, fontWeight: 700 }}>{kfmt(total)}</div><div style={{ fontSize: 10.5, color: C.muted }}>reached</div></div>
+          <div><div style={{ fontSize: 19, fontWeight: 600 }}>{kfmt(total)}</div><div style={{ fontSize: 10.5, color: C.muted }}>reached</div></div>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -906,7 +906,7 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
           <div style={{ position: "absolute", left: `${hx}%`, top: 0, bottom: 0, width: 1, background: "rgba(35,45,66,0.18)", transform: "translateX(-0.5px)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", left: `${hx}%`, top: `${hy}%`, width: 11, height: 11, borderRadius: 99, background: color, border: "2.5px solid #fff", transform: "translate(-50%, -50%)", boxShadow: "0 2px 6px rgba(35,45,66,0.25)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", left: `${hx}%`, top: 6, transform: hx > 62 ? "translateX(calc(-100% - 10px))" : "translateX(10px)", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: SHADOW, padding: "8px 11px", fontSize: 12, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 2 }}>
-            <div style={{ fontWeight: 700, color: C.heading, marginBottom: 3 }}>{pts[hover].date}</div>
+            <div style={{ fontWeight: 600, color: C.heading, marginBottom: 3 }}>{pts[hover].date}</div>
             <div style={{ color: C.muted, display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: color }} /> {label} <b style={{ color: C.heading, marginLeft: 2 }}>{fmt(pts[hover][metric] || 0)}</b></div>
           </div>
         </>

@@ -236,3 +236,12 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 ## Parts 3 & 4 — status (covered during Parts 2 & 5)
 - **Part 3 (demo/placeholder):** Stories demo-grid RESOLVED (live + Supabase history); Overview derived engagement/profile-visits now labeled **EST**; LinkedIn main honestly badged "Demo data"; Content Radar connect-chips are honest placeholders (by design); Publishing Calendar demo toggle defaults OFF + opens on current month; Tools static by design. All either real or clearly labeled.
 - **Part 4 (buttons wired):** verified live in Part 2 — Content Radar article-reader + Manage-alerts modals open; account switcher + date range re-fetch; Analyze-with-AI / Generate-insights call Perplexity and render; Scheduler set-time/suggest/enqueue/reschedule/cancel present; Marketing Hub add-column/save-view/detail-modal; My Day capsules; **header bell now wired (above).** No dead clickable buttons found beyond the by-design Content Radar connect placeholders.
+
+## Hope UI theme-consistency audit (code-level, all tabs)
+
+Audited every hope-preview tab + shared component against the Hope UI tokens.
+- **Colours** ✅ — on-token everywhere. Overview uses JS constants (primary #3A57E8, ink #232D42, muted #8A92A6, white cards, #F5F6FA canvas) that match the tokens; `.hope-scope` also auto-maps the legacy purple #6D5AE6 → #3A57E8. No off-brand hardcoded colours found.
+- **Shadows** ✅ — `.hope-scope` strips Tailwind `shadow-*` classes; Overview's `SHADOW` constant = "none". Cards are flat. (Two brand-tinted glows remain on the Overview hero band + a rank badge — intentional accents, not the grey V1 card-shadow anti-pattern.)
+- **Font weight** 🟢 FIXED — Overview had 30× inline `fontWeight: 700` + 1× `800` (bypassing `.hope-scope`'s `.font-bold`→600 cap), rendering HEAVIER than every other tab (which top out at 600). No other file used 700. Normalised all to 600. Now uniform.
+- **Font family** 🟢 FIXED — only 3 pages (Overview, Calendar, My Day) loaded Inter via `next/font`; the root layout set no font, so the other ~22 tabs fell back to the system font (SF Pro on macOS). Loaded **Inter globally on `<html>`** in `app/layout.tsx`. Verified: `document.body` computes Inter on both the Overview and a previously-system-font tab (Content Review). Typography now identical across all tabs.
+- **Spelling** ✅ — codebase-wide typo scan clean; no user-facing misspellings (only British spellings + `cancelled` in comments/vars).
