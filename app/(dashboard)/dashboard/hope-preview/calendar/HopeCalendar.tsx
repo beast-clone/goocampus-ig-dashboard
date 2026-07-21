@@ -536,7 +536,7 @@ const HCAL_CSS = `
 .hcal-hero::before{content:"";position:absolute;right:120px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)}
 .hcal-hero-txt{position:relative;z-index:1}
 .hcal-hero-tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:rgba(255,255,255,.2);padding:.2rem .55rem;border-radius:20px;margin-bottom:.55rem}
-.hcal-hero-txt h1{margin:0;font-size:1.7rem;font-weight:800;letter-spacing:-.01em}
+.hcal-hero-txt h1{margin:0;font-size:1.7rem;font-weight:700;letter-spacing:-.01em}
 .hcal-hero-txt p{margin:.35rem 0 0;font-size:.9rem;color:rgba(255,255,255,.82)}
 .hcal-hero-demo{position:relative;z-index:1;display:flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:600;color:#fff;background:rgba(255,255,255,.16);padding:.45rem .8rem;border-radius:9px;cursor:pointer;user-select:none;backdrop-filter:blur(2px)}
 .hcal-hero-demo input{position:absolute;opacity:0;width:0;height:0}

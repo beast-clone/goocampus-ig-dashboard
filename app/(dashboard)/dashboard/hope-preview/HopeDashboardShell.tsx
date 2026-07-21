@@ -67,34 +67,52 @@ export function HopeDashboardShell({
   const account = ACCOUNTS.find((a) => a.id === effectiveAccountId);
   const headerSub = subtitle ?? account?.handle;
 
+  // A control bar shows only if there's something in it (range and/or account).
+  const showControls = !hideRange || !hideAccountPicker;
+
   return (
     <HopeShell active={active} title={title} hideTopbar>
       <div className="hope-scope">
-        <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold flex items-center gap-3 text-[#232D42]">
-              {title}
-              {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
-            </h1>
-            {headerSub && <p className="text-sm text-gray-500 mt-1.5">{headerSub}</p>}
+        {/* Brand hero band — uniform across every tab (mirrors the Publishing Calendar). */}
+        <div
+          className="relative overflow-hidden rounded-2xl px-7 pt-6 pb-16 text-white"
+          style={{ background: "linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%)" }}
+        >
+          <div className="relative z-10">
+            <h1 className="text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700 }}>{title}</h1>
+            {headerSub && <p className="mt-1.5 text-sm text-white/80">{headerSub}</p>}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {!hideAccountPicker && (profile ? (
-              <span className="rounded-lg bg-brand-light text-brand px-3 py-2 text-sm font-medium">{account?.label ?? profile} · profile view</span>
-            ) : (
-              <select
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
-              >
-                {ACCOUNTS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-              </select>
-            ))}
-            <TokenExpiryBadge />
-            {!hideRange && <DateRangePicker value={range} onChange={setRange} />}
-            {!hideRange && <PdfExportButton accountId={profile ?? accountId} range={range} />}
-          </div>
+          <div className="pointer-events-none absolute -right-10 -top-16 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)" }} />
+          <div className="pointer-events-none absolute right-28 -bottom-24 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)" }} />
         </div>
+
+        {/* White control card, pulled up to overlap the band (matches the calendar). */}
+        {showControls ? (
+          <div className="relative z-10 mx-1 -mt-10 mb-6 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-5 py-3">
+            <div className="flex items-center gap-2 min-h-[38px]">
+              {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {!hideAccountPicker && (profile ? (
+                <span className="rounded-lg bg-brand-light text-brand px-3 py-2 text-sm font-medium">{account?.label ?? profile} · profile view</span>
+              ) : (
+                <select
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
+                >
+                  {ACCOUNTS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                </select>
+              ))}
+              <TokenExpiryBadge />
+              {!hideRange && <DateRangePicker value={range} onChange={setRange} />}
+              {!hideRange && <PdfExportButton accountId={profile ?? accountId} range={range} />}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6" />
+        )}
+
         {children({ accountId: profile ?? accountId, compareAll: false, range, setRange })}
       </div>
     </HopeShell>
