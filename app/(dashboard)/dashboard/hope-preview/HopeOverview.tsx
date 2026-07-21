@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  IconLayoutGrid, IconChartLine, IconCalendarEvent, IconSearch,
+  IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
@@ -296,9 +296,6 @@ export function HopeOverview() {
       {/* ───────── Main ───────── */}
       <main style={{ flex: 1, minWidth: 0 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 28px", background: C.card, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 5 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 10, padding: "9px 14px", width: 320, color: C.muted }}>
-            <IconSearch size={17} /><span style={{ fontSize: 13.5 }}>Search…</span>
-          </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E9FBEF", color: C.success, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 999 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
