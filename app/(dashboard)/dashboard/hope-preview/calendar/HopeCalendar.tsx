@@ -146,11 +146,9 @@ export function HopeCalendar() {
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [view, setView] = useState<View>("month");
-  const [anchor, setAnchor] = useState(() => {
-    const now = new Date();
-    const anchorYear = now.getMonth() > 7 ? now.getFullYear() + 1 : now.getFullYear();
-    return new Date(anchorYear, 7, 1); // demo content sits in August of the anchor year
-  });
+  // Open on the current month so real scheduled/published posts are visible on load.
+  // (The demo grid, when toggled on, still fills whatever month is in view.)
+  const [anchor, setAnchor] = useState(() => new Date());
   const [selected, setSelected] = useState<ScheduledPost | null>(null);
   // Default OFF — the calendar shows only REAL scheduled/published posts. The toggle
   // can turn the sample posts back on for a fuller-looking demo if ever needed.
