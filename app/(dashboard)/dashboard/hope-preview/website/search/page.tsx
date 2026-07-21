@@ -9,7 +9,8 @@ import { useApi } from "@/lib/use-api";
 const BING = "#0F9D8C"; // Bing teal
 
 type Resp = {
-  source: "live";
+  source: "live" | "stored";
+  history?: { days: number; storedTotal: number; from: string; to: string };
   siteUrl: string;
   latencyMs: number;
   summary: { clicks: number; impressions: number; ctr: number; avgPosition: number };
@@ -28,14 +29,15 @@ function fmt(n: number): string {
 
 export default function SearchPage() {
   return (
-    <HopeDashboardShell active="website" title="Website · Bing" subtitle={`Bing Webmaster — ${SITE}`} hideAccountPicker hideRange>
-      {() => <Inner />}
+    <HopeDashboardShell active="website" title="Website · Bing" subtitle={`Bing Webmaster — ${SITE}`} hideAccountPicker>
+      {({ range }) => <Inner range={range} />}
     </HopeDashboardShell>
   );
 }
 
-function Inner() {
-  const { data, error, isLoading, refresh } = useApi<Resp>("/api/website/search", { revalidateOnFocus: false });
+function Inner({ range }: { range: { from: string; to: string } }) {
+  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  const { data, error, isLoading, refresh } = useApi<Resp>(`/api/website/search?${qs}`, { revalidateOnFocus: false });
   const bingUrl = `https://www.bing.com/webmasters/home?siteUrl=https://${SITE}/`;
   const noData = data && data.summary.impressions === 0 && !data.queries.length;
 
@@ -45,9 +47,12 @@ function Inner() {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: BING }} />
           <span className="text-sm font-semibold text-gray-800">{SITE}</span>
-          <span className="text-[11px] text-gray-400">· search performance</span>
+          <span className="text-[11px] text-gray-400">· {data?.source === "stored" ? `search · ${data.history?.days} days of stored history` : "search performance"}</span>
         </div>
         <div className="flex items-center gap-3">
+          {data?.history != null && (data.history.storedTotal ?? 0) > 0 && (
+            <span className="text-[11px] px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">◷ {data.history.storedTotal} days saved</span>
+          )}
           {data?.source === "live" && (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200">● Live · Bing Webmaster</span>
           )}

@@ -10,7 +10,8 @@ const CL = "#6E48F8"; // Clarity violet
 
 type Cat = { name: string; value: number };
 type Resp = {
-  source: "live";
+  source: "live" | "stored";
+  history?: { days: number; storedTotal: number; from: string; to: string };
   projectId: string;
   numOfDays: number;
   latencyMs: number;
@@ -41,15 +42,16 @@ function secs(s: number): string {
 
 export default function BehaviorPage() {
   return (
-    <HopeDashboardShell active="website" title="Website · Clarity" subtitle={`Microsoft Clarity — ${SITE}`} hideAccountPicker hideRange>
-      {() => <Inner />}
+    <HopeDashboardShell active="website" title="Website · Clarity" subtitle={`Microsoft Clarity — ${SITE}`} hideAccountPicker>
+      {({ range }) => <Inner range={range} />}
     </HopeDashboardShell>
   );
 }
 
-function Inner() {
+function Inner({ range }: { range: { from: string; to: string } }) {
+  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
   // Clarity allows only 10 calls/day → don't revalidate on focus; lean on the 3h server cache.
-  const { data, error, isLoading, refresh } = useApi<Resp>("/api/website/behavior", { revalidateOnFocus: false, dedupingInterval: 3 * 60 * 60_000 });
+  const { data, error, isLoading, refresh } = useApi<Resp>(`/api/website/behavior?${qs}`, { revalidateOnFocus: false, dedupingInterval: 3 * 60 * 60_000 });
   const clarityUrl = data?.projectId ? `https://clarity.microsoft.com/projects/view/${data.projectId}/dashboard` : "https://clarity.microsoft.com/";
 
   return (
@@ -58,9 +60,14 @@ function Inner() {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: CL }} />
           <span className="text-sm font-semibold text-gray-800">{SITE}</span>
-          <span className="text-[11px] text-gray-400">· behavior, last 3 days (Clarity API limit)</span>
+          <span className="text-[11px] text-gray-400">· {data?.source === "stored" ? `${data.history?.days} days of stored history` : "behavior · last 3 days (Clarity live)"}</span>
         </div>
         <div className="flex items-center gap-3">
+          {data?.history != null && (data.history.storedTotal ?? 0) > 0 && (
+            <span className={`text-[11px] px-2.5 py-1 rounded-full border ${data.source === "stored" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+              {data.source === "stored" ? "◷ From saved history" : `◷ Building history · ${data.history.storedTotal} day${data.history.storedTotal === 1 ? "" : "s"} saved`}
+            </span>
+          )}
           {data?.source === "live" && (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-violet-50 text-violet-800 border border-violet-200">● Live · Microsoft Clarity</span>
           )}

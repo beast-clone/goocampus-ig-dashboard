@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { snapshotAllAccountsForDay } from "@/lib/snapshot";
+import { snapshotClarityForDay, snapshotBingForDay } from "@/lib/web-history";
 
 // Daily cron endpoint. Call this once a day (n8n) to record each account's
 // metrics into Supabase so we keep history beyond Meta's 30-day cutoff.
@@ -47,10 +48,16 @@ export async function GET(req: Request) {
     all.push(...r);
   }
 
+  // Website history — Clarity/Bing expose only a tiny live window, so snapshot
+  // the most recent day into Supabase (Bing's per-day rows backfill in one shot).
+  const webDate = dates[dates.length - 1];
+  const [clarity, bing] = await Promise.all([snapshotClarityForDay(webDate), snapshotBingForDay(webDate)]);
+
   const summary = {
     daysSnapshotted: dates.length,
     rowsWritten: (all as { ok: boolean }[]).filter((r) => r.ok).length,
     rowsFailed: (all as { ok: boolean }[]).filter((r) => !r.ok).length,
+    web: { clarity, bing },
     latencyMs: Date.now() - t0,
     dates,
   };
