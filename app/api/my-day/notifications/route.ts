@@ -115,14 +115,23 @@ export async function GET(req: Request) {
       } else if (e.action === "swap_requested") {
         // A packed producer offered their not-started list — MANYA picks which
         // task to move; the candidates travel in the activity's detail payload.
-        let candidates: SwapCand[] = [];
-        try {
-          const d = (e as { detail?: unknown }).detail;
-          candidates = (typeof d === "string" ? JSON.parse(d) : d) as SwapCand[] || [];
-        } catch { candidates = []; }
-        if (candidates.length && e.actor_key) {
-          target = ["manya"];
-          n = { kind: "message", emoji: "🔁", title: `${nameOf(e.actor_key)} is packed — pick a task to move`, sub: `Offers ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} to swap for "${short}".`, postId: e.post_id, swap: { from: e.actor_key, candidates } };
+        //
+        // RESOLVED-CHECK: the request is done once the pending task now belongs to
+        // the requester (Manya moved a task + handed it over — the takeover set
+        // owner_key = the requester). Skip it so a handled request doesn't keep
+        // re-appearing on reload (the request count then correctly drops to zero).
+        if (post && post.owner_key === e.actor_key) {
+          n = null;
+        } else {
+          let candidates: SwapCand[] = [];
+          try {
+            const d = (e as { detail?: unknown }).detail;
+            candidates = (typeof d === "string" ? JSON.parse(d) : d) as SwapCand[] || [];
+          } catch { candidates = []; }
+          if (candidates.length && e.actor_key) {
+            target = ["manya"];
+            n = { kind: "message", emoji: "🔁", title: `${nameOf(e.actor_key)} is packed — pick a task to move`, sub: `Offers ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} to swap for "${short}".`, postId: e.post_id, swap: { from: e.actor_key, candidates } };
+          }
         }
       } else if (e.action === "due_date_changed" || e.action === "rescheduled") {
         // A producer moved a date (e.g. make-room rolled a task to tomorrow) →

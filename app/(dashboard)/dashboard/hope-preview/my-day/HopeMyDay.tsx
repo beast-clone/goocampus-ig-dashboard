@@ -2310,33 +2310,38 @@ export function HopeMyDay() {
                         to move; picking rolls it a day AND hands the pending task over. */}
                     {n.swap && n.postId && (
                       <div style={{ marginTop: ".6rem", display: "flex", flexDirection: "column", gap: ".4rem" }}>
-                        {n.swap.candidates.map((c) => (
-                          <div key={c.id} className="claim-row" style={{ borderBottom: "none", padding: ".3rem 0" }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div className="claim-title">{c.title}</div>
-                              <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""}</div>
+                        {n.swap.candidates.map((c) => {
+                          // The move rolls this task one day forward — compute + SHOW that
+                          // target date so it's clear where it's going (not a silent move).
+                          const rollBase = c.due ? new Date(c.due + "T00:00:00") : new Date();
+                          rollBase.setDate(rollBase.getDate() + 1);
+                          const next = `${rollBase.getFullYear()}-${String(rollBase.getMonth() + 1).padStart(2, "0")}-${String(rollBase.getDate()).padStart(2, "0")}`;
+                          const rollLabel = rollBase.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+                          return (
+                            <div key={c.id} className="claim-row" style={{ borderBottom: "none", padding: ".3rem 0" }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div className="claim-title">{c.title}</div>
+                                <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""} · <b style={{ color: "#3A57E8" }}>→ moves to {rollLabel}</b></div>
+                              </div>
+                              <button
+                                className="btn primary sm"
+                                onClick={() => {
+                                  dismissNotif(n.id);
+                                  fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, actor: person, fields: { due_date: next } }) })
+                                    .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
+                                    .then(async (res) => {
+                                      if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+                                      else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${rollLabel} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
+                                      load();
+                                    })
+                                    .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+                                }}
+                              >
+                                Move to {rollLabel} · hand over
+                              </button>
                             </div>
-                            <button
-                              className="btn primary sm"
-                              onClick={() => {
-                                const base = c.due ? new Date(c.due) : new Date();
-                                base.setDate(base.getDate() + 1);
-                                const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
-                                dismissNotif(n.id);
-                                fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, actor: person, fields: { due_date: next } }) })
-                                  .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
-                                  .then(async (res) => {
-                                    if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-                                    else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${next} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
-                                    load();
-                                  })
-                                  .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
-                              }}
-                            >
-                              Move this · hand over
-                            </button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
