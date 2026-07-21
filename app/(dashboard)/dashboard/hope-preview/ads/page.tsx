@@ -4,7 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
-import { IconSparkles, IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 
 type AdsTotals = {
@@ -359,21 +359,21 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-5 space-y-4 bg-[#F6F7FB] rounded-b-2xl">
           {/* Executive summary */}
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Executive summary</div>
-            <div className="text-sm text-gray-800">{data.summary.verdict}</div>
+          <div className="bg-white border border-gray-100 rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3">Executive summary</div>
+            <div className="text-sm text-[#232D42] bg-brand-light border border-brand/15 rounded-lg px-3.5 py-3">{data.summary.verdict}</div>
             <div className="mt-3 space-y-1.5">
               {data.summary.recommendations.map((r, i) => (
-                <div key={i} className="flex gap-2.5 items-start text-[13px]"><RecBadge n={i + 1} /><span>{r}</span></div>
+                <div key={i} className="flex gap-2.5 items-start text-[13px] bg-[#F6F7FB] border border-gray-100 rounded-lg px-3 py-2"><RecBadge n={i + 1} /><span className="text-gray-800">{r}</span></div>
               ))}
             </div>
           </div>
 
           {/* Budget efficiency table */}
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Budget efficiency — where every rupee goes</div>
+          <div className="bg-white border border-gray-100 rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3">Budget efficiency — where every rupee goes</div>
             <div className="overflow-x-auto border border-gray-100 rounded-xl">
               <table className="w-full text-[13px] min-w-[640px]">
                 <thead><tr className="bg-[#F3F5FA] text-[#8A92A6] text-left border-b border-gray-100">
@@ -399,18 +399,19 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
               </table>
             </div>
             {data.best && data.worst && data.best.name !== data.worst.name && (
-              <div className="text-[12.5px] text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 mt-3">
-                💸 Best CPL: <b>{data.best.name}</b> at {fmtINR(data.best.cpl)} · Worst: <b>{data.worst.name}</b> at {fmtINR(data.worst.cpl)}. Shifting budget toward the best campaign lowers blended CPL.
+              <div className="flex gap-2 items-start text-[12.5px] text-[#232D42] bg-brand-light border border-brand/15 rounded-lg px-3 py-2.5 mt-3">
+                <IconBulb size={16} stroke={1.8} className="text-brand shrink-0 mt-px" />
+                <span>Best CPL: <b>{data.best.name}</b> at {fmtINR(data.best.cpl)} · Worst: <b>{data.worst.name}</b> at {fmtINR(data.worst.cpl)}. Shifting budget toward the best campaign lowers blended CPL.</span>
               </div>
             )}
           </div>
 
           {/* Delivery diagnostics — evidence */}
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Delivery diagnostics — the actual checks (deterministic)</div>
+          <div className="bg-white border border-gray-100 rounded-xl p-5">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3">Delivery diagnostics — the actual checks (deterministic)</div>
             <div className="space-y-2">
               {data.diagnostics.map((d) => (
-                <div key={d.key} className="border border-gray-100 rounded-xl p-3">
+                <div key={d.key} className="bg-[#F6F7FB] border border-gray-100 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
                     {(() => { const I = SEV[d.status].Icon; return (
                       <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`}><I size={12} stroke={2.2} /> {d.label}</span>
