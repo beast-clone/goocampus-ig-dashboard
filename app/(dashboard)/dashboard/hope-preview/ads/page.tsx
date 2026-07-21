@@ -27,6 +27,23 @@ type Ad = AdsTotals & {
   ad_id: string; ad_name: string; adset_id: string; adset_name: string;
   creative_thumbnail: string | null; creative_body: string | null;
   creative_title: string | null; permalink: string | null;
+  status: string | null; start_time: string | null; end_time: string | null; objective: string | null;
+};
+
+// Ad flight badge — "1 Jul → ongoing" (live) or "1 Jul → 21 Jul" (ended). Green when active.
+function flightLabel(ad: Ad): { text: string; active: boolean } | null {
+  if (!ad.start_time && !ad.status) return null;
+  const active = ad.status === "ACTIVE";
+  const d = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : null);
+  const start = d(ad.start_time);
+  const end = d(ad.end_time);
+  const tail = end || (active ? "ongoing" : "paused");
+  return { text: start ? `${start} → ${tail}` : active ? "Active" : "Paused", active };
+}
+const OBJECTIVE_LABEL: Record<string, string> = {
+  OUTCOME_LEADS: "Lead generation", LEAD_GENERATION: "Lead generation", OUTCOME_TRAFFIC: "Traffic",
+  LINK_CLICKS: "Traffic", OUTCOME_ENGAGEMENT: "Engagement", OUTCOME_SALES: "Sales", CONVERSIONS: "Conversions",
+  OUTCOME_AWARENESS: "Awareness", MESSAGES: "Messages", OUTCOME_APP_PROMOTION: "App promotion",
 };
 
 type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
@@ -929,6 +946,14 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
                       <div className="font-medium truncate" title={ad.ad_name}>{ad.ad_name}</div>
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">Ad set: {ad.adset_name}</div>
+                    {(() => { const fl = flightLabel(ad); return fl ? (
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${fl.active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                          {fl.active ? "▶" : "⏹"} {fl.text}
+                        </span>
+                        {ad.objective && <span className="text-[11px] text-gray-500">{OBJECTIVE_LABEL[ad.objective] || ad.objective}</span>}
+                      </div>
+                    ) : null; })()}
                     {ad.creative_body && <div className="text-xs text-gray-600 mt-1 line-clamp-2">{ad.creative_body}</div>}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 text-xs">
                       <Stat label="Spend" value={fmtINR(ad.spend)} />

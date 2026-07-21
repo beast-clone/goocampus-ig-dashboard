@@ -122,6 +122,11 @@ export type AdRow = AdsTotals & {
   creative_body: string | null;
   creative_title: string | null;
   permalink: string | null;
+  // Flight / config (from the ad's config edge, not insights)
+  status: string | null;      // effective_status: ACTIVE / PAUSED / …
+  start_time: string | null;  // ad set start (falls back to the ad's created_time)
+  end_time: string | null;    // ad set end (null = open-ended / ongoing)
+  objective: string | null;   // campaign objective
 };
 
 async function gget<T = unknown>(p: string, token: string, params: Record<string, string>): Promise<T> {
@@ -359,8 +364,14 @@ export async function fetchAdsForCampaign(acct: AdAccountConfig, campaignId: str
   const previews = await Promise.all(
     rows.map(async (r) => {
       try {
-        const c = await gget<{ creative?: { thumbnail_url?: string; body?: string; title?: string; effective_object_story_id?: string } }>(
-          r.ad_id, acct.token, { fields: "creative{thumbnail_url,body,title,effective_object_story_id}" }
+        const c = await gget<{
+          creative?: { thumbnail_url?: string; body?: string; title?: string; effective_object_story_id?: string };
+          effective_status?: string; created_time?: string;
+          adset?: { start_time?: string; end_time?: string };
+          campaign?: { objective?: string };
+        }>(
+          r.ad_id, acct.token,
+          { fields: "creative{thumbnail_url,body,title,effective_object_story_id},effective_status,created_time,adset{start_time,end_time},campaign{objective}" }
         );
         return {
           thumb: c.creative?.thumbnail_url || null,
@@ -369,9 +380,13 @@ export async function fetchAdsForCampaign(acct: AdAccountConfig, campaignId: str
           permalink: c.creative?.effective_object_story_id
             ? `https://www.facebook.com/${c.creative.effective_object_story_id}`
             : null,
+          status: c.effective_status || null,
+          start_time: c.adset?.start_time || c.created_time || null,
+          end_time: c.adset?.end_time || null,
+          objective: c.campaign?.objective || null,
         };
       } catch {
-        return { thumb: null, body: null, title: null, permalink: null };
+        return { thumb: null, body: null, title: null, permalink: null, status: null, start_time: null, end_time: null, objective: null };
       }
     })
   );
@@ -385,6 +400,10 @@ export async function fetchAdsForCampaign(acct: AdAccountConfig, campaignId: str
     creative_body: previews[i].body,
     creative_title: previews[i].title,
     permalink: previews[i].permalink,
+    status: previews[i].status,
+    start_time: previews[i].start_time,
+    end_time: previews[i].end_time,
+    objective: previews[i].objective,
     ...mapInsightsRow(r),
   })).sort((a, b) => b.spend - a.spend);
 }
