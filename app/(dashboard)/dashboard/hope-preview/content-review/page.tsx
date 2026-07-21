@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
-  IconPhotoOff, IconClipboardCheck,
+  IconPhotoOff, IconClipboardCheck, IconExternalLink, IconVideo,
 } from "@tabler/icons-react";
 
 // "Content Review" — the human gate between production and scheduling. A post lands
@@ -28,6 +28,49 @@ const OWNER_COLORS: Record<string, { bg: string; fg: string }> = {
 };
 const ownerColor = (o: string | null) =>
   OWNER_COLORS[(o || "").toLowerCase()] || { bg: "#F1EFE8", fg: "#5F5E5A" };
+
+// Card thumbnail. Shows the uploaded image when there is one; otherwise a clean,
+// intentional placeholder. Many produced creatives live as a private Slack link
+// (output_link) rather than an uploaded image — those can't render as an <img>,
+// so we surface a "Creative in Slack" link instead of a broken-image icon. Also
+// falls back gracefully if a real image URL fails to load.
+function Thumb({ post }: { post: ReviewPost }) {
+  const [broken, setBroken] = useState(false);
+  const isVideo = /reel|video/i.test(post.type || "") || /\.(mp4|mov|webm)(\?|$)/i.test(post.assetLink || "");
+  if (post.thumbnailUrl && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={post.thumbnailUrl}
+        alt={post.title || "creative"}
+        className="w-full h-full object-cover"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  if (post.assetLink) {
+    return (
+      <a
+        href={post.assetLink}
+        target="_blank"
+        rel="noreferrer"
+        className="w-full h-full grid place-items-center gap-1.5 text-[#8A92A6] hover:text-brand hover:bg-brand-light/50 transition"
+        title="Open the creative in Slack"
+      >
+        {isVideo ? <IconVideo size={24} stroke={1.6} /> : <IconExternalLink size={22} stroke={1.6} />}
+        <span className="text-[11px] font-medium inline-flex items-center gap-1">
+          Creative in Slack <IconExternalLink size={11} stroke={1.9} />
+        </span>
+      </a>
+    );
+  }
+  return (
+    <div className="w-full h-full grid place-items-center gap-1 text-[#A6ACBE]">
+      <IconPhotoOff size={24} stroke={1.6} />
+      <span className="text-[11px]">No preview</span>
+    </div>
+  );
+}
 
 function typeChip(t: string | null) {
   const s = (t || "").toLowerCase();
@@ -157,18 +200,7 @@ function Review() {
               >
                 {/* Media preview */}
                 <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
-                  {p.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.thumbnailUrl}
-                      alt={p.title || "creative"}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full grid place-items-center text-[#A6ACBE]">
-                      <IconPhotoOff size={26} stroke={1.6} />
-                    </div>
-                  )}
+                  <Thumb post={p} />
                   <span
                     className="absolute top-2 left-2 text-[11px] font-semibold rounded-md px-2 py-0.5"
                     style={{ background: tc.bg, color: tc.fg }}
