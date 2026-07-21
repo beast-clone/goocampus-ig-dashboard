@@ -587,13 +587,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               <span className="pill cap" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
             )}
             {onSetDuration && (
-              <MenuDropdown
-                value={task.detail.duration ?? ""}
-                onChange={(v) => onSetDuration(Number(v))}
-                placeholder="Set duration…"
-                icon={<span className="dur-ic" title="Task duration">⏱</span>}
-                options={[15, 30, 45, 60, 90, 120, 150, 180, 240].map((m) => ({ value: m, label: fmtDur(m) }))}
-              />
+              <DurationPicker value={task.detail.duration} onChange={(m) => onSetDuration(m)} />
             )}
             {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
             {timing && (
@@ -736,6 +730,54 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 }
 
 // Custom Hope-themed date picker (replaces the OS-native <input type=date> calendar).
+// Task duration — quick presets PLUS a custom hours/minutes entry (no fixed set).
+function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [h, setH] = useState("");
+  const [m, setM] = useState("");
+  const PRESETS = [15, 30, 45, 60, 90, 120, 180];
+  const applyCustom = () => {
+    const mins = (parseInt(h || "0", 10) || 0) * 60 + (parseInt(m || "0", 10) || 0);
+    if (mins > 0) { onChange(mins); setOpen(false); setH(""); setM(""); }
+  };
+  const chipStyle = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 500, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: on ? "1px solid #3A57E8" : "1px solid #E6E8EE", background: on ? "#3A57E8" : "#fff", color: on ? "#fff" : "#232D42" });
+  const S: Record<string, React.CSSProperties> = {
+    trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 8, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" },
+    pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)" },
+    chips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+    row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
+    num: { width: 46, textAlign: "center", fontSize: 13, border: "1px solid #E6E8EE", borderRadius: 7, padding: "5px 4px", outline: "none" },
+    set: { marginLeft: "auto", fontSize: 12, fontWeight: 500, background: "#3A57E8", color: "#fff", border: "none", borderRadius: 7, padding: "6px 12px", cursor: "pointer" },
+    lbl: { fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 },
+  };
+  return (
+    <span style={{ position: "relative", display: "inline-block" }}>
+      <button type="button" style={S.trigger} onClick={() => setOpen((o) => !o)}>
+        <span title="Task duration">⏱</span> {value ? fmtDur(value) : "Set duration…"} <span style={{ opacity: 0.5, fontSize: 10 }}>▾</span>
+      </button>
+      {open && (
+        <>
+          <span style={{ position: "fixed", inset: 0, zIndex: 59 }} onClick={() => setOpen(false)} />
+          <div style={S.pop} onClick={(e) => e.stopPropagation()}>
+            <div style={S.lbl}>Quick pick</div>
+            <div style={S.chips}>
+              {PRESETS.map((p) => (
+                <button key={p} type="button" style={chipStyle(value === p)} onClick={() => { onChange(p); setOpen(false); }}>{fmtDur(p)}</button>
+              ))}
+            </div>
+            <div style={S.lbl}>Custom</div>
+            <div style={S.row}>
+              <input type="number" min={0} max={12} value={h} onChange={(e) => setH(e.target.value)} placeholder="0" style={S.num} /><span style={{ fontSize: 12, color: "#8A92A6" }}>h</span>
+              <input type="number" min={0} max={59} value={m} onChange={(e) => setM(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") applyCustom(); }} placeholder="0" style={S.num} /><span style={{ fontSize: 12, color: "#8A92A6" }}>m</span>
+              <button type="button" style={S.set} onClick={applyCustom}>Set</button>
+            </div>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const base = value ? new Date(value + "T00:00:00") : new Date();
