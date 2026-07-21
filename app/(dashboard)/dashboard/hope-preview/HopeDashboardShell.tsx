@@ -73,9 +73,10 @@ export function HopeDashboardShell({
   return (
     <HopeShell active={active} title={title} hideTopbar>
       <div className="hope-scope">
-        {/* Brand hero band — uniform across every tab (mirrors the Publishing Calendar). */}
+        {/* Brand hero band — uniform across every tab (mirrors the Publishing Calendar).
+            Extra bottom padding only when a white control card overlaps it. */}
         <div
-          className="relative overflow-hidden rounded-2xl px-7 pt-6 pb-16 text-white"
+          className={`relative overflow-hidden rounded-2xl px-7 pt-6 text-white ${showControls ? "pb-16" : "pb-6 mb-6"}`}
           style={{ background: "linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%)" }}
         >
           <div className="relative z-10">
@@ -87,7 +88,7 @@ export function HopeDashboardShell({
         </div>
 
         {/* White control card, pulled up to overlap the band (matches the calendar). */}
-        {showControls ? (
+        {showControls && (
           <div className="relative z-10 mx-1 -mt-10 mb-6 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-5 py-3">
             <div className="flex items-center gap-2 min-h-[38px]">
               {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
@@ -109,8 +110,6 @@ export function HopeDashboardShell({
               {!hideRange && <PdfExportButton accountId={profile ?? accountId} range={range} />}
             </div>
           </div>
-        ) : (
-          <div className="mb-6" />
         )}
 
         {children({ accountId: profile ?? accountId, compareAll: false, range, setRange })}
