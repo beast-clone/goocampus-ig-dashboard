@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus } from "@tabler/icons-react";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
@@ -797,9 +798,7 @@ function Scheduler() {
                     title={p.caption || "(no caption)"}
                     className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-brand hover:shadow-md transition">
                     <div className="relative aspect-square bg-gray-100">
-                      {p.thumbnail
-                        ? <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">{p.mediaType === "VIDEO" ? "🎬" : "🖼️"}</div>}
+                      <CreativeThumb thumbnailUrl={p.thumbnail} type={p.mediaType} title={p.caption} seed={p.id} />
                       <div className="absolute top-1.5 left-1.5 text-xs font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-full">#{i + 1}</div>
                       {p.mediaType === "CAROUSEL_ALBUM" && <div className="absolute top-1.5 right-1.5 text-white/90">▦</div>}
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 flex items-center gap-2 text-xs text-white">
