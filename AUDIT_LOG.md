@@ -245,3 +245,13 @@ Audited every hope-preview tab + shared component against the Hope UI tokens.
 - **Font weight** 🟢 FIXED — Overview had 30× inline `fontWeight: 700` + 1× `800` (bypassing `.hope-scope`'s `.font-bold`→600 cap), rendering HEAVIER than every other tab (which top out at 600). No other file used 700. Normalised all to 600. Now uniform.
 - **Font family** 🟢 FIXED — only 3 pages (Overview, Calendar, My Day) loaded Inter via `next/font`; the root layout set no font, so the other ~22 tabs fell back to the system font (SF Pro on macOS). Loaded **Inter globally on `<html>`** in `app/layout.tsx`. Verified: `document.body` computes Inter on both the Overview and a previously-system-font tab (Content Review). Typography now identical across all tabs.
 - **Spelling** ✅ — codebase-wide typo scan clean; no user-facing misspellings (only British spellings + `cancelled` in comments/vars).
+
+## Account page + password-reset OTP (Gmail SMTP) — setup note
+
+- **Feature:** `/dashboard/hope-preview/account` (reached from the Overview profile menu) shows the logged-in user's name/email/username/role and lets them change their own password via an emailed 6-digit OTP. Routes: `POST /api/account/otp` (send code) + `POST /api/account/change-password` (verify + update). Email: `lib/email.ts` (nodemailer + Gmail SMTP). OTP stored hashed (scrypt) in `discover_cache`, 10-min expiry, burned on use.
+- **Env vars required (NOT in git — set per machine + on Netlify):**
+  - `GMAIL_USER=praveen@goocampus.in`  ← must match the Google account the app password belongs to (the app password was generated under praveen@, NOT info@ — using info@ gives Gmail 535 "Username and Password not accepted").
+  - `GMAIL_APP_PASSWORD=<16-char Google app password>`  (Google Account → Security → 2-Step Verification → App passwords). Optional: `GMAIL_FROM_NAME`.
+  - Verified working 2026-07-21: SMTP auth + delivery confirmed (test email received at info@goocampus.in).
+- **Also:** each user needs a real `email` in `ind_users` to receive a code (set on the Team page). Maheen's email was set to `info@goocampus.in` for the test.
+- **Windows laptop / Netlify TODO:** add `GMAIL_USER` + `GMAIL_APP_PASSWORD` to that machine's `.env.local` and to Netlify env vars (part of go-live) or reset won't send.
