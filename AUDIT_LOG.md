@@ -220,3 +220,19 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 **Transient (1):** Ads `/api/ads` first-hit dev-compile 500 → renders on reload; production precompiles so won't recur. Optional: friendlier `useApi` error + auto-retry.
 **Open non-blocking notes (3):** (a) Publishing Calendar opens on next month (empty) instead of current — "Today" fixes; (b) LinkedIn World live-call failing → honestly shows demo (LinkedIn API access gating, not code); (c) Benchmark tracked-handle list mostly private/invalid → sparse; refresh with valid public Business/Creator handles.
 **Everything else:** healthy, real data, honest labeling. Perplexity fix (Part 1) validated across AI Insights, AI Reports, Post Planner, Ads analyst, Integrations. Stories demo-grid trap RESOLVED (now live + Supabase history). Facebook engagement/page-views now populate. Content Radar popups open. "1 reached"/"Demo data" badges are pre-load placeholders only.
+
+## Part 5 — CROSS-CUTTING diagnostics pass
+
+- **Auth & roles** ✅ (code-verified `middleware.ts`) — unauth → `/login` (pages) / 401 (API); non-admin on `/dashboard` → `/me`; admin on `/me` → `/dashboard/hope-preview`; any non-`hope-preview` `/dashboard` path → `/dashboard/hope-preview` (V1 never leaks).
+- **Navigation** ✅ — every sidebar link visited in Part 2 stayed under `/dashboard/hope-preview/*`; no 404 / V1 leak.
+- **No dev chrome** ✅ — no "Hope UI / V2 / preview" labels on any of the 25 tabs.
+- **Console/network** ✅ — Overview clean; across Part 2 only transient 503→200 retries seen (radar reddit-thread, scheduler suggest-time) + the logged Ads cold-compile 500. No persistent red errors / 4xx-5xx.
+- **Token expiry** (note) — Meta: never-expires; LinkedIn member token ~60d; YouTube OAuth auto-refresh (~60m access). Nothing silently expires over the break.
+- **Dates** ✅ — all timestamps render correctly (2026, IST); no Invalid Date / 1970 / placeholder dates seen.
+
+### Part 5 / Part 4 fix — header notification bell
+- **Overview header bell + mail were STATIC/dead** (`HopeOverview.tsx:305` rendered bare `IconBell` + `IconMail`, no onClick) while the fully-wired `components/HubNotificationBell.tsx` (polls `/api/my-day/notifications`, badge + dropdown) was imported nowhere (dead code). FIXED: Overview now renders `HubNotificationBell` (verified: opens "Notifications · You're all caught up" dropdown); dead mail icon removed. Commit 25acf1f.
+
+## Parts 3 & 4 — status (covered during Parts 2 & 5)
+- **Part 3 (demo/placeholder):** Stories demo-grid RESOLVED (live + Supabase history); Overview derived engagement/profile-visits now labeled **EST**; LinkedIn main honestly badged "Demo data"; Content Radar connect-chips are honest placeholders (by design); Publishing Calendar demo toggle defaults OFF + opens on current month; Tools static by design. All either real or clearly labeled.
+- **Part 4 (buttons wired):** verified live in Part 2 — Content Radar article-reader + Manage-alerts modals open; account switcher + date range re-fetch; Analyze-with-AI / Generate-insights call Perplexity and render; Scheduler set-time/suggest/enqueue/reschedule/cancel present; Marketing Hub add-column/save-view/detail-modal; My Day capsules; **header bell now wired (above).** No dead clickable buttons found beyond the by-design Content Radar connect placeholders.
