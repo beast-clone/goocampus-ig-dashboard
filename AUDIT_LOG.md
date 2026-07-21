@@ -151,3 +151,14 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 4. Decide **D** (gate enforcement) and **E** (dead code) with Praveen, then act.
 5. `tsc` → re-sweep (same workflow) → repeat until clean.
 6. When clean: write/refresh `CHANGELOG.md`, commit, `git push` to `feat/hope-ui-reskin`.
+
+## 2026-07-21 — Part 1 (API/Integration matrix) diagnostics pass
+
+- **Perplexity — Integrations shows "error / not configured"** · sev: medium (misleading, not broken)
+  - Repro: `/api/integrations/status` → perplexity `configured:false, status:error`, yet AI features (Post Planner, Ads analyst) work.
+  - Cause: `app/api/integrations/status/route.ts:172` read only `PERPLEXITY_API_KEY`, but the project stores the key as `PLANNER_SEARCH_KEY` (lib/ai.ts already reads either) → status diverged from reality.
+  - Fix: status check now reads `PERPLEXITY_API_KEY || PLANNER_SEARCH_KEY`; also added explicit `PERPLEXITY_API_KEY` to local `.env.local` from the uploaded credentials file. → green.
+- **Serper — Integrations shows "warn / no key"** · sev: medium (Content Radar lanes empty)
+  - Cause: `SERPER_API_KEY` not present in local `.env.local`.
+  - Fix: added `SERPER_API_KEY` from the uploaded credentials file. → configured.
+- Reddit thread-reader: `warn` (no app) — EXPECTED/optional, snippet fallback works. Not a bug; left as-is.

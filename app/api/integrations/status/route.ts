@@ -169,7 +169,9 @@ async function checkSendPulse(): Promise<Integration> {
 
 // ---- Perplexity (API key — the dashboard's only LLM provider) ----
 async function checkPerplexity(): Promise<Integration> {
-  const key = process.env.PERPLEXITY_API_KEY;
+  // Match lib/ai.ts: the project stores the key as PLANNER_SEARCH_KEY, so accept
+  // either name — otherwise the status check falsely reports "not configured".
+  const key = process.env.PERPLEXITY_API_KEY || process.env.PLANNER_SEARCH_KEY;
   const base: Integration = { key: "perplexity", name: "Perplexity", category: "AI", configured: has(key), status: "unknown", tokenType: "API key (no expiry)", expiresAt: null, daysRemaining: null, detail: "" };
   if (!base.configured) return { ...base, status: "error", note: "API key missing" };
   try {
