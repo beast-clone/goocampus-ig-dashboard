@@ -3,6 +3,23 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-21 (pt 3) — Team permissions (per-person capability toggles)
+
+**Finer-than-Airtable permissions on the Team page.** Instead of 5 fixed levels, each
+person gets individual **function checkboxes** (`lib/permissions.ts`): create tasks,
+edit, delete, assign, approve content, reschedule, view analytics, manage team. So
+"create but not delete" is one click. Three presets (Producer / Manager / Viewer)
+seed the boxes, then fine-tune. Admins bypass (implicitly all).
+
+- Storage: new `ind_users.permissions` jsonb (only `true` values kept). `hasCapability(user, cap)`
+  helper for enforcement (admin bypass).
+- Team page: new **Access** column → expandable per-person panel with presets + 8 boxes.
+- API: `/api/admin/team` PATCH accepts `permissions`; GET returns it. Roster (`team-db`)
+  threads it through.
+- NOTE: this ships the permission MANAGEMENT + storage + helper. Wiring each capability
+  into its action (gate create/delete-task endpoints on `hasCapability`) is the next
+  increment — the helper is ready.
+
 ## 2026-07-21 (pt 2) — Diagnostics tab (self-healing system health)
 
 **New Diagnostics tab** (`/dashboard/hope-preview/diagnostics`, separate from

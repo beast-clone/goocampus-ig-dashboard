@@ -3,6 +3,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { fetchRoster, rosterById, invalidateRosterCache } from "@/lib/team-db";
 import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/passwords";
+import { cleanPermissions } from "@/lib/permissions";
 
 // Admin-only management of the team roster (Supabase `ind_users`).
 // GET   → the roster (no password hashes, just a has-password flag)
@@ -51,11 +52,12 @@ export async function GET() {
       isAdmin: u.isAdmin,
       active: u.active,
       hasPassword: u.hasPassword,
+      permissions: u.permissions,
     })),
   });
 }
 
-const PATCHABLE = ["email", "name", "first", "initials", "role", "is_admin", "active"] as const;
+const PATCHABLE = ["email", "name", "first", "initials", "role", "is_admin", "active", "permissions"] as const;
 
 export async function PATCH(req: Request) {
   const gate = await requireAdmin();
@@ -69,7 +71,7 @@ export async function PATCH(req: Request) {
   const raw = body.updates ?? {};
   const updates: Record<string, unknown> = {};
   for (const k of PATCHABLE) {
-    if (k in raw) updates[k] = raw[k];
+    if (k in raw) updates[k] = k === "permissions" ? cleanPermissions(raw[k]) : raw[k];
   }
   if (!id || Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Need id and at least one field" }, { status: 400 });

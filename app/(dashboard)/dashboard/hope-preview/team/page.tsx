@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { CAPABILITIES, PRESETS, type Capability } from "@/lib/permissions";
 
 type Member = {
   id: string;
@@ -12,6 +13,7 @@ type Member = {
   isAdmin: boolean;
   active: boolean;
   hasPassword: boolean;
+  permissions: Record<string, boolean>;
 };
 
 export default function TeamPage() {
@@ -31,6 +33,7 @@ function TeamManager() {
   // Which row has the set-password input open, and its value.
   const [pwFor, setPwFor] = useState<string | null>(null);
   const [pwValue, setPwValue] = useState("");
+  const [permsFor, setPermsFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [add, setAdd] = useState({ id: "", name: "", email: "", role: "" });
@@ -97,6 +100,7 @@ function TeamManager() {
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium text-center">Admin</th>
               <th className="px-4 py-3 font-medium text-center">Active</th>
+              <th className="px-4 py-3 font-medium text-center">Access</th>
               <th className="px-4 py-3 font-medium">Password</th>
             </tr>
           </thead>
@@ -104,8 +108,10 @@ function TeamManager() {
             {team.map((m) => {
               const edit = edits[m.id];
               const dirty = edit && (edit.email !== m.email || edit.role !== m.role);
+              const capCount = Object.values(m.permissions || {}).filter(Boolean).length;
               return (
-                <tr key={m.id} className={`border-b border-gray-50 last:border-0 ${m.active ? "" : "opacity-50"}`}>
+                <Fragment key={m.id}>
+                <tr className={`${permsFor === m.id ? "" : "border-b border-gray-50"} last:border-0 ${m.active ? "" : "opacity-50"}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-brand-light text-brand text-xs font-semibold flex items-center justify-center shrink-0">
@@ -172,6 +178,15 @@ function TeamManager() {
                       className="w-4 h-4 accent-[#3A57E8]"
                     />
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    {m.isAdmin ? (
+                      <span className="text-[11px] font-medium text-brand bg-brand-light px-2.5 py-1 rounded-full whitespace-nowrap">All (admin)</span>
+                    ) : (
+                      <button onClick={() => setPermsFor(permsFor === m.id ? null : m.id)} className="text-xs font-medium text-brand hover:underline inline-flex items-center gap-1 whitespace-nowrap">
+                        {capCount} function{capCount === 1 ? "" : "s"} <span className="text-gray-400">{permsFor === m.id ? "▲" : "▾"}</span>
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {pwFor === m.id ? (
                       <div className="flex items-center gap-2">
@@ -232,6 +247,14 @@ function TeamManager() {
                     )}
                   </td>
                 </tr>
+                {permsFor === m.id && !m.isAdmin && (
+                  <tr className="border-b border-gray-50 last:border-0">
+                    <td colSpan={7} className="px-4 pb-4 pt-0">
+                      <PermPanel m={m} busy={busy} onSet={async (perms) => { if (await call("PATCH", { id: m.id, updates: { permissions: perms } })) flash(`Updated ${m.first}'s access.`); }} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -290,6 +313,32 @@ function TeamManager() {
             + Add a team member
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Per-person capability editor — presets + individual function checkboxes.
+function PermPanel({ m, busy, onSet }: { m: Member; busy: boolean; onSet: (perms: Record<string, boolean>) => void }) {
+  const perms = m.permissions || {};
+  const setCap = (cap: Capability, on: boolean) => { const next = { ...perms }; if (on) next[cap] = true; else delete next[cap]; onSet(next); };
+  const applyPreset = (caps: Capability[]) => { const next: Record<string, boolean> = {}; caps.forEach((c) => { next[c] = true; }); onSet(next); };
+  return (
+    <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1">Start from a preset</span>
+        {PRESETS.map((p) => (
+          <button key={p.key} disabled={busy} onClick={() => applyPreset(p.caps)} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand/40 hover:text-brand disabled:opacity-50">{p.label}</button>
+        ))}
+        <span className="text-[11px] text-gray-400 ml-1">then fine-tune the boxes below</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {CAPABILITIES.map((c) => (
+          <label key={c.key} className="flex items-start gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 cursor-pointer hover:border-brand/30">
+            <input type="checkbox" checked={perms[c.key] === true} disabled={busy} onChange={(e) => setCap(c.key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#3A57E8]" />
+            <span className="min-w-0"><span className="block text-xs font-medium text-[#232D42]">{c.label}</span><span className="block text-[10.5px] text-gray-400 leading-snug">{c.desc}</span></span>
+          </label>
+        ))}
       </div>
     </div>
   );

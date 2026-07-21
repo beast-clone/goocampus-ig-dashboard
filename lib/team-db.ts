@@ -5,12 +5,14 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { TEAM_USERS, type TeamUser } from "@/lib/users";
+import { cleanPermissions, type Permissions } from "@/lib/permissions";
 
 export type RosterUser = TeamUser & {
   active: boolean;
   // Whether a personal password is set (the hash itself never leaves the server routes).
   hasPassword: boolean;
   passwordHash: string | null;
+  permissions: Permissions;
 };
 
 type IndUserRow = {
@@ -23,6 +25,7 @@ type IndUserRow = {
   is_admin: boolean;
   active: boolean;
   password_hash?: string | null;
+  permissions?: unknown;
 };
 
 function fromRow(r: IndUserRow): RosterUser {
@@ -37,11 +40,12 @@ function fromRow(r: IndUserRow): RosterUser {
     active: r.active !== false,
     hasPassword: !!r.password_hash,
     passwordHash: r.password_hash ?? null,
+    permissions: cleanPermissions(r.permissions),
   };
 }
 
 function fromCode(u: TeamUser): RosterUser {
-  return { ...u, active: true, hasPassword: false, passwordHash: null };
+  return { ...u, active: true, hasPassword: false, passwordHash: null, permissions: {} };
 }
 
 // Small cache so /api/me etc. don't hit Supabase on every request.
