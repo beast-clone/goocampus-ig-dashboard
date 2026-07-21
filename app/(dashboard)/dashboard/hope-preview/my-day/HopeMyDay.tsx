@@ -782,6 +782,7 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
 // date OR pick ANY custom date, then hand the queued task over.
 function SwapCandidateRow({ c, defaultDate, onMove }: { c: SwapCand; defaultDate: string; onMove: (date: string) => void }) {
   const [date, setDate] = useState(defaultDate);
+  const todayISO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   const label = (() => { try { return new Date(date + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short" }); } catch { return date; } })();
   return (
     <div className="claim-row" style={{ borderBottom: "none", padding: ".35rem 0", gap: ".5rem", alignItems: "center" }}>
@@ -789,7 +790,7 @@ function SwapCandidateRow({ c, defaultDate, onMove }: { c: SwapCand; defaultDate
         <div className="claim-title">{c.title}</div>
         <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""} · <b style={{ color: "#3A57E8" }}>→ moves to {label}</b></div>
       </div>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} title="Pick the date to move it to" style={{ fontSize: 12, border: "1px solid #E6E8EE", borderRadius: 7, padding: "4px 6px", color: "#232D42" }} />
+      <input type="date" value={date} min={todayISO} onChange={(e) => setDate(e.target.value)} title="Pick the date to move it to (today or later)" style={{ fontSize: 12, border: "1px solid #E6E8EE", borderRadius: 7, padding: "4px 6px", color: "#232D42" }} />
       <button className="btn primary sm" disabled={!date} onClick={() => onMove(date)}>Move · hand over</button>
     </div>
   );
@@ -2328,10 +2329,12 @@ export function HopeMyDay() {
                     {n.swap && n.postId && (
                       <div style={{ marginTop: ".6rem", display: "flex", flexDirection: "column", gap: ".4rem" }}>
                         {n.swap.candidates.map((c) => {
-                          // Default target = one day after its due date; Manya can pick ANY date.
-                          const rollBase = c.due ? new Date(c.due + "T00:00:00") : new Date();
-                          rollBase.setDate(rollBase.getDate() + 1);
-                          const nextDefault = `${rollBase.getFullYear()}-${String(rollBase.getMonth() + 1).padStart(2, "0")}-${String(rollBase.getDate()).padStart(2, "0")}`;
+                          // Default = day after its due date, but NEVER in the past — overdue
+                          // tasks (due < today) default to tomorrow. Manya can pick any date.
+                          const tmr = new Date(); tmr.setHours(0, 0, 0, 0); tmr.setDate(tmr.getDate() + 1);
+                          let roll = tmr;
+                          if (c.due) { const r = new Date(c.due + "T00:00:00"); r.setDate(r.getDate() + 1); if (r > tmr) roll = r; }
+                          const nextDefault = `${roll.getFullYear()}-${String(roll.getMonth() + 1).padStart(2, "0")}-${String(roll.getDate()).padStart(2, "0")}`;
                           return (
                             <SwapCandidateRow key={c.id} c={c} defaultDate={nextDefault} onMove={(date) => {
                               const label = (() => { try { return new Date(date + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short" }); } catch { return date; } })();
