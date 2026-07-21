@@ -81,7 +81,7 @@ export function HopeDashboardShell({
         >
           <div className="relative z-10">
             {/* Inline colour: .hope-scope forces heading colour dark, so force white here. */}
-            <h1 className="text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
+            <h1 className="hope-hero-h1 text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
             {headerSub && <p className="mt-1.5 text-sm" style={{ color: "rgba(255,255,255,0.85)" }}>{headerSub}</p>}
           </div>
           <div className="pointer-events-none absolute -right-10 -top-16 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)" }} />
