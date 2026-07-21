@@ -362,7 +362,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
         <div className="p-6 space-y-6">
           {/* Executive summary */}
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Executive summary</div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Executive summary</div>
             <div className="text-sm text-gray-800">{data.summary.verdict}</div>
             <div className="mt-3 space-y-1.5">
               {data.summary.recommendations.map((r, i) => (
@@ -373,20 +373,20 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
 
           {/* Budget efficiency table */}
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Budget efficiency — where every rupee goes</div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Budget efficiency — where every rupee goes</div>
             <div className="overflow-x-auto border border-gray-100 rounded-xl">
               <table className="w-full text-[13px] min-w-[640px]">
-                <thead><tr className="text-gray-500 text-left border-b border-gray-100">
-                  <th className="py-2.5 px-3 font-normal">Campaign</th>
-                  <th className="py-2.5 px-3 font-normal text-right">Spend</th>
-                  <th className="py-2.5 px-3 font-normal text-right">Leads</th>
-                  <th className="py-2.5 px-3 font-normal text-right">CPL</th>
-                  <th className="py-2.5 px-3 font-normal text-right">vs avg</th>
-                  <th className="py-2.5 px-3 font-normal text-right">Freq</th>
+                <thead><tr className="bg-[#F3F5FA] text-[#8A92A6] text-left border-b border-gray-100">
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em]">Campaign</th>
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">Spend</th>
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">Leads</th>
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">CPL</th>
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">vs avg</th>
+                  <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">Freq</th>
                 </tr></thead>
                 <tbody>
                   {data.table.map((r) => (
-                    <tr key={r.name} className="border-b border-gray-50 last:border-0">
+                    <tr key={r.name} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors">
                       <td className="py-2.5 px-3 max-w-[280px] truncate" title={r.name}>{r.name}</td>
                       <td className="py-2.5 px-3 text-right tabular-nums">{fmtINR(r.spend)}</td>
                       <td className="py-2.5 px-3 text-right tabular-nums">{r.leads || "—"}</td>
@@ -407,7 +407,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
 
           {/* Delivery diagnostics — evidence */}
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-2">Delivery diagnostics — the actual checks (deterministic)</div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3 pb-1.5 border-b border-gray-100">Delivery diagnostics — the actual checks (deterministic)</div>
             <div className="space-y-2">
               {data.diagnostics.map((d) => (
                 <div key={d.key} className="border border-gray-100 rounded-xl p-3">
