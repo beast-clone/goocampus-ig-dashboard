@@ -95,10 +95,10 @@ type Task = {
 const PIPELINE = ["Draft", "In progress", "Approved", "Output ready", "Published"];
 
 const TEAM = [
-  { key: "manya", name: "Manya", role: "Content", av: "M", color: "#E0791F" },
-  { key: "praveen", name: "Praveen", role: "Ads · Senior Graphic Designer", av: "P", color: "#C2410C" },
-  { key: "nikhil", name: "Nikhil", role: "Video editor · short-form", av: "N", color: "#3A57E8" },
-  { key: "nandu", name: "Nandu", role: "Video editor · long-form", av: "Nd", color: "#3A57E8" },
+  { key: "manya", name: "Manya", role: "Content writer", av: "M", color: "#E0791F" },
+  { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
+  { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
+  { key: "nandu", name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8" },
 ];
 
 const PPL: Record<string, Person> = {
@@ -178,7 +178,7 @@ const CLAIM_POOL_INIT: Task[] = [
 // Today's plan is time-proportional across an 8-hour workday (9 AM–6 PM) with a
 // protected 1-hour lunch. Tasks are reorderable — drag a block, or use the ◀ ▸
 // nudges to push it front/back.
-const DAY_START_H = 9, DAY_END_H = 18;             // 9 AM – 6 PM span
+const DAY_START_H = 9, DAY_END_H = 19;             // 9 AM – 7 PM span (covers both shifts: 9–6 and 10–7)
 const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
 const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
@@ -195,7 +195,7 @@ function durBetween(a?: string, b?: string): string {
 }
 // Minutes-since-9AM → a clock label like "2:00 PM" (for the drag drop-guide).
 const clockOf = (m: number) => { const t = DAY_START_H * 60 + m; const h = Math.floor(t / 60), mm = t % 60; const ap = h >= 12 ? "PM" : "AM"; const h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2, "0")} ${ap}`; };
-const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
+const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
 
 type PlanItem = { key: string; taskId: string; label: string; dur: number; at?: number };
 // (Today's plan seeds itself from the person's real in-view tasks — no demo plan.)
@@ -252,6 +252,8 @@ function autoAssign(type: string): { owner: string; toPool: boolean; note: strin
 // fits it just auto-adds; if it doesn't, it surfaces through the pipeline.
 const WORK_MIN = 480;
 const DAY_END_LABEL = "6:00 PM";
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
 function estMins(type: string): number {
   const t = (type || "").toLowerCase();
   if (/thumbnail/.test(t)) return 30;         // BEFORE /reel/ — "Reel Thumbnail" is design work, not a 90m video
@@ -292,11 +294,11 @@ type SwapCand = { id: string; title: string; dur: number; due?: string };
 type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] } };
 
 function greetingFor(h: number) {
-  if (h < 5) return { word: "Working late", emoji: "🌙" };
+  if (h < 5) return { word: "Hello", emoji: "👋" };
   if (h < 12) return { word: "Good morning", emoji: "☀️" };
   if (h < 17) return { word: "Good afternoon", emoji: "👋" };
   if (h < 21) return { word: "Good evening", emoji: "🌆" };
-  return { word: "Working late", emoji: "🌙" };
+  return { word: "Hello", emoji: "👋" };
 }
 
 const BELL = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
@@ -532,6 +534,30 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
   );
 }
 
+// Extend-time control on the live timer: quick presets + a custom-minutes box.
+// Each pick ADDS to the current planned duration (accumulates) → onExtend, which
+// persists the new duration and reshuffles Today's plan. The overrun vs the
+// original estimate stays visible in the Created/Started/Time-taken record.
+function ExtendPicker({ onExtend }: { onExtend: (mins: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const add = (m: number) => { if (m > 0) { onExtend(m); setCustom(""); setOpen(false); } };
+  return (
+    <span className="ext-wrap">
+      <button className="btn sm" onClick={() => setOpen((o) => !o)}>+ Extend ▾</button>
+      {open && (
+        <div className="ext-menu" onClick={(e) => e.stopPropagation()}>
+          <div className="ext-row">{[15, 30, 45, 60, 90].map((m) => <button key={m} className="btn sm" onClick={() => add(m)}>+{m}m</button>)}</div>
+          <div className="ext-row">
+            <input className="nt-input ext-in" inputMode="numeric" placeholder="custom min" value={custom} onChange={(e) => setCustom(e.target.value.replace(/[^0-9]/g, ""))} />
+            <button className="btn sm primary" disabled={!custom} onClick={() => add(parseInt(custom || "0", 10))}>Add time</button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
@@ -631,12 +657,11 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {timing ? (
         <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
           <span className="timer-num">⏱ {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
-          {timing.elapsed >= timing.planned - 5 && onStatusChange && onSetDuration && (
+          {timing.elapsed >= timing.planned - 15 && onStatusChange && onSetDuration && (
             <span className="timer-acts">
-              <span>{timing.elapsed >= timing.planned ? "Over the planned time — finished?" : "Almost at the planned time — finished?"}</span>
-              <button className="btn sm" onClick={() => onStatusChange("Output - Ready")}>Mark done</button>
-              <button className="btn sm" onClick={() => onSetDuration(timing.planned + 15)}>+15m</button>
-              <button className="btn sm" onClick={() => onSetDuration(timing.planned + 30)}>+30m</button>
+              <span>{timing.elapsed >= timing.planned ? `Over by ${fmtMins(timing.elapsed - timing.planned)} — wrap up or add time?` : `~${fmtMins(timing.planned - timing.elapsed)} left — done, or need more time?`}</span>
+              <button className="btn sm primary" onClick={() => onStatusChange("Output - Ready")}>✓ Output ready</button>
+              <ExtendPicker onExtend={(m) => onSetDuration(timing.planned + m)} />
             </span>
           )}
         </div>
@@ -1016,8 +1041,8 @@ function ManyaReschedule({ task, editorName, movedId, onMove, onConfirm }: { tas
 // assigns with eyes open. (Seeded for the mock.)
 const CAP_BOARD: { name: string; role: string; av: string; color: string; badge: "free" | "some" | "full"; free: string; blocks: { k: string; l: string; f: number }[] }[] = [
   { name: "Praveen", role: "Designer", av: "P", color: "#C2410C", badge: "free", free: "2h 30m free", blocks: [{ k: "design", l: "Australia Carousel", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "design", l: "NEET Thumbnail", f: 1.5 }, { k: "free", l: "Free", f: 2.5 }] },
-  { name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8", badge: "some", free: "1h 30m free", blocks: [{ k: "reel", l: "Reel A", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2 }, { k: "free", l: "Free", f: 1.5 }] },
-  { name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8", badge: "full", free: "Full", blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5 }, { k: "reel", l: "Germany", f: 1.5 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
+  { name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8", badge: "some", free: "1h 30m free", blocks: [{ k: "reel", l: "Reel A", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2 }, { k: "free", l: "Free", f: 1.5 }] },
+  { name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8", badge: "full", free: "Full", blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5 }, { k: "reel", l: "Germany", f: 1.5 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
 ];
 function TeamCapacityBoard() {
   return (
@@ -1045,8 +1070,8 @@ type CapBlock = { k: string; l: string; f: number; s?: "done" | "now"; start?: n
 function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks: Task[]; nowMin: number | null }) {
   const PRODUCERS = [
     { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
-    { key: "nikhil", name: "Nikhil", role: "Editor · short-form", av: "N", color: "#3A57E8" },
-    { key: "nandu", name: "Nandu", role: "Editor · long-form", av: "Nd", color: "#3A57E8" },
+    { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
+    { key: "nandu", name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8" },
   ];
   // Day = what's actually on their plate TODAY (due today / overdue). Week = the
   // whole approved backlog against a 5-day (40h) capacity — one person can't do a
@@ -1065,11 +1090,15 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
       .filter((t) => t.detail.owner === p.name && (t.status === "Content - Approved" || t.status === "Incorporating Feedback"))
       // … and the Day view narrows to what's actually due by today.
       .filter((t) => span === "week" || !t.due || t.due <= todayStr)
-      .map((t) => ({ label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine), video: /reel|short|video|long-form/i.test(t.detail.typeLine) }));
+      .map((t) => ({ label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine), video: /reel|short|video|long-form/i.test(t.detail.typeLine), due: t.due }));
     const committed = mine.reduce((s, t) => s + t.dur, 0);
     const freeMin = capacity - committed;
     const blocks: CapBlock[] = [];
     let cursor = 0, lunchDone = false, current: { label: string; endsIn: number } | null = null;
+    // Week view buckets these into Mon–Fri columns (below). todayCol = live column.
+    const todayW = (d0.getDay() + 6) % 7;                 // Mon=0 … Sun=6
+    const todayCol = todayW <= 4 ? todayW : 0;            // weekend viewer → Mon
+    const weekDays = Array.from({ length: 5 }, () => ({ committed: 0, tasks: [] as { label: string; dur: number; video: boolean }[] }));
     if (span === "today") {
       // Sequential layout from 9 AM. LUNCH IS THE OFFICE STANDARD 1–2 PM — pinned,
       // never floating to wherever the tasks happen to end (tasks split around it,
@@ -1101,16 +1130,20 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
       }
       if (cursor < DAY_MINS) pushFree(cursor, DAY_MINS - cursor);
     } else {
-      // Week: a proportional strip of the whole approved backlog vs 40h — no
-      // clock, no lunch; just how full the week is.
-      for (const t of mine) { blocks.push({ k: t.video ? "reel" : "design", l: t.label, f: t.dur / 60 }); cursor += t.dur; }
-      if (cursor < capacity) blocks.push({ k: "free", l: "Free", f: (capacity - cursor) / 60 });
+      // Week: bucket each approved task into a Mon–Fri column by its due-date weekday.
+      // No-due / overdue / weekend-due fall into TODAY's column (it needs doing now).
+      for (const t of mine) {
+        let col = todayCol;
+        if (t.due && t.due >= todayStr) { const w = (new Date(t.due).getDay() + 6) % 7; if (w <= 4) col = w; }
+        weekDays[col].committed += t.dur;
+        weekDays[col].tasks.push({ label: t.label, dur: t.dur, video: t.video });
+      }
     }
     const badge: "free" | "some" | "full" = freeMin >= capacity / 4 ? "free" : freeMin > 0 ? "some" : "full";
     // (cast: TS can't see the closure assignment inside pushTask)
     const cur = current as { label: string; endsIn: number } | null;
     const next = cur || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
-    return { ...p, committed, freeMin, badge, blocks, current: cur, next, overflow: cursor > capacity };
+    return { ...p, committed, freeMin, badge, blocks, current: cur, next, overflow: cursor > capacity, weekDays, todayCol };
   });
   return (
     <div className="tcp">
@@ -1132,26 +1165,46 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
               <span className={`cap-badge ${p.badge}`}>{p.freeMin > 0 ? `${fmtMins(p.freeMin)} free` : p.overflow ? `Overbooked · ${fmtMins(-p.freeMin)} over` : "Full"}</span>
             </div>
           </div>
-          {span === "today" && <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>}
-          <div className="tcp-track">
-            {p.blocks.map((b, i) => (
-              <div
-                key={i}
-                className={`tcp-blk ${b.k} ${b.s || ""}`}
-                style={span === "today" && b.start !== undefined
-                  ? { position: "absolute", top: 0, bottom: 0, left: `${(b.start / DAY_MINS) * 100}%`, width: `${((b.durMin || 0) / DAY_MINS) * 100}%` }
-                  : { flex: b.f, minWidth: 0 }}
-                title={b.l}
-              >
-                {b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}
+          {span === "today" ? (
+            <>
+              <div className="tl-ticks tcp-ticks">{HOUR_TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
+              <div className="tcp-track">
+                {p.blocks.map((b, i) => (
+                  <div
+                    key={i}
+                    className={`tcp-blk ${b.k} ${b.s || ""}`}
+                    style={b.start !== undefined
+                      ? { position: "absolute", top: 0, bottom: 0, left: `${(b.start / DAY_MINS) * 100}%`, width: `${((b.durMin || 0) / DAY_MINS) * 100}%` }
+                      : { flex: b.f, minWidth: 0 }}
+                    title={b.l}
+                  >
+                    {b.l}{b.s === "done" && <div className="tcp-bm">done</div>}{b.s === "now" && <div className="tcp-bm">now</div>}
+                  </div>
+                ))}
+                {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }}><span className="now-tag">● now</span></div>}
               </div>
-            ))}
-            {span === "today" && nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(now / DAY_MINS) * 100}%` }} />}
-          </div>
+            </>
+          ) : (
+            // WEEK: 5 Mon–Fri columns; today's column is flagged live so you see the
+            // person's load right now vs across the rest of the week.
+            <div className="tcp-week">
+              {p.weekDays.map((day, di) => (
+                <div key={di} className={`tcp-day ${di === p.todayCol ? "today" : ""} ${day.committed > WEEK_DAY_CAP ? "over" : ""}`}>
+                  <div className="tcp-day-h">{WEEKDAYS[di]}{di === p.todayCol && <span className="tcp-day-now">● today</span>}</div>
+                  <div className="tcp-day-bar" title={`${WEEKDAYS[di]} · ${day.committed ? fmtMins(day.committed) : "nothing"} of 7h`}>
+                    {day.tasks.map((t, ti) => (
+                      <div key={ti} className={`tcp-day-seg ${t.video ? "reel" : "design"}`} style={{ height: `${Math.min(100, (t.dur / WEEK_DAY_CAP) * 100)}%` }} title={`${t.label} · ${fmtMins(t.dur)}`} />
+                    ))}
+                  </div>
+                  <div className="tcp-day-f">{day.committed ? fmtMins(day.committed) : "—"}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="tcp-now">
             <span className="dot" />
             {span === "week"
-              ? <>{p.blocks.filter((b) => b.k !== "free").length ? <>This week&apos;s queue: <b>{p.blocks.filter((b) => b.k !== "free").length} approved task{p.blocks.filter((b) => b.k !== "free").length > 1 ? "s" : ""}</b> <span className="muted">· {fmtMins(p.committed)} of 35h (Mon–Fri)</span></> : <span className="muted">No approved work queued this week.</span>}</>
+              ? (() => { const n = p.weekDays.reduce((s, d) => s + d.tasks.length, 0); return n ? <>This week&apos;s queue: <b>{n} approved task{n > 1 ? "s" : ""}</b> <span className="muted">· {fmtMins(p.committed)} of 35h (Mon–Fri)</span></> : <span className="muted">No approved work queued this week.</span>; })()
               : p.current
               ? <>Currently working on: <b>{p.current.label}</b> <span className="muted">· ~{fmtMins(p.current.endsIn)} left in this block</span></>
               : p.next
@@ -1244,7 +1297,7 @@ export function HopeMyDay() {
   const trackRef = useRef<HTMLDivElement>(null);
   const grabDX = useRef(0);                          // px between the cursor and the block's LEFT edge at grab
   const [dropAt, setDropAt] = useState<number | null>(null); // live guide: where a dragged task would start
-  const [nowMin, setNowMin] = useState<number | null>(null);          // minutes since 9 AM
+  const [nowMin, setNowMin] = useState<number | null>(null);          // minutes since 9 AM (real time)
   const [isWeekend, setIsWeekend] = useState(false);
   const [todayStr, setTodayStr] = useState("");                       // YYYY-MM-DD for due-date sorting
   const [chatOpen, setChatOpen] = useState(false);
@@ -1346,7 +1399,7 @@ export function HopeMyDay() {
     return () => clearTimeout(id);
   }, [poolProminent, claimPool.length]);
 
-  // Live "now" position for the red line — reruns each minute.
+  // Live "now" position for the red line — real system clock, reruns each minute.
   useEffect(() => {
     const upd = () => { const d = new Date(); setNowMin(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60); setIsWeekend(d.getDay() === 0 || d.getDay() === 6); setTodayStr(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`); };
     upd(); const id = setInterval(upd, 60_000); return () => clearInterval(id);
@@ -1566,10 +1619,14 @@ export function HopeMyDay() {
   // tasks land on their timeline (output-ready/published/other people's are excluded).
   const myPlan = useMemo(() => {
     const all = [...claimedTasks, ...tasks];
-    return plan.filter((p) => { const t = all.find((x) => x.id === p.taskId); return !!t && t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready"; });
+    return plan.flatMap((p) => {
+      const t = all.find((x) => x.id === p.taskId);
+      if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
+      return [{ ...p, high: t.detail.priority === "High" }];
+    });
   }, [plan, tasks, claimedTasks, me.name]);
   const planBlocks = useMemo(() => {
-    type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number };
+    type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
     // The plan lays out the FULL day from 9 AM (the red now-line marks where you
@@ -1588,17 +1645,19 @@ export function HopeMyDay() {
       // Part that fits before lunch.
       if (!lunchDone && cursor < LUNCH_AT) {
         const before = Math.min(remaining, LUNCH_AT - cursor);
-        if (before > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: before }); cursor += before; remaining -= before; }
+        if (before > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: before, high: p.high }); cursor += before; remaining -= before; }
         // The task runs into lunch → drop the protected lunch and continue after it (SPLIT).
         if (remaining > 0) { pushLunch(); cursor = LUNCH_END; }
       }
       // Remainder after lunch (or the whole task if it's already past 2 PM).
-      if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining }); cursor += remaining; }
+      if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining, high: p.high }); cursor += remaining; }
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     return out;
   }, [myPlan, nowMin]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
+  // Red now-line shows only inside the working span (9 AM–7 PM, covering both shifts:
+  // 9–6 and 10–7). Before 9 or after 7 PM there's simply no line — real clock, no fake.
   const showNow = nowMin !== null && !isWeekend && nowMin >= 0 && nowMin <= DAY_MINS;
   // Live timer — starts ONLY when the producer moves a task to "In Progress"
   // (Output - In Progress), which stamps start_at on the server. Elapsed = real
@@ -2056,7 +2115,7 @@ export function HopeMyDay() {
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Auto-plan re-flows everything from now.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-              <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Reel</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
+              <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Reel</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
               <button className="btn primary sm" onClick={autoPlan}>✦ Auto-plan</button>
             </div>
           </div>
@@ -2078,7 +2137,7 @@ export function HopeMyDay() {
               {planBlocks.map((b) => (
                 <div
                   key={`${b.kind}-${b.key || b.taskId || ""}-${b.start}`}
-                  className={`tl-blk ${b.kind} ${b.kind === "reel" ? "clickable" : ""}`}
+                  className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.kind === "reel" ? "clickable" : ""}`}
                   draggable={b.kind === "reel"}
                   onDragStart={b.kind === "reel" ? (e) => { dragKey.current = b.key!; grabDX.current = e.clientX - e.currentTarget.getBoundingClientRect().left; } : undefined}
                   onDragEnd={b.kind === "reel" ? () => { dragKey.current = null; setDropAt(null); } : undefined}
@@ -2093,10 +2152,10 @@ export function HopeMyDay() {
                     </>
                   )}
                   <div className="tl-t">{b.label}</div>
-                  <div className="tl-m">{b.kind === "reel" ? `Reel · ${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
+                  <div className="tl-m">{b.kind === "reel" ? `${b.high ? "⚡ High priority · " : ""}Reel · ${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
                 </div>
               ))}
-              {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /></div>}
+              {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /><span className="now-tag">● now</span></div>}
             </div>
           </div>
         </div>
@@ -2421,7 +2480,7 @@ export function HopeMyDay() {
                     {b.label}{b.id === day.current?.id && <div className="tcp-bm">now</div>}
                   </div>
                 ))}
-                {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(day.now / DAY_MINS) * 100}%` }} />}
+                {nowMin !== null && nowMin >= 0 && nowMin <= DAY_MINS && <div className="tcp-now-line" style={{ left: `${(day.now / DAY_MINS) * 100}%` }}><span className="now-tag">● now</span></div>}
               </div>
               <div className="nt-assign" style={{ margin: ".6rem 0 1rem" }}>
                 <span className="status-dot" style={{ background: fits ? "#1AA053" : "#D97706" }} />
@@ -2606,6 +2665,8 @@ const CSS = `
 .hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab}
 .hmd .tl-blk.reel:hover{filter:brightness(1.05)}
 .hmd .tl-blk.reel:active{cursor:grabbing}
+.hmd .tl-blk.reel.high{background:linear-gradient(135deg,#F4565B,#E11D48)}
+.hmd .tl-blk.reel.high:hover{filter:brightness(1.06)}
 .hmd .tl-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 6px,#DFE3EE 6px,#DFE3EE 12px);color:var(--muted);border-right:1px solid rgba(255,255,255,.5)}
 .hmd .tl-blk.buffer{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 6px,#E9ECF2 6px,#E9ECF2 12px);color:var(--faint)}
 .hmd .tl-t{font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2617,6 +2678,7 @@ const CSS = `
 .hmd .tl-nudge.r{right:3px}
 .hmd .now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:5;pointer-events:none}
 .hmd .now-dot{position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
+.hmd .now-tag{position:absolute;top:-9px;left:4px;background:#DC2E2E;color:#fff;font-size:.55rem;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:.68rem;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
 .hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:1rem;margin-top:1rem;align-items:start}
@@ -2988,6 +3050,10 @@ const CSS = `
 .hmd .timer-strip.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
 .hmd .timer-strip.idle{background:var(--panel-2);border-color:var(--line);color:var(--ink-soft)}
 .hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:600}
+.hmd .ext-wrap{position:relative;display:inline-flex}
+.hmd .ext-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(35,45,66,.12);padding:.5rem;display:flex;flex-direction:column;gap:.4rem;min-width:214px}
+.hmd .ext-row{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+.hmd .ext-in{width:96px;padding:.3rem .5rem}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:#D9DEEA}
 .hmd .tcp-title{font-size:1.2rem;font-weight:700}
@@ -3011,6 +3077,18 @@ const CSS = `
 .hmd .tcp-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
 .hmd .tcp-blk.free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
 .hmd .tcp-now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:3}
+.hmd .tcp-week{display:flex;gap:.5rem}
+.hmd .tcp-day{flex:1;display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.hmd .tcp-day-h{display:flex;align-items:center;justify-content:center;gap:.3rem;font-size:.72rem;color:var(--muted)}
+.hmd .tcp-day.today .tcp-day-h{color:var(--ink);font-weight:700}
+.hmd .tcp-day-now{color:#DC2E2E;font-size:.58rem;font-weight:700;letter-spacing:.02em}
+.hmd .tcp-day-bar{height:64px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);display:flex;flex-direction:column-reverse;overflow:hidden}
+.hmd .tcp-day.today .tcp-day-bar{border-color:#DC2E2E;box-shadow:inset 0 0 0 1px #DC2E2E}
+.hmd .tcp-day.over .tcp-day-bar{border-color:#E11D48}
+.hmd .tcp-day-seg{width:100%;border-bottom:1px solid rgba(255,255,255,.55)}
+.hmd .tcp-day-seg.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
+.hmd .tcp-day-seg.design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
+.hmd .tcp-day-f{text-align:center;font-size:.68rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .hmd .tcp-now-line::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
 .hmd .tcp-now{display:flex;align-items:center;gap:.55rem;margin-top:.65rem;font-size:.79rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem}
 .hmd .tcp-now .dot{width:8px;height:8px;border-radius:50%;background:#DC2E2E;flex:0 0 8px}

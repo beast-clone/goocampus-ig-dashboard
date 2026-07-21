@@ -87,10 +87,10 @@ type TeamMember = { key: string; label: string; role: Role; aliases: string[]; c
 // workload reads consistently with the team's day view. Maheen assigns work, doesn't
 // receive it — kept out of the workload cards.
 const TEAM: TeamMember[] = [
-  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#E0791F", displayRole: "Content", av: "M" },
-  { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#C2410C", displayRole: "Ads · Senior Graphic Designer", av: "P" },
-  { key: "nikhil", label: "Nikhil", role: "editor", aliases: ["NIKHI Shyamraj", "Nikhil Shyamraj", "Nikhil"],       color: "#3A57E8", displayRole: "Video editor · short-form", av: "N" },
-  { key: "nandu", label: "Nandu", role: "editor", aliases: ["Nandu C", "Nandu"],                                   color: "#3A57E8", displayRole: "Video editor · long-form", av: "Nd" },
+  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#E0791F", displayRole: "Content writer", av: "M" },
+  { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#C2410C", displayRole: "Designer", av: "P" },
+  { key: "nikhil", label: "Nikhil", role: "editor", aliases: ["NIKHI Shyamraj", "Nikhil Shyamraj", "Nikhil"],       color: "#3A57E8", displayRole: "Video editor", av: "N" },
+  { key: "nandu", label: "Nandu", role: "editor", aliases: ["Nandu C", "Nandu"],                                   color: "#3A57E8", displayRole: "Video editor", av: "Nd" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -121,8 +121,8 @@ const DESIGN_TYPES = ["Post", "Carousel", "Reel Thumbnail", "YouTube Thumbnail",
 // --- Planned-day timeline (Workload tab) ---------------------------------------
 // The team doesn't log start/stop times, so we lay each person's real pending tasks
 // into a suggested day-plan (9 AM–6 PM, 1h lunch). It's a PLAN, not live tracking.
-const WORK_START_H = 9, WORK_END_H = 18;   // 9 AM – 6 PM
-const SPAN_MIN = (WORK_END_H - WORK_START_H) * 60; // 540
+const WORK_START_H = 9, WORK_END_H = 19;   // 9 AM – 7 PM (covers both shifts: 9–6 and 10–7)
+const SPAN_MIN = (WORK_END_H - WORK_START_H) * 60; // 600
 const LUNCH_AT_MIN = 240;                  // ~1 PM
 const LUNCH_MIN = 60;
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];

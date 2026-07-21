@@ -3,6 +3,55 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-21 (pt 6) — Roles, greeting, now-marker, Mon–Fri week, workload span
+
+Demo-prep refinements across My Day + Marketing Hub.
+
+- **Simplified role labels** everywhere: Designer / Video editor / Content writer (dropped
+  "· short-form / · long-form / Ads ·"). Updated the `TEAM` roster in both `HopeMyDay.tsx`
+  and `marketing-hub/page.tsx` (displayRole).
+- **Dropped the "Working late" greeting** — `greetingFor` late/early now returns "Hello".
+- **"● now" marker on the red now-line** — added to the main plan, the assign/approve
+  mini-timeline, and Team-capacity Today, so the line says what's ongoing. (Only visible
+  9 AM–7 PM, so not screenshottable at a night rehearsal.)
+- **Team-capacity Week rebuilt as Mon–Fri columns** (`TeamCapacityPage`): each approved
+  task buckets into a weekday by due date (overdue / no-due / weekend → today's column);
+  each column is a 7h load bar; **today's column is flagged "● today"** with a red outline
+  (the live marker). Verified: Tue shows "● today", loads bucket correctly.
+- **Marketing Hub Workload view**: already had the now-line + current-block ring + "Now:"
+  label; widened its day span to **9 AM–7 PM** (`WORK_END_H=19`) to match My Day and cover
+  both shifts. Line correctly hidden after 7 PM.
+
+## 2026-07-21 (pt 5) — My Day: red priority blocks, live now-line, timer extend/complete
+
+Demo-prep pass on the My Day cockpit (`hope-preview/my-day/HopeMyDay.tsx`).
+
+**High-priority = red block.** Today's-plan reels carry the task's priority; a High task
+renders a **red gradient** block labelled "⚡ High priority" (legend gained a red swatch).
+Proven end-to-end: Manya created an urgent High task → approve gate showed Praveen's day
+full → sent to his pipeline → he accepted → Auto-plan floated it to 9 AM as a red block.
+
+**Just the red now-line, real clock, 9 AM–7 PM.** A single thin red line marks the current
+time on Today's plan — no block highlight, no on-screen clock control (both were tried and
+removed; the ask was one line). It uses the **real** system clock (no demo/fake-time logic).
+The plan window was widened to **9 AM–7 PM** (`DAY_END_H=19`, +a 6 PM tick) to cover both
+shifts (9–6 and 10–7); the line shows only inside that span and is simply **absent before 9
+AM / after 7 PM** — so at an 11 PM rehearsal there's correctly no line. Side effect: the
+"free" figure now measures against the 10-hour window.
+
+**In-progress task is protected.** `dayFor` already excludes the currently-running block
+from the move/swap list ("the one he's on is locked") — confirmed, not newly built.
+
+**Timer extend/complete.** The live timer strip now prompts at **~15 min left** (was 5):
+"~Xm left — done, or need more time?" with **✓ Output ready** (closes the task) and a new
+**+ Extend ▾** dropdown (`ExtendPicker`: +15/30/45/60/90m + custom minutes). Each extend
+adds to the planned duration, reshuffles the plan, and toasts. Overrun vs. the estimate
+stays visible in the Created/Started/Time-taken record. Verified live on Praveen's running
+Australia Ebook thumbnail.
+
+NEXT (optional): per-extension line in Recent Activity (original vs. extra); gate the demo
+clock behind a flag if it shouldn't ship in the real product.
+
 ## 2026-07-21 (pt 4) — Team tab access (which pages each person sees)
 
 **Second permission dimension on the Team page: tab access.** Beyond function
