@@ -8,6 +8,7 @@ import {
 } from "@tabler/icons-react";
 import { HopeSidebar } from "./HopeSidebar";
 import HubNotificationBell from "@/components/HubNotificationBell";
+import { HeaderProfile } from "@/components/HeaderProfile";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
@@ -301,13 +302,7 @@ export function HopeOverview() {
               <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
             </span>
             <HubNotificationBell />
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 38, height: 38, borderRadius: 999, background: `linear-gradient(135deg, ${C.primary}, ${C.teal})`, display: "grid", placeItems: "center", color: "#fff", fontWeight: 600, fontSize: 14 }}>ME</span>
-              <div style={{ lineHeight: 1.2 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>Maheen Ejaz</div>
-                <div style={{ fontSize: 11.5, color: C.muted }}>Co-founder &amp; CMO</div>
-              </div>
-            </div>
+            <HeaderProfile />
           </div>
         </header>
 
