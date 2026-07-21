@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { IconLogout, IconChevronDown } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconLogout, IconChevronDown, IconUserCog } from "@tabler/icons-react";
 
 // The header profile chip: shows the REAL logged-in user (from /api/me) and opens
 // a small menu with Log out (POST /api/logout — same endpoint the V1 sidebar uses).
@@ -54,6 +55,15 @@ export function HeaderProfile() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#232D42" }}>{name}</div>
             <div style={{ fontSize: 11.5, color: "#8A92A6" }}>{role}</div>
           </div>
+          <Link
+            href="/dashboard/hope-preview/account"
+            onClick={() => setOpen(false)}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, fontSize: 13, color: "#232D42", textDecoration: "none" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F6F7FB")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <IconUserCog size={16} stroke={1.8} /> My account
+          </Link>
           <form action="/api/logout" method="post">
             <button
               type="submit"
