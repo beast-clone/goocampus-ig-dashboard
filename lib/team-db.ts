@@ -5,7 +5,7 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { TEAM_USERS, type TeamUser } from "@/lib/users";
-import { cleanPermissions, type Permissions } from "@/lib/permissions";
+import { cleanPermissions, cleanSections, type Permissions, type Sections } from "@/lib/permissions";
 
 export type RosterUser = TeamUser & {
   active: boolean;
@@ -13,6 +13,7 @@ export type RosterUser = TeamUser & {
   hasPassword: boolean;
   passwordHash: string | null;
   permissions: Permissions;
+  sections: Sections;
 };
 
 type IndUserRow = {
@@ -26,6 +27,7 @@ type IndUserRow = {
   active: boolean;
   password_hash?: string | null;
   permissions?: unknown;
+  sections?: unknown;
 };
 
 function fromRow(r: IndUserRow): RosterUser {
@@ -41,11 +43,12 @@ function fromRow(r: IndUserRow): RosterUser {
     hasPassword: !!r.password_hash,
     passwordHash: r.password_hash ?? null,
     permissions: cleanPermissions(r.permissions),
+    sections: cleanSections(r.sections),
   };
 }
 
 function fromCode(u: TeamUser): RosterUser {
-  return { ...u, active: true, hasPassword: false, passwordHash: null, permissions: {} };
+  return { ...u, active: true, hasPassword: false, passwordHash: null, permissions: {}, sections: {} };
 }
 
 // Small cache so /api/me etc. don't hit Supabase on every request.

@@ -3,6 +3,26 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-21 (pt 4) — Team tab access (which pages each person sees)
+
+**Second permission dimension on the Team page: tab access.** Beyond function
+capabilities, each person now gets **section access** — which dashboard pages they can
+open — grouped into 7 sections (Overview, Content, Analytics, Ads, Sales, AI, System).
+System is admin-only. Role presets: **Designer** (Overview+Content+Analytics+Ads+Sales),
+**Video editor** (Overview+Content+Analytics), **Content writer** (+AI), **Manager** (all
+but System). Admins bypass.
+
+- `lib/permissions.ts`: `SECTIONS`, `GRANTABLE_SECTIONS`, `TAB_SECTION` map (HopeTab →
+  section), `canAccessSection()`, `ROLE_PRESETS`, `cleanSections()`.
+- Storage: `ind_users.sections` jsonb (sql/009). Roster + `/api/admin/team` thread it.
+- Team page: the Access panel now has **Tab access** (6 section boxes + role presets)
+  above **Functions**; the Access column reads "N tabs · M fns". Verified: Praveen →
+  Designer preset → 5 sections persisted.
+- NEXT (enforcement): filter the sidebar by `canAccessSection` for the logged-in user,
+  and update middleware so a non-admin WITH sections reaches /dashboard/hope-preview
+  (today non-admins bounce to /me). That's the sensitive routing change — pending, and
+  needs a real non-admin login to verify.
+
 ## 2026-07-21 (pt 3) — Team permissions (per-person capability toggles)
 
 **Finer-than-Airtable permissions on the Team page.** Instead of 5 fixed levels, each

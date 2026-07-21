@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
-import { CAPABILITIES, PRESETS, type Capability } from "@/lib/permissions";
+import { CAPABILITIES, PRESETS, GRANTABLE_SECTIONS, ROLE_PRESETS, type Capability, type Section } from "@/lib/permissions";
 
 type Member = {
   id: string;
@@ -14,6 +14,7 @@ type Member = {
   active: boolean;
   hasPassword: boolean;
   permissions: Record<string, boolean>;
+  sections: Record<string, boolean>;
 };
 
 export default function TeamPage() {
@@ -109,6 +110,7 @@ function TeamManager() {
               const edit = edits[m.id];
               const dirty = edit && (edit.email !== m.email || edit.role !== m.role);
               const capCount = Object.values(m.permissions || {}).filter(Boolean).length;
+              const secCount = Object.values(m.sections || {}).filter(Boolean).length;
               return (
                 <Fragment key={m.id}>
                 <tr className={`${permsFor === m.id ? "" : "border-b border-gray-50"} last:border-0 ${m.active ? "" : "opacity-50"}`}>
@@ -183,7 +185,7 @@ function TeamManager() {
                       <span className="text-[11px] font-medium text-brand bg-brand-light px-2.5 py-1 rounded-full whitespace-nowrap">All (admin)</span>
                     ) : (
                       <button onClick={() => setPermsFor(permsFor === m.id ? null : m.id)} className="text-xs font-medium text-brand hover:underline inline-flex items-center gap-1 whitespace-nowrap">
-                        {capCount} function{capCount === 1 ? "" : "s"} <span className="text-gray-400">{permsFor === m.id ? "▲" : "▾"}</span>
+                        {secCount} tab{secCount === 1 ? "" : "s"} · {capCount} fn{capCount === 1 ? "" : "s"} <span className="text-gray-400">{permsFor === m.id ? "▲" : "▾"}</span>
                       </button>
                     )}
                   </td>
@@ -250,7 +252,10 @@ function TeamManager() {
                 {permsFor === m.id && !m.isAdmin && (
                   <tr className="border-b border-gray-50 last:border-0">
                     <td colSpan={7} className="px-4 pb-4 pt-0">
-                      <PermPanel m={m} busy={busy} onSet={async (perms) => { if (await call("PATCH", { id: m.id, updates: { permissions: perms } })) flash(`Updated ${m.first}'s access.`); }} />
+                      <PermPanel m={m} busy={busy}
+                        onSet={async (perms) => { if (await call("PATCH", { id: m.id, updates: { permissions: perms } })) flash(`Updated ${m.first}'s functions.`); }}
+                        onSetSections={async (secs) => { if (await call("PATCH", { id: m.id, updates: { sections: secs } })) flash(`Updated ${m.first}'s tab access.`); }}
+                      />
                     </td>
                   </tr>
                 )}
@@ -318,27 +323,50 @@ function TeamManager() {
   );
 }
 
-// Per-person capability editor — presets + individual function checkboxes.
-function PermPanel({ m, busy, onSet }: { m: Member; busy: boolean; onSet: (perms: Record<string, boolean>) => void }) {
+// Per-person access editor — tab access (which pages they open) + function toggles.
+function PermPanel({ m, busy, onSet, onSetSections }: { m: Member; busy: boolean; onSet: (perms: Record<string, boolean>) => void; onSetSections: (secs: Record<string, boolean>) => void }) {
   const perms = m.permissions || {};
+  const secs = m.sections || {};
   const setCap = (cap: Capability, on: boolean) => { const next = { ...perms }; if (on) next[cap] = true; else delete next[cap]; onSet(next); };
   const applyPreset = (caps: Capability[]) => { const next: Record<string, boolean> = {}; caps.forEach((c) => { next[c] = true; }); onSet(next); };
+  const setSec = (sec: Section, on: boolean) => { const next = { ...secs }; if (on) next[sec] = true; else delete next[sec]; onSetSections(next); };
+  const applyRole = (list: Section[]) => { const next: Record<string, boolean> = {}; list.forEach((s) => { next[s] = true; }); onSetSections(next); };
   return (
-    <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1">Start from a preset</span>
-        {PRESETS.map((p) => (
-          <button key={p.key} disabled={busy} onClick={() => applyPreset(p.caps)} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand/40 hover:text-brand disabled:opacity-50">{p.label}</button>
-        ))}
-        <span className="text-[11px] text-gray-400 ml-1">then fine-tune the boxes below</span>
+    <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-4">
+      {/* Tab access — which sections of the dashboard they can open */}
+      <div>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mr-1">Tab access — which pages they see</span>
+          {ROLE_PRESETS.map((r) => (
+            <button key={r.key} disabled={busy} onClick={() => applyRole(r.sections)} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand/40 hover:text-brand disabled:opacity-50">{r.label}</button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {GRANTABLE_SECTIONS.map((s) => (
+            <label key={s.key} title={s.tabs} className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 cursor-pointer hover:border-brand/30">
+              <input type="checkbox" checked={secs[s.key] === true} disabled={busy} onChange={(e) => setSec(s.key, e.target.checked)} className="w-4 h-4 accent-[#3A57E8] shrink-0" />
+              <span className="text-xs font-medium text-[#232D42] truncate">{s.label}</span>
+            </label>
+          ))}
+        </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-        {CAPABILITIES.map((c) => (
-          <label key={c.key} className="flex items-start gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 cursor-pointer hover:border-brand/30">
-            <input type="checkbox" checked={perms[c.key] === true} disabled={busy} onChange={(e) => setCap(c.key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#3A57E8]" />
-            <span className="min-w-0"><span className="block text-xs font-medium text-[#232D42]">{c.label}</span><span className="block text-[10.5px] text-gray-400 leading-snug">{c.desc}</span></span>
-          </label>
-        ))}
+
+      {/* Functions — what they can do inside those pages */}
+      <div className="border-t border-gray-200/70 pt-3">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mr-1">Functions — what they can do</span>
+          {PRESETS.map((p) => (
+            <button key={p.key} disabled={busy} onClick={() => applyPreset(p.caps)} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand/40 hover:text-brand disabled:opacity-50">{p.label}</button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {CAPABILITIES.map((c) => (
+            <label key={c.key} className="flex items-start gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 cursor-pointer hover:border-brand/30">
+              <input type="checkbox" checked={perms[c.key] === true} disabled={busy} onChange={(e) => setCap(c.key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#3A57E8]" />
+              <span className="min-w-0"><span className="block text-xs font-medium text-[#232D42]">{c.label}</span><span className="block text-[10.5px] text-gray-400 leading-snug">{c.desc}</span></span>
+            </label>
+          ))}
+        </div>
       </div>
     </div>
   );
