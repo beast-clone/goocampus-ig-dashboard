@@ -121,7 +121,7 @@ function fmtDay(iso: string) {
 
 export default function AdsPage() {
   return (
-    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker subtitle="GooCampus Edu">
+    <HopeDashboardShell active="ads" title="Ads" hideAccountPicker subtitle="Meta ad performance — spend, leads, campaigns and daily delivery, with an AI analyst.">
       {({ range }) => <Ads range={range} />}
     </HopeDashboardShell>
   );

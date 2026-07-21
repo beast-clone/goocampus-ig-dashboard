@@ -24,7 +24,7 @@ type ApiPost = {
 
 export default function ReelsPage() {
   return (
-    <HopeDashboardShell active="instagram" title="Reels">
+    <HopeDashboardShell active="instagram" title="Reels" subtitle="Every reel in range — views, watch time and engagement, with your top performers.">
       {({ accountId, range }) => <ReelsView accountId={accountId} range={range} />}
     </HopeDashboardShell>
   );

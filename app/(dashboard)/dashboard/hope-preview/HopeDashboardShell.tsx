@@ -80,8 +80,9 @@ export function HopeDashboardShell({
           style={{ background: "linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%)" }}
         >
           <div className="relative z-10">
-            <h1 className="text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700 }}>{title}</h1>
-            {headerSub && <p className="mt-1.5 text-sm text-white/80">{headerSub}</p>}
+            {/* Inline colour: .hope-scope forces heading colour dark, so force white here. */}
+            <h1 className="text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
+            {headerSub && <p className="mt-1.5 text-sm" style={{ color: "rgba(255,255,255,0.85)" }}>{headerSub}</p>}
           </div>
           <div className="pointer-events-none absolute -right-10 -top-16 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)" }} />
           <div className="pointer-events-none absolute right-28 -bottom-24 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)" }} />

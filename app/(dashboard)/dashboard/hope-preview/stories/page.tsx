@@ -49,7 +49,7 @@ const DEMO_GRADIENTS = [
 
 export default function StoriesPage() {
   return (
-    <HopeDashboardShell active="instagram" title="Stories">
+    <HopeDashboardShell active="instagram" title="Stories" subtitle="Live and past stories — views, reach, replies and taps, saved as daily history.">
       {({ accountId }) => <StoriesView accountId={accountId} />}
     </HopeDashboardShell>
   );

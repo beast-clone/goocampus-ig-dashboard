@@ -88,7 +88,7 @@ export default function AudiencePage() {
   }, []);
 
   return (
-    <HopeDashboardShell active="audience" title="Audience">
+    <HopeDashboardShell active="audience" title="Audience" subtitle="Who follows you across platforms — age, gender, location and when they're online.">
       {({ accountId, range }) => (
         <div className="space-y-5">
           {locked ? (

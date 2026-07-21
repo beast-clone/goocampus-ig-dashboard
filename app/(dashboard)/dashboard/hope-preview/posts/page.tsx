@@ -38,7 +38,7 @@ const TYPE_ICON: Record<string, string> = {
 
 export default function PostsPage() {
   return (
-    <HopeDashboardShell active="instagram" title="Posts">
+    <HopeDashboardShell active="instagram" title="Posts" subtitle="Every Instagram post in range — reach, engagement, saves and shares, with your top performers.">
       {({ accountId, range }) => <PostsView accountId={accountId} range={range} />}
     </HopeDashboardShell>
   );
