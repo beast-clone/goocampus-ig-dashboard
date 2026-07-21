@@ -340,6 +340,17 @@ const SEV: Record<Diag["status"], { chip: string; Icon: typeof IconAlertTriangle
   warn: { chip: "bg-amber-50 text-amber-700", Icon: IconAlertTriangle },
   crit: { chip: "bg-rose-50 text-rose-700", Icon: IconAlertTriangle },
 };
+// Plain-English "what this means" for each diagnostic — for someone new to ads.
+const DIAG_EXPLAIN: Record<string, string> = {
+  fatigue: "The same people are seeing your ad too many times. After about 3–4 views most people start ignoring it (some get annoyed), so you keep paying but get fewer clicks and leads.",
+  cpl: "“Cost per lead” is how much you pay for one person's contact details. When it's much higher than your other ads, you're overpaying for the same result — that money would go further elsewhere.",
+  learning: "When an ad is brand new, Facebook needs about 50 leads before it learns who to show it to. Until then results bounce around — so don't judge it or edit it yet, or it starts over.",
+  pacing: "The ad isn't spending the full daily budget you set, so it's reaching fewer people than it could. Usually the bid is too low or the audience is too narrow.",
+  ctr: "“Click-through rate” is the share of people who clicked after seeing the ad. A low number means the picture or opening line isn't catching attention.",
+  cpm: "“CPM” is what it costs to show your ad to 1,000 people. A high CPM means it's expensive just to reach your audience — often because several ads are chasing the same people.",
+  ok: "No problems found — your ads are running in a healthy range.",
+};
+
 // Ordered recommendations use numbered badges (professional), not emoji.
 function RecBadge({ n }: { n: number }) {
   return <span className="shrink-0 w-5 h-5 rounded-md bg-brand-light text-brand text-[11px] font-bold flex items-center justify-center mt-px">{n}</span>;
@@ -349,6 +360,7 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
   const { data } = useApi<AnalystData>(`/api/ads/analyst?${qs}`);
   const [open, setOpen] = useState(false);
+  const [openDiag, setOpenDiag] = useState<string | null>(null);
   if (!data || data.error || !data.summary) return null;
 
   return (
@@ -374,13 +386,25 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-brand/20">
-            <span className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400">Delivery diagnostics</span>
-            {data.diagnostics.map((d) => { const I = SEV[d.status].Icon; return (
-              <span key={d.key} className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${SEV[d.status].chip}`} title={d.evidence}>
-                <I size={12} stroke={2.2} /> {d.label}{d.campaigns.length ? ` · ${d.campaigns.length}` : ""}
-              </span>
-            ); })}
+          <div className="mt-3 pt-3 border-t border-brand/20">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400">Delivery diagnostics</span>
+              {data.diagnostics.map((d) => { const I = SEV[d.status].Icon; const on = openDiag === d.key; return (
+                <button key={d.key} onClick={() => setOpenDiag(on ? null : d.key)}
+                  className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${SEV[d.status].chip} ${on ? "ring-2 ring-brand/40" : "hover:brightness-95"}`}>
+                  <I size={12} stroke={2.2} /> {d.label}{d.campaigns.length ? ` · ${d.campaigns.length}` : ""}
+                </button>
+              ); })}
+              <span className="text-[10px] text-gray-400">— tap a flag to see what it means</span>
+            </div>
+            {openDiag && (() => { const d = data.diagnostics.find((x) => x.key === openDiag); if (!d) return null; return (
+              <div className="mt-2.5 bg-white border border-gray-100 rounded-lg p-3.5">
+                <div className="text-[12.5px] font-semibold text-[#232D42] mb-1">{d.label}{d.campaigns.length ? ` — ${d.campaigns.length} campaign${d.campaigns.length === 1 ? "" : "s"} affected` : ""}</div>
+                <div className="text-[12px] text-gray-700 leading-relaxed">{DIAG_EXPLAIN[d.key] || d.evidence}</div>
+                {d.campaigns.length > 0 && <div className="text-[12px] text-gray-600 mt-1.5"><b className="text-brand-ink font-semibold">Which ones: </b>{d.campaigns.join(", ")}</div>}
+                {d.fix && <div className="text-[12px] text-[#232D42] mt-1.5"><b className="text-brand-ink font-semibold">What to do: </b>{d.fix}</div>}
+              </div>
+            ); })()}
           </div>
         </div>
       </div>

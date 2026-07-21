@@ -12,6 +12,18 @@ import { askPerplexityJSON, hasAI } from "@/lib/ai";
 export const dynamic = "force-dynamic";
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const num = (n: number) => n.toLocaleString("en-IN");
+
+// The single biggest issue, said in plain words a beginner understands.
+const PLAIN_ISSUE: Record<string, string> = {
+  cpl: "a few campaigns are paying far too much for each lead",
+  fatigue: "some ads are being shown to the same people too often",
+  pacing: "some ads aren't spending their full budget, so they reach fewer people",
+  ctr: "some ads aren't getting enough clicks",
+  cpm: "it's getting expensive just to reach people",
+  learning: "some new ads are still settling in",
+  ok: "nothing major — things look healthy",
+};
 
 type Diag = { key: string; label: string; status: "good" | "warn" | "crit"; evidence: string; fix: string; campaigns: string[] };
 
@@ -50,37 +62,37 @@ export async function GET(req: Request) {
     if (fatigued.length)
       diagnostics.push({ key: "fatigue", label: "Ad fatigue", status: fatigued.some((c) => c.frequency > 5) ? "crit" : "warn",
         evidence: fatigued.map((c) => `${c.campaign_name} (freq ${c.frequency.toFixed(1)})`).join("; "),
-        fix: "Refresh creative or widen the audience — the same people are seeing it too often.", campaigns: fatigued.map((c) => c.campaign_name) });
+        fix: "Change the picture or video, or show it to new people — they’re seeing it too often.", campaigns: fatigued.map((c) => c.campaign_name) });
 
     const pricey = withLeads.filter((c) => avgCPL > 0 && c.costPerLead > avgCPL * 1.5);
     if (pricey.length)
       diagnostics.push({ key: "cpl", label: "High cost per lead", status: "crit",
         evidence: pricey.map((c) => `${c.campaign_name} ${inr(c.costPerLead)} vs avg ${inr(avgCPL)}`).join("; "),
-        fix: "Shift budget toward lower-CPL campaigns or narrow the audience.", campaigns: pricey.map((c) => c.campaign_name) });
+        fix: "Move budget to your cheaper campaigns, or narrow who these ads target.", campaigns: pricey.map((c) => c.campaign_name) });
 
     const learning = campaigns.filter((c) => c.status === "ACTIVE" && c.leads > 0 && c.leads < 50);
     if (learning.length)
       diagnostics.push({ key: "learning", label: "Learning phase", status: "warn",
         evidence: learning.map((c) => `${c.campaign_name} (${c.leads}/50 conversions)`).join("; "),
-        fix: "Don't edit for 48h — under 50 conversions/week Meta can't optimise reliably.", campaigns: learning.map((c) => c.campaign_name) });
+        fix: "Don’t change it for about 2 days — it’s still learning who to show it to.", campaigns: learning.map((c) => c.campaign_name) });
 
     const underPacing = campaigns.filter((c) => c.daily_budget > 0 && c.spend / days < c.daily_budget * 0.75);
     if (underPacing.length)
       diagnostics.push({ key: "pacing", label: "Budget under-pacing", status: "warn",
         evidence: underPacing.map((c) => `${c.campaign_name} avg ${inr(c.spend / days)}/day of ${inr(c.daily_budget)}`).join("; "),
-        fix: "Raise the bid or broaden targeting — it isn't spending its budget, so you're losing reach.", campaigns: underPacing.map((c) => c.campaign_name) });
+        fix: "Raise the bid or widen the audience so it spends its full budget and reaches more people.", campaigns: underPacing.map((c) => c.campaign_name) });
 
     const lowCtr = campaigns.filter((c) => c.ctr > 0 && c.ctr < 1.0);
     if (lowCtr.length)
       diagnostics.push({ key: "ctr", label: "Low click-through", status: "warn",
         evidence: lowCtr.map((c) => `${c.campaign_name} CTR ${c.ctr.toFixed(2)}%`).join("; "),
-        fix: "Hook/creative isn't landing — test a stronger opening frame.", campaigns: lowCtr.map((c) => c.campaign_name) });
+        fix: "Test a stronger picture or opening line so more people click.", campaigns: lowCtr.map((c) => c.campaign_name) });
 
     const cpmOut = campaigns.filter((c) => avgCPM > 0 && c.cpm > avgCPM * 1.5);
     if (cpmOut.length)
       diagnostics.push({ key: "cpm", label: "High CPM", status: "warn",
         evidence: cpmOut.map((c) => `${c.campaign_name} CPM ${inr(c.cpm)} vs avg ${inr(avgCPM)}`).join("; "),
-        fix: "Costly to reach — check audience overlap or competition on that audience.", campaigns: cpmOut.map((c) => c.campaign_name) });
+        fix: "Check whether two ads are chasing the same people, or try a slightly different audience.", campaigns: cpmOut.map((c) => c.campaign_name) });
 
     if (!diagnostics.length)
       diagnostics.push({ key: "ok", label: "All clear", status: "good", evidence: "No fatigue, CPL, pacing, CTR or CPM issues tripped.", fix: "", campaigns: [] });
@@ -108,9 +120,9 @@ export async function GET(req: Request) {
         diagnostics: diagnostics.map((d) => ({ label: d.label, status: d.status, evidence: d.evidence })),
       };
       summary = await askPerplexityJSON<{ verdict: string; recommendations: string[] }>(
-        `You are a Meta ads analyst for an Indian education brand. Use ONLY the facts given — never invent numbers. Return a JSON object with:
-- "verdict": one plain-English sentence (max 28 words) stating spend, lead count, avg CPL, and the single biggest issue.
-- "recommendations": array of exactly 3 short imperative actions, each naming a real campaign and the number that justifies it.`,
+        `You are explaining Meta (Facebook/Instagram) ads to someone who has NEVER run ads and doesn't know any jargon. Use ONLY the facts given — never invent numbers. Write for a total beginner: no acronyms without a plain explanation, everyday words, friendly and clear. Return a JSON object with:
+- "verdict": 1–2 plain sentences: how much was spent, how many leads (people who shared contact details) that got, roughly the cost per lead in rupees, and the single biggest thing to fix — explained simply.
+- "recommendations": exactly 3 clear actions. Each names a real campaign and explains, in plain words, WHY (what the number means for a beginner), and WHAT to do. No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
         `Facts: ${JSON.stringify(facts)}`,
         { model: "sonar", timeoutMs: 20_000 },
       ).catch(() => null);
@@ -118,16 +130,16 @@ export async function GET(req: Request) {
       else summary = null;
     }
     if (!summary || !summary.verdict) {
-      // Deterministic fallback — always correct, never blocks the demo.
+      // Deterministic fallback — always correct, beginner-friendly, never blocks the demo.
       const topIssue = diagnostics.find((d) => d.status === "crit") || diagnostics[0];
       const recs: string[] = [];
       if (best && worst && best.campaign_name !== worst.campaign_name)
-        recs.push(`Shift budget from “${worst.campaign_name}” (CPL ${inr(worst.costPerLead)}) to “${best.campaign_name}” (CPL ${inr(best.costPerLead)}).`);
-      if (fatigued[0]) recs.push(`Refresh creative on “${fatigued[0].campaign_name}” — frequency ${fatigued[0].frequency.toFixed(1)}.`);
-      if (learning[0]) recs.push(`Leave “${learning[0].campaign_name}” alone 48h — still in the learning phase.`);
-      while (recs.length < 3) recs.push("Review the diagnostics below and act on the highest-severity flag first.");
+        recs.push(`Move budget from “${worst.campaign_name}” — it pays ${inr(worst.costPerLead)} for each lead, which is very expensive — into “${best.campaign_name}”, which gets a lead for just ${inr(best.costPerLead)}. Same money, far more leads.`);
+      if (fatigued[0]) recs.push(`Change the picture or video on “${fatigued[0].campaign_name}”. People have already seen it about ${Math.round(fatigued[0].frequency)} times and are starting to ignore it, so it's slowly wasting money.`);
+      if (learning[0]) recs.push(`Leave “${learning[0].campaign_name}” alone for about 2 days. It's still new and Facebook is figuring out who to show it to — editing it now makes it start over.`);
+      while (recs.length < 3) recs.push("Look at the coloured flags below and start with the red ones — those are the issues costing you the most money.");
       summary = {
-        verdict: `Spend ${inr(spend)} across ${totals.campaigns} campaigns · ${leads} leads @ ${inr(avgCPL)} CPL. Biggest issue: ${topIssue.label.toLowerCase()}.`,
+        verdict: `You spent ${inr(spend)} across ${totals.campaigns} ad campaigns and got ${num(leads)} leads — that's about ${inr(avgCPL)} to get one person's contact details. The main thing to fix: ${PLAIN_ISSUE[topIssue.key] || topIssue.label.toLowerCase()}.`,
         recommendations: recs.slice(0, 3),
       };
     }
