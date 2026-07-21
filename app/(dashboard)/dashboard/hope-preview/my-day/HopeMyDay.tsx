@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
+import type { Capability, Permissions } from "@/lib/permissions";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean; href?: string }) {
@@ -531,9 +532,39 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
   );
 }
 
-function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number } }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   const [copied, setCopied] = useState(false);
   const copyContent = () => { try { navigator.clipboard?.writeText(task.detail.content); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  // Permission-gated task actions (edit / reassign / delete). Only rendered when
+  // the viewed person's Team capabilities allow them.
+  const actor = uploadedBy || "maheen";
+  const [editing, setEditing] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [prio, setPrio] = useState(task.detail.priority);
+  const [due, setDue] = useState(task.due || "");
+  const saveEdit = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null } }) });
+      setEditing(false); onSaved?.();
+    } finally { setBusy(false); }
+  };
+  const reassign = async (key: string) => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: task.id, newOwnerKey: key }) });
+      setAssigning(false); onSaved?.();
+    } finally { setBusy(false); }
+  };
+  const doDelete = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor }) });
+      setConfirmDel(false); (onDeleted || onSaved)?.();
+    } finally { setBusy(false); }
+  };
   const tone = TONE[STATUS[task.status].tone];
   // Collaborators = the writer(s)/helpers on the task — kept separate from Owner
   // (the single person who claimed / does it), mirroring the Airtable model.
@@ -643,6 +674,63 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           <div key={i} className="act-row"><b>{a.who}</b> {a.text}<span className="act-time"> · {a.time}</span></div>
         ))}
       </div>
+
+      {(canEdit || canAssign || canDelete) && (
+        <>
+          <div className="section-lbl" style={{ marginTop: ".9rem" }}>Actions</div>
+          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
+            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}>✎ Edit</button>}
+            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}>⇄ Reassign</button>}
+            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}>🗑 Delete</button>}
+          </div>
+
+          {editing && (
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                <div>
+                  <div className="mlbl">Priority</div>
+                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem" }}>
+                    {Object.keys(PRIO).map((k) => (
+                      <button key={k} className="btn sm" onClick={() => setPrio(k as typeof prio)} style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mlbl">Due date</div>
+                  <div style={{ marginTop: ".3rem" }}><DatePicker value={due} onChange={setDue} /></div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: ".4rem", marginTop: ".7rem" }}>
+                <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
+                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {assigning && (
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
+              <div className="mlbl" style={{ marginBottom: ".45rem" }}>Reassign to</div>
+              <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
+                {Object.entries(PPL).map(([key, p]) => (
+                  <button key={key} className="btn sm" disabled={busy} onClick={() => reassign(key)}>
+                    <span className="av av-sm" style={{ background: p.color, marginRight: ".35rem" }}>{p.av}</span>{p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {confirmDel && (
+            <div style={{ marginTop: ".5rem", border: "1px solid #F3C6CE", background: "#FDECEF", borderRadius: 10, padding: ".7rem" }}>
+              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? This removes it from the pipeline for everyone.</div>
+              <div style={{ display: "flex", gap: ".4rem" }}>
+                <button className="btn sm" style={{ background: "#C0392B", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={doDelete}>{busy ? "Deleting…" : "Yes, delete"}</button>
+                <button className="btn sm" onClick={() => setConfirmDel(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -1051,8 +1139,30 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
   );
 }
 
+type CapEntry = { permissions: Permissions; isAdmin: boolean };
+
 export function HopeMyDay() {
   const [person, setPerson] = useState("nandu");
+  // Team-permission capabilities, keyed by first name (lowercase). Drives which
+  // action buttons show. Sourced from the roster (admins) so the person switcher
+  // previews everyone; falls back to /api/me for the logged-in person.
+  const [capByPerson, setCapByPerson] = useState<Record<string, CapEntry>>({});
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const map: Record<string, CapEntry> = {};
+      try {
+        const me = await (await fetch("/api/me", { cache: "no-store" })).json();
+        if (me?.user?.first) map[String(me.user.first).toLowerCase()] = { permissions: me.user.permissions || {}, isAdmin: !!me.user.isAdmin };
+      } catch { /* ignore */ }
+      try {
+        const r = await fetch("/api/admin/team", { cache: "no-store" });
+        if (r.ok) { const j = await r.json(); for (const u of j.team || []) if (u.first) map[String(u.first).toLowerCase()] = { permissions: u.permissions || {}, isAdmin: !!u.isAdmin }; }
+      } catch { /* non-admin: roster stays unfetched, /api/me fallback covers self */ }
+      if (!cancel) setCapByPerson(map);
+    })();
+    return () => { cancel = true; };
+  }, []);
   const [sel, setSel] = useState(0);
   const [claimPool, setClaimPool] = useState<Task[]>([]);             // videos up for grabs (live)
   const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal
@@ -1509,8 +1619,16 @@ export function HopeMyDay() {
     });
     setToast({ who: "Auto-planned ✓", color: "#3A57E8", av: me.av, body: "Reshuffled by priority, then due date." });
   };
-  const isAdmin = person === "maheen"; // only Maheen (manager) may Send to Scheduler
-  const canCreate = person === "manya"; // the writer creates content tasks
+  // Capability gates now come from Team permissions (per-person toggles), not
+  // hardcoded names. Admins implicitly have every capability.
+  const activeCaps = capByPerson[person];
+  const can = (cap: Capability) => !!activeCaps && (activeCaps.isAdmin || activeCaps.permissions[cap] === true);
+  const canCreate = can("create_tasks");      // + New task
+  const canSchedule = can("approve_content");  // Send to Scheduler (post)
+  const canEditTasks = can("edit_tasks");      // edit priority / due date
+  const canDeleteTasks = can("delete_tasks");  // remove a task
+  const canAssignTasks = can("assign_tasks");  // hand to a teammate
+  const isAdmin = canSchedule; // preserve existing prop name below
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
   // Capacity-gated: a new task starts on Manya (writer) — warn if her day is full.
@@ -1962,7 +2080,7 @@ export function HopeMyDay() {
 
           <div className="card pad detail">
             {task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(0); load(); }} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
             )}
@@ -2055,7 +2173,7 @@ export function HopeMyDay() {
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close">✕</button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m) => setDuration(planModalTask.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m) => setDuration(planModalTask.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">

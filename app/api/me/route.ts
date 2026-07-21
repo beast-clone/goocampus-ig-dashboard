@@ -12,6 +12,11 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 200 });
   }
   return NextResponse.json({
-    user: { id: user.id, name: user.name, first: user.first, initials: user.initials, role: user.role, isAdmin: user.isAdmin },
+    user: {
+      id: user.id, name: user.name, first: user.first, initials: user.initials, role: user.role,
+      isAdmin: user.isAdmin,
+      permissions: user.permissions, // per-capability toggles (gate action buttons)
+      sections: user.sections,       // per-section page access (gate sidebar tabs)
+    },
   });
 }
