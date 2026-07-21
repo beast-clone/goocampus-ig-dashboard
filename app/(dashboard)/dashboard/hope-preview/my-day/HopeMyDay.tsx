@@ -778,6 +778,23 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
   );
 }
 
+// One swap candidate in Manya's Requests — she can move it to the default +1-day
+// date OR pick ANY custom date, then hand the queued task over.
+function SwapCandidateRow({ c, defaultDate, onMove }: { c: SwapCand; defaultDate: string; onMove: (date: string) => void }) {
+  const [date, setDate] = useState(defaultDate);
+  const label = (() => { try { return new Date(date + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short" }); } catch { return date; } })();
+  return (
+    <div className="claim-row" style={{ borderBottom: "none", padding: ".35rem 0", gap: ".5rem", alignItems: "center" }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="claim-title">{c.title}</div>
+        <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""} · <b style={{ color: "#3A57E8" }}>→ moves to {label}</b></div>
+      </div>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} title="Pick the date to move it to" style={{ fontSize: 12, border: "1px solid #E6E8EE", borderRadius: 7, padding: "4px 6px", color: "#232D42" }} />
+      <button className="btn primary sm" disabled={!date} onClick={() => onMove(date)}>Move · hand over</button>
+    </div>
+  );
+}
+
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const base = value ? new Date(value + "T00:00:00") : new Date();
@@ -2311,35 +2328,23 @@ export function HopeMyDay() {
                     {n.swap && n.postId && (
                       <div style={{ marginTop: ".6rem", display: "flex", flexDirection: "column", gap: ".4rem" }}>
                         {n.swap.candidates.map((c) => {
-                          // The move rolls this task one day forward — compute + SHOW that
-                          // target date so it's clear where it's going (not a silent move).
+                          // Default target = one day after its due date; Manya can pick ANY date.
                           const rollBase = c.due ? new Date(c.due + "T00:00:00") : new Date();
                           rollBase.setDate(rollBase.getDate() + 1);
-                          const next = `${rollBase.getFullYear()}-${String(rollBase.getMonth() + 1).padStart(2, "0")}-${String(rollBase.getDate()).padStart(2, "0")}`;
-                          const rollLabel = rollBase.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+                          const nextDefault = `${rollBase.getFullYear()}-${String(rollBase.getMonth() + 1).padStart(2, "0")}-${String(rollBase.getDate()).padStart(2, "0")}`;
                           return (
-                            <div key={c.id} className="claim-row" style={{ borderBottom: "none", padding: ".3rem 0" }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div className="claim-title">{c.title}</div>
-                                <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""} · <b style={{ color: "#3A57E8" }}>→ moves to {rollLabel}</b></div>
-                              </div>
-                              <button
-                                className="btn primary sm"
-                                onClick={() => {
-                                  dismissNotif(n.id);
-                                  fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, actor: person, fields: { due_date: next } }) })
-                                    .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
-                                    .then(async (res) => {
-                                      if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-                                      else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${rollLabel} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
-                                      load();
-                                    })
-                                    .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
-                                }}
-                              >
-                                Move to {rollLabel} · hand over
-                              </button>
-                            </div>
+                            <SwapCandidateRow key={c.id} c={c} defaultDate={nextDefault} onMove={(date) => {
+                              const label = (() => { try { return new Date(date + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short" }); } catch { return date; } })();
+                              dismissNotif(n.id);
+                              fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, actor: person, fields: { due_date: date } }) })
+                                .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
+                                .then(async (res) => {
+                                  if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
+                                  else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${label} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
+                                  load();
+                                })
+                                .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
+                            }} />
                           );
                         })}
                       </div>
