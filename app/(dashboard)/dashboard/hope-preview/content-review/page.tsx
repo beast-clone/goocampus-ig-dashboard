@@ -20,15 +20,6 @@ type ReviewPost = {
   hasCreative: boolean; publishingDate: string | null; updatedAt: string | null;
 };
 
-const OWNER_COLORS: Record<string, { bg: string; fg: string }> = {
-  nikhil: { bg: "#E6F1FB", fg: "#0C447C" },
-  manya: { bg: "#FBEAF0", fg: "#72243E" },
-  nandu: { bg: "#E1F5EE", fg: "#085041" },
-  praveen: { bg: "#FAEEDA", fg: "#633806" },
-  maheen: { bg: "#EFEBFE", fg: "#4B2E9C" },
-};
-const ownerColor = (o: string | null) =>
-  OWNER_COLORS[(o || "").toLowerCase()] || { bg: "#F1EFE8", fg: "#5F5E5A" };
 
 function typeChip(t: string | null) {
   const s = (t || "").toLowerCase();
@@ -146,7 +137,6 @@ function Review() {
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {posts.map((p) => {
             const tc = typeChip(p.type);
-            const oc = ownerColor(p.owner);
             const busy = busyId === p.id;
             return (
               <div
@@ -169,17 +159,13 @@ function Review() {
                   <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
                     {p.title || "Untitled"}
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {p.owner && (
-                      <span
-                        className="text-[11px] font-medium rounded-full px-2 py-0.5"
-                        style={{ background: oc.bg, color: oc.fg }}
-                      >
-                        {p.owner}
+                  {p.sbu && (
+                    <div>
+                      <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
+                        {p.sbu}
                       </span>
-                    )}
-                    {p.sbu && <span className="text-xs text-[#8A92A6]">{p.sbu}</span>}
-                  </div>
+                    </div>
+                  )}
                   {(p.caption || p.content) && (
                     <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
                   )}
