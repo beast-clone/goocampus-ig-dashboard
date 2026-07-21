@@ -447,7 +447,6 @@ function BudgetHero({
   const maxSpendCap = totalDailyBudget * (1 + OVERSPEND_CAP_PCT);
   const utilization = totalDailyBudget > 0 ? (summary.spend / totalDailyBudget) * 100 : null;
   const overBudget = utilization !== null && utilization >= 100;
-  const utilizationClamped = utilization !== null ? Math.min(100, utilization) : null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -490,12 +489,13 @@ function BudgetHero({
               )}
             </div>
             <div className="text-3xl font-semibold text-gray-900 mt-1 tabular-nums">{fmtINR(summary.spend)}</div>
-            {utilizationClamped !== null && (
-              <div className="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all bg-brand"
-                  style={{ width: `${utilizationClamped}%` }}
-                />
+            {totalDailyBudget > 0 && (
+              // Bar's 100% = Meta's max cap (budget +25%). Blue fill = actual spend,
+              // dark tick = the set budget (80% of the track), hatched tail = headroom.
+              <div className="relative h-2 bg-gray-100 rounded-full mt-2.5 overflow-hidden" title={`Spent ${fmtINR(summary.spend)} · budget ${fmtINR(totalDailyBudget)} · Meta max ${fmtINR(maxSpendCap)}`}>
+                <div className="absolute inset-y-0 right-0 w-1/5" style={{ background: "repeating-linear-gradient(45deg,#C7D0F7,#C7D0F7 3px,transparent 3px,transparent 6px)" }} />
+                <div className="absolute inset-y-0 left-0 bg-brand rounded-full transition-all" style={{ width: `${Math.min(100, (summary.spend / maxSpendCap) * 100)}%` }} />
+                <div className="absolute inset-y-0 w-px bg-gray-500/60" style={{ left: "80%" }} />
               </div>
             )}
           </div>
@@ -697,13 +697,15 @@ type InterestKey = "amc_australia" | "university_masters" | "mbbs_ug" | "walk_in
 type InterestDef = { key: InterestKey; label: string; emoji: string; color: string; keywords: (string | RegExp)[] };
 
 const INTERESTS: InterestDef[] = [
-  { key: "amc_australia",       label: "Australia AMC Pathway",    emoji: "🇦🇺", color: "bg-red-500",     keywords: ["AMC", "AUS-PGCP", "AHPRA", /\bAustralia\b/i] },
-  { key: "university_masters",  label: "University / Masters",     emoji: "🎓", color: "bg-violet-500",   keywords: ["University Programs", "Masters", "Post-Graduate", /\bPG\b/] },
-  { key: "mbbs_ug",             label: "MBBS / Undergrad",         emoji: "📚", color: "bg-blue-500",     keywords: ["MBBS", /\bUG\b/, "Study Abroad"] },
-  { key: "walk_in",             label: "Walk-in / Events",         emoji: "📍", color: "bg-amber-500",    keywords: ["Walk-in", "Walk in", "State-wise"] },
-  { key: "als",                 label: "ALS Certification",        emoji: "❤️", color: "bg-rose-500",     keywords: ["ALS"] },
-  { key: "samvaya",             label: "Samvaya Matrimony",        emoji: "💍", color: "bg-pink-500",     keywords: ["Samvaya", "Matrimony"] },
-  { key: "traffic_boost",       label: "Traffic / Boosted Posts",  emoji: "📣", color: "bg-teal-500",     keywords: ["Traffic Ads", "Instagram post:", "Boosted"] },
+  // Coordinated palette — a restrained blue-led range (brand family + one warm, one rose)
+  // so the category dots read as a considered system, not a random rainbow.
+  { key: "amc_australia",       label: "Australia AMC Pathway",    emoji: "🇦🇺", color: "bg-brand",       keywords: ["AMC", "AUS-PGCP", "AHPRA", /\bAustralia\b/i] },
+  { key: "university_masters",  label: "University / Masters",     emoji: "🎓", color: "bg-indigo-400",   keywords: ["University Programs", "Masters", "Post-Graduate", /\bPG\b/] },
+  { key: "mbbs_ug",             label: "MBBS / Undergrad",         emoji: "📚", color: "bg-sky-500",      keywords: ["MBBS", /\bUG\b/, "Study Abroad"] },
+  { key: "walk_in",             label: "Walk-in / Events",         emoji: "📍", color: "bg-amber-400",    keywords: ["Walk-in", "Walk in", "State-wise"] },
+  { key: "als",                 label: "ALS Certification",        emoji: "❤️", color: "bg-rose-400",     keywords: ["ALS"] },
+  { key: "samvaya",             label: "Samvaya Matrimony",        emoji: "💍", color: "bg-violet-400",   keywords: ["Samvaya", "Matrimony"] },
+  { key: "traffic_boost",       label: "Traffic / Boosted Posts",  emoji: "📣", color: "bg-teal-400",     keywords: ["Traffic Ads", "Instagram post:", "Boosted"] },
 ];
 
 function classifyCampaign(name: string): InterestDef {
