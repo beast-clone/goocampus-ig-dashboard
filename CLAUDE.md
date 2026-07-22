@@ -28,15 +28,17 @@ All Version-2 UI lives under `app/(dashboard)/dashboard/hope-preview/` and rende
 ## Workflow
 - Work on branch `feat/hope-ui-reskin`. Verify changes live in the user's Chrome before saying they're done. No Netlify production deploy without explicit approval.
 
-## My Day tab — build against the spec
+## MANDATORY: spec-first on any complex / confusing feature
 
-The **My Day** tab (`app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx`) has a
-detailed, user-agreed spec at **`docs/MY_DAY_SPEC.md`** — the source of truth (current code
-does NOT fully match it). Before building, changing, or answering questions about My Day —
-its status tabs, owner/collaborator, assignment, capacity pipeline, Content Review/feedback,
-attendance, reminders, or permissions — **invoke the `my-day-spec` skill** (or read the spec),
-which re-runs the clarifying discussion first. Non-negotiables: no dummy data (real `mh_posts`),
-reuse existing code (ponytail), test end-to-end live.
+For **any non-trivial, confusing, ambiguous, or illogical-seeming** part of this dashboard —
+before building/changing/debugging it, or whenever you or the user is unsure or stuck —
+**invoke the `spec-first` skill**. It runs a clarify-then-build loop: understand code + live UI,
+play back your understanding, ask targeted questions, cross-check intent vs. what's actually built,
+capture the agreed spec in **`docs/<FEATURE>_SPEC.md`**, then build (no dummy data → real Supabase,
+reuse existing code → ponytail, test end-to-end live). Applies across the whole dashboard, not one tab.
+
+Per-feature specs live in **`docs/*_SPEC.md`** — load the matching one when it exists. First one:
+**`docs/MY_DAY_SPEC.md`** (the My Day tab; current code does NOT fully match it yet — build against the spec).
 
 ## graphify
 
