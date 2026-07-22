@@ -506,13 +506,21 @@ export function HopeOverview() {
 
               {/* Performance — post mix / engagement rate / hashtags / format / reposts */}
               <SectionHeader icon={IconChartBar} title="Performance" sub="Post mix, formats & hashtags" />
-              <HopePostMix mix={postMix} />
-              {/* Hashtags are reused from the shared component (you liked them) — post mix,
-                  format card & reposts are hidden here and drawn Hope-style instead. */}
-              <div className="hope-scope">
-                <OverviewExtras accountId={accountId} range={range} hideReposts hidePostMix hideFormat />
+              {/* Left column stacks Post mix + Hashtags (fills the space under Post mix);
+                  Which format wins owns the taller right column. 40/60 split, top-aligned. */}
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 3fr", gap: 16, alignItems: "start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+                  <HopePostMix mix={postMix} cardStyle={{ minWidth: 0 }} />
+                  {/* Hashtags reused from the shared component (post mix, format card &
+                      reposts hidden here — drawn Hope-style / on the right instead). */}
+                  <div className="hope-scope">
+                    <OverviewExtras accountId={accountId} range={range} hideReposts hidePostMix hideFormat />
+                  </div>
+                </div>
+                {/* Right column: Which format wins, with the "Your read" takeaway tucked
+                    inside the card at the bottom (levels the two columns). */}
+                <HopeFormatWins rows={formatRows} cardStyle={{ minWidth: 0 }} footer={<HopeYourRead mix={postMix} />} />
               </div>
-              <HopeFormatWins rows={formatRows} />
               <HopeHowToRead />
 
               {/* Posting cadence */}
@@ -535,8 +543,8 @@ export function HopeOverview() {
 }
 
 /* ---------- pieces ---------- */
-function Card({ children }: { children: React.ReactNode }) {
-  return <div style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "22px 24px" }}>{children}</div>;
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "22px 24px", ...style }}>{children}</div>;
 }
 
 // The blue gradient greeting banner — shared by every platform tab.
@@ -644,15 +652,12 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
 }
 
 // Post mix — Hope-styled donut with the new palette + a plain-English read.
-function HopePostMix({ mix }: { mix: { total: number; entries: { type: string; count: number; pct: number }[] } }) {
+function HopePostMix({ mix, cardStyle }: { mix: { total: number; entries: { type: string; count: number; pct: number }[] }; cardStyle?: React.CSSProperties }) {
   const stops: string[] = []; let from = 0;
   for (const e of mix.entries) { const c = fmtMeta(e.type).color; const to = from + (e.pct / 100) * 360; stops.push(`${c} ${from.toFixed(1)}deg ${to.toFixed(1)}deg`); from = to; }
   const gradient = stops.length ? `conic-gradient(${stops.join(", ")})` : `conic-gradient(${C.line} 0deg 360deg)`;
-  const reelPct = mix.entries.find((e) => e.type === "REEL")?.pct || 0;
-  const carouselPct = mix.entries.find((e) => e.type === "CAROUSEL_ALBUM")?.pct || 0;
-  const dominant = mix.entries[0];
   return (
-    <Card>
+    <Card style={cardStyle}>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Post mix</div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 18 }}>What formats you posted, and what the split means.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
@@ -675,43 +680,52 @@ function HopePostMix({ mix }: { mix: { total: number; entries: { type: string; c
           ); })}
         </div>
       </div>
-      {dominant && (
-        <div style={{ marginTop: 18, background: "#F4F6FF", border: "1px solid #E1E7FE", borderRadius: 12, padding: "12px 15px" }}>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
-          <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.55 }}>
-            {carouselPct >= 50
-              ? <>You&rsquo;re <b>Carousel-heavy</b> — great for the followers you already have, but <b>Reels</b> are the format IG shows to NEW people. Bumping Reels from <b>{Math.round(reelPct)}%</b> toward <b>~40%</b> could grow your audience faster.</>
-              : reelPct >= 40
-                ? <>Nice Reel-forward mix — that&rsquo;s the format IG pushes to new people. Keep <b>Carousels</b> for depth.</>
-                : <>Fairly balanced. For education content, aim for <b>~40% Reels · ~40% Carousels · ~20% Static</b>.</>}
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
 
+// Your read — the plain-English post-mix takeaway. Lives under "Which format wins"
+// (right column) so the left column ends level with it — no dead space.
+function HopeYourRead({ mix }: { mix: { total: number; entries: { type: string; count: number; pct: number }[] } }) {
+  const dominant = mix.entries[0];
+  if (!dominant) return null;
+  const reelPct = mix.entries.find((e) => e.type === "REEL")?.pct || 0;
+  const carouselPct = mix.entries.find((e) => e.type === "CAROUSEL_ALBUM")?.pct || 0;
+  return (
+    <div style={{ background: "#F4F6FF", border: "1px solid #E1E7FE", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
+      <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.55 }}>
+        {carouselPct >= 50
+          ? <>You&rsquo;re <b>Carousel-heavy</b> — great for the followers you already have, but <b>Reels</b> are the format IG shows to NEW people. Bumping Reels from <b>{Math.round(reelPct)}%</b> toward <b>~40%</b> could grow your audience faster.</>
+          : reelPct >= 40
+            ? <>Nice Reel-forward mix — that&rsquo;s the format IG pushes to new people. Keep <b>Carousels</b> for depth.</>
+            : <>Fairly balanced. For education content, aim for <b>~40% Reels · ~40% Carousels · ~20% Static</b>.</>}
+      </div>
+    </div>
+  );
+}
+
 // Which format wins — visual comparison with an avg-reach bar per format + winner.
-function HopeFormatWins({ rows }: { rows: { type: string; count: number; avgReach: number; avgEng: number; erPct: number }[] }) {
+function HopeFormatWins({ rows, cardStyle, footer }: { rows: { type: string; count: number; avgReach: number; avgEng: number; erPct: number }[]; cardStyle?: React.CSSProperties; footer?: React.ReactNode }) {
   if (!rows.length) return null;
   const winner = rows[0];
   const wm = fmtMeta(winner.type);
   const maxReach = Math.max(1, ...rows.map((r) => r.avgReach));
   return (
-    <Card>
+    <Card style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Which format wins</div>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#fff", background: wm.color, padding: "4px 11px", borderRadius: 99 }}><IconTrophy size={13} /> {wm.label} — top reach</span>
       </div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>Average performance per format, so you can see what to make more of.</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {rows.map((r) => { const m = fmtMeta(r.type); const isWin = r.type === winner.type; return (
-          <div key={r.type} style={{ border: `1px solid ${isWin ? m.color + "55" : C.line}`, background: isWin ? `linear-gradient(135deg, ${m.color}0F, #fff)` : "#fff", borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div key={r.type} style={{ border: `1px solid ${isWin ? m.color + "55" : C.line}`, background: isWin ? `linear-gradient(135deg, ${m.color}0F, #fff)` : "#fff", borderRadius: 14, padding: "10px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} /><span style={{ fontSize: 14.5, fontWeight: 600, color: C.heading }}>{m.label}</span><span style={{ fontSize: 11.5, color: C.muted }}>· {r.count} posts</span></div>
               {isWin && <span style={{ fontSize: 10, fontWeight: 600, color: m.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>Top reach</span>}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
               <span style={{ flex: 1, height: 10, background: "#EEF1FB", borderRadius: 99, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${(r.avgReach / maxReach) * 100}%`, background: m.color, borderRadius: 99 }} /></span>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.heading, minWidth: 66, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.avgReach)}</span>
             </div>
@@ -723,6 +737,7 @@ function HopeFormatWins({ rows }: { rows: { type: string; count: number; avgReac
           </div>
         ); })}
       </div>
+      {footer && <div style={{ marginTop: 12 }}>{footer}</div>}
     </Card>
   );
 }
