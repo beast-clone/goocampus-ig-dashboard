@@ -254,6 +254,9 @@ const WORK_MIN = 480;
 const DAY_END_LABEL = "6:00 PM";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
+// Per-person shift start (minutes after 9 AM). Nandu works the LATE shift 10 AM–7 PM,
+// so his day lays out from 10 AM; everyone else starts at 9 AM.
+const shiftStartOf = (name: string) => (name === "Nandu" ? 60 : 0);
 function estMins(type: string): number {
   const t = (type || "").toLowerCase();
   if (/thumbnail/.test(t)) return 30;         // BEFORE /reel/ — "Reel Thumbnail" is design work, not a 90m video
@@ -1094,7 +1097,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
     const committed = mine.reduce((s, t) => s + t.dur, 0);
     const freeMin = capacity - committed;
     const blocks: CapBlock[] = [];
-    let cursor = 0, lunchDone = false, current: { label: string; endsIn: number } | null = null;
+    let cursor = shiftStartOf(p.name), lunchDone = false, current: { label: string; endsIn: number } | null = null;
     // Week view buckets these into Mon–Fri columns (below). todayCol = live column.
     const todayW = (d0.getDay() + 6) % 7;                 // Mon=0 … Sun=6
     const todayCol = todayW <= 4 ? todayW : 0;            // weekend viewer → Mon
@@ -1477,7 +1480,13 @@ export function HopeMyDay() {
   }, [tasks, claimedTasks, me.name]);
   const curTab = TASK_TABS.find((t) => t.key === taskTab) || TASK_TABS[0];
   // Tasks in the current tab, sorted by due date (overdue first → today → later).
-  const shownTasks = useMemo(() => workingTasks.filter((t) => curTab.statuses.includes(t.status)).sort((a, b) => (a.due || "").localeCompare(b.due || "")), [workingTasks, taskTab]);
+  const shownTasks = useMemo(() => {
+    const PR: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+    // Priority first (so an urgent task tops the list, matching its red block on the
+    // plan), then by due date (overdue → today → later).
+    return workingTasks.filter((t) => curTab.statuses.includes(t.status))
+      .sort((a, b) => (PR[a.detail.priority] - PR[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
+  }, [workingTasks, taskTab]);
   const task = shownTasks[sel] || shownTasks[0] || null;
   const planModalTask = planModalId ? tasks.find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
@@ -1511,7 +1520,7 @@ export function HopeMyDay() {
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
     type Blk = { kind: "task" | "lunch" | "free"; id?: string; label: string; start: number; dur: number };
     const blocks: Blk[] = [];
-    let cursor = 0, lunchDone = false;
+    let cursor = shiftStartOf(name), lunchDone = false;
     const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); cursor = LUNCH_END; lunchDone = true; };
     for (const t of mine) {
       let remaining = t.dur;
@@ -1597,7 +1606,9 @@ export function HopeMyDay() {
   // Seed/sync Today's plan from REAL tasks: the person's own in-production tasks
   // land on the timeline (duration = producer-set, else estimated by type); tasks
   // that finished or changed hands drop off automatically. Existing entries keep
-  // their order, duration and pins; new ones append sorted by priority → due.
+  // their order, duration and pins. NEW arrivals auto-slot by priority: an urgent
+  // (High) task jumps to the FRONT of the day on its own — no Auto-plan click — so
+  // priority work surfaces the moment it's assigned; everything else appends.
   useEffect(() => {
     const PRANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
     // Same role rule as workingTasks: producers plan only approved work.
@@ -1607,9 +1618,18 @@ export function HopeMyDay() {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
       const missing = mine
         .filter((t) => !keep.some((x) => x.taskId === t.id))
-        .sort((a, b) => (PRANK[a.detail.priority] - PRANK[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"))
-        .map((t) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) }));
-      return keep.length === p.length && missing.length === 0 ? p : [...keep, ...missing];
+        .sort((a, b) => (PRANK[a.detail.priority] - PRANK[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
+      const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) });
+      const high = missing.filter((t) => t.detail.priority === "High").map(entry);   // urgent → front
+      const rest = missing.filter((t) => t.detail.priority !== "High").map(entry);   // rest → append
+      // NEVER displace a task that's actively being worked (Output - In Progress) at the
+      // front — the urgent arrival slots right AFTER it, so the current task finishes first.
+      let at = 0;
+      while (at < keep.length) {
+        const t = mine.find((m) => m.id === keep[at].taskId);
+        if (t && t.status === "Output - In Progress") at++; else break;
+      }
+      return keep.length === p.length && missing.length === 0 ? p : [...keep.slice(0, at), ...high, ...keep.slice(at), ...rest];
     });
   }, [tasks, claimedTasks, me.name]);
 
@@ -1631,7 +1651,7 @@ export function HopeMyDay() {
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
     // The plan lays out the FULL day from 9 AM (the red now-line marks where you
     // are) — an empty morning block reads as a bug, not as "morning gone".
-    let cursor = 0;
+    let cursor = shiftStartOf(me.name);
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of myPlan) {
@@ -1699,7 +1719,6 @@ export function HopeMyDay() {
     setPlan((arr) => arr.map((p) => (p.key === key ? { ...p, at: mins <= now ? undefined : mins } : p)));
   };
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
-  const PRIO_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
   const setDuration = (id: string, mins: number) => {
     setTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
@@ -1708,33 +1727,13 @@ export function HopeMyDay() {
       const t = [...claimedTasks, ...tasks].find((x) => x.id === id);
       return t ? [...p, { key: `pk${id}`, taskId: id, label: t.title, dur: mins }] : p;
     });
-    setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan. Hit Auto-plan to reshuffle.` });
+    setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan.` });
     // Persist so it survives reload (drives the timer's planned time + plan blocks).
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields: { duration_min: mins } }) })
       .then(async (res) => { if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); } })
       .catch((e) => setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: String(e) }));
   };
-  // AUTO-PLAN — currently RULE-BASED (no AI): highest priority first, then earliest
-  // due date; tasks then flow sequentially from "now", splitting around the 1 PM lunch.
-  // Deterministic and instant — same tasks always produce the same order.
-  //
-  // FUTURE (deferred, per Praveen 2026-07-15): this can be upgraded to an AI-driven
-  // planner — feed the tasks (title, brief, priority, due, effort, the person's
-  // meetings/energy) to Claude and let it reason about a smarter schedule (batch
-  // similar work, respect dependencies, put creative work in focus blocks, etc.).
-  // Keep the rule-based path as the instant/offline fallback. See setPlan sort below.
-  const autoPlan = () => {
-    setPlan((p) => {
-      const all = [...claimedTasks, ...tasks];
-      // Reshuffle drops any manual pins — everything re-flows from now.
-      return [...p].map((x) => ({ ...x, at: undefined })).sort((a, b) => {
-        const ta = all.find((x) => x.id === a.taskId), tb = all.find((x) => x.id === b.taskId);
-        const pa = ta ? PRIO_RANK[ta.detail.priority] : 1, pb = tb ? PRIO_RANK[tb.detail.priority] : 1;
-        return pa - pb || (ta?.due || "9999").localeCompare(tb?.due || "9999");
-      });
-    });
-    setToast({ who: "Auto-planned ✓", color: "#3A57E8", av: me.av, body: "Reshuffled by priority, then due date." });
-  };
+  // (Auto-plan removed — priority now auto-slots on arrival; see the plan-seed effect.)
   // Capability gates now come from Team permissions (per-person toggles), not
   // hardcoded names. Admins implicitly have every capability.
   const activeCaps = capByPerson[person];
@@ -2111,12 +2110,11 @@ export function HopeMyDay() {
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
-              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, DAY_MINS - workMin - LUNCH_MIN))} free</span>
-              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Auto-plan re-flows everything from now.">?</span>
+              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free</span>
+              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
               <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Reel</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
-              <button className="btn primary sm" onClick={autoPlan}>✦ Auto-plan</button>
             </div>
           </div>
           <div className="tl-wrap">
@@ -2178,13 +2176,14 @@ export function HopeMyDay() {
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""}`} onClick={() => setSel(i)}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${t.detail.priority === "High" ? "high" : ""}`} onClick={() => setSel(i)}>
                     <div className="task-top">
                       <div className="tt">{t.title}</div>
                       <span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span>
                     </div>
                     <div className="mm">{t.meta}</div>
                     <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
+                      {t.detail.priority === "High" && <span className="pill" style={{ background: "#FCE8EC", color: "#C0201F" }}>⚡ High</span>}
                       <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
                       {claimed && <span className="pill" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                     </div>
@@ -2705,6 +2704,7 @@ const CSS = `
 .hmd .task{border:1px solid var(--line);border-radius:11px;padding:.6rem .7rem;cursor:pointer;background:var(--panel);transition:all .12s}
 .hmd .task:hover{border-color:#D9DEEA;background:var(--panel-2)}
 .hmd .task.overdue{background:linear-gradient(180deg,#FDECEA,#FFF7F6);border-color:#F1C4BD}
+.hmd .task.high{border-left:3px solid #E11D48}
 .hmd .task.overdue:hover{border-color:#EAA99F}
 .hmd .task.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
 .hmd .task.overdue.sel{border-color:var(--brand)}

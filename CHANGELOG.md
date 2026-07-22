@@ -3,6 +3,31 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-22 — Nandu late shift (10–7), free-time fix, demo script
+
+- **Per-person shift start.** Nandu works the late shift, so his day now lays out from
+  **10 AM–7 PM** while everyone else stays 9–6. `shiftStartOf(name)` (Nandu=60m) seeds the
+  layout cursor in `planBlocks`, `dayFor`, Team-capacity rows, and the Marketing Hub
+  `PersonTimelineRow`. Verified: Nandu's first task starts at the 10 AM tick, 9 AM empty.
+- **Free-time fix.** The plan header's "free" now measures against the 8h work capacity
+  (`WORK_MIN - workMin`) instead of the raw chart span, so it's correct for both shifts
+  (Nandu now reads 3h 30m free, not 4h 30m).
+- **Urgent tasks auto-slot to the front.** The plan-seed effect now sends a NEW
+  High-priority arrival to the FRONT of the day automatically (others still append), so
+  priority surfaces the moment a task is assigned/accepted — no Auto-plan click. **BUT it
+  never displaces the task being actively worked** (Output-In-Progress) at the front — the
+  urgent task slots right AFTER it, so the current task finishes first. Verified both ways:
+  front idle → urgent lands at 9 AM; front in-progress → urgent lands at 10 AM behind it.
+- **My tasks list surfaces + marks priority.** The task list now sorts **priority-first**
+  (then due date), so an urgent task tops the list like it tops the plan; High rows get a
+  red **⚡ High** pill and a red left accent (`.task.high`). Verified: the High NEET UG task
+  sits above the Medium ones, clearly marked.
+- **Auto-plan button removed.** With priority auto-slotting, the manual button was
+  redundant — removed the `✦ Auto-plan` button, the `autoPlan()` function, the now-unused
+  `PRIO_RANK` map, and the two stale text references (duration toast + timeline tooltip).
+- **Demo script** added at repo root (`DEMO-SCRIPT.md`): tab-by-tab talking points +
+  anticipated questions/rebuttals, including the Auto-plan answer (updated for auto-slot).
+
 ## 2026-07-21 (pt 6) — Roles, greeting, now-marker, Mon–Fri week, workload span
 
 Demo-prep refinements across My Day + Marketing Hub.

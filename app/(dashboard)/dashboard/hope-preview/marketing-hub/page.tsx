@@ -451,7 +451,7 @@ function PersonTimelineRow({ card }: {
 
   type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
   const blocks: Blk[] = [];
-  let cur = 0, lunchDone = false, overflow = 0;
+  let cur = (member.label === "Nandu" ? 60 : 0), lunchDone = false, overflow = 0;   // Nandu = 10–7 late shift
   for (const q of queue) {
     if (!lunchDone && cur >= LUNCH_AT_MIN) { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: cur }); cur += LUNCH_MIN; lunchDone = true; }
     if (cur >= SPAN_MIN - (lunchDone ? 0 : LUNCH_MIN)) { overflow++; continue; }
