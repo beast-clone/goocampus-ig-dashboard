@@ -3,6 +3,7 @@ import { hasAI, askPerplexity } from "@/lib/ai";
 import { buildGA4Traffic, hasGA4Auth } from "@/lib/ga4";
 import { buildClarity, hasClarityAuth } from "@/lib/clarity";
 import { buildBing, hasBingAuth } from "@/lib/bing";
+import { buildSearchConsoleFull, hasGSCAuth } from "@/lib/search-console";
 import { cached } from "@/lib/api-cache";
 
 // GET /api/website/insights?source=ga|clarity|bing&from=&to=
@@ -22,6 +23,7 @@ const PROMPTS: Record<string, string> = {
   ga: `You are a senior growth-marketing / CRO strategist advising GooCampus. Site: ${BIZ}\n${DIRECTIVE}\nBased ONLY on this Google Analytics data, give a prioritized GROWTH PLAYBOOK to increase quality traffic and conversions — the methods, the how, the strategy. For each move name the exact tactic and the steps to run it (which page, which ad setting, which copy, which tool). Group under: "Do this week", "Get more (and better) traffic", "Turn traffic into leads", "Organic/SEO plays". Under ~340 words. End with the single highest-leverage move to start with, and why it's first.`,
   clarity: `You are a senior UX / CRO strategist advising GooCampus. Site: ${BIZ}\n${DIRECTIVE}\nBased ONLY on this Microsoft Clarity behaviour data (scroll depth, engagement time, and frustration signals — rage/dead/quick-back clicks, excessive scroll, JS/script errors), tell them EXACTLY what to change on the page and which tests to run to reduce friction and lift engagement + conversions — specific elements, layout, copy, and CTA moves with how to implement each. If the sample is tiny, spend one line on that then give the highest-confidence moves + how to get more usable signal fast. Group under: "Change on the page now", "Tests to run (and how)", "Get more usable data". Under ~290 words. End with the single highest-leverage change.`,
   bing: `You are a senior SEO strategist advising GooCampus. Site: ${BIZ}\n${DIRECTIVE}\nBased ONLY on this Bing data, give a concrete PLAN to earn organic search visibility — the exact ordered steps (get indexed via sitemap/IndexNow, on-page SEO fixes, content that matches what Indian medical students actually search), which tool to use for each, and how to do it. Weight the effort realistically (Bing is small vs Google in India). Group under: "Get indexed (do first)", "On-page SEO to fix", "Content to create (with example topics)". Under ~290 words. End with the single highest-leverage action.`,
+  gsc: `You are a senior SEO strategist advising GooCampus. Site: ${BIZ}\n${DIRECTIVE}\nBased ONLY on this Google Search Console data (Google is THE search engine in India, so this matters most), give a concrete PLAN to grow organic clicks. Prioritise: (1) STRIKING-DISTANCE queries at position 11–20 — the exact on-page changes (title/H1/intro, internal links, matching search intent) to push each onto page 1; (2) page-1 queries with low CTR — how to rewrite titles/meta to win the click; (3) content gaps — topics Indian medical students search that the site doesn't rank for yet, with example page ideas. Name the query and the exact steps for each move. Group under: "Push page-2 queries to page 1", "Win more clicks on page-1 terms", "New content to create". Under ~320 words. End with the single highest-leverage action.`,
 };
 
 function gaSummary(ga: Awaited<ReturnType<typeof buildGA4Traffic>> | null, from: string, to: string): string {
@@ -57,19 +59,32 @@ function bingSummary(b: Awaited<ReturnType<typeof buildBing>> | null): string {
   ].join("\n");
 }
 
+function gscSummary(g: Awaited<ReturnType<typeof buildSearchConsoleFull>> | null): string {
+  if (!g) return "Google Search Console data unavailable.";
+  const striking = g.queries.filter((q) => q.position > 10 && q.position <= 20).slice(0, 10);
+  return [
+    `Site: goocampusevents.com. Google Search Console, organic search.`,
+    `Clicks ${g.summary.clicks}, Impressions ${g.summary.impressions}, CTR ${g.summary.ctr}%, Avg position ${g.summary.avgPosition || "n/a"}.`,
+    g.queries.length ? `Top queries: ${g.queries.slice(0, 10).map((q) => `${q.query} (${q.impressions} impr, CTR ${q.ctr}%, pos ${q.position})`).join(", ")}.` : `No query data yet (site barely appearing in Google).`,
+    striking.length ? `Striking-distance (pos 11-20): ${striking.map((q) => `${q.query} (pos ${q.position}, ${q.impressions} impr)`).join(", ")}.` : `No striking-distance queries yet.`,
+    g.pages.length ? `Top pages: ${g.pages.slice(0, 6).map((p) => p.url).join(", ")}.` : `No page data yet.`,
+  ].join("\n");
+}
+
 export async function GET(req: Request) {
   if (!hasAI()) return NextResponse.json({ error: "Perplexity not configured — set PERPLEXITY_API_KEY." }, { status: 503 });
   const url = new URL(req.url);
   const source = (url.searchParams.get("source") || "ga").toLowerCase();
   const to = url.searchParams.get("to") || new Date().toISOString().slice(0, 10);
   const from = url.searchParams.get("from") || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  if (!PROMPTS[source]) return NextResponse.json({ error: "source must be ga | clarity | bing" }, { status: 400 });
+  if (!PROMPTS[source]) return NextResponse.json({ error: "source must be ga | clarity | bing | gsc" }, { status: 400 });
 
   try {
     const data = await cached(`ai:website:${source}:${from}:${to}`, 30 * 60_000, async () => {
       let summary: string;
       if (source === "clarity") summary = claritySummary(hasClarityAuth() ? await buildClarity(3).catch(() => null) : null);
       else if (source === "bing") summary = bingSummary(hasBingAuth() ? await buildBing().catch(() => null) : null);
+      else if (source === "gsc") summary = gscSummary(hasGSCAuth() ? await buildSearchConsoleFull(from, to).catch(() => null) : null);
       else summary = gaSummary(hasGA4Auth() ? await buildGA4Traffic(from, to).catch(() => null) : null, from, to);
 
       const { text, citations } = await askPerplexity(PROMPTS[source], summary);

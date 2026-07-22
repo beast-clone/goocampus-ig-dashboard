@@ -225,6 +225,7 @@ export type CompetitorMedia = {
   timestamp: string;
   like_count: number;
   comments_count: number;
+  children?: { data: { id: string; media_type: string; media_url?: string; thumbnail_url?: string }[] };
 };
 
 export type CompetitorSnapshot = {
@@ -244,7 +245,7 @@ export type CompetitorSnapshot = {
 
 export async function fetchCompetitor(acc: IGAccountConfig, username: string): Promise<CompetitorSnapshot> {
   const clean = username.replace(/^@/, "").trim();
-  const fields = `business_discovery.username(${clean}){username,name,biography,profile_picture_url,followers_count,follows_count,media_count,media.limit(25){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}`;
+  const fields = `business_discovery.username(${clean}){username,name,biography,profile_picture_url,followers_count,follows_count,media_count,media.limit(25){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,children{media_type,media_url,thumbnail_url}}}`;
   type R = {
     business_discovery?: {
       username: string;
@@ -318,6 +319,7 @@ export type IGMedia = {
   timestamp: string;
   like_count?: number;
   comments_count?: number;
+  children?: { data: { media_type?: string; media_url?: string; thumbnail_url?: string }[] };
 };
 
 export async function fetchRecentMedia(acc: IGAccountConfig, limit = 25) {

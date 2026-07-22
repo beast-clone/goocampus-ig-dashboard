@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
@@ -1786,6 +1787,37 @@ function FilterBuilder({ filter, facets, fields, onChange }: {
   );
 }
 
+// Portals a dropdown to <body> with fixed positioning under an anchor, so it can
+// never be clipped by a scrollable/overflow-hidden ancestor (e.g. the DetailModal
+// scroll body). Re-wraps in .hope-scope so brand tokens still apply outside the
+// modal tree, and re-anchors on scroll/resize so it stays glued to its trigger.
+function PortalMenu({ open, onClose, anchorRef, align = "left", children }: {
+  open: boolean; onClose: () => void; anchorRef: React.RefObject<HTMLElement | null>; align?: "left" | "right"; children: React.ReactNode;
+}) {
+  const [pos, setPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
+  useEffect(() => {
+    if (!open) { setPos(null); return; }
+    const update = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setPos(align === "right" ? { top: r.bottom + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, left: r.left });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+  }, [open, anchorRef, align]);
+  if (!open || typeof document === "undefined" || !pos) return null;
+  return createPortal(
+    <div className="hope-scope">
+      <div className="fixed inset-0 z-[64]" onClick={onClose} />
+      <div className="fixed z-[65]" style={{ top: pos.top, left: pos.left, right: pos.right }}>{children}</div>
+    </div>,
+    document.body,
+  );
+}
+
 // Toolbar button + popover wrapper (Filter / Sort / Columns / Colour).
 function ToolButton({ icon: Ic, label, active, open, onToggle, children }: {
   icon: typeof IconFilter; label: string; active: boolean; open: boolean; onToggle: () => void; children: React.ReactNode;
@@ -2091,8 +2123,10 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
         )}
       </div>
 
-      {/* Active view */}
-      <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl overflow-hidden">
+      {/* Active view — overflow-visible so the toolbar's Filter/Sort/Columns popovers
+          aren't clipped when a filter shrinks the table; corner-rounding moves to the
+          table wrapper below. */}
+      <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl">
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
           {headAv
             ? <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0" style={{ background: headColor }}>{headAv}</span>
@@ -2140,7 +2174,9 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           </button>
         </div>
 
-        <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} customCols={customCols} />
+        <div className="rounded-b-xl overflow-hidden">
+          <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} customCols={customCols} />
+        </div>
       </div>
 
       {newViewOpen && (
@@ -2518,6 +2554,7 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [feedFilter, setFeedFilter] = useState<"all" | "revisions" | "comments">("all");
   const [showResolved, setShowResolved] = useState(true);
   const [feedFilterOpen, setFeedFilterOpen] = useState(false);
+  const feedFilterBtnRef = useRef<HTMLButtonElement>(null);
   const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
   const [feedLimit, setFeedLimit] = useState(25);
 
@@ -2887,19 +2924,19 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
               {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
               <Panel icon={IconHistory} title="Activity" right={
                 <div className="relative">
-                  <button onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
+                  <button ref={feedFilterBtnRef} onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
                     {feedFilter === "all" ? "All activity" : feedFilter === "revisions" ? "Revision history" : "Comments"}
                     <IconChevronDown size={12} />
                   </button>
-                  {feedFilterOpen && (
-                    <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-100 rounded-lg shadow-sm z-30 py-1 text-[14px]">
+                  <PortalMenu open={feedFilterOpen} onClose={() => setFeedFilterOpen(false)} anchorRef={feedFilterBtnRef} align="right">
+                    <div className="w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1 text-[14px]">
                       {(([["all", "All activity"], ["revisions", "Revision history"], ["comments", "Comments"]]) as [typeof feedFilter, string][]).map(([v, l]) => (
                         <button key={v} onClick={() => { setFeedFilter(v); setFeedFilterOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between ${feedFilter === v ? "text-brand font-medium" : "text-gray-700"}`}>{l}{feedFilter === v && <IconCheck size={13} />}</button>
                       ))}
                       <div className="border-t border-gray-100 my-1" />
                       <button onClick={() => setShowResolved((s) => !s)} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between text-gray-700">Show resolved comments{showResolved && <IconCheck size={13} />}</button>
                     </div>
-                  )}
+                  </PortalMenu>
                 </div>
               }>
                 {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>

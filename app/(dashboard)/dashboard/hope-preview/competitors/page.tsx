@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 
 type CompetitorAd = {
@@ -45,6 +45,25 @@ function Competitors() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hideDPA, setHideDPA] = useState(true);
+  const [exactAdvertiser, setExactAdvertiser] = useState(false);
+  const [usage, setUsage] = useState<{ usedUsd: number; limitUsd: number } | null>(null);
+
+  // "Exact advertiser" → keep only ads whose page name contains every word of
+  // the query (so "GooCampus Edu" shows only GooCampus Edu, not every ad that
+  // merely matched "edu"). Off → broad keyword results.
+  const matchesAdvertiser = (name: string) => {
+    const q = (searchedQuery || "").trim().toLowerCase();
+    if (!q) return true;
+    const n = name.toLowerCase();
+    return q.split(/\s+/).filter(Boolean).every((w) => n.includes(w));
+  };
+
+  useEffect(() => {
+    fetch("/api/competitors/usage")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d.usedUsd === "number") setUsage({ usedUsd: d.usedUsd, limitUsd: d.limitUsd }); })
+      .catch(() => {});
+  }, []);
 
   const syncFromApify = async () => {
     setSyncing(true);
@@ -91,7 +110,21 @@ function Competitors() {
     <>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-medium">Search Facebook Ad Library</div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-medium">Search Facebook Ad Library</div>
+            {usage && (() => {
+              const pct = usage.limitUsd > 0 ? Math.min(100, (usage.usedUsd / usage.limitUsd) * 100) : 0;
+              const tone = pct >= 80 ? "bg-red-50 text-red-700 border-red-200" : pct >= 50 ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
+              return (
+                <span
+                  className={`text-[11px] rounded-full border px-2 py-0.5 ${tone}`}
+                  title={`Apify scraper usage this billing cycle — ${pct.toFixed(0)}% of the free monthly budget. Live searches cost a few cents each; cached results are free.`}
+                >
+                  Apify credits: ${usage.usedUsd.toFixed(2)} / ${usage.limitUsd.toFixed(0)} used
+                </span>
+              );
+            })()}
+          </div>
           <button
             onClick={syncFromApify}
             disabled={syncing}
@@ -127,6 +160,10 @@ function Competitors() {
           <label className="flex items-center gap-2 text-xs text-gray-600 px-2">
             <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
             Active only
+          </label>
+          <label className="flex items-center gap-2 text-xs text-gray-600 px-2" title="Show only ads from the advertiser you typed (exact page name). Turn off for a broad keyword search.">
+            <input type="checkbox" checked={exactAdvertiser} onChange={(e) => setExactAdvertiser(e.target.checked)} />
+            Exact advertiser
           </label>
           <label className="flex items-center gap-2 text-xs text-gray-600 px-2" title="Pulls per-variant creatives for catalog ads (a heavier scan).">
             <input type="checkbox" checked={fullCreative} onChange={(e) => setFullCreative(e.target.checked)} />
@@ -165,12 +202,15 @@ function Competitors() {
       )}
 
       {searchedQuery && !loading && !error && ads && (() => {
-        const dpaCount = ads.filter((a) => a.ad_text && /\{\{[^}]+\}\}/.test(a.ad_text)).length;
-        const realCount = ads.length - dpaCount;
+        const real = ads.filter((a) => !(a.ad_text && /\{\{[^}]+\}\}/.test(a.ad_text)));
+        const dpaCount = ads.length - real.length;
+        const shownReal = exactAdvertiser ? real.filter((a) => matchesAdvertiser(a.page_name)) : real;
+        const realCount = shownReal.length;
         return (
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="text-xs text-gray-500">
-              {realCount} real {realCount === 1 ? "ad" : "ads"} for &ldquo;{searchedQuery}&rdquo;
+              {realCount} {exactAdvertiser ? "" : "real "}{realCount === 1 ? "ad" : "ads"}
+              {exactAdvertiser ? " from " : " for "}&ldquo;{searchedQuery}&rdquo;
               {dpaCount > 0 && (
                 <>
                   {" "}&middot;{" "}
@@ -209,9 +249,17 @@ function Competitors() {
       )}
 
       {ads && ads.length > 0 && (() => {
-        const visible = hideDPA
+        let visible = hideDPA
           ? ads.filter((a) => !(a.ad_text && /\{\{[^}]+\}\}/.test(a.ad_text)))
           : ads;
+        if (exactAdvertiser) visible = visible.filter((a) => matchesAdvertiser(a.page_name));
+        if (visible.length === 0 && exactAdvertiser) {
+          return (
+            <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-6 text-center">
+              No ads from an advertiser named &ldquo;{searchedQuery}&rdquo;. Uncheck &ldquo;Exact advertiser&rdquo; to see all keyword matches, or check the exact page name spelling.
+            </div>
+          );
+        }
         if (visible.length === 0) {
           return (
             <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-6 text-center">

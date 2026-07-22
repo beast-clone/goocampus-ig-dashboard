@@ -204,11 +204,31 @@ export async function searchCompetitorAds(opts: {
       period: "",
     }),
     cache: "no-store",
+    // Live Ad Library scrapes routinely take 40-90s (actor boot + page render).
+    // The 30s default was cutting real searches off mid-run.
+    timeoutMs: 120_000,
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Apify error ${res.status}: ${text.slice(0, 200)}`);
   }
   const json = (await res.json()) as ApifyAdRecord[];
-  return json.map(normalize);
+  const ads = json.map(normalize);
+
+  // Keyword search returns everything matching any word ("academically" OR
+  // "global"), so when the query is a brand/page name its OWN ads get buried
+  // among unrelated advertisers. Float ads whose page name matches the query to
+  // the top so a brand search actually leads with that brand's ads.
+  const q = query.trim().toLowerCase();
+  const qWords = q.split(/\s+/).filter(Boolean);
+  const score = (name: string) => {
+    const n = name.toLowerCase();
+    if (n === q) return 2;                                  // exact page-name match
+    if (qWords.length > 1 && qWords.every((w) => n.includes(w))) return 1; // all query words in name
+    return 0;
+  };
+  const hasCreative = (a: CompetitorAd) => (a.images.length || a.videos.length || a.video_posters.length ? 1 : 0);
+  // Brand-name matches first; within each tier, ads with a visible creative lead
+  // so the results open on real image/video ads, not blank text-only ones.
+  return ads.sort((a, b) => score(b.page_name) - score(a.page_name) || hasCreative(b) - hasCreative(a));
 }

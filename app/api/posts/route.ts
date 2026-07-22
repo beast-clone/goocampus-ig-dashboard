@@ -17,7 +17,7 @@ const INFLIGHT = new Map<string, Promise<PostsPayload>>();
 const TTL_MS = 60 * 60 * 1000;
 
 async function fetchMediaInDateRange(igUserId: string, token: string, fromIso?: string, toIso?: string, hardCap = 500) {
-  const fields = "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
+  const fields = "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,children{media_type,media_url,thumbnail_url}";
   let url = `${GRAPH}/${igUserId}/media?fields=${fields}&limit=100&access_token=${token}`;
   const fromTs = fromIso ? new Date(fromIso + "T00:00:00Z").getTime() : -Infinity;
   const toTs = toIso ? new Date(toIso + "T23:59:59Z").getTime() : Infinity;
@@ -79,10 +79,12 @@ export async function GET(req: Request) {
             else if (ins.name === "ig_reels_avg_watch_time") avgWatch = v;
           }
         }
+        const childUrls = (m.children?.data ?? []).map((ch) => ch.thumbnail_url || ch.media_url || "").filter(Boolean);
         posts[idx] = {
           id: m.id,
           caption: m.caption ?? "",
           mediaUrl: m.thumbnail_url || m.media_url || "",
+          mediaUrls: childUrls.length ? childUrls : undefined,   // carousel slides, in order
           permalink: m.permalink,
           type: m.media_product_type === "REELS" ? "REEL" : m.media_type,
           timestamp: m.timestamp,

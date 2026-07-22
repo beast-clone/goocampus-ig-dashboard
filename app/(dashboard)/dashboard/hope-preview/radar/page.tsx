@@ -232,8 +232,7 @@ function Radar() {
           {/* RIGHT — rising searches + your-SEO (Brand watch moved up top) */}
           <aside className="flex flex-col gap-4">
             <RisingSidebar trends={trends} />
-            <SeoConnectCard Icon={IconSeo} title="Your winning keywords" sub="Search Console" />
-            <SeoConnectCard Icon={IconTargetArrow} title="Striking-distance gaps" sub="rank 11–20" />
+            <SeoLanes />
           </aside>
         </div>
       )}
@@ -706,15 +705,152 @@ function RisingSidebar({ trends }: { trends: TrendsResp | null }) {
   );
 }
 
-// Honest placeholder for the lanes that need a Search Console OAuth connect.
+// ── Content Radar SEO lanes (Google Search Console for goocampusevents.com) ──
+type SeoKeyword = { query: string; clicks: number; impressions: number; ctr: number; position: number };
+type GscResp = { winning: SeoKeyword[]; striking: SeoKeyword[]; totals: { clicks: number; impressions: number; queries: number }; range: { from: string; to: string } };
+
+const seoCardShell = "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden";
+function SeoHeader({ Icon, title, sub }: { Icon: TablerIcon; title: string; sub: string }) {
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
+      <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#1aa053", background: "rgba(26,160,83,.12)" }}><Icon size={16} stroke={1.8} /></span>
+      <h3 className="text-sm font-medium text-[#232D42]">{title}</h3>
+      <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{sub}</span>
+    </div>
+  );
+}
+
+// Fetches once, then renders both lanes (or a shared state card for
+// loading / not-configured / needs-access / error / empty).
+function SeoLanes() {
+  const [data, setData] = useState<GscResp | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "not_configured" | "no_access" | "api_disabled" | "error">("loading");
+  const [access, setAccess] = useState<{ account?: string; siteUrl?: string; enableUrl?: string }>({});
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/website/gsc")
+      .then(async (r) => {
+        if (!alive) return;
+        if (r.status === 503) return setState("not_configured");
+        if (r.status === 403) {
+          const j = await r.json().catch(() => ({}));
+          setAccess(j);
+          return setState(j.error === "api_disabled" ? "api_disabled" : "no_access");
+        }
+        if (!r.ok) return setState("error");
+        setData(await r.json());
+        setState("ok");
+      })
+      .catch(() => { if (alive) setState("error"); });
+    return () => { alive = false; };
+  }, []);
+
+  if (state === "loading") return <><SeoSkeleton title="Your winning keywords" sub="Search Console" Icon={IconSeo} /><SeoSkeleton title="Striking-distance gaps" sub="rank 11–20" Icon={IconTargetArrow} /></>;
+  if (state === "not_configured") return <><SeoConnectCard Icon={IconSeo} title="Your winning keywords" sub="Search Console" /><SeoConnectCard Icon={IconTargetArrow} title="Striking-distance gaps" sub="rank 11–20" /></>;
+  if (state === "api_disabled") return <SeoEnableApiCard enableUrl={access.enableUrl} />;
+  if (state === "no_access") return <SeoAccessCard account={access.account} siteUrl={access.siteUrl} />;
+  if (state === "error" || !data) return (
+    <div className={seoCardShell}>
+      <SeoHeader Icon={IconSeo} title="Search Console" sub="error" />
+      <div className="p-4 text-xs text-gray-500">Couldn&apos;t load Search Console right now. It refreshes on the next pull.</div>
+    </div>
+  );
+  return (
+    <>
+      <SeoDataCard Icon={IconSeo} title="Your winning keywords" sub="Search Console" rows={data.winning} metric="clicks" empty="No page-1 keywords in this window yet." />
+      <SeoDataCard Icon={IconTargetArrow} title="Striking-distance gaps" sub="rank 11–20" rows={data.striking} metric="impressions" empty="Nothing sitting on page 2 right now — that's a good thing." />
+    </>
+  );
+}
+
+// A ranked keyword list. `metric` decides which number leads (clicks for
+// winners, impressions for opportunities). Position pill is colour-coded.
+function SeoDataCard({ Icon, title, sub, rows, metric, empty }: {
+  Icon: TablerIcon; title: string; sub: string; rows: SeoKeyword[]; metric: "clicks" | "impressions"; empty: string;
+}) {
+  return (
+    <div className={seoCardShell}>
+      <SeoHeader Icon={Icon} title={title} sub={sub} />
+      {rows.length === 0 ? (
+        <div className="p-4 text-xs text-gray-500">{empty}</div>
+      ) : (
+        <ul className="divide-y divide-gray-50">
+          {rows.map((r) => (
+            <li key={r.query} className="flex items-center gap-2 px-4 py-2">
+              <PosPill pos={r.position} />
+              <span className="text-xs text-[#232D42] truncate flex-1" title={r.query}>{r.query}</span>
+              <span className="text-[11px] text-gray-500 tabular-nums flex-shrink-0" title={`${r.clicks} clicks · ${r.impressions} impressions · ${r.ctr}% CTR`}>
+                {metric === "clicks"
+                  ? <><b className="text-gray-700">{r.clicks.toLocaleString()}</b> click{r.clicks === 1 ? "" : "s"}</>
+                  : <><b className="text-gray-700">{r.impressions.toLocaleString()}</b> impr</>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Average rank pill: green ≤3, blue ≤10, amber ≤20.
+function PosPill({ pos }: { pos: number }) {
+  const c = pos <= 3 ? { fg: "#1aa053", bg: "rgba(26,160,83,.12)" } : pos <= 10 ? { fg: "#3A57E8", bg: "#E9ECFB" } : { fg: "#B26A00", bg: "rgba(245,158,11,.14)" };
+  return <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md flex-shrink-0 w-9 text-center" style={{ color: c.fg, background: c.bg }}>#{pos.toFixed(1)}</span>;
+}
+
+function SeoSkeleton({ Icon, title, sub }: { Icon: TablerIcon; title: string; sub: string }) {
+  return (
+    <div className={seoCardShell}>
+      <SeoHeader Icon={Icon} title={title} sub={sub} />
+      <div className="p-4 space-y-2.5">
+        {[0, 1, 2, 3].map((i) => <div key={i} className="h-3.5 bg-gray-100 rounded animate-pulse" style={{ width: `${90 - i * 12}%` }} />)}
+      </div>
+    </div>
+  );
+}
+
+// Everything is wired — the property owner just needs to add the service account
+// to Search Console. Shows exactly what to add and where.
+function SeoAccessCard({ account, siteUrl }: { account?: string; siteUrl?: string }) {
+  return (
+    <div className={seoCardShell}>
+      <SeoHeader Icon={IconShieldCheck} title="One step to go live" sub="Search Console" />
+      <div className="p-4 text-xs text-gray-600 leading-relaxed space-y-2">
+        <p>Search Console is wired up. To switch it on, add this service account as a <b>Full</b> or <b>Restricted</b> user on the <b>{siteUrl || "goocampusevents.com"}</b> property:</p>
+        <code className="block bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-[11px] text-gray-700 break-all select-all">{account || "the dashboard service account"}</code>
+        <p className="text-gray-400">Search Console → Settings → Users and permissions → Add user. Then the winning keywords + striking-distance gaps fill in automatically.</p>
+      </div>
+    </div>
+  );
+}
+
+// The Cloud project just needs the Search Console API switched on (one click).
+function SeoEnableApiCard({ enableUrl }: { enableUrl?: string }) {
+  return (
+    <div className={seoCardShell}>
+      <SeoHeader Icon={IconShieldCheck} title="One click to go live" sub="Search Console" />
+      <div className="p-4 text-xs text-gray-600 leading-relaxed space-y-2.5">
+        <p>The service account already has access — the last step is enabling the <b>Search Console API</b> in the Google Cloud project that owns it.</p>
+        {enableUrl ? (
+          <a href={enableUrl} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark">
+            <IconBrandGoogle size={14} stroke={1.8} /> Enable Search Console API ↗
+          </a>
+        ) : (
+          <p className="text-gray-500">Google Cloud Console → APIs &amp; Services → enable &ldquo;Google Search Console API&rdquo;.</p>
+        )}
+        <p className="text-gray-400">Takes a few minutes to propagate, then the winning keywords + striking-distance gaps fill in automatically.</p>
+      </div>
+    </div>
+  );
+}
+
+// Honest placeholder when GSC creds aren't configured at all.
 function SeoConnectCard({ Icon, title, sub }: { Icon: TablerIcon; title: string; sub: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
-        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#1aa053", background: "rgba(26,160,83,.12)" }}><Icon size={16} stroke={1.8} /></span>
-        <h3 className="text-sm font-medium text-[#232D42]">{title}</h3>
-        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{sub}</span>
-      </div>
+    <div className={seoCardShell}>
+      <SeoHeader Icon={Icon} title={title} sub={sub} />
       <div className="p-4">
         <div className="text-xs text-gray-500 leading-relaxed mb-3">
           Connect <b className="text-gray-700">Search Console</b> for goocampusevents.com to see your domain&apos;s real {title.toLowerCase()} — free, refreshes weekly.

@@ -7,7 +7,7 @@ import {
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
-  IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch,
+  IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -59,6 +59,7 @@ const GROUPS: Group[] = [
     ] },
     { key: "website", label: "Website", icon: IconWorldWww, href: `${HUB}/website`, children: [
       { label: "Google Analytics", href: `${HUB}/website`,          icon: IconChartArcs },
+      { label: "Search Console",   href: `${HUB}/website/google`,   icon: IconBrandGoogle },
       { label: "Clarity",          href: `${HUB}/website/behavior`, icon: IconClick },
       { label: "Bing",             href: `${HUB}/website/search`,   icon: IconSearch },
     ] },

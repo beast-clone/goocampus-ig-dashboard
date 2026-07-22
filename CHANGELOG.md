@@ -3,6 +3,159 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-22 (pt 9) — Google Search Console as a full Website Analytics sub-tab
+
+- Promoted GSC from just the two Radar cards to a **first-class Website sub-tab** (sidebar:
+  Website → Google Analytics · **Search Console** · Clarity · Bing), mirroring the Bing tab.
+- `lib/search-console.ts`: new `buildSearchConsoleFull(from,to)` (refactored a generic `gscQuery`
+  helper) returning the Bing-shaped payload — summary (clicks/impr/CTR/avg pos), over-time,
+  top 25 queries, top 25 pages. `/api/website/gsc?view=full` serves it (default still = Radar
+  winning/striking); cached 6h.
+- New page `website/google/page.tsx` (Google-blue accent): stat cards, over-time area chart, top-
+  queries table with **color-coded position pills + striking-distance 🎯 markers** (pos 11–20),
+  top-pages with impression bars, "Open in Search Console" link, graceful setup-state message.
+- **AI insights** `?source=gsc`: a Google-SEO prompt (push page-2 queries to page 1, win CTR on
+  page-1 terms, content gaps) + `gscSummary` feeding real query/striking data to Perplexity.
+- **Verified live:** 3 clicks / 35 impr / 8.6% CTR / pos 12.1; "goo campus" pos 12 flagged
+  striking-distance, "goocampus" pos 9.7 page-1; top pages / (29) and /nz-pathway/.
+- **Hover ⓘ tooltips** added (Search Console tab only, for now): each stat card (Clicks /
+  Impressions / CTR / Avg position) and the query-table "Pos." header get a small info dot that
+  reveals a plain-English definition on hover — e.g. position "1–10 = page 1, 11–20 = page 2,
+  lower is better; 12.0 ≈ top of page 2." Reusable `InfoDot` (up/down + center/right anchoring so
+  it's never clipped by the table's overflow). Verified the Pos. tooltip renders unclipped.
+
+## 2026-07-22 (pt 8) — Content Radar: real Google Search Console SEO lanes
+
+- The two Radar SEO cards (**Your winning keywords**, **Striking-distance gaps**) were dead
+  placeholders ("Setup coming next"). Now they pull **live Google Search Console** data for
+  goocampusevents.com.
+- **Auth reuse, zero new deps.** New `lib/google-jwt.ts` mints a Google token from the *existing
+  GA4 service account* (same zero-dependency crypto JWT as `lib/ga4.ts`, untouched) for any
+  scope. `lib/search-console.ts` uses it with `webmasters.readonly` to hit the Search Analytics
+  API (`sc-domain:goocampusevents.com`, override via `GSC_SITE_URL`).
+- **Lanes:** winning = queries at rank ≤10, sorted by clicks; striking-distance = rank 11–20,
+  sorted by impressions (biggest page-2 opportunities). New `GET /api/website/gsc` (28-day
+  window ending 2 days back for GSC's lag; cached 6h; 503 not-configured / 403 no-access).
+- **UI states** in `radar/page.tsx`: skeleton → data cards (position pill green ≤3 / blue ≤10 /
+  amber ≤20, clicks or impressions) → empty → **"One step to go live"** card that prints the
+  exact service-account email to add in Search Console → connect fallback.
+- **Verified live:** endpoint returns 403 `no_access` (auth works, reached GSC), and the UI shows
+  the grant-access card with `ig-dashboard-ga-reader@…`. **Manual step remaining (owner-only):**
+  add that service account as a user on the goocampusevents.com property in Search Console →
+  the two data cards then fill automatically.
+- **Follow-up (same day):** SA was added as Full user, but data still 403. Root cause via a new
+  `?sites=1` debug: the **Search Console API isn't enabled** in the Cloud project (`gc-dashboard-
+  analytics` #227161816049) — a disabled API also returns 403, previously mis-shown as "add the
+  service account". Fixes: (a) `sites.list`-based **auto-discovery** of the property (domain vs
+  URL-prefix, no `GSC_SITE_URL` guess); (b) new `GscApiDisabledError` classified from the Google
+  payload → route returns `api_disabled` + the exact enable URL → new **"One click to go live"**
+  card with an *Enable Search Console API* button. Last manual step: enable that API in the GCP
+  project, then the lanes fill automatically.
+
+## 2026-07-22 (pt 7) — Marketing Hub: dropdowns no longer clipped
+
+- **Master-sheet toolbar popovers** (Filter / Sort / Columns / Colour) were clipped when a
+  filter shrank the table (the card's `overflow-hidden`, used for corner-rounding, cut the
+  popover). Fixed: card is now overflow-visible; corner-rounding moved to a `rounded-b-xl
+  overflow-hidden` wrapper around the `<MasterSheet>` table (a sibling below the toolbar, so
+  popovers escape). One change fixes all four toolbar popovers. Verified with Owner=Nandu + a
+  2nd condition — "+ Add condition" fully visible.
+- **Activity-feed filter dropdown** (All activity / Revision history / Comments) in the task
+  DetailModal was clipped by the modal's *scrollable* body — can't strip that overflow. Fixed
+  with a new `PortalMenu` helper: portals the menu to `<body>` (fixed-positioned under the
+  trigger, re-anchors on scroll/resize), re-wrapped in `.hope-scope` so brand tokens still
+  apply. Verified: menu renders in full near the modal bottom, and selecting "Comments"
+  updates the trigger (clicks register through the portal).
+- Swept all of `hope-preview/**` for the same pattern (HopeSelect / inline dropdowns / popovers
+  inside overflow ancestors); these were the only two real collisions — everything else clear.
+
+## 2026-07-22 (pt 6) — Competitor Ads: usage chip, timeout fix, brand-first + Exact advertiser
+
+- Verified the **Competitor Ads** tab is wired & live: `/api/competitors` → Apify actor
+  `curious_coder/facebook-ads-library-scraper` scrapes the public FB Ad Library, then caches.
+  (Can't use Meta's official Ad Library API — that only returns political/issue ads; commercial
+  competitor ads are API-restricted, so a scraper is the only route.)
+- **Apify usage chip.** New `/api/competitors/usage` reads the account's real billing-cycle
+  spend; a color-coded "Apify credits: $X / $5 used" pill sits next to the search title
+  (green <50% / amber 50-80% / red 80%+, cached 5 min).
+- **Timeout fix (root cause).** Live Ad Library scrapes take 40-90s but the fetch was capped at
+  the 30s default → real searches died mid-run ("Upstream request timed out after 30000ms").
+  Raised `searchCompetitorAds`'s `timeoutMs` to 120s. *(Prod note: Netlify functions cap ~26s,
+  so first-time scrapes could still time out on the deployed site; cache hits unaffected.)*
+- **Brand-first ordering.** Keyword search returns everyone matching any word, so a brand's own
+  ads got buried. `searchCompetitorAds` now sorts page-name matches to the top (exact name, then
+  all-words), and within each tier floats ads that have a real creative above text-only ones.
+- **"Exact advertiser" toggle.** New checkbox in the filter row: on → show ONLY ads whose page
+  name matches the typed brand (e.g. "GooCampus Edu" → 2 GooCampus Edu ads, nothing else);
+  off (default) → broad keyword search. Count + empty-state adapt ("N ads from 'X'"). Verified
+  live: GooCampus Edu exact → 2 own ads; Academically Global → brand ads lead.
+
+## 2026-07-22 (pt 5) — Benchmark: video playback + top-post highlight
+
+- **Competitor videos/Reels play in the modal.** `PostModal` now renders a `<video>`
+  (controls, muted autoplay, playsInline) for VIDEO media instead of a static poster —
+  the Instagram CDN `media_url` plays inline, no redirect. Verified on a hellomentor Reel
+  (playing, no error).
+- **Top post highlighted.** The #1 (most-engaged) post in the drill-down gets a gold
+  "🏆 Top" badge + amber ring; the rest keep their rank number.
+- Note (documented): reach / saves / shares / views are **not** available for competitor
+  accounts — Meta's public `business_discovery` only exposes likes + comments. Those are
+  owner-only insights, so there's no public way (API or otherwise) to track them for a
+  competitor; only likes, comments, followers, post count + derived engagement rate.
+
+## 2026-07-22 (pt 4) — Instagram Posts: carousel slider in the detail modal
+
+- The Instagram **Posts** tab's detail modal showed carousels cover-only. `/api/posts` now
+  also fetches `children{…}` and returns `mediaUrls` (slides in order); `PostDetailModal`
+  shows a **‹ › slider + n/N index + dots** (object-contain, no crop). Own-account posts keep
+  their full metrics (reach/shares/saves). Verified on the "MD Radiology Karnataka" carousel
+  (1/4 → 2/4). `IGMedia` gained an optional `children` field.
+
+## 2026-07-22 (pt 3) — Account picker → Hope UI, Benchmark category/period tracking
+
+- The header **account/brand picker** in `HopeDashboardShell` was a native browser
+  `<select>` (default system styling). Swapped it for the shared **`HopeSelect`** branded
+  dropdown (rounded card, brand-check on the selected account, hover rows). Applies to every
+  dashboard tab at once (shared shell). Verified on Benchmark.
+- **Benchmark: account picker hidden** on this page (`hideAccountPicker`) — it's for your own
+  accounts, irrelevant when benchmarking competitors.
+- **Benchmark: tracked competitors now carry a category + period.** The tracked model went
+  from `string[]` → `{handle, category, period}` (localStorage, old entries auto-migrate).
+  The + Track row gained a **category** input and a **period** `HopeSelect` (7/30/90d/all).
+  Each tracked card shows a category chip + period chip, and its headline metrics (ER, avg
+  likes/comments, posts) are **recomputed over its own period** (`periodMetrics`). Verified:
+  added @amcaustralia under "AMC / IMG prep" · 30d.
+
+## 2026-07-22 (pt 2) — Benchmark: top-posts list, drill-down, persistent tracking
+
+- **Post detail modal + carousel slider.** Clicking a post in the drill-down opens an
+  in-dashboard modal (`PostModal`) — full image + caption + metric tiles (likes · comments ·
+  engagement) + a note that reach/saves/shares are private for competitor accounts. For
+  **carousels**, `business_discovery` now also fetches `children{…}`, and the modal shows
+  **left/right arrows + slide index (n/N) + dots** to page through all slides. Verified on
+  @hellomentor.in's 14-slide "NEET UG 2025 vs 2026" carousel (1/14 → 2/14). Modal image is
+  `object-contain` on a dark pane so slides/portrait posts show in full (were cropped).
+- **Persistent "Track".** Adding a handle used to be a one-off lookup; now **+ Track** saves
+  it to a per-account list (localStorage `bm-tracked-{accountId}`) so it survives reloads.
+  A **⭐ Tracked (N)** niche button shows the saved list; each card has an **× untrack**.
+  Verified: added @hellomentor.in, reloaded, still tracked. (Per-device — move to a shared
+  Supabase table if the whole team should see one list.)
+
+- **Competitor drill-down, in-dashboard.** Clicking a competitor card now opens a full-tab
+  detail view (`CompetitorDetail`) — profile + 5 stat cards + every tracked post as a rich
+  card (image, rank badge, media-type chip, caption, ♥/💬 + engagement %), styled like the
+  Overview's "Top performing posts". **All Instagram redirects removed** — the username and
+  post rows no longer link out; everything stays inside the dashboard. "← Back to benchmark"
+  returns to the grid. Verified live on @mokshacademy.
+
+- Each competitor card on the Benchmark tab now shows its **top 5 posts as a ranked list**
+  — thumbnail + caption + ♥ likes + 💬 comments + **per-post engagement %** — instead of a
+  3-thumbnail grid, matching the Instagram Overview's top-posts style. Verified live on
+  @hellomentor.in (18.2K followers) via Meta business_discovery.
+- Confirmed source (for the record): the Benchmark tab pulls **live** data from Meta's
+  official **Instagram Graph API `business_discovery`** endpoint (public Business/Creator
+  accounts only) using `IG_PAGE_ACCESS_TOKEN` — no scraping, no third-party tool.
+
 ## 2026-07-22 — Nandu late shift (10–7), free-time fix, demo script
 
 - **Per-person shift start.** Nandu works the late shift, so his day now lays out from

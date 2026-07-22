@@ -5,6 +5,7 @@ import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePi
 import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
+import { HopeSelect } from "./HopeSelect";
 import { useProfile } from "@/lib/profile";
 import { HopeShell, type HopeTab } from "./HopeShell";
 
@@ -98,13 +99,11 @@ export function HopeDashboardShell({
               {!hideAccountPicker && (profile ? (
                 <span className="rounded-lg bg-brand-light text-brand px-3 py-2 text-sm font-medium">{account?.label ?? profile} · profile view</span>
               ) : (
-                <select
+                <HopeSelect
                   value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white font-medium"
-                >
-                  {ACCOUNTS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-                </select>
+                  onChange={setAccountId}
+                  options={ACCOUNTS.map((a) => ({ value: a.id, label: a.label }))}
+                />
               ))}
               <TokenExpiryBadge />
               {!hideRange && <DateRangePicker value={range} onChange={setRange} />}

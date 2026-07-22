@@ -10,6 +10,7 @@ type ApiPost = {
   id: string;
   caption: string;
   mediaUrl: string;
+  mediaUrls?: string[];   // carousel slides, in order (when it's a carousel)
   permalink: string;
   type: "IMAGE" | "VIDEO" | "REEL" | "CAROUSEL_ALBUM" | "STORY";
   timestamp: string;
@@ -367,16 +368,29 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
   const engagement = post.totalInteractions || (post.likes + post.comments);
   const engRate = post.reach > 0 ? ((engagement / post.reach) * 100).toFixed(2) : "0.00";
   const dash = <span className="text-gray-300">—</span>;
+  // Carousels carry all slides in mediaUrls; everything else is a single "slide".
+  const [idx, setIdx] = useState(0);
+  const slides = post.mediaUrls?.length ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
-        {/* LEFT — thumbnail */}
-        <div className="md:w-1/2 bg-black flex items-center justify-center min-h-[300px]">
-          {post.mediaUrl ? (
-            <img src={post.mediaUrl} alt="" className="max-w-full max-h-[80vh] object-contain" />
+        {/* LEFT — media (carousel gets a slider) */}
+        <div className="md:w-1/2 bg-black flex items-center justify-center min-h-[300px] relative">
+          {slides.length ? (
+            <img src={slides[Math.min(idx, slides.length - 1)]} alt="" className="max-w-full max-h-[80vh] object-contain" />
           ) : (
             <div className="text-white text-6xl">{TYPE_ICON[post.type] ?? "?"}</div>
+          )}
+          {slides.length > 1 && (
+            <>
+              <span className="absolute top-3 left-3 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/90 text-gray-700">{idx + 1}/{slides.length}</span>
+              <button type="button" onClick={() => setIdx((i) => (i - 1 + slides.length) % slides.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-gray-700 flex items-center justify-center text-xl leading-none" aria-label="Previous slide">‹</button>
+              <button type="button" onClick={() => setIdx((i) => (i + 1) % slides.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-gray-700 flex items-center justify-center text-xl leading-none" aria-label="Next slide">›</button>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {slides.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === idx ? "bg-white" : "bg-white/50"}`} />)}
+              </div>
+            </>
           )}
         </div>
 
