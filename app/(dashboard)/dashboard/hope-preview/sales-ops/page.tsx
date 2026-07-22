@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
 
@@ -928,11 +929,9 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <label className="text-gray-500">Sort</label>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "createdAt" | "daysUntouched" | "status")} className="border border-gray-200 rounded px-3 py-1.5">
-                <option value="createdAt">Newest first</option>
-                <option value="daysUntouched">Most idle first</option>
-                <option value="status">Status</option>
-              </select>
+              <HopeSelect value={sortBy} onChange={(v) => setSortBy(v as "createdAt" | "daysUntouched" | "status")} options={[
+                { value: "createdAt", label: "Newest first" }, { value: "daysUntouched", label: "Most idle first" }, { value: "status", label: "Status" },
+              ]} />
               <div className="ml-auto">
                 <button onClick={copyCsv} className="border border-gray-200 rounded px-4 py-1.5 hover:bg-gray-50">Copy CSV</button>
               </div>

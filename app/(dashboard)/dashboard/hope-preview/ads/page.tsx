@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
@@ -829,26 +830,14 @@ function CampaignsTable({ campaigns, onSelect, showLeads }: { campaigns: Campaig
           <span className="text-gray-400 font-normal"> · {filtered.length} of {campaigns.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          >
-            <option value="all">All statuses</option>
-            <option value="ACTIVE">Active only</option>
-            <option value="PAUSED">Paused only</option>
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)}
-            className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          >
-            <option value="all">All categories</option>
-            {orderedInterests.map((i) => (
-              <option key={i.key} value={i.key}>{i.label}</option>
-            ))}
-            {presentCategories.has("other") && <option value="other">Other / Unclassified</option>}
-          </select>
+          <HopeSelect value={statusFilter} onChange={(v) => setStatusFilter(v as typeof statusFilter)} options={[
+            { value: "all", label: "All statuses" }, { value: "ACTIVE", label: "Active only" }, { value: "PAUSED", label: "Paused only" },
+          ]} />
+          <HopeSelect value={categoryFilter} onChange={(v) => setCategoryFilter(v as typeof categoryFilter)} options={[
+            { value: "all", label: "All categories" },
+            ...orderedInterests.map((i) => ({ value: i.key, label: i.label })),
+            ...(presentCategories.has("other") ? [{ value: "other", label: "Other / Unclassified" }] : []),
+          ]} />
         </div>
       </div>
 

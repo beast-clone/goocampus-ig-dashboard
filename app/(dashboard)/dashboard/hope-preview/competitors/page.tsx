@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 
 type CompetitorAd = {
   ad_archive_id: string;
@@ -145,18 +146,14 @@ function Competitors() {
             placeholder="Competitor brand, keyword, or page name…"
             className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
           />
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
-          >
-            <option value="IN">India</option>
-            <option value="ALL">All countries</option>
-            <option value="US">United States</option>
-            <option value="GB">United Kingdom</option>
-            <option value="AU">Australia</option>
-            <option value="AE">UAE</option>
-          </select>
+          <HopeSelect value={country} onChange={setCountry} options={[
+            { value: "IN", label: "India" },
+            { value: "ALL", label: "All countries" },
+            { value: "US", label: "United States" },
+            { value: "GB", label: "United Kingdom" },
+            { value: "AU", label: "Australia" },
+            { value: "AE", label: "UAE" },
+          ]} />
           <label className="flex items-center gap-2 text-xs text-gray-600 px-2">
             <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
             Active only

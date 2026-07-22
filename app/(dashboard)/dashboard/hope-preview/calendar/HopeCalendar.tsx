@@ -55,7 +55,7 @@ export const STATUS_STYLE: Record<EffectiveStatus, { bg: string; text: string; d
 
 export type AccountKey = "main" | "world" | "india" | "other";
 export const ACCOUNT_STYLE: Record<AccountKey, { name: string; handle: string; color: string; soft: string }> = {
-  main:  { name: "GooCampus Main",    handle: "@goocampus",      color: "#6E48F8", soft: "#EFEBFE" },
+  main:  { name: "GooCampus Main",    handle: "@goocampus",      color: "#3A57E8", soft: "#E9ECFB" },
   world: { name: "GooCampus World",   handle: "@goocampusworld", color: "#0EA5E9", soft: "#E4F4FD" },
   india: { name: "12Plus / GC India", handle: "@12thplusdotcom", color: "#E11D48", soft: "#FCE8EC" },
   other: { name: "—",                 handle: "—",               color: "#9AA3B2", soft: "#F1F3F8" },

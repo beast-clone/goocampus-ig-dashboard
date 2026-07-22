@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { useProfile } from "@/lib/profile";
 import { useApi } from "@/lib/use-api";
@@ -175,9 +176,7 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
           <div className="bg-white border border-gray-100 rounded-xl">
             <div className="flex items-center justify-between px-5 pt-4">
               <div className="text-sm font-semibold text-gray-800">All {kind === "shorts" ? "Shorts" : "long-form videos"} · {sorted.length}</div>
-              <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="text-xs border border-gray-200 rounded-md px-2 py-1">
-                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
+              <HopeSelect value={sort} onChange={(v) => setSort(v as Sort)} options={SORTS.map((s) => ({ value: s.key, label: s.label }))} />
             </div>
             {sorted.length === 0 ? (
               <div className="p-14 text-center text-sm text-gray-400">No {kind === "shorts" ? "Shorts" : "long-form videos"} on this channel yet.</div>

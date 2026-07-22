@@ -24,7 +24,7 @@ type ReviewPost = {
 function typeChip(t: string | null) {
   const s = (t || "").toLowerCase();
   if (s.includes("reel")) return { bg: "#FBEAF0", fg: "#993556" };
-  if (s.includes("carousel")) return { bg: "#F0ECFF", fg: "#5142C4" };
+  if (s.includes("carousel")) return { bg: "#E9ECFB", fg: "#3A57E8" };
   if (s.includes("youtube")) return { bg: "#FDE8E8", fg: "#B01919" };
   if (s.includes("story")) return { bg: "#E4F4FD", fg: "#0B6EA8" };
   return { bg: "#E6F1FF", fg: "#2B6AB0" };

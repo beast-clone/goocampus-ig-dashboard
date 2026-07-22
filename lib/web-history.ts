@@ -96,14 +96,14 @@ export async function readBingHistory(from: string, to: string) {
   if (!db) return null;
   const [daily, latest] = await Promise.all([
     db.from("discover_cache").select("payload").eq("source", "web_bing_daily"),
-    db.from("discover_cache").select("payload").eq("cache_key", CK_BING_LATEST).maybeSingle(),
+    db.from("discover_cache").select("payload").eq("cache_key", CK_BING_LATEST).limit(1),
   ]);
   const overTime = (daily.data || []).map((r) => r.payload as BingDay)
     .filter((d) => d && d.date >= from && d.date <= to).sort((a, b) => a.date.localeCompare(b.date));
   if (!overTime.length) return null;
   const clicks = overTime.reduce((s, r) => s + r.clicks, 0);
   const impressions = overTime.reduce((s, r) => s + r.impressions, 0);
-  const l = (latest.data?.payload || {}) as { queries?: unknown[]; pages?: unknown[]; summary?: { avgPosition?: number } };
+  const l = (latest.data?.[0]?.payload || {}) as { queries?: unknown[]; pages?: unknown[]; summary?: { avgPosition?: number } };
   return {
     days: overTime.length, from, to, overTime,
     summary: { clicks, impressions, ctr: impressions ? +((clicks / impressions) * 100).toFixed(1) : 0, avgPosition: l.summary?.avgPosition ?? 0 },

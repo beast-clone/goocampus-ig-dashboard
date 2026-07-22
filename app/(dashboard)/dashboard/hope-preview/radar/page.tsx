@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import {
   IconSearch, IconTrendingUp, IconFlame, IconNews, IconRefresh, IconPencil,
@@ -551,7 +552,7 @@ function sentimentOf(text: string): "positive" | "negative" | "neutral" {
 const SENT_COLOR = { positive: "#1aa053", negative: "#c03221", neutral: "#8A92A6" } as const;
 const SENT_LABEL = { positive: "Positive", negative: "Negative", neutral: "Neutral" } as const;
 // Deterministic brand colour for a source avatar.
-const AV_COLORS = ["#3A57E8", "#1aa053", "#6f42c1", "#f16a1b", "#079aa2", "#c03221"];
+const AV_COLORS = ["#3A57E8", "#1aa053", "#7A74C9", "#f16a1b", "#079aa2", "#c03221"];
 function avatarColor(seed: string): string {
   let h = 0; for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return AV_COLORS[h % AV_COLORS.length];
@@ -996,13 +997,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                   required={!showAdvanced}
                   autoFocus
                 />
-                <select
-                  value={interest}
-                  onChange={(e) => setInterest(e.target.value)}
-                  className="text-xs px-3 py-2 rounded-md border border-gray-200 bg-white"
-                >
-                  {INTEREST_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <HopeSelect value={interest} onChange={setInterest} options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
               </div>
               <input
                 value={name}
@@ -1022,13 +1017,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                   className="text-xs px-3 py-2 rounded-md border border-gray-200 bg-white"
                   required
                 />
-                <select
-                  value={interest}
-                  onChange={(e) => setInterest(e.target.value)}
-                  className="text-xs px-3 py-2 rounded-md border border-gray-200 bg-white"
-                >
-                  {INTEREST_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <HopeSelect value={interest} onChange={setInterest} options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
               </div>
               <input
                 value={feedUrl}

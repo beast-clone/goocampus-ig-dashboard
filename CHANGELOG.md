@@ -3,6 +3,108 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-07-22 (pt 13b) — Post Planner: show the AI's reschedule (was → now + why)
+
+- On the AI planner detail panel, each moved post now shows a **"↪ Rescheduled by AI"** block:
+  the original publishing date (struck through) → the AI's new date, sitting right above the
+  existing "Why the AI put it here" reason. Makes the AI's decision legible for the demo
+  ("it was on 11 Jun, moved to 23 Jul — because Karnataka MBBS fee searches stay high during
+  admissions"). Added `origDate` to the CalCard model (carries `publishingDate`); block only
+  renders when the AI's date differs from the original. Verified live (9/10 posts moved).
+
+## 2026-07-22 (pt 13) — Post Planner: single secured data source (drop redundant Airtable calls)
+
+- The Post Planner already sources its post list from Supabase `mh_posts` (same secured
+  Marketing-Hub/Scheduler table), but it ALSO made a separate Airtable `fetchContentCalendarBody`
+  call **per candidate** (up to 15/plan) to re-fetch content the row already carries. Removed it —
+  the ranker now uses `mh_posts.content || caption` from the one Supabase query. Dropped the
+  now-unused `content-calendar` import. Verified: `?force=1` rebuild returns 200, 9 posts ranked by
+  Perplexity with real reasons, 12 on the calendar — no quality loss, fewer external round-trips,
+  one secured source. (The sidebar's lazy caption load via `/api/scheduler/caption` is unchanged.)
+
+## 2026-07-22 (pt 12) — Dashboard-wide design audit + Tier-1 fixes
+
+Ran a full Hope UI design audit across all 35 tabs (4 parallel section auditors + a mechanical
+scan). Verdict: broadly on-brand; issues are consistency drift. Fixed the top-3 systemic ones:
+
+- **HopeSelect dropdown was visually broken app-wide.** Its popover used `shadow-lg`, which
+  `.hope-scope` strips to none → every open menu read as a flat bordered box. Gave it an inline
+  `boxShadow` that survives the strip. One fix, every branded dropdown floats again.
+- **Native `<select>` → `HopeSelect` in 7 tabs (10 dropdowns):** competitors (country), posts
+  (type + sort), reels (sort), youtube/videos (sort), sales-ops (sort), ads (status + category),
+  radar (interest ×2). Verified live (branded menu opens, no console errors). Left the
+  Marketing-Hub inline-edit cell selects (different on-blur-commit pattern).
+- **Killed the recurring non-brand purple used as an accent:** calendar + scheduler "GooCampus
+  Main" account `#6E48F8`/`#8B5CF6` → brand `#3A57E8` (and unified the two account colour maps so
+  an account matches across Scheduler & Calendar); carousel type-chip `#5142C4` → brand in
+  content-review + post-planner (matches Overview); radar avatar `#6f42c1` → muted `#7A74C9`.
+
+Documented but NOT yet fixed (bigger/optional): consolidate the 4+ divergent metric cards into one
+shared component; per-tab platform accents (YT neon-red, Clarity purple) — confirm as intended
+exception; Overview reimplements its own shell; card radius `lg`↔`xl` drift; Leads tab authored in
+raw `<style>`; `text-gray-*` vs ink/muted tokens. Full report in chat.
+
+Tested the Marketing Hub's business logic against live data (271 tasks). Pipeline stage
+counts, bottleneck (avg-age / stale>7d / oldest), stat-strip math, and Team/Workload
+capacity (durations, lunch, now-line, overflow, Nandu's shift) all verified correct. Found +
+fixed two real bugs:
+
+- **`Output - In Progress` tasks were invisible in the Pipeline.** The header counted "160
+  of 160 entries" but the pipeline bar summed to 159 — the counter skips any status not in
+  `PIPELINE_STAGES`, and that status wasn't listed, so a task actively being worked on
+  vanished from the tab that claims "where every task sits." Added it as a 6th stage
+  ("In Progress", between Approved and Output Ready); grids 5→6 (stage cards) and 3→4
+  (bottleneck). Now 160 total = 160 entries; In Progress shows in both the bar and bottleneck.
+- **"Awaiting approval" was permanently 0.** It counted the `needsReview` flag (never set on
+  any row) instead of the Content-Pending queue. Now counts `Content - Pending` (or
+  needsReview) → shows the real number (54, was 0).
+
+Also noted (not changed): Praveen holds 68% of tasks (flagged "Overbooked"), and the
+Workload view plans unapproved tasks whereas My Day enforces "Content-Approved+".
+
+**Hope UI colour pass (Pipeline stat strip):** the top stats used a bright generic rainbow
+(#378ADD/#EF9F27/#D4537E/#7F77DD/#5DCAA5) that clashed with the muted pipeline palette right
+below. Re-accented on the Hope UI system — brand indigo for "Publishing today" (hero), then
+muted tones echoing the stages (amber Approved, rose Overdue, slate Awaiting-approval = Content
+Pending, green Completed). Whole tab now reads as one cohesive colour system. Team/Workload tab
+was already on-brand (brand-blue video / violet design / teal writing block coding) — left as is.
+Verified bottleneck markers == pipeline stage bars (identical hex, both from PIPELINE_STAGES).
+Also softened the **SBU/interest palette** (`SBU_COLORS`) — was a bright rainbow (shared the
+old #378ADD/#EF9F27/#D4537E tones); replaced with 12 muted mid-tones in the same family so the
+Master-sheet / calendar / drill-down dots read cohesively. Verified: no old rainbow hex left.
+**[Reverted per user — SBU palette restored to the original; the pale change wasn't wanted.]**
+
+**Unified status colours (one source of truth):** statuses were coloured by THREE different maps —
+pipeline dots (`PIPELINE_STAGES`), Master-sheet pills (`STATUS_PILL`, pale tan/green), and Calendar
+bars (`CAL_STATUS_COLORS`, another pale set) — so "Content Pending" was slate in one place, tan in
+another, grey-blue in a third. Collapsed the two pill maps into a single `STATUS_TINT` (soft Hope UI
+pills, each hue tinted from its pipeline dot) and pointed `statusPill()` + `calStatusStyle()` at it.
+Added the missing "Output - In Progress" entry. Now a status reads the same hue in the Pipeline,
+Master sheet and Calendar. Verified pills == tints and match the stage dots.
+
+## 2026-07-22 (pt 10) — Full dashboard health audit (perf + cost bugs fixed)
+
+Deep-dive audit: hit all 37 UI data endpoints, ran the built-in Diagnostics, walked the
+tabs. Health: **33/37 endpoints 200** (the 4 "fails" were correct 400s for missing
+params in the test, plus whoami which is POST-only). Diagnostics: **10/11 integrations
+healthy** (Supabase 193ms, Meta 375ms, YouTube 201ms, LinkedIn, Airtable, SendPulse,
+Perplexity, Serper, Apify, HikerAPI; Reddit `warn` = intentionally dormant). Tabs render
+clean, no console errors. AI-insight buttons live (GSC insight: real prescriptive text + 11
+citations). Found and fixed real bugs:
+
+- **`.maybeSingle()` silently returns null for a single row with a large jsonb payload** —
+  so several caches NEVER hit and recomputed heavy work on every load. Root-caused on
+  `/api/leads/social` (recomputed ~11s every load — inbox+CRM+Revenue+Samvaya+Meta ads).
+  Fixed there and in the same pattern in `/api/leads` (leads overview), `lib/competitor-cache.ts`,
+  and `lib/web-history.ts` — all switched to `.limit(1)` + `[0]`. leads/social: **11,000ms →
+  38ms cached**.
+- **`competitor_ads_cache` table never existed** → `writeCache` failed silently (error only
+  logged), so **every Competitor Ads search re-scraped Apify** (paid) instead of using the
+  7-day cache. Created the table (migration `create_competitor_ads_cache`). Now: search 1 =
+  live/scrape, search 2 = **`source:"cache"` 280ms** — instant repeats, no wasted Apify credits.
+- Note: `lib/dm.ts` has the same `.maybeSingle()`-on-payload pattern (DM automation, not a
+  dashboard tab) — flagged to fix, lower urgency.
+
 ## 2026-07-22 (pt 9) — Google Search Console as a full Website Analytics sub-tab
 
 - Promoted GSC from just the two Radar cards to a **first-class Website sub-tab** (sidebar:

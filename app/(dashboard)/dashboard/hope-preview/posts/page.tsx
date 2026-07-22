@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 import { useApi } from "@/lib/use-api";
@@ -222,18 +223,13 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
             <span className="text-gray-400 font-normal">)</span>
           </div>
           <div className="flex gap-2">
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1">
-              <option value="ALL">All types</option>
-              <option value="REEL">Reels</option>
-              <option value="CAROUSEL_ALBUM">Carousels</option>
-              <option value="VIDEO">Videos</option>
-              <option value="IMAGE">Images</option>
-            </select>
-            <select value={sort} onChange={(e) => setSort(e.target.value as "reach" | "engagement" | "date")} className="text-xs border border-gray-200 rounded-md px-2 py-1">
-              <option value="date">Sort: Date</option>
-              <option value="reach">Reach</option>
-              <option value="engagement">Engagement</option>
-            </select>
+            <HopeSelect value={typeFilter} onChange={setTypeFilter} options={[
+              { value: "ALL", label: "All types" }, { value: "REEL", label: "Reels" },
+              { value: "CAROUSEL_ALBUM", label: "Carousels" }, { value: "VIDEO", label: "Videos" }, { value: "IMAGE", label: "Images" },
+            ]} />
+            <HopeSelect value={sort} onChange={(v) => setSort(v as "reach" | "engagement" | "date")} options={[
+              { value: "date", label: "Sort: Date" }, { value: "reach", label: "Reach" }, { value: "engagement", label: "Engagement" },
+            ]} />
           </div>
         </div>
         {/* Instagram-style card grid — 4 cols on desktop, 3 on medium, 2 on small, 1 on mobile. */}

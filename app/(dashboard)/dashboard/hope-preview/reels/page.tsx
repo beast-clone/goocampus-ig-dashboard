@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { format, parseISO } from "date-fns";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 
 type ApiPost = {
@@ -187,12 +188,9 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
           <div className="text-sm font-medium">
             All reels <span className="text-gray-400 font-normal">({totalReels})</span>
           </div>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="text-xs border border-gray-200 rounded-md px-2 py-1">
-            <option value="views">Sort: Views</option>
-            <option value="reach">Reach</option>
-            <option value="engagement">Engagement</option>
-            <option value="date">Date</option>
-          </select>
+          <HopeSelect value={sort} onChange={(v) => setSort(v as typeof sort)} options={[
+            { value: "views", label: "Sort: Views" }, { value: "reach", label: "Reach" }, { value: "engagement", label: "Engagement" }, { value: "date", label: "Date" },
+          ]} />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-5">

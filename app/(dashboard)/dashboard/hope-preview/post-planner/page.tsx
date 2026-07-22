@@ -27,7 +27,7 @@ type Payload = {
 // A post the calendar can place on a day. eff = the date it sits on.
 type CalCard = {
   id: string; title: string; type: string; owner: string; status: string;
-  eff: string; note: string | null; reason: string; tags: string[]; beingWorkedOn: boolean;
+  eff: string; origDate: string | null; note: string | null; reason: string; tags: string[]; beingWorkedOn: boolean;
   thumbnailUrl: string | null; mediaUrls: string[]; caption: string; airtableRecordId: string | null; assetLink: string | null;
 };
 
@@ -49,7 +49,7 @@ const ownerColor = (o: string) => OWNER_COLORS[o?.toLowerCase()] || { bg: "#F1EF
 function typeChip(t: string) {
   const s = (t || "").toLowerCase();
   if (s.includes("reel")) return { bg: "#FBEAF0", fg: "#993556", label: "Reel" };
-  if (s.includes("carousel")) return { bg: "#F0ECFF", fg: "#5142C4", label: "Carousel" };
+  if (s.includes("carousel")) return { bg: "#E9ECFB", fg: "#3A57E8", label: "Carousel" };
   return { bg: "#E6F1FF", fg: "#2B6AB0", label: t || "Post" };
 }
 
@@ -132,7 +132,7 @@ function Planner() {
           const ai = planById.get(p.id);
           return {
             id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
-            eff, note: p.note, reason: ai?.reason || "", tags: ai?.tags || [], thumbnailUrl: p.thumbnailUrl,
+            eff, origDate: p.publishingDate, note: p.note, reason: ai?.reason || "", tags: ai?.tags || [], thumbnailUrl: p.thumbnailUrl,
             mediaUrls: p.mediaUrls, caption: p.caption, airtableRecordId: p.airtableRecordId, assetLink: p.assetLink,
             beingWorkedOn: beingWorkedOn(p.status, pubOverride[p.id] || p.publishingDate),
           } as CalCard;
@@ -141,7 +141,7 @@ function Planner() {
     }
     return data.plan.map((p) => ({
       id: p.id, title: p.title, type: p.type, owner: p.owner, status: p.status,
-      eff: planOverride[p.id] || p.suggestedTime, note: null, reason: p.reason, tags: p.tags,
+      eff: planOverride[p.id] || p.suggestedTime, origDate: p.publishingDate, note: null, reason: p.reason, tags: p.tags,
       beingWorkedOn: false, thumbnailUrl: p.thumbnailUrl,
       mediaUrls: p.mediaUrls, caption: p.caption, airtableRecordId: p.airtableRecordId, assetLink: p.assetLink,
     }));
@@ -460,6 +460,16 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
                 className={`w-full text-[13px] font-semibold px-4 py-2.5 rounded-lg transition disabled:opacity-60 ${accepted ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-brand text-white hover:bg-brand-dark"}`}>
                 {accepted ? "✓ Added to the calendar" : `Add to ${new Date(card.eff).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`}
               </button>
+            )}
+            {isPlan && card.origDate && ymd(new Date(card.origDate)) !== ymd(new Date(card.eff)) && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div className="text-xs uppercase tracking-widest text-amber-700 font-semibold mb-1.5">↪ Rescheduled by AI</div>
+                <div className="flex items-center gap-2 text-[13px]">
+                  <span className="line-through text-gray-400">{new Date(card.origDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</span>
+                  <span className="text-amber-600 font-semibold">→</span>
+                  <span className="font-semibold text-amber-800">{new Date(card.eff).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</span>
+                </div>
+              </div>
             )}
             {isPlan && card.reason && (
               <div className="bg-brand/5 border border-brand/15 rounded-xl p-3">

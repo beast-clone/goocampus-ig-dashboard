@@ -43,9 +43,12 @@ function monthOf(iso: string): string {
 async function cacheGet(key: string) {
   const db = getSupabase();
   if (!db) return null;
-  const { data } = await db.from("discover_cache").select("payload,last_fetched").eq("cache_key", key).maybeSingle();
-  if (!data) return null;
-  return { payload: data.payload, ageMs: Date.now() - new Date(data.last_fetched as string).getTime() };
+  // .limit(1)+[0], not .maybeSingle() — maybeSingle() returns null for a single
+  // row with a large jsonb payload, silently defeating this cache.
+  const { data } = await db.from("discover_cache").select("payload,last_fetched").eq("cache_key", key).limit(1);
+  const row = data?.[0];
+  if (!row) return null;
+  return { payload: row.payload, ageMs: Date.now() - new Date(row.last_fetched as string).getTime() };
 }
 async function cacheSet(key: string, payload: unknown) {
   const db = getSupabase();

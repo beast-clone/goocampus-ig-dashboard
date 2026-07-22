@@ -2440,8 +2440,10 @@ function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 
 
 // Hope-UI styled account picker — a custom popover (dot + label + subtitle, check on
 // the selected row) instead of a native <select>, matching My Day's StatusDropdown.
+// Account dot colors — matches HopeCalendar's ACCOUNT_STYLE so an account reads
+// the same colour in the Scheduler and the Calendar. Main = brand (was purple).
 const PAGE_DOT: Record<string, string> = {
-  "GooCampus Main": "#8B5CF6", "GooCampus World": "#0EA5E9", "12Plus / GC India": "#10B981",
+  "GooCampus Main": "#3A57E8", "GooCampus World": "#0EA5E9", "12Plus / GC India": "#E11D48",
 };
 function PageDropdown({ value, onChange }: { value: PublishToPage; onChange: (v: PublishToPage) => void }) {
   const [open, setOpen] = useState(false);

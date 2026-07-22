@@ -146,10 +146,24 @@ function blockColor(type: string): { bg: string; fg: string } {
 const PIPELINE_STAGES = [
   { key: "Content - Pending",     label: "Content Pending",     color: "#94A3B8" },
   { key: "Content - Approved",    label: "Approved",            color: "#D9A05B" },
+  { key: "Output - In Progress",  label: "In Progress",         color: "#D9836E" },
   { key: "Output - Ready",        label: "Output Ready",        color: "#6F9BD1" },
   { key: "Ready to Publish",      label: "Ready to Publish",    color: "#5FB196" },
   { key: "Published/Scheduled",   label: "Published",           color: "#7A74C9" },
 ];
+
+// SINGLE source of truth for status pill colours — soft Hope UI pills, each hue
+// tinted from its PIPELINE_STAGES dot, so a status reads identically in the
+// Pipeline (dot), Master sheet (pill) and Calendar (bar). Was 3 separate maps.
+const STATUS_TINT: Record<string, { bg: string; text: string; border: string }> = {
+  "Content - Pending":    { bg: "#EEF1F5", text: "#46505F", border: "#DCE1E8" }, // slate
+  "Content - Approved":   { bg: "#FBF3E6", text: "#8A5D1E", border: "#EFDFC2" }, // amber
+  "Output - In Progress": { bg: "#FBEEEA", text: "#9B4A36", border: "#F1D6CD" }, // coral
+  "Output - Ready":       { bg: "#EBF2FA", text: "#244D82", border: "#D2E0F1" }, // blue
+  "Ready to Publish":     { bg: "#E9F6F0", text: "#1F7256", border: "#CCEADD" }, // green
+  "Published/Scheduled":  { bg: "#EFEEFA", text: "#423B94", border: "#DAD7F2" }, // purple
+};
+const STATUS_TINT_FALLBACK = { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -614,7 +628,10 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       const isDone = DONE_STATUSES.includes(r.status);
       if (pd === today && !isDone) publishingToday += 1;
       if (dd && dd < today && !isDone) overdue += 1;
-      if (r.needsReview) awaitingApproval += 1;
+      // "Awaiting approval" = the Content-Pending queue (the pre-approval step),
+      // OR anything explicitly flagged needsReview. Was keyed only on needsReview,
+      // which is never set in the data → the stat was permanently 0.
+      if (r.status === "Content - Pending" || r.needsReview) awaitingApproval += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) completedThisWeek += 1;
       if (r.status === "Content - Approved") inProgress += 1;
     }
@@ -664,17 +681,20 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
     <div className="space-y-6">
       {/* Team-wide totals */}
       <div className="grid grid-cols-5 gap-4">
-        <BigStat label="Publishing today" value={totals.publishingToday} accent="#378ADD" />
-        <BigStat label="Approved" value={totals.inProgress} accent="#EF9F27" />
-        <BigStat label="Overdue" value={totals.overdue} accent="#D4537E" alarm />
-        <BigStat label="Awaiting approval" value={totals.awaitingApproval} accent="#7F77DD" />
-        <BigStat label="Completed this week" value={totals.completedThisWeek} accent="#5DCAA5" />
+        {/* Accents on the Hope UI muted palette — brand for the hero stat, then
+            tones that echo the pipeline stages below (amber Approved, slate Pending,
+            green done) so the whole tab is one cohesive colour system. */}
+        <BigStat label="Publishing today" value={totals.publishingToday} accent="#3A57E8" />
+        <BigStat label="Approved" value={totals.inProgress} accent="#D9A05B" />
+        <BigStat label="Overdue" value={totals.overdue} accent="#CB5F73" alarm />
+        <BigStat label="Awaiting approval" value={totals.awaitingApproval} accent="#94A3B8" />
+        <BigStat label="Completed this week" value={totals.completedThisWeek} accent="#5FB196" />
       </div>
 
       {/* Stage cards — one card per pipeline stage; click to drill in. */}
       <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
         <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Where everything sits right now — click a stage to see its tasks.</div>
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
           {pipeline.map((s) => {
             const isSel = s.key === selected;
             const pct = total ? Math.round((s.count / total) * 100) : 0;
@@ -699,7 +719,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       {/* Bottleneck insight — where in-production work is sitting untouched */}
       <Panel icon={IconHistory} title="Where it's stuck">
         <div className="text-sm text-[#8A92A6] mb-4 -mt-1">How long in-production work has sat untouched — chase the oldest first.</div>
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           {attention.perStage.map((s) => (
             <div key={s.key} className="rounded-lg border border-gray-100 p-3">
               <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -971,15 +991,8 @@ const MHCAL_MONTH_NAMES = ["January", "February", "March", "April", "May", "June
 // Unmapped statuses fall through to the neutral gray.
 // Near-white fills (a hint of tint, never a saturated block) + a matching border and
 // DARK text — so a bar reads white-ish at a glance but still colour-codes its status.
-const CAL_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "Content - Pending":     { bg: "#F8F9FC", text: "#3F4757", border: "#DDE1E9" },
-  "Content - Approved":    { bg: "#F1FBF7", text: "#0E6A52", border: "#C7E7DA" },
-  "Output - Ready":        { bg: "#F2F6FF", text: "#1E338F", border: "#CFD9F7" },
-  "Ready to Publish":      { bg: "#F1FBF5", text: "#146F36", border: "#CBE9D9" },
-  "Published/Scheduled":   { bg: "#F5F4FE", text: "#372F80", border: "#DAD7FB" },
-};
 function calStatusStyle(s: string): { bg: string; text: string; border: string } {
-  return CAL_STATUS_COLORS[s] || { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
+  return STATUS_TINT[s] || STATUS_TINT_FALLBACK;
 }
 
 // Mirrors the Publishing Calendar (calendar/HopeCalendar.tsx / Hope reference) so the two
@@ -1389,14 +1402,9 @@ function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[];
 }
 
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
-const STATUS_PILL: Record<string, { bg: string; text: string }> = {
-  "Content - Pending":     { bg: "#F1EFE8", text: "#444441" },
-  "Content - Approved":    { bg: "#E1F5EE", text: "#0F6E56" },
-  "Output - Ready":        { bg: "#E6F1FB", text: "#0C447C" },
-  "Ready to Publish":      { bg: "#E1F5EE", text: "#0F6E56" },
-  "Published/Scheduled":   { bg: "#EEEDFE", text: "#3C3489" },
-};
-function statusPill(s: string) { return STATUS_PILL[s] || { bg: "#F1EFE8", text: "#5F5E5A" }; }
+function statusPill(s: string): { bg: string; text: string } {
+  return STATUS_TINT[s] || STATUS_TINT_FALLBACK;
+}
 function priorityPill(p: string): { bg: string; text: string } {
   const v = p.toLowerCase();
   if (v.includes("high") || v.includes("urgent")) return { bg: "#FCEBEB", text: "#A32D2D" };

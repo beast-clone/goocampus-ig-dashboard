@@ -26,7 +26,10 @@ export function HopeSelect({ value, onChange, options, placeholder }: {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1 min-w-[190px] max-h-72 overflow-auto">
+          {/* Inline boxShadow — .hope-scope strips Tailwind shadow-* to none, so the
+              menu would otherwise render flat. Inline styles survive the strip. */}
+          <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
+            className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto">
             {options.map((o) => (
               <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
                 className={`w-full flex items-center gap-2 text-left rounded-lg px-3 py-1.5 text-xs ${o.value === value ? "bg-brand-light/50 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-50"}`}>

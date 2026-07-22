@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { getSupabase } from "@/lib/supabase";
 import { getTopTimeSuggestions, getTopPerformers } from "@/lib/scheduler-helpers";
-import { fetchContentCalendarBody } from "@/lib/content-calendar";
 import { safeError } from "@/lib/errors";
 
 // Ranking is web-search-grounded via Perplexity 'sonar' (see lib/ai) — the sonar
@@ -146,14 +145,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ ...payload, cached: false });
     }
 
-    // ---- Pull each candidate's REAL content (slides / body) from the Content field,
-    // so the ranker searches the web for the actual topic, not just the title. ----
-    const contentPairs = await Promise.all(candidates.map(async (c) => {
-      if (!c.airtable_record_id) return [c.id, ""] as const;
-      try { const { content } = await fetchContentCalendarBody(c.airtable_record_id); return [c.id, snippet(content, 180)] as const; }
-      catch { return [c.id, ""] as const; }
-    }));
-    const contentById = new Map(contentPairs);
+    // ---- Each candidate's content for the ranker. Use the content/caption already
+    // synced into mh_posts (the same secured Marketing-Hub data the Scheduler reads),
+    // NOT a separate per-candidate Airtable call. One Supabase query, no extra fetches.
+    const contentById = new Map(
+      candidates.map((c) => [c.id, snippet(c.content || c.caption || "", 180)] as const),
+    );
 
     // ---- AI: decide the ORDER (web-search-grounded) ----
     const ctx = {

@@ -19,15 +19,19 @@ export async function readCache(key: string): Promise<CachedScrape | null> {
   const db = getSupabase();
   if (!db) return null;
   try {
+    // .limit(1)+[0], not .maybeSingle() — maybeSingle() returns null for a single
+    // row with a large jsonb payload, which here would silently re-scrape Apify
+    // (a paid call) on every search instead of serving the cache.
     const { data, error } = await db
       .from(CACHE_TABLE)
       .select("last_scraped, payload")
       .eq("cache_key", key)
-      .maybeSingle();
-    if (error || !data) return null;
-    const ads = (data.payload as CompetitorAd[]) ?? [];
-    const ageMs = Date.now() - new Date(data.last_scraped as string).getTime();
-    return { ads, lastScraped: data.last_scraped as string, ageMs, source: "cache" };
+      .limit(1);
+    const row = data?.[0];
+    if (error || !row) return null;
+    const ads = (row.payload as CompetitorAd[]) ?? [];
+    const ageMs = Date.now() - new Date(row.last_scraped as string).getTime();
+    return { ads, lastScraped: row.last_scraped as string, ageMs, source: "cache" };
   } catch (err) {
     console.error("[competitor-cache] read failed:", (err as Error).message);
     return null;

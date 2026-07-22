@@ -307,9 +307,13 @@ export async function GET(req: Request) {
 
     const cacheKey = `social_leads_snapshot:${from}:${to}`;
     if (!force) {
-      const { data } = await sb.from("discover_cache").select("payload, last_fetched").eq("cache_key", cacheKey).maybeSingle();
-      if (data?.payload && data.last_fetched && Date.now() - new Date(data.last_fetched).getTime() < TTL_MS) {
-        return NextResponse.json({ ...(data.payload as object), cached: true });
+      // NB: use .limit(1) + [0], NOT .maybeSingle() — maybeSingle() returns null
+      // (no error) for a single row with a large jsonb payload, so the cache never
+      // hit and this heavy snapshot recomputed (~11s) on every load.
+      const { data } = await sb.from("discover_cache").select("payload, last_fetched").eq("cache_key", cacheKey).limit(1);
+      const row = data?.[0];
+      if (row?.payload && row.last_fetched && Date.now() - new Date(row.last_fetched).getTime() < TTL_MS) {
+        return NextResponse.json({ ...(row.payload as object), cached: true });
       }
     }
 
