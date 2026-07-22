@@ -28,6 +28,16 @@ All Version-2 UI lives under `app/(dashboard)/dashboard/hope-preview/` and rende
 ## Workflow
 - Work on branch `feat/hope-ui-reskin`. Verify changes live in the user's Chrome before saying they're done. No Netlify production deploy without explicit approval.
 
+## My Day tab — build against the spec
+
+The **My Day** tab (`app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx`) has a
+detailed, user-agreed spec at **`docs/MY_DAY_SPEC.md`** — the source of truth (current code
+does NOT fully match it). Before building, changing, or answering questions about My Day —
+its status tabs, owner/collaborator, assignment, capacity pipeline, Content Review/feedback,
+attendance, reminders, or permissions — **invoke the `my-day-spec` skill** (or read the spec),
+which re-runs the clarifying discussion first. Non-negotiables: no dummy data (real `mh_posts`),
+reuse existing code (ponytail), test end-to-end live.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
