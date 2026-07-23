@@ -2212,27 +2212,19 @@ export function HopeMyDay() {
         <div className="topbar">
           <div className="topspacer" />
           <div className="icons">
-            {/* Team capacity — Manya only, a clearly-labelled button next to the day control */}
-            {person === "manya" && (
-              <button className={`teamcapbtn ${screen === "team" ? "on" : ""}`} onClick={() => setScreen(screen === "team" ? "myday" : "team")}>
-                <IconUsers size={15} stroke={1.8} /> {screen === "team" ? "Back to My Day" : "Team capacity"}
-              </button>
-            )}
-            {/* Claim pool — editors (Nikhil / Nandu): the video work they can pick up */}
-            {isEditor && (
-              <button className={`teamcapbtn ${showClaimPool ? "on" : ""}`} onClick={() => setShowClaimPool(true)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M16.5 10l5-2.5v9L16.5 14" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
-                Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
-              </button>
-            )}
+            {/* Day control — FAR LEFT, then a divider, so End day sits apart from the
+                notification icons + profile and isn't clicked by accident. End day only
+                OPENS the wrap-up (a confirm step) — it never logs out on a single tap. */}
+            <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End day</button></span>
+            <span className="topdivider" aria-hidden="true" />
             <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
             </button>
-            <button className={`iconbtn ${panel === "rem" ? "on" : ""}`} title="Reminders" onClick={() => setPanel(panel === "rem" ? null : "rem")}>
-              {CLIP}{remOpen > 0 && <span className="badge">{remOpen}</span>}
-            </button>
             <button className={`iconbtn ${chatOpen ? "on" : ""}`} title="Team chat" onClick={() => (chatOpen ? closeChat() : openChat())}>
               {CHATIC}{!chatOpen && totalUnread > 0 && <span className="badge rose">{totalUnread}</span>}
+            </button>
+            <button className={`iconbtn ${panel === "rem" ? "on" : ""}`} title="Reminders" onClick={() => setPanel(panel === "rem" ? null : "rem")}>
+              {CLIP}{remOpen > 0 && <span className="badge">{remOpen}</span>}
             </button>
 
             {/* Profile chip + Log out — the always-visible way to sign out (My Day has
@@ -2313,9 +2305,19 @@ export function HopeMyDay() {
             {/* Day control + Pipeline live HERE, aligned with the stats (user order
                 2026-07-19) — the bell/reminders/chat icons stay up top. */}
             <div className="dayctl">
-              {/* Login = day start (auto) — no Start button. Chip shows the clock-in;
-                  End day runs the wrap-up then logs out. */}
-              <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End day</button></span>
+              {/* Role button lives here now (the day control moved up to the top bar):
+                  Manya → Team capacity; editors → Claim pool. */}
+              {person === "manya" && (
+                <button className="teamcapbtn" onClick={() => setScreen("team")}>
+                  <IconUsers size={15} stroke={1.8} /> Team capacity
+                </button>
+              )}
+              {isEditor && (
+                <button className={`teamcapbtn ${showClaimPool ? "on" : ""}`} onClick={() => setShowClaimPool(true)}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M16.5 10l5-2.5v9L16.5 14" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
+                  Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
+                </button>
+              )}
               {person === "manya" ? (
                 /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
                    any change a producer makes (dates moved, etc.) pops up here. */
@@ -2897,7 +2899,8 @@ const CSS = `
 .hmd .banner b{color:var(--ink-soft)}
 .hmd .tagchg{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
 .hmd .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
-.hmd .icons{display:flex;gap:.5rem;position:relative}
+.hmd .icons{display:flex;align-items:center;gap:.5rem;position:relative}
+.hmd .topdivider{width:1px;height:22px;background:var(--line);margin:0 .35rem;flex:none}
 .hmd .iconbtn{position:relative;width:33px;height:33px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);box-shadow:var(--shadow);transition:all .12s}
 .hmd .iconbtn:hover{border-color:#D9DEEA;color:var(--brand-ink)}
 .hmd .iconbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
