@@ -361,6 +361,8 @@ const IHOURGLASS = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" s
 const IPOWER = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M12 3v8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /><path d="M7.5 6a7.5 7.5 0 1 0 9 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /></svg>;
 const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M15.5 5.9a3 3 0 0 1 0 5.2M16 14.2A5.5 5.5 0 0 1 19.5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
 const CHEV = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-1px", opacity: 0.55 }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const IPLAY = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l11-6.8a1 1 0 0 0 0-1.7l-11-6.8A1 1 0 0 0 8 5.2Z" /></svg>;
+const ISTOP = <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>;
 
 // One due-date chip everywhere so the clock icon + label read uniformly on every
 // task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
@@ -696,6 +698,14 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             {onSetDuration && (
               <DurationPicker value={task.detail.duration} onChange={(m) => onSetDuration(m)} />
             )}
+            {/* Stopwatch: Content-Approved → Start (begins the clock); running → Stop
+                (marks Output-Ready). Sits right after Set duration, per the agreed order. */}
+            {onStatusChange && task.status === "Content - Approved" && (
+              <button className="cap sw-btn start" title="Start working — starts the timer" onClick={() => onStatusChange("Output - In Progress")}>{IPLAY} Start</button>
+            )}
+            {onStatusChange && timing && (
+              <button className="cap sw-btn stop" title="Mark output ready — stops the timer" onClick={() => onStatusChange("Output - Ready")}>{ISTOP} Stop</button>
+            )}
             {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
             {timing && (
               <span className={`cap cap-timer ${timing.elapsed >= timing.planned ? "over" : ""}`} title="Time left vs the planned duration">
@@ -772,10 +782,10 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           )}
         </div>
       ) : (onStatusChange && task.status === "Content - Approved" && (
-        // Not started yet → one tap to start the clock (sets status → In Progress).
+        // Not started — the Start control now lives up in the status row; this line
+        // just states the plan so the strip isn't empty.
         <div className="timer-strip idle">
-          <span className="timer-num">{ICLOCK} Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)}` : ""}</span>
-          <button className="btn sm primary" onClick={() => onStatusChange("Output - In Progress")}>Start working — start the timer</button>
+          <span className="timer-num">{ICLOCK} Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)} — press Start above` : " — set a duration, then press Start above"}</span>
         </div>
       ))}
 
@@ -1417,6 +1427,7 @@ export function HopeMyDay() {
   // Personal reminders — REAL per-person notes, persisted in localStorage (a
   // scratchpad, not shared team data — server table only if cross-device matters).
   const [reminders, setReminders] = useState<{ text: string; done: boolean }[]>([]);
+  const [dismissedNudges, setDismissedNudges] = useState<string[]>([]); // reminder ids the person dismissed (per person, localStorage)
   const [newRem, setNewRem] = useState("");
   const [chatMsgs, setChatMsgs] = useState<ServerMsg[]>([]);   // live messages (team + my DMs)
   const [chatRead, setChatRead] = useState<Record<string, string>>({}); // convoId → last-read ISO (localStorage)
@@ -1461,12 +1472,19 @@ export function HopeMyDay() {
   const [poolProminent, setPoolProminent] = useState(true);
 
   useEffect(() => {
-    const d = new Date();
-    setClock({
-      time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-      date: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" }),
-      greet: greetingFor(d.getHours()),
-    });
+    // Tick every minute so the greeting clock stays live (it was set once on mount and
+    // froze — showed 1:28 while the wall clock read 1:30).
+    const tick = () => {
+      const d = new Date();
+      setClock({
+        time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+        date: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" }),
+        greet: greetingFor(d.getHours()),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   // REAL chat: load + poll mh_messages for this person (team + DMs). Per-person
@@ -1500,6 +1518,7 @@ export function HopeMyDay() {
     lastMsgId.current = null;   // and never toast "new message" for their backlog
     setSel(0);                  // task selection is per-person
     try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
+    try { setDismissedNudges(JSON.parse(localStorage.getItem(`hmd-dismissed-${person}`) || "[]")); } catch { setDismissedNudges([]); }
     // Viewing a person = they're logged in → clear any logged-out overlay + close the menu.
     setLoggedOut(false); setProfileOpen(false);
     // LOGIN = DAY START (no manual button). Restore today's clock-in if one exists,
@@ -2172,6 +2191,14 @@ export function HopeMyDay() {
   });
   const openConvo = (id: string) => { setActiveChat(id); markRead(id); };
   const addReminder = () => { const t = newRem.trim(); if (!t) return; setReminders((r) => [{ text: t, done: false }, ...r]); setNewRem(""); };
+  // Dismiss a smart reminder from the strip: hide it here, but keep it in the 📋
+  // reminders popover (as a record) so it isn't lost — persisted per person.
+  const dismissNudge = (n: { id: string; title: string; text: string }) => {
+    setDismissedNudges((d) => { const nx = d.includes(n.id) ? d : [...d, n.id]; try { localStorage.setItem(`hmd-dismissed-${person}`, JSON.stringify(nx)); } catch { /* private mode */ } return nx; });
+    const text = `${n.title} — ${n.text}`;
+    setReminders((r) => r.some((x) => x.text === text) ? r : [{ text, done: false }, ...r]);
+  };
+  const visibleNudges = nudges.filter((n) => !dismissedNudges.includes(n.id));
   const send = () => {
     const t = msg.trim(); if (!t || !activeChat) return;
     const convo = activeChat === "team" ? "team" : dmConvo(person, activeChat);
@@ -2304,7 +2331,7 @@ export function HopeMyDay() {
         <div className="card pad headband">
           <div className="who">
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
-            <div className="sub">{me.role} · {clock ? `${clock.date}, ${clock.time}` : "—"} · Bengaluru 23° · <span style={{ color: "#1AA053" }}>● live</span></div>
+            <div className="sub">{me.role} · {clock ? `${clock.date} · ${clock.time}` : "—"} · Bengaluru 23° · <span style={{ color: "#1AA053" }}>● live</span></div>
           </div>
           <div className="switch" role="tablist" aria-label="Teammate">
             {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
@@ -2353,12 +2380,16 @@ export function HopeMyDay() {
           <ManyaReschedule task={URGENT_TASK} editorName="Nandu" movedId={movedId} onMove={setMovedId} onConfirm={manyaConfirmMove} />
         )}
 
-        {/* Smart reminders (spec §13) — stale-content / overdue nudges for this person. */}
-        {nudges.length > 0 && (
+        {/* Smart reminders (spec §13) — stale-content / overdue nudges for this person.
+            Dismissing one hides it here but keeps it in the 📋 reminders popover. */}
+        {visibleNudges.length > 0 && (
           <div className="card pad" style={{ marginTop: "1rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 }}>{BELL} {nudges.length} reminder{nudges.length > 1 ? "s" : ""}</div>
-            {nudges.map((n) => (
-              <div key={n.id} style={{ fontSize: 13, color: "#232D42", padding: "2px 0" }}><b>{n.title}</b> — <span style={{ color: "#B0203A" }}>{n.text}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 }}>{BELL} {visibleNudges.length} reminder{visibleNudges.length > 1 ? "s" : ""}</div>
+            {visibleNudges.map((n) => (
+              <div key={n.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "3px 0" }}>
+                <div style={{ fontSize: 13, color: "#232D42" }}><b>{n.title}</b> — <span style={{ color: "#B0203A" }}>{n.text}</span></div>
+                <button className="btn sm" style={{ flexShrink: 0 }} onClick={() => dismissNudge(n)}>Dismiss</button>
+              </div>
             ))}
           </div>
         )}
@@ -2455,34 +2486,35 @@ export function HopeMyDay() {
               {claimableHere.map((v) => {
                 const confirming = claimConfirm === v.id;
                 return (
-                  <div key={v.id} className="task" style={{ borderStyle: "dashed", borderColor: "#B9C0D0" }}>
-                    <div className="task-top">
+                  <div key={v.id} className="task" style={{ borderStyle: "dashed", borderColor: "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="tt">{v.title}</div>
-                      <DueChip due={v.due} today={todayStr} />
-                    </div>
-                    <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
-                    {!confirming ? (
-                      <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
-                        <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C" }}>Claimable</span>
-                        <button className="btn primary sm" onClick={() => setClaimConfirm(v.id)}>Claim</button>
-                      </div>
-                    ) : person === "nikhil" ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".2rem" }}>
-                        <span className="lbl">How will you work it?</span>
-                        <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
-                          <button className="btn primary sm" onClick={() => confirmClaim(v, "present")}>Present on camera</button>
-                          <button className="btn primary sm" onClick={() => confirmClaim(v, "edit")}>Edit video</button>
-                          <button className="btn primary sm" onClick={() => confirmClaim(v, "both")}>Both</button>
-                          <button className="btn sm" onClick={() => setClaimConfirm(null)}>Cancel</button>
+                      <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
+                      {!confirming ? (
+                        <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C", display: "inline-block", marginTop: ".45rem" }}>Claimable</span>
+                      ) : person === "nikhil" ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".45rem" }}>
+                          <span className="lbl">How will you work it?</span>
+                          <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
+                            <button className="btn primary sm" onClick={() => confirmClaim(v, "present")}>Present on camera</button>
+                            <button className="btn primary sm" onClick={() => confirmClaim(v, "edit")}>Edit video</button>
+                            <button className="btn primary sm" onClick={() => confirmClaim(v, "both")}>Both</button>
+                            <button className="btn sm" onClick={() => setClaimConfirm(null)}>Cancel</button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".2rem" }}>
-                        <span className="lbl">Claim this?</span>
-                        <button className="btn primary sm" onClick={() => confirmClaim(v)}>Yes, it&apos;s mine</button>
-                        <button className="btn sm" onClick={() => setClaimConfirm(null)}>No</button>
-                      </div>
-                    )}
+                      ) : (
+                        <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".45rem" }}>
+                          <span className="lbl">Claim this?</span>
+                          <button className="btn primary sm" onClick={() => confirmClaim(v)}>Yes, it&apos;s mine</button>
+                          <button className="btn sm" onClick={() => setClaimConfirm(null)}>No</button>
+                        </div>
+                      )}
+                    </div>
+                    {/* Due + Claim stacked on the RIGHT so the action is clear (user request). */}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: ".55rem", flexShrink: 0 }}>
+                      <DueChip due={v.due} today={todayStr} />
+                      {!confirming && <button className="btn primary sm" onClick={() => setClaimConfirm(v.id)}>Claim</button>}
+                    </div>
                   </div>
                 );
               })}
@@ -2942,8 +2974,8 @@ const CSS = `
 .hmd .stats-wrap{display:flex;align-items:center;justify-content:flex-end;gap:1.6rem;flex-wrap:wrap}
 .hmd .dayctl{display:flex;align-items:center;gap:.5rem;padding-right:1.2rem;border-right:1px solid var(--line)}
 @media(max-width:900px){.hmd .dayctl{border-right:none;padding-right:0}}
-.hmd .who .hi{font-size:1.15rem;font-weight:700;letter-spacing:-.01em}
-.hmd .who .sub{font-size:.8rem;color:var(--muted);margin-top:.15rem}
+.hmd .who .hi{font-size:1.5rem;font-weight:700;letter-spacing:-.01em;line-height:1.15}
+.hmd .who .sub{font-size:.82rem;color:var(--muted);margin-top:.4rem}
 .hmd .switch{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.2rem;gap:.15rem}
 .hmd .switch button{border:0;background:transparent;font:inherit;font-size:.78rem;font-weight:600;color:var(--muted);padding:.32em .7em;border-radius:7px;cursor:pointer}
 .hmd .switch button.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
@@ -3004,7 +3036,7 @@ const CSS = `
 .hmd .work .detail{position:sticky;top:.8rem;max-height:calc(100vh - 1.6rem);overflow-y:auto}
 .hmd .work .detail::-webkit-scrollbar{width:6px}
 .hmd .work .detail::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
-.hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+.hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
 .hmd .colhead h3{margin:0;font-size:.95rem}
 /* Left "My tasks" card fills the column height (mirrors the sticky detail) so the
    list uses the whole screen instead of a fixed 460px box with dead space below.
@@ -3097,12 +3129,17 @@ const CSS = `
 .hmd .ui-dd-item-lbl{flex:1;white-space:nowrap}
 .hmd .ui-dd-check{color:var(--brand);font-weight:800}
 /* live countdown capsule in the task header (brand → amber when over) */
+.hmd .sw-btn{display:inline-flex;align-items:center;gap:.35rem;border-radius:9px;padding:0 .8rem;font-size:.8rem;font-weight:600;white-space:nowrap;cursor:pointer;border:1px solid transparent}
+.hmd .sw-btn.start{background:var(--brand);color:#fff}
+.hmd .sw-btn.start:hover{background:#2138B0}
+.hmd .sw-btn.stop{background:#FCEBEC;color:#C0201F;border-color:#F3C6CE}
+.hmd .sw-btn.stop:hover{background:#F9DADE}
 .hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid #D5DCF8;border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:.8rem;font-weight:700;white-space:nowrap}
 .hmd .cap-timer.over{background:var(--warn-soft);border-color:#F3D9AE;color:#8A5A00}
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:.76rem;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:.75rem;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
+.hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.15rem;padding-top:1.3rem;border-top:1px solid var(--line)}
 .hmd .mlbl{font-size:.6rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:600}
 .hmd .mval{font-size:.82rem;color:var(--ink-soft);font-weight:500}
 .hmd .collab{display:flex;align-items:center;gap:.4rem;margin-top:.9rem;flex-wrap:wrap}
@@ -3379,7 +3416,8 @@ const CSS = `
 .hmd .daychip{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:600;border-radius:9px;padding:.45em .7em;background:var(--good-soft);color:#0F6E3C;border:1px solid #BFE6CD;white-space:nowrap}
 .hmd .daychip .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);animation:hmdpl 1.6s infinite}
 @keyframes hmdpl{0%{box-shadow:0 0 0 0 rgba(26,160,83,.45)}70%{box-shadow:0 0 0 6px rgba(26,160,83,0)}100%{box-shadow:0 0 0 0 rgba(26,160,83,0)}}
-.hmd .endbtn{display:inline-flex;align-items:center;gap:.3rem;white-space:nowrap}
+.hmd .endbtn{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.78rem;font-weight:600;background:#FCEBEC;border-color:#F3C6CE;color:#B0203A}
+.hmd .endbtn:hover{background:#F9DADE;border-color:#E7A9B3}
 .hmd .teamcapbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid #CBD5FA;background:var(--brand-soft);color:var(--brand-ink);cursor:pointer;white-space:nowrap}
 .hmd .teamcapbtn:hover{border-color:var(--brand)}
 .hmd .teamcapbtn.on{background:var(--brand);color:#fff;border-color:transparent}
