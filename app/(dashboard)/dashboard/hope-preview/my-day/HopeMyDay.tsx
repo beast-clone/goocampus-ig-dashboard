@@ -120,14 +120,14 @@ const TEAM = [
   { key: "manya", name: "Manya", role: "Content writer", av: "M", color: "#E0791F" },
   { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
   { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
-  { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#3A57E8" },
+  { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#6E48F8" },
 ];
 
 const PPL: Record<string, Person> = {
   manya: { name: "Manya", av: "M", color: "#E0791F" },
   praveen: { name: "Praveen", av: "P", color: "#C2410C" },
   nikhil: { name: "Nikhil", av: "N", color: "#3A57E8" },
-  nandu: { name: "Nandu", av: "N", color: "#3A57E8" },
+  nandu: { name: "Nandu", av: "N", color: "#6E48F8" },
   maheen: { name: "Maheen", av: "M", color: "#2F9E6F" },
 };
 
@@ -1149,7 +1149,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
   const PRODUCERS = [
     { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
     { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
-    { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#3A57E8" },
+    { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#6E48F8" },
   ];
   // Day = what's actually on their plate TODAY (due today / overdue). Week = the
   // whole approved backlog against a 5-day (40h) capacity — one person can't do a

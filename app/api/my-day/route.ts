@@ -19,7 +19,7 @@ const PPL_META: Record<string, { name: string; av: string; color: string }> = {
   manya: { name: "Manya", av: "M", color: "#E0791F" },
   praveen: { name: "Praveen", av: "P", color: "#C2410C" },
   nikhil: { name: "Nikhil", av: "N", color: "#3A57E8" },
-  nandu: { name: "Nandu", av: "N", color: "#3A57E8" },
+  nandu: { name: "Nandu", av: "N", color: "#6E48F8" },
   maheen: { name: "Maheen", av: "M", color: "#2F9E6F" },
 };
 // Statuses still moving through the pipeline (the working view) + the queued
