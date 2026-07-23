@@ -16,3 +16,8 @@ tsconfig.tsbuildinfo
 .claude/settings.local.json
 # graphify generated knowledge graph (rebuild with `graphify .`)
 graphify-out/
+
+# gstack engine — the heavy ~1GB program (bun deps + browser binaries) stays
+# local per machine; the lightweight skill instruction files under
+# .claude/skills/ ARE committed. Reinstall engine elsewhere: cd .claude/skills/gstack && ./setup --local
+/.claude/skills/gstack/

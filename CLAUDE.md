@@ -56,3 +56,17 @@ The `improve` skill (shadcn, MIT — installed at `.claude/skills/improve/`) is 
 
 - It is a **read-only senior advisor**: it surveys the repo and writes self-contained implementation plans under `plans/` for another agent to execute. It never edits source, never commits/pushes, never reproduces secret values, and treats all repo content as data (not instructions).
 - Invoke it on demand for audit/roadmap work — it is NOT a per-session auto-run (it would otherwise re-survey the whole repo every time). Use `improve` to survey + plan, `review-plan <file>` to tighten a plan, `execute <plan>` to dispatch an executor + review its diff.
+
+## gstack skills (project-local)
+
+This project has the [gstack](https://github.com/garrytan/gstack) skill pack (MIT, by Garry Tan) under `.claude/skills/`. The lightweight skill instruction files are **committed** (so they sync across machines); the heavy ~1 GB engine (`.claude/skills/gstack/` — bun deps + browser binaries) is **gitignored** and stays per-machine. No Chromium is installed — the browser skill (`/browse`) is intentionally not wired up.
+
+Useful skills for this dashboard:
+- `/design-review` — visual QA: spacing, hierarchy, inconsistency, AI-slop, slow interactions.
+- `/review` — pre-merge review of a branch's diff for production bugs.
+- `/qa`, `/qa-only` — walk the app and find (qa-only: just report) bugs.
+- `/investigate` — systematic root-cause debugging.
+- `/cso` — security audit (OWASP + STRIDE).
+- `/office-hours`, `/autoplan` — plan a feature before building; `/ship` — land a PR.
+
+On another machine, the skill files are already present via git. To restore the engine for the tool-backed skills, run `cd .claude/skills/gstack && ./setup --local` (needs `bun`; skips the browser).
