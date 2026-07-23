@@ -14,6 +14,14 @@ export const dynamic = "force-dynamic";
 const OWNER_NAME: Record<string, string> = {
   manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
 };
+// Mirror of the client PPL map so a collaborator key resolves to the same avatar/colour.
+const PPL_META: Record<string, { name: string; av: string; color: string }> = {
+  manya: { name: "Manya", av: "M", color: "#E0791F" },
+  praveen: { name: "Praveen", av: "P", color: "#C2410C" },
+  nikhil: { name: "Nikhil", av: "N", color: "#3A57E8" },
+  nandu: { name: "Nandu", av: "Nd", color: "#3A57E8" },
+  maheen: { name: "Maheen", av: "Mn", color: "#2F9E6F" },
+};
 // Statuses still moving through the pipeline (the working view) + the queued
 // Ready-to-Publish. Must match every status the client renders as in-view (the
 // HopeMyDay STATUS `inView` set) or a task moved into a missing status would vanish
@@ -62,6 +70,7 @@ type Row = {
   reference_links: string[] | null;
   created_at: string | null; start_at: string | null; end_at: string | null;
   duration_min: number | null;
+  custom: Record<string, unknown> | null;
 };
 type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 type Creative = { name: string; type: "image" | "video" | "doc"; url: string; attId?: string };
@@ -93,7 +102,11 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
       brand: r.sbu || "GooCampus",
       content: r.content || r.caption || "",
       creatives,
-      collaborators: [] as unknown[],
+      // Collaborator (MY_DAY_SPEC §4) — stored as an owner-key in custom.collaborator.
+      collaborators: (() => {
+        const k = typeof r.custom?.collaborator === "string" ? (r.custom.collaborator as string).toLowerCase().trim() : "";
+        return k && PPL_META[k] ? [PPL_META[k]] : [];
+      })(),
       activity: [] as unknown[],
       references,
       createdAt: r.created_at || "",
@@ -110,7 +123,7 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
     const cols =
-      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, created_at, start_at, end_at, duration_min";
+      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, created_at, start_at, end_at, duration_min, custom";
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
     const [working, doneRecent] = await Promise.all([

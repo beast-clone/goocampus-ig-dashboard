@@ -59,12 +59,33 @@ const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inVie
   "Rejected/Not Published":   { label: "Rejected/Not Published",   tone: "bad",   stage: 4, inView: false },
   "Failed":                   { label: "Failed",                   tone: "bad",   stage: 4, inView: false },
 };
-// Status tabs in the working view (queued/terminal states drop out of the view).
-const TASK_TABS: { key: string; label: string; statuses: CCStatus[] }[] = [
-  { key: "active",   label: "In progress", statuses: ["Content - Pending", "Content - In Progress", "Content - Needs Approval", "Content - Approved", "Output - In Progress"] },
-  { key: "feedback", label: "Feedback",    statuses: ["Incorporating Feedback"] },
-  { key: "output",   label: "Output",      statuses: ["Output - Ready"] },
+// Per-person status tabs (MY_DAY_SPEC §5). Each tab shows exactly ONE stage and
+// lists tasks where the person is owner OR collaborator. Manya (the writer) works the
+// content stages + watches claims; producers work only their approved output.
+type TabDef = { key: string; label: string; statuses: CCStatus[]; videoOnly?: boolean; nonVideoOnly?: boolean };
+const MANYA_TABS: TabDef[] = [
+  { key: "pending",  label: "Content Pending",        statuses: ["Content - Pending", "Content - In Progress"] },
+  { key: "approved", label: "Content Approved",       statuses: ["Content - Approved"], nonVideoOnly: true },
+  { key: "feedback", label: "Incorporating Feedback", statuses: ["Incorporating Feedback"] },
+  { key: "claimed",  label: "Claimed Task",           statuses: ["Content - Approved"], videoOnly: true },
 ];
+const PRODUCER_TABS: TabDef[] = [
+  { key: "approved", label: "Content Approved",       statuses: ["Content - Approved", "Output - In Progress"] },
+  { key: "feedback", label: "Incorporating Feedback", statuses: ["Incorporating Feedback"] },
+  { key: "output",   label: "Output Ready",           statuses: ["Output - Ready"] },
+];
+function tabsForPerson(name: string): TabDef[] {
+  return name === "Manya" || name === "Maheen" ? MANYA_TABS : PRODUCER_TABS;
+}
+function isVideoTask(typeLine: string): boolean {
+  return (VIDEO_TYPES as readonly string[]).includes(typeLine);
+}
+function matchesTab(t: { status: string; detail: { typeLine: string } }, tab: TabDef): boolean {
+  if (!tab.statuses.includes(t.status as CCStatus)) return false;
+  if (tab.videoOnly && !isVideoTask(t.detail.typeLine)) return false;
+  if (tab.nonVideoOnly && isVideoTask(t.detail.typeLine)) return false;
+  return true;
+}
 function dueInfo(due: string, today: string): { label: string; overdue: boolean } {
   if (!due) return { label: "", overdue: false };
   const d = Math.round((new Date(due + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86_400_000);
@@ -1282,7 +1303,7 @@ export function HopeMyDay() {
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
   const [loading, setLoading] = useState(true);                       // first live load in flight
-  const [taskTab, setTaskTab] = useState("active");                    // status tab
+  const [taskTab, setTaskTab] = useState("approved");                  // status tab (per-person)
   // Personal reminders — REAL per-person notes, persisted in localStorage (a
   // scratchpad, not shared team data — server table only if cross-device matters).
   const [reminders, setReminders] = useState<{ text: string; done: boolean }[]>([]);
@@ -1459,13 +1480,19 @@ export function HopeMyDay() {
   // ROLE RULE: producers (Praveen/Nikhil/Nandu) work only APPROVED content —
   // Content-Pending / In-Progress is the writer's phase and must never appear as
   // their work even if the owner field is pre-assigned.
+  // Owner OR collaborator (MY_DAY_SPEC §5): after Manya approves + hands off, she
+  // becomes the collaborator, so an approved task still shows on her board too.
+  const isMine = (t: Task) => t.detail.owner === me.name || (t.detail.collaborators || []).some((c) => c.name === me.name);
   const workingTasks = useMemo(
     () => [...claimedTasks, ...tasks].filter((t) =>
-      t.detail.owner === me.name && STATUS[t.status].inView &&
+      isMine(t) && STATUS[t.status].inView &&
       (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress"))),
     [claimedTasks, tasks, me.name],
   );
-  const tabCounts = useMemo(() => TASK_TABS.map((tb) => ({ ...tb, n: workingTasks.filter((t) => tb.statuses.includes(t.status)).length })), [workingTasks]);
+  const myTabs = useMemo(() => tabsForPerson(me.name), [me.name]);
+  const tabCounts = useMemo(() => myTabs.map((tb) => ({ ...tb, n: workingTasks.filter((t) => matchesTab(t, tb)).length })), [workingTasks, myTabs]);
+  // When the viewed person changes, their tab set changes — snap to the first valid tab.
+  useEffect(() => { if (!myTabs.some((tb) => tb.key === taskTab)) setTaskTab(myTabs[0].key); }, [myTabs, taskTab]);
   // Header stat tiles — live, for the person being viewed.
   const stats = useMemo(() => {
     const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name);
@@ -1478,13 +1505,13 @@ export function HopeMyDay() {
       done: n((s) => s === "Published/Scheduled"),
     };
   }, [tasks, claimedTasks, me.name]);
-  const curTab = TASK_TABS.find((t) => t.key === taskTab) || TASK_TABS[0];
+  const curTab = myTabs.find((t) => t.key === taskTab) || myTabs[0];
   // Tasks in the current tab, sorted by due date (overdue first → today → later).
   const shownTasks = useMemo(() => {
     const PR: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
     // Priority first (so an urgent task tops the list, matching its red block on the
     // plan), then by due date (overdue → today → later).
-    return workingTasks.filter((t) => curTab.statuses.includes(t.status))
+    return workingTasks.filter((t) => matchesTab(t, curTab))
       .sort((a, b) => (PR[a.detail.priority] - PR[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
   }, [workingTasks, taskTab]);
   const task = shownTasks[sel] || shownTasks[0] || null;
