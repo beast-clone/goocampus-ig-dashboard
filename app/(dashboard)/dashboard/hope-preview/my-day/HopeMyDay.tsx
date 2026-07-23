@@ -1316,6 +1316,7 @@ export function HopeMyDay() {
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
+  const [samvaya, setSamvaya] = useState<Task[]>([]);                 // Nandu's Samvaya / other-platform tasks (spec §14, kept separate)
   const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("approved");                  // status tab (per-person)
   // Personal reminders — REAL per-person notes, persisted in localStorage (a
@@ -1457,6 +1458,7 @@ export function HopeMyDay() {
         const fetched = (d.tasks as Task[]) || [];
         setTasks(fetched);
         setClaimPool((d.pool as Task[]) || []);
+        setSamvaya((d.samvaya as Task[]) || []);
         // Reconcile the optimistic claim buffer against server truth: drop a claim once
         // the server confirms I own it (it now shows via `tasks`, so keeping it would
         // duplicate the row) or the row is gone — but KEEP a claim the server hasn't yet
@@ -1704,6 +1706,22 @@ export function HopeMyDay() {
     return { fitPlan: fit, spillPlan: spill };
   }, [myPlan]);
   const spillMin = spillPlan.reduce((s, p) => s + p.dur, 0);
+  // Smart reminders (spec §13): Manya — content pending too long; producers — overdue.
+  const nudges = useMemo(() => {
+    const DAY = 86_400_000;
+    const today = new Date(todayStr + "T00:00:00").getTime();
+    const out: { id: string; title: string; text: string }[] = [];
+    for (const t of [...claimedTasks, ...tasks].filter(isMine)) {
+      if (me.name === "Manya" && (t.status === "Content - Pending" || t.status === "Content - In Progress")) {
+        const age = t.detail.createdAt ? Math.floor((today - new Date(t.detail.createdAt).getTime()) / DAY) : 0;
+        if (age >= 2) out.push({ id: t.id, title: t.title, text: `pending ${age} days — why still open?` });
+      } else if (me.name !== "Manya" && t.due && STATUS[t.status].inView) {
+        const over = Math.floor((today - new Date(t.due + "T00:00:00").getTime()) / DAY);
+        if (over >= 1) out.push({ id: t.id, title: t.title, text: `overdue ${over} day${over > 1 ? "s" : ""} — needs work` });
+      }
+    }
+    return out;
+  }, [tasks, claimedTasks, me.name, todayStr]);
   const planBlocks = useMemo(() => {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
@@ -2174,6 +2192,16 @@ export function HopeMyDay() {
           <ManyaReschedule task={URGENT_TASK} editorName="Nandu" movedId={movedId} onMove={setMovedId} onConfirm={manyaConfirmMove} />
         )}
 
+        {/* Smart reminders (spec §13) — stale-content / overdue nudges for this person. */}
+        {nudges.length > 0 && (
+          <div className="card pad" style={{ borderLeft: "3px solid #E0791F" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A5A16", marginBottom: 6 }}>🔔 {nudges.length} reminder{nudges.length > 1 ? "s" : ""}</div>
+            {nudges.map((n) => (
+              <div key={n.id} style={{ fontSize: 13, color: "#232D42", padding: "2px 0" }}><b>{n.title}</b> — <span style={{ color: "#B0203A" }}>{n.text}</span></div>
+            ))}
+          </div>
+        )}
+
         {/* 2 · HERO — today's plan */}
         <div className="card pad hero">
           <div className="hero-head">
@@ -2309,6 +2337,27 @@ export function HopeMyDay() {
             )}
           </div>
         </div>
+
+        {/* Nandu's Samvaya / other-platform tasks (spec §14) — a separate, clearly
+            labelled section, only on Nandu's board, never mixed with GooCampus. */}
+        {person === "nandu" && samvaya.length > 0 && (
+          <div className="card pad" style={{ marginTop: "1rem", borderLeft: "3px solid #6E48F8" }}>
+            <div className="colhead"><h3>Samvaya · other platforms</h3><span className="lbl">separate from GooCampus — only you see this</span></div>
+            <div className="tasklist">
+              {samvaya.map((t) => {
+                const di = dueInfo(t.due, todayStr);
+                const st = STATUS[t.status];
+                return (
+                  <div key={t.id} className="task">
+                    <div className="task-top"><div className="tt">{t.title}</div><span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span></div>
+                    <div className="mm">{t.meta}</div>
+                    <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         </>
         )}
       </div>

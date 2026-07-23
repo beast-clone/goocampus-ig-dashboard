@@ -182,20 +182,27 @@ export async function GET() {
         collabByPost.set(c.post_id, arr);
       });
     }
-    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []));
+    // Samvaya / other-platform work (spec §14) is split OUT here so it can never leak
+    // into the GooCampus board or Manya's view — it only feeds Nandu's own section.
+    const isSamvayaRow = (r: Row) => /samvaya|matrimony/i.test(r.sbu || "");
+    const mk = (r: Row) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []);
+    const mainRows = rows.filter((r) => !isSamvayaRow(r));
+    const tasks = mainRows.map(mk);
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
     // Nandu) owns it, it's been claimed — so it drops out of the pool.
     const EDITORS = new Set(["nikhil", "nandu"]);
-    const pool = rows
+    const pool = mainRows
       .filter(
         (r) =>
           r.status === "Content - Approved" &&
           VIDEO_TYPES.has(r.type || "") &&
           !EDITORS.has((r.owner_key || "").toLowerCase()),
       )
-      .map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []));
+      .map(mk);
+    // Nandu's Samvaya / other-platform tasks — separate, Nandu-only.
+    const samvaya = rows.filter((r) => isSamvayaRow(r) && (r.owner_key || "").toLowerCase() === "nandu").map(mk);
 
-    return NextResponse.json({ tasks, pool, count: tasks.length });
+    return NextResponse.json({ tasks, pool, samvaya, count: tasks.length });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load My Day"), { status: 502 });
   }
