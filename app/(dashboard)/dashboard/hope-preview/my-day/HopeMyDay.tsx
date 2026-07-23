@@ -120,15 +120,15 @@ const TEAM = [
   { key: "manya", name: "Manya", role: "Content writer", av: "M", color: "#E0791F" },
   { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
   { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
-  { key: "nandu", name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8" },
+  { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#3A57E8" },
 ];
 
 const PPL: Record<string, Person> = {
   manya: { name: "Manya", av: "M", color: "#E0791F" },
   praveen: { name: "Praveen", av: "P", color: "#C2410C" },
   nikhil: { name: "Nikhil", av: "N", color: "#3A57E8" },
-  nandu: { name: "Nandu", av: "Nd", color: "#3A57E8" },
-  maheen: { name: "Maheen", av: "Mn", color: "#2F9E6F" },
+  nandu: { name: "Nandu", av: "N", color: "#3A57E8" },
+  maheen: { name: "Maheen", av: "M", color: "#2F9E6F" },
 };
 
 const TASKS: Task[] = [
@@ -617,10 +617,28 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setConfirmDel(false); (onDeleted || onSaved)?.();
     } finally { setBusy(false); }
   };
+  // Add a collaborator to this task (writes mh_post_collaborators via the CRUD route),
+  // then resync so the new avatar chip appears. Same junction table the handoff uses.
+  const [addingCollab, setAddingCollab] = useState(false);
+  const addCollab = async (key: string) => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/collaborators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: task.id, memberKey: key }) });
+      setAddingCollab(false); onSaved?.();
+    } finally { setBusy(false); }
+  };
   const tone = TONE[STATUS[task.status].tone];
   // Collaborators = the writer(s)/helpers on the task — kept separate from Owner
   // (the single person who claimed / does it), mirroring the Airtable model.
   const collabs = task.detail.collaborators;
+  // Owner shown with the same avatar chip as collaborators — resolve the name back to
+  // a PPL entry for its initials/colour ("Unclaimed" has no chip).
+  const ownerP = Object.values(PPL).find((p) => p.name === task.detail.owner);
+  // Candidates for the "+ add collaborator" menu: everyone not already the owner or a
+  // collaborator on this task.
+  const addable = Object.entries(PPL).filter(
+    ([, p]) => p.name !== task.detail.owner && !collabs.some((c) => c.name === p.name),
+  );
   return (
     <>
       {/* Header — title + sub on the left, STATUS dropdown pinned top-right (above owner) */}
@@ -655,16 +673,39 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       <div className="meta-grid">
         <div>
           <div className="mlbl">Owner</div>
-          <div className="mval">{task.detail.owner}</div>
+          {ownerP ? (
+            <div className="collab-cell">
+              <span className="av av-sm" style={{ background: ownerP.color }} title={ownerP.name}>{ownerP.av}</span>
+              <span className="collab-names">{ownerP.name}</span>
+            </div>
+          ) : <div className="mval">{task.detail.owner}</div>}
         </div>
         <div>
           <div className="mlbl">Collaborators</div>
-          {collabs.length ? (
-            <div className="collab-cell">
-              {collabs.map((c, i) => <span key={i} className="av av-sm" style={{ background: c.color }} title={c.name}>{c.av}</span>)}
+          <div className="collab-cell" style={{ position: "relative" }}>
+            {collabs.map((c, i) => <span key={i} className="av av-sm" style={{ background: c.color }} title={c.name}>{c.av}</span>)}
+            {collabs.length ? (
               <span className="collab-names">{collabs.map((c) => c.name).join(", ")}</span>
-            </div>
-          ) : <div className="mval" style={{ color: "var(--faint)" }}>—</div>}
+            ) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
+            {addable.length > 0 && (
+              <button
+                type="button"
+                className="collab-add"
+                title="Add a collaborator"
+                disabled={busy}
+                onClick={() => setAddingCollab((v) => !v)}
+              >+</button>
+            )}
+            {addingCollab && (
+              <div className="collab-menu">
+                {addable.map(([key, p]) => (
+                  <button key={key} type="button" className="collab-opt" disabled={busy} onClick={() => addCollab(key)}>
+                    <span className="av av-sm" style={{ background: p.color }}>{p.av}</span>{p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <div className="mlbl">Priority</div>
@@ -675,7 +716,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Task clock — captured on create → done, so you can see how long it took */}
       <div className="meta-grid" style={{ marginTop: ".1rem" }}>
         <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
-        <div><div className="mlbl">Publishes</div><div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div></div>
+        <div><div className="mlbl">Published Date</div><div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div></div>
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
       </div>
 
@@ -1108,7 +1149,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
   const PRODUCERS = [
     { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
     { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
-    { key: "nandu", name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8" },
+    { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#3A57E8" },
   ];
   // Day = what's actually on their plate TODAY (due today / overdue). Week = the
   // whole approved backlog against a 5-day (40h) capacity — one person can't do a
@@ -2930,6 +2971,13 @@ const CSS = `
 .hmd .collab .mlbl{margin:0 .3rem 0 0}
 .hmd .av-sm{width:24px;height:24px;font-size:.64rem}
 .hmd .collab-names{font-size:.78rem;color:var(--ink-soft);margin-left:.3rem}
+.hmd .collab-add{width:24px;height:24px;border-radius:50%;border:1px dashed var(--line);background:transparent;color:var(--muted);font-size:1rem;line-height:1;display:grid;place-items:center;cursor:pointer;flex:none}
+.hmd .collab-add:hover{border-color:var(--brand);color:var(--brand);border-style:solid}
+.hmd .collab-add:disabled{opacity:.4;cursor:default}
+.hmd .collab-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:20;background:#fff;border:1px solid var(--line);border-radius:11px;padding:.3rem;min-width:150px;box-shadow:0 6px 20px rgba(23,43,77,.12)}
+.hmd .collab-opt{display:flex;align-items:center;gap:.45rem;width:100%;padding:.4rem .5rem;border:none;background:transparent;border-radius:8px;font-size:.8rem;color:var(--ink-soft);cursor:pointer;text-align:left}
+.hmd .collab-opt:hover{background:var(--panel-2)}
+.hmd .collab-opt:disabled{opacity:.5;cursor:default}
 .hmd .section-lbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin:1.15rem 0 .5rem}
 .hmd .brief{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem;font-size:.84rem;color:var(--ink-soft);line-height:1.6}
 .hmd .brief-full{white-space:pre-wrap;word-break:break-word}
