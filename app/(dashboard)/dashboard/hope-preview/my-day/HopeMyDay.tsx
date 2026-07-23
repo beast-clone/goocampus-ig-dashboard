@@ -363,6 +363,8 @@ const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circ
 const CHEV = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-1px", opacity: 0.55 }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const IPLAY = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l11-6.8a1 1 0 0 0 0-1.7l-11-6.8A1 1 0 0 0 8 5.2Z" /></svg>;
 const ISTOP = <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>;
+const IUNDO = <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 7H5V3M5.5 6.5A8 8 0 1 1 4 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const IREDO = <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M15 7h4V3M18.5 6.5A8 8 0 1 0 20 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
 // One due-date chip everywhere so the clock icon + label read uniformly on every
 // task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
@@ -1441,6 +1443,18 @@ export function HopeMyDay() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPinned, setChatPinned] = useState(false);
   const [toast, setToast] = useState<null | { who: string; color: string; av: string; body: string; convo?: string }>(null);
+  // ── Undo / redo (My Day, session-scoped multi-step stack) ──────────────
+  // Each entry stores the field-map to REVERSE the change (undo) and to RE-APPLY
+  // it (redo). Everything goes back through the same update API. Cleared on reload.
+  type HistEntry = { id: string; label: string; undo: Record<string, unknown>; redo: Record<string, unknown> };
+  const [undoStack, setUndoStack] = useState<HistEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<HistEntry[]>([]);
+  const recordHistory = (e: HistEntry) => { setUndoStack((s) => [...s.slice(-49), e]); setRedoStack([]); };
+  // Bare update used by undo/redo — no history push, just persist + resync.
+  const rawUpdate = (id: string, fields: Record<string, unknown>) =>
+    fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields }) })
+      .then(async (res) => { if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Undo failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); } load(); })
+      .catch((e) => { setToast({ who: "Undo failed", color: "#C03221", av: "!", body: String(e) }); load(); });
   const [showNew, setShowNew] = useState(false); // create-task modal (Manya only)
   const [notifs, setNotifs] = useState<Notif[]>([]);   // chat-panel notification stack
   const [acceptTask, setAcceptTask] = useState<Task | null>(null); // Accept & Work modal
@@ -1731,6 +1745,9 @@ export function HopeMyDay() {
     doSetTaskStatus(id, status);
   };
   const doSetTaskStatus = (id: string, status: CCStatus, deferHandoff = false) => {
+    // Capture the before-status so this move can be undone (session history).
+    const prev = [...tasks, ...claimedTasks].find((t) => t.id === id);
+    const prevStatus = prev?.status;
     // Persist to the real pipeline (this drives the same handoff logic the Master
     // sheet & Content Review use), then reconcile the board with server truth.
     fetch("/api/marketing-hub/update", {
@@ -1744,6 +1761,9 @@ export function HopeMyDay() {
           setToast({ who: "Save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
           load(); // resync — the optimistic simulation below never persisted, so revert to server truth
           return;
+        }
+        if (prevStatus && prevStatus !== status) {
+          recordHistory({ id, label: `${prev?.title || "Task"}: ${STATUS[prevStatus].label} → ${STATUS[status].label}`, undo: { status: prevStatus }, redo: { status } });
         }
         load();
       })
@@ -1926,6 +1946,8 @@ export function HopeMyDay() {
   };
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
   const setDuration = (id: string, mins: number) => {
+    const prevT = [...tasks, ...claimedTasks].find((t) => t.id === id);
+    const prevDur = prevT?.detail.duration ?? null;
     setTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setPlan((p) => {
@@ -1936,9 +1958,63 @@ export function HopeMyDay() {
     setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan.` });
     // Persist so it survives reload (drives the timer's planned time + plan blocks).
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields: { duration_min: mins } }) })
-      .then(async (res) => { if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); } })
+      .then(async (res) => {
+        if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); return; }
+        if (prevDur !== mins) recordHistory({ id, label: `${prevT?.title || "Task"}: duration ${prevDur ? fmtDur(prevDur) : "unset"} → ${fmtDur(mins)}`, undo: { duration_min: prevDur }, redo: { duration_min: mins } });
+      })
       .catch((e) => setToast({ who: "Duration save failed", color: "#C03221", av: "!", body: String(e) }));
   };
+  // Current value of a supported field on a task — used by the undo conflict check.
+  const fieldNow = (t: Task, field: string): unknown => {
+    switch (field) {
+      case "status": return t.status;
+      case "duration_min": return t.detail.duration ?? null;
+      case "priority": return t.detail.priority;
+      case "due_date": case "publishing_date": return t.due || "";
+      default: return undefined;
+    }
+  };
+  // Apply one history entry, but only if the task hasn't been changed out from
+  // under us since (tasks are shared — never clobber someone else's edit).
+  const applyHistory = (e: HistEntry, dir: "undo" | "redo"): boolean => {
+    const cur = [...tasks, ...claimedTasks].find((t) => t.id === e.id);
+    const expect = dir === "undo" ? e.redo : e.undo; // what we last set
+    const fields = dir === "undo" ? e.undo : e.redo;
+    if (cur && Object.entries(expect).some(([f, v]) => { const now = fieldNow(cur, f); return now !== undefined && now !== v; })) {
+      setToast({ who: "Skipped", color: "#D97706", av: "!", body: `“${cur.title || "Task"}” changed since — can't ${dir}.` });
+      return false;
+    }
+    rawUpdate(e.id, fields);
+    return true;
+  };
+  const undo = () => {
+    if (!undoStack.length) return;
+    const e = undoStack[undoStack.length - 1];
+    const ok = applyHistory(e, "undo");
+    setUndoStack((s) => s.slice(0, -1));
+    if (ok) { setRedoStack((r) => [...r, e]); setToast({ who: "Undone ↩", color: "#3A57E8", av: me.av, body: e.label }); }
+  };
+  const redo = () => {
+    if (!redoStack.length) return;
+    const e = redoStack[redoStack.length - 1];
+    const ok = applyHistory(e, "redo");
+    setRedoStack((s) => s.slice(0, -1));
+    if (ok) { setUndoStack((u) => [...u, e]); setToast({ who: "Redone ↪", color: "#3A57E8", av: me.av, body: e.label }); }
+  };
+  // ⌘Z / ⌘⇧Z (and Ctrl on Windows). Let native undo win inside text fields.
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (!(ev.metaKey || ev.ctrlKey)) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const k = ev.key.toLowerCase();
+      if (k === "z" && !ev.shiftKey) { ev.preventDefault(); undo(); }
+      else if ((k === "z" && ev.shiftKey) || k === "y") { ev.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undoStack, redoStack, tasks, claimedTasks]);
   // (Auto-plan removed — priority now auto-slots on arrival; see the plan-seed effect.)
   // Capability gates now come from Team permissions (per-person toggles), not
   // hardcoded names. Admins implicitly have every capability.
@@ -2240,7 +2316,11 @@ export function HopeMyDay() {
         <div className="topbar">
           <div className="topspacer" />
           <div className="icons">
-            {/* Day control — FAR LEFT, then a divider, so End day sits apart from the
+            {/* Undo / redo — session history of this person's changes (⌘Z / ⌘⇧Z). */}
+            <button className="iconbtn" title="Undo (⌘Z)" disabled={!undoStack.length} onClick={undo}>{IUNDO}</button>
+            <button className="iconbtn" title="Redo (⌘⇧Z)" disabled={!redoStack.length} onClick={redo}>{IREDO}</button>
+            <span className="topdivider" aria-hidden="true" />
+            {/* Day control — then a divider, so End day sits apart from the
                 notification icons + profile and isn't clicked by accident. End day only
                 OPENS the wrap-up (a confirm step) — it never logs out on a single tap. */}
             <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button></span>
@@ -2937,6 +3017,8 @@ const CSS = `
 .hmd .iconbtn{position:relative;width:33px;height:33px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);box-shadow:var(--shadow);transition:all .12s}
 .hmd .iconbtn:hover{border-color:#D9DEEA;color:var(--brand-ink)}
 .hmd .iconbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
+.hmd .iconbtn:disabled{opacity:.32;cursor:default;box-shadow:none}
+.hmd .iconbtn:disabled:hover{border-color:var(--line);color:var(--ink-soft)}
 .hmd .badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--brand);color:#fff;font-size:.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel)}
 .hmd .badge.rose{background:var(--rose)}
 .hmd .backdrop{position:fixed;inset:0;z-index:30}
