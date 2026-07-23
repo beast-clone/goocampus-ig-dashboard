@@ -2194,8 +2194,8 @@ export function HopeMyDay() {
 
         {/* Smart reminders (spec §13) — stale-content / overdue nudges for this person. */}
         {nudges.length > 0 && (
-          <div className="card pad" style={{ borderLeft: "3px solid #E0791F" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A5A16", marginBottom: 6 }}>🔔 {nudges.length} reminder{nudges.length > 1 ? "s" : ""}</div>
+          <div className="card pad" style={{ marginTop: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 }}>{BELL} {nudges.length} reminder{nudges.length > 1 ? "s" : ""}</div>
             {nudges.map((n) => (
               <div key={n.id} style={{ fontSize: 13, color: "#232D42", padding: "2px 0" }}><b>{n.title}</b> — <span style={{ color: "#B0203A" }}>{n.text}</span></div>
             ))}
@@ -2341,7 +2341,7 @@ export function HopeMyDay() {
         {/* Nandu's Samvaya / other-platform tasks (spec §14) — a separate, clearly
             labelled section, only on Nandu's board, never mixed with GooCampus. */}
         {person === "nandu" && samvaya.length > 0 && (
-          <div className="card pad" style={{ marginTop: "1rem", borderLeft: "3px solid #6E48F8" }}>
+          <div className="card pad" style={{ marginTop: "1rem" }}>
             <div className="colhead"><h3>Samvaya · other platforms</h3><span className="lbl">separate from GooCampus — only you see this</span></div>
             <div className="tasklist">
               {samvaya.map((t) => {
@@ -2833,8 +2833,8 @@ const CSS = `
 .hmd .tl-nudge.l{left:3px}
 .hmd .tl-nudge.r{right:3px}
 .hmd .now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:5;pointer-events:none}
-.hmd .now-dot{position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
-.hmd .now-tag{position:absolute;top:-9px;left:4px;background:#DC2E2E;color:#fff;font-size:.55rem;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
+.hmd .now-dot{position:absolute;top:3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
+.hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:.55rem;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:.68rem;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
 .hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:1rem;margin-top:1rem;align-items:start}

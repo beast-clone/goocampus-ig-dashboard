@@ -204,15 +204,19 @@ export async function PATCH(req: Request) {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;
       if (!isVideo) {
-        if (data.owner_key !== "praveen") {
-          await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
-          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
-        }
+        // Add the writer as collaborator FIRST, THEN flip the owner — so a My Day poll
+        // landing mid-handoff never sees owner=praveen with no collaborator yet (which
+        // made the task blink off Manya's board). Now every snapshot is consistent:
+        // she sees it as owner (before) or as collaborator (after).
         if (oldOwner && oldOwner !== "praveen" && oldOwner !== "maheen") {
           await sb.from("mh_post_collaborators").upsert(
             [{ post_id: body.id, member_key: oldOwner }],
             { onConflict: "post_id,member_key", ignoreDuplicates: true },
           );
+        }
+        if (data.owner_key !== "praveen") {
+          await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
+          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
         }
       }
     }
