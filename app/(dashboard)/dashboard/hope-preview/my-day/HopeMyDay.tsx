@@ -688,7 +688,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
         </div>
         <div className="status-box">
-          <div className="mlbl">Status</div>
           <div className="status-row">
             {onStatusChange ? (
               <StatusDropdown value={task.status} onChange={onStatusChange} />
