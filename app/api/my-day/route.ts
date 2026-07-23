@@ -75,7 +75,7 @@ type Row = {
 type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 type Creative = { name: string; type: "image" | "video" | "doc"; url: string; attId?: string };
 
-function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []) {
+function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = [], collabKeys: string[] = []) {
   const owner = ownerName(r.owner_key);
   const type = r.type || "Post";
   const media = r.media_urls || [];
@@ -102,11 +102,17 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
       brand: r.sbu || "GooCampus",
       content: r.content || r.caption || "",
       creatives,
-      // Collaborator (MY_DAY_SPEC §4) — stored as an owner-key in custom.collaborator.
+      // Collaborator (MY_DAY_SPEC §4). Primary source = the mh_post_collaborators
+      // junction table (what the approve-handoff writes); custom.collaborator is a
+      // harmless fallback for hand-seeded rows.
       collaborators: (() => {
-        const k = typeof r.custom?.collaborator === "string" ? (r.custom.collaborator as string).toLowerCase().trim() : "";
-        return k && PPL_META[k] ? [PPL_META[k]] : [];
+        const keys = new Set<string>(collabKeys.map((k) => k.toLowerCase().trim()));
+        const c = typeof r.custom?.collaborator === "string" ? (r.custom.collaborator as string).toLowerCase().trim() : "";
+        if (c) keys.add(c);
+        return [...keys].filter((k) => PPL_META[k]).map((k) => PPL_META[k]);
       })(),
+      // Feedback notes shown highlighted on the producer's Incorporating-Feedback task.
+      feedback: typeof r.custom?.incorporating_feedback === "string" ? (r.custom.incorporating_feedback as string) : "",
       activity: [] as unknown[],
       references,
       createdAt: r.created_at || "",
@@ -162,7 +168,20 @@ export async function GET() {
         refByPost.set(a.post_id, arr);
       }
     });
-    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || []));
+    // Collaborators from the junction table (the approve-handoff writes here).
+    const collabByPost = new Map<string, string[]>();
+    if (rows.length) {
+      const { data: collabs } = await sb
+        .from("mh_post_collaborators")
+        .select("post_id, member_key")
+        .in("post_id", rows.map((r) => r.id));
+      (collabs || []).forEach((c: { post_id: string; member_key: string }) => {
+        const arr = collabByPost.get(c.post_id) || [];
+        arr.push(c.member_key);
+        collabByPost.set(c.post_id, arr);
+      });
+    }
+    const tasks = rows.map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []));
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
     // Nandu) owns it, it's been claimed — so it drops out of the pool.
     const EDITORS = new Set(["nikhil", "nandu"]);
@@ -173,7 +192,7 @@ export async function GET() {
           VIDEO_TYPES.has(r.type || "") &&
           !EDITORS.has((r.owner_key || "").toLowerCase()),
       )
-      .map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || []));
+      .map((r) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []));
 
     return NextResponse.json({ tasks, pool, count: tasks.length });
   } catch (err) {

@@ -110,6 +110,7 @@ type Task = {
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
     createdAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
+    feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
   };
 };
 
@@ -696,6 +697,15 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           <button className="btn sm primary" onClick={() => onStatusChange("Output - In Progress")}>Start working — start the timer</button>
         </div>
       ))}
+
+      {/* Incorporating-Feedback notes from Manya (spec §7) — highlighted so the
+          producer can't miss what to fix. */}
+      {task.status === "Incorporating Feedback" && task.detail.feedback && (
+        <div style={{ margin: "0 0 .9rem", padding: ".7rem .85rem", borderRadius: 10, background: "#FCE8EC", border: "1px solid #F3C0CB" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3 }}>⚠ Feedback from Manya</div>
+          <div style={{ fontSize: 13, color: "#7A1327", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{task.detail.feedback}</div>
+        </div>
+      )}
 
       <div className="section-head">
         <span className="section-lbl">Content brief</span>

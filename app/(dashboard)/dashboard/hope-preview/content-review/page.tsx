@@ -49,6 +49,8 @@ function Review() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [feedbackFor, setFeedbackFor] = useState<string | null>(null); // post id being sent back with notes
+  const [feedbackText, setFeedbackText] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,19 +71,26 @@ function Review() {
   // Move a post to a new status via the whitelisted update API, then drop it from the
   // queue. Surfaces the server error instead of failing silently (an approval that
   // didn't actually persist must never look like it succeeded).
-  async function move(id: string, status: string, label: string) {
+  async function move(id: string, status: string, label: string, feedback?: string) {
     setBusyId(id);
+    setErr(null);
     try {
+      const fields: Record<string, unknown> = { status };
+      // Send-back carries Manya's notes into custom.incorporating_feedback (spec §7)
+      // so the producer sees them highlighted on their My Day task.
+      if (feedback && feedback.trim()) fields.custom = { incorporating_feedback: feedback.trim() };
       const res = await fetch("/api/marketing-hub/update", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, fields: { status } }),
+        body: JSON.stringify({ id, fields }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       setPosts((p) => p.filter((x) => x.id !== id));
+      setFeedbackFor(null);
+      setFeedbackText("");
     } catch (e) {
-      window.alert(`${label} failed: ${(e as Error).message}`);
+      setErr(`${label} failed: ${(e as Error).message}`);
     } finally {
       setBusyId(null);
     }
@@ -176,24 +185,49 @@ function Review() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 mt-auto pt-1">
-                    <button
-                      disabled={busy || !p.hasCreative}
-                      onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
-                      title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => move(p.id, "Incorporating Feedback", "Send back")}
-                      title="Send back to the producer for changes"
-                      className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
-                    >
-                      <IconArrowBackUp size={15} stroke={1.9} /> Send back
-                    </button>
-                  </div>
+                  {feedbackFor === p.id ? (
+                    /* Send-back needs feedback notes (spec §7) — they land highlighted
+                       on the producer's My Day task. */
+                    <div className="mt-auto pt-1 flex flex-col gap-2">
+                      <textarea
+                        autoFocus
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="What needs changing? (the producer sees this on their task)"
+                        rows={3}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={busy || !feedbackText.trim()}
+                          onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"
+                        >
+                          <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
+                        </button>
+                        <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-auto pt-1">
+                      <button
+                        disabled={busy || !p.hasCreative}
+                        onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
+                        title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }}
+                        title="Send back to the producer with feedback"
+                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
+                      >
+                        <IconArrowBackUp size={15} stroke={1.9} /> Send back
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

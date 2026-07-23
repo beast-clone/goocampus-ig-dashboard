@@ -73,6 +73,14 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // `custom` is a jsonb bag (collaborator / claim_role / incorporating_feedback).
+    // Merge, never overwrite, so setting one key doesn't drop the others.
+    const customPatch = (body.fields as { custom?: Record<string, unknown> }).custom;
+    if (customPatch && typeof customPatch === "object" && !Array.isArray(customPatch)) {
+      const { data: cur } = await sb.from("mh_posts").select("custom").eq("id", body.id).single();
+      clean.custom = { ...((cur?.custom as Record<string, unknown>) || {}), ...customPatch };
+    }
+
     if (Object.keys(clean).length === 0) {
       return NextResponse.json({ error: "no allowed fields to update" }, { status: 400 });
     }
@@ -134,7 +142,7 @@ export async function PATCH(req: Request) {
       return String(v);
     };
     const beforeRow = before.data as Record<string, unknown>;
-    const activityRows = Object.keys(clean).flatMap((field) => {
+    const activityRows = Object.keys(clean).filter((field) => field !== "custom").flatMap((field) => {
       const oldV = beforeRow[field];
       const newV = clean[field];
       const same = Array.isArray(oldV) || Array.isArray(newV)
