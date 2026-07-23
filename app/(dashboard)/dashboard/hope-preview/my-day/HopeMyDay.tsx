@@ -27,7 +27,19 @@ function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentTyp
 // untouched.
 
 type Tone = "good" | "info" | "brand" | "warn" | "bad" | "muted";
-type Person = { name: string; av: string; color: string };
+// `photo` is optional: when a profile photo URL is present the avatar shows it,
+// otherwise it falls back to the coloured initial. Wired now so photos can be
+// dropped in later (from ind_users) with no render changes.
+type Person = { name: string; av: string; color: string; photo?: string };
+
+// Shared avatar chip — photo when available, coloured initial otherwise. One place
+// so every owner/collaborator/picker chip picks up profile photos the same way.
+function Avatar({ p, cls = "av av-sm" }: { p: { name?: string; av: string; color: string; photo?: string }; cls?: string }) {
+  if (p.photo) {
+    return <span className={cls} title={p.name} style={{ backgroundImage: `url(${p.photo})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
+  }
+  return <span className={cls} title={p.name} style={{ background: p.color }}>{p.av}</span>;
+}
 // Status follows the Airtable Content Calendar single-select EXACTLY (the source
 // of truth being migrated to Supabase mh_posts). The status dropdown on the task
 // card offers this exact list, in this order. `stage` maps to the 5-step pipeline;
@@ -675,7 +687,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           <div className="mlbl">Owner</div>
           {ownerP ? (
             <div className="collab-cell">
-              <span className="av av-sm" style={{ background: ownerP.color }} title={ownerP.name}>{ownerP.av}</span>
+              <Avatar p={ownerP} />
               <span className="collab-names">{ownerP.name}</span>
             </div>
           ) : <div className="mval">{task.detail.owner}</div>}
@@ -683,7 +695,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div>
           <div className="mlbl">Collaborators</div>
           <div className="collab-cell" style={{ position: "relative" }}>
-            {collabs.map((c, i) => <span key={i} className="av av-sm" style={{ background: c.color }} title={c.name}>{c.av}</span>)}
+            {collabs.map((c, i) => <Avatar key={i} p={c} />)}
             {collabs.length ? (
               <span className="collab-names">{collabs.map((c) => c.name).join(", ")}</span>
             ) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
@@ -700,7 +712,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               <div className="collab-menu">
                 {addable.map(([key, p]) => (
                   <button key={key} type="button" className="collab-opt" disabled={busy} onClick={() => addCollab(key)}>
-                    <span className="av av-sm" style={{ background: p.color }}>{p.av}</span>{p.name}
+                    <Avatar p={p} />{p.name}
                   </button>
                 ))}
               </div>

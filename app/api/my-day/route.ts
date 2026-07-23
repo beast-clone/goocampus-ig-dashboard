@@ -15,7 +15,9 @@ const OWNER_NAME: Record<string, string> = {
   manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
 };
 // Mirror of the client PPL map so a collaborator key resolves to the same avatar/colour.
-const PPL_META: Record<string, { name: string; av: string; color: string }> = {
+// `photo` (optional) rides along so the client avatar can show a profile picture
+// when one exists; today it's unset and the client falls back to the initial.
+const PPL_META: Record<string, { name: string; av: string; color: string; photo?: string }> = {
   manya: { name: "Manya", av: "M", color: "#E0791F" },
   praveen: { name: "Praveen", av: "P", color: "#C2410C" },
   nikhil: { name: "Nikhil", av: "N", color: "#3A57E8" },
