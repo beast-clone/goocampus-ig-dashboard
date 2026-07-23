@@ -1357,7 +1357,7 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
           <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
           <div style={{ display: "flex", gap: ".5rem" }}>
             <button className="btn" onClick={onClose}>Cancel</button>
-            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, reasons)}>End today</button>
+            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, reasons)}>End day &amp; log out</button>
           </div>
         </div>
       </div>
@@ -1433,9 +1433,11 @@ export function HopeMyDay() {
   const [pipeline, setPipeline] = useState<"offered" | "waiting" | "freed" | "done">("offered");
   const [movedId, setMovedId] = useState<string | null>(null); // which task Manya slid to tomorrow
   const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
-  const [dayStarted, setDayStarted] = useState(false);  // Start day / End today
+  const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
   const [dayStartAt, setDayStartAt] = useState("");
   const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
+  const [loggedOut, setLoggedOut] = useState(false);    // End day → demo logout overlay (no real session end)
+  const [profileOpen, setProfileOpen] = useState(false); // header profile chip dropdown
   const [showEod, setShowEod] = useState(false);        // End-today wrap-up modal
   const closedManually = useRef(false);
   // The claim pool surfaces PROMINENTLY on the right first; if ignored for 15s it
@@ -1482,12 +1484,23 @@ export function HopeMyDay() {
     lastMsgId.current = null;   // and never toast "new message" for their backlog
     setSel(0);                  // task selection is per-person
     try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
-    // Restore the day-clock. New format is JSON {at, min}; tolerate the older plain
-    // string ("9:30 AM") so a mid-session upgrade doesn't lose an in-progress day.
+    // Viewing a person = they're logged in → clear any logged-out overlay + close the menu.
+    setLoggedOut(false); setProfileOpen(false);
+    // LOGIN = DAY START (no manual button). Restore today's clock-in if one exists,
+    // otherwise auto-start it now and anchor the plan to this minute. New format is
+    // JSON {at, min}; tolerate the older plain string ("9:30 AM").
     const raw = (() => { try { return localStorage.getItem(`hmd-day-${person}`) || ""; } catch { return ""; } })();
-    let at = "", min = 0;
-    if (raw) { try { const j = JSON.parse(raw); at = j.at || ""; min = Number(j.min) || 0; } catch { at = raw; } }
-    setDayStarted(!!raw); setDayStartAt(at); setDayStartMin(min);
+    if (raw) {
+      let at = "", min = 0;
+      try { const j = JSON.parse(raw); at = j.at || ""; min = Number(j.min) || 0; } catch { at = raw; }
+      setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
+    } else {
+      const d = new Date();
+      const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
+      const at = clockOf(min);
+      setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
+      try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min })); } catch { /* private mode */ }
+    }
   }, [person]);
   // Persist reminders as they change (skip the initial empty render).
   const remLoaded = useRef(false);
@@ -2003,27 +2016,25 @@ export function HopeMyDay() {
       })
       .catch((e) => setToast({ who: "Send failed", color: "#C03221", av: "!", body: String(e) }));
   };
-  // Start day / End today — same control for everyone (Manya, Praveen, Nikhil, Nandu).
+  // Day clock — login = start (auto, above), End day = wrap-up then log out.
   // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
-  const startDay = () => {
-    const at = clock?.time || "now";
-    // Clock-in minute (spec §10): the plan anchors to when you actually start, not a
-    // fixed 9 AM — clamped into the working span so a pre-9/after-7 login still lays out.
-    const min = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
-    setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
+  // "Log back in" from the logged-out overlay: re-anchors the plan to the new login
+  // time (demo — no real session change). Mirrors the auto-start on first view.
+  const logBackIn = () => {
+    const d = new Date();
+    const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
+    const at = clockOf(min);
+    setDayStarted(true); setDayStartAt(at); setDayStartMin(min); setLoggedOut(false);
     try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min })); } catch { /* private mode */ }
-    // Late clock-in slides the plan forward → say so, with the new end time.
-    const shift = shiftStartOf(me.name);
-    if (min > shift + 5) {
-      const ends = clockOf(Math.min(DAY_MINS, min + WORK_MIN + LUNCH_MIN));
-      setToast({ who: "Day started", color: "#3A57E8", av: me.av, body: `Clocked in ${at} — plan shifted to start now; day now ends ~${ends}.` });
-    }
   };
   const endToday = (doneCount: number, rollCount: number) => {
-    setDayStarted(false); setShowEod(false); setDayStartMin(0);
+    // End day = wrap-up (already confirmed) → demo logout. Clear the clock so the next
+    // login re-anchors; show the logged-out overlay instead of ending the real session.
+    setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
-    setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow.` });
+    setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
+    setLoggedOut(true);
   };
   // Editor sends the reschedule ask → the request goes to Manya (pipeline: waiting).
   const sendToManya = () => {
@@ -2164,6 +2175,20 @@ export function HopeMyDay() {
       {/* click-away layer for the top popovers */}
       {panel && <div className="backdrop" onClick={() => setPanel(null)} />}
 
+      {/* Logged-out screen (demo): End day / Log out lands here. "Log back in"
+          re-anchors the plan to the new login time. No real session change. */}
+      {loggedOut && (
+        <div className="logout-screen">
+          <div className="logout-card">
+            <span className="logout-badge">{me.av}</span>
+            <div className="logout-h">You&apos;re logged out</div>
+            <div className="logout-p">{me.name}&apos;s day is wrapped up. Log in again to start a fresh day.</div>
+            <button className="btn primary" onClick={logBackIn}>Log back in</button>
+            <div className="logout-note">Demo — the session stays active; real sign-out comes later.</div>
+          </div>
+        </div>
+      )}
+
       {/* (Videos-up-for-grabs now surfaces through the chat-panel notification stack.) */}
 
       <div className="shell">
@@ -2199,6 +2224,29 @@ export function HopeMyDay() {
             <button className={`iconbtn ${chatOpen ? "on" : ""}`} title="Team chat" onClick={() => (chatOpen ? closeChat() : openChat())}>
               {CHATIC}{!chatOpen && totalUnread > 0 && <span className="badge rose">{totalUnread}</span>}
             </button>
+
+            {/* Profile chip + Log out — the always-visible way to sign out (My Day has
+                its own header, so it lacks the shared shell's profile menu). Log out
+                runs the same End-day wrap-up → logout flow. */}
+            <div className="profwrap">
+              <button className={`profchip ${profileOpen ? "on" : ""}`} onClick={() => setProfileOpen((v) => !v)} title="Account">
+                <Avatar p={me} cls="av av-xs" />
+                <span className="profname">{me.name}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              {profileOpen && (
+                <>
+                  <div className="backdrop" onClick={() => setProfileOpen(false)} />
+                  <div className="profmenu">
+                    <div className="profhead"><Avatar p={me} cls="av av-sm" /><div><div className="profhead-n">{me.name}</div><div className="profhead-r">{me.role}</div></div></div>
+                    <button className="profitem" onClick={() => { setProfileOpen(false); setShowEod(true); }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      Log out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* VIDEOS UP FOR GRABS popover — claim to become the owner */}
             {panel === "notif" && (
@@ -2255,11 +2303,9 @@ export function HopeMyDay() {
             {/* Day control + Pipeline live HERE, aligned with the stats (user order
                 2026-07-19) — the bell/reminders/chat icons stay up top. */}
             <div className="dayctl">
-              {!dayStarted ? (
-                <button className="daybtn" onClick={startDay}>▶ Start day</button>
-              ) : (
-                <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End today</button></span>
-              )}
+              {/* Login = day start (auto) — no Start button. Chip shows the clock-in;
+                  End day runs the wrap-up then logs out. */}
+              <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End day</button></span>
               {person === "manya" ? (
                 /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
                    any change a producer makes (dates moved, etc.) pops up here. */
@@ -2959,6 +3005,24 @@ const CSS = `
 .hmd .task.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
 .hmd .task.overdue.sel{border-color:var(--brand)}
 .hmd .task-top{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
+.hmd .av-xs{width:20px;height:20px;font-size:.58rem}
+.hmd .profwrap{position:relative}
+.hmd .profchip{display:inline-flex;align-items:center;gap:.4rem;height:34px;padding:0 .55rem 0 .35rem;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink-soft);cursor:pointer}
+.hmd .profchip:hover,.hmd .profchip.on{border-color:var(--brand);color:var(--brand)}
+.hmd .profchip .profname{font-size:.78rem;font-weight:500}
+.hmd .profmenu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.4rem;min-width:190px;box-shadow:0 10px 28px rgba(23,43,77,.14)}
+.hmd .profhead{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem .6rem;border-bottom:1px solid var(--line-2);margin-bottom:.35rem}
+.hmd .profhead-n{font-size:.82rem;font-weight:600;color:var(--ink)}
+.hmd .profhead-r{font-size:.7rem;color:var(--muted)}
+.hmd .profitem{display:flex;align-items:center;gap:.5rem;width:100%;padding:.5rem .55rem;border:none;background:transparent;border-radius:8px;font-size:.82rem;color:#C03221;cursor:pointer;text-align:left}
+.hmd .profitem:hover{background:#FCEBEA}
+.hmd .logout-screen{position:fixed;inset:0;z-index:120;background:rgba(246,247,251,.86);backdrop-filter:blur(3px);display:grid;place-items:center}
+.hmd .logout-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:2.4rem 2.6rem;text-align:center;max-width:380px;box-shadow:0 18px 50px rgba(23,43,77,.16)}
+.hmd .logout-badge{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:1.1rem;font-weight:600;margin-bottom:1rem}
+.hmd .logout-h{font-size:1.15rem;font-weight:600;color:var(--ink);margin-bottom:.4rem}
+.hmd .logout-p{font-size:.86rem;color:var(--muted);line-height:1.55;margin-bottom:1.4rem}
+.hmd .logout-card .btn{width:100%;justify-content:center}
+.hmd .logout-note{font-size:.68rem;color:var(--faint);margin-top:.9rem}
 .hmd .due-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:.6rem;font-weight:600;color:var(--muted);flex-shrink:0;white-space:nowrap}
 .hmd .due-chip svg{width:11px;height:11px;flex:none;opacity:.9}
 .hmd .due-chip.od{color:#C03221}
