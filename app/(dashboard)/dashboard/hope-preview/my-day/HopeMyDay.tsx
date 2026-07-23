@@ -294,6 +294,14 @@ const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per wee
 // Per-person shift start (minutes after 9 AM). Nandu works the LATE shift 10 AM–7 PM,
 // so his day lays out from 10 AM; everyone else starts at 9 AM.
 const shiftStartOf = (name: string) => (name === "Nandu" ? 60 : 0);
+// Whose TIMELINE a task belongs on, by status. Manya (writer) keeps only her
+// pre-approval work — the moment she marks it Content-Approved her part is done, so
+// it leaves her timeline and lands on the producer's side. Producers get everything
+// from Content-Approved onward. (Mirrors the dayFor capacity-board rule.)
+const onTimelineFor = (name: string, status: string) =>
+  name === "Manya"
+    ? status === "Content - Pending" || status === "Content - In Progress"
+    : status !== "Content - Pending" && status !== "Content - In Progress";
 function estMins(type: string): number {
   const t = (type || "").toLowerCase();
   if (/thumbnail/.test(t)) return 30;         // BEFORE /reel/ — "Reel Thumbnail" is design work, not a 90m video
@@ -1757,9 +1765,10 @@ export function HopeMyDay() {
   // priority work surfaces the moment it's assigned; everything else appends.
   useEffect(() => {
     const PRANK: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
-    // Same role rule as workingTasks: producers plan only approved work.
+    // Same role rule as dayFor: Manya plans only her pre-approval writing; producers
+    // plan only approved work. So an approved (even urgent) task leaves Manya's timeline.
     const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
-      (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress")));
+      onTimelineFor(me.name, t.status));
     setPlan((p) => {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
       const missing = mine
@@ -1788,6 +1797,7 @@ export function HopeMyDay() {
     return plan.flatMap((p) => {
       const t = all.find((x) => x.id === p.taskId);
       if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
+      if (!onTimelineFor(me.name, t.status)) return []; // approved work is off Manya's timeline
       return [{ ...p, high: isHot(t.detail.priority) }];
     });
   }, [plan, tasks, claimedTasks, me.name]);
