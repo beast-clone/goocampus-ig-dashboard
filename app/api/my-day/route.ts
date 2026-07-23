@@ -40,9 +40,10 @@ function ownerName(key: string | null): string {
   if (!key) return "Unclaimed";
   return OWNER_NAME[key.toLowerCase().trim()] || key;
 }
-function normPriority(p: string | null): "High" | "Medium" | "Low" {
+function normPriority(p: string | null): "Urgent" | "High" | "Medium" | "Low" {
   const s = (p || "").toLowerCase();
-  if (s.includes("high") || s.includes("urgent")) return "High";
+  if (s.includes("urgent")) return "Urgent";
+  if (s.includes("high")) return "High";
   if (s.includes("low")) return "Low";
   return "Medium";
 }

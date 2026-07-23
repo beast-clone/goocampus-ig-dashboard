@@ -102,7 +102,7 @@ type Task = {
   status: CCStatus; due: string; // YYYY-MM-DD
   detail: {
     typeLine: string; publishes: string; owner: string;
-    priority: "High" | "Medium" | "Low"; brand: string;
+    priority: "Urgent" | "High" | "Medium" | "Low"; brand: string;
     duration?: number;                                  // minutes — the producer sets how long it'll take → feeds Today's plan
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string }[]; // post media + uploaded assets
@@ -240,11 +240,14 @@ const TONE: Record<Tone, { bg: string; fg: string }> = {
   muted: { bg: "#F0F2F8", fg: "#8A92A6" },
 };
 
-const PRIO: Record<"High" | "Medium" | "Low", { bg: string; fg: string }> = {
+const PRIO: Record<"Urgent" | "High" | "Medium" | "Low", { bg: string; fg: string }> = {
+  Urgent: { bg: "#FCE0E6", fg: "#B0203A" },
   High: { bg: "#FBE7E4", fg: "#C03221" },
   Medium: { bg: "#E1F4F5", fg: "#079AA2" },
   Low: { bg: "#F0F2F8", fg: "#8A92A6" },
 };
+// Urgent + High both count as "hot" — front of the plan + pipeline trigger (spec §9).
+const isHot = (p: string) => p === "Urgent" || p === "High";
 
 // Content Calendar Type options (exact Airtable list). Design/static types route
 // to the designer (Praveen); video types drop into the editors' claim pool.
@@ -906,7 +909,7 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("Reel Thumbnail");
   const [sbu, setSbu] = useState<string>(CC_SBUS[0]);
-  const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
+  const [priority, setPriority] = useState<"Urgent" | "High" | "Medium" | "Low">("Medium");
   const [status, setStatus] = useState<CCStatus>("Content - Pending");
   const [content, setContent] = useState("");
   const [publishDate, setPublishDate] = useState(""); // the writer picks it — no auto-date
@@ -943,7 +946,7 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
         <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
         <div className="nt-row">
           <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
-          <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "High" | "Medium" | "Low")} options={["High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
+          <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
         </div>
         <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
         <div className="nt-row">
@@ -1519,7 +1522,7 @@ export function HopeMyDay() {
   const curTab = myTabs.find((t) => t.key === taskTab) || myTabs[0];
   // Tasks in the current tab, sorted by due date (overdue first → today → later).
   const shownTasks = useMemo(() => {
-    const PR: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+    const PR: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
     // Priority first (so an urgent task tops the list, matching its red block on the
     // plan), then by due date (overdue → today → later).
     return workingTasks.filter((t) => matchesTab(t, curTab))
@@ -1654,7 +1657,7 @@ export function HopeMyDay() {
   // (High) task jumps to the FRONT of the day on its own — no Auto-plan click — so
   // priority work surfaces the moment it's assigned; everything else appends.
   useEffect(() => {
-    const PRANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+    const PRANK: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
     // Same role rule as workingTasks: producers plan only approved work.
     const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
       (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress")));
@@ -1664,8 +1667,8 @@ export function HopeMyDay() {
         .filter((t) => !keep.some((x) => x.taskId === t.id))
         .sort((a, b) => (PRANK[a.detail.priority] - PRANK[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
       const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) });
-      const high = missing.filter((t) => t.detail.priority === "High").map(entry);   // urgent → front
-      const rest = missing.filter((t) => t.detail.priority !== "High").map(entry);   // rest → append
+      const high = missing.filter((t) => isHot(t.detail.priority)).map(entry);   // urgent → front
+      const rest = missing.filter((t) => !isHot(t.detail.priority)).map(entry);   // rest → append
       // NEVER displace a task that's actively being worked (Output - In Progress) at the
       // front — the urgent arrival slots right AFTER it, so the current task finishes first.
       let at = 0;
@@ -1686,9 +1689,21 @@ export function HopeMyDay() {
     return plan.flatMap((p) => {
       const t = all.find((x) => x.id === p.taskId);
       if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
-      return [{ ...p, high: t.detail.priority === "High" }];
+      return [{ ...p, high: isHot(t.detail.priority) }];
     });
   }, [plan, tasks, claimedTasks, me.name]);
+  // Capacity cap (spec §9, fixes Bug 3): only what fits the 8h shift lands on the
+  // timeline; the rest SPILLS OVER (shown separately) instead of cramming 28h into 8h.
+  const { fitPlan, spillPlan } = useMemo(() => {
+    const fit: typeof myPlan = [], spill: typeof myPlan = [];
+    let used = 0;
+    for (const p of myPlan) {
+      if (fit.length === 0 || used + p.dur <= WORK_MIN) { fit.push(p); used += p.dur; }
+      else spill.push(p);
+    }
+    return { fitPlan: fit, spillPlan: spill };
+  }, [myPlan]);
+  const spillMin = spillPlan.reduce((s, p) => s + p.dur, 0);
   const planBlocks = useMemo(() => {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
@@ -1698,7 +1713,7 @@ export function HopeMyDay() {
     let cursor = shiftStartOf(me.name);
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
-    for (const p of myPlan) {
+    for (const p of fitPlan) {
       let remaining = p.dur;
       // Pinned start (dragged to a specific time) — jump the cursor forward to it,
       // leaving the earlier slot free. Can only push LATER than the natural flow,
@@ -1718,7 +1733,7 @@ export function HopeMyDay() {
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     return out;
-  }, [myPlan, nowMin]);
+  }, [fitPlan, nowMin]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   // Red now-line shows only inside the working span (9 AM–7 PM, covering both shifts:
   // 9–6 and 10–7). Before 9 or after 7 PM there's simply no line — real clock, no fake.
@@ -2164,7 +2179,9 @@ export function HopeMyDay() {
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
-              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(workMin)}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free</span>
+              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(Math.min(workMin, WORK_MIN))}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free
+                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600 }}>· ⚠ {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
+              </span>
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
@@ -2230,14 +2247,14 @@ export function HopeMyDay() {
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${t.detail.priority === "High" ? "high" : ""}`} onClick={() => setSel(i)}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={() => setSel(i)}>
                     <div className="task-top">
                       <div className="tt">{t.title}</div>
                       <span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span>
                     </div>
                     <div className="mm">{t.meta}</div>
                     <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
-                      {t.detail.priority === "High" && <span className="pill" style={{ background: "#FCE8EC", color: "#C0201F" }}>⚡ High</span>}
+                      {isHot(t.detail.priority) && <span className="pill" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg }}>⚡ {t.detail.priority}</span>}
                       <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
                       {claimed && <span className="pill" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                     </div>
