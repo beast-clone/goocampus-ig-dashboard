@@ -1299,8 +1299,9 @@ export function HopeMyDay() {
   }, []);
   const [sel, setSel] = useState(0);
   const [claimPool, setClaimPool] = useState<Task[]>([]);             // videos up for grabs (live)
-  const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal
+  const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal (legacy)
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
+  const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
   const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("approved");                  // status tab (per-person)
@@ -1515,6 +1516,12 @@ export function HopeMyDay() {
       .sort((a, b) => (PR[a.detail.priority] - PR[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
   }, [workingTasks, taskTab]);
   const task = shownTasks[sel] || shownTasks[0] || null;
+  // Claimable videos show INLINE in each editor's Content-Approved tab (spec §8) —
+  // both Nandu and Nikhil see the same pool; first to claim owns it.
+  const claimableHere = useMemo(
+    () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)) : [],
+    [isEditor, curTab.key, claimPool, claimedTasks],
+  );
   const planModalTask = planModalId ? tasks.find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
   //  • CONTENT-FIRST HANDOFF: when the WRITER's task hits "Content - Approved", it
@@ -1951,6 +1958,16 @@ export function HopeMyDay() {
       })
       .catch((e) => rollback(String(e)));
   };
+  // Inline claim confirm (spec §8). Nikhil picks how he'll work it (present / edit /
+  // both); Nandu just confirms. The role is best-effort persisted to custom.claim_role.
+  const confirmClaim = (v: Task, role?: "present" | "edit" | "both") => {
+    setClaimConfirm(null);
+    if (role) {
+      fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { claim_role: role } } }) }).catch(() => {});
+    }
+    claimVideo(v);
+  };
   const remOpen = reminders.filter((r) => !r.done).length;
   const remDone = reminders.length - remOpen;
 
@@ -2197,7 +2214,7 @@ export function HopeMyDay() {
               ))}
             </div>
             <div className="tasklist">
-              {shownTasks.length === 0 && <div className="empty" style={{ padding: "1.6rem 0" }}>Nothing in “{curTab.label}” right now ✓</div>}
+              {shownTasks.length === 0 && claimableHere.length === 0 && <div className="empty" style={{ padding: "1.6rem 0" }}>Nothing in “{curTab.label}” right now ✓</div>}
               {shownTasks.map((t, i) => {
                 const claimed = claimedTasks.some((c) => c.id === t.id);
                 const st = STATUS[t.status];
@@ -2214,6 +2231,43 @@ export function HopeMyDay() {
                       <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
                       {claimed && <span className="pill" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                     </div>
+                  </div>
+                );
+              })}
+              {/* Claimable videos (spec §8) — inline in BOTH editors' Content-Approved
+                  tab; first to claim owns it. Nikhil also picks how he'll work it. */}
+              {claimableHere.map((v) => {
+                const confirming = claimConfirm === v.id;
+                const di = dueInfo(v.due, todayStr);
+                return (
+                  <div key={v.id} className="task" style={{ borderStyle: "dashed", borderColor: "#B9C0D0" }}>
+                    <div className="task-top">
+                      <div className="tt">{v.title}</div>
+                      <span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span>
+                    </div>
+                    <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
+                    {!confirming ? (
+                      <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
+                        <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C" }}>Claimable</span>
+                        <button className="btn primary sm" onClick={() => setClaimConfirm(v.id)}>Claim</button>
+                      </div>
+                    ) : person === "nikhil" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".2rem" }}>
+                        <span className="lbl">How will you work it?</span>
+                        <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
+                          <button className="btn primary sm" onClick={() => confirmClaim(v, "present")}>Present on camera</button>
+                          <button className="btn primary sm" onClick={() => confirmClaim(v, "edit")}>Edit video</button>
+                          <button className="btn primary sm" onClick={() => confirmClaim(v, "both")}>Both</button>
+                          <button className="btn sm" onClick={() => setClaimConfirm(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".2rem" }}>
+                        <span className="lbl">Claim this?</span>
+                        <button className="btn primary sm" onClick={() => confirmClaim(v)}>Yes, it&apos;s mine</button>
+                        <button className="btn sm" onClick={() => setClaimConfirm(null)}>No</button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
