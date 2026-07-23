@@ -1309,30 +1309,47 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
 }
 
 // End-today wrap-up — confirm what's done; unchecked tasks roll to tomorrow.
-function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number) => void; onClose: () => void }) {
+function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, reasons: Record<string, string>) => void; onClose: () => void }) {
   const [done, setDone] = useState<Set<string>>(new Set(tasks.slice(0, Math.ceil(tasks.length / 2)).map((t) => t.id)));
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   const toggle = (id: string) => setDone((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const doneN = done.size, rollN = tasks.length - doneN;
+  // Spec §10: every task that rolls to tomorrow needs a reason before the day can end.
+  const rolling = tasks.filter((t) => !done.has(t.id));
+  const missing = rolling.some((t) => !(reasons[t.id] || "").trim());
   return (
     <div className="modal" onClick={onClose}>
       <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} title="Close">✕</button>
         <div className="aw-h">Wrap up your day</div>
-        <p className="aw-p">Confirm what you finished today. Anything unchecked rolls to tomorrow.</p>
+        <p className="aw-p">Confirm what you finished. Anything unchecked rolls to tomorrow — say why so it&apos;s tracked.</p>
         {tasks.length === 0 && <div className="empty" style={{ padding: "1rem 0" }}>No tasks on your plate today.</div>}
         {tasks.map((t) => {
           const isDone = done.has(t.id);
           return (
-            <div key={t.id} className={`eod-row ${isDone ? "" : "roll"}`}>
-              <span className={`eod-cb ${isDone ? "on" : ""}`} onClick={() => toggle(t.id)}>{isDone ? "✓" : ""}</span>
-              <span className="eod-title">{t.title}</span>
-              <span className={`eod-tag ${isDone ? "done" : "roll"}`}>{isDone ? "Done" : "→ Tomorrow"}</span>
+            <div key={t.id}>
+              <div className={`eod-row ${isDone ? "" : "roll"}`}>
+                <span className={`eod-cb ${isDone ? "on" : ""}`} onClick={() => toggle(t.id)}>{isDone ? "✓" : ""}</span>
+                <span className="eod-title">{t.title}</span>
+                <span className={`eod-tag ${isDone ? "done" : "roll"}`}>{isDone ? "Done" : "→ Tomorrow"}</span>
+              </div>
+              {!isDone && (
+                <input
+                  className="eod-reason"
+                  value={reasons[t.id] || ""}
+                  onChange={(e) => setReasons((r) => ({ ...r, [t.id]: e.target.value }))}
+                  placeholder="Why isn't this done? (required to roll it over)"
+                />
+              )}
             </div>
           );
         })}
         <div className="eod-foot">
           <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
-          <div style={{ display: "flex", gap: ".5rem" }}><button className="btn" onClick={onClose}>Cancel</button><button className="btn rose" onClick={() => onEnd(doneN, rollN)}>End today</button></div>
+          <div style={{ display: "flex", gap: ".5rem" }}>
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, reasons)}>End today</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1409,6 +1426,7 @@ export function HopeMyDay() {
   const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
   const [dayStarted, setDayStarted] = useState(false);  // Start day / End today
   const [dayStartAt, setDayStartAt] = useState("");
+  const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
   const [showEod, setShowEod] = useState(false);        // End-today wrap-up modal
   const closedManually = useRef(false);
   // The claim pool surfaces PROMINENTLY on the right first; if ignored for 15s it
@@ -1455,8 +1473,12 @@ export function HopeMyDay() {
     lastMsgId.current = null;   // and never toast "new message" for their backlog
     setSel(0);                  // task selection is per-person
     try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
-    const startedAt = (() => { try { return localStorage.getItem(`hmd-day-${person}`) || ""; } catch { return ""; } })();
-    setDayStarted(!!startedAt); setDayStartAt(startedAt);
+    // Restore the day-clock. New format is JSON {at, min}; tolerate the older plain
+    // string ("9:30 AM") so a mid-session upgrade doesn't lose an in-progress day.
+    const raw = (() => { try { return localStorage.getItem(`hmd-day-${person}`) || ""; } catch { return ""; } })();
+    let at = "", min = 0;
+    if (raw) { try { const j = JSON.parse(raw); at = j.at || ""; min = Number(j.min) || 0; } catch { at = raw; } }
+    setDayStarted(!!raw); setDayStartAt(at); setDayStartMin(min);
   }, [person]);
   // Persist reminders as they change (skip the initial empty render).
   const remLoaded = useRef(false);
@@ -1779,9 +1801,11 @@ export function HopeMyDay() {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
-    // The plan lays out the FULL day from 9 AM (the red now-line marks where you
-    // are) — an empty morning block reads as a bug, not as "morning gone".
-    let cursor = shiftStartOf(me.name);
+    // Anchor (spec §10): once the day is started, the plan begins at the clock-in
+    // minute (login-anchored), not a fixed shift start — log in 9:30 and tasks slide
+    // to 9:30. Before starting, preview from the normal shift start.
+    const anchor = dayStarted && dayStartMin > shiftStartOf(me.name) ? dayStartMin : shiftStartOf(me.name);
+    let cursor = anchor;
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of fitPlan) {
@@ -1804,7 +1828,7 @@ export function HopeMyDay() {
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     return out;
-  }, [fitPlan, nowMin]);
+  }, [fitPlan, nowMin, dayStarted, dayStartMin, me.name]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   // Red now-line shows only inside the working span (9 AM–7 PM, covering both shifts:
   // 9–6 and 10–7). Before 9 or after 7 PM there's simply no line — real clock, no fake.
@@ -1975,11 +1999,20 @@ export function HopeMyDay() {
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
   const startDay = () => {
     const at = clock?.time || "now";
-    setDayStarted(true); setDayStartAt(at);
-    try { localStorage.setItem(`hmd-day-${person}`, at); } catch { /* private mode */ }
+    // Clock-in minute (spec §10): the plan anchors to when you actually start, not a
+    // fixed 9 AM — clamped into the working span so a pre-9/after-7 login still lays out.
+    const min = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
+    try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min })); } catch { /* private mode */ }
+    // Late clock-in slides the plan forward → say so, with the new end time.
+    const shift = shiftStartOf(me.name);
+    if (min > shift + 5) {
+      const ends = clockOf(Math.min(DAY_MINS, min + WORK_MIN + LUNCH_MIN));
+      setToast({ who: "Day started", color: "#3A57E8", av: me.av, body: `Clocked in ${at} — plan shifted to start now; day now ends ~${ends}.` });
+    }
   };
   const endToday = (doneCount: number, rollCount: number) => {
-    setDayStarted(false); setShowEod(false);
+    setDayStarted(false); setShowEod(false); setDayStartMin(0);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow.` });
   };
@@ -3319,6 +3352,9 @@ const CSS = `
 .hmd .eod-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .eod-tag{font-size:.6rem;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
 .hmd .eod-tag.done{background:var(--good-soft);color:#0F6E3C}.hmd .eod-tag.roll{background:var(--warn-soft);color:#7A4E0B}
+.hmd .eod-reason{width:100%;margin:.1rem 0 .55rem 2rem;max-width:calc(100% - 2rem);border:1px solid var(--line);border-radius:8px;padding:.4rem .55rem;font-size:.78rem;color:var(--ink-soft);background:var(--panel-2)}
+.hmd .eod-reason:focus{outline:none;border-color:var(--brand);background:#fff}
+.hmd .btn.rose:disabled{opacity:.45;cursor:default}
 .hmd .eod-foot{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}
 .hmd .m-note{font-size:.72rem;color:var(--muted)}
 .hmd .btn.rose{background:var(--rose);color:#fff;border-color:transparent}
