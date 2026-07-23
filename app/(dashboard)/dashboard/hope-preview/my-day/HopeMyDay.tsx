@@ -717,7 +717,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
 
       {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
-      <div className="meta-grid">
+      <div className="meta-grid" style={{ marginTop: "1.1rem" }}>
         <div>
           <div className="mlbl">Owner</div>
           {ownerP ? (
@@ -761,7 +761,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
 
       {/* Task clock — captured on create → done, so you can see how long it took */}
-      <div className="meta-grid" style={{ marginTop: ".1rem" }}>
+      <div className="meta-grid">
         <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
         <div><div className="mlbl">Published Date</div><div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div></div>
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
@@ -770,7 +770,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* LIVE TIMER — only runs once the task is set to "In Progress" (start_at is
           stamped then). Counts real time vs the planned duration; nearing/over it
           asks INLINE (no popup): finished, or extend? Extending reshuffles the day. */}
-      {timing ? (
+      {timing && (
         <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
           <span className="timer-num">{ICLOCK} {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
           {timing.elapsed >= timing.planned - 15 && onStatusChange && onSetDuration && (
@@ -781,13 +781,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </span>
           )}
         </div>
-      ) : (onStatusChange && task.status === "Content - Approved" && (
-        // Not started — the Start control now lives up in the status row; this line
-        // just states the plan so the strip isn't empty.
-        <div className="timer-strip idle">
-          <span className="timer-num">{ICLOCK} Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)} — press Start above` : " — set a duration, then press Start above"}</span>
-        </div>
-      ))}
+      )}
 
       {/* Incorporating-Feedback notes from Manya (spec §7) — highlighted so the
           producer can't miss what to fix. */}
@@ -3139,7 +3133,7 @@ const CSS = `
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:.76rem;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:.75rem;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.15rem;padding-top:1.3rem;border-top:1px solid var(--line)}
+.hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;padding:1.15rem 0;border-top:1px solid var(--line)}
 .hmd .mlbl{font-size:.6rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:600}
 .hmd .mval{font-size:.82rem;color:var(--ink-soft);font-weight:500}
 .hmd .collab{display:flex;align-items:center;gap:.4rem;margin-top:.9rem;flex-wrap:wrap}
