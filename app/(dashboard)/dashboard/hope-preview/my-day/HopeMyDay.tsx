@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
 import type { Capability, Permissions } from "@/lib/permissions";
 
@@ -353,6 +353,14 @@ const BELL = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d
 const CLIP = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6H9V4.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="m8.5 13 2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const CHATIC = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const CLOCK = <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.9" /><path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+// Inline chrome icons (baseline-aligned) — replace emojis in buttons/labels so the
+// whole cockpit uses Hope outline glyphs, never emoji.
+const ICLOCK = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.9" /><path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const IWARN = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M12 3 2.5 20h19L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /><path d="M12 10v4.5M12 17.6v.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+const IHOURGLASS = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M6.5 3h11M6.5 21h11M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const IPOWER = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M12 3v8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /><path d="M7.5 6a7.5 7.5 0 1 0 9 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /></svg>;
+const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M15.5 5.9a3 3 0 0 1 0 5.2M16 14.2A5.5 5.5 0 0 1 19.5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+const CHEV = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-1px", opacity: 0.55 }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
 // One due-date chip everywhere so the clock icon + label read uniformly on every
 // task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
@@ -483,7 +491,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
           </div>
         ) : (
           <a key={r.url || i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
-            <span className="ref-link-ic">🔗</span>
+            <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
             <span className="ref-link-lbl">{r.label}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
           </a>
@@ -536,7 +544,7 @@ function CreativesSection({ creatives, postId, uploadedBy, onSaved }: { creative
                 onClick={() => openPreview(f)}
               >
                 {f.type === "video" && <span className="thumb-play">▶</span>}
-                {f.type === "doc" && <span className="thumb-doc">📄</span>}
+                {f.type === "doc" && <span className="thumb-doc"><IconFileText size={20} stroke={1.7} /></span>}
               </div>
               <div className="thumb-name">{f.name}</div>
               {f.attId && <button className="ref-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
@@ -549,7 +557,7 @@ function CreativesSection({ creatives, postId, uploadedBy, onSaved }: { creative
         </div>
       ) : (
         <label className="upload-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
-          <span className="upload-ic">⬆</span>
+          <span className="upload-ic"><IconUpload size={18} stroke={1.7} /></span>
           <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click to add creatives</span></span>
           <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
@@ -601,7 +609,7 @@ function ExtendPicker({ onExtend }: { onExtend: (mins: number) => void }) {
   const add = (m: number) => { if (m > 0) { onExtend(m); setCustom(""); setOpen(false); } };
   return (
     <span className="ext-wrap">
-      <button className="btn sm" onClick={() => setOpen((o) => !o)}>+ Extend ▾</button>
+      <button className="btn sm" onClick={() => setOpen((o) => !o)}>+ Extend {CHEV}</button>
       {open && (
         <div className="ext-menu" onClick={(e) => e.stopPropagation()}>
           <div className="ext-row">{[15, 30, 45, 60, 90].map((m) => <button key={m} className="btn sm" onClick={() => add(m)}>+{m}m</button>)}</div>
@@ -691,7 +699,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
             {timing && (
               <span className={`cap cap-timer ${timing.elapsed >= timing.planned ? "over" : ""}`} title="Time left vs the planned duration">
-                ⏱ {timing.elapsed >= timing.planned ? `+${fmtMins(timing.elapsed - timing.planned)} over` : `${fmtMins(timing.planned - timing.elapsed)} left`}
+                {ICLOCK} {timing.elapsed >= timing.planned ? `+${fmtMins(timing.elapsed - timing.planned)} over` : `${fmtMins(timing.planned - timing.elapsed)} left`}
               </span>
             )}
           </div>
@@ -754,7 +762,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           asks INLINE (no popup): finished, or extend? Extending reshuffles the day. */}
       {timing ? (
         <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
-          <span className="timer-num">⏱ {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
+          <span className="timer-num">{ICLOCK} {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
           {timing.elapsed >= timing.planned - 15 && onStatusChange && onSetDuration && (
             <span className="timer-acts">
               <span>{timing.elapsed >= timing.planned ? `Over by ${fmtMins(timing.elapsed - timing.planned)} — wrap up or add time?` : `~${fmtMins(timing.planned - timing.elapsed)} left — done, or need more time?`}</span>
@@ -766,7 +774,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       ) : (onStatusChange && task.status === "Content - Approved" && (
         // Not started yet → one tap to start the clock (sets status → In Progress).
         <div className="timer-strip idle">
-          <span className="timer-num">⏱ Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)}` : ""}</span>
+          <span className="timer-num">{ICLOCK} Not started{task.detail.duration ? ` · planned ${fmtMins(task.detail.duration)}` : ""}</span>
           <button className="btn sm primary" onClick={() => onStatusChange("Output - In Progress")}>Start working — start the timer</button>
         </div>
       ))}
@@ -775,7 +783,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           producer can't miss what to fix. */}
       {task.status === "Incorporating Feedback" && task.detail.feedback && (
         <div style={{ margin: "0 0 .9rem", padding: ".7rem .85rem", borderRadius: 10, background: "#FCE8EC", border: "1px solid #F3C0CB" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3 }}>⚠ Feedback from Manya</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>{IWARN} Feedback from Manya</div>
           <div style={{ fontSize: 13, color: "#7A1327", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{task.detail.feedback}</div>
         </div>
       )}
@@ -802,9 +810,9 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <>
           <div className="section-lbl" style={{ marginTop: ".9rem" }}>Actions</div>
           <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
-            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}>✎ Edit</button>}
-            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}>⇄ Reassign</button>}
-            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}>🗑 Delete</button>}
+            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
+            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
+            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
           </div>
 
           {editing && (
@@ -882,7 +890,7 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
   return (
     <span style={{ position: "relative", display: "inline-block" }}>
       <button type="button" style={S.trigger} onClick={() => setOpen((o) => !o)}>
-        <span title="Task duration">⏱</span> {value ? fmtDur(value) : "Set duration…"} <span style={{ opacity: 0.5, fontSize: 10 }}>▾</span>
+        <span title="Task duration">{ICLOCK}</span> {value ? fmtDur(value) : "Set duration…"} {CHEV}
       </button>
       {open && (
         <>
@@ -1081,7 +1089,7 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
         <div className="aw-h">Accept this task?</div>
         <div className="aw-task"><div className="tt">{task.title}</div><div className="tm">{task.detail.typeLine} · adds ~{fmtMins(add)} to your day</div></div>
         <div className={`impact ${fits ? "ok" : ""}`}>
-          <span>⏱️</span>
+          <span>{ICLOCK}</span>
           {fits
             ? <span>You have <b>{fmtMins(free)}</b> free today — this fits. You'd still finish by <b>{DAY_END_LABEL}</b>.</span>
             : <span>Your day is <b>9:00 AM–{DAY_END_LABEL}</b>. Adding this pushes you to <b className="over">{finish}</b> — you'd work <b>{fmtMins(over)} over</b> your usual checkout.</span>}
@@ -1124,7 +1132,7 @@ function ManyaReschedule({ task, editorName, movedId, onMove, onConfirm }: { tas
   return (
     <div className="card pad manya-resched">
       <div className="mr-h">
-        <div className="mr-ic">⏱️</div>
+        <div className="mr-ic">{ICLOCK}</div>
         <div><div className="mr-t">{editorName} is packed — needs room for an urgent task</div><div className="mr-d">Slide one of {editorName}&apos;s low-priority reels to tomorrow so <b>{task.title}</b> fits. Must-go-today tasks stay put.</div></div>
       </div>
       <div className="tchips" style={{ marginTop: ".9rem" }}>
@@ -1320,7 +1328,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
           </div>
         </div>
       ))}
-      <div className="hint" style={{ padding: "0 .3rem" }}>Opened from the 👥 button — a separate page, so it never gets mixed up with your own plan.</div>
+      <div className="hint" style={{ padding: "0 .3rem" }}>Opened from the Team capacity button — a separate page, so it never gets mixed up with your own plan.</div>
     </div>
   );
 }
@@ -2215,7 +2223,7 @@ export function HopeMyDay() {
             {/* Day control — FAR LEFT, then a divider, so End day sits apart from the
                 notification icons + profile and isn't clicked by accident. End day only
                 OPENS the wrap-up (a confirm step) — it never logs out on a single tap. */}
-            <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>■ End day</button></span>
+            <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button></span>
             <span className="topdivider" aria-hidden="true" />
             <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
@@ -2322,11 +2330,11 @@ export function HopeMyDay() {
                 /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
                    any change a producer makes (dates moved, etc.) pops up here. */
                 <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Changes the team asked for — date moves, task changes">
-                  🔔 Requests{notifs.length > 0 && <span className="teamcap-n">{notifs.length}</span>}
+                  {BELL} Requests{notifs.length > 0 && <span className="teamcap-n">{notifs.length}</span>}
                 </button>
               ) : (
                 <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
-                  ⏳ Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
+                  {IHOURGLASS} Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
                 </button>
               )}
             </div>
@@ -2361,7 +2369,7 @@ export function HopeMyDay() {
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
               <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(Math.min(workMin, WORK_MIN))}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free
-                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600 }}>· ⚠ {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
+                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600 }}>· {IWARN} {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
               </span>
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
             </div>
@@ -2402,7 +2410,7 @@ export function HopeMyDay() {
                     </>
                   )}
                   <div className="tl-t">{b.label}</div>
-                  <div className="tl-m">{b.kind === "reel" ? `${b.high ? "⚡ High priority · " : ""}Reel · ${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
+                  <div className="tl-m">{b.kind === "reel" ? `${b.high ? "High priority · " : ""}Reel · ${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
                 </div>
               ))}
               {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /><span className="now-tag">● now</span></div>}
@@ -2435,7 +2443,7 @@ export function HopeMyDay() {
                     </div>
                     <div className="mm">{t.meta}</div>
                     <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
-                      {isHot(t.detail.priority) && <span className="pill" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg }}>⚡ {t.detail.priority}</span>}
+                      {isHot(t.detail.priority) && <span className="pill" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg, display: "inline-flex", alignItems: "center", gap: 3 }}><IconBolt size={12} stroke={1.9} /> {t.detail.priority}</span>}
                       <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
                       {claimed && <span className="pill" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                     </div>
@@ -2525,7 +2533,7 @@ export function HopeMyDay() {
                 {active ? (
                   <h3>
                     <button className="chat-back" onClick={() => { if (activeChat) markRead(activeChat); setActiveChat(null); }} title="All chats">‹</button>
-                    <span className="av av-sm" style={{ background: active.group ? "var(--brand)" : active.color }}>{active.group ? "👥" : active.av}</span>
+                    <span className="av av-sm" style={{ background: active.group ? "var(--brand)" : active.color }}>{active.group ? IUSERS : active.av}</span>
                     {active.name}
                     {active.online && <span className="online">● online</span>}
                   </h3>
@@ -2533,7 +2541,7 @@ export function HopeMyDay() {
                   <h3>Chats</h3> /* no fake "N online" — no real presence source */
                 )}
                 <div className="chat-head-acts">
-                  <button className={`pinbtn ${chatPinned ? "on" : ""}`} onClick={() => setChatPinned((p) => !p)} title={chatPinned ? "Unpin" : "Pin open"}>{chatPinned ? "📌 Pinned" : "Pin"}</button>
+                  <button className={`pinbtn ${chatPinned ? "on" : ""}`} onClick={() => setChatPinned((p) => !p)} title={chatPinned ? "Unpin" : "Pin open"}>{chatPinned ? <><IconPin size={13} stroke={1.8} /> Pinned</> : "Pin"}</button>
                   <button className="closebtn" onClick={() => { setChatPinned(false); setChatOpen(false); closedManually.current = true; }} title="Close">✕</button>
                 </div>
               </div>
@@ -2545,7 +2553,7 @@ export function HopeMyDay() {
                     const last = c.msgs[c.msgs.length - 1];
                     return (
                       <button key={c.id} className="chat-list-row" onClick={() => openConvo(c.id)}>
-                        <span className="av" style={{ background: c.group ? "var(--brand)" : c.color }}>{c.group ? "👥" : c.av}</span>
+                        <span className="av" style={{ background: c.group ? "var(--brand)" : c.color }}>{c.group ? IUSERS : c.av}</span>
                         <div className="cl-mid">
                           <div className="cl-name">{c.name}{c.online && <span className="cl-dot" />}</div>
                           <div className="cl-last">{last ? (last.me ? "You: " : "") + last.body : "No messages yet"}</div>
@@ -2563,7 +2571,7 @@ export function HopeMyDay() {
                 <>
                   <div className="chat-scroll thread">
                     <div className="chat-day">Today</div>
-                    {active.msgs.length === 0 && <div className="empty">No messages yet — say hi 👋</div>}
+                    {active.msgs.length === 0 && <div className="empty">No messages yet — say hi</div>}
                     {active.msgs.map((m, i) => m.sys ? (
                       /* server-posted pipeline event (handoff / claim / publish) */
                       <div key={i} className="chat-sys"><span>{m.body}</span><span className="chat-sys-tm">{m.tm}</span></div>
@@ -3371,7 +3379,7 @@ const CSS = `
 .hmd .daychip{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:600;border-radius:9px;padding:.45em .7em;background:var(--good-soft);color:#0F6E3C;border:1px solid #BFE6CD;white-space:nowrap}
 .hmd .daychip .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);animation:hmdpl 1.6s infinite}
 @keyframes hmdpl{0%{box-shadow:0 0 0 0 rgba(26,160,83,.45)}70%{box-shadow:0 0 0 6px rgba(26,160,83,0)}100%{box-shadow:0 0 0 0 rgba(26,160,83,0)}}
-.hmd .endbtn{white-space:nowrap}
+.hmd .endbtn{display:inline-flex;align-items:center;gap:.3rem;white-space:nowrap}
 .hmd .teamcapbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid #CBD5FA;background:var(--brand-soft);color:var(--brand-ink);cursor:pointer;white-space:nowrap}
 .hmd .teamcapbtn:hover{border-color:var(--brand)}
 .hmd .teamcapbtn.on{background:var(--brand);color:#fff;border-color:transparent}
