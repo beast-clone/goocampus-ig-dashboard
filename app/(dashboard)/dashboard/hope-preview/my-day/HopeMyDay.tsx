@@ -628,7 +628,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div className="d-head-main">
           {label && <div className="lbl" style={{ marginBottom: ".45rem" }}>{label}</div>}
           <div className="d-title">{task.title}</div>
-          <div className="d-sub">{task.detail.typeLine} · {task.detail.brand} · Publishes {task.detail.publishes}</div>
+          <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
         </div>
         <div className="status-box">
           <div className="mlbl">Status</div>
@@ -675,7 +675,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Task clock — captured on create → done, so you can see how long it took */}
       <div className="meta-grid" style={{ marginTop: ".1rem" }}>
         <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
-        <div><div className="mlbl">Started</div><div className="mval">{fmtDT(task.detail.startAt)}</div></div>
+        <div><div className="mlbl">Publishes</div><div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div></div>
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
       </div>
 
