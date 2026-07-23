@@ -344,6 +344,15 @@ function greetingFor(h: number) {
 const BELL = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
 const CLIP = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6H9V4.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="m8.5 13 2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const CHATIC = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const CLOCK = <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.9" /><path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+
+// One due-date chip everywhere so the clock icon + label read uniformly on every
+// task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
+function DueChip({ due, today }: { due: string; today: string }) {
+  const di = dueInfo(due, today);
+  if (!di.label) return null;
+  return <span className={`due-chip ${di.overdue ? "od" : ""}`}>{CLOCK}{di.label}</span>;
+}
 
 // The full task detail — shared by the inline "Up next" panel and the Today's-plan
 // popup, so both show the complete picture (title, meta, team, content, files,
@@ -2364,7 +2373,7 @@ export function HopeMyDay() {
                   <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={() => setSel(i)}>
                     <div className="task-top">
                       <div className="tt">{t.title}</div>
-                      <span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span>
+                      <DueChip due={t.due} today={todayStr} />
                     </div>
                     <div className="mm">{t.meta}</div>
                     <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
@@ -2379,12 +2388,11 @@ export function HopeMyDay() {
                   tab; first to claim owns it. Nikhil also picks how he'll work it. */}
               {claimableHere.map((v) => {
                 const confirming = claimConfirm === v.id;
-                const di = dueInfo(v.due, todayStr);
                 return (
                   <div key={v.id} className="task" style={{ borderStyle: "dashed", borderColor: "#B9C0D0" }}>
                     <div className="task-top">
                       <div className="tt">{v.title}</div>
-                      <span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span>
+                      <DueChip due={v.due} today={todayStr} />
                     </div>
                     <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
                     {!confirming ? (
@@ -2431,11 +2439,10 @@ export function HopeMyDay() {
             <div className="colhead"><h3>Samvaya · other platforms</h3><span className="lbl">separate from GooCampus — only you see this</span></div>
             <div className="tasklist">
               {samvaya.map((t) => {
-                const di = dueInfo(t.due, todayStr);
                 const st = STATUS[t.status];
                 return (
                   <div key={t.id} className="task">
-                    <div className="task-top"><div className="tt">{t.title}</div><span className={`due-chip ${di.overdue ? "od" : ""}`}>{di.label}</span></div>
+                    <div className="task-top"><div className="tt">{t.title}</div><DueChip due={t.due} today={todayStr} /></div>
                     <div className="mm">{t.meta}</div>
                     <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
                   </div>
@@ -2952,7 +2959,8 @@ const CSS = `
 .hmd .task.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
 .hmd .task.overdue.sel{border-color:var(--brand)}
 .hmd .task-top{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
-.hmd .due-chip{font-size:.6rem;font-weight:600;color:var(--muted);flex-shrink:0;white-space:nowrap}
+.hmd .due-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:.6rem;font-weight:600;color:var(--muted);flex-shrink:0;white-space:nowrap}
+.hmd .due-chip svg{width:11px;height:11px;flex:none;opacity:.9}
 .hmd .due-chip.od{color:#C03221}
 .hmd .task .tt{font-weight:600;font-size:.82rem;line-height:1.25}
 .hmd .task .mm{font-size:.68rem;color:var(--muted);margin:.2rem 0 .35rem}
