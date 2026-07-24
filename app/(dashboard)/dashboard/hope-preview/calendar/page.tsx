@@ -1,5 +1,5 @@
 import { HopeShell } from "../HopeShell";
-import { HopeCalendar } from "./HopeCalendar";
+import { CalendarTabs } from "./CalendarTabs";
 
 // Hope UI reskin — Publishing Calendar (Version 2). Self-contained Hope shell +
 // the full V1 calendar (all sections/data) restyled to the Hope FullCalendar page.
@@ -9,7 +9,7 @@ import { HopeCalendar } from "./HopeCalendar";
 export default function HopeCalendarPage() {
   return (
     <HopeShell active="calendar" title="Publishing Calendar" hideTopbar>
-      <HopeCalendar />
+      <CalendarTabs />
     </HopeShell>
   );
 }

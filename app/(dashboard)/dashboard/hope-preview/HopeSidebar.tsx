@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconRadar2,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
@@ -39,7 +39,6 @@ const GROUPS: Group[] = [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
     { label: "Content Review",      href: `${HUB}/content-review`,  icon: IconChecklist },
     { label: "Scheduler",           href: `${HUB}/scheduler`,       icon: IconClockHour4 },
-    { label: "Post Planner",        href: `${HUB}/post-planner`,    icon: IconWand },
   ] },
   { label: "Analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [

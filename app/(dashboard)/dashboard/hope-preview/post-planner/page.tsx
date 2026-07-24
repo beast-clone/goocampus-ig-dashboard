@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { useRouter } from "next/navigation";
 
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
@@ -69,19 +69,16 @@ function statusDot(c: CalCard): string {
   return "#888780";                                             // gray — not started
 }
 
+// The AI Planner now lives as a tab inside the Publishing Calendar. This route
+// redirects there (deep-linking straight to the planner tab) so old links/bookmarks
+// keep working. The Planner component itself is exported for the calendar to render.
 export default function PostPlannerPage() {
-  return (
-    <HopeDashboardShell active="post-planner"
-      title="Post Planner"
-      subtitle="Plan @12thplus posts on a calendar — AI suggests the order, the team sets the real dates."
-      hideAccountPicker
-    >
-      {() => <Planner />}
-    </HopeDashboardShell>
-  );
+  const router = useRouter();
+  useEffect(() => { router.replace("/dashboard/hope-preview/calendar?tab=planner"); }, [router]);
+  return null;
 }
 
-function Planner() {
+export function Planner() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
