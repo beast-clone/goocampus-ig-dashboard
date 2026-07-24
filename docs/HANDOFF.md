@@ -73,6 +73,27 @@ restore with `insert into mh_posts select * from mh_posts_backup_20260722 on con
   Chrome is the one that can reach `localhost:4324`).
 - Refresh the code graph after edits: `node ".claude/skills/graphify/bin/graphify.js" update .`
 
+## 7b. Skills & tooling ⚠️ read before relying on them
+
+**Committed in the repo (a fresh clone gets these — nothing to install):**
+- **`ponytail`** — use for **all coding**. Leanest solution, reuse over rewrite, no bloat.
+- **`spec-first`** — use before building/changing any complex or confusing feature (mandatory, see `CLAUDE.md`).
+- **`improve`** — read-only audits / roadmap / implementation plans.
+- **gstack** skill files (`/review`, `/qa`, `/design-review`, `/investigate`, `/cso`, …).
+
+**NOT committed — must be restored per machine:**
+- **graphify ENGINE.** The repo only has `.claude/skills/graphify/SKILL.md` + `references/`. The runnable
+  CLI (`bin/`, `lib/`, `node_modules/`) lives **outside the repo** at `D:\Claude\.claude\skills\graphify\`
+  (the parent folder is *not* a git repo, so it does not travel with a clone).
+  - On this Windows machine it's already there — invoke as:
+    `node "D:\Claude\.claude\skills\graphify\bin\graphify.js" update "D:\Claude"`
+  - On a different machine: install the engine there first (`npm install` in that skill folder), or just
+    skip graphify and use normal Read/Grep — it's a token-saving convenience, not a dependency.
+- **`graphify-out/`** (the generated knowledge graph) is **gitignored** — rebuild with the `build` command,
+  and run `update` after code edits. Never read `graph.json` directly; use `query` / `explain` / `path`.
+- **gstack engine** (~1 GB, gitignored) — restore with `cd .claude/skills/gstack && ./setup --local` (needs `bun`).
+  Not required for the My Day work.
+
 ## 8. Other open threads (not blocking My Day)
 - **Design audit Tier-1 leftovers:** consolidate divergent metric cards into shared `components/MetricCard`;
   Overview reimplements its own shell; Leads tab uses raw `<style>`; card radius lg↔xl drift.
