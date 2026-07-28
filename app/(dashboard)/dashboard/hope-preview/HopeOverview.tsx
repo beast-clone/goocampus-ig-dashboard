@@ -35,8 +35,9 @@ type Post = { id: string; caption: string; mediaUrl: string; permalink: string; 
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[] };
 type Tip = { metric: "followers" | "reach" | "engagement" | "profileVisits"; detail: string; action: string };
 
-const fmt = (n: number) => n.toLocaleString("en-IN");
-const kfmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "K" : String(n);
+// Null-safe: a missing metric must not crash the whole Overview (the landing page).
+const fmt = (n?: number | null) => (n ?? 0).toLocaleString("en-IN");
+const kfmt = (n?: number | null) => { const v = n ?? 0; return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "K" : String(v); };
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; };
 
 // Plain-English fallbacks (same copy the real Overview uses) until AI tips load.
