@@ -15,7 +15,12 @@ import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
+import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import Link from "next/link";
+
+// Brands you can switch between on the analytics tabs. Samvaya is a separate
+// business and excluded from the GooCampus marketing view.
+const SWITCHABLE_ACCOUNTS = ACCOUNTS.filter((a) => a.id !== "samvaya_matrimony");
 
 // Exact Hope UI tokens (pulled from the live theme — primary #3A57E8, Inter).
 const C = {
@@ -128,7 +133,8 @@ type PlatformKey = (typeof PLATFORMS)[number]["key"];
 type RangeKey = "7d" | "30d" | "60d" | "1y" | "custom";
 
 export function HopeOverview() {
-  const accountId = "goocampus";
+  const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
+  const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [selMonthKey, setSelMonthKey] = useState<string | null>(null);
@@ -200,7 +206,7 @@ export function HopeOverview() {
     fetch(`/api/audience?accountId=${accountId}`).then((r) => r.ok ? r.json() : null).then((a) => { if (alive && a) setAud(a as Audience); }).catch(() => {});
     fetch(`/api/overview-tips?accountId=${accountId}&from=${from}&to=${insTo}`).then((r) => r.ok ? r.json() : null).then((tp) => { if (alive) setTips((tp?.tips || []) as Tip[]); }).catch(() => {});
     return () => { alive = false; };
-  }, [range]);
+  }, [range, accountId]);
 
   const t = ins?.totals, d = ins?.deltas;
   const tipBy = useMemo(() => {
@@ -222,7 +228,7 @@ export function HopeOverview() {
     setOldWinners(null);
     fetch(`/api/posts?${qs}`).then((r) => r.ok ? r.json() : { posts: [] }).then((d) => { if (alive) setOldWinners((d.posts || []) as Post[]); }).catch(() => { if (alive) setOldWinners([]); });
     return () => { alive = false; };
-  }, [range]);
+  }, [range, accountId]);
   const reposts = useMemo(() => {
     if (!oldWinners) return [];
     const seen = new Set<string>();
@@ -244,7 +250,7 @@ export function HopeOverview() {
     setRangePosts(null);
     fetch(`/api/posts?${qs}`).then((r) => r.ok ? r.json() : { posts: [] }).then((d) => { if (alive) setRangePosts((d.posts || []) as Post[]); }).catch(() => { if (alive) setRangePosts([]); });
     return () => { alive = false; };
-  }, [range]);
+  }, [range, accountId]);
   const postMix = useMemo(() => {
     const src = rangePosts || [];
     if (!src.length) return { total: 0, entries: [] as { type: string; count: number; pct: number }[] };
@@ -299,6 +305,20 @@ export function HopeOverview() {
       {/* ───────── Main ───────── */}
       <main style={{ flex: 1, minWidth: 0 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 28px", background: C.card, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 5 }}>
+          {/* Brand / account switcher — which page's data the whole Overview shows */}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 9, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 12px" }}>
+            <IconBrandInstagram size={17} stroke={1.9} style={{ color: C.primary }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>Brand</span>
+            <select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              style={{ border: "none", background: "transparent", outline: "none", fontSize: 13.5, fontWeight: 600, color: C.heading, cursor: "pointer", paddingRight: 2 }}
+            >
+              {SWITCHABLE_ACCOUNTS.map((a) => (
+                <option key={a.id} value={a.id}>{a.label} · {a.handle}</option>
+              ))}
+            </select>
+          </label>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E9FBEF", color: C.success, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 999 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
@@ -370,7 +390,7 @@ export function HopeOverview() {
           ) : (
             <>
               {/* Hero — narrative fold */}
-              <HeroBanner eyebrow={`@goocampus · ${rangeLabel}`}>
+              <HeroBanner eyebrow={`${currentAccount.handle} · ${rangeLabel}`}>
                 {t ? (insStored
                   ? <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period, reaching <b>{fmt(t.reach)}</b> — from your saved history.</>
                   : <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period{d ? <> — reach is <b>{d.reach >= 0 ? "up" : "down"} {Math.abs(d.reach).toFixed(1)}%</b> and engagement <b>{d.engagement >= 0 ? "up" : "down"} {Math.abs(d.engagement).toFixed(1)}%</b>. Solid month.</> : "."}</>
