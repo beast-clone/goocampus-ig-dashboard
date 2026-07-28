@@ -2,9 +2,10 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
+import { fmtDate } from "@/lib/date";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
-  IconClipboardCheck, IconLayoutGrid, IconTable,
+  IconClipboardCheck, IconLayoutGrid, IconTable, IconX,
 } from "@tabler/icons-react";
 
 // "Content Review" — the human gate between production and scheduling. A post lands
@@ -52,6 +53,7 @@ function Review() {
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null); // post id being sent back with notes
   const [feedbackText, setFeedbackText] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
+  const [openPost, setOpenPost] = useState<ReviewPost | null>(null); // preview modal
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +70,13 @@ function Review() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Esc closes the preview modal.
+  useEffect(() => {
+    if (!openPost) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenPost(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openPost]);
 
   // Move a post to a new status via the whitelisted update API, then drop it from the
   // queue. Surfaces the server error instead of failing silently (an approval that
@@ -90,6 +99,7 @@ function Review() {
       setPosts((p) => p.filter((x) => x.id !== id));
       setFeedbackFor(null);
       setFeedbackText("");
+      setOpenPost(null); // the post left the queue — close its preview if open
     } catch (e) {
       setErr(`${label} failed: ${(e as Error).message}`);
     } finally {
@@ -176,7 +186,7 @@ function Review() {
                 const busy = busyId === p.id;
                 return (
                   <Fragment key={p.id}>
-                    <tr className="border-b border-gray-50 hover:bg-gray-50/60">
+                    <tr onClick={() => setOpenPost(p)} className="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer">
                       <td className="px-4 py-2.5">
                         <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
                       </td>
@@ -194,7 +204,7 @@ function Review() {
                       <td className="px-4 py-2.5">
                         {p.hasCreative ? <span className="text-emerald-700 text-xs font-medium">✓ Attached</span> : <span className="text-amber-700 text-xs bg-amber-50 rounded-md px-2 py-0.5">No creative</span>}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2 justify-end">
                           <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
                             <IconCalendarPlus size={14} stroke={1.9} /> Push to Schedule
@@ -233,7 +243,8 @@ function Review() {
             return (
               <div
                 key={p.id}
-                className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col"
+                onClick={() => setOpenPost(p)}
+                className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col cursor-pointer"
               >
                 {/* Media preview */}
                 <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
@@ -271,7 +282,7 @@ function Review() {
                   {feedbackFor === p.id ? (
                     /* Send-back needs feedback notes (spec §7) — they land highlighted
                        on the producer's My Day task. */
-                    <div className="mt-auto pt-1 flex flex-col gap-2">
+                    <div className="mt-auto pt-1 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                       <textarea
                         autoFocus
                         value={feedbackText}
@@ -292,7 +303,7 @@ function Review() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 mt-auto pt-1">
+                    <div className="flex items-center gap-2 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         disabled={busy || !p.hasCreative}
                         onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
@@ -317,6 +328,63 @@ function Review() {
           })}
         </div>
       )}
+
+      {/* Preview popup — click any post (card or table row) to open it. */}
+      {openPost && (() => {
+        const p = openPost;
+        const tc = typeChip(p.type);
+        const busy = busyId === p.id;
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpenPost(null)}>
+            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
+                    {p.sbu && <span className="text-[11px] font-semibold rounded-full px-2.5 py-0.5 bg-brand-light text-[#2138B0]">{p.sbu}</span>}
+                  </div>
+                  <h2 className="text-lg font-semibold text-[#232D42] leading-snug">{p.title || "Untitled"}</h2>
+                </div>
+                <button onClick={() => setOpenPost(null)} className="text-gray-400 hover:text-gray-700 flex-shrink-0"><IconX size={20} /></button>
+              </div>
+              <div className="overflow-y-auto p-5 flex flex-col gap-4">
+                <div className="aspect-video bg-[#F6F7FB] rounded-xl overflow-hidden relative">
+                  <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Interest</div><div className="text-sm text-[#232D42]">{p.sbu || "—"}</div></div>
+                  <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Owner</div><div className="text-sm text-[#232D42] capitalize">{p.owner || "—"}</div></div>
+                  <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Publishing</div><div className="text-sm text-[#232D42]">{p.publishingDate ? fmtDate(p.publishingDate) : "—"}</div></div>
+                  <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Creative</div><div className="text-sm text-[#232D42]">{p.hasCreative ? "Attached" : "None yet"}</div></div>
+                </div>
+                {(p.caption || p.content) && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-1">Caption</div>
+                    <p className="text-sm text-[#232D42] whitespace-pre-wrap">{p.caption || p.content}</p>
+                  </div>
+                )}
+                {!p.hasCreative && <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No creative attached — add media before it can go to the Scheduler.</div>}
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100">
+                {feedbackFor === p.id ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none" />
+                    <div className="flex items-center gap-2">
+                      <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback</button>
+                      <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"><IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule</button>
+                    <button disabled={busy} onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }} className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2.5 hover:border-brand hover:text-brand disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
