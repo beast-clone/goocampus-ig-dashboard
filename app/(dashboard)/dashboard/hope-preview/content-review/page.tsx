@@ -143,7 +143,8 @@ function Review() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
+          {/* Grid scales up on big monitors: 5 cols on ~24in (1536px+), 6 on ~27-32in (2100px+), so cards shrink and 5-6 fit per row. */}
           {posts.map((p) => {
             const tc = typeChip(p.type);
             const busy = busyId === p.id;
