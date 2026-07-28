@@ -27,3 +27,6 @@ _env.local
 
 # pdfjs worker copied from node_modules by the prebuild step
 public/pdf.worker.min.mjs
+
+# macOS AppleDouble sidecars (exFAT drive)
+._*
