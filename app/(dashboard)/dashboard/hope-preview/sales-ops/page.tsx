@@ -4,6 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Counsellor = {
   name: string;
@@ -679,7 +680,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                             <div className="text-xs text-gray-500">{m.counsellor || "—"}</div>
                           </div>
                           <div className="text-gray-500 text-right">
-                            {new Date(m.when).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                            {fmtDateTime(m.when)}
                           </div>
                         </div>
                       ))}
@@ -768,7 +769,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                     <td className="py-2.5">{r.name || "—"}</td>
                     <td className="py-2.5">{r.counsellor}</td>
                     <td className="py-2.5 text-gray-500">
-                      {r.lastReEnquiryAt ? new Date(r.lastReEnquiryAt).toLocaleDateString("en-IN") : "—"}
+                      {fmtDateShort(r.lastReEnquiryAt)}
                     </td>
                   </tr>
                 ))}
@@ -831,7 +832,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {data && (
         <div className="text-xs text-gray-400 text-right">
-          Generated {new Date(data.generatedAt).toLocaleString("en-IN")} · {data.latencyMs}ms
+          Generated {fmtDateTime(data.generatedAt)} · {data.latencyMs}ms
         </div>
       )}
 

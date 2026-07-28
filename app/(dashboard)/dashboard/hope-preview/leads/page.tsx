@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 // Social Leads — DM Leads (CRM-sourced) · Meta Ads (Samvaya excluded) · Samvaya.
 // Reads the once-a-day cached snapshot from /api/leads/social. Conversions come from
@@ -38,7 +39,7 @@ type Snap = {
 
 const fmt = (n: number) => (n ?? 0).toLocaleString("en-IN");
 const fmtINR = (n: number) => (n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${Math.round(n || 0).toLocaleString("en-IN")}`);
-const fmtWhen = (s: string) => { if (!s) return "—"; const d = new Date(s); return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }); };
+const fmtWhen = (s: string) => fmtDateShort(s, s || "—");
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "New": { bg: "#E1F0FB", fg: "#0C447C" },
   "Junk lead": { bg: "#FBE4EC", fg: "#C03221" },
@@ -88,7 +89,7 @@ function SocialLeads() {
   }, []);
   useEffect(() => { load(days); }, [load, days]);
 
-  const synced = data?.generatedAt ? new Date(data.generatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+  const synced = fmtDateTime(data?.generatedAt);
 
   return (
     <div className="sl">

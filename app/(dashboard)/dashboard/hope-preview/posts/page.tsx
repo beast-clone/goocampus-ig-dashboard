@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -315,7 +315,7 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
       {/* Meta strip */}
       <div className="p-3 space-y-2">
         <div className="text-xs text-gray-500 uppercase tracking-wide">
-          {format(parseISO(post.timestamp), "d MMM yyyy")}
+          {fmtDateShort(post.timestamp)}
         </div>
         <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
           {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
@@ -395,7 +395,7 @@ function PostDetailModal({ post, insightsLoaded, onClose }: {
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{TYPE_LABEL[post.type] ?? post.type}</span>
-              <span className="text-xs text-gray-500">{format(parseISO(post.timestamp), "d MMM yyyy · h:mm a")}</span>
+              <span className="text-xs text-gray-500">{fmtDateTime(post.timestamp)}</span>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
           </div>
@@ -469,7 +469,7 @@ function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null
           <div className="w-36 h-36 rounded-xl bg-gray-100 shrink-0 flex items-center justify-center text-2xl text-gray-300">{TYPE_LABEL[post.type]?.[0] ?? "?"}</div>
         )}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="text-xs text-gray-500">{TYPE_LABEL[post.type] ?? post.type} · {format(parseISO(post.timestamp), "d MMM")}</div>
+          <div className="text-xs text-gray-500">{TYPE_LABEL[post.type] ?? post.type} · {fmtDateShort(post.timestamp)}</div>
           <div className="text-sm text-gray-900 leading-snug mt-1 line-clamp-3 group-hover:text-brand">
             {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
           </div>

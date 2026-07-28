@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { fmtDateShort } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
@@ -42,7 +43,7 @@ function dur(s: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
 }
 function dateLabel(iso: string): string {
-  try { return format(parseISO(iso), "d MMM yyyy"); } catch { return iso; }
+  return fmtDateShort(iso, iso);
 }
 function daysAgo(iso: string): number {
   try { return Math.floor((Date.now() - parseISO(iso).getTime()) / 86_400_000); } catch { return 0; }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Period = "weekly" | "monthly" | "quarterly";
 
@@ -245,7 +246,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
           {report.meta.label}
         </h1>
         <div className="text-[12.5px] text-gray-500 mt-1">
-          @{report.meta.account} · Generated {new Date(report.meta.generatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+          @{report.meta.account} · Generated {fmtDateTime(report.meta.generatedAt)}
         </div>
       </header>
 
@@ -348,7 +349,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">
-                    {p.type === "REEL" ? "Reel" : p.type === "CAROUSEL_ALBUM" ? "Carousel" : "Static"} · {new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    {p.type === "REEL" ? "Reel" : p.type === "CAROUSEL_ALBUM" ? "Carousel" : "Static"} · {fmtDateShort(p.timestamp)}
                   </div>
                   <div className="text-[13.5px] font-medium text-gray-900 leading-snug mt-0.5 line-clamp-2">{p.title}</div>
                   {p.whyItWorked && <div className="text-[12px] text-gray-600 mt-1 leading-snug italic">Why it worked: {p.whyItWorked}</div>}
@@ -372,7 +373,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
             <div className="grid grid-cols-3 gap-3">
               <MiniFact big={fmtNum(report.followerGrowth.gained)} lbl="New in range" />
               <MiniFact big={String(report.followerGrowth.dailyAvg)} lbl="Avg/day" />
-              <MiniFact big={report.followerGrowth.bestDay ? `+${fmtNum(report.followerGrowth.bestDay.gain)}` : "—"} lbl={report.followerGrowth.bestDay ? `Best (${new Date(report.followerGrowth.bestDay.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })})` : "Best day"} />
+              <MiniFact big={report.followerGrowth.bestDay ? `+${fmtNum(report.followerGrowth.bestDay.gain)}` : "—"} lbl={report.followerGrowth.bestDay ? `Best (${fmtDateShort(report.followerGrowth.bestDay.date)})` : "Best day"} />
             </div>
             <div className="mt-4">
               <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Best vs worst day</div>
@@ -595,7 +596,7 @@ function ReportView({ report, regenerating }: { report: ReportPayload; regenerat
                 <tbody>
                   {report.postMetricsTable.map((p, i) => (
                     <tr key={i} className="border-t border-gray-100">
-                      <td className="px-3 py-2 tabular-nums whitespace-nowrap">{new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</td>
+                      <td className="px-3 py-2 tabular-nums whitespace-nowrap">{fmtDateShort(p.date)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{p.type}</td>
                       <td className="px-3 py-2 max-w-[280px] truncate" title={p.caption}>{p.caption}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.reach)}</td>

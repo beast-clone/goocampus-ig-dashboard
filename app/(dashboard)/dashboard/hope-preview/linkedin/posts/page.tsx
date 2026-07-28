@@ -4,6 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { LI_PAGE } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
 import { IconEye, IconThumbUp, IconMessageCircle, IconFileText, IconPaperclip } from "@tabler/icons-react";
+import { fmtDateShort } from "@/lib/date";
 
 // pdf.js renders LinkedIn document posts (carousel PDFs) exactly as they look
 // on LinkedIn — media.licdn.com serves them public + CORS-open, so the browser
@@ -49,7 +50,7 @@ function fmt(n: number | undefined): string {
   return v.toLocaleString("en-IN");
 }
 function dateLabel(iso: string): string {
-  try { return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); } catch { return iso; }
+  return fmtDateShort(iso, iso);
 }
 
 export default function LinkedInPostsPage() {

@@ -4,6 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
+import { fmtDateShort } from "@/lib/date";
 
 type CompetitorMedia = {
   id: string;
@@ -468,7 +469,7 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 function PostModal({ m, c, onClose }: { m: CompetitorMedia; c: Competitor; onClose: () => void }) {
   const er = c.followers_count > 0 ? ((m.like_count + m.comments_count) / c.followers_count) * 100 : 0;
   const chip = mediaChip(m.media_type);
-  const date = m.timestamp ? new Date(m.timestamp).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "";
+  const date = fmtDateShort(m.timestamp, "");
   // Carousels come back with `children` (each slide); non-carousels are a single "slide".
   const slides = m.children?.data?.length ? m.children.data : [{ id: m.id, media_type: m.media_type, media_url: m.media_url, thumbnail_url: m.thumbnail_url }];
   const [slide, setSlide] = useState(0);

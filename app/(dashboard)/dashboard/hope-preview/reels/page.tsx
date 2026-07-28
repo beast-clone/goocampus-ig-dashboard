@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useApi } from "@/lib/use-api";
-import { format, parseISO } from "date-fns";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -270,7 +270,7 @@ function ReelCard({ reel, isTop, insightsLoaded, onClick }: {
       {/* Meta strip */}
       <div className="p-3 space-y-2">
         <div className="text-[10px] text-gray-500 uppercase tracking-wide">
-          {format(parseISO(reel.timestamp), "d MMM yyyy")}
+          {fmtDateShort(reel.timestamp)}
         </div>
         <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
           {reel.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
@@ -321,7 +321,7 @@ function TopReelCard({ label, reel }: { label: string; reel: ApiPost | null }) {
           <div className="w-14 h-20 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-2xl">🎬</div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-gray-500">Reel · {format(parseISO(reel.timestamp), "d MMM")}</div>
+          <div className="text-xs text-gray-500">Reel · {fmtDateShort(reel.timestamp)}</div>
           <div className="text-xs text-gray-900 leading-snug mt-0.5 line-clamp-3 group-hover:text-brand">
             {reel.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
           </div>
@@ -378,7 +378,7 @@ function ReelDetailModal({ reel, insightsLoaded, onClose }: {
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">Reel</span>
-              <span className="text-xs text-gray-500">{format(parseISO(reel.timestamp), "d MMM yyyy · h:mm a")}</span>
+              <span className="text-xs text-gray-500">{fmtDateTime(reel.timestamp)}</span>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
           </div>

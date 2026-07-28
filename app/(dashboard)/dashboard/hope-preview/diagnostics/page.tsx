@@ -5,6 +5,7 @@ import {
   IconRefresh, IconShieldCheck, IconAlertTriangle, IconTool, IconCpu, IconClock, IconBolt,
   IconDatabase, IconX, IconHistory, IconServer, IconPlugConnected, IconKey, IconTrash,
 } from "@tabler/icons-react";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type SysAction = { type: "reconnect" | "add-key" | "clear-cache"; label: string; provider?: string };
 type SystemResult = { key: string; name: string; category: string; status: "ok" | "warn" | "error"; detail: string; expiresAt: number | null; latencyMs: number | null; repair?: { action: string; result: string; note: string }; action?: SysAction };
@@ -18,7 +19,7 @@ function fromRow(r: any): Report {
   return { ranAt: +new Date(r.ran_at), trigger: r.trigger, summary: r.summary, systems: r.systems || [], repairs: r.repairs || [], host: r.host || {}, durationMs: r.duration_ms };
 }
 const fmtUptime = (s: number) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
-function relTime(ms: number) { const d = Math.round((Date.now() - ms) / 60000); if (d < 1) return "just now"; if (d < 60) return `${d}m ago`; const h = Math.floor(d / 60); if (h < 24) return `${h}h ago`; return new Date(ms).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }); }
+function relTime(ms: number) { const d = Math.round((Date.now() - ms) / 60000); if (d < 1) return "just now"; if (d < 60) return `${d}m ago`; const h = Math.floor(d / 60); if (h < 24) return `${h}h ago`; return fmtDateTime(new Date(ms).toISOString()); }
 
 const PILL: Record<string, string> = {
   ok: "bg-[#1aa053]/10 text-[#1aa053]",
@@ -106,7 +107,7 @@ function DiagnosticsBody() {
             <ul className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
               {history.map((h) => (
                 <li key={h.id}><button onClick={() => openRun(h.id)} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 text-xs">
-                  <span className="text-[#232D42] font-medium w-32">{new Date(h.ran_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="text-[#232D42] font-medium w-32">{fmtDateShort(h.ran_at)}</span>
                   <span className="text-gray-400">{h.trigger === "cron" ? "5 AM auto" : "manual"}</span>
                   <span className="ml-auto flex items-center gap-2">
                     <span className="text-[#1aa053]">{h.summary.healthy} ok</span>

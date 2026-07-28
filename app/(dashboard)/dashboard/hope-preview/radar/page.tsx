@@ -10,6 +10,7 @@ import {
   IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck,
 } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Alert = {
   id: string;
@@ -277,7 +278,7 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
     if (h < 24) return `${h}h ago`;
     const d = Math.round(h / 24);
     if (d < 7) return `${d}d ago`;
-    return new Date(item.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return fmtDateShort(item.publishedAt);
   }, [item.publishedAt]);
 
   const src = item.source || item.alertName || "?";
@@ -402,7 +403,7 @@ function KeywordIntel() {
     if (days <= 0) return "today";
     if (days === 1) return "1d ago";
     if (days < 30) return `${days}d ago`;
-    return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return fmtDateShort(iso);
   };
 
   return (
@@ -1078,7 +1079,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                   )}
                   {a.lastFetchedAt && !a.lastError && (
                     <div className="text-xs text-gray-400 mt-0.5">
-                      Last pulled {new Date(a.lastFetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                      Last pulled {fmtDateTime(a.lastFetchedAt)}
                     </div>
                   )}
                 </div>
@@ -1175,7 +1176,7 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
               <span>·</span>
               <span>{item.source || "unknown"}</span>
               <span>·</span>
-              <span>{new Date(item.publishedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
+              <span>{fmtDateTime(item.publishedAt)}</span>
             </div>
             <h2 className="text-base font-medium text-[#232D42] leading-snug">
               {item.title || articleTitle}

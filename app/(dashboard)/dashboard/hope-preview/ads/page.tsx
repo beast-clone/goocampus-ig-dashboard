@@ -7,6 +7,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
+import { fmtDateShort } from "@/lib/date";
 
 type AdsTotals = {
   spend: number; impressions: number; reach: number; clicks: number;
@@ -36,7 +37,7 @@ type Ad = AdsTotals & {
 function flightLabel(ad: Ad): { text: string; active: boolean } | null {
   if (!ad.start_time && !ad.status) return null;
   const active = ad.status === "ACTIVE";
-  const d = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : null);
+  const d = (iso: string | null) => (iso ? fmtDateShort(iso) : null);
   const start = d(ad.start_time);
   const end = d(ad.end_time);
   const tail = end || (active ? "ongoing" : "paused");
@@ -113,11 +114,7 @@ function fmtNum(n: number) {
 }
 
 function fmtDay(iso: string) {
-  try {
-    return new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-  } catch {
-    return iso;
-  }
+  return fmtDateShort(iso, iso);
 }
 
 export default function AdsPage() {
