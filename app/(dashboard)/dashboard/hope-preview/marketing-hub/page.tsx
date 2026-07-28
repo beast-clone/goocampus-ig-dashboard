@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
@@ -1471,7 +1471,7 @@ const EDIT_SELECT_CLS = "border border-gray-300 rounded px-1.5 py-1 text-xs bg-w
 type MasterDraft = { owner: string; status: string; type: string; sbu: string; priority: string };
 type MasterViewDef = { id: string; label: string; av?: string; color?: string; match?: (r: Row) => boolean; filter?: FilterModel };
 type ViewAccess = "personal" | "collaborative" | "locked";
-type SavedView = { id: string; name: string; section: string; config: { filter?: FilterModel; filters?: Partial<MasterDraft>; sorts?: SortSpec[]; hiddenCols?: string[]; color?: string; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
+type SavedView = { id: string; name: string; section: string; config: { filter?: FilterModel; filters?: Partial<MasterDraft>; sorts?: SortSpec[]; hiddenCols?: string[]; color?: string; group?: string; search?: string; rangeDays?: number }; position: number; access: ViewAccess; description: string | null; created_by: string | null; canEdit: boolean; canManage: boolean };
 const ACCESS_META: Record<ViewAccess, { label: string; hint: string; icon: typeof IconBookmark }> = {
   personal: { label: "Personal view", hint: "Only you can edit the view configuration", icon: IconUser },
   collaborative: { label: "Collaborative view", hint: "Any teammate can edit the view configuration", icon: IconUsers },
@@ -1620,6 +1620,11 @@ const MASTER_COLUMNS: { key: string; label: string }[] = [
 // Fields you can colour rows by (each has a colour map).
 const COLOR_FIELDS: { key: string; label: string }[] = [
   { key: "status", label: "Status" }, { key: "sbu", label: "SBU / interest" }, { key: "priority", label: "Priority" },
+];
+// Fields you can group rows by (Airtable-style collapsible groups).
+const GROUP_FIELDS: { key: string; label: string }[] = [
+  { key: "sbu", label: "SBU / interest" }, { key: "type", label: "Type" }, { key: "status", label: "Status" },
+  { key: "owner", label: "Owner" }, { key: "priority", label: "Priority" }, { key: "publishingDate", label: "Publishing date" },
 ];
 
 // ── Custom columns (Phase 2) — user-defined fields stored in mh_posts.custom ─
@@ -1908,6 +1913,23 @@ function ColorMenu({ colorField, onChange }: { colorField: string; onChange: (f:
   );
 }
 
+// Group rows by a field — Airtable-style collapsible groups.
+function GroupMenu({ groupField, onChange }: { groupField: string; onChange: (f: string) => void }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 w-[210px]">
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Group rows by</div>
+      <button onClick={() => onChange("")} className="w-full flex items-center gap-2 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50 text-left text-gray-700">
+        None{groupField === "" && <IconCheck size={13} className="text-brand ml-auto" />}
+      </button>
+      {GROUP_FIELDS.map((f) => (
+        <button key={f.key} onClick={() => onChange(f.key)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[14px] rounded hover:bg-gray-50 text-left text-gray-700">
+          {f.label}{groupField === f.key && <IconCheck size={13} className="text-brand ml-auto" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Define a new custom column (name + type + options).
 function AddColumnModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [label, setLabel] = useState("");
@@ -1977,7 +1999,8 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const [sorts, setSorts] = useState<SortSpec[]>([]);
   const [hiddenCols, setHiddenCols] = useState<string[]>([]);
   const [colorField, setColorField] = useState<string>("");
-  const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color">(null);
+  const [groupField, setGroupField] = useState<string>("");
+  const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color" | "group">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const [addColOpen, setAddColOpen] = useState(false);
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
@@ -2014,21 +2037,21 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, activeId, draft, search, sorts, fields]);
   const visibleCols = columns.filter((c) => !hiddenCols.includes(c.key)).map((c) => c.key);
-  const currentConfig = { filter: draft, sorts, hiddenCols, color: colorField, rangeDays: activeDays };
+  const currentConfig = { filter: draft, sorts, hiddenCols, color: colorField, group: groupField, rangeDays: activeDays };
 
   const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER, fields)).length;
   const countCustom = (c: SavedView) => allRows.filter((r) => evalFilter(r, c.config.filter || legacyToFilter(c.config.filters), fields)).length;
 
-  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); };
+  const selectDef = (v: MasterViewDef) => { setActiveId(v.id); setDraft(v.filter || EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); setGroupField(""); };
   const selectCustom = (c: SavedView) => {
     setActiveId(c.id);
     setDraft(c.config.filter || legacyToFilter(c.config.filters));
-    setSorts(c.config.sorts || []); setHiddenCols(c.config.hiddenCols || []); setColorField(c.config.color || "");
+    setSorts(c.config.sorts || []); setHiddenCols(c.config.hiddenCols || []); setColorField(c.config.color || ""); setGroupField(c.config.group || "");
     if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
   };
   const setFilter = (f: FilterModel) => { setDraft(f); setActiveId("draft"); };
   const hasFilter = draft.conditions.length > 0;
-  const dirty = hasFilter || sorts.length > 0 || hiddenCols.length > 0 || !!colorField;
+  const dirty = hasFilter || sorts.length > 0 || hiddenCols.length > 0 || !!colorField || !!groupField;
 
   // "New view" / "Save as view" open the branded builder modal (no native prompt).
   const newView = () => setNewViewOpen(true);
@@ -2036,7 +2059,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
-    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); }
+    if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); setGroupField(""); }
     await refreshViews();
   };
   const deleteColumn = async (id: string, label: string) => {
@@ -2175,6 +2198,9 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
           <ToolButton icon={IconPalette} active={!!colorField} label={colorField ? `Colour · ${COLOR_FIELDS.find((f) => f.key === colorField)?.label || colorField}` : "Colour"} open={openTool === "color"} onToggle={() => setOpenTool(openTool === "color" ? null : "color")}>
             <ColorMenu colorField={colorField} onChange={setColorField} />
           </ToolButton>
+          <ToolButton icon={IconLayoutList} active={!!groupField} label={groupField ? `Grouped · ${GROUP_FIELDS.find((f) => f.key === groupField)?.label || groupField}` : "Group"} open={openTool === "group"} onToggle={() => setOpenTool(openTool === "group" ? null : "group")}>
+            <GroupMenu groupField={groupField} onChange={setGroupField} />
+          </ToolButton>
           {dirty && <button onClick={() => selectDef(allView)} className="text-[12px] text-gray-500 hover:text-gray-800 px-1">Clear</button>}
           <button onClick={saveView} disabled={!dirty}
             className="ml-auto flex items-center gap-1.5 text-[12px] font-medium text-brand disabled:text-gray-300 disabled:cursor-not-allowed">
@@ -2183,7 +2209,7 @@ function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading 
         </div>
 
         <div className="rounded-b-xl overflow-hidden">
-          <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} customCols={customCols} />
+          <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} groupField={groupField} customCols={customCols} />
         </div>
       </div>
 
@@ -2290,7 +2316,9 @@ function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
   );
 }
 
-function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, customCols }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; customCols?: CustomColumn[] }) {
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, groupField, customCols }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; groupField?: string; customCols?: CustomColumn[] }) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleGroup = (k: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const allSbus = facets?.sbu || [];
   const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
   const priorityOptions = facets?.priority || ["Urgent", "High", "Medium", "Low"];
@@ -2342,6 +2370,48 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     }
   };
 
+  const rowEl = (r: Row) => {
+    const cc = colorOf(r);
+    return (
+      <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" style={cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
+        {cols.map((c) => <td key={c.key} className="px-4 py-2.5">{cell(c.key, r)}</td>)}
+      </tr>
+    );
+  };
+
+  // Group rows (Airtable-style). Each group has a value key, a display label, and
+  // an optional colour swatch when the field carries one.
+  const groupOf = (r: Row): { key: string; label: string; color?: string } => {
+    switch (groupField) {
+      case "sbu": return { key: r.sbu || "", label: r.sbu || "No interest", color: r.sbu ? sbuColor(r.sbu, allSbus) : undefined };
+      case "type": return { key: r.type || "", label: r.type || "No type" };
+      case "status": return { key: r.status || "", label: r.status || "No status", color: r.status ? statusColor(r.status) : undefined };
+      case "owner": return { key: r.owner || "", label: r.owner || "Unassigned" };
+      case "priority": return { key: r.priority || "", label: r.priority || "No priority", color: r.priority ? priorityColor(r.priority) : undefined };
+      case "publishingDate": { const d = (r.publishingDate || "").slice(0, 10); return { key: d, label: d ? fmtDate(d) : "No date" }; }
+      default: return { key: "", label: "" };
+    }
+  };
+  const groups = useMemo(() => {
+    if (!groupField) return [] as { key: string; label: string; color?: string; rows: Row[] }[];
+    const gs: { key: string; label: string; color?: string; rows: Row[] }[] = [];
+    const idx = new Map<string, number>();
+    for (const r of rows) {
+      const g = groupOf(r);
+      let i = idx.get(g.key);
+      if (i === undefined) { i = gs.length; idx.set(g.key, i); gs.push({ ...g, rows: [] }); }
+      gs[i].rows.push(r);
+    }
+    // Order groups sensibly: status / priority / interest by their reference order,
+    // dates chronologically; the empty ("No …") group always sinks to the bottom.
+    const ref = groupField === "status" ? statusOptions : groupField === "priority" ? priorityOptions : groupField === "sbu" ? allSbus : null;
+    if (groupField === "publishingDate") gs.sort((a, b) => (a.key === "" ? 1 : b.key === "" ? -1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    else if (ref) gs.sort((a, b) => { const ai = a.key === "" ? 1e6 : (ref.indexOf(a.key) + 1 || 1e5); const bi = b.key === "" ? 1e6 : (ref.indexOf(b.key) + 1 || 1e5); return ai - bi; });
+    else gs.sort((a, b) => (a.key === "" ? 1 : 0) - (b.key === "" ? 1 : 0));
+    return gs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, groupField]);
+
   const table = (
     <div className="overflow-x-auto">
       <table className="w-full text-sm whitespace-nowrap">
@@ -2354,14 +2424,26 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
           {rows.length === 0 && (
             <tr><td colSpan={cols.length} className="px-4 py-10 text-center text-gray-400">{loading ? "Loading…" : "No entries match"}</td></tr>
           )}
-          {rows.map((r) => {
-            const cc = colorOf(r);
-            return (
-              <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" style={cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
-                {cols.map((c) => <td key={c.key} className="px-4 py-2.5">{cell(c.key, r)}</td>)}
-              </tr>
-            );
-          })}
+          {groupField
+            ? groups.map((g) => {
+                const isCol = collapsed.has(g.key);
+                return (
+                  <Fragment key={g.key || "∅"}>
+                    <tr className="bg-gray-50 border-y border-gray-100 cursor-pointer select-none hover:bg-gray-100/70" onClick={() => toggleGroup(g.key)}>
+                      <td colSpan={cols.length} className="px-4 py-2">
+                        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[#232D42]">
+                          <IconChevronDown size={15} className={`text-gray-400 transition-transform ${isCol ? "-rotate-90" : ""}`} />
+                          {g.color && <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: g.color }} />}
+                          {g.label}
+                          <span className="text-gray-400 font-normal">· {g.rows.length}</span>
+                        </span>
+                      </td>
+                    </tr>
+                    {!isCol && g.rows.map((r) => rowEl(r))}
+                  </Fragment>
+                );
+              })
+            : rows.map((r) => rowEl(r))}
         </tbody>
       </table>
     </div>
