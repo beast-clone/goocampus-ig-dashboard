@@ -1,5 +1,6 @@
 "use client";
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
@@ -73,13 +74,9 @@ function fmtInt(n: number): string {
 }
 
 // Friendly date: "2026-07-06" → "6 Jul 2026" (the format the team uses).
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtDate(iso: string | null | undefined): string {
-  const d = (iso || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return "—";
-  const [y, m, day] = d.split("-");
-  return `${parseInt(day, 10)} ${MONTHS_SHORT[parseInt(m, 10) - 1]} ${y}`;
-}
+// Friendly dates come from the shared helper (lib/date) so the whole dashboard
+// reads the same: fmtDate = "Tuesday, 28 July 2026" (prominent), fmtDateShort =
+// "Tue, 28 Jul 2026" (table cells), fmtDateTime = date + time (timestamps).
 
 type Role = "writer" | "designer" | "editor" | "manager";
 type TeamMember = { key: string; label: string; role: Role; aliases: string[]; color: string; displayRole: string; av: string };
@@ -778,7 +775,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
               )}
               {stageRows.map((r) => (
                 <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                  <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(r.publishingDate)}</td>
+                  <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{fmtDateShort(r.publishingDate)}</td>
                   <td className="px-4 py-2.5">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />
@@ -934,7 +931,7 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
         <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap hidden sm:inline">{r.sbu || "—"}</span>
         {r.status && <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>}
         {daysOver != null && <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap bg-rose-100 text-rose-700">{daysOver}d overdue</span>}
-        <span className="text-xs text-gray-400 flex-shrink-0 w-24 text-right">{opts?.done ? "done · " : ""}{fmtDate(dateShown)}</span>
+        <span className="text-xs text-gray-400 flex-shrink-0 w-24 text-right">{opts?.done ? "done · " : ""}{fmtDateShort(dateShown)}</span>
       </div>
     );
   };
@@ -2341,7 +2338,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
   const customCell = (cc: CustomColumn, r: Row) => {
     const v = r.custom?.[cc.key];
     if (cc.type === "checkbox") return <button onClick={(e) => { e.stopPropagation(); saveCustom(r.id, cc.key, !v); }} className={`w-4 h-4 rounded border flex items-center justify-center ${v ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{v ? <IconCheck size={11} stroke={3} /> : null}</button>;
-    return <EditableCell display={v != null && v !== "" ? <span className="text-gray-700">{cc.type === "date" ? fmtDate(String(v)) : String(v)}</span> : <span className="text-gray-300">—</span>} editControl={(done) => (
+    return <EditableCell display={v != null && v !== "" ? <span className="text-gray-700">{cc.type === "date" ? fmtDateShort(String(v)) : String(v)}</span> : <span className="text-gray-300">—</span>} editControl={(done) => (
       cc.type === "select" ? <select autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }}><option value="">—</option>{cc.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
       : cc.type === "date" ? <input type="date" autoFocus defaultValue={String(v ?? "").slice(0, 10)} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
       : <input type={cc.type === "number" ? "number" : "text"} autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
@@ -2360,8 +2357,8 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>{statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
       case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">Unassigned</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
       case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
-      case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDate(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { publishing_date: e.target.value || null }); done(); }} />)} />;
-      case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDate(r.dueDate) : "—"}</span>;
+      case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { publishing_date: e.target.value || null }); done(); }} />)} />;
+      case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDateShort(r.dueDate) : "—"}</span>;
       case "platforms": return <PlatformIcons platforms={r.platforms} />;
       case "attachments": return r.attachments.length ? <span className="inline-flex items-center gap-0.5 text-gray-400"><IconPaperclip size={13} />{r.attachments.length}</span> : <span className="text-gray-300">—</span>;
       case "caption": return <span className="text-gray-500 block max-w-[220px] truncate">{r.caption || "—"}</span>;
@@ -2473,7 +2470,7 @@ type TaskDetail = {
   me?: string | null;
 };
 const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
-const fmtWhen = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const fmtWhen = (iso?: string | null) => fmtDateTime(iso, "");
 // How long a task took (start → end), e.g. "2h 15m" or "3d 4h".
 function durationBetween(start?: string | null, end?: string | null): string {
   if (!start || !end) return "";

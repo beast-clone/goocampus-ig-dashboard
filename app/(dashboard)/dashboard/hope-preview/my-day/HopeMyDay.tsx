@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
+import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
@@ -217,7 +218,7 @@ const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
 const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
-const fmtDT = (iso?: string) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
+const fmtDT = (iso?: string) => fmtDateTime(iso, "—");
 function durBetween(a?: string, b?: string): string {
   if (!a || !b) return "—";
   let ms = new Date(b).getTime() - new Date(a).getTime();
@@ -1001,7 +1002,7 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   function create() {
     if (!canSubmit) return;
     const due = publishDate; // the writer's chosen publishing date (no +3 assumption)
-    const publishes = new Date(publishDate + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    const publishes = new Date(publishDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     // Content-first: the task starts with the writer (Manya) in the content phase.
     // It auto-hands off to the producer (Praveen / claim pool) only once she moves
     // it to "Content - Approved" — handled in setTaskStatus.
@@ -1485,7 +1486,7 @@ export function HopeMyDay() {
       const d = new Date();
       setClock({
         time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-        date: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" }),
+        date: d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
         greet: greetingFor(d.getHours()),
       });
     };
