@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
-  IconClipboardCheck,
+  IconClipboardCheck, IconLayoutGrid, IconTable,
 } from "@tabler/icons-react";
 
 // "Content Review" — the human gate between production and scheduling. A post lands
@@ -51,6 +51,7 @@ function Review() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null); // post id being sent back with notes
   const [feedbackText, setFeedbackText] = useState("");
+  const [view, setView] = useState<"cards" | "table">("cards");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +113,21 @@ function Review() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Cards / Table view toggle */}
+          <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
+            <button
+              onClick={() => setView("cards")}
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-md transition ${view === "cards" ? "bg-brand text-white" : "text-[#4A5468] hover:text-brand"}`}
+            >
+              <IconLayoutGrid size={15} stroke={1.8} /> Cards
+            </button>
+            <button
+              onClick={() => setView("table")}
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-md transition ${view === "table" ? "bg-brand text-white" : "text-[#4A5468] hover:text-brand"}`}
+            >
+              <IconTable size={15} stroke={1.8} /> Table
+            </button>
+          </div>
           <span className="text-sm font-medium text-brand bg-white rounded-full px-3 py-1">
             {posts.length} in queue
           </span>
@@ -141,6 +157,72 @@ function Review() {
           <div className="text-sm text-[#8A92A6] mt-1">
             Posts appear here the moment they&apos;re marked <b>Output&nbsp;-&nbsp;Ready</b>.
           </div>
+        </div>
+      ) : view === "table" ? (
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
+            <thead className="bg-gray-50 border-b border-gray-100 text-[#8A92A6] text-left">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Type</th>
+                <th className="px-4 py-2.5 font-medium">Post</th>
+                <th className="px-4 py-2.5 font-medium">Interest</th>
+                <th className="px-4 py-2.5 font-medium">Creative</th>
+                <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.map((p) => {
+                const tc = typeChip(p.type);
+                const busy = busyId === p.id;
+                return (
+                  <Fragment key={p.id}>
+                    <tr className="border-b border-gray-50 hover:bg-gray-50/60">
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0 relative">
+                            <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+                          </span>
+                          <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {p.sbu ? <span className="inline-flex text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">{p.sbu}</span> : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {p.hasCreative ? <span className="text-emerald-700 text-xs font-medium">✓ Attached</span> : <span className="text-amber-700 text-xs bg-amber-50 rounded-md px-2 py-0.5">No creative</span>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2 justify-end">
+                          <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
+                            <IconCalendarPlus size={14} stroke={1.9} /> Push to Schedule
+                          </button>
+                          <button disabled={busy} onClick={() => { setFeedbackFor(feedbackFor === p.id ? null : p.id); setFeedbackText(""); }} className="flex items-center gap-1.5 text-xs font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40">
+                            <IconArrowBackUp size={14} stroke={1.9} /> Send back
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {feedbackFor === p.id && (
+                      <tr className="bg-rose-50/40 border-b border-gray-50">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <input autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                            <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40 whitespace-nowrap">
+                              <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
+                            </button>
+                            <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
