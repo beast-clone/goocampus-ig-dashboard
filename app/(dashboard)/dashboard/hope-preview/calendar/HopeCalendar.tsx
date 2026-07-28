@@ -38,6 +38,7 @@ function svgCreative(title: string, tag: string, w: number, h: number, grad: [st
 function demoMedia(type: string, seed: string): string[] {
   const gi = Math.abs([...seed].reduce((a, c) => a + c.charCodeAt(0), 0));
   const grad = DEMO_GRADS[gi % DEMO_GRADS.length];
+  if (/story/i.test(type)) return [svgCreative(seed, "Story", 720, 1280, grad)];
   if (/reel/i.test(type)) return [svgCreative(seed, "Reel", 720, 1280, grad)];
   if (/carousel/i.test(type)) return Array.from({ length: 4 }, (_, i) => svgCreative(seed, `Slide ${i + 1} / 4`, 1080, 1080, DEMO_GRADS[(gi + i) % DEMO_GRADS.length]));
   return [svgCreative(seed, "Post", 1080, 1080, grad)];
@@ -53,6 +54,24 @@ export const STATUS_STYLE: Record<EffectiveStatus, { bg: string; text: string; d
   draft:      { bg: "#F1F3F8", text: "#5B6472", dot: "#9AA3B2", label: "Draft" },
   unknown:    { bg: "#F1F3F8", text: "#6B7280", dot: "#C3C9D4", label: "Unknown" },
 };
+
+// Content-format lanes for the "By format" view. Every post is bucketed by its
+// type into one of these; the order here is also the display order top→bottom.
+export const LANE_ORDER = ["story", "post", "reel", "carousel"] as const;
+export type LaneKey = (typeof LANE_ORDER)[number];
+export const LANE_META: Record<LaneKey, { label: string; color: string; soft: string }> = {
+  story:    { label: "Stories",   color: "#E11D48", soft: "#FCE8EC" },
+  post:     { label: "Posts",     color: "#3A57E8", soft: "#E9ECFB" },
+  reel:     { label: "Reels",     color: "#6E48F8", soft: "#EDE9FE" },
+  carousel: { label: "Carousels", color: "#0EA5E9", soft: "#E4F4FD" },
+};
+export function laneKeyFor(type: string): LaneKey {
+  const t = type || "";
+  if (/story/i.test(t)) return "story";
+  if (/reel/i.test(t)) return "reel";
+  if (/carousel/i.test(t)) return "carousel";
+  return "post";
+}
 
 export type AccountKey = "main" | "world" | "india" | "other";
 export const ACCOUNT_STYLE: Record<AccountKey, { name: string; handle: string; color: string; soft: string }> = {
@@ -123,6 +142,15 @@ export function makeSamplePosts(): ScheduledPost[] {
     p("amc-check", "AMC exam-week checklist", "GooCampus Main", "Australia-PGCP", "Post", 28, 9, 0),
     p("amc-reflect", "Post-exam reflection template", "GooCampus Main", "Australia-PGCP", "Post", 30, 18, 0),
     p("pgcp-close", "PGCP intake — final call", "GooCampus World", "Australia-PGCP", "Reel", 31, 20, 0),
+    // Stories (24-hour format) — seeded so the "By format" view has a Stories lane.
+    p("st-poll", "NEET PG — quick poll story", "GooCampus Main", "NEET PG", "Story", 3, 11, 0, "published"),
+    p("st-countdown", "AMC intake — 3 days left", "GooCampus Main", "Australia-PGCP", "Story", 6, 9, 30, "published"),
+    p("st-bts", "Behind the scenes — mentor call", "GooCampus World", "Study Abroad", "Story", 9, 17, 0),
+    p("st-quiz", "Ireland RCSI — swipe-up quiz", "GooCampus World", "Study Abroad", "Story", 12, 13, 0),
+    p("st-testi", "Student testimonial teaser", "12Plus / GC India", "Mentorship Platform", "Story", 16, 18, 30),
+    p("st-reminder", "Webinar tonight — reminder", "GooCampus Main", "Mentorship Platform", "Story", 20, 15, 0),
+    p("st-draft", "Result-day story — draft", "GooCampus Main", "NEET PG", "Story", 23, 10, 0, "draft"),
+    p("st-repost", "Repost: topper shoutout", "GooCampus World", "ALS", "Story", 27, 12, 0),
   ];
 }
 
@@ -140,7 +168,8 @@ export function timeShort(ts: string): string {
   return m ? `${h}:${String(m).padStart(2, "0")}${ap}` : `${h}${ap}`;
 }
 
-type View = "month" | "week" | "day" | "list";
+type View = "month" | "week" | "day" | "list" | "format";
+const VIEW_LABEL: Record<View, string> = { month: "Month", week: "Week", day: "Day", list: "List", format: "By format" };
 
 export function HopeCalendar() {
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
@@ -212,6 +241,25 @@ export function HopeCalendar() {
     return days;
   }, [anchor, postsByDate]);
 
+  // "By format" lanes for the current month. Always include the sample posts so the
+  // Stories lane is populated even when there are no real story posts in Airtable yet.
+  const formatLanes = useMemo(() => {
+    const y = anchor.getFullYear(), m = anchor.getMonth();
+    const buckets: Record<LaneKey, ScheduledPost[]> = { story: [], post: [], reel: [], carousel: [] };
+    const source = showDemo ? allPosts : [...posts, ...samplePosts];
+    for (const p of source) {
+      const ts = p.publishedAt || p.scheduleTime;
+      if (!ts) continue;
+      const d = new Date(ts);
+      if (d.getFullYear() !== y || d.getMonth() !== m) continue;
+      buckets[laneKeyFor(p.type)].push(p);
+    }
+    for (const k of LANE_ORDER) {
+      buckets[k].sort((a, b) => new Date(a.scheduleTime || a.publishedAt || 0).getTime() - new Date(b.scheduleTime || b.publishedAt || 0).getTime());
+    }
+    return buckets;
+  }, [anchor, showDemo, allPosts, posts, samplePosts]);
+
   const shift = (dir: number) => setAnchor((cur) => {
     const d = new Date(cur);
     if (view === "week") d.setDate(d.getDate() + dir * 7);
@@ -267,9 +315,9 @@ export function HopeCalendar() {
           </div>
           <div className="hcal-title">{title}</div>
           <div className="hcal-views">
-            {(["month", "week", "day", "list"] as View[]).map((v) => (
+            {(["month", "week", "day", "list", "format"] as View[]).map((v) => (
               <button key={v} className={`hcal-viewbtn ${view === v ? "on" : ""}`} onClick={() => setView(v)}>
-                {v[0].toUpperCase() + v.slice(1)}
+                {VIEW_LABEL[v]}
               </button>
             ))}
           </div>
@@ -364,6 +412,48 @@ export function HopeCalendar() {
                   </div>
                 </div>
               ))}
+          </div>
+        )}
+
+        {view === "format" && (
+          <div className="hcal-fmt">
+            {LANE_ORDER.map((k) => {
+              const meta = LANE_META[k];
+              const items = formatLanes[k];
+              return (
+                <div key={k} className="hcal-lane">
+                  <div className="hcal-lanehead">
+                    <span className="hcal-lanedot" style={{ background: meta.color }} />
+                    <span className="hcal-lanename">{meta.label}</span>
+                    <span className="hcal-lanecount" style={{ background: meta.soft, color: meta.color }}>{items.length}</span>
+                  </div>
+                  {items.length === 0 ? (
+                    <div className="hcal-laneempty">Nothing scheduled this month.</div>
+                  ) : (
+                    <div className="hcal-laneitems">
+                      {items.map((p) => {
+                        const ts = p.publishedAt || p.scheduleTime;
+                        const acct = ACCOUNT_STYLE[accountKeyFor(p.publishToPage)];
+                        const st = STATUS_STYLE[p.effectiveStatus];
+                        const d = ts ? new Date(ts) : null;
+                        return (
+                          <button key={p.id} className="hcal-frow" onClick={() => setSelected(p)}>
+                            <span className="hcal-fwhen">
+                              <span className="hcal-fday">{d ? `${DAY_LABELS[d.getDay()]} ${d.getDate()} ${MONTH_ABBR[d.getMonth()]}` : "—"}</span>
+                              <span className="hcal-ftime">{ts ? timeShort(ts) : ""}</span>
+                            </span>
+                            <span className="hcal-abar" style={{ background: acct.color }} />
+                            <span className="hcal-atitle">{p.particulars || "(no title)"}</span>
+                            <span className="hcal-apill" style={{ background: acct.soft, color: acct.color }}>{acct.handle}</span>
+                            <span className="hcal-astatus" style={{ background: st.bg, color: st.text }}>{st.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -619,6 +709,22 @@ const HCAL_CSS = `
 .hcal-apill{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px}
 .hcal-astatus{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px}
 @media(max-width:640px){.hcal-apill,.hcal-astatus{display:none}}
+/* by-format lanes */
+.hcal-fmt{border-top:1px solid var(--line);padding:.7rem 1.1rem 1.1rem;display:flex;flex-direction:column;gap:.9rem}
+.hcal-lane{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.hcal-lanehead{display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.hcal-lanedot{width:9px;height:9px;border-radius:3px;flex:0 0 9px}
+.hcal-lanename{font-size:.84rem;font-weight:700;color:var(--ink)}
+.hcal-lanecount{font-size:.66rem;font-weight:700;padding:.05rem .5rem;border-radius:20px;min-width:20px;text-align:center}
+.hcal-laneitems{display:flex;flex-direction:column;padding:.2rem .55rem}
+.hcal-laneempty{padding:.7rem .9rem;font-size:.76rem;color:var(--faint)}
+.hcal-frow{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:none;border:none;padding:.45rem .45rem;border-radius:8px;border-bottom:1px solid var(--line-2)}
+.hcal-laneitems .hcal-frow:last-child{border-bottom:none}
+.hcal-frow:hover{background:var(--panel-2)}
+.hcal-fwhen{display:flex;flex-direction:column;flex:0 0 88px}
+.hcal-fday{font-size:.68rem;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.hcal-ftime{font-size:.62rem;color:var(--muted)}
+@media(max-width:640px){.hcal-fwhen{flex:0 0 70px}}
 /* modal */
 .hcal-modal-bg{position:fixed;inset:0;z-index:60;background:rgba(15,18,35,.42);display:flex;align-items:center;justify-content:center;padding:1rem}
 .hcal-modal{background:var(--panel);border-radius:16px;box-shadow:0 24px 60px rgba(15,18,40,.28);width:100%;max-width:520px;max-height:86vh;overflow-y:auto}
