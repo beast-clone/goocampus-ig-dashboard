@@ -1744,6 +1744,8 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   const safeIdx = Math.min(idx, Math.max(0, slides.length - 1));
   const cur = slides[safeIdx] || null;
   const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+  // Standard IG dimensions for the creative: reel/story = 9:16 (1080×1920), else 4:5 (1080×1350).
+  const portrait = /reel|story/i.test(p.type || "");
   const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
   const when = fmtDateTime(new Date(item.whenMs).toISOString());
   const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
@@ -1759,7 +1761,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   };
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <div className="text-base font-medium text-[#232D42]">{title}</div>
@@ -1768,12 +1770,16 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
         <div className="grid md:grid-cols-2 min-h-0 overflow-auto">
-          <div className="bg-gray-900 flex items-center justify-center p-4 min-h-[320px] relative">
+          <div className="bg-gray-900 relative">
             {cur
-              ? (isVideo(cur)
-                  ? <video key={cur} src={cur} controls playsInline className="max-w-full max-h-[78vh] rounded-lg" />
-                  : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="max-w-full max-h-[78vh] object-contain rounded-lg" />)
-              : <div className="text-gray-500 text-6xl">🖼️</div>}
+              ? (
+                <div className={`w-full ${portrait ? "aspect-[9/16]" : "aspect-[4/5]"} relative`}>
+                  {isVideo(cur)
+                    ? <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover" />
+                    : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover" />}
+                </div>
+              )
+              : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-500 text-6xl">🖼️</div>}
             {slides.length > 1 && (
               <>
                 <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)}
