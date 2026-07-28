@@ -8,7 +8,7 @@ import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect"
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns } from "@tabler/icons-react";
+import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
 
 type Row = {
   id: string;
@@ -657,7 +657,8 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
       const inStage = active.filter((r) => r.status === s.key);
       const avg = inStage.length ? Math.round(inStage.reduce((a, r) => a + ageDays(r), 0) / inStage.length) : 0;
       const stale = inStage.filter((r) => ageDays(r) >= 7).length;
-      return { ...s, count: inStage.length, avg, stale };
+      const oldestAge = inStage.length ? Math.max(...inStage.map(ageDays)) : 0;
+      return { ...s, count: inStage.length, avg, stale, oldestAge };
     });
     const oldest = [...active]
       .map((r) => ({ r, age: ageDays(r) }))
@@ -669,6 +670,7 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
   const [selected, setSelected] = useState<string>(PIPELINE_STAGES[0].key);
   const stage = PIPELINE_STAGES.find((s) => s.key === selected) || PIPELINE_STAGES[0];
   const stageRows = rows.filter((r) => r.status === selected);
+  const stageMeta = new Map(attention.perStage.map((s) => [s.key, s]));
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-xl p-10 text-center text-[#8A92A6]">Loading pipeline…</div>;
@@ -676,63 +678,52 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
 
   return (
     <div className="space-y-6">
-      {/* Team-wide totals */}
-      <div className="grid grid-cols-5 gap-4">
-        {/* Accents on the Hope UI muted palette — brand for the hero stat, then
-            tones that echo the pipeline stages below (amber Approved, slate Pending,
-            green done) so the whole tab is one cohesive colour system. */}
-        <BigStat label="Publishing today" value={totals.publishingToday} accent="#3A57E8" />
-        <BigStat label="Approved" value={totals.inProgress} accent="#D9A05B" />
-        <BigStat label="Overdue" value={totals.overdue} accent="#CB5F73" alarm />
-        <BigStat label="Awaiting approval" value={totals.awaitingApproval} accent="#94A3B8" />
-        <BigStat label="Completed this week" value={totals.completedThisWeek} accent="#5FB196" />
+      {/* Needs attention — only the time-based alerts the stage flow below doesn't
+          already show (the old row duplicated the stage counts). */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className="text-sm text-[#8A92A6] mr-1">Needs attention</span>
+        <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full ${totals.overdue > 0 ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-400"}`}>
+          <IconAlertTriangle size={14} stroke={1.9} />{fmtInt(totals.overdue)} overdue
+        </span>
+        <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full ${totals.publishingToday > 0 ? "bg-brand-light text-[#2138B0]" : "bg-gray-100 text-gray-400"}`}>
+          <IconCalendarEvent size={14} stroke={1.9} />{fmtInt(totals.publishingToday)} publishing today
+        </span>
+        <button onClick={() => setSelected("Content - Pending")} className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition ${totals.awaitingApproval > 0 ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "bg-gray-100 text-gray-400 cursor-default"}`}>
+          {fmtInt(totals.awaitingApproval)} need approval <IconArrowRight size={14} stroke={1.9} />
+        </button>
       </div>
 
       {/* Stage cards — one card per pipeline stage; click to drill in. */}
       <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
-        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Where everything sits right now — click a stage to see its tasks.</div>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-          {pipeline.map((s) => {
+        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Content flows left → right. Click a stage to see its tasks.</div>
+        <div className="flex items-stretch gap-1.5">
+          {pipeline.map((s, i) => {
             const isSel = s.key === selected;
-            const pct = total ? Math.round((s.count / total) * 100) : 0;
+            const meta = stageMeta.get(s.key);
             return (
-              <button
-                key={s.key}
-                onClick={() => setSelected(s.key)}
-                className={`text-left rounded-xl border p-4 flex flex-col gap-2 transition-colors ${isSel ? "border-gray-300 bg-gray-50" : "border-gray-100 hover:bg-gray-50/60"}`}
-              >
-                <span className="text-xs text-gray-500 truncate">{s.label}</span>
-                <span className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-medium text-gray-900 leading-none">{fmtInt(s.count)}</span>
-                  <span className="text-xs text-gray-400">{pct}%</span>
-                </span>
-                <span className="h-1 rounded mt-1" style={{ background: s.color }} />
-              </button>
+              <Fragment key={s.key}>
+                {i > 0 && <IconChevronRight size={16} className="text-gray-300 self-center flex-shrink-0" />}
+                <button
+                  onClick={() => setSelected(s.key)}
+                  className={`flex-1 min-w-0 rounded-lg border p-3 text-center transition ${isSel ? "border-brand bg-brand-light/40" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"}`}
+                >
+                  <div className={`text-2xl font-medium leading-none ${s.count === 0 ? "text-gray-300" : "text-gray-900"}`}>{fmtInt(s.count)}</div>
+                  <div className="text-[11px] text-gray-600 mt-1.5 leading-tight">{s.label}</div>
+                  {meta
+                    ? (s.count > 0
+                        ? <div className={`text-[11px] mt-1.5 ${meta.oldestAge >= 7 ? "text-rose-600 font-medium" : "text-amber-600"}`}>oldest {meta.oldestAge}d</div>
+                        : <div className="text-[11px] text-gray-300 mt-1.5">empty</div>)
+                    : <div className="text-[11px] text-gray-300 mt-1.5">{s.count > 0 ? "done" : "—"}</div>}
+                </button>
+              </Fragment>
             );
           })}
         </div>
       </Panel>
 
       {/* Bottleneck insight — where in-production work is sitting untouched */}
-      <Panel icon={IconHistory} title="Where it's stuck">
-        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">How long in-production work has sat untouched — chase the oldest first.</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          {attention.perStage.map((s) => (
-            <div key={s.key} className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
-                {s.label}
-              </div>
-              <div className="mt-2 flex items-center gap-3 flex-wrap">
-                <div><span className="text-2xl font-medium">{s.avg}</span><span className="text-xs text-gray-400 ml-1">avg days</span></div>
-                {s.stale > 0
-                  ? <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">{s.stale} stale · &gt;7d</span>
-                  : s.count > 0 ? <span className="text-xs text-gray-400">{s.count} moving</span> : <span className="text-xs text-gray-300">empty</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Oldest waiting</div>
+      <Panel icon={IconHistory} title="Needs chasing — oldest first">
+        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">In-production work that has sat the longest. Click one to open it.</div>
         {attention.oldest.length === 0 ? (
           <div className="text-sm text-gray-400 py-2">Nothing in production right now. Team is clear.</div>
         ) : (
@@ -792,18 +783,6 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
           </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-function BigStat({ label, value, accent, alarm }: { label: string; value: number; accent: string; alarm?: boolean }) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-5">
-      <div className="text-xs uppercase tracking-wide text-[#8A92A6]">{label}</div>
-      <div className="text-3xl font-medium mt-2" style={alarm && value > 0 ? { color: accent } : { color: "#232D42" }}>
-        {fmtInt(value)}
-      </div>
-      <div className="h-1 rounded mt-3" style={{ background: accent + (value > 0 ? "" : "44") }} />
     </div>
   );
 }
