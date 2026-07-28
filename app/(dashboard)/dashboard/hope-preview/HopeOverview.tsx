@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { fmtDateShort } from "@/lib/date";
 import {
   IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
@@ -631,7 +632,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
                   <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                 </div>
                 <div style={{ padding: "11px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{fmtDateShort(p.timestamp)}</div>
                   <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.35, height: 50, overflow: "hidden", marginBottom: 8 }}>{title}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11.5, color: C.muted, fontVariantNumeric: "tabular-nums", marginBottom: 10 }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(p.reach || 0)}</span>

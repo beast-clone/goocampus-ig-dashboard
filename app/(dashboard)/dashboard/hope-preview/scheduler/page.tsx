@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
@@ -659,7 +660,7 @@ function Scheduler() {
                                     if (!scheduleDate || !scheduleTime) return null;
                                     const dt = new Date(`${scheduleDate}T${scheduleTime}`);
                                     if (Number.isNaN(dt.getTime())) return null;
-                                    const label = dt.toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+                                    const label = fmtDateTime(dt.toISOString());
                                     return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">📅 Goes out <span className="font-medium">{label}</span></div>;
                                   })()}
                                   {timeSuggestions.length > 0 && (
@@ -810,7 +811,7 @@ function Scheduler() {
                     </div>
                     <div className="px-2 py-1.5 flex items-center justify-between text-xs text-gray-500">
                       <span className="truncate">{handle}</span>
-                      <span className="flex-shrink-0 ml-1">{new Date(p.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                      <span className="flex-shrink-0 ml-1">{fmtDateShort(p.timestamp)}</span>
                     </div>
                   </button>
                 );
@@ -1272,7 +1273,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
   const fmt = (iso: string | null) => {
     if (!iso) return "—";
     const d = new Date(iso);
-    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+    return fmtDateTime(d.toISOString());
   };
   const pill: Record<string, string> = {
     scheduled: "bg-brand-light text-brand",
@@ -1474,7 +1475,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
     post.effectiveStatus.charAt(0).toUpperCase() + post.effectiveStatus.slice(1);
 
   const when = post.publishedAt || post.scheduleTime;
-  const whenLabel = when ? new Date(when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+  const whenLabel = when ? fmtDateTime(when) : "—";
 
   const typeIcon = post.type?.toLowerCase().includes("reel") ? "🎬" :
     post.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄";
@@ -1744,7 +1745,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   const cur = slides[safeIdx] || null;
   const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
   const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
-  const when = new Date(item.whenMs).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  const when = fmtDateTime(new Date(item.whenMs).toISOString());
   const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
   const status: string = isPub ? "published" : (p.effectiveStatus || "scheduled");
   const igUrl: string | null = isPub ? (p.permalink || null) : (p.instagramUrl || null);
@@ -2035,7 +2036,7 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
     "bg-gray-50 text-gray-600 border-gray-200";
 
   const when = post.publishedAt || post.scheduleTime;
-  const whenLabel = when ? new Date(when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+  const whenLabel = when ? fmtDateTime(when) : "—";
 
   return (
     <div className="px-5 py-3 flex items-center gap-4">
@@ -2496,7 +2497,7 @@ function HopeDatePicker({ value, onChange }: { value: string; onChange: (v: stri
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(view.y, view.m, d));
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const label = selected ? selected.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Pick a date";
+  const label = selected ? selected.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "Pick a date";
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)}

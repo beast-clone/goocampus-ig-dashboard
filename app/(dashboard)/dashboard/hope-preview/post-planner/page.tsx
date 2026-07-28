@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
@@ -340,7 +341,7 @@ export function Planner() {
                   <span className="w-5 h-5 rounded-full text-xs flex items-center justify-center" style={{ background: ownerColor(guard.card.owner).bg, color: ownerColor(guard.card.owner).fg }}>{(guard.card.owner || "?")[0].toUpperCase()}</span>
                   <b className="text-gray-900">{guard.card.owner || "someone"}</b>
                 </span>{" "}
-                is on this — status <b className="text-gray-900">{guard.card.status}</b>. Moving it to <b className="text-gray-900">{new Date(guard.targetISO).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</b> will notify them in their table.
+                is on this — status <b className="text-gray-900">{guard.card.status}</b>. Moving it to <b className="text-gray-900">{fmtDate(guard.targetISO)}</b> will notify them in their table.
               </div>
               <div className="flex items-center justify-end gap-2 mt-5">
                 <button onClick={() => setGuard(null)} className="text-xs font-medium px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">Pick another</button>
@@ -364,7 +365,7 @@ export function Planner() {
             </div>
             <div className="px-5 py-4">
               <div className="text-[13px] text-gray-600 leading-relaxed">
-                <b className="text-gray-900">{new Date(limitWarn.targetISO).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</b> already has <b className="text-gray-900">{limitWarn.existing}</b> post{limitWarn.existing === 1 ? "" : "s"} scheduled — its daily limit of {LIMIT_PER_DAY}. Adding this makes it {limitWarn.existing + 1}.
+                <b className="text-gray-900">{fmtDate(limitWarn.targetISO)}</b> already has <b className="text-gray-900">{limitWarn.existing}</b> post{limitWarn.existing === 1 ? "" : "s"} scheduled — its daily limit of {LIMIT_PER_DAY}. Adding this makes it {limitWarn.existing + 1}.
               </div>
               <div className="flex items-center justify-end gap-2 mt-5">
                 <button onClick={() => setLimitWarn(null)} className="text-xs font-medium px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">Pick another day</button>
@@ -412,7 +413,7 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
 
   const chip = typeChip(card.type);
   const oc = ownerColor(card.owner);
-  const when = new Date(card.eff).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const when = fmtDateTime(card.eff);
   const slides = card.mediaUrls || [];
   const cur = slides[Math.min(idx, Math.max(0, slides.length - 1))] || null;
   const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
@@ -455,16 +456,16 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
             {isPlan && (
               <button onClick={() => onAccept(card)} disabled={busy || accepted}
                 className={`w-full text-[13px] font-semibold px-4 py-2.5 rounded-lg transition disabled:opacity-60 ${accepted ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-brand text-white hover:bg-brand-dark"}`}>
-                {accepted ? "✓ Added to the calendar" : `Add to ${new Date(card.eff).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`}
+                {accepted ? "✓ Added to the calendar" : `Add to ${fmtDateShort(card.eff)}`}
               </button>
             )}
             {isPlan && card.origDate && ymd(new Date(card.origDate)) !== ymd(new Date(card.eff)) && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                 <div className="text-xs uppercase tracking-widest text-amber-700 font-semibold mb-1.5">↪ Rescheduled by AI</div>
                 <div className="flex items-center gap-2 text-[13px]">
-                  <span className="line-through text-gray-400">{new Date(card.origDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</span>
+                  <span className="line-through text-gray-400">{fmtDateShort(card.origDate)}</span>
                   <span className="text-amber-600 font-semibold">→</span>
-                  <span className="font-semibold text-amber-800">{new Date(card.eff).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</span>
+                  <span className="font-semibold text-amber-800">{fmtDateShort(card.eff)}</span>
                 </div>
               </div>
             )}

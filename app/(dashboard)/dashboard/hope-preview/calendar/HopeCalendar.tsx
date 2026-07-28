@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-react";
+import { fmtDateTime } from "@/lib/date";
 
 // Hope-themed (Version 2) Publishing Calendar — built to match the Hope UI reference
 // page 1:1 (special-pages/calender.html): blue hero band → "Calendar" title card
@@ -443,9 +444,9 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
   }
 
   const whenLabel = post.publishedAt
-    ? `Published ${new Date(post.publishedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+    ? `Published ${fmtDateTime(post.publishedAt)}`
     : post.scheduleTime
-    ? `Scheduled for ${new Date(post.scheduleTime).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+    ? `Scheduled for ${fmtDateTime(post.scheduleTime)}`
     : "No schedule";
 
   // Reels (portrait) + carousels get a WIDE landscape modal: media in a left
