@@ -344,9 +344,15 @@ function Review() {
         const p = openPost;
         const tc = typeChip(p.type);
         const busy = busyId === p.id;
+        // Standard IG dimensions: reel/story = 9:16 (1080×1920), else 4:5 (1080×1350).
+        // The modal width hugs the (portrait) creative so the media fills it edge-to-edge
+        // with no side gaps, while staying a sensible height.
+        const portrait = /reel|story/i.test(p.type || "");
+        const media = p.mediaUrls || [];
+        const cur = media[slide];
         return (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpenPost(null)}>
-            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl w-full max-h-[92vh] flex flex-col overflow-hidden" style={{ maxWidth: portrait ? 384 : 460 }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -358,40 +364,28 @@ function Review() {
                 <button onClick={() => setOpenPost(null)} className="text-gray-400 hover:text-gray-700 flex-shrink-0"><IconX size={20} /></button>
               </div>
               <div className="overflow-y-auto p-5 flex flex-col gap-4">
-                {(() => {
-                  // Standard IG dimensions: reel/story = 1080×1920 (9:16), everything
-                  // else (carousel/post/poster) = 1080×1350 (4:5). Multi-image carousels
-                  // page front/back; videos play.
-                  const media = p.mediaUrls || [];
-                  const portrait = /reel|story/i.test(p.type || "");
-                  const cur = media[slide];
-                  return (
-                    <div className="rounded-xl overflow-hidden bg-[#0b1020] flex items-center justify-center relative" style={{ height: "min(62vh, 540px)" }}>
-                      <div className={`h-full ${portrait ? "aspect-[9/16]" : "aspect-[4/5]"} relative bg-[#F6F7FB]`}>
-                        {media.length > 0 ? (
-                          isVideoUrl(cur, p.type) ? (
-                            <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover bg-black" />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={cur} alt={p.title || "creative"} className="w-full h-full object-cover" />
-                          )
-                        ) : (
-                          <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
-                        )}
+                <div className={`w-full ${portrait ? "aspect-[9/16]" : "aspect-[4/5]"} relative rounded-xl overflow-hidden bg-[#0b1020]`}>
+                  {media.length > 0 ? (
+                    isVideoUrl(cur, p.type) ? (
+                      <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cur} alt={p.title || "creative"} className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+                  )}
+                  {media.length > 1 && (
+                    <>
+                      <button aria-label="Previous" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s - 1 + media.length) % media.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronLeft size={20} stroke={2} /></button>
+                      <button aria-label="Next" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s + 1) % media.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronRight size={20} stroke={2} /></button>
+                      <div className="absolute top-2 right-2 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">{slide + 1}/{media.length}</div>
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                        {media.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full transition ${i === slide ? "bg-white" : "bg-white/40"}`} />)}
                       </div>
-                      {media.length > 1 && (
-                        <>
-                          <button aria-label="Previous" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s - 1 + media.length) % media.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronLeft size={20} stroke={2} /></button>
-                          <button aria-label="Next" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s + 1) % media.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronRight size={20} stroke={2} /></button>
-                          <div className="absolute top-2 right-2 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">{slide + 1}/{media.length}</div>
-                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                            {media.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full transition ${i === slide ? "bg-white" : "bg-white/40"}`} />)}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
+                    </>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Interest</div><div className="text-sm text-[#232D42]">{p.sbu || "—"}</div></div>
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Owner</div><div className="text-sm text-[#232D42] capitalize">{p.owner || "—"}</div></div>
