@@ -313,8 +313,8 @@ export function HopeOverview() {
               onClick={() => setBrandOpen((o) => !o)}
               style={{ display: "inline-flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${brandOpen ? C.primary : C.line}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", boxShadow: brandOpen ? `0 0 0 3px ${C.primary}22` : "none", transition: "all .15s" }}
             >
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, background: "#F3E9FB" }}>
-                <IconBrandInstagram size={16} stroke={1.9} style={{ color: "#C13584" }} />
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, background: "#E9ECFB" }}>
+                <IconBrandInstagram size={16} stroke={1.9} style={{ color: C.primary }} />
               </span>
               <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
                 <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
@@ -336,8 +336,8 @@ export function HopeOverview() {
                         onMouseEnter={(e) => { if (!on) (e.currentTarget.style.background = C.bg); }}
                         onMouseLeave={(e) => { if (!on) (e.currentTarget.style.background = "transparent"); }}
                       >
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: "#F3E9FB", flexShrink: 0 }}>
-                          <IconBrandInstagram size={17} stroke={1.9} style={{ color: "#C13584" }} />
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: "#E9ECFB", flexShrink: 0 }}>
+                          <IconBrandInstagram size={17} stroke={1.9} style={{ color: C.primary }} />
                         </span>
                         <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{a.label}</span>
