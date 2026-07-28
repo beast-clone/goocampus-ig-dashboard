@@ -731,13 +731,13 @@ function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?:
             {attention.oldest.map(({ r, age }) => {
               const sp = statusPill(r.status);
               return (
-                <button key={r.id} onClick={() => onOpen(r.id)} className="w-full text-left grid grid-cols-[minmax(8rem,24rem)_auto_auto_auto_1fr] items-center gap-x-4 px-2.5 py-2.5 rounded-lg hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                <button key={r.id} onClick={() => onOpen(r.id)} className="w-full text-left grid grid-cols-[minmax(0,2.5fr)_1fr_1.5fr_1.5fr] items-center gap-x-4 px-2.5 py-2.5 rounded-lg hover:bg-gray-50 border-b border-gray-50 last:border-0">
                   <span className="min-w-0 truncate text-sm font-medium text-[#232D42]">{r.particulars || "(untitled)"}</span>
-                  <span className={`text-[11px] font-semibold rounded-md px-2 py-1 tabular-nums whitespace-nowrap ${age >= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>{age}d</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>
-                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{(r.owner || "?").trim().slice(0, 1).toUpperCase()}</span>
-                    {r.owner || "Unassigned"}
+                  <span className={`justify-self-start text-[11px] font-semibold rounded-md px-2 py-1 tabular-nums whitespace-nowrap ${age >= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>{age}d</span>
+                  <span className="justify-self-start text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>
+                  <span className="justify-self-start inline-flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap min-w-0">
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{(r.owner || "?").trim().slice(0, 1).toUpperCase()}</span>
+                    <span className="truncate">{r.owner || "Unassigned"}</span>
                   </span>
                 </button>
               );
