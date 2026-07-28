@@ -19,8 +19,19 @@ type Body = {
   pages?: string[];            // optional cross-post accounts (defaults to [publishToPage])
   caption?: string;
   mediaUrls?: string[];
+  collaborators?: string[];    // Instagram usernames to auto-invite (max 3)
   scheduleTimeISO?: string;    // absent/empty → publish "now" (schedule_time = now)
 };
+
+// Instagram allows up to 3 collaborators; normalise (strip leading @, blanks) and cap.
+function cleanCollaborators(raw?: string[]): string[] | null {
+  if (!raw) return null;
+  const list = raw
+    .map((s) => (s || "").trim().replace(/^@+/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/+$/, ""))
+    .filter(Boolean)
+    .slice(0, 3);
+  return list.length ? list : null;
+}
 
 export async function POST(req: Request) {
   try {
@@ -38,6 +49,7 @@ export async function POST(req: Request) {
       media_urls: media.length ? media : null,
       publish_to: b.publishTo || null,
       publish_to_pages: pages.length ? pages : null,
+      collaborators: cleanCollaborators(b.collaborators),
       schedule_time: scheduleTime,
       publish_status: "scheduled" as const,
     };

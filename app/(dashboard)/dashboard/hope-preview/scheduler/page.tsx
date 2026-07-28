@@ -99,6 +99,11 @@ function Scheduler() {
   // Form state
   const [particulars, setParticulars] = useState("");
   const [publishToPage, setPublishToPage] = useState<PublishToPage>("GooCampus Main");
+  // Cross-post: which brand pages this post goes to. The first entry is the "primary"
+  // that drives the preview / best-time / daily-limit checks; the rest fan it out.
+  const [composePages, setComposePages] = useState<string[]>(["GooCampus Main"]);
+  // Collaborator(s) to auto-invite on Instagram (comma-separated usernames / Page URLs, max 3).
+  const [collab, setCollab] = useState("");
   const [publishTo, setPublishTo] = useState<PublishTo>("Instagram/Facebook");
   const [caption, setCaption] = useState("");
   // Content brief — the topic the post is about. Feeds the AI caption suggester
@@ -113,6 +118,12 @@ function Scheduler() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  // Keep the primary page (drives preview / limits / suggest-time) in sync with the
+  // first checked cross-post page.
+  useEffect(() => {
+    const primary = composePages[0];
+    if (primary && primary !== publishToPage) setPublishToPage(primary as PublishToPage);
+  }, [composePages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -177,7 +188,7 @@ function Scheduler() {
   function scheduleFromTask(t: ToScheduleItem) {
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setPublishToPage(t.defaultPage as PublishToPage);
+    setComposePages([t.defaultPage]);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setShowCreateForm(true);
@@ -189,7 +200,7 @@ function Scheduler() {
     if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; return; }
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setPublishToPage(t.defaultPage as PublishToPage);
+    setComposePages([t.defaultPage]);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setScheduleEnabled(false);
@@ -351,7 +362,7 @@ function Scheduler() {
   async function rescheduleTopPerformer(p: TopPerformer) {
     setSchedulingTaskId(null);
     setMediaLocked(true);
-    if (p.publishToPage) setPublishToPage(p.publishToPage as PublishToPage);
+    if (p.publishToPage) setComposePages([p.publishToPage]);
     setParticulars(`Repost: ${(p.caption || "").slice(0, 60)}`);
     setCaption(p.caption || "");
     setMediaUrls(p.thumbnail ? [p.thumbnail] : [""]);
@@ -430,6 +441,8 @@ function Scheduler() {
           particulars: particulars.trim(),
           publishTo,
           publishToPage,
+          pages: composePages,
+          collaborators: collab.split(",").map((s) => s.trim()).filter(Boolean),
           caption,
           mediaUrls: cleanMediaUrls,
           scheduleTimeISO,
@@ -440,7 +453,7 @@ function Scheduler() {
         setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
         setResult({ ok: true, recordId: d.id });
-        setParticulars(""); setCaption(""); setMediaUrls([""]); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null);
+        setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null);
         loadToSchedule();               // the scheduled task leaves "To schedule"
         setTimeout(loadQueue, 800);
       }
@@ -632,7 +645,11 @@ function Scheduler() {
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
-                                <div className="mt-1"><PageDropdown value={publishToPage} onChange={setPublishToPage} /></div>
+                                <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} /></div>
+                              </div>
+                              <div>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Collaborator</label>
+                                <div className="mt-1"><CollaboratorField value={collab} onChange={setCollab} /></div>
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
@@ -951,8 +968,12 @@ function Scheduler() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
         {/* LEFT — form */}
         <div className="lg:col-span-7 space-y-4">
-          <Card title="Post to">
-            <PageDropdown value={publishToPage} onChange={setPublishToPage} />
+          <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
+            <PageCheckboxes value={composePages} onChange={setComposePages} />
+          </Card>
+
+          <Card title="Collaborator" subtitle="Add a collaborator to your post and they will automatically be invited.">
+            <CollaboratorField value={collab} onChange={setCollab} />
           </Card>
 
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop a file to upload, or paste a URL (Slack / Drive / direct image / video). For carousels add multiple (max 10)."}>
@@ -2452,35 +2473,52 @@ function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 
 const PAGE_DOT: Record<string, string> = {
   "GooCampus Main": "#3A57E8", "GooCampus World": "#0EA5E9", "12Plus / GC India": "#E11D48",
 };
-function PageDropdown({ value, onChange }: { value: PublishToPage; onChange: (v: PublishToPage) => void }) {
-  const [open, setOpen] = useState(false);
-  const current = PAGE_OPTIONS.find((o) => o.value === value) || PAGE_OPTIONS[0];
+
+// Multi-select brand pages — tick one or more to cross-post the same content to
+// several GooCampus accounts at once. The first ticked page is the "primary".
+function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  function toggle(page: string) {
+    onChange(value.includes(page) ? value.filter((p) => p !== page) : [...value, page]);
+  }
   return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 text-left hover:border-gray-300 focus:outline-none focus:border-brand">
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[current.value] || "#94A3B8" }} />
-        <span className="flex-1 truncate text-gray-900">{current.label} <span className="text-gray-400">— {current.subtitle}</span></span>
-        <IconChevronDown size={16} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1 max-h-72 overflow-auto">
-            {PAGE_OPTIONS.map((o) => (
-              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full flex items-center gap-2.5 text-left rounded-lg px-3 py-2 ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
-                <span className="flex-1 min-w-0">
-                  <span className={`block text-sm truncate ${o.value === value ? "font-medium text-gray-900" : "text-gray-700"}`}>{o.label}</span>
-                  <span className="block text-xs text-gray-500 truncate">{o.subtitle}</span>
-                </span>
-                {o.value === value && <IconCheck size={16} stroke={2.5} className="text-brand flex-shrink-0" />}
-              </button>
-            ))}
-          </div>
-        </>
+    <div className="space-y-1.5">
+      {PAGE_OPTIONS.map((o) => {
+        const checked = value.includes(o.value);
+        const isPrimary = value[0] === o.value;
+        return (
+          <label key={o.value}
+            className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition ${checked ? "border-brand/50 bg-brand-light" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+            <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} className="w-4 h-4 accent-[#3A57E8]" />
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm truncate text-gray-900">{o.label}</span>
+              <span className="block text-xs text-gray-500 truncate">{o.subtitle}</span>
+            </span>
+            {checked && value.length > 1 && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-brand flex-shrink-0">{isPrimary ? "Primary" : "Cross-post"}</span>
+            )}
+          </label>
+        );
+      })}
+      {value.length > 1 && (
+        <div className="text-xs text-brand pl-1">Cross-posting to {value.length} pages — one post is created per page.</div>
       )}
+    </div>
+  );
+}
+
+// Instagram collaborator input — auto-invites the tagged account(s) when the post
+// publishes (up to 3, comma-separated usernames or Instagram profile URLs).
+function CollaboratorField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Enter username or Page URL"
+        className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand"
+      />
+      <div className="text-xs text-gray-400 mt-1">They&apos;re automatically invited when the post goes live. Up to 3 — separate with commas.</div>
     </div>
   );
 }
