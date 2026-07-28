@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { IconCalendarEvent, IconWand } from "@tabler/icons-react";
 import { HopeCalendar } from "./HopeCalendar";
-import { Planner } from "../post-planner/page";
+import { Planner } from "../post-planner/PostPlanner";
 
 // Publishing Calendar = two tabs:
 //   • Content calendar — the real, all-sections publishing calendar (HopeCalendar).

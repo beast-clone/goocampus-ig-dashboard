@@ -24,3 +24,6 @@ graphify-out/
 
 # stray env copy (secrets) — never commit
 _env.local
+
+# pdfjs worker copied from node_modules by the prebuild step
+public/pdf.worker.min.mjs

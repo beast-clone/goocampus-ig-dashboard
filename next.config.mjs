@@ -25,5 +25,18 @@ const nextConfig = {
       { protocol: "https", hostname: "*.apify.com" },
     ],
   },
+  webpack: (config) => {
+    // pdfjs-dist references its worker via `new URL("pdf.worker.min.mjs", import.meta.url)`;
+    // webpack emits that worker as a chunk and Terser then fails minifying it
+    // ("import.meta cannot be used outside of module code"). We serve the worker from
+    // /public and set GlobalWorkerOptions.workerSrc ourselves, so disable url-asset
+    // emission for pdfjs modules.
+    config.module.rules.push({ test: /pdfjs-dist[\\/]/, parser: { url: false } });
+    // LIGHT_BUILD=1 → skip minification. Used for local `next start` on low-RAM machines:
+    // it sidesteps the pdfjs-worker Terser crash and makes the build faster + lighter.
+    // Production (Netlify) leaves this unset, so it still minifies normally.
+    if (process.env.LIGHT_BUILD === "1") config.optimization.minimize = false;
+    return config;
+  },
 };
 export default nextConfig;
