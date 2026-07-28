@@ -6,6 +6,7 @@ import {
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
+  IconChevronDown, IconCheck,
 } from "@tabler/icons-react";
 import { HopeSidebar } from "./HopeSidebar";
 import HubNotificationBell from "@/components/HubNotificationBell";
@@ -134,6 +135,7 @@ type RangeKey = "7d" | "30d" | "60d" | "1y" | "custom";
 
 export function HopeOverview() {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
+  const [brandOpen, setBrandOpen] = useState(false);
   const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
@@ -306,19 +308,49 @@ export function HopeOverview() {
       <main style={{ flex: 1, minWidth: 0 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 28px", background: C.card, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 5 }}>
           {/* Brand / account switcher — which page's data the whole Overview shows */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 9, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 12px" }}>
-            <IconBrandInstagram size={17} stroke={1.9} style={{ color: C.primary }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>Brand</span>
-            <select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              style={{ border: "none", background: "transparent", outline: "none", fontSize: 13.5, fontWeight: 600, color: C.heading, cursor: "pointer", paddingRight: 2 }}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setBrandOpen((o) => !o)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${brandOpen ? C.primary : C.line}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", boxShadow: brandOpen ? `0 0 0 3px ${C.primary}22` : "none", transition: "all .15s" }}
             >
-              {SWITCHABLE_ACCOUNTS.map((a) => (
-                <option key={a.id} value={a.id}>{a.label} · {a.handle}</option>
-              ))}
-            </select>
-          </label>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, background: "#F3E9FB" }}>
+                <IconBrandInstagram size={16} stroke={1.9} style={{ color: "#C13584" }} />
+              </span>
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{currentAccount.label}</span>
+              </span>
+              <IconChevronDown size={16} stroke={2} style={{ color: C.muted, transform: brandOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+            </button>
+            {brandOpen && (
+              <>
+                <div onClick={() => setBrandOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 260, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, boxShadow: "0 16px 40px rgba(15,18,40,0.16)", padding: 6, zIndex: 41 }}>
+                  {SWITCHABLE_ACCOUNTS.map((a) => {
+                    const on = a.id === accountId;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => { setAccountId(a.id); setBrandOpen(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 8, border: "none", cursor: "pointer", background: on ? C.bg : "transparent", transition: "background .12s" }}
+                        onMouseEnter={(e) => { if (!on) (e.currentTarget.style.background = C.bg); }}
+                        onMouseLeave={(e) => { if (!on) (e.currentTarget.style.background = "transparent"); }}
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: "#F3E9FB", flexShrink: 0 }}>
+                          <IconBrandInstagram size={17} stroke={1.9} style={{ color: "#C13584" }} />
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{a.label}</span>
+                          <span style={{ fontSize: 12, color: C.muted }}>{a.handle}</span>
+                        </span>
+                        {on && <IconCheck size={17} stroke={2.4} style={{ color: C.primary, flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E9FBEF", color: C.success, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 999 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
