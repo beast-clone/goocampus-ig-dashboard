@@ -106,9 +106,6 @@ function Scheduler() {
   const [collab, setCollab] = useState("");
   const [publishTo, setPublishTo] = useState<PublishTo>("Instagram/Facebook");
   const [caption, setCaption] = useState("");
-  // Content brief — the topic the post is about. Feeds the AI caption suggester
-  // so the model can write ON topic instead of averaging tone from mixed past posts.
-  const [contentBrief, setContentBrief] = useState("");
   // Suggestion state — 3 variants from Perplexity, only fetched on button click.
   type SuggestVariant = { kind: "tone" | "seo" | "punchy"; caption: string; hashtags: string[]; prediction: Prediction | null };
   const [suggestions, setSuggestions] = useState<SuggestVariant[] | null>(null);
@@ -379,7 +376,7 @@ function Scheduler() {
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
-  const canSubmit = particulars.trim().length > 0 && caption.trim().length > 0 && cleanMediaUrls.length > 0 && !submitting;
+  const canSubmit = caption.trim().length > 0 && cleanMediaUrls.length > 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
   // publishing, or already published). Used by the over-posting guard.
@@ -438,7 +435,7 @@ function Scheduler() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskId: schedulingTaskId || undefined,
-          particulars: particulars.trim(),
+          particulars: particulars.trim() || caption.trim().replace(/\s+/g, " ").slice(0, 60),
           publishTo,
           publishToPage,
           pages: composePages,
@@ -980,72 +977,14 @@ function Scheduler() {
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
-          <Card title="Post details">
+          <Card title="Caption">
             <div className="space-y-3">
               <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Internal title (Particulars)</label>
-                <input
-                  value={particulars}
-                  onChange={(e) => setParticulars(e.target.value)}
-                  placeholder="e.g. AMC August intake — reel #3"
-                  className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
-                />
-                <div className="text-xs text-gray-400 mt-1">For your team — not shown on Instagram.</div>
-              </div>
-              {/* Content brief — topic anchor for the AI caption suggester */}
-              <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">📝 What&apos;s this post about? <span className="normal-case text-gray-400 font-normal">(optional — helps AI write better captions)</span></label>
-                <textarea
-                  value={contentBrief}
-                  onChange={(e) => setContentBrief(e.target.value)}
-                  placeholder="e.g. New AMC Part 1 syllabus changes for 2026 IMG candidates, focus on OSCE additions and 3-month study plan"
-                  rows={2}
-                  className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans"
-                />
-                <div className="text-xs text-gray-400 mt-1">Never sent to Instagram — this is just for you and the AI suggester.</div>
-              </div>
-
-              <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
                 </div>
-
-                {/* AI suggest button + variants panel */}
-                <AISuggestBar
-                  brand={publishToPage}
-                  contentBrief={contentBrief}
-                  caption={caption}
-                  suggestions={suggestions}
-                  loading={suggestLoading}
-                  error={suggestError}
-                  onFetch={async () => {
-                    setSuggestError(null);
-                    setSuggestLoading(true);
-                    try {
-                      const r = await fetch("/api/scheduler/suggest-caption", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ publishToPage, contentBrief, currentCaption: caption }),
-                      });
-                      const d = await r.json();
-                      if (!r.ok) { setSuggestError(d.error || `HTTP ${r.status}`); setSuggestions(null); }
-                      else { setSuggestions((d.variants as SuggestVariant[]) || []); }
-                    } catch (e) { setSuggestError((e as Error).message); }
-                    finally { setSuggestLoading(false); }
-                  }}
-                  onUse={(v) => {
-                    // Merge caption + hashtags (only append hashtags not already inline)
-                    const captionText = v.caption;
-                    const inlineTags = new Set((captionText.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.toLowerCase()));
-                    const extras = v.hashtags.filter((h) => !inlineTags.has("#" + h.toLowerCase()));
-                    setCaption(extras.length > 0 ? `${captionText}\n\n${extras.map((h) => "#" + h).join(" ")}` : captionText);
-                    setSuggestions(null);
-                  }}
-                  onDismiss={() => setSuggestions(null)}
-                />
 
                 {/* Existing reach-prediction overlay (as-you-type) */}
                 {caption.trim().length > 0 && (
@@ -2697,7 +2636,7 @@ type PreviewPlatform = "instagram" | "facebook" | "linkedin";
 function SocialPreview({ platform, handle, name, images, caption }: {
   platform: PreviewPlatform; handle: string; name: string; images: string[]; caption: string;
 }) {
-  const shell = "bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden max-w-sm mx-auto";
+  const shell = "bg-white rounded-2xl border border-gray-100 overflow-hidden max-w-sm mx-auto";
   const capNode = caption
     ? <span className="whitespace-pre-wrap">{caption.length > 220 ? caption.slice(0, 220) + "… more" : caption}</span>
     : <span className="text-gray-400 italic">Your caption will appear here</span>;
@@ -2733,10 +2672,10 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <FacebookLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-500">Sponsored · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6]">Sponsored · 🌐</div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
-        <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
+        <div className="px-3 pb-2 text-xs text-[#232D42]">{capNode}</div>
         {media("aspect-[4/5]")}
         <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
           <span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span>
@@ -2749,10 +2688,10 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <LinkedInLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-500">Promoted · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6]">Promoted · 🌐</div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
-        <div className="px-3 pb-2 text-xs text-gray-800">{capNode}</div>
+        <div className="px-3 pb-2 text-xs text-[#232D42]">{capNode}</div>
         {media("aspect-[1.91/1]")}
         <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
           <span>👍 Like</span><span>💬 Comment</span><span>🔁 Repost</span><span>➤ Send</span>
@@ -2765,12 +2704,12 @@ function SocialPreview({ platform, handle, name, images, caption }: {
     <div className={shell}>
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
         <InstagramLogo size={28} />
-        <div className="text-sm font-semibold text-gray-900">{handle}</div>
+        <div className="text-sm font-semibold text-[#232D42]">{handle}</div>
         <div className="ml-auto text-gray-400">⋯</div>
       </div>
       {media("aspect-[4/5]")}
       <div className="flex items-center gap-4 px-3 py-2 text-xl"><span>♡</span><span>💬</span><span>↗</span><span className="ml-auto">🔖</span></div>
-      <div className="px-3 pb-3 text-xs"><span className="font-semibold mr-1.5">{handle}</span><span className="text-gray-800">{capNode}</span></div>
+      <div className="px-3 pb-3 text-xs"><span className="font-semibold mr-1.5 text-[#232D42]">{handle}</span><span className="text-[#232D42]">{capNode}</span></div>
     </div>
   );
 }
