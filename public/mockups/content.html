@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Studio — GooCampus Marketing OS (mockup)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --canvas:#F6F7FB; --line:#EEF0F4; --line2:#E6E9EF;
+    --ok:#10B981; --ok-bg:#ECFDF5; --warn:#F59E0B; --warn-bg:#FFFBEB; --rose:#E11D48;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    background:var(--canvas); color:var(--ink); font-size:13.5px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;min-height:100vh}
+
+  /* ---- Sidebar ---- */
+  .side{width:224px;flex:0 0 224px;background:#fff;border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+  .brand{display:flex;align-items:center;gap:9px;padding:6px 8px 14px}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-dark));display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px}
+  .brand b{font-weight:600}
+  .navlbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px;font-weight:600}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;color:#4B5563;text-decoration:none;font-weight:500;margin-bottom:1px}
+  .nav a .ic{width:16px;height:16px;opacity:.75}
+  .nav a:hover{background:#F7F8FA}
+  .nav a.active{background:var(--brand);color:#fff}
+  .nav a.active .ic{opacity:1}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--brand);margin-left:auto}
+
+  /* ---- Main ---- */
+  .main{flex:1;min-width:0;padding:20px 24px 40px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
+  .head h1{margin:0;font-size:22px;font-weight:600}
+  .head p{margin:3px 0 0;color:var(--muted);font-size:13px}
+  .btn{border:0;border-radius:10px;padding:9px 15px;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .btn.pri{background:var(--brand);color:#fff}
+  .btn.pri:hover{background:var(--brand-dark)}
+  .btn.ghost{background:#fff;border:1px solid var(--line2);color:#4B5563}
+  .spacer{flex:1}
+
+  /* ---- Pipeline stepper ---- */
+  .pipe{display:flex;align-items:center;gap:0;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:18px;overflow:auto}
+  .step{display:flex;align-items:center;gap:9px;padding:2px 6px;white-space:nowrap}
+  .step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-light);color:var(--brand)}
+  .step.done .n{background:var(--ok-bg);color:var(--ok)}
+  .step.now .n{background:var(--brand);color:#fff}
+  .step .t{font-weight:600;font-size:12.5px}
+  .step .s{color:var(--muted);font-size:11px}
+  .step small{display:block}
+  .arrow{flex:1;height:2px;background:linear-gradient(90deg,var(--line2),var(--line2));margin:0 6px;min-width:22px;border-radius:2px}
+
+  /* ---- 3-column workspace ---- */
+  .grid{display:grid;grid-template-columns:300px minmax(0,1fr) 372px;gap:16px;align-items:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .card h3{margin:0 0 2px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card .sub{color:var(--muted);font-size:11.5px;margin:0 0 12px}
+  .sectlbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:16px 0 8px}
+
+  /* Sources */
+  .paste{display:flex;gap:8px;margin-bottom:10px}
+  .input{flex:1;border:1px solid var(--line2);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--ink);background:#fff;font-family:inherit}
+  .input::placeholder{color:#9AA2B1}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+  .chip{font-size:11px;font-weight:600;padding:4px 9px;border-radius:999px;border:1px solid var(--line2);color:#5B647A;background:#fff;cursor:pointer}
+  .chip.on{background:var(--brand-light);border-color:transparent;color:var(--brand)}
+  .srccard{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:11px;margin-top:9px;cursor:pointer}
+  .srccard.sel{border-color:var(--brand);background:#FBFCFF;box-shadow:inset 0 0 0 1px var(--brand)}
+  .fav{width:30px;height:30px;border-radius:8px;flex:0 0 30px;display:grid;place-items:center;font-size:14px;background:var(--brand-light)}
+  .srccard .ti{font-weight:600;font-size:12.5px;line-height:1.3}
+  .srccard .me{color:var(--muted);font-size:11px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#EEF1FF;color:var(--brand)}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;display:inline-flex;gap:4px;align-items:center}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.warn{background:var(--warn-bg);color:#B45309}
+
+  /* Workspace centre */
+  .srcbanner{background:var(--brand-light);border-radius:11px;padding:12px 14px;margin-bottom:14px}
+  .srcbanner .k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);font-weight:700}
+  .srcbanner .ti{font-weight:600;font-size:15px;margin:4px 0 6px}
+  .srcbanner .ex{color:#4B5563;font-size:12.5px}
+  .srcbanner .lnk{color:var(--brand);font-weight:600;font-size:12px;text-decoration:none;margin-top:8px;display:inline-block}
+  .check{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .check:last-child{border-bottom:0}
+  .check .box{width:19px;height:19px;border-radius:6px;border:1.5px solid var(--line2);flex:0 0 19px;display:grid;place-items:center}
+  .check.on .box{background:var(--ok);border-color:var(--ok);color:#fff}
+  .check .lab{font-size:12.5px;font-weight:500}
+  .check .hint{color:var(--muted);font-size:11px}
+  .skills{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .skill{border:1px solid var(--line2);border-radius:11px;padding:11px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+  .skill.sel{border-color:var(--brand);background:#FBFCFF;box-shadow:inset 0 0 0 1px var(--brand)}
+  .skill .em{font-size:17px;line-height:1}
+  .skill .nm{font-weight:600;font-size:12.5px}
+  .skill .ds{color:var(--muted);font-size:11px;margin-top:2px}
+  .brief{width:100%;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-size:12.5px;font-family:inherit;resize:vertical;min-height:64px}
+  .genbtn{width:100%;margin-top:12px;justify-content:center;padding:12px}
+
+  /* Output right */
+  .outhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+  .slide{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:9px;background:#fff}
+  .slide .sn{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em}
+  .slide .st{font-weight:700;font-size:14px;margin:5px 0 4px;color:var(--ink)}
+  .slide .sc{font-size:12px;color:#4B5563}
+  .outactions{display:flex;gap:8px;margin-top:12px}
+  .outactions .btn{flex:1;justify-content:center;font-size:12px;padding:9px}
+  .mini{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+  .note{margin-top:22px;font-size:11.5px;color:var(--muted);background:#fff;border:1px dashed var(--line2);border-radius:12px;padding:12px 14px}
+  .note b{color:var(--ink)}
+  @media (max-width:1180px){.grid{grid-template-columns:1fr}.side{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="brand"><span class="logo">G</span><b>GooCampus</b></div>
+    <div class="navlbl">Content</div>
+    <nav class="nav">
+      <a href="#"><span class="ic">▦</span> Overview</a>
+      <a href="#"><span class="ic">◫</span> Marketing Hub</a>
+      <a href="#"><span class="ic">☀</span> My Day</a>
+      <a class="active" href="#"><span class="ic">✦</span> Content Studio <span class="dot" style="background:#fff"></span></a>
+      <a href="#"><span class="ic">◎</span> Content Radar</a>
+    </nav>
+    <div class="navlbl">Social media</div>
+    <nav class="nav">
+      <a href="#"><span class="ic">▤</span> Publishing Calendar</a>
+      <a href="#"><span class="ic">✎</span> Content Review</a>
+      <a href="#"><span class="ic">◷</span> Scheduler</a>
+    </nav>
+    <div class="navlbl">Analytics</div>
+    <nav class="nav">
+      <a href="#"><span class="ic">▣</span> Instagram</a>
+      <a href="#"><span class="ic">in</span> LinkedIn</a>
+      <a href="#"><span class="ic">▶</span> YouTube</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="head">
+      <div>
+        <h1>Content Studio</h1>
+        <p>Turn a verified source into a ready-to-publish asset — carousel, reel script, caption, poster.</p>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn ghost">⌕ Search sources</button>
+      <button class="btn pri">+ New from source</button>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="pipe">
+      <div class="step done"><span class="n">✓</span><span class="t">Source<small class="s">link captured</small></span></div>
+      <div class="arrow"></div>
+      <div class="step now"><span class="n">2</span><span class="t">Proof-check<small class="s">verify facts</small></span></div>
+      <div class="arrow"></div>
+      <div class="step"><span class="n">3</span><span class="t">Pick skill<small class="s">carousel · script…</small></span></div>
+      <div class="arrow"></div>
+      <div class="step"><span class="n">4</span><span class="t">Generate<small class="s">Claude runs it</small></span></div>
+      <div class="arrow"></div>
+      <div class="step"><span class="n">5</span><span class="t">To Scheduler<small class="s">publish</small></span></div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="grid">
+
+      <!-- LEFT: Sources -->
+      <section class="card">
+        <h3>◎ Sources</h3>
+        <p class="sub">Paste a link or pull from your Alerts by region.</p>
+        <div class="paste">
+          <input class="input" placeholder="Paste article / Google Alert link…" />
+          <button class="btn pri" style="padding:9px 12px">Add</button>
+        </div>
+        <div class="chips">
+          <span class="chip on">Australia</span>
+          <span class="chip">UAE</span>
+          <span class="chip">Gulf</span>
+          <span class="chip">UK</span>
+          <span class="chip">Canada</span>
+          <span class="chip">+</span>
+        </div>
+
+        <div class="sectlbl">Incoming (6)</div>
+
+        <div class="srccard sel">
+          <div class="fav">🇦🇺</div>
+          <div>
+            <div class="ti">AMC exam pathway update for IMGs — 2026 intake</div>
+            <div class="me"><span class="tag">Australia</span> <span class="badge warn">● checking</span> · abc.net.au · 2h</div>
+          </div>
+        </div>
+        <div class="srccard">
+          <div class="fav">🇦🇪</div>
+          <div>
+            <div class="ti">UAE opens new licensing route for foreign doctors</div>
+            <div class="me"><span class="tag">UAE</span> <span class="badge ok">✓ verified</span> · gulfnews · 5h</div>
+          </div>
+        </div>
+        <div class="srccard">
+          <div class="fav">🇬🇧</div>
+          <div>
+            <div class="ti">PLAB 2 slots released for Q3 — booking now open</div>
+            <div class="me"><span class="tag">UK</span> <span class="badge ok">✓ verified</span> · gmc · 1d</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER: Workspace -->
+      <section class="card">
+        <div class="srcbanner">
+          <div class="k">Selected source</div>
+          <div class="ti">AMC exam pathway update for IMGs — 2026 intake</div>
+          <div class="ex">The Australian Medical Council confirmed changes to the standard pathway, adding OSCE stations and revised eligibility windows for international medical graduates applying in 2026…</div>
+          <a class="lnk" href="#">↗ Open original (abc.net.au)</a>
+        </div>
+
+        <div class="sectlbl">① Proof-check</div>
+        <div class="check on"><span class="box">✓</span><span><span class="lab">Source is credible</span> <span class="hint">— official / reputable outlet</span></span></div>
+        <div class="check on"><span class="box">✓</span><span><span class="lab">Facts cross-checked</span> <span class="hint">— matches AMC official site</span></span></div>
+        <div class="check"><span class="box"></span><span><span class="lab">Date is current</span> <span class="hint">— not an old re-share</span></span></div>
+        <div class="check"><span class="box"></span><span><span class="lab">No copyright / image reuse issue</span></span></div>
+        <div style="margin-top:12px"><button class="btn ghost" style="font-size:12px">Mark source verified ✓</button></div>
+
+        <div class="sectlbl">② Create with a skill</div>
+        <div class="skills">
+          <div class="skill sel"><span class="em">🎠</span><div><div class="nm">Carousel post</div><div class="ds">6–8 slide IG carousel</div></div></div>
+          <div class="skill"><span class="em">🎬</span><div><div class="nm">Reel script</div><div class="ds">speaking / text-based</div></div></div>
+          <div class="skill"><span class="em">✍️</span><div><div class="nm">Caption</div><div class="ds">IG + FB versions</div></div></div>
+          <div class="skill"><span class="em">🖼️</span><div><div class="nm">Poster</div><div class="ds">standee / WhatsApp</div></div></div>
+          <div class="skill"><span class="em">in</span><div><div class="nm">LinkedIn article</div><div class="ds">long-form post</div></div></div>
+          <div class="skill"><span class="em">📰</span><div><div class="nm">Press release</div><div class="ds">announcement</div></div></div>
+        </div>
+
+        <div class="sectlbl">③ Extra brief <span style="text-transform:none;font-weight:500;color:var(--muted)">(optional)</span></div>
+        <textarea class="brief" placeholder="e.g. Angle it for NEET-PG students planning Australia. Keep it hopeful, add a CTA to book a counselling call."></textarea>
+
+        <button class="btn pri genbtn">✦ Generate with Claude · Carousel post</button>
+      </section>
+
+      <!-- RIGHT: Output -->
+      <section class="card">
+        <div class="outhead"><h3 style="margin:0">✦ Output</h3><span class="pill">Generated</span><div class="spacer"></div><span style="color:var(--muted);font-size:11px">Carousel · 6 slides</span></div>
+
+        <div class="slide"><div class="sn">SLIDE 1 · HOOK</div><div class="st">Big AMC change for 2026 🇦🇺</div><div class="sc">If Australia is your plan, this update changes your timeline.</div></div>
+        <div class="slide"><div class="sn">SLIDE 2</div><div class="st">What actually changed</div><div class="sc">New OSCE stations + revised eligibility windows for IMGs.</div></div>
+        <div class="slide"><div class="sn">SLIDE 3</div><div class="st">Who it affects</div><div class="sc">2026 applicants on the standard pathway — plan 3 months earlier.</div></div>
+        <div class="slide" style="opacity:.55"><div class="sn">SLIDE 4 · 5 · 6</div><div class="st">…steps, timeline, CTA</div><div class="sc">Tap to expand the full deck</div></div>
+
+        <div class="outactions">
+          <button class="btn ghost">↻ Regenerate</button>
+          <button class="btn ghost">✎ Edit</button>
+        </div>
+        <div class="outactions">
+          <button class="btn pri" style="flex:1">→ Send to Scheduler</button>
+        </div>
+        <div class="mini">Also saves to Content Calendar as “Output-Ready”.</div>
+      </section>
+    </div>
+
+    <div class="note"><b>Mockup — structure only.</b> This lays out your flow: <b>find a source → proof-check → pick a skill → Claude generates → send to Scheduler</b>. Nothing here is wired up yet. Tell me what to move, add, or cut and I'll adjust before building.</div>
+  </main>
+</div>
+</body>
+</html>
