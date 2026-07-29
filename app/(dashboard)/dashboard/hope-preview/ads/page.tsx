@@ -298,26 +298,77 @@ function AdBreakdowns({ range, showLeads }: { range: { from: string; to: string 
   );
 }
 
+// Distinct categorical palette for donut slices (brand-anchored).
+const BD_COLORS = ["#3A57E8", "#6E48F8", "#0EA5E9", "#12B886", "#F59E0B", "#E8590C", "#E11D48", "#9AA3B8"];
+
 function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows: BreakdownRow[]; showLeads: boolean; pretty: (k: string) => string }) {
-  const max = rows[0]?.spend || 1;
+  // Donut of spend share. Focus (hover on desktop, tap on touch) highlights a slice
+  // and the centre shows that row's %, spend and cost-per-lead. 0-spend rows are dropped.
+  const [focus, setFocus] = useState<number | null>(null);
+  const slices = rows.slice(0, 8).filter((r) => r.spend > 0);
+  const total = slices.reduce((s, r) => s + r.spend, 0) || 1;
+  const R = 48, SW = 12, C = 2 * Math.PI * R;   // thin ring → big centre hole for the numbers
+  const cpl = (r: BreakdownRow) => (r.leads > 0 ? Math.round(r.spend / r.leads) : null);
+  const col = (i: number) => BD_COLORS[i % BD_COLORS.length];
+  let acc = 0;
+  const arcs = slices.map((r, i) => { const frac = r.spend / total; const a = { r, i, dash: frac * C, offset: -acc * C }; acc += frac; return a; });
+  const foc = focus != null && focus < slices.length ? slices[focus] : null;
+  const toggle = (i: number) => setFocus((f) => (f === i ? null : i));
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="text-sm font-medium mb-3">{title}</div>
-      <div className="space-y-2.5">
-        {rows.slice(0, 8).map((r) => (
-          <div key={r.key}>
-            <div className="flex items-center justify-between gap-2 text-[12px] mb-1">
-              <span className="font-medium text-gray-700 truncate">{pretty(r.key)}</span>
-              <span className="text-gray-500 tabular-nums whitespace-nowrap flex-shrink-0">
-                {fmtINR(r.spend)}{showLeads && r.leads > 0 ? ` · ${fmtNum(r.leads)} leads` : ""}
-              </span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-brand rounded-full" style={{ width: `${(r.spend / max) * 100}%` }} />
+      {slices.length === 0 ? (
+        <div className="text-[12px] text-gray-400 py-6 text-center">No spend to break down.</div>
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          {/* Big donut — the focused slice's label, %, spend & CPL all sit INSIDE the ring */}
+          <div className="relative" style={{ width: 208, height: 208 }}>
+            <svg width="208" height="208" viewBox="0 0 120 120">
+              {arcs.map((a) => (
+                <circle key={a.i} cx="60" cy="60" r={R} fill="none"
+                  stroke={col(a.i)} strokeWidth={focus === a.i ? SW + 3 : SW}
+                  strokeDasharray={`${a.dash.toFixed(2)} ${(C - a.dash).toFixed(2)}`}
+                  strokeDashoffset={a.offset.toFixed(2)} transform="rotate(-90 60 60)"
+                  style={{ opacity: focus == null || focus === a.i ? 1 : 0.3, transition: "opacity .12s, stroke-width .12s", cursor: "pointer" }}
+                  onMouseEnter={() => setFocus(a.i)} onMouseLeave={() => setFocus(null)} onClick={() => toggle(a.i)} />
+              ))}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none" style={{ padding: "0 46px" }}>
+              {foc ? (
+                <>
+                  <div className="text-[11px] font-semibold leading-tight truncate max-w-full" style={{ color: col(focus!) }}>{pretty(foc.key)}</div>
+                  <div className="text-[30px] font-semibold tabular-nums leading-none mt-1 text-[#232D42]">{((foc.spend / total) * 100).toFixed(1)}<span className="text-[16px]">%</span></div>
+                  <div className="text-[11px] text-gray-500 tabular-nums mt-1 leading-tight">{fmtINR(foc.spend)}</div>
+                  {showLeads && (foc.leads > 0
+                    ? <div className="text-[11px] text-gray-500 tabular-nums leading-tight">{fmtNum(foc.leads)} leads · {fmtINR(cpl(foc)!)}/lead</div>
+                    : <div className="text-[11px] text-gray-400 leading-tight">no leads</div>)}
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Total spend</div>
+                  <div className="text-[24px] font-semibold tabular-nums leading-none mt-1 text-[#232D42]">{fmtINR(total)}</div>
+                  <div className="text-[11px] text-gray-400 mt-1">{slices.length} {slices.length === 1 ? "item" : "items"} · hover a slice</div>
+                </>
+              )}
             </div>
           </div>
-        ))}
-      </div>
+          {/* Legend below the donut */}
+          <div className="w-full grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {slices.map((r, i) => {
+              const on = focus === i;
+              return (
+                <div key={r.key} onMouseEnter={() => setFocus(i)} onMouseLeave={() => setFocus(null)} onClick={() => toggle(i)}
+                  className={`flex items-center gap-2 px-1.5 py-1 rounded-lg cursor-pointer transition-colors ${on ? "bg-gray-50" : "hover:bg-gray-50"}`}>
+                  <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: col(i), outline: on ? `2px solid ${col(i)}33` : "none" }} />
+                  <span className="flex-1 min-w-0 truncate text-[12px] font-medium text-gray-700">{pretty(r.key)}</span>
+                  <span className="text-[12px] font-semibold tabular-nums text-[#232D42]">{((r.spend / total) * 100).toFixed(1)}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
