@@ -463,18 +463,34 @@ function PersonTimelineRow({ card }: {
 
   type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
   const blocks: Blk[] = [];
+  const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
   let cur = (member.label === "Nandu" ? 60 : 0), lunchDone = false, overflow = 0;   // Nandu = 10–7 late shift
+  const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
+  // Lunch is FIXED at 1–2 PM (office standard) — never floats to wherever tasks end.
+  // A task running into it splits around it; an early/empty day gets a Free gap before
+  // it so lunch still sits on the 1 PM tick. Blocks carry absolute start+dur and are
+  // rendered by left/width % (flex layout drifts as label widths vary).
   for (const q of queue) {
-    if (!lunchDone && cur >= LUNCH_AT_MIN) { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: cur }); cur += LUNCH_MIN; lunchDone = true; }
-    if (cur >= SPAN_MIN - (lunchDone ? 0 : LUNCH_MIN)) { overflow++; continue; }
-    const d = taskDurMin(q.r.type);
-    blocks.push({ kind: "task", label: q.r.particulars || q.r.type || "Task", dur: d, row: q.r, start: cur });
-    cur += d;
+    if (cur >= SPAN_MIN) { overflow++; continue; }
+    let remaining = taskDurMin(q.r.type);
+    const label = q.r.particulars || q.r.type || "Task";
+    if (!lunchDone && cur >= LUNCH_AT_MIN && cur < LUNCH_END) pushLunch();
+    if (!lunchDone && cur < LUNCH_AT_MIN) {
+      const before = Math.min(remaining, LUNCH_AT_MIN - cur);
+      if (before > 0) { blocks.push({ kind: "task", label, dur: before, row: q.r, start: cur }); cur += before; remaining -= before; }
+      if (remaining > 0) pushLunch();
+    }
+    if (remaining > 0) { blocks.push({ kind: "task", label, dur: remaining, row: q.r, start: cur }); cur += remaining; }
   }
-  if (!lunchDone) { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: cur }); cur += LUNCH_MIN; }
-  const free = Math.max(0, SPAN_MIN - cur);
-  if (free > 0) blocks.push({ kind: "free", label: "Free", dur: free, start: cur });
-  const taskBlocks = blocks.filter((b) => b.kind === "task");
+  if (!lunchDone) {
+    if (cur < LUNCH_AT_MIN) { blocks.push({ kind: "free", label: "Free", dur: LUNCH_AT_MIN - cur, start: cur }); cur = LUNCH_AT_MIN; }
+    pushLunch();
+  }
+  if (cur < SPAN_MIN) blocks.push({ kind: "free", label: "Free", dur: SPAN_MIN - cur, start: cur });
+  // A task split around lunch produces two blocks — list it once (full duration).
+  const seenT = new Set<string>();
+  const taskBlocks = blocks.filter((b) => b.kind === "task" && b.row != null && !seenT.has(b.row.id) && (seenT.add(b.row.id), true));
+  const free = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
@@ -510,23 +526,24 @@ function PersonTimelineRow({ card }: {
       <div className="flex font-mono text-[11px] text-gray-400 mb-1.5 select-none px-px">
         {HOUR_TICKS.map((h, i) => <div key={i} className="flex-1 text-left">{h}</div>)}
       </div>
-      <div className="relative flex h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+      <div className="relative h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
         {blocks.map((b, i) => {
+          const pos = { position: "absolute" as const, top: 0, bottom: 0, left: `${(b.start / SPAN_MIN) * 100}%`, width: `${(b.dur / SPAN_MIN) * 100}%` };
           if (b.kind === "lunch") return (
-            <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-500 border-r border-white/50 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_6px,#DFE3EE_6px,#DFE3EE_12px)]">
+            <div key={i} style={pos} className="min-w-0 flex flex-col justify-center px-3 text-gray-500 border-r border-white/50 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_6px,#DFE3EE_6px,#DFE3EE_12px)]">
               <span className="text-[14px] font-semibold leading-tight truncate">Lunch</span>
               <span className="text-[11px] opacity-90 mt-0.5 truncate">1h · protected</span>
             </div>
           );
           if (b.kind === "free") return (
-            <div key={i} style={{ flexGrow: b.dur }} className="min-w-0 flex flex-col justify-center px-3 text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_6px,#E9ECF2_6px,#E9ECF2_12px)]">
+            <div key={i} style={pos} className="min-w-0 flex flex-col justify-center px-3 text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_6px,#E9ECF2_6px,#E9ECF2_12px)]">
               <span className="text-[14px] font-semibold leading-tight truncate">Free</span>
               <span className="text-[11px] opacity-90 mt-0.5 truncate">{fmtDur(b.dur)} open</span>
             </div>
           );
           const isNow = b === currentBlk;
           return (
-            <div key={i} style={{ flexGrow: b.dur, backgroundImage: blockGradient(b.row?.type || "") }}
+            <div key={i} style={{ ...pos, backgroundImage: blockGradient(b.row?.type || "") }}
               className={`min-w-0 flex flex-col justify-center px-3 text-white border-r border-white/20 ${isNow ? "ring-2 ring-inset ring-white/70" : ""}`} title={b.label}>
               <span className="text-[14px] font-semibold leading-tight truncate">{b.label}</span>
               <span className="text-[11px] opacity-85 mt-0.5 truncate">{b.row?.type || "Task"} · {fmtDur(b.dur)}{isNow ? " · now" : ""}</span>
@@ -559,7 +576,7 @@ function PersonTimelineRow({ card }: {
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
                 <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
                 <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.dur)}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(taskDurMin(b.row?.type || ""))}</span>
               </div>
             ))}
           </div>
