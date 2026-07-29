@@ -227,12 +227,34 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
     .order("schedule_time", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw new Error(error.message);
+  const rows = (data as MhQueueRow[] | null) || [];
 
-  return (data as MhQueueRow[] | null || []).map((r) => {
+  // Creatives may live in mh_attachments (uploaded via the detail modal), not only the
+  // media_urls column — join them so calendar cards show the REAL creative instead of
+  // falling back to a blank/placeholder. kind != 'reference' (those are input briefs).
+  const ids = rows.map((r) => r.id);
+  const attByPost = new Map<string, string[]>();
+  if (ids.length) {
+    const { data: atts } = await sb
+      .from("mh_attachments")
+      .select("post_id, storage_path, kind")
+      .in("post_id", ids)
+      .neq("kind", "reference");
+    for (const a of (atts as { post_id: string; storage_path: string | null }[] | null) || []) {
+      if (!a.storage_path) continue;
+      const arr = attByPost.get(a.post_id) || [];
+      arr.push(a.storage_path);
+      attByPost.set(a.post_id, arr);
+    }
+  }
+
+  return rows.map((r) => {
     const pages = r.publish_to_pages || [];
     const fullCaption = r.caption || "";
     const hasUrl = !!(r.instagram_url || r.facebook_url);
     const { effective, failureReason } = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
+    // Prefer the real media_urls; fall back to attachment creatives when that's empty.
+    const media = (r.media_urls && r.media_urls.length) ? r.media_urls : (attByPost.get(r.id) || []);
     return {
       id: r.id,
       particulars: r.particulars || "",
@@ -244,8 +266,8 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       fullCaption,
       igCaption: "",
       fbCaption: "",
-      thumbnailUrl: (r.media_urls && r.media_urls[0]) || null,
-      mediaUrls: r.media_urls || [],
+      thumbnailUrl: media[0] || null,
+      mediaUrls: media,
       scheduleTime: r.schedule_time,
       status: r.publish_status || "",
       effectiveStatus: effective,

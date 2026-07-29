@@ -171,6 +171,43 @@ export function timeShort(ts: string): string {
 type View = "month" | "week" | "day" | "list" | "format";
 const VIEW_LABEL: Record<View, string> = { month: "Month", week: "Week", day: "Day", list: "List", format: "By format" };
 
+// The three connected IG accounts → the calendar page label (drives the account colour).
+const IG_CALENDAR_ACCOUNTS = [
+  { id: "goocampus", page: "GooCampus Main" },
+  { id: "goocampusworld", page: "GooCampus World" },
+  { id: "12thplusdotcom", page: "12Plus / GC India" },
+] as const;
+
+// A post from /api/posts (real published Instagram media).
+type IgPost = { id: string; caption?: string; mediaUrl?: string; mediaUrls?: string[]; permalink?: string; type?: string; timestamp?: string };
+
+// Map a real published IG post → the calendar's ScheduledPost. Status = published, the
+// real creative goes in mediaUrls, and the permalink powers the ▶ / open-on-Instagram.
+function igToScheduled(m: IgPost, page: string): ScheduledPost {
+  const t = (m.type || "").toUpperCase();
+  const type = /REEL/.test(t) ? "Reel" : /CAROUSEL/.test(t) ? "Carousel" : "Post";
+  const media = m.mediaUrls && m.mediaUrls.length ? m.mediaUrls : (m.mediaUrl ? [m.mediaUrl] : []);
+  const caption = m.caption || "";
+  const title = caption.split("\n")[0].slice(0, 60) || `${type} post`;
+  return {
+    id: `ig-${m.id}`,
+    particulars: title,
+    publishToPage: page,
+    primaryInterest: "",
+    type,
+    caption,
+    thumbnailUrl: media[0] || null,
+    scheduleTime: null,
+    status: "Published",
+    effectiveStatus: "published",
+    failureReason: null,
+    instagramUrl: m.permalink || null,
+    facebookUrl: null,
+    publishedAt: m.timestamp || null,
+    mediaUrls: media,
+  };
+}
+
 export function HopeCalendar() {
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,9 +224,26 @@ export function HopeCalendar() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/scheduler/queue")
-      .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: { posts?: ScheduledPost[] }) => { setPosts(d.posts || []); setFetchedAt(Date.now()); })
+    // 1) the scheduled/publish queue (mh_posts) — future & in-flight posts.
+    const queueP = fetch("/api/scheduler/queue")
+      .then((r) => (r.ok ? r.json() : { posts: [] }))
+      .then((d: { posts?: ScheduledPost[] }) => d.posts || [])
+      .catch(() => [] as ScheduledPost[]);
+    // 2) REAL published Instagram posts across the three accounts — actual creatives &
+    //    permalinks, plotted on their published date (replaces the demo "published" fillers).
+    const to = ymd(new Date());
+    const from = ymd(new Date(Date.now() - 150 * 86_400_000));
+    const publishedP = Promise.all(
+      IG_CALENDAR_ACCOUNTS.map(({ id, page }) =>
+        fetch(`/api/posts?accountId=${id}&from=${from}&to=${to}&limit=60`)
+          .then((r) => (r.ok ? r.json() : { posts: [] }))
+          .then((d: { posts?: IgPost[] }) => (d.posts || []).map((m) => igToScheduled(m, page)))
+          .catch(() => [] as ScheduledPost[]),
+      ),
+    ).then((arrs) => arrs.flat());
+
+    Promise.all([queueP, publishedP])
+      .then(([queue, published]) => { setPosts([...queue, ...published]); setFetchedAt(Date.now()); })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
@@ -241,12 +295,12 @@ export function HopeCalendar() {
     return days;
   }, [anchor, postsByDate]);
 
-  // "By format" lanes for the current month. Always include the sample posts so the
-  // Stories lane is populated even when there are no real story posts in Airtable yet.
+  // "By format" lanes for the current month. Respects the Sample-data toggle like every
+  // other view — real scheduled posts by default, samples only when the toggle is on.
   const formatLanes = useMemo(() => {
     const y = anchor.getFullYear(), m = anchor.getMonth();
     const buckets: Record<LaneKey, ScheduledPost[]> = { story: [], post: [], reel: [], carousel: [] };
-    const source = showDemo ? allPosts : [...posts, ...samplePosts];
+    const source = allPosts;
     for (const p of source) {
       const ts = p.publishedAt || p.scheduleTime;
       if (!ts) continue;
