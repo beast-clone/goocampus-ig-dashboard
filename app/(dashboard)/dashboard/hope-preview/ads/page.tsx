@@ -374,7 +374,7 @@ function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = 
             </div>
           </div>
           {/* Legend — below the donut normally, beside it (filling the width) when wide */}
-          <div className={wide ? "grid grid-cols-2 gap-x-5 gap-y-0.5 w-full md:flex-1 md:min-w-0" : "w-full grid grid-cols-2 gap-x-3 gap-y-0.5"}>
+          <div className={wide ? "grid grid-cols-2 md:grid-cols-[minmax(0,220px)_minmax(0,220px)] gap-x-6 gap-y-1 md:justify-start w-full md:flex-1 md:min-w-0" : "w-full grid grid-cols-2 gap-x-3 gap-y-0.5"}>
             {slices.map((r, i) => {
               const on = focus === i;
               return (
