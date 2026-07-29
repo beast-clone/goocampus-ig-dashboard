@@ -351,6 +351,18 @@ const DIAG_EXPLAIN: Record<string, string> = {
   ok: "No problems found — your ads are running in a healthy range.",
 };
 
+// Perplexity returns light markdown (**bold**). Render **…** as real bold and drop any
+// stray asterisks, so figures like **₹144,640** read bold instead of showing literal **.
+function md(text: string) {
+  if (!text) return text;
+  return text.split(/(\*\*[^*]+\*\*)/g).map((p, i) => {
+    const m = /^\*\*([^*]+)\*\*$/.exec(p);
+    return m
+      ? <strong key={i} className="font-semibold text-[#232D42]">{m[1]}</strong>
+      : <span key={i}>{p.replace(/\*\*/g, "")}</span>;
+  });
+}
+
 // Ordered recommendations use numbered badges (professional), not emoji.
 function RecBadge({ n }: { n: number }) {
   return <span className="shrink-0 w-5 h-5 rounded-md bg-brand-light text-brand text-[11px] font-bold flex items-center justify-center mt-px">{n}</span>;
@@ -377,17 +389,17 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
             <button onClick={() => setOpen(true)} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">View full report →</button>
           </div>
 
-          <div className="text-[13px] text-[#232D42] bg-white border border-gray-100 rounded-lg px-3 py-2.5 mb-3">{data.summary.verdict}</div>
+          <div className="text-[13px] text-[#232D42] bg-white border border-gray-100 rounded-lg px-3 py-2.5 mb-3 leading-relaxed">{md(data.summary.verdict)}</div>
 
           <div className="space-y-1.5">
             {data.summary.recommendations.map((r, i) => { const on = openRec === i; return (
               <div key={i} className="bg-white border border-gray-100 rounded-lg overflow-hidden">
                 <button onClick={() => setOpenRec(on ? null : i)} className="w-full flex gap-2.5 items-center text-left px-3 py-2 hover:bg-gray-50/60 transition-colors">
                   <RecBadge n={i + 1} />
-                  <span className="flex-1 text-[12.5px] text-gray-800 font-medium">{r.title}</span>
+                  <span className="flex-1 text-[12.5px] text-gray-800 font-medium">{md(r.title)}</span>
                   <IconChevronDown size={15} className={`text-gray-400 shrink-0 transition-transform ${on ? "rotate-180" : ""}`} />
                 </button>
-                {on && <div className="px-3 pb-3 pl-[38px] text-[12px] text-gray-600 leading-relaxed">{r.detail}</div>}
+                {on && <div className="px-3 pb-3 pl-[38px] text-[12px] text-gray-600 leading-relaxed">{md(r.detail)}</div>}
               </div>
             ); })}
           </div>
@@ -436,10 +448,10 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
           {/* Executive summary */}
           <div className="bg-white border border-gray-100 rounded-xl p-5">
             <div className="text-[11px] font-bold uppercase tracking-wide text-brand-ink mb-3">Executive summary</div>
-            <div className="text-sm text-[#232D42] bg-brand-light border border-brand/15 rounded-lg px-3.5 py-3">{data.summary.verdict}</div>
+            <div className="text-sm text-[#232D42] bg-brand-light border border-brand/15 rounded-lg px-3.5 py-3 leading-relaxed">{md(data.summary.verdict)}</div>
             <div className="mt-3 space-y-1.5">
               {data.summary.recommendations.map((r, i) => (
-                <div key={i} className="flex gap-2.5 items-start text-[13px] bg-[#F6F7FB] border border-gray-100 rounded-lg px-3 py-2"><RecBadge n={i + 1} /><span><b className="text-[#232D42]">{r.title}.</b> <span className="text-gray-600">{r.detail}</span></span></div>
+                <div key={i} className="flex gap-2.5 items-start text-[13px] bg-[#F6F7FB] border border-gray-100 rounded-lg px-3 py-2"><RecBadge n={i + 1} /><span><b className="text-[#232D42]">{md(r.title)}.</b> <span className="text-gray-600">{md(r.detail)}</span></span></div>
               ))}
             </div>
           </div>
