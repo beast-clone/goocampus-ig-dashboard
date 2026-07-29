@@ -21,7 +21,10 @@ import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 
 const REST = "https://api.linkedin.com/rest";
-const LINKEDIN_VERSION = "202506";
+// LinkedIn versions expire ~yearly; an inactive version 426s EVERY call → the whole
+// tab silently drops to demo. Keep this current (env-overridable so it can be bumped
+// without a deploy). 202506 was inactive; 202607 is the newest active for this app.
+const LINKEDIN_VERSION = process.env.LINKEDIN_VERSION || "202607";
 
 function headers(token: string): Record<string, string> {
   return {
@@ -112,10 +115,20 @@ async function fetchCurrentFollowers(token: string, orgUrn: string): Promise<num
   for (const edge of ["COMPANY_FOLLOWED_BY_MEMBER", "CompanyFollowedByMember"]) {
     try {
       const data = await liGet(`/networkSizes/${enc}?edgeType=${edge}`, token);
-      return Number(data.firstDegreeSize || 0);
+      const n = Number(data.firstDegreeSize || 0);
+      if (n > 0) return n;
     } catch { /* try next casing */ }
   }
-  return 0; // unknown — growth chart will anchor at total gains instead
+  // Fallback: networkSizes rejects the param on newer API versions — sum the LIFETIME
+  // follower statistics segments (organic + paid) for the real total instead.
+  try {
+    const data = await liGet(`/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${enc}`, token);
+    const seg = data.elements?.[0]?.followerCountsByAssociationType || [];
+    const total = seg.reduce((s: number, r: any) =>
+      s + (r.followerCounts?.organicFollowerCount || 0) + (r.followerCounts?.paidFollowerCount || 0), 0);
+    if (total > 0) return total;
+  } catch { /* leave at 0 — growth chart anchors on gains */ }
+  return 0;
 }
 
 // Daily follower gains → reconstruct a running total ending at `currentFollowers`.

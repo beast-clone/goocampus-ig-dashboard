@@ -71,7 +71,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   // has one connected); no switcher, no other brand's data reachable.
   const profile = useProfile();
   const profilePage = profile ? LI_PAGE[profile] ?? null : undefined;
-  const [picked, setPage] = useState("goocampus");
+  // Default to GooCampus World — that's the org with live Community-Management API
+  // access (goocampusworld-mentorship). Main GooCampus stays demo until its app is approved.
+  const [picked, setPage] = useState("gcworld");
   const page = profile ? (profilePage ?? "") : picked;
   const qs = new URLSearchParams({ page, from: range.from, to: range.to }).toString();
   const { data, error, isLoading, refresh } = useApi<Resp>(page ? `/api/linkedin?${qs}` : null);
