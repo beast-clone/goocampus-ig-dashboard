@@ -288,11 +288,30 @@ function AdBreakdowns({ range, showLeads }: { range: { from: string; to: string 
   ].filter((c) => (c.rows?.length ?? 0) > 0);
   if (cards.length === 0) return null;
 
+  // Bento: fill the last row instead of leaving an empty cell. On a 3-col grid, a last
+  // row of 2 → the final card spans 2 cols; a last row of 1 → it spans the full 3. On a
+  // 2-col grid, a lone last card spans both. Spanned cards render donut-left / legend-right.
+  const n = cards.length;
+  const xlRem = n % 3;
+  const xlLastStart = xlRem === 0 ? n : n - xlRem;
+  const spanFor = (i: number) => {
+    const parts: string[] = [];
+    if (i >= xlLastStart) {
+      if (xlRem === 1) parts.push("xl:col-span-3");
+      else if (xlRem === 2 && i === n - 1) parts.push("xl:col-span-2");
+    }
+    if (n % 2 === 1 && i === n - 1) parts.push("md:col-span-2");
+    return parts.join(" ");
+  };
+
   return (
     <div className="mt-6">
       <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-2">Where the spend &amp; leads land</div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {cards.map((c) => <BreakdownCard key={c.title} title={c.title} rows={c.rows} showLeads={showLeads} pretty={c.pretty} />)}
+        {cards.map((c, i) => {
+          const span = spanFor(i);
+          return <BreakdownCard key={c.title} title={c.title} rows={c.rows} showLeads={showLeads} pretty={c.pretty} spanClass={span} wide={span.includes("col-span-2") || span.includes("col-span-3")} />;
+        })}
       </div>
     </div>
   );
@@ -301,9 +320,10 @@ function AdBreakdowns({ range, showLeads }: { range: { from: string; to: string 
 // Distinct categorical palette for donut slices (brand-anchored).
 const BD_COLORS = ["#3A57E8", "#6E48F8", "#0EA5E9", "#12B886", "#F59E0B", "#E8590C", "#E11D48", "#9AA3B8"];
 
-function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows: BreakdownRow[]; showLeads: boolean; pretty: (k: string) => string }) {
+function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = false }: { title: string; rows: BreakdownRow[]; showLeads: boolean; pretty: (k: string) => string; spanClass?: string; wide?: boolean }) {
   // Donut of spend share. Focus (hover on desktop, tap on touch) highlights a slice
   // and the centre shows that row's %, spend and cost-per-lead. 0-spend rows are dropped.
+  // `wide` (a bento column-span) lays the donut on the left with the legend beside it.
   const [focus, setFocus] = useState<number | null>(null);
   const slices = rows.slice(0, 8).filter((r) => r.spend > 0);
   const total = slices.reduce((s, r) => s + r.spend, 0) || 1;
@@ -316,14 +336,14 @@ function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows
   const toggle = (i: number) => setFocus((f) => (f === i ? null : i));
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-5 ${spanClass}`}>
       <div className="text-sm font-medium mb-3">{title}</div>
       {slices.length === 0 ? (
         <div className="text-[12px] text-gray-400 py-6 text-center">No spend to break down.</div>
       ) : (
-        <div className="flex flex-col items-center gap-4">
+        <div className={wide ? "flex flex-col md:flex-row md:items-center gap-4 md:gap-8" : "flex flex-col items-center gap-4"}>
           {/* Big donut — the focused slice's label, %, spend & CPL all sit INSIDE the ring */}
-          <div className="relative" style={{ width: 208, height: 208 }}>
+          <div className="relative shrink-0 self-center" style={{ width: 208, height: 208 }}>
             <svg width="208" height="208" viewBox="0 0 120 120">
               {arcs.map((a) => (
                 <circle key={a.i} cx="60" cy="60" r={R} fill="none"
@@ -353,8 +373,8 @@ function BreakdownCard({ title, rows, showLeads, pretty }: { title: string; rows
               )}
             </div>
           </div>
-          {/* Legend below the donut */}
-          <div className="w-full grid grid-cols-2 gap-x-3 gap-y-0.5">
+          {/* Legend — below the donut normally, beside it (filling the width) when wide */}
+          <div className={wide ? "grid grid-cols-2 gap-x-5 gap-y-0.5 w-full md:flex-1 md:min-w-0" : "w-full grid grid-cols-2 gap-x-3 gap-y-0.5"}>
             {slices.map((r, i) => {
               const on = focus === i;
               return (
