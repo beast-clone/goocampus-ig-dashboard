@@ -48,6 +48,8 @@ export type ReportPayload = {
   trend: { date: string; reach: number; engagement: number; newFollowers: number }[];
   leadsSales: {
     totals: { leads: number; contracts: number; revenue: number; conversionPct: number; firstActivityAvgHrs: number | null };
+    paidLeads?: number;
+    paidBySource?: { name: string; count: number }[];
     inflowByDay: { date: string; count: number }[];
     bySource: { name: string; count: number }[];
     byInterest: { name: string; count: number }[];
@@ -286,6 +288,17 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
             <LeadStat big={`₹${fmtNum(report.leadsSales.totals.revenue)}`} lbl="Revenue" />
           </div>
 
+          {report.leadsSales.totals.firstActivityAvgHrs != null && (
+            <div className="mb-4 flex items-start gap-2 text-[12px] text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+              <span>⏱</span>
+              <span>
+                <b className="text-[#232D42]">Avg first response: {report.leadsSales.totals.firstActivityAvgHrs} hrs</b>
+                {" "}(~{Math.round((report.leadsSales.totals.firstActivityAvgHrs / 24) * 10) / 10} days) —
+                the average time a new DM lead waited before anyone replied, across this {report.meta.period === "weekly" ? "week" : report.meta.period === "quarterly" ? "quarter" : "month"}. Lower is better.
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Leads inflow chart */}
             {report.leadsSales.inflowByDay.length > 1 && (
@@ -342,6 +355,19 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
               <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-1">Where leads came from</div>
               <div className="text-[12px] text-gray-500 mb-3">Share of leads by source — organic / DM only (paid ads excluded).</div>
               <PercentBars data={report.leadsSales.bySource} color="#3A57E8" />
+            </div>
+          )}
+
+          {/* Paid ads — counted separately from the organic/DM numbers */}
+          {(report.leadsSales.paidLeads || 0) > 0 && (
+            <div className="mt-4 border border-amber-200 bg-amber-50/40 rounded-xl p-4">
+              <div className="text-xs uppercase tracking-widest text-amber-800 font-semibold mb-1">Paid ads — counted separately</div>
+              <div className="text-[12px] text-amber-800/80 mb-3">
+                <b>{fmtNum(report.leadsSales.paidLeads || 0)} leads</b> from paid marketing — <b>not</b> included in the organic / DM numbers above.
+              </div>
+              {report.leadsSales.paidBySource && report.leadsSales.paidBySource.length > 0 && (
+                <PercentBars data={report.leadsSales.paidBySource} color="#B45309" />
+              )}
             </div>
           )}
 
@@ -507,38 +533,99 @@ function LeadStat({ big, lbl, accent }: { big: string; lbl: string; accent?: boo
   );
 }
 
-// Two-line trend chart. Reach and engagement live on very different scales, so
-// each line is indexed to its own peak — the point is the SHAPE over time.
+// Smooth a series of points into a flowing cubic-bezier path (Catmull-Rom).
+function smoothLine(pts: [number, number][]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M${pts[0][0]},${pts[0][1]}`;
+  const d = [`M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d.push(`C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`);
+  }
+  return d.join(" ");
+}
+
+// Performance-trend chart. Reach and engagement live on very different scales, so
+// instead of overlapping two lines (where one hides the other), you TOGGLE between
+// them. Each is drawn as a single smooth, gradient-filled curve zoomed to its own
+// min→max band so day-to-day movement and spikes are clearly visible.
 function TrendLineChart({ data }: { data: { date: string; reach: number; engagement: number; newFollowers: number }[] }) {
-  const W = 720, H = 180, PL = 8, PR = 8, PT = 12, PB = 22;
+  const [metric, setMetric] = useState<"reach" | "engagement">("reach");
+  const W = 720, H = 190, PL = 8, PR = 8, PT = 16, PB = 24;
   const n = data.length;
-  const maxReach = Math.max(1, ...data.map((d) => d.reach));
-  const maxEng = Math.max(1, ...data.map((d) => d.engagement));
+  const color = metric === "reach" ? "#3A57E8" : "#059669";
+  const label = metric === "reach" ? "Reach" : "Engagement";
+
+  const vals = data.map((d) => d[metric]);
+  const dataMax = Math.max(1, ...vals);
+  const dataMin = Math.min(...vals);
+  const peakIdx = vals.reduce((best, v, i) => (v > vals[best] ? i : best), 0);
+  // Zoom the vertical axis to the data band (with headroom) so the shape stands out.
+  const pad = (dataMax - dataMin) * 0.15 || dataMax * 0.1 || 1;
+  const lo = Math.max(0, dataMin - pad), hi = dataMax + pad;
   const x = (i: number) => PL + (i / Math.max(1, n - 1)) * (W - PL - PR);
-  const y = (v: number, max: number) => PT + (1 - v / max) * (H - PT - PB);
-  const path = (key: "reach" | "engagement", max: number) =>
-    data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d[key], max).toFixed(1)}`).join(" ");
+  const y = (v: number) => PT + (1 - (v - lo) / Math.max(1, hi - lo)) * (H - PT - PB);
+  const pts: [number, number][] = data.map((d, i) => [x(i), y(d[metric])]);
+  const line = smoothLine(pts);
+  const baseY = H - PB;
+  const area = pts.length > 1 ? `${line} L${x(n - 1).toFixed(1)},${baseY} L${x(0).toFixed(1)},${baseY} Z` : "";
+  const gid = `trendfill-${metric}`;
+
   const fmtDay = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
   const ticks = n <= 1 ? [0] : [0, Math.floor((n - 1) / 2), n - 1];
+
   return (
     <div>
-      <div className="flex items-center gap-4 mb-2 text-[11px]">
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#3A57E8" }} /> Reach <span className="text-gray-400 tabular-nums">(peak {maxReach.toLocaleString("en-IN")})</span></span>
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 rounded" style={{ background: "#059669" }} /> Engagement <span className="text-gray-400 tabular-nums">(peak {maxEng.toLocaleString("en-IN")})</span></span>
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        {/* Toggle: click to switch which metric the curve shows */}
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          {(["reach", "engagement"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMetric(m)}
+              className={`text-[12px] font-medium px-3 py-1 rounded-md transition ${
+                metric === m ? "bg-white text-[#232D42] shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {m === "reach" ? "Reach" : "Engagement"}
+            </button>
+          ))}
+        </div>
+        <div className="text-[11px] text-gray-400 tabular-nums">
+          Peak <b className="text-[#232D42]">{dataMax.toLocaleString("en-IN")}</b> on {fmtDay(data[peakIdx]?.date || "")}
+        </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "auto" }} preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.38} />
+            <stop offset="60%" stopColor={color} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {[0.25, 0.5, 0.75].map((g) => (
           <line key={g} x1={PL} x2={W - PR} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke="#f1f1f4" strokeWidth={1} />
         ))}
-        <path d={path("reach", maxReach)} fill="none" stroke="#3A57E8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <path d={path("engagement", maxEng)} fill="none" stroke="#059669" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {area && <path d={area} fill={`url(#${gid})`} stroke="none" />}
+        <path d={line} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+        {/* Peak marker */}
+        {n > 1 && <circle cx={x(peakIdx)} cy={y(vals[peakIdx])} r={3.5} fill={color} stroke="#fff" strokeWidth={1.5} />}
         {ticks.map((i) => (
           <text key={i} x={x(i)} y={H - 6} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"} className="fill-gray-400" style={{ fontSize: 10 }}>
             {fmtDay(data[i].date)}
           </text>
         ))}
       </svg>
-      <div className="text-xs text-gray-400 mt-1 italic">Each line indexed to its own peak — shows the trend, not the absolute scale.</div>
+      <div className="text-xs text-gray-400 mt-1 italic">
+        {label} over the period, zoomed to its own range so day-to-day movement is visible. Tap the other tab to switch.
+      </div>
     </div>
   );
 }
@@ -551,24 +638,37 @@ function VBars({ data, color, fmt, labelFmt }: {
   labelFmt?: (l: string) => string;
 }) {
   const max = Math.max(1, ...data.map((d) => d.value));
-  const peak = data.reduce((a, b) => (b.value > a.value ? b : a), data[0]);
+  const peakIdx = data.reduce((best, d, i, arr) => (d.value > arr[best].value ? i : best), 0);
+  const peak = data[peakIdx];
   // Cap the number of x-axis labels so dense day-series stay readable.
   const step = Math.max(1, Math.ceil(data.length / 6));
+  const lbl = (l: string) => (labelFmt ? labelFmt(l) : new Date(l).toLocaleDateString("en-IN", { day: "numeric", month: "short" }));
+  const val = (v: number) => (fmt ? fmt(v) : fmtNum(v));
   return (
     <div>
       <div className="flex items-stretch gap-[3px] h-[120px]">
-        {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col justify-end group relative" title={`${labelFmt ? labelFmt(d.label) : d.label}: ${fmt ? fmt(d.value) : d.value}`}>
-            <div className="rounded-t-sm transition-opacity group-hover:opacity-80" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0, background: color }} />
-          </div>
-        ))}
+        {data.map((d, i) => {
+          const isPeak = i === peakIdx;
+          return (
+            <div key={i} className="flex-1 flex flex-col justify-end group relative">
+              {/* Hover tooltip — day + exact count */}
+              <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-1 -translate-y-full whitespace-nowrap rounded-md bg-[#232D42] text-white text-[10.5px] px-2 py-1 opacity-0 group-hover:opacity-100 transition z-10 shadow">
+                {lbl(d.label)}: <b>{val(d.value)}</b>{isPeak ? " · best day" : ""}
+              </div>
+              <div className="rounded-t-sm transition-opacity group-hover:opacity-80" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0, background: isPeak ? "#10B981" : color }} />
+            </div>
+          );
+        })}
       </div>
       <div className="flex justify-between mt-1.5 text-xs text-gray-400 tabular-nums">
         {data.filter((_, i) => i % step === 0 || i === data.length - 1).map((d, i) => (
-          <span key={i}>{labelFmt ? labelFmt(d.label) : new Date(d.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+          <span key={i}>{lbl(d.label)}</span>
         ))}
       </div>
-      <div className="text-[11px] text-gray-500 mt-1.5">Peak <b className="text-gray-800">{fmt ? fmt(peak.value) : fmtNum(peak.value)}</b> · {labelFmt ? labelFmt(peak.label) : new Date(peak.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+      <div className="text-[11px] text-gray-500 mt-1.5 flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+        Best day <b className="text-emerald-700">{val(peak.value)}</b> on {lbl(peak.label)} · hover any bar for its count
+      </div>
     </div>
   );
 }

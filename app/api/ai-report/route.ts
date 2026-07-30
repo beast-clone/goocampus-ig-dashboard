@@ -200,10 +200,11 @@ export async function GET(req: Request) {
     // DM-only: paid "Digital marketing activity" leads are excluded — this is the
     // organic/social report; paid marketing is counted separately.
     const PAID_LEAD_SOURCES = ["digital marketing activity"];
-    const dmSources = (crm?.bySource || []).filter(
-      (s) => !PAID_LEAD_SOURCES.includes((s.name || "").trim().toLowerCase()),
-    );
+    const isPaid = (name: string) => PAID_LEAD_SOURCES.includes((name || "").trim().toLowerCase());
+    const dmSources = (crm?.bySource || []).filter((s) => !isPaid(s.name));
+    const paidSources = (crm?.bySource || []).filter((s) => isPaid(s.name));
     const dmLeads = dmSources.reduce((sum, s) => sum + (s.count || 0), 0);
+    const paidLeads = paidSources.reduce((sum, s) => sum + (s.count || 0), 0);
     const leadsSales = crm
       ? {
           totals: {
@@ -213,6 +214,8 @@ export async function GET(req: Request) {
             conversionPct: dmLeads > 0 ? Math.round((crm.totals.contracts / dmLeads) * 1000) / 10 : 0,
             firstActivityAvgHrs: crm.totals.firstActivityAvgHrs,
           },
+          paidLeads,
+          paidBySource: paidSources,
           inflowByDay: crm.inflowByDay || [],
           bySource: dmSources.slice(0, 6),
           byInterest: (crm.byInterest || []).slice(0, 6),
@@ -333,7 +336,7 @@ export async function GET(req: Request) {
       "",
       "STRICT RULES:",
       "  1. DO NOT invent numbers. Reference the ones you were given. Do NOT web-search — use only the numbers provided.",
-      "  2. Voice: first-person marketing lead, direct, no fluff, no emoji.",
+      "  2. Voice: first-person PLURAL team voice — always use \"we\"/\"our\", NEVER \"I\"/\"my\" (write \"we generated\", not \"I generated\"). Direct, no fluff, no emoji.",
       "  3. The metric cards ALREADY show the numbers — never just restate them. Each insight must ADD VALUE: say WHY the metric moved and what to DO about it (a lever, tactic, or next step). Cite a number only as the trigger for that action, not as the point.",
       "  4. Recommendations = concrete how-to actions naming the exact tactic/step/target ('post 3 Reels on AMC pass-rate stats targeting Australia-bound IMGs next week'), never platitudes or 'do more of X'.",
       "  5. Executive summary: 3-4 sentences, high-level. If leadsSales is present, tie social performance to leads and revenue (e.g. reach → leads → contracts). End with the ONE thing to focus on next.",
