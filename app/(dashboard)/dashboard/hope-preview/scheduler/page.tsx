@@ -155,7 +155,7 @@ function Scheduler() {
   const [schedTab, setSchedTab] = useState<"to_schedule" | "publish" | "top">("to_schedule");
   // Which status the counter strip is filtering the list to. "ready" = produced content
   // awaiting scheduling (the default To-schedule master list); the rest slice the queue.
-  const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "publishing" | "published" | "failed">("ready");
+  const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "published" | "failed">("ready");
   const [topAccount, setTopAccount] = useState<string>("all");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
@@ -501,7 +501,6 @@ function Scheduler() {
   // returns the full set, so this decrements by one each time a post is scheduled).
   const toScheduleTotal = toSchedule.length;
   const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled");
-  const publishing = queueFiltered.filter((p) => p.effectiveStatus === "publishing");
   const failed = queueFiltered.filter((p) => p.effectiveStatus === "failed");
   const publishedRecent = queueFiltered
     .filter((p) => p.effectiveStatus === "published")
@@ -599,7 +598,6 @@ function Scheduler() {
               <div className="text-base font-medium text-[#232D42]">{
                 listFilter === "ready" ? "Ready to schedule"
                 : listFilter === "scheduled" ? "Scheduled"
-                : listFilter === "publishing" ? "Publishing"
                 : listFilter === "published" ? "Published" : "Failed"
               }</div>
               <div className="text-[12px] text-gray-500">{
@@ -614,11 +612,14 @@ function Scheduler() {
             </div>
           </div>
 
-          {/* Pipeline status: content awaiting scheduling → scheduled → publishing → published/failed */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+          {/* Pipeline status: content awaiting scheduling → scheduled → published/failed.
+              No "Publishing" state — the n8n worker takes a scheduled post straight to
+              published/failed in one pass, so nothing ever sits in an intermediate state.
+              A scheduled post the worker never picks up auto-flips to Failed (see
+              deriveSupabaseStatus), so nothing is ever silently missed. */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <StatusCounter label="Ready to schedule" count={toScheduleTotal} color="amber" active={listFilter === "ready"} onClick={() => setListFilter("ready")} />
             <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" active={listFilter === "scheduled"} onClick={() => setListFilter("scheduled")} />
-            <StatusCounter label="Publishing" count={publishing.length} color="blue" active={listFilter === "publishing"} onClick={() => setListFilter("publishing")} />
             <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" active={listFilter === "published"} onClick={() => setListFilter("published")} />
             <StatusCounter label="Failed" count={failed.length} color="rose" active={listFilter === "failed"} onClick={() => setListFilter("failed")} />
           </div>
@@ -761,10 +762,9 @@ function Scheduler() {
             </>
           ) : (
             <StatusFilterList
-              posts={listFilter === "scheduled" ? readyToSchedule : listFilter === "publishing" ? publishing : listFilter === "published" ? publishedRecent : failed}
+              posts={listFilter === "scheduled" ? readyToSchedule : listFilter === "published" ? publishedRecent : failed}
               emptyLabel={
                 listFilter === "scheduled" ? "No scheduled posts yet — schedule one from the Ready to schedule list."
-                : listFilter === "publishing" ? "Nothing publishing right now."
                 : listFilter === "published" ? "No published posts in this window."
                 : "No failed posts — all clear. 🎉"
               }
