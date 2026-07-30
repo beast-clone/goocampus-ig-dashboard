@@ -82,7 +82,7 @@ export async function GET(req: Request) {
 
   try {
     // ---------- Run ad fetch + media/comments in parallel ----------
-    const adAcct = getAdAccount();
+    const adAcct = await getAdAccount();
 
     type AdData = { adLeads: number; adSpend: number; monthlyAdLeads: Record<string, number> };
     type PostLead = { id: string; permalink: string; caption: string; leads: number };

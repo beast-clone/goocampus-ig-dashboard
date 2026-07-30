@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getIntegrationToken } from "@/lib/integration-tokens";
 
 // Simple in-memory cache so we don't hammer Meta on every page load.
 let cached: { fetchedAt: number; payload: TokenStatus } | null = null;
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
 
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
-  const userToken = process.env.META_LONG_LIVED_USER_TOKEN;
+  const userToken = await getIntegrationToken("meta");
 
   if (!appId || !appSecret || !userToken) {
     return NextResponse.json({ valid: false, expiresAt: null, daysRemaining: null, scopesCount: 0, error: "Meta app credentials not configured" });

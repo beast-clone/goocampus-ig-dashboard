@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { recordApiCall } from "./api-usage";
 import { metaLimiter } from "./concurrency";
+import { getIntegrationToken } from "./integration-tokens";
 const GRAPH_VERSION = "v21.0";
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
@@ -10,9 +11,11 @@ export type AdAccountConfig = {
   token: string;
 };
 
-export function getAdAccount(): AdAccountConfig | null {
+// Reads the token via getIntegrationToken("meta") so a token rotated through the
+// Diagnostics "Reconnect" flow takes effect live (no redeploy); falls back to the env var.
+export async function getAdAccount(): Promise<AdAccountConfig | null> {
   const id = process.env.META_AD_ACCOUNT_ID;
-  const token = process.env.META_LONG_LIVED_USER_TOKEN;
+  const token = await getIntegrationToken("meta");
   if (!id || !token) return null;
   return { id, name: process.env.META_AD_ACCOUNT_NAME || id, token };
 }

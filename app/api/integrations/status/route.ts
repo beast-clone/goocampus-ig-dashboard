@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { usageSnapshot, callsThisMonth, callsAllTime } from "@/lib/api-usage";
 import { authPing as sendpulsePing } from "@/lib/sendpulse";
 import { airtableList, CRM_TABLE } from "@/lib/sales-hub";
+import { getIntegrationToken } from "@/lib/integration-tokens";
 
 // GET /api/integrations/status
 //
@@ -69,7 +70,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T
 
 // ---- Meta (Instagram · Facebook · Ads share one long-lived user token) ----
 async function checkMeta(): Promise<{ integ: Integration; rateLimit: Payload["rateLimit"] }> {
-  const appId = process.env.META_APP_ID, appSecret = process.env.META_APP_SECRET, userToken = process.env.META_LONG_LIVED_USER_TOKEN;
+  const appId = process.env.META_APP_ID, appSecret = process.env.META_APP_SECRET, userToken = await getIntegrationToken("meta");
   const base: Integration = {
     key: "meta", name: "Meta — Instagram · Facebook · Ads", category: "Social", configured: has(appId) && has(appSecret) && has(userToken),
     status: "unknown", tokenType: "Long-lived user token", expiresAt: null, daysRemaining: null, detail: "",
@@ -106,7 +107,7 @@ async function checkMeta(): Promise<{ integ: Integration; rateLimit: Payload["ra
 
 // ---- LinkedIn (member token — introspect for real expiry) ----
 async function checkLinkedIn(): Promise<Integration> {
-  const token = process.env.LINKEDIN_ACCESS_TOKEN, cid = process.env.LINKEDIN_CLIENT_ID, secret = process.env.LINKEDIN_CLIENT_SECRET;
+  const token = await getIntegrationToken("linkedin"), cid = process.env.LINKEDIN_CLIENT_ID, secret = process.env.LINKEDIN_CLIENT_SECRET;
   const base: Integration = { key: "linkedin", name: "LinkedIn", category: "Social", configured: has(token), status: "unknown", tokenType: "OAuth member token (~60d)", expiresAt: null, daysRemaining: null, detail: "" };
   if (!base.configured) return { ...base, status: "error", note: "Access token missing" };
   if (!has(cid) || !has(secret)) return { ...base, status: "ok", detail: "Token present (introspection needs client id/secret)" };

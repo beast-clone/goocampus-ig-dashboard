@@ -7,7 +7,7 @@ export async function GET(req: Request, { params }: { params: { campaignId: stri
   const from = url.searchParams.get("from") || format(subDays(new Date(), 29), "yyyy-MM-dd");
   const to = url.searchParams.get("to") || format(new Date(), "yyyy-MM-dd");
 
-  const acct = getAdAccount();
+  const acct = await getAdAccount();
   if (!acct) {
     return NextResponse.json({ error: "META_AD_ACCOUNT_ID or META_LONG_LIVED_USER_TOKEN not set" }, { status: 400 });
   }

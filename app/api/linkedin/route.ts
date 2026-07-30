@@ -193,7 +193,7 @@ export async function GET(req: Request) {
     // Diagnostic: ?probe=orgs → list every org the token's member administers.
     // Tells us whether the main GooCampus page is reachable with this same token.
     if (url.searchParams.get("probe") === "orgs") {
-      const token = linkedinToken();
+      const token = await linkedinToken();
       if (!token) return NextResponse.json({ error: "no token" }, { status: 400 });
       try {
         return NextResponse.json({ orgs: await listAdminedOrgs(token) });
@@ -211,7 +211,7 @@ export async function GET(req: Request) {
     // GooCampus World goes live when a token is present (that's the approved org).
     // Main GooCampus stays on demo until its own app is approved.
     // Any live-call failure degrades gracefully to demo so the tab never breaks.
-    if (pageKey === "gcworld" && linkedinToken()) {
+    if (pageKey === "gcworld" && (await linkedinToken())) {
       try {
         // 30-min cache: makes tab flips instant AND protects LinkedIn's tiny
         // per-day quota on the follower-statistics endpoint.

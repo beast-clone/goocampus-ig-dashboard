@@ -261,7 +261,7 @@ async function computeRevenue(from: string, to: string) {
 
 // ---- Meta ads: GooCampus (Samvaya excluded) + Samvaya split out ----
 async function computeAds(from: string, to: string) {
-  const acct = getAdAccount();
+  const acct = await getAdAccount();
   if (!acct) return { gc: null, samvaya: null };
   const campaigns = await fetchCampaigns(acct, from, to);
   const mk = (list: typeof campaigns) => {

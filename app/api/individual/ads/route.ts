@@ -23,7 +23,7 @@ async function adCreative(adId: string, token: string): Promise<{ image: string 
 }
 
 export async function GET() {
-  const acct = getAdAccount();
+  const acct = await getAdAccount();
   if (!acct) return NextResponse.json({ live: false, ads: [] });
   const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
   const active = await fetchActiveAdsForDay(acct, yesterday).catch(() => []);

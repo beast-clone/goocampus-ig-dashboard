@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     const hit = CACHE.get(key);
     if (!force && hit && Date.now() - hit.at < TTL) return NextResponse.json({ ...(hit.payload as object), cached: true });
 
-    const acct = getAdAccount();
+    const acct = await getAdAccount();
     if (!acct) return NextResponse.json({ error: "No ad account connected" }, { status: 200 });
     const campaigns = (await fetchCampaigns(acct, from, to)).filter((c) => c.spend > 0);
     if (campaigns.length === 0) return NextResponse.json({ error: "No spend in this window" }, { status: 200 });

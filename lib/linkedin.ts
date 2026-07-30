@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { getIntegrationToken } from "./integration-tokens";
 
 const REST = "https://api.linkedin.com/rest";
 // LinkedIn versions expire ~yearly; an inactive version 426s EVERY call → the whole
@@ -34,8 +35,10 @@ function headers(token: string): Record<string, string> {
   };
 }
 
-export function linkedinToken(): string | null {
-  return process.env.LINKEDIN_ACCESS_TOKEN || null;
+// Reads the token via getIntegrationToken("linkedin") so a token rotated through the
+// Diagnostics "Reconnect" flow takes effect live (no redeploy); falls back to the env var.
+export async function linkedinToken(): Promise<string | null> {
+  return getIntegrationToken("linkedin");
 }
 
 async function liGet(path: string, token: string): Promise<any> {
@@ -485,7 +488,7 @@ async function fetchPageStats(token: string, orgUrn: string) {
 export type LinkedInLive = Awaited<ReturnType<typeof buildLive>>;
 
 export async function buildLive(pageKey: string, from: string, to: string) {
-  const token = linkedinToken();
+  const token = await linkedinToken();
   if (!token) throw new Error("LINKEDIN_ACCESS_TOKEN not set");
   // Only GooCampus World is wired live (that's the approved org). Main GooCampus stays demo.
   if (pageKey !== "gcworld") throw new Error("live not configured for this page");
