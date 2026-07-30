@@ -1706,11 +1706,19 @@ export function HopeMyDay() {
           : (t.status === "Content - Approved" || t.status === "Incorporating Feedback" || t.status === "Output - In Progress")))
       .map((t) => ({ id: t.id, label: t.title, due: t.due, dur: t.detail.duration || estMins(t.detail.typeLine) }));
     const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
+    const shiftStart = shiftStartOf(name);
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
-    type Blk = { kind: "task" | "lunch" | "free"; id?: string; label: string; start: number; dur: number };
+    // Anchor the plan to NOW, never the past — time already elapsed can't hold work,
+    // so pending tasks lay out from here and the morning that's gone reads as "past",
+    // not bookable "free" (which made an already-afternoon day look wide open).
+    const anchor = Math.max(shiftStart, now);
+    type Blk = { kind: "task" | "lunch" | "free" | "past"; id?: string; label: string; start: number; dur: number };
     const blocks: Blk[] = [];
-    let cursor = shiftStartOf(name), lunchDone = false;
+    if (anchor > shiftStart) blocks.push({ kind: "past", label: "Earlier", start: shiftStart, dur: anchor - shiftStart });
+    let cursor = anchor, lunchDone = anchor >= LUNCH_END;      // lunch already over? don't re-draw it
     const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); cursor = LUNCH_END; lunchDone = true; };
+    // Mid-lunch right now → show only the slice still ahead, then resume after 2 PM.
+    if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { blocks.push({ kind: "lunch", label: "Lunch", start: cursor, dur: LUNCH_END - cursor }); cursor = LUNCH_END; lunchDone = true; }
     for (const t of mine) {
       let remaining = t.dur;
       if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) pushLunch();
@@ -1724,10 +1732,13 @@ export function HopeMyDay() {
     if (!lunchDone) { if (cursor < LUNCH_AT) { blocks.push({ kind: "free", label: "Free", start: cursor, dur: LUNCH_AT - cursor }); cursor = LUNCH_AT; } pushLunch(); }
     if (cursor < DAY_MINS) blocks.push({ kind: "free", label: "Free", start: cursor, dur: DAY_MINS - cursor });
     const committed = mine.reduce((s, t) => s + t.dur, 0);
+    // Free = the open time still AHEAD today (sum of remaining Free blocks), not a
+    // whole-day figure — so "Nh free" reflects what's actually left this afternoon.
+    const free = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);
     const currentBlk = blocks.find((b) => b.kind === "task" && b.start <= now && now < b.start + b.dur) || null;
     const current = currentBlk ? { id: currentBlk.id!, label: currentBlk.label, endsIn: currentBlk.start + currentBlk.dur - now } : null;
     const candidates = mine.filter((t) => t.id !== current?.id);
-    return { tasks: mine, blocks, committed, free: WORK_MIN - committed, current, candidates, now };
+    return { tasks: mine, blocks, committed, free, current, candidates, now };
   }, [claimedTasks, tasks, nowMin]);
 
   // APPROVE GATE: approving DESIGN work always shows the target's day first (mini
@@ -2868,7 +2879,7 @@ export function HopeMyDay() {
         const g = approveGate;
         const tName = PPL[g.target]?.name || g.target;
         const day = dayFor(tName);
-        const fits = day.committed + g.add <= WORK_MIN;
+        const fits = g.add <= day.free;   // does it fit in the time still left today?
         const pending = [...tasks, ...claimedTasks].find((t) => t.id === g.id);
         const moveCand = (cid: string, due: string | undefined, next: string) => {
           fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cid, actor: person, fields: { due_date: next } }) })
@@ -3533,6 +3544,7 @@ const CSS = `
 .hmd .tcp-blk.now{outline:2px solid #fff;outline-offset:-3px}
 .hmd .tcp-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px);color:var(--muted)}
 .hmd .tcp-blk.free{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 5px,#E9ECF2 5px,#E9ECF2 10px);color:var(--faint)}
+.hmd .tcp-blk.past{background:#EDEEF2;color:var(--faint);font-weight:500;opacity:.7}
 .hmd .tcp-now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:3}
 .hmd .tcp-week{display:flex;gap:.5rem}
 .hmd .tcp-day{flex:1;display:flex;flex-direction:column;gap:.3rem;min-width:0}
