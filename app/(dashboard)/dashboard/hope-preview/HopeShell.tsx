@@ -5,7 +5,7 @@ import { HopeSidebar } from "./HopeSidebar";
 // HopeDashboardShell) so all V2 pages share one identical Hope chrome.
 export type HopeTab =
   | "my-day" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar"
-  | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "audience"
+  | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "sales" | "ai-insights" | "ai-reports"
   | "integrations" | "diagnostics" | "tools" | "team" | "account";
 
