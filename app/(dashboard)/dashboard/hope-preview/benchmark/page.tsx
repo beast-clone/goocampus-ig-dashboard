@@ -74,7 +74,7 @@ function periodMetrics(c: Competitor, days: number) {
 
 export default function BenchmarkPage() {
   return (
-    <HopeDashboardShell active="benchmark" title="Benchmark" subtitle="Track competitor IG accounts: followers, posting cadence, engagement." hideAccountPicker>
+    <HopeDashboardShell active="benchmark" title="Benchmark" subtitle="Track competitor IG accounts: followers, posting cadence, engagement." hideAccountPicker hideRange>
       {({ accountId, range }) => <BenchmarkInner accountId={accountId} range={range} />}
     </HopeDashboardShell>
   );
@@ -163,7 +163,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           <h2 className="text-base font-medium text-[#232D42]">Competitor Benchmark <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
           <p className="text-sm text-gray-500 mt-0.5">Public Instagram accounts tracked via Meta&apos;s public data — followers, posting cadence, engagement rate.</p>
         </div>
-        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={() => load({ niche })} loading={loading} />
+        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={refresh} loading={loading} />
       </div>
 
       {/* Filter row */}

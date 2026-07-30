@@ -529,7 +529,7 @@ export function HopeOverview() {
               <Card>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>Latest posts</div>
-                  <span style={{ fontSize: 12.5, color: C.primary, fontWeight: 600 }}>View all →</span>
+                  <Link href="/dashboard/hope-preview/posts" style={{ fontSize: 12.5, color: C.primary, fontWeight: 600, textDecoration: "none" }}>View all →</Link>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
                   {(loading && !posts.length ? Array.from({ length: 5 }) : latest).map((p, i) => {

@@ -27,7 +27,7 @@ const PRESETS = [
 
 export default function CompetitorsPage() {
   return (
-    <HopeDashboardShell active="competitors" title="Competitor Ads" hideAccountPicker subtitle="Search the Meta Ad Library to see the ads your competitors are running right now.">
+    <HopeDashboardShell active="competitors" title="Competitor Ads" hideAccountPicker hideRange subtitle="Search the Meta Ad Library to see the ads your competitors are running right now.">
       {() => <Competitors />}
     </HopeDashboardShell>
   );

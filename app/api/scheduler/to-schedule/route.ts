@@ -20,7 +20,7 @@ const READY_STATUSES = ["Ready to Publish"];
 // can override + cross-post; this just pre-selects the obvious one.
 function defaultPageForSbu(sbu: string | null): string {
   const s = (sbu || "").toLowerCase();
-  if (/india|neet|12th|12plus/.test(s)) return "GooCampus India";
+  if (/india|neet|12th|12plus/.test(s)) return "12Plus / GC India"; // MUST match PAGE_OPTIONS value in scheduler (was "GooCampus India" → no checkbox matched, schedule-multi rejected it)
   if (/study abroad|world|australia|middle east|uae|ireland|germany|nz|new zealand/.test(s)) return "GooCampus World";
   return "GooCampus Main";
 }

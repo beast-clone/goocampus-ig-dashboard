@@ -39,6 +39,7 @@ type Post = {
 };
 type Resp = {
   source: "demo" | "live";
+  partial?: boolean;   // source is live (followers/audience real) but per-post stats are a sample
   page: { name: string };
   posts: Post[];
   error?: string;
@@ -82,8 +83,10 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="text-sm font-semibold text-gray-800">{data.page.name} · {posts.length} posts in range · by impressions</div>
-        {data.source === "live"
+        {data.source === "live" && !data.partial
           ? <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>
+          : data.source === "live" && data.partial
+          ? <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="Followers &amp; audience are live; per-post stats aren't available yet, so these posts are a sample.">Live · sample posts</span>
           : <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Demo</span>}
       </div>
 
