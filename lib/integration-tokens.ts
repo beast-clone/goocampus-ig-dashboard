@@ -12,6 +12,9 @@ import { getSupabase } from "@/lib/supabase";
 const ENV_KEY: Record<string, string> = {
   linkedin: "LINKEDIN_ACCESS_TOKEN",
   meta: "META_LONG_LIVED_USER_TOKEN",
+  // YouTube rotates via its OAuth *refresh* token (access tokens are minted hourly
+  // from it). Reconnect pastes a new refresh token; this is the single-channel fallback.
+  youtube: "YOUTUBE_REFRESH_TOKEN",
 };
 
 type Cached = { token: string | null; at: number };

@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const channelKey = (url.searchParams.get("channel") || "goocampus").toLowerCase();
   const ch = CHANNELS[channelKey];
   if (!ch) return NextResponse.json({ error: "unknown channel" }, { status: 400 });
-  if (!hasYouTubeAuth() || !ch.channelId) {
+  if (!(await hasYouTubeAuth()) || !ch.channelId) {
     return NextResponse.json({ channel: { name: ch.name, handle: ch.handle }, source: "unavailable", videos: [] });
   }
   try {

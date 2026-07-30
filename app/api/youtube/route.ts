@@ -201,16 +201,17 @@ export async function GET(req: Request) {
     }
 
     const t0 = Date.now();
+    const ytAuth = await hasYouTubeAuth();
 
     // If no channel-id env is set but OAuth is available, resolve the id from the
     // channel's @handle so live works with just OAuth (no YOUTUBE_CHANNEL_IDS needed).
-    if (hasYouTubeAuth() && !CHANNELS[channelKey].channelId) {
+    if (ytAuth && !CHANNELS[channelKey].channelId) {
       await resolveChannelId(channelKey).catch(() => null);
     }
 
     // Live when auth is available (access token OR refresh credentials) AND this
     // channel has a channelId (from env or resolved above).
-    if (hasYouTubeAuth() && CHANNELS[channelKey].channelId) {
+    if (ytAuth && CHANNELS[channelKey].channelId) {
       try {
         // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
         const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));

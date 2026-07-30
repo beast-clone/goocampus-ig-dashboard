@@ -222,6 +222,7 @@ function HostStat({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 const RECONNECT_HELP: Record<string, { url: string; how: string }> = {
   linkedin: { url: "https://www.linkedin.com/developers/tools/oauth/token-generator", how: "LinkedIn → Developers → OAuth token generator → pick your app + scopes → generate, then paste the access token here." },
   meta: { url: "https://developers.facebook.com/tools/explorer/", how: "Meta → Graph API Explorer → generate a User token with your scopes, then paste it here." },
+  youtube: { url: "https://developers.google.com/oauthplayground/", how: "YouTube uses a REFRESH token (not an access token). OAuth Playground → authorize the YouTube Data + Analytics scopes with the GooCampus Google account → exchange for tokens → paste the refresh token (starts with 1//) here." },
 };
 
 function ReconnectModal({ info, onClose, onDone }: { info: { provider: string; name: string }; onClose: () => void; onDone: (m: string) => void }) {

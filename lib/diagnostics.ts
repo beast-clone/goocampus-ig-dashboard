@@ -102,15 +102,18 @@ async function probeMeta(): Promise<SystemResult> {
   );
 }
 
-function firstYoutubeRefresh(): string | null {
-  if (has(process.env.YOUTUBE_REFRESH_TOKEN)) return process.env.YOUTUBE_REFRESH_TOKEN!;
+async function firstYoutubeRefresh(): Promise<string | null> {
+  // Reconnected refresh token (Supabase override) wins; getIntegrationToken falls back
+  // to YOUTUBE_REFRESH_TOKEN, then the per-channel YOUTUBE_REFRESH_TOKENS map.
+  const override = await getIntegrationToken("youtube");
+  if (has(override)) return override!;
   const raw = process.env.YOUTUBE_REFRESH_TOKENS || "";
   try { const o = JSON.parse(raw) as Record<string, unknown>; const v = Object.values(o).find((x) => typeof x === "string"); if (v) return v as string; } catch { /* not json */ }
   return raw.split(/[,\s]+/).filter(Boolean)[0] || null;
 }
 async function probeYouTube(): Promise<SystemResult> {
   const meta = { key: "youtube", name: "YouTube", category: "Social" };
-  const cid = process.env.YOUTUBE_CLIENT_ID, secret = process.env.YOUTUBE_CLIENT_SECRET, refresh = firstYoutubeRefresh();
+  const cid = process.env.YOUTUBE_CLIENT_ID, secret = process.env.YOUTUBE_CLIENT_SECRET, refresh = await firstYoutubeRefresh();
   if (!has(cid) || !has(secret) || !refresh) return { ...meta, status: "error", detail: "OAuth credentials missing", expiresAt: null, latencyMs: null, action: { type: "reconnect", label: "Reconnect", provider: "youtube" } };
   return probe(
     meta,

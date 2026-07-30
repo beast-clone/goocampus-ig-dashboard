@@ -5,7 +5,7 @@ import { safeError } from "@/lib/errors";
 // POST /api/diagnostics/reconnect  { provider, token, expiresAt? }
 // Saves a freshly-reconnected token to mh_integration_tokens so the integration
 // goes live WITHOUT a redeploy (the client reads getIntegrationToken() first).
-const ALLOWED = new Set(["linkedin", "meta"]);
+const ALLOWED = new Set(["linkedin", "meta", "youtube"]);
 
 export async function POST(req: Request) {
   try {

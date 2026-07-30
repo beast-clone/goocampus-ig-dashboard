@@ -17,6 +17,7 @@
 import { CHANNELS } from "@/lib/youtube-channels";
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { getIntegrationToken } from "./integration-tokens";
 
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
@@ -26,9 +27,10 @@ export function youtubeToken(): string | null {
 
 // Live is possible with EITHER a stored access token OR refresh-token credentials
 // (freshAccessToken below mints hourly access tokens from the refresh token).
-export function hasYouTubeAuth(): boolean {
+export async function hasYouTubeAuth(): Promise<boolean> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;
-  const rt = process.env.YOUTUBE_REFRESH_TOKEN;
+  // Prefer a reconnected refresh token (Diagnostics → Reconnect) over the env one.
+  const rt = await getIntegrationToken("youtube");
   const id = process.env.YOUTUBE_CLIENT_ID;
   const secret = process.env.YOUTUBE_CLIENT_SECRET;
   return !!(at || (rt && id && secret));
@@ -37,18 +39,19 @@ export function hasYouTubeAuth(): boolean {
 // Each channel is a separate Google brand account, so each needs its own refresh
 // token: YOUTUBE_REFRESH_TOKENS = {"goocampus":"1//…","twelfthplus":"1//…"}.
 // Falls back to the single YOUTUBE_REFRESH_TOKEN for unlisted channels.
-function refreshTokenFor(channelKey?: string): string | null {
+async function refreshTokenFor(channelKey?: string): Promise<string | null> {
   try {
     const map = JSON.parse(process.env.YOUTUBE_REFRESH_TOKENS || "{}") as Record<string, unknown>;
     if (channelKey && typeof map[channelKey] === "string") return map[channelKey] as string;
-  } catch { /* malformed map → fall through to the single-token env */ }
-  return process.env.YOUTUBE_REFRESH_TOKEN || null;
+  } catch { /* malformed map → fall through to the single-token override/env */ }
+  // Single-channel fallback: reconnected refresh token (Supabase) → env.
+  return getIntegrationToken("youtube");
 }
 
 // Access tokens expire hourly; exchange the refresh token for a fresh one when needed.
 async function freshAccessToken(channelKey?: string): Promise<string> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;
-  const rt = refreshTokenFor(channelKey);
+  const rt = await refreshTokenFor(channelKey);
   const id = process.env.YOUTUBE_CLIENT_ID;
   const secret = process.env.YOUTUBE_CLIENT_SECRET;
   // Prefer the stored access token; if a refresh token + client creds exist, mint a fresh one.
