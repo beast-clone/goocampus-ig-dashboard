@@ -78,9 +78,10 @@ export async function GET(req: Request) {
   const to = url.searchParams.get("to") || new Date().toISOString().slice(0, 10);
   const from = url.searchParams.get("from") || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   if (!PROMPTS[source]) return NextResponse.json({ error: "source must be ga | clarity | bing | gsc" }, { status: 400 });
+  const force = url.searchParams.get("force") === "1"; // "Regenerate" → bypass the 30-min cache
 
   try {
-    const data = await cached(`ai:website:${source}:${from}:${to}`, 30 * 60_000, async () => {
+    const compute = async () => {
       let summary: string;
       if (source === "clarity") summary = claritySummary(hasClarityAuth() ? await buildClarity(3).catch(() => null) : null);
       else if (source === "bing") summary = bingSummary(hasBingAuth() ? await buildBing().catch(() => null) : null);
@@ -89,7 +90,8 @@ export async function GET(req: Request) {
 
       const { text, citations } = await askPerplexity(PROMPTS[source], summary);
       return { text, citations, source, window: { from, to } };
-    });
+    };
+    const data = force ? await compute() : await cached(`ai:website:${source}:${from}:${to}`, 30 * 60_000, compute);
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI insights failed" }, { status: 502 });

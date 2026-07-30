@@ -67,9 +67,11 @@ export async function GET(req: Request) {
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const to = url.searchParams.get("to") || new Date().toISOString().slice(0, 10);
   const from = url.searchParams.get("from") || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  // "Regenerate" sends force=1 → bypass the 30-min cache and re-run the model.
+  const force = url.searchParams.get("force") === "1";
 
   try {
-    const data = await cached(`ai:overview:${accountId}:${from}:${to}`, 30 * 60_000, async () => {
+    const compute = async () => {
       const [ig, postsJson, ads, ga] = await Promise.all([
         getJson(origin, cookie, `/api/insights?accountId=${accountId}&from=${from}&to=${to}`),
         getJson(origin, cookie, `/api/posts?accountId=${accountId}&from=${from}&to=${to}&limit=30`),
@@ -79,7 +81,8 @@ export async function GET(req: Request) {
       const summary = buildSummary({ accountId, from, to, ig, posts: (postsJson?.posts as Post[]) || [], ads, ga });
       const { text, citations } = await askPerplexity(SYSTEM, summary, { maxTokens: 1500 });
       return { text, citations, window: { from, to }, account: accountId };
-    });
+    };
+    const data = force ? await compute() : await cached(`ai:overview:${accountId}:${from}:${to}`, 30 * 60_000, compute);
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI overview failed" }, { status: 502 });

@@ -10,7 +10,12 @@ type Resp = { text: string; citations?: string[]; error?: string };
 // Perplexity output with a light markdown renderer.
 export function AiInsights({ endpoint, accent = "#3A57E8", label = "Analyze with AI" }: { endpoint: string; accent?: string; label?: string }) {
   const [on, setOn] = useState(false);
-  const { data, error, isLoading, refresh } = useApi<Resp>(on ? endpoint : null, { revalidateOnFocus: false, dedupingInterval: 30 * 60_000, errorRetryCount: 0 });
+  // Regenerate must actually re-run the model. The server caches by (account,from,to)
+  // for 30 min and SWR dedupes, so plain revalidate returned the identical text. Bump a
+  // nonce → a fresh key carrying force=1, which the routes honour to bypass their cache.
+  const [nonce, setNonce] = useState(0);
+  const key = on ? `${endpoint}${nonce ? `${endpoint.includes("?") ? "&" : "?"}force=1&n=${nonce}` : ""}` : null;
+  const { data, error, isLoading } = useApi<Resp>(key, { revalidateOnFocus: false, dedupingInterval: 30 * 60_000, errorRetryCount: 0 });
 
   if (!on) {
     return (
@@ -31,12 +36,12 @@ export function AiInsights({ endpoint, accent = "#3A57E8", label = "Analyze with
           <IconSparkles size={15} stroke={1.9} /> AI insights
           <span className="text-[10px] font-normal text-gray-400">· Perplexity</span>
         </div>
-        <button onClick={() => refresh()} disabled={isLoading} className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:opacity-40">
+        <button onClick={() => setNonce((n) => n + 1)} disabled={isLoading} className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:opacity-40">
           <IconRefresh size={13} className={isLoading ? "animate-spin" : ""} /> {isLoading ? "Thinking…" : "Regenerate"}
         </button>
       </div>
       <div className="p-4 text-[13px] text-gray-700 leading-relaxed">
-        {isLoading && !data && <div className="text-gray-400 py-6 text-center">Analyzing your GA, Clarity &amp; Bing data…</div>}
+        {isLoading && !data && <div className="text-gray-400 py-6 text-center">Reading your latest numbers…</div>}
         {error && <div className="text-rose-600">{error.message}</div>}
         {data?.text && <Markdown text={data.text} accent={accent} />}
         {data?.citations && data.citations.length > 0 && (

@@ -461,6 +461,26 @@ function Scheduler() {
     }
   }
 
+  // AI caption suggester — 3 variants from the topic + brand voice (Perplexity).
+  async function fetchCaptionSuggestions() {
+    setSuggestError(null);
+    setSuggestLoading(true);
+    try {
+      const res = await fetch("/api/scheduler/suggest-caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishToPage: composePages[0] || publishToPage, contentBrief: particulars, currentCaption: caption }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
+      setSuggestions((d.variants || []) as SuggestVariant[]);
+    } catch (e) {
+      setSuggestError((e as Error).message);
+    } finally {
+      setSuggestLoading(false);
+    }
+  }
+
   const previewImage = cleanMediaUrls[0] || null;
   const previewHandle = publishToPage === "GooCampus Main" ? "goocampus" :
                         publishToPage === "GooCampus World" ? "goocampusworld" : "12thplusdotcom";
@@ -980,11 +1000,35 @@ function Scheduler() {
           <Card title="Caption">
             <div className="space-y-3">
               <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">What&apos;s this post about?</label>
+                <input
+                  value={particulars}
+                  onChange={(e) => setParticulars(e.target.value)}
+                  placeholder="e.g. NEET PG 2026 cutoff trends — key dates & what changed"
+                  className="w-full mt-1 mb-2 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
+                />
                 <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
                 </div>
+
+                {/* AI caption suggester — 3 variants from the topic above */}
+                <AISuggestBar
+                  brand={composePages[0] || publishToPage}
+                  contentBrief={particulars}
+                  caption={caption}
+                  suggestions={suggestions}
+                  loading={suggestLoading}
+                  error={suggestError}
+                  onFetch={fetchCaptionSuggestions}
+                  onUse={(v) => {
+                    const tags = v.hashtags && v.hashtags.length ? "\n\n" + v.hashtags.map((h) => (h.startsWith("#") ? h : "#" + h)).join(" ") : "";
+                    setCaption(v.caption + tags);
+                    setSuggestions(null);
+                  }}
+                  onDismiss={() => setSuggestions(null)}
+                />
 
                 {/* Existing reach-prediction overlay (as-you-type) */}
                 {caption.trim().length > 0 && (

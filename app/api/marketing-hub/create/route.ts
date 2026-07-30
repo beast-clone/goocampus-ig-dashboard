@@ -62,9 +62,11 @@ export async function POST(req: Request) {
       content: body.content || null,
       caption: body.caption || null,
       needs_review: body.needsReview === true,
-      // Capture the start of the task clock now, so "Time taken" can measure
-      // start → completion once it's published.
-      start_at: new Date().toISOString(),
+      // NOTE: do NOT stamp start_at here. start_at is the producer's "on the clock"
+      // marker — the update route sets it when a task moves to "Output - In Progress"
+      // (guarded by !start_at). Stamping it at creation made that guard always false,
+      // so the live My Day timer measured from creation instead of from real work start.
+      // Total lead-time is derived from created_at instead.
     };
 
     const { data, error } = await sb

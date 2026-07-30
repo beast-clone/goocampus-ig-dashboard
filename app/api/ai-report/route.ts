@@ -173,8 +173,14 @@ export async function GET(req: Request) {
     const cookie = req.headers.get("cookie") || "";
     const commonHeaders = { cookie };
 
+    // Meta caps /api/insights at 30 days, so a 90-day quarterly window would silently
+    // truncate reach/followers to the last 30d. For windows > 30d read the reconstructed
+    // history from Supabase snapshots (/api/insights-stored) — same shape, full range.
+    const insightsUrl = days > 30
+      ? `${origin}/api/insights-stored?accountId=${accountId}&from=${fromStr}&to=${toStr}`
+      : `${origin}/api/insights?accountId=${accountId}&from=${fromStr}&to=${toStr}`;
     const [insightsRes, postsRes, audienceRes, leadsRes] = await Promise.all([
-      fetch(`${origin}/api/insights?accountId=${accountId}&from=${fromStr}&to=${toStr}`, { headers: commonHeaders, cache: "no-store" }),
+      fetch(insightsUrl, { headers: commonHeaders, cache: "no-store" }),
       fetch(`${origin}/api/posts?accountId=${accountId}&from=${fromStr}&to=${toStr}&limit=500&insights=true`, { headers: commonHeaders, cache: "no-store" }),
       fetch(`${origin}/api/audience?accountId=${accountId}`, { headers: commonHeaders, cache: "no-store" }),
       // Sales Hub CRM for the same window — fail-soft (org-wide, not per-account).

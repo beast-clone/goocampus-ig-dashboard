@@ -67,9 +67,13 @@ async function atFetch(base: string, table: string, maxRecords = 5000): Promise<
 }
 
 // ---- DM leads (contact-shared) from the inbox mirror ----
-async function computeDM(sb: NonNullable<ReturnType<typeof getSupabase>>) {
+async function computeDM(sb: NonNullable<ReturnType<typeof getSupabase>>, from: string, to: string) {
   const { data } = await sb.from("discover_cache").select("payload").eq("source", "dm_msg").limit(8000);
-  const msgs = (data || []).map((r) => r.payload as DMMsg).filter((m) => m && isPage(m.account));
+  // Scope to the selected 7/30/90d window — reply-rate, threads and keywords used to be
+  // all-time regardless of the period toggle (the toggle looked broken for this card).
+  const msgs = (data || [])
+    .map((r) => r.payload as DMMsg)
+    .filter((m) => m && isPage(m.account) && (!m.at || (m.at.slice(0, 10) >= from && m.at.slice(0, 10) <= to)));
   const threads = new Map<string, DMMsg[]>();
   for (const m of msgs) {
     const key = `${m.account}::${m.sender_id}`;
@@ -318,7 +322,7 @@ export async function GET(req: Request) {
     }
 
     const [dm, comments, crm, revenue, ads] = await Promise.all([
-      computeDM(sb).catch((e) => ({ error: String(e) })),
+      computeDM(sb, from, to).catch((e) => ({ error: String(e) })),
       computeComments(from, to).catch((e) => ({ error: String(e) })),
       computeCRM(from, to).catch((e) => ({ error: String(e) })),
       computeRevenue(from, to).catch((e) => ({ error: String(e) })),

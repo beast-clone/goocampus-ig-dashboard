@@ -63,7 +63,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
-      {!setupErr && <AiInsights endpoint="/api/website/insights?source=gsc" accent={GOOGLE} label="Analyze this Search Console data with AI" />}
+      {!setupErr && <AiInsights endpoint={`/api/website/insights?source=gsc&from=${range.from}&to=${range.to}`} accent={GOOGLE} label="Analyze this Search Console data with AI" />}
 
       {setupErr && (
         <div className="text-sm text-gray-600 bg-amber-50 border border-amber-100 rounded-lg p-4">
