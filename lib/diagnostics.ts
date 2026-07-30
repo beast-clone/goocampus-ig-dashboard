@@ -179,10 +179,6 @@ function probeSerper(): SystemResult {
   const used = callsAllTime("Serper");
   return { key: "serper", name: "Serper (web search)", category: "Scraping", status: "ok", detail: `Key set · ${used.toLocaleString("en-IN")} / 2,500 free credits used`, expiresAt: null, latencyMs: null };
 }
-function probeReddit(): SystemResult {
-  const set = has(process.env.REDDIT_CLIENT_ID) && has(process.env.REDDIT_CLIENT_SECRET);
-  return { key: "reddit", name: "Reddit (thread reader)", category: "Social", status: set ? "ok" : "warn", detail: set ? "App configured · full threads" : "Dormant — no app (snippet fallback works)", expiresAt: null, latencyMs: null };
-}
 function probeApify(): SystemResult {
   return keyCheck("apify", "Apify", "Scraping", has(process.env.APIFY_API_TOKEN), "Token set", "API token missing", "error", { type: "add-key", label: "Add token" });
 }
@@ -215,7 +211,7 @@ export async function runDiagnostics(trigger: "manual" | "cron"): Promise<Diagno
   const [supabase, meta, youtube, linkedin, airtable, sendpulse] = await Promise.all([
     probeSupabase(), probeMeta(), probeYouTube(), probeLinkedIn(), probeAirtable(), probeSendPulse(),
   ]);
-  const systems: SystemResult[] = [supabase, meta, youtube, linkedin, airtable, sendpulse, probePerplexity(), probeSerper(), probeReddit(), probeApify(), probeHiker()];
+  const systems: SystemResult[] = [supabase, meta, youtube, linkedin, airtable, sendpulse, probePerplexity(), probeSerper(), probeApify(), probeHiker()];
 
   const summary = {
     checked: systems.length,

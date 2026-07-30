@@ -44,7 +44,6 @@ const USAGE_MAP: Record<string, string[]> = {
   sendpulse: ["SendPulse"],
   perplexity: ["Perplexity"],
   serper: ["Serper"],
-  reddit: ["Reddit"],
   supabase: ["Supabase"],
   apify: ["Apify"],
   hikerapi: ["HikerAPI"],
@@ -206,14 +205,6 @@ function checkSerper(): Integration {
   return { ...base, status: "ok", detail: "Powers Content Radar site: lanes (Reddit · Quora · MouthShut · ValueMD)" };
 }
 
-// ---- Reddit (app-only OAuth — reads full threads for Content Radar) ----
-// No live ping (avoids burning the rate limit); validate by credential presence.
-function checkReddit(): Integration {
-  const configured = has(process.env.REDDIT_CLIENT_ID) && has(process.env.REDDIT_CLIENT_SECRET);
-  const base: Integration = { key: "reddit", name: "Reddit (thread reader)", category: "Social", configured, status: "unknown", tokenType: "App-only OAuth (client id + secret)", expiresAt: null, daysRemaining: null, detail: "" };
-  if (!configured) return { ...base, status: "warn", detail: "No app — Reddit mentions show snippet only (no full thread inline)", note: "Register a free 'script' app at reddit.com/prefs/apps → set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET to read full threads + comments inside the dashboard." };
-  return { ...base, status: "ok", detail: "Full Reddit threads + comments in Content Radar" };
-}
 
 // ---- Config-only providers (no cheap live check / no expiry) ----
 function configOnly(key: string, name: string, category: string, envKeys: string[], tokenType: string): Integration {
@@ -246,7 +237,6 @@ export async function GET(req: Request) {
     sendpulse,
     perplexity,
     checkSerper(),
-    checkReddit(),
     configOnly("supabase", "Supabase", "Data", ["SUPABASE_URL", "SUPABASE_SECRET_KEY"], "Service key (no expiry)"),
     configOnly("apify", "Apify", "Scraping", ["APIFY_API_TOKEN"], "API token (no expiry)"),
     configOnly("hikerapi", "HikerAPI", "Scraping", ["HIKERAPI_KEY"], "API key (no expiry)"),
