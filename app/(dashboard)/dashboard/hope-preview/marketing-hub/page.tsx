@@ -169,6 +169,27 @@ function ymd(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
+// --- Work-week helpers (Workload tab) ------------------------------------------
+// The team works Mon–Fri. "Week" means the REST of THIS work-week — today through
+// Friday — never a rolling 7 days into next week. On a weekend it's empty.
+const WEEKDAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "Thursday · 30 Jul 2026"
+function friendlyDate(d: Date): string {
+  return `${WEEKDAY_LONG[d.getDay()]} · ${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+// Today → Friday, Mon–Fri only. Thursday → [Thu, Fri]; Monday → [Mon…Fri]; weekend → [].
+function remainingWeekdays(from: Date = new Date()): Date[] {
+  const dow = from.getDay();                       // 0 Sun … 6 Sat
+  if (dow === 0 || dow === 6) return [];            // weekend — no work days left
+  const out: Date[] = [];
+  for (let wd = dow; wd <= 5; wd++) {              // current weekday … Friday (5)
+    out.push(new Date(from.getFullYear(), from.getMonth(), from.getDate() + (wd - dow)));
+  }
+  return out;
+}
+
 // Subtab → breadcrumb label, so the header reads "Marketing Hub › Pipeline" etc.
 // and you always know which subtab you're on.
 const SUBTAB_LABEL: Record<string, string> = {
@@ -227,6 +248,10 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   // ponytail: fixed ±window; months outside it render empty (see byDay note ~L1070).
   const fetchRange = tab === "calendar"
     ? { from: ymd(new Date(Date.now() - 180 * 86_400_000)), to: ymd(new Date(Date.now() + 365 * 86_400_000)) }
+    : tab === "team"
+    // Workload's Week view looks forward to Friday, so extend the window past today
+    // (the retrospective `from` still feeds the overdue/done counts).
+    ? { from: range.from, to: ymd(new Date(Date.now() + 7 * 86_400_000)) }
     : range;
   const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to, ...(openParam ? { open: openParam } : {}) }).toString();
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
@@ -309,7 +334,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       )}
 
       {tab === "team" && (
-        <TeamView rows={filtered} allRows={data?.rows || []} facets={data?.facets} onOpen={setOpenId} loading={isLoading} range={range} setRange={setRange} />
+        <TeamView rows={filtered} allRows={data?.rows || []} facets={data?.facets} onOpen={setOpenId} loading={isLoading} />
       )}
 
       {tab === "pipeline" && (
@@ -348,13 +373,14 @@ function CompactFacet({ label, value, options, onChange }: { label: string; valu
 
 // TEAM sub-tab — one card per teammate; click a card to open their full task
 // list INLINE below the cards (all statuses), not a pop-up.
-function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
+function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "week">("today");
-  const daysRange = (n: number) => ({ from: ymd(new Date(Date.now() - (n - 1) * 86_400_000)), to: ymd(new Date()) });
-  const activeDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
-  const today = ymd(new Date());
-  const weekAhead = ymd(new Date(Date.now() + 7 * 86_400_000));
+  const todayDate = new Date();
+  const today = ymd(todayDate);
+  const friendlyToday = friendlyDate(todayDate);
+  const weekdays = remainingWeekdays(todayDate);                 // today → Friday (empty on weekend)
+  const weekEnd = weekdays.length ? ymd(weekdays[weekdays.length - 1]) : today;
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
 
   const teamCards = useMemo(() => TEAM.map((m) => {
@@ -365,7 +391,8 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
       const dd = r.dueDate?.slice(0, 10) || "";
       const isDone = DONE_STATUSES.includes(r.status);
       if (pd === today && !isDone) today_ += 1;
-      if (pd && pd >= today && pd <= weekAhead && !isDone) week += 1;
+      // "This week" = today through Friday (rest of the current work-week only).
+      if (pd && pd >= today && pd <= weekEnd && !isDone) week += 1;
       // Overdue = past its due date OR its publishing date, and not yet done.
       if (!isDone && ((dd && dd < today) || (pd && pd < today))) overdue_ += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) done_ += 1;
@@ -380,7 +407,7 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
       roleHighlight = rows.filter((r) => r.needsReview).length;
     }
     return { member: m, mine, today: today_, week, overdue: overdue_, done: done_, roleHighlight };
-  }), [rows, today, weekAgo, weekAhead]);
+  }), [rows, today, weekAgo, weekEnd]);
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-lg p-10 text-center text-gray-400">Loading team…</div>;
@@ -393,44 +420,37 @@ function TeamView({ rows, allRows, facets, onOpen, loading, range, setRange }: {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
           <button onClick={() => setView("today")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "today" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Today</button>
-          <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Tasks</button>
+          <button onClick={() => setView("week")} className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${view === "week" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>Week</button>
         </div>
-        <span className="text-[11px] text-gray-400">{view === "today" ? "Each person's plan for today — timeline + tasks." : "Click a person to open their full task list for the selected range."}</span>
-        {view === "week" && (
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
-              {[7, 30, 60, 90].map((n) => (
-                <button key={n} onClick={() => setRange(daysRange(n))}
-                  className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition ${activeDays === n ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}>{n}d</button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] text-gray-400">
-              <input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ from: e.target.value, to: range.to })}
-                className="border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700" />
-              <span>→</span>
-              <input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ from: range.from, to: e.target.value })}
-                className="border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700" />
-            </div>
-          </div>
-        )}
+        <span className="text-[12px] font-medium text-[#232D42]">
+          {view === "today"
+            ? <>{friendlyToday.split(" · ")[0]} <span className="text-gray-400 font-normal">({friendlyToday.split(" · ")[1]}) · today</span></>
+            : weekdays.length
+              ? <>Rest of this week <span className="text-gray-400 font-normal">· {WEEKDAY_SHORT[weekdays[0].getDay()]}–{WEEKDAY_SHORT[weekdays[weekdays.length - 1].getDay()]} · Mon–Fri</span></>
+              : <span className="text-gray-400 font-normal">Weekend — the work-week is done</span>}
+        </span>
       </div>
 
       {view === "today" ? (
         <div className="space-y-3">
           {teamCards.map((c) => <PersonTimelineRow key={c.member.key} card={c} />)}
         </div>
+      ) : weekdays.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+          <div className="text-[15px] font-semibold text-[#232D42] mb-1">No work days left this week</div>
+          <div className="text-[13px] text-gray-500">The team works Monday–Friday. Check back Monday for the next week&apos;s plan.</div>
+        </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-4">
-            {teamCards.map((c) => (
-              <TeamMemberCard
-                key={c.member.key}
-                card={c}
-                selected={c.member.key === selected}
-                onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
-              />
-            ))}
-          </div>
+          {teamCards.map((c) => (
+            <PersonWeekRow
+              key={c.member.key}
+              member={c.member}
+              mine={c.mine}
+              weekdays={weekdays}
+              onOpenPanel={() => setSelected((prev) => (prev === c.member.key ? null : c.member.key))}
+            />
+          ))}
           {selMember && (
             <PersonPanel member={selMember} allRows={allRows} facets={facets} onOpen={onOpen} onClose={() => setSelected(null)} />
           )}
@@ -450,26 +470,20 @@ function blockGradient(type: string): string {
 }
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return `${h ? h + "h " : ""}${mm}m`; };
 
-function PersonTimelineRow({ card }: {
-  card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
-}) {
-  const { member, mine, today, week, overdue, done, roleHighlight } = card;
-
-  // Today's queue = not-done tasks, most urgent (soonest due) first.
-  const queue = mine
+type PlanBlk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
+// Shared day-plan layout: sequence a person's not-done tasks across the 9 AM–7 PM
+// span around the pinned 1–2 PM lunch. Used by both the Today row (all pending work)
+// and each Week mini-day (that day's tasks). A task running into lunch splits around
+// it; anything past 7 PM overflows (spills to another day).
+function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
+  const queue = queueRows
     .filter((r) => !DONE_STATUSES.includes(r.status))
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
-
-  type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
-  const blocks: Blk[] = [];
+  const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
-  let cur = (member.label === "Nandu" ? 60 : 0), lunchDone = false, overflow = 0;   // Nandu = 10–7 late shift
+  let cur = member.label === "Nandu" ? 60 : 0, lunchDone = false, overflow = 0;   // Nandu = 10–7 late shift
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
-  // Lunch is FIXED at 1–2 PM (office standard) — never floats to wherever tasks end.
-  // A task running into it splits around it; an early/empty day gets a Free gap before
-  // it so lunch still sits on the 1 PM tick. Blocks carry absolute start+dur and are
-  // rendered by left/width % (flex layout drifts as label widths vary).
   for (const q of queue) {
     if (cur >= SPAN_MIN) { overflow++; continue; }
     let remaining = taskDurMin(q.r.type);
@@ -487,10 +501,82 @@ function PersonTimelineRow({ card }: {
     pushLunch();
   }
   if (cur < SPAN_MIN) blocks.push({ kind: "free", label: "Free", dur: SPAN_MIN - cur, start: cur });
-  // A task split around lunch produces two blocks — list it once (full duration).
   const seenT = new Set<string>();
   const taskBlocks = blocks.filter((b) => b.kind === "task" && b.row != null && !seenT.has(b.row.id) && (seenT.add(b.row.id), true));
   const free = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);
+  return { blocks, taskBlocks, free, overflow };
+}
+
+// A single compact day-plan for the Week view — one weekday's tasks for one person.
+// Tasks are matched to the day by publishing date (falling back to due date).
+function MiniDayTimeline({ date, rows, member, isToday }: { date: Date; rows: Row[]; member: TeamMember; isToday: boolean }) {
+  const key = ymd(date);
+  const dayRows = rows.filter((r) => ((r.publishingDate || r.dueDate || "").slice(0, 10)) === key && !DONE_STATUSES.includes(r.status));
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(dayRows, member);
+  const booked = taskBlocks.length;
+  const now = new Date();
+  const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
+  const nowPct = isToday && nowMin >= 0 && nowMin <= SPAN_MIN ? (nowMin / SPAN_MIN) * 100 : null;
+  const badge = overflow > 0 ? { t: `+${overflow} over`, c: "bg-rose-50 text-rose-600" }
+    : booked === 0 ? { t: "Open", c: "bg-gray-50 text-gray-400" }
+    : free <= 0 ? { t: "Full", c: "bg-rose-50 text-rose-600" }
+    : { t: `${fmtDur(free)} free`, c: "bg-emerald-50 text-emerald-600" };
+  return (
+    <div className={`rounded-xl border p-2.5 ${isToday ? "border-brand/40 bg-brand-light/40" : "border-gray-100 bg-white"}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[12px] font-semibold text-[#232D42]">{WEEKDAY_SHORT[date.getDay()]} {date.getDate()}{isToday ? <span className="text-brand font-medium"> · today</span> : ""}</span>
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${badge.c}`}>{badge.t}</span>
+      </div>
+      <div className="relative h-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+        {blocks.map((b, i) => {
+          const pos = { position: "absolute" as const, top: 0, bottom: 0, left: `${(b.start / SPAN_MIN) * 100}%`, width: `${(b.dur / SPAN_MIN) * 100}%` };
+          if (b.kind === "lunch") return <div key={i} style={pos} className="border-r border-white/50 bg-[repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5_5px,#DFE3EE_5px,#DFE3EE_10px)]" title="Lunch 1–2 PM" />;
+          if (b.kind === "free") return <div key={i} style={pos} className="bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_5px,#E9ECF2_5px,#E9ECF2_10px)]" />;
+          return (
+            <div key={i} style={{ ...pos, backgroundImage: blockGradient(b.row?.type || "") }} className="min-w-0 flex items-center px-1.5 text-white border-r border-white/20" title={`${b.label} · ${b.row?.type || "Task"}`}>
+              <span className="text-[10px] font-medium leading-tight truncate">{b.label}</span>
+            </div>
+          );
+        })}
+        {nowPct != null && <div className="absolute top-0 bottom-0 w-0.5 bg-[#DC2E2E] z-10" style={{ left: `${nowPct}%` }} />}
+      </div>
+      <div className="mt-1 text-[11px] text-gray-500">{booked === 0 ? "No tasks" : `${booked} task${booked > 1 ? "s" : ""}`}</div>
+    </div>
+  );
+}
+
+// One teammate for the Week view: a row of compact mini-day plans, today → Friday.
+function PersonWeekRow({ member, mine, weekdays, onOpenPanel }: { member: TeamMember; mine: Row[]; weekdays: Date[]; onOpenPanel: () => void }) {
+  const todayKey = ymd(new Date());
+  const weekEnd = weekdays.length ? ymd(weekdays[weekdays.length - 1]) : todayKey;
+  const weekTasks = mine.filter((r) => {
+    const pd = (r.publishingDate || r.dueDate || "").slice(0, 10);
+    return pd && pd >= todayKey && pd <= weekEnd && !DONE_STATUSES.includes(r.status);
+  }).length;
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+      <button onClick={onOpenPanel} className="flex items-center gap-3 mb-3 w-full text-left group" title="Open full task list">
+        <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-semibold flex-shrink-0" style={{ background: member.color }}>{member.av}</span>
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold text-gray-900 leading-tight group-hover:text-brand transition">{member.label}</div>
+          <div className="text-[13px] text-gray-500">{member.displayRole}</div>
+        </div>
+        <span className="ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-600">{weekTasks} task{weekTasks === 1 ? "" : "s"} this week</span>
+      </button>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${weekdays.length}, minmax(0, 1fr))` }}>
+        {weekdays.map((d) => <MiniDayTimeline key={ymd(d)} date={d} rows={mine} member={member} isToday={ymd(d) === todayKey} />)}
+      </div>
+    </div>
+  );
+}
+
+function PersonTimelineRow({ card }: {
+  card: { member: TeamMember; mine: Row[]; today: number; week: number; overdue: number; done: number; roleHighlight: number };
+}) {
+  const { member, mine, today, week, overdue, done, roleHighlight } = card;
+
+  // Lay all pending work into today's plan (9 AM–7 PM around the pinned 1–2 PM lunch).
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(mine, member);
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
