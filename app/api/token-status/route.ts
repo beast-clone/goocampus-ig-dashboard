@@ -41,11 +41,18 @@ export async function GET(req: Request) {
       cached = { fetchedAt: Date.now(), payload };
       return NextResponse.json(payload);
     }
-    const expiresAt = typeof j.data.expires_at === "number" ? j.data.expires_at : null;
+    // A long-lived Meta USER token often has expires_at = 0 ("never expires") — but its
+    // DATA ACCESS still lapses (~90 days), after which Meta stops returning data and you
+    // must reconnect. Count down to whichever real deadline comes first, so the badge
+    // shows a true "N days left" instead of a misleading "never expires".
     const nowSec = Math.floor(Date.now() / 1000);
-    const daysRemaining = expiresAt && expiresAt > 0
+    const tokenExp = typeof j.data.expires_at === "number" ? j.data.expires_at : 0;
+    const dataExp = typeof j.data.data_access_expires_at === "number" ? j.data.data_access_expires_at : 0;
+    const candidates = [tokenExp, dataExp].filter((x) => x > 0);
+    const expiresAt = candidates.length ? Math.min(...candidates) : null;
+    const daysRemaining = expiresAt
       ? Math.max(0, Math.floor((expiresAt - nowSec) / 86400))
-      : null; // null means "never expires"
+      : null; // null only if BOTH are 0 → genuinely never expires
     const payload: TokenStatus = {
       valid: j.data.is_valid === true,
       expiresAt: expiresAt || null,

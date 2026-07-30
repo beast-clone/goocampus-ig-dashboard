@@ -81,7 +81,12 @@ async function checkMeta(): Promise<{ integ: Integration; rateLimit: Payload["ra
     const r = await fetch(`https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(userToken!)}&access_token=${appId}|${appSecret}`, { cache: "no-store" });
     const j = await r.json();
     if (!r.ok || j.error || !j.data) return { integ: { ...base, status: "error", note: j.error?.message || "debug_token failed" }, rateLimit };
-    const expSec = typeof j.data.expires_at === "number" && j.data.expires_at > 0 ? j.data.expires_at : null;
+    // Long-lived user tokens report expires_at=0 ("never") but DATA ACCESS still lapses
+    // (~90d) — count down to the nearer real deadline so the tab shows true days-left.
+    const tokenExp = typeof j.data.expires_at === "number" && j.data.expires_at > 0 ? j.data.expires_at : 0;
+    const dataExp = typeof j.data.data_access_expires_at === "number" && j.data.data_access_expires_at > 0 ? j.data.data_access_expires_at : 0;
+    const cands = [tokenExp, dataExp].filter((x) => x > 0);
+    const expSec = cands.length ? Math.min(...cands) : null;
     const expiresAt = expSec ? expSec * 1000 : null;
     const days = daysFromMs(expiresAt);
     const scopes = Array.isArray(j.data.scopes) ? j.data.scopes.length : 0;

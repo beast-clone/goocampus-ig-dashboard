@@ -91,12 +91,17 @@ async function probeMeta(): Promise<SystemResult> {
     meta,
     async () => { const r = await fetchWithTimeout(`https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(token!)}&access_token=${appId}|${appSecret}`, { timeoutMs: 8000, cache: "no-store" }); const j = await r.json(); if (!r.ok || j.error || !j.data) throw new Error(j.error?.message || "debug_token failed"); return j.data; },
     (val) => {
-      const d = val as { is_valid?: boolean; expires_at?: number };
-      const expiresAt = typeof d.expires_at === "number" && d.expires_at > 0 ? d.expires_at * 1000 : null;
+      const d = val as { is_valid?: boolean; expires_at?: number; data_access_expires_at?: number };
+      // expires_at can be 0 ("never") while data access still lapses (~90d) — count down
+      // to the nearer real deadline so the tab shows true days-left, not "no expiry".
+      const tokenExp = typeof d.expires_at === "number" && d.expires_at > 0 ? d.expires_at : 0;
+      const dataExp = typeof d.data_access_expires_at === "number" && d.data_access_expires_at > 0 ? d.data_access_expires_at : 0;
+      const cands = [tokenExp, dataExp].filter((x) => x > 0);
+      const expiresAt = cands.length ? Math.min(...cands) * 1000 : null;
       const days = daysLeft(expiresAt);
       if (d.is_valid !== true) return { status: "error", detail: "Token invalid", expiresAt, action: { type: "reconnect", label: "Reconnect", provider: "meta" } };
-      const status: SysStatus = days !== null && days < 7 ? "warn" : "ok";
-      return { status, detail: days !== null ? `Valid · ${days}d left` : "Valid · no expiry", expiresAt, action: status === "warn" ? { type: "reconnect", label: "Reconnect early", provider: "meta" } : undefined };
+      const status: SysStatus = days !== null && days < 14 ? "warn" : "ok";
+      return { status, detail: days !== null ? `Valid · ${days}d left` : "Valid · no expiry", expiresAt, action: status !== null && status === "warn" ? { type: "reconnect", label: "Reconnect early", provider: "meta" } : undefined };
     },
     (err) => ({ detail: `Check failed: ${err.slice(0, 80)}`, action: { type: "reconnect", label: "Reconnect", provider: "meta" } }),
   );
