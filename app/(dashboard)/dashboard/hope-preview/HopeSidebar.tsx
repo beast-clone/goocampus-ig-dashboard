@@ -8,6 +8,7 @@ import {
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
+  IconDeviceMobile, IconBuildingSkyscraper, IconArchive,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -75,8 +76,12 @@ const GROUPS: Group[] = [
     { label: "Sales Hub",    href: `${HUB}/sales-ops`, icon: IconReportMoney },
   ] },
   { label: "AI", items: [
-    { label: "AI Insights", href: `${HUB}/ai-insights`, icon: IconBulb },
-    { label: "AI Reports",  href: `${HUB}/ai-reports`,  icon: IconReportAnalytics },
+    { label: "AI Insights",     href: `${HUB}/ai-insights`, icon: IconBulb },
+    { label: "Monthly Reports", href: `${HUB}/ai-reports`,  icon: IconReportAnalytics },
+    { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/reports/social`, children: [
+      { label: "Social Media Reports", href: `${HUB}/reports/social`,  icon: IconDeviceMobile },
+      { label: "Company Reports",      href: `${HUB}/reports/company`, icon: IconBuildingSkyscraper },
+    ] },
   ] },
   { label: "System", items: [
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
+import { saveReport } from "@/lib/report-store";
 
 // AI Report generator.
 //
@@ -196,17 +197,24 @@ export async function GET(req: Request) {
     const crm: LeadsCrm | null = leadsRes && leadsRes.ok ? ((await leadsRes.json()) as LeadsCrm) : null;
 
     // Shape the leads → sales block (top-N trimmed) for both the AI context and payload.
+    // DM-only: paid "Digital marketing activity" leads are excluded — this is the
+    // organic/social report; paid marketing is counted separately.
+    const PAID_LEAD_SOURCES = ["digital marketing activity"];
+    const dmSources = (crm?.bySource || []).filter(
+      (s) => !PAID_LEAD_SOURCES.includes((s.name || "").trim().toLowerCase()),
+    );
+    const dmLeads = dmSources.reduce((sum, s) => sum + (s.count || 0), 0);
     const leadsSales = crm
       ? {
           totals: {
-            leads: crm.totals.leads,
+            leads: dmLeads,
             contracts: crm.totals.contracts,
             revenue: crm.totals.revenue,
-            conversionPct: crm.totals.leads > 0 ? Math.round((crm.totals.contracts / crm.totals.leads) * 1000) / 10 : 0,
+            conversionPct: dmLeads > 0 ? Math.round((crm.totals.contracts / dmLeads) * 1000) / 10 : 0,
             firstActivityAvgHrs: crm.totals.firstActivityAvgHrs,
           },
           inflowByDay: crm.inflowByDay || [],
-          bySource: (crm.bySource || []).slice(0, 6),
+          bySource: dmSources.slice(0, 6),
           byInterest: (crm.byInterest || []).slice(0, 6),
           byStatus: (crm.byStatus || []).slice(0, 6),
           counsellors: (crm.counsellors || [])
@@ -278,6 +286,8 @@ export async function GET(req: Request) {
         date: p.timestamp.slice(0, 10),
         type: p.type === "REEL" ? "Reel" : p.type === "CAROUSEL_ALBUM" ? "Carousel" : "Static",
         caption: (p.caption || "").split("\n")[0].slice(0, 90),
+        mediaUrl: p.mediaUrl,
+        permalink: p.permalink,
         reach: p.reach || 0,
         likes: p.likes || 0,
         comments: p.comments || 0,
@@ -435,6 +445,9 @@ export async function GET(req: Request) {
     };
 
     CACHE.set(cacheKey, { at: Date.now(), payload });
+    // Archive it durably so it stays browsable in the Reports tab (per-period slot,
+    // updated on re-generate). Best-effort — a store failure must not break the report.
+    try { await saveReport("instagram", accountId, period, toStr, payload); } catch { /* archive is non-critical */ }
     return NextResponse.json({ ...payload, cached: false });
   } catch (err) {
     return NextResponse.json(safeError(err, "Report generation failed"), { status: 502 });
