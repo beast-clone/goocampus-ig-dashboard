@@ -179,15 +179,12 @@ const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 function friendlyDate(d: Date): string {
   return `${WEEKDAY_LONG[d.getDay()]} · ${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
-// Today → Friday, Mon–Fri only. Thursday → [Thu, Fri]; Monday → [Mon…Fri]; weekend → [].
-function remainingWeekdays(from: Date = new Date()): Date[] {
-  const dow = from.getDay();                       // 0 Sun … 6 Sat
+// Monday–Friday of the current work-week (always all 5 days). Weekend → [].
+function currentWorkWeek(from: Date = new Date()): Date[] {
+  const dow = from.getDay();                        // 0 Sun … 6 Sat
   if (dow === 0 || dow === 6) return [];            // weekend — no work days left
-  const out: Date[] = [];
-  for (let wd = dow; wd <= 5; wd++) {              // current weekday … Friday (5)
-    out.push(new Date(from.getFullYear(), from.getMonth(), from.getDate() + (wd - dow)));
-  }
-  return out;
+  const monday = new Date(from.getFullYear(), from.getMonth(), from.getDate() - (dow - 1));
+  return Array.from({ length: 5 }, (_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
 }
 
 // Subtab → breadcrumb label, so the header reads "Marketing Hub › Pipeline" etc.
@@ -379,7 +376,8 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
   const todayDate = new Date();
   const today = ymd(todayDate);
   const friendlyToday = friendlyDate(todayDate);
-  const weekdays = remainingWeekdays(todayDate);                 // today → Friday (empty on weekend)
+  const weekdays = currentWorkWeek(todayDate);                    // Mon–Fri of this week (empty on weekend)
+  const weekStart = weekdays.length ? ymd(weekdays[0]) : today;
   const weekEnd = weekdays.length ? ymd(weekdays[weekdays.length - 1]) : today;
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
 
@@ -391,8 +389,8 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
       const dd = r.dueDate?.slice(0, 10) || "";
       const isDone = DONE_STATUSES.includes(r.status);
       if (pd === today && !isDone) today_ += 1;
-      // "This week" = today through Friday (rest of the current work-week only).
-      if (pd && pd >= today && pd <= weekEnd && !isDone) week += 1;
+      // "This week" = Monday through Friday of the current work-week.
+      if (pd && pd >= weekStart && pd <= weekEnd && !isDone) week += 1;
       // Overdue = past its due date OR its publishing date, and not yet done.
       if (!isDone && ((dd && dd < today) || (pd && pd < today))) overdue_ += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) done_ += 1;
@@ -407,7 +405,7 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
       roleHighlight = rows.filter((r) => r.needsReview).length;
     }
     return { member: m, mine, today: today_, week, overdue: overdue_, done: done_, roleHighlight };
-  }), [rows, today, weekAgo, weekEnd]);
+  }), [rows, today, weekAgo, weekStart, weekEnd]);
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-lg p-10 text-center text-gray-400">Loading team…</div>;
@@ -426,7 +424,7 @@ function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; all
           {view === "today"
             ? <>{friendlyToday.split(" · ")[0]} <span className="text-gray-400 font-normal">({friendlyToday.split(" · ")[1]}) · today</span></>
             : weekdays.length
-              ? <>Rest of this week <span className="text-gray-400 font-normal">· {WEEKDAY_SHORT[weekdays[0].getDay()]}–{WEEKDAY_SHORT[weekdays[weekdays.length - 1].getDay()]} · Mon–Fri</span></>
+              ? <>This week <span className="text-gray-400 font-normal">· Mon–Fri · {weekdays[0].getDate()}–{weekdays[weekdays.length - 1].getDate()} {MONTH_SHORT[weekdays[weekdays.length - 1].getMonth()]}</span></>
               : <span className="text-gray-400 font-normal">Weekend — the work-week is done</span>}
         </span>
       </div>
@@ -509,7 +507,7 @@ function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]
 
 // A single compact day-plan for the Week view — one weekday's tasks for one person.
 // Tasks are matched to the day by publishing date (falling back to due date).
-function MiniDayTimeline({ date, rows, member, isToday }: { date: Date; rows: Row[]; member: TeamMember; isToday: boolean }) {
+function MiniDayTimeline({ date, rows, member, isToday, isPast }: { date: Date; rows: Row[]; member: TeamMember; isToday: boolean; isPast: boolean }) {
   const key = ymd(date);
   const dayRows = rows.filter((r) => ((r.publishingDate || r.dueDate || "").slice(0, 10)) === key && !DONE_STATUSES.includes(r.status));
   const { blocks, taskBlocks, free, overflow } = buildDayPlan(dayRows, member);
@@ -522,7 +520,7 @@ function MiniDayTimeline({ date, rows, member, isToday }: { date: Date; rows: Ro
     : free <= 0 ? { t: "Full", c: "bg-rose-50 text-rose-600" }
     : { t: `${fmtDur(free)} free`, c: "bg-emerald-50 text-emerald-600" };
   return (
-    <div className={`rounded-xl border p-2.5 ${isToday ? "border-brand/40 bg-brand-light/40" : "border-gray-100 bg-white"}`}>
+    <div className={`rounded-xl border p-2.5 ${isToday ? "border-brand/40 bg-brand-light/40" : "border-gray-100 bg-white"} ${isPast ? "opacity-45" : ""}`}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[12px] font-semibold text-[#232D42]">{WEEKDAY_SHORT[date.getDay()]} {date.getDate()}{isToday ? <span className="text-brand font-medium"> · today</span> : ""}</span>
         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${badge.c}`}>{badge.t}</span>
@@ -548,10 +546,11 @@ function MiniDayTimeline({ date, rows, member, isToday }: { date: Date; rows: Ro
 // One teammate for the Week view: a row of compact mini-day plans, today → Friday.
 function PersonWeekRow({ member, mine, weekdays, onOpenPanel }: { member: TeamMember; mine: Row[]; weekdays: Date[]; onOpenPanel: () => void }) {
   const todayKey = ymd(new Date());
+  const weekStart = weekdays.length ? ymd(weekdays[0]) : todayKey;
   const weekEnd = weekdays.length ? ymd(weekdays[weekdays.length - 1]) : todayKey;
   const weekTasks = mine.filter((r) => {
     const pd = (r.publishingDate || r.dueDate || "").slice(0, 10);
-    return pd && pd >= todayKey && pd <= weekEnd && !DONE_STATUSES.includes(r.status);
+    return pd && pd >= weekStart && pd <= weekEnd && !DONE_STATUSES.includes(r.status);
   }).length;
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4">
@@ -564,7 +563,7 @@ function PersonWeekRow({ member, mine, weekdays, onOpenPanel }: { member: TeamMe
         <span className="ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-600">{weekTasks} task{weekTasks === 1 ? "" : "s"} this week</span>
       </button>
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${weekdays.length}, minmax(0, 1fr))` }}>
-        {weekdays.map((d) => <MiniDayTimeline key={ymd(d)} date={d} rows={mine} member={member} isToday={ymd(d) === todayKey} />)}
+        {weekdays.map((d) => { const k = ymd(d); return <MiniDayTimeline key={k} date={d} rows={mine} member={member} isToday={k === todayKey} isPast={k < todayKey} />; })}
       </div>
     </div>
   );
