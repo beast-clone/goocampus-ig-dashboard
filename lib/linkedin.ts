@@ -84,6 +84,22 @@ export async function discoverOrgUrn(token: string): Promise<string> {
   throw new Error(`No admin organization found. Last response: ${lastRaw}`);
 }
 
+// Public-page identity per key (name/handle used in the returned payload).
+const PAGE_META: Record<string, { name: string; handle: string; vanityName: string }> = {
+  gcworld:   { name: "GooCampus World", handle: "GooCampus World", vanityName: "goocampusworld" },
+  goocampus: { name: "GooCampus",       handle: "GooCampus",       vanityName: "goocampus" },
+};
+
+// Resolve the org URN for a page. Each page has its own env var; falls back to
+// auto-discovery of the first org the member administers.
+//   gcworld   → LINKEDIN_ORG_URN_GCWORLD   (urn:li:organization:107157863)
+//   goocampus → LINKEDIN_ORG_URN_GOOCAMPUS (urn:li:organization:3358713 — GooCampus Edu Solutions)
+async function orgUrnFor(pageKey: string, token: string): Promise<string> {
+  const env = pageKey === "goocampus" ? process.env.LINKEDIN_ORG_URN_GOOCAMPUS : process.env.LINKEDIN_ORG_URN_GCWORLD;
+  if (env) return env;
+  return discoverOrgUrn(token);
+}
+
 function ms(dateIso: string): number {
   return new Date(dateIso + "T00:00:00Z").getTime();
 }
@@ -490,10 +506,10 @@ export type LinkedInLive = Awaited<ReturnType<typeof buildLive>>;
 export async function buildLive(pageKey: string, from: string, to: string) {
   const token = await linkedinToken();
   if (!token) throw new Error("LINKEDIN_ACCESS_TOKEN not set");
-  // Only GooCampus World is wired live (that's the approved org). Main GooCampus stays demo.
-  if (pageKey !== "gcworld") throw new Error("live not configured for this page");
+  const meta = PAGE_META[pageKey];
+  if (!meta) throw new Error("live not configured for this page");
 
-  const orgUrn = await discoverOrgUrn(token);
+  const orgUrn = await orgUrnFor(pageKey, token);
   const currentFollowers = await fetchCurrentFollowers(token, orgUrn);
 
   // Each section degrades independently: if one LinkedIn call fails we still return the rest.
@@ -515,7 +531,7 @@ export async function buildLive(pageKey: string, from: string, to: string) {
   const ctr = shareStats.ctr || (impressions ? Math.round((postClicks / impressions) * 1000) / 10 : 0);
 
   return {
-    page: { id: "gcworld", name: "GooCampus World", handle: "GooCampus World", vanityName: "goocampusworld", urn: orgUrn },
+    page: { id: pageKey, name: meta.name, handle: meta.handle, vanityName: meta.vanityName, urn: orgUrn },
     source: "live" as const,
     range: { from, to },
     summary: {

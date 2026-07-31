@@ -208,10 +208,12 @@ export async function GET(req: Request) {
 
     const t0 = Date.now();
 
-    // GooCampus World goes live when a token is present (that's the approved org).
-    // Main GooCampus stays on demo until its own app is approved.
-    // Any live-call failure degrades gracefully to demo so the tab never breaks.
-    if (pageKey === "gcworld" && (await linkedinToken())) {
+    // Both GooCampus World and main GooCampus go live when a token is present and the
+    // token's member administers that org (info@goocampus is Super Admin of both:
+    // gcworld=urn:li:organization:107157863, goocampus=urn:li:organization:3358713).
+    // Main GooCampus needs LINKEDIN_ORG_URN_GOOCAMPUS set; without it, orgUrnFor falls
+    // back to auto-discovery. Any live-call failure degrades gracefully to demo.
+    if ((pageKey === "gcworld" || pageKey === "goocampus") && (await linkedinToken())) {
       try {
         // 30-min cache: makes tab flips instant AND protects LinkedIn's tiny
         // per-day quota on the follower-statistics endpoint.
