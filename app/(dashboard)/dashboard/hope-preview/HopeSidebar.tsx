@@ -4,7 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
-  IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar,
+  IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
@@ -72,8 +72,9 @@ const GROUPS: Group[] = [
     { label: "Benchmark",      href: `${HUB}/benchmark`,   icon: IconChartHistogram },
   ] },
   { label: "Sales", items: [
-    { label: "Social Leads", href: `${HUB}/leads`,     icon: IconUserDollar },
-    { label: "Sales Hub",    href: `${HUB}/sales-ops`, icon: IconReportMoney },
+    { label: "Social Leads",  href: `${HUB}/leads`,          icon: IconUserDollar },
+    { label: "Sales Hub",     href: `${HUB}/sales-ops`,      icon: IconReportMoney },
+    { label: "Organic Sales", href: `${HUB}/organic-sales`,  icon: IconBook2 },
   ] },
   { label: "AI", items: [
     { label: "AI Insights",     href: `${HUB}/ai-insights`, icon: IconBulb },
