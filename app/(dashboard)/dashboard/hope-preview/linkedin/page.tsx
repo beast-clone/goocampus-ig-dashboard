@@ -7,9 +7,9 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
 
-const LI = "#0A66C2"; // LinkedIn blue
-// Blue shade ramp for donuts / ranked bars (dark → light).
-const SHADES = ["#0A66C2", "#2D7FD6", "#5AA0E8", "#86BCF3", "#B2D5F9", "#D6E8FC", "#EAF3FD"];
+const LI = "#3A57E8"; // Hope UI brand accent (this dashboard uses Hope UI everywhere — not LinkedIn blue)
+// Hope-brand shade ramp for donuts / ranked bars (dark → light).
+const SHADES = ["#3A57E8", "#5E77EC", "#8496F1", "#AAB4F5", "#CBD3F8", "#E9ECFB", "#F4F6FD"];
 
 type Post = {
   id: string; date: string; text: string; type: string;
@@ -97,13 +97,12 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         {profile ? (
           <div className="text-sm font-semibold text-[#232D42]">{PAGES.find((p) => p.key === page)?.label ?? page}</div>
         ) : (
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+        <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
           {PAGES.map((p) => (
             <button
               key={p.key}
               onClick={() => setPage(p.key)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${page === p.key ? "text-white" : "text-gray-600 hover:text-gray-900"}`}
-              style={page === p.key ? { background: LI } : {}}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${page === p.key ? "bg-white shadow-sm text-[#232D42]" : "text-gray-500 hover:text-gray-700"}`}
             >
               {p.label}
             </button>
@@ -180,9 +179,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg p-3">
-      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums" style={accent ? { color: LI } : {}}>{value}</div>
-      {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
+      <div className="text-xs font-medium uppercase tracking-wider text-[#8A92A6]">{label}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums text-[#232D42]" style={accent ? { color: LI } : undefined}>{value}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -264,7 +263,7 @@ function FollowersChart({ data, totalGain, organic, paid }: { data: { date: stri
 }
 
 const TYPE_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  ARTICLE: { bg: "#E6F1FB", text: "#0A66C2", label: "Article" },
+  ARTICLE: { bg: "#E9ECFB", text: "#2138B0", label: "Article" },
   IMAGE: { bg: "#EAF3DE", text: "#27500A", label: "Image" },
   VIDEO: { bg: "#FAEEDA", text: "#633806", label: "Video" },
   DOCUMENT: { bg: "#EDE9FB", text: "#4324A6", label: "Carousel" },
@@ -357,7 +356,7 @@ function PostPerformance({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) =
             return (
               <div key={p.id} role="button" tabIndex={0} onClick={() => onOpen(p)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(p); } }}
-                className="cursor-pointer text-left bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition group focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/40">
+                className="cursor-pointer text-left bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition group focus:outline-none focus:ring-2 focus:ring-brand/40">
                 <div className="relative">
                   <PostMedia post={p} />
                   <span className="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: style.bg, color: style.text }}>{style.label}</span>
