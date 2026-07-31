@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { useApi } from "@/lib/use-api";
+import { AreaTrend } from "@/components/AreaTrend";
 import { IconBook2, IconCoin, IconReceipt, IconCreditCard } from "@tabler/icons-react";
 
 const BOOK_TABS = [
@@ -93,11 +94,11 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHead icon={<IconReceipt size={15} className="text-brand" />} title="Sales per month" />
-          <LineChart data={data?.byMonth || []} metric="sales" color="#3A57E8" />
+          <AreaTrend data={(data?.byMonth || []).map((d) => ({ label: monthLabel(d.month), value: d.sales }))} color="#3A57E8" unit="Sales" />
         </Card>
         <Card>
-          <CardHead icon={<IconCoin size={15} className="text-sky-500" />} title="Revenue per month" />
-          <LineChart data={data?.byMonth || []} metric="revenue" color="#0EA5E9" money />
+          <CardHead icon={<IconCoin size={15} style={{ color: "#079AA2" }} />} title="Revenue per month" />
+          <AreaTrend data={(data?.byMonth || []).map((d) => ({ label: monthLabel(d.month), value: d.revenue }))} color="#079AA2" unit="Revenue" format={inr} />
         </Card>
       </div>
 
@@ -139,44 +140,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           </Card>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Smooth-ish line graph with point markers + value labels (matches the report's
-// monthly line charts). One metric per chart (sales or revenue).
-function LineChart({ data, metric, color, money }: { data: { month: string; sales: number; revenue: number }[]; metric: "sales" | "revenue"; color: string; money?: boolean }) {
-  if (!data.length) return <div className="text-[13px] text-gray-400 py-8 text-center">No data.</div>;
-  const W = 520, H = 190, padX = 26, padTop = 24, padBot = 26;
-  const vals = data.map((d) => d[metric]);
-  const max = Math.max(...vals, 1);
-  const n = data.length;
-  const x = (i: number) => padX + (i / Math.max(1, n - 1)) * (W - padX * 2);
-  const y = (v: number) => padTop + (1 - v / max) * (H - padTop - padBot);
-  const pts = data.map((d, i) => [x(i), y(d[metric])] as const);
-  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-  const area = `${line} L${pts[n - 1][0].toFixed(1)},${(H - padBot).toFixed(1)} L${pts[0][0].toFixed(1)},${(H - padBot).toFixed(1)} Z`;
-  const label = (v: number) => (money ? "₹" + (v / 1000).toFixed(v >= 1000 ? 0 : 1) + "k" : String(v));
-  const gid = `og-fill-${metric}`;
-  return (
-    <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 340 }} className="block">
-        <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.16" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill={`url(#${gid})`} />
-        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {data.map((d, i) => (
-          <g key={d.month}>
-            <circle cx={x(i)} cy={y(d[metric])} r="3" fill="#fff" stroke={color} strokeWidth="2" />
-            {d[metric] > 0 && <text x={x(i)} y={y(d[metric]) - 8} textAnchor="middle" fontSize="9" fill="#232D42" fontWeight="500">{label(d[metric])}</text>}
-            <text x={x(i)} y={H - 8} textAnchor="middle" fontSize="9" fill="#8A92A6">{monthLabel(d.month).replace(" ", " ")}</text>
-          </g>
-        ))}
-      </svg>
     </div>
   );
 }
