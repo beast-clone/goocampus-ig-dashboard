@@ -39,12 +39,14 @@ const DEMO_STORIES: StoryWithStats[] = [
 const DEMO_GRADIENTS = [
   "from-brand to-brand-dark",
   "from-blue-400 to-cyan-500",
-  "from-emerald-400 to-teal-500",
-  "from-amber-400 to-orange-500",
-  "from-rose-400 to-pink-500",
-  "from-indigo-400 to-purple-500",
+  // Hope-brand family (blue → indigo → violet) so placeholder story tiles stay
+  // on-theme instead of a rainbow. Only shown when a story has no thumbnail.
+  "from-indigo-400 to-blue-500",
+  "from-blue-400 to-indigo-500",
+  "from-violet-400 to-indigo-500",
   "from-sky-400 to-blue-500",
-  "from-green-400 to-emerald-500",
+  "from-indigo-500 to-violet-500",
+  "from-blue-500 to-indigo-600",
 ];
 
 export default function StoriesPage() {
