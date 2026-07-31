@@ -20,7 +20,7 @@ type Video = {
 };
 type Resp = { channel: { name: string; handle: string }; source: string; videos: Video[]; error?: string };
 
-const YT = "#FF0000";
+const YT = "#3A57E8"; // Hope UI brand
 const KINDS = [
   { key: "longform", label: "Long-form" },
   { key: "shorts", label: "Shorts" },

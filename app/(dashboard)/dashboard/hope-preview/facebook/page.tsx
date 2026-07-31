@@ -15,7 +15,7 @@ import { IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react"
 //   Recent posts            → real (image, text, date, link) for 3 of 4 pages;
 //                             per-post likes/comments are "—" (needs pages_read_engagement)
 
-const FB = "#1877F2"; // Facebook blue — sparingly
+const FB = "#3A57E8"; // Hope UI brand (dashboard uses Hope UI, not Facebook blue)
 
 type Resp = {
   account: { id: string; label: string; handle: string; pageId: string };

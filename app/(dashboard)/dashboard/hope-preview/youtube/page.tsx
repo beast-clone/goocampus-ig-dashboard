@@ -9,7 +9,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
 
-const YT = "#FF0000"; // YouTube red
+const YT = "#3A57E8"; // Hope UI brand (dashboard uses Hope UI, not YouTube red)
 
 type Video = {
   id: string; title: string; thumbnail: string;
@@ -138,7 +138,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {data.bestTimes.map((b, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: i === 0 ? YT : "#FBEAEA", color: i === 0 ? "#fff" : YT }}>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: i === 0 ? YT : "#E9ECFB", color: i === 0 ? "#fff" : YT }}>
                       <IconClock size={22} stroke={1.8} />
                     </div>
                     <div className="min-w-0">
@@ -186,7 +186,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                       <>
                         <div className="mt-2.5 h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
                           <span className="h-full" style={{ width: `${shortPct}%`, background: YT }} />
-                          <span className="h-full" style={{ width: `${100 - shortPct}%`, background: "#F3B7B7" }} />
+                          <span className="h-full" style={{ width: `${100 - shortPct}%`, background: "#AAB4F5" }} />
                         </div>
                         <div className="flex justify-between text-[11px] text-gray-500 mt-1.5">
                           <span>Shorts {shortPct}%</span>
@@ -204,7 +204,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                       <>
                         <div className="mt-2.5 h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
                           <span className="h-full" style={{ width: `${subPct}%`, background: YT }} />
-                          <span className="h-full" style={{ width: `${100 - subPct}%`, background: "#F3B7B7" }} />
+                          <span className="h-full" style={{ width: `${100 - subPct}%`, background: "#AAB4F5" }} />
                         </div>
                         <div className="flex justify-between text-[11px] text-gray-500 mt-1.5">
                           <span>Subscribers {subPct}%</span>
