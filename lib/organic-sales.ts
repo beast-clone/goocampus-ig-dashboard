@@ -71,7 +71,7 @@ function last12Months(toIso: string): string[] {
   return out;
 }
 
-export async function organicSales(from: string, to: string): Promise<OrganicSalesReport> {
+export async function organicSales(from: string, to: string, book?: string): Promise<OrganicSalesReport> {
   const empty: OrganicSalesReport = {
     source: "none", range: { from, to }, totals: { sales: 0, revenue: 0 },
     byBook: [], byMode: [], byMonth: [], recent: [],
@@ -89,7 +89,8 @@ export async function organicSales(from: string, to: string): Promise<OrganicSal
         mode: f["Payment Mode"] || "—",
         name: [f["First Name"], f["Last Name"]].filter(Boolean).join(" ").trim() || "—",
       };
-    });
+    // When a single book is selected (per-book tab), everything below narrows to it.
+    }).filter((o) => !book || o.book === book);
 
     // Windowed slice for the headline cards + book/mode/recent breakdowns.
     const inWindow = orders.filter((o) => o.date >= from && o.date <= to);

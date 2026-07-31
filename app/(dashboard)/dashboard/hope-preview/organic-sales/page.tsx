@@ -1,7 +1,14 @@
 "use client";
+import { useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { useApi } from "@/lib/use-api";
 import { IconBook2, IconCoin, IconReceipt, IconCreditCard } from "@tabler/icons-react";
+
+const BOOK_TABS = [
+  { key: "", label: "All e-books" },
+  { key: "amc", label: "Australia AMC" },
+  { key: "nz", label: "New Zealand" },
+] as const;
 
 type Report = {
   source: string;
@@ -30,12 +37,23 @@ export default function OrganicSalesPage() {
 }
 
 function Inner({ range }: { range: { from: string; to: string } }) {
-  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+  const [book, setBook] = useState<string>("");
+  const qs = new URLSearchParams({ from: range.from, to: range.to, ...(book ? { book } : {}) }).toString();
   const { data, isLoading } = useApi<Report>(`/api/organic-sales?${qs}`);
   const notConfigured = data?.source === "none";
 
   return (
     <div className="hope-scope space-y-6">
+      {/* Per-book tabs */}
+      <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-1">
+        {BOOK_TABS.map((t) => (
+          <button key={t.key} onClick={() => setBook(t.key)}
+            className={`text-xs font-medium px-3.5 py-1.5 rounded-md transition ${book === t.key ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Totals */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Stat icon={<IconReceipt size={18} className="text-brand" />} label="E-Book sales" value={fmt(data?.totals.sales ?? 0)} sub="paid orders in range" />
@@ -70,9 +88,18 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         {!isLoading && !data?.byBook.length && <Card><div className="text-[13px] text-gray-400 py-3">No sales in this range.</div></Card>}
       </div>
 
-      {/* 12-month trend */}
-      <SectionTitle title="Last 12 months" sub="Monthly paid sales and revenue (independent of the range above)." />
-      <Card><MonthlyChart data={data?.byMonth || []} /></Card>
+      {/* 12-month trend — two line graphs */}
+      <SectionTitle title="Last 12 months" sub="Monthly trend (independent of the range above)." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHead icon={<IconReceipt size={15} className="text-brand" />} title="Sales per month" />
+          <LineChart data={data?.byMonth || []} metric="sales" color="#3A57E8" />
+        </Card>
+        <Card>
+          <CardHead icon={<IconCoin size={15} className="text-sky-500" />} title="Revenue per month" />
+          <LineChart data={data?.byMonth || []} metric="revenue" color="#0EA5E9" money />
+        </Card>
+      </div>
 
       {/* Payment split + recent */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -116,22 +143,40 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   );
 }
 
-// Simple dual-metric monthly bars (revenue bar + sales dot line label).
-function MonthlyChart({ data }: { data: { month: string; sales: number; revenue: number }[] }) {
-  if (!data.length) return <div className="text-[13px] text-gray-400 py-6 text-center">No data.</div>;
-  const maxRev = Math.max(...data.map((d) => d.revenue), 1);
+// Smooth-ish line graph with point markers + value labels (matches the report's
+// monthly line charts). One metric per chart (sales or revenue).
+function LineChart({ data, metric, color, money }: { data: { month: string; sales: number; revenue: number }[]; metric: "sales" | "revenue"; color: string; money?: boolean }) {
+  if (!data.length) return <div className="text-[13px] text-gray-400 py-8 text-center">No data.</div>;
+  const W = 520, H = 190, padX = 26, padTop = 24, padBot = 26;
+  const vals = data.map((d) => d[metric]);
+  const max = Math.max(...vals, 1);
+  const n = data.length;
+  const x = (i: number) => padX + (i / Math.max(1, n - 1)) * (W - padX * 2);
+  const y = (v: number) => padTop + (1 - v / max) * (H - padTop - padBot);
+  const pts = data.map((d, i) => [x(i), y(d[metric])] as const);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const area = `${line} L${pts[n - 1][0].toFixed(1)},${(H - padBot).toFixed(1)} L${pts[0][0].toFixed(1)},${(H - padBot).toFixed(1)} Z`;
+  const label = (v: number) => (money ? "₹" + (v / 1000).toFixed(v >= 1000 ? 0 : 1) + "k" : String(v));
+  const gid = `og-fill-${metric}`;
   return (
-    <div className="flex items-end gap-2 h-48 pt-4">
-      {data.map((d) => {
-        const h = Math.round((d.revenue / maxRev) * 100);
-        return (
-          <div key={d.month} className="flex-1 flex flex-col items-center justify-end h-full group">
-            <div className="text-[10px] text-gray-500 tabular-nums mb-1">{d.sales || ""}</div>
-            <div className="w-full rounded-t-md bg-brand/85 hover:bg-brand transition-all relative" style={{ height: `${h}%`, minHeight: d.revenue ? 3 : 0 }} title={`${monthLabel(d.month)}: ${d.sales} sales · ${inr(d.revenue)}`} />
-            <div className="text-[10px] text-gray-400 mt-1.5 whitespace-nowrap">{monthLabel(d.month)}</div>
-          </div>
-        );
-      })}
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 340 }} className="block">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.16" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#${gid})`} />
+        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {data.map((d, i) => (
+          <g key={d.month}>
+            <circle cx={x(i)} cy={y(d[metric])} r="3" fill="#fff" stroke={color} strokeWidth="2" />
+            {d[metric] > 0 && <text x={x(i)} y={y(d[metric]) - 8} textAnchor="middle" fontSize="9" fill="#232D42" fontWeight="500">{label(d[metric])}</text>}
+            <text x={x(i)} y={H - 8} textAnchor="middle" fontSize="9" fill="#8A92A6">{monthLabel(d.month).replace(" ", " ")}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }

@@ -13,7 +13,10 @@ export async function GET(req: Request) {
     const today = new Date().toISOString().slice(0, 10);
     const to = url.searchParams.get("to") || today;
     const from = url.searchParams.get("from") || new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);
-    const report = await organicSales(from, to);
+    // ?book=amc | nz  → narrow to one e-book (per-book tab); omit for all.
+    const bp = url.searchParams.get("book");
+    const book = bp === "amc" ? "AMC E Book" : bp === "nz" ? "New Zealand E Book" : undefined;
+    const report = await organicSales(from, to, book);
     return NextResponse.json(report);
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load organic sales"), { status: 502 });
