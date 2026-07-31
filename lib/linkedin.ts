@@ -542,9 +542,21 @@ export async function buildLive(pageKey: string, from: string, to: string) {
   const postImpr = posts.reduce((s, p) => s + p.impressions, 0);
   const postUniq = posts.reduce((s, p) => s + p.uniqueImpressions, 0);
   const postClicks = posts.reduce((s, p) => s + p.clicks, 0);
+  const postSocial = posts.reduce((s, p) => s + p.reactions + p.comments + p.shares, 0);
   const impressions = shareStats.impressions || postImpr;
   const uniqueImpressions = shareStats.uniqueImpressions || postUniq;
-  const ctr = shareStats.ctr || (impressions ? Math.round((postClicks / impressions) * 1000) / 10 : 0);
+  const clicks = shareStats.clicks || postClicks;
+
+  // Engagement rate = SOCIAL actions (reactions + comments + shares) ÷ impressions, as a
+  // ratio of TOTALS. The old value used LinkedIn's `engagement` field, which (a) bundles
+  // clicks in and (b) is a per-day ratio that we averaged — both inflate it to ~50%+.
+  // Social-only ratio-of-totals gives the realistic single-digit rate people expect.
+  const socialEng = ((shareStats.likes || 0) + (shareStats.comments || 0) + (shareStats.shares || 0)) || postSocial;
+  const engagementRate = impressions ? Math.round((socialEng / impressions) * 1000) / 10 : 0;
+  // CTR = clicks ÷ impressions. NOTE: LinkedIn's clickCount counts ALL content clicks
+  // (post, name, logo, "see more", media) — not just links — so this legitimately runs
+  // higher than an ad-style CTR. Kept as a true ratio of totals.
+  const ctr = impressions ? Math.round((clicks / impressions) * 1000) / 10 : 0;
 
   return {
     page: { id: pageKey, name: meta.name, handle: meta.handle, vanityName: meta.vanityName, urn: orgUrn },
@@ -557,7 +569,7 @@ export async function buildLive(pageKey: string, from: string, to: string) {
       paidGain: growth.paidGain,
       impressions,
       uniqueImpressions,
-      engagementRate: shareStats.engagementRate,
+      engagementRate,
       ctr,
       pageViews: pageStats.totalPageViews,
       uniqueVisitors: Math.round(pageStats.totalPageViews * 0.7), // LinkedIn doesn't split unique on org page stats
