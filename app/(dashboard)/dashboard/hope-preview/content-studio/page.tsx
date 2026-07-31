@@ -72,9 +72,20 @@ function Inner() {
   }, [refresh]);
 
   const open = items.find((i) => i.id === openId) || null;
+  // Any recent job that failed on Perplexity quota → the whole engine is out of credit.
+  const quotaHit = items.some((i) => i.status === "failed" && /quota|insufficient|401/i.test(i.error || ""));
 
   return (
     <div className="hope-scope space-y-5">
+      {quotaHit && (
+        <div className="border border-amber-200 bg-amber-50 rounded-2xl p-3.5 flex items-start gap-2.5">
+          <IconAlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-[12.5px] text-amber-900">
+            <span className="font-semibold">AI credit is exhausted.</span> Content generation is paused because the Perplexity API key ran out of quota. Top up the plan to resume — trending picks and topic research will work again immediately.
+            <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noreferrer" className="text-brand hover:underline ml-1 inline-flex items-center gap-0.5">Open Perplexity billing <IconExternalLink size={11} /></a>
+          </div>
+        </div>
+      )}
       <TrendingStrip onPick={startJob} />
       <ResearchBox onResearch={startJob} />
 
@@ -177,14 +188,18 @@ function TrendingStrip({ onPick }: { onPick: (b: MakeBody) => Promise<void> }) {
 }
 
 // Second section — the team types any topic; deep research + fact-check + drafts.
+// Deep research is much pricier than a quick post, so we confirm before spending.
 function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void> }) {
   const [topic, setTopic] = useState("");
   const [busy, setBusy] = useState(false);
-  const submit = async () => {
+  const [confirming, setConfirming] = useState(false);
+
+  const ask = () => { if (topic.trim() && !busy) setConfirming(true); };
+  const run = async () => {
     const t = topic.trim();
     if (!t || busy) return;
     setBusy(true);
-    try { await onResearch({ title: t, kind: "topic" }); setTopic(""); }
+    try { await onResearch({ title: t, kind: "topic" }); setTopic(""); setConfirming(false); }
     finally { setBusy(false); }
   };
 
@@ -195,19 +210,37 @@ function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 focus-within:border-brand">
             <IconSearch size={16} className="text-gray-400 shrink-0" />
-            <input value={topic} onChange={(e) => setTopic(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            <input value={topic} onChange={(e) => { setTopic(e.target.value); setConfirming(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
               placeholder="e.g. FMGE 2026 pass percentage trends"
               className="w-full py-2.5 text-[13px] text-[#232D42] outline-none bg-transparent placeholder:text-gray-400" />
           </div>
-          <button onClick={submit} disabled={busy || !topic.trim()}
+          <button onClick={ask} disabled={busy || !topic.trim()}
             className="inline-flex items-center justify-center gap-1.5 bg-brand text-white rounded-lg px-4 py-2.5 text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-60 whitespace-nowrap">
             <IconSparkles size={14} /> {busy ? "Starting…" : "Research & write"}
           </button>
         </div>
-        <div className="text-[11.5px] text-gray-400 mt-2 flex items-center gap-1.5">
-          <IconWorldSearch size={13} /> Reads multiple live sources, fact-checks, then writes 4 drafts — and shows you where it searched. Takes ~1 minute.
-        </div>
+
+        {confirming ? (
+          <div className="mt-3 border border-brand-light bg-brand-light/40 rounded-xl p-3">
+            <div className="text-[12.5px] text-[#232D42] flex items-start gap-2">
+              <IconAlertTriangle size={15} className="text-brand shrink-0 mt-0.5" />
+              <span>Deep research reads many live sources — it costs noticeably more than a trending-topic post (roughly <b>₹10–30 per topic</b>) and takes ~1–3 minutes. Run it for <b>“{topic.trim()}”</b>?</span>
+            </div>
+            <div className="flex gap-2 mt-2.5">
+              <button onClick={run} disabled={busy}
+                className="inline-flex items-center gap-1.5 bg-brand text-white rounded-lg px-3 py-1.5 text-[12px] font-medium hover:bg-brand-dark disabled:opacity-60">
+                <IconSparkles size={13} /> {busy ? "Starting…" : "Run deep research"}
+              </button>
+              <button onClick={() => setConfirming(false)} disabled={busy}
+                className="text-[12px] border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-[11.5px] text-gray-400 mt-2 flex items-center gap-1.5">
+            <IconWorldSearch size={13} /> Reads multiple live sources, fact-checks, then writes 4 drafts — and shows you where it searched.
+          </div>
+        )}
       </div>
     </div>
   );
