@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import {
   IconSearch, IconTrendingUp, IconFlame, IconNews, IconRefresh, IconPencil,
   IconBrandReddit, IconBrandGoogle, IconStar, IconMessageQuestion, IconMessage2, IconStethoscope,
-  IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck,
+  IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck, IconSparkles,
 } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -260,16 +261,20 @@ function Radar() {
 }
 
 function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
-  // Compose a query string that pre-fills the Scheduler's create-post modal with
-  // the headline + snippet + interest so the user can go straight to writing.
-  const draftHref = useMemo(() => {
-    const p = new URLSearchParams({
-      title: item.title,
-      brief: `Headline: ${item.title}\nSource: ${item.source || "unknown"}\nURL: ${item.link}\n\n${item.snippet}`,
-      interest: item.primaryInterest,
-    });
-    return `/dashboard/scheduler?draft=${encodeURIComponent(p.toString())}`;
-  }, [item]);
+  const router = useRouter();
+  const [making, setMaking] = useState(false);
+  // "Make content" → kick off the content pipeline for this item, then jump to
+  // Content Studio where the generated drafts (fact-check + posts) show up.
+  const makeContent = async () => {
+    setMaking(true);
+    try {
+      await fetch("/api/content/make", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ title: item.title, url: item.link, source: item.source, interest: item.primaryInterest, kind: "radar" }),
+      });
+      router.push("/dashboard/hope-preview/content-studio");
+    } catch { setMaking(false); }
+  };
 
   const relative = useMemo(() => {
     const diff = Date.now() - new Date(item.publishedAt).getTime();
@@ -304,10 +309,10 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
           <span>{item.primaryInterest}</span>
         </div>
       </button>
-      <Link href={draftHref}
-        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap">
-        <IconPencil size={13} stroke={1.8} /> Post
-      </Link>
+      <button type="button" onClick={makeContent} disabled={making}
+        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
+        <IconSparkles size={13} stroke={1.8} /> {making ? "Sending…" : "Make content"}
+      </button>
     </li>
   );
 }
