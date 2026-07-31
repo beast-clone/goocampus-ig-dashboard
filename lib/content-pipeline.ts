@@ -10,7 +10,8 @@ export type GenDraft = { platform: string; label: string; content: string };
 export type GenResult = { factcheck: string; drafts: GenDraft[]; citations: string[]; model: string };
 
 const PLATFORM_LABEL: Record<string, string> = {
-  instagram: "Instagram caption",
+  instagram: "Instagram post",
+  carousel: "Instagram carousel",
   linkedin: "LinkedIn post",
   reel: "Reel / Shorts script",
 };
@@ -30,14 +31,15 @@ Return ONLY JSON in exactly this shape:
 {
   "factcheck": "1-3 sentences: is the claim accurate right now? note what you verified (dates/authority).",
   "posts": [
-    { "platform": "instagram", "content": "full Instagram caption: strong first-line hook, 3-5 short lines, one clear CTA, then 4-6 relevant hashtags" },
+    { "platform": "instagram", "content": "single-image Instagram post caption: strong first-line hook, 3-5 short lines, one clear CTA, then 4-6 relevant hashtags" },
+    { "platform": "carousel", "content": "Instagram carousel: 5-7 slides. Format each as 'Slide 1: <cover hook>', 'Slide 2: ...' etc — one idea per slide, punchy on-slide text, last slide a CTA. Then a short caption line and 4-6 hashtags." },
     { "platform": "linkedin", "content": "concise LinkedIn post (120-180 words): the insight + why it matters for IMGs, professional tone, no hashtags spam" },
     { "platform": "reel", "content": "30-45s Reel/Shorts script: [HOOK] line, 3 quick beats, [CTA], with (on-screen text) cues" }
   ]
 }`;
 
   type Raw = { factcheck?: string; posts?: { platform: string; content: string }[] };
-  const raw = await askPerplexityJSON<Raw>(SYSTEM, user, { model, maxTokens: 1600, temperature: 0.4, timeoutMs: 45_000 });
+  const raw = await askPerplexityJSON<Raw>(SYSTEM, user, { model, maxTokens: 2400, temperature: 0.4, timeoutMs: 60_000 });
   if (!raw) throw new Error("Content generation returned no parseable output");
 
   const drafts: GenDraft[] = (raw.posts || [])

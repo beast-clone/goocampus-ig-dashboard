@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { useApi } from "@/lib/use-api";
 import {
-  IconSparkles, IconBrandInstagram, IconBrandLinkedin, IconMovie, IconPencil, IconCopy,
+  IconSparkles, IconBrandInstagram, IconBrandLinkedin, IconMovie, IconLayoutGrid, IconPencil, IconCopy,
   IconCircleDashed, IconCircleCheck, IconAlertTriangle, IconTrash, IconExternalLink, IconX, IconChevronRight, IconPalette,
 } from "@tabler/icons-react";
 
@@ -24,6 +24,7 @@ const TEAM = [
 ];
 const PLATFORM_ICON: Record<string, React.ReactNode> = {
   instagram: <IconBrandInstagram size={16} className="text-brand" />,
+  carousel: <IconLayoutGrid size={16} className="text-brand" />,
   linkedin: <IconBrandLinkedin size={16} className="text-brand" />,
   reel: <IconMovie size={16} className="text-brand" />,
 };
