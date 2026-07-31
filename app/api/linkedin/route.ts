@@ -215,18 +215,22 @@ export async function GET(req: Request) {
     // back to auto-discovery. Any live-call failure degrades gracefully to demo.
     if ((pageKey === "gcworld" || pageKey === "goocampus") && (await linkedinToken())) {
       try {
-        // 30-min cache: makes tab flips instant AND protects LinkedIn's tiny
-        // per-day quota on the follower-statistics endpoint.
-        const livePayload = await cached(`li:${pageKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLive(pageKey, from, to));
-        // If the live posts array is empty (per-post stats are a follow-up), borrow the
-        // demo posts so the Post-performance section still renders something meaningful.
-        const demoForPosts = buildDemo(pageKey, from, to);
-        const posts = livePayload.posts.length ? livePayload.posts : demoForPosts.posts;
+        // 24h cache: makes tab flips instant AND protects LinkedIn's tiny per-day
+        // quota. Skip caching a rate-limited/degraded snapshot (no followers, or no
+        // impressions AND no posts) so it retries and self-heals instead of pinning
+        // bad numbers for 24h.
+        const livePayload = await cached(
+          `li:${pageKey}:${from}:${to}`,
+          24 * 60 * 60_000,
+          () => buildLive(pageKey, from, to),
+          (p) => p.summary.followers > 0 && (p.summary.impressions > 0 || p.posts.length > 0),
+        );
+        // NO demo data on a live page — show only real posts. If LinkedIn returned
+        // none (rate-limited), the UI renders an honest "No posts in this range".
         return NextResponse.json({
           ...livePayload,
-          posts,
-          summary: { ...livePayload.summary, posts: posts.length },
-          partial: livePayload.posts.length === 0, // true = everything live except per-post table
+          summary: { ...livePayload.summary, posts: livePayload.posts.length },
+          postsUnavailable: livePayload.posts.length === 0,
           latencyMs: Date.now() - t0,
         });
       } catch (e) {

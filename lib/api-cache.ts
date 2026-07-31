@@ -5,15 +5,20 @@
 
 const store = new Map<string, { at: number; data: unknown }>();
 
-export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+// `shouldCache` (optional): only store the result when it returns true. Lets callers
+// avoid caching a degraded/rate-limited payload for the full TTL (so it retries and
+// self-heals next request instead of serving bad data for 24h).
+export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>, shouldCache?: (data: T) => boolean): Promise<T> {
   const hit = store.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.data as T;
   const data = await fn();
-  store.set(key, { at: Date.now(), data });
-  // Light housekeeping so the map doesn't grow forever in a long-lived server.
-  if (store.size > 200) {
-    const cutoff = Date.now() - 60 * 60_000;
-    for (const [k, v] of store) if (v.at < cutoff) store.delete(k);
+  if (!shouldCache || shouldCache(data)) {
+    store.set(key, { at: Date.now(), data });
+    // Light housekeeping so the map doesn't grow forever in a long-lived server.
+    if (store.size > 200) {
+      const cutoff = Date.now() - 60 * 60_000;
+      for (const [k, v] of store) if (v.at < cutoff) store.delete(k);
+    }
   }
   return data;
 }
