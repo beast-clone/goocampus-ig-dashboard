@@ -19,28 +19,6 @@ const CRON_PREFIX = "/api/cron";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
-// Fallback admins for sessions minted before the cookie carried an admin flag.
-// New logins embed `:a:` in the signed payload instead (set from ind_users.is_admin),
-// so admins managed on the Team page work without redeploying this list.
-const ADMIN_IDS = new Set(["maheen"]);
-
-// Extract the userId embedded in the session cookie payload
-// (`<userId>:<token>.<sig>` or `<userId>:a:<token>.<sig>` for admins).
-function cookieUserId(value: string | undefined): string | null {
-  if (!value || !value.includes(".")) return null;
-  const payload = value.slice(0, value.lastIndexOf("."));
-  const ci = payload.indexOf(":");
-  return ci > 0 ? payload.slice(0, ci) : null;
-}
-
-// Does the (already signature-verified) cookie say this session is an admin?
-function cookieIsAdmin(value: string | undefined): boolean {
-  if (!value || !value.includes(".")) return false;
-  const payload = value.slice(0, value.lastIndexOf("."));
-  const parts = payload.split(":");
-  return parts.length === 3 && parts[1] === "a";
-}
-
 // Hex-encoded HMAC-SHA256 of `payload` using `secret`.
 async function hmacHex(secret: string, payload: string): Promise<string> {
   const enc = new TextEncoder();
@@ -129,35 +107,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // DETACHED WORLDS (user order 2026-07-11): admins live in /dashboard, members in /me.
-  // The member dashboard is PARKED while the admin dashboard gets reworked — an admin
-  // must never land in it (it remembers other people's state and confuses the boss).
+  // Everyone now works in the V2 dashboard (user decision 2026-07-31: producers
+  // get the full dashboard like admins, and each logs in as themselves). The old
+  // parked member world at /me is retired — send any authed hit there into V2.
   if (isAuthed && (pathname === "/me" || pathname.startsWith("/me/"))) {
-    const cookieVal = req.cookies.get("gc_session")?.value;
-    const userId = cookieUserId(cookieVal);
-    if (cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/dashboard/hope-preview";
-      return NextResponse.redirect(url);
-    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/dashboard/hope-preview";
+    return NextResponse.redirect(url);
   }
 
-  // The main dashboard is admin-only. Members live on /me and work their tasks
-  // on /me/tasks (which talks to the same /api/marketing-hub endpoints).
+  // The dashboard is open to any authenticated teammate. V1 is RETIRED / OFFLINE
+  // (user order 2026-07-18): all live tabs are under /dashboard/hope-preview (V2),
+  // so any other /dashboard path (old V1 pages) redirects to V2 and is never served.
   if (isAuthed && pathname.startsWith("/dashboard")) {
-    const cookieVal = req.cookies.get("gc_session")?.value;
-    const userId = cookieUserId(cookieVal);
-    const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
-    if (!isAdmin) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/me";
-      return NextResponse.redirect(url);
-    }
-    // V1 dashboard is RETIRED / OFFLINE (user order 2026-07-18). All live tabs
-    // live under /dashboard/hope-preview (V2, a superset of V1's active tabs).
-    // Any other /dashboard path (the old V1 pages) redirects to V2 so V1 is never
-    // served or accidentally opened. The V1 files are kept on disk — delete this
-    // block to bring V1 back online.
     if (!pathname.startsWith("/dashboard/hope-preview")) {
       const url = req.nextUrl.clone();
       url.pathname = "/dashboard/hope-preview";
@@ -166,11 +128,8 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAuthed && pathname === "/login") {
-    const cookieVal = req.cookies.get("gc_session")?.value;
-    const userId = cookieUserId(cookieVal);
-    const isAdmin = cookieIsAdmin(cookieVal) || ADMIN_IDS.has(userId ?? "");
     const url = req.nextUrl.clone();
-    url.pathname = isAdmin ? "/dashboard/hope-preview" : "/me";
+    url.pathname = "/dashboard/hope-preview";
     return NextResponse.redirect(url);
   }
 

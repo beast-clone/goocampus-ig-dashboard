@@ -70,6 +70,17 @@ export function getSessionUserId(): string | null {
   return parseVerified(cookies().get(COOKIE)?.value).userId;
 }
 
+// Is the current session an admin? Reads the signed `:a:` flag in the cookie
+// payload (`<userId>:a:<token>`) — the same flag the Edge middleware trusts to
+// open /dashboard/*. Lets server components branch on admin without a DB lookup.
+export function getSessionIsAdmin(): boolean {
+  const value = cookies().get(COOKIE)?.value;
+  if (!value || !parseVerified(value).valid) return false;
+  const payload = value.slice(0, value.lastIndexOf("."));
+  const parts = payload.split(":");
+  return parts.length === 3 && parts[1] === "a";
+}
+
 export function setSession(userId?: string | null, isAdmin?: boolean) {
   cookies().set(COOKIE, makeCookieValue(userId, isAdmin), {
     httpOnly: true,

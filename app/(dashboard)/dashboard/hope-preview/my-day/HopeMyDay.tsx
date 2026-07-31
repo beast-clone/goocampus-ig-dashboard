@@ -1389,8 +1389,10 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
 
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
-export function HopeMyDay() {
-  const [person, setPerson] = useState("nandu");
+export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { initialPerson?: string; isAdmin?: boolean } = {}) {
+  // `person` = whose day is shown. Seeded from the logged-in user (server-passed);
+  // producers are locked to themselves, only admins can switch via the header tabs.
+  const [person, setPerson] = useState(initialPerson || "nandu");
   // Team-permission capabilities, keyed by first name (lowercase). Drives which
   // action buttons show. Sourced from the roster (admins) so the person switcher
   // previews everyone; falls back to /api/me for the logged-in person.
@@ -2418,9 +2420,13 @@ export function HopeMyDay() {
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
             <div className="sub">{me.role} · {clock ? `${clock.date} · ${clock.time}` : "—"} · Bengaluru 23° · <span style={{ color: "#1AA053" }}>● live</span></div>
           </div>
-          <div className="switch" role="tablist" aria-label="Teammate">
-            {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
-          </div>
+          {/* Profile switcher — admins only (Maheen / owner) to view any teammate's
+              day. Producers are locked to their own logged-in identity, so it's hidden. */}
+          {viewerIsAdmin && (
+            <div className="switch" role="tablist" aria-label="Teammate">
+              {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
+            </div>
+          )}
           <div className="stats-wrap">
             {/* Day control + Pipeline live HERE, aligned with the stats (user order
                 2026-07-19) — the bell/reminders/chat icons stay up top. */}
