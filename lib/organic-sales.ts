@@ -44,6 +44,23 @@ type OrderFields = {
   "Payment Mode"?: string;      // "UPI" | "Card"
   "First Name"?: string;
   "Last Name"?: string;
+  "Email ID"?: string;
+  Phone?: string;
+  "Payment ID"?: string;
+  "Email Sent"?: string;        // datetime the access email went out
+};
+
+export type OrganicOrder = {
+  date: string;                 // order date (YYYY-MM-DD)
+  paidAt: string;               // full ISO timestamp of the order
+  name: string;
+  email: string;
+  phone: string;
+  paymentId: string;
+  book: string;
+  amount: number;               // exact charged amount (not rounded)
+  mode: string;
+  emailSent: string | null;
 };
 
 export type OrganicSalesReport = {
@@ -53,7 +70,7 @@ export type OrganicSalesReport = {
   byBook: { book: string; sales: number; revenue: number }[];
   byMode: { mode: string; sales: number }[];
   byMonth: { month: string; sales: number; revenue: number }[];   // last 12 months, chronological
-  recent: { date: string; name: string; book: string; amount: number; mode: string }[];
+  recent: OrganicOrder[];
   error?: string;
 };
 
@@ -79,15 +96,20 @@ export async function organicSales(from: string, to: string, book?: string): Pro
   try {
     const rows = await listPaidOrders<OrderFields>();
     // Order date = the record's createdTime (stamped when the payment webhook writes it).
-    const orders = rows.map((r) => {
+    const orders: OrganicOrder[] = rows.map((r) => {
       const f = r.fields;
       const date = (r.createdTime || "").slice(0, 10);
       return {
         date,
+        paidAt: r.createdTime || "",
         book: f.Service || "Other",
         amount: typeof f.Amount === "number" ? f.Amount : 0,
         mode: f["Payment Mode"] || "—",
         name: [f["First Name"], f["Last Name"]].filter(Boolean).join(" ").trim() || "—",
+        email: f["Email ID"] || "",
+        phone: f.Phone || "",
+        paymentId: f["Payment ID"] || "",
+        emailSent: f["Email Sent"] || null,
       };
     // When a single book is selected (per-book tab), everything below narrows to it.
     }).filter((o) => !book || o.book === book);
@@ -115,8 +137,8 @@ export async function organicSales(from: string, to: string, book?: string): Pro
     }
     const byMonth = months.map((m) => ({ month: m, sales: monthAgg.get(m)!.sales, revenue: Math.round(monthAgg.get(m)!.revenue) }));
 
-    const recent = [...inWindow].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25)
-      .map((o) => ({ date: o.date, name: o.name, book: o.book, amount: Math.round(o.amount), mode: o.mode }));
+    // Full order details (exact amount, no rounding) for the expandable list.
+    const recent = [...inWindow].sort((a, b) => b.paidAt.localeCompare(a.paidAt)).slice(0, 50);
 
     return { source: "airtable", range: { from, to }, totals, byBook, byMode, byMonth, recent };
   } catch (err) {
