@@ -278,7 +278,7 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
         )}
       </Fold>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Followers" value={fmt(data.page.followers)} sub="live from Meta" color="#1877F2" />
+        <Stat label="Followers" value={fmt(data.page.followers)} sub="live from Meta" color="#3A57E8" />
         <Stat label="Engagement" value={fmt(data.insights.engagement)} sub={data.insights.engagement === null ? "unavailable" : "post engagements in range"} />
         <Stat label="Page views" value={fmt(data.insights.pageViews)} sub={data.insights.pageViews === null ? "unavailable" : "in range"} />
         <Stat label="Posting rhythm" value={cadence ? `~${cadence}d` : "—"} sub={cadence ? "between posts lately" : "not enough posts"} />
@@ -369,7 +369,7 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
           : <Down>lost {fmt(Math.abs(liGain))} followers</Down>} this period, and your posts made <Up>{fmt(data.summary.impressions)} impressions</Up>.
       </Fold>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat label="Followers" value={fmt(data.summary.followers)} sub={`+${data.summary.followerGain} in range`} color="#0A66C2" />
+        <Stat label="Followers" value={fmt(data.summary.followers)} sub={`+${data.summary.followerGain} in range`} color="#3A57E8" />
         <Stat label="Impressions" value={fmt(data.summary.impressions)} sub="in range" />
         <Stat label="Engagement rate" value={`${(data.summary.engagementRate ?? 0).toFixed(1)}%`} />
         <Stat label="Page views" value={fmt(data.summary.pageViews)} />
@@ -378,7 +378,7 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
 
       {data.followersOverTime?.length > 1 && (
         <Section title="Follower growth" hint="in range">
-          <Spark points={data.followersOverTime.map((p) => p.followers)} color="#0A66C2" />
+          <Spark points={data.followersOverTime.map((p) => p.followers)} color="#3A57E8" />
         </Section>
       )}
 
@@ -412,7 +412,7 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {best && (
           <Section title="Best day to post" hint="from your posts in range">
-            <div className="text-xl font-semibold" style={{ color: "#0A66C2" }}>{best.day}</div>
+            <div className="text-xl font-semibold" style={{ color: "#3A57E8" }}>{best.day}</div>
             <div className="text-[11px] text-gray-500 mt-1">Posts published on {best.day}s earned the most impressions. Next best: {best.runnerUp}.</div>
           </Section>
         )}
@@ -494,7 +494,7 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
           : <Down>lost {fmt(Math.abs(ytGain))} subscribers</Down>} this period, and your videos pulled <Up>{fmt(data.summary.views)} views</Up> with <Up>{fmt(Math.round(data.summary.watchHours))} hours watched</Up>.
       </Fold>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Subscribers" value={fmt(data.summary.subscribers)} sub={`+${data.summary.subscriberGain} in range`} color="#FF0000" />
+        <Stat label="Subscribers" value={fmt(data.summary.subscribers)} sub={`+${data.summary.subscriberGain} in range`} color="#3A57E8" />
         <Stat label="Views" value={fmt(data.summary.views)} sub="in range" />
         <Stat label="Watch time" value={`${fmt(Math.round(data.summary.watchHours))} h`} sub="hours watched" />
         <Stat label="Avg view duration" value={`${mins}:${String(secs).padStart(2, "0")}`} sub="min:sec" />
@@ -503,8 +503,8 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
       {data.viewsOverTime?.length > 1 && (
         <Section title="Views over time" hint={enhanced ? "daily · hover for any day" : "daily, in range"}>
           {enhanced
-            ? <ViewsAreaChart data={data.viewsOverTime} color="#FF0000" />
-            : <Spark points={data.viewsOverTime.map((p) => p.views)} color="#FF0000" />}
+            ? <ViewsAreaChart data={data.viewsOverTime} color="#3A57E8" />
+            : <Spark points={data.viewsOverTime.map((p) => p.views)} color="#3A57E8" />}
         </Section>
       )}
 
@@ -547,14 +547,14 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {best && (
           <Section title="Best day for views" hint="daily views by weekday, in range">
-            <div className="text-xl font-semibold" style={{ color: "#FF0000" }}>{best.day}</div>
+            <div className="text-xl font-semibold" style={{ color: "#3A57E8" }}>{best.day}</div>
             <div className="text-[11px] text-gray-500 mt-1">{best.day}s average the most views for this channel. Next best: {best.runnerUp}.</div>
           </Section>
         )}
         {sources.length > 0 && (
           <Section title="Where views come from" hint="top traffic sources">
             {enhanced
-              ? <BarBreakdown color="#FF0000" items={sources.map((s) => ({ label: s.source, pct: s.pct, value: fmt(s.views) }))} />
+              ? <BarBreakdown color="#3A57E8" items={sources.map((s) => ({ label: s.source, pct: s.pct, value: fmt(s.views) }))} />
               : sources.map((s) => (
                 <div key={s.source} className="flex items-baseline justify-between text-sm py-0.5">
                   <span className="text-gray-800">{s.source}</span>
@@ -566,7 +566,7 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
         {countries.length > 0 && (
           <Section title="Top countries" hint="by views">
             {enhanced
-              ? <BarBreakdown color="#FF0000" items={countries.map((c) => ({ label: regionName(c.country), pct: c.pct, value: fmt(c.views) }))} />
+              ? <BarBreakdown color="#3A57E8" items={countries.map((c) => ({ label: regionName(c.country), pct: c.pct, value: fmt(c.views) }))} />
               : countries.map((c) => (
                 <div key={c.country} className="flex items-baseline justify-between text-sm py-0.5">
                   <span className="text-gray-800">{regionName(c.country)}</span>
@@ -579,7 +579,7 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
           <Section title="Age & gender" hint="viewers in range">
             {enhanced ? (
               <>
-                {ages.length > 0 && <BarBreakdown color="#FF0000" items={ages.map((a) => ({ label: a.group, pct: a.pct }))} />}
+                {ages.length > 0 && <BarBreakdown color="#3A57E8" items={ages.map((a) => ({ label: a.group, pct: a.pct }))} />}
                 {(() => {
                   const gg = (data.traffic?.genderSplit || []).filter((g) => !/specified/i.test(g.label));
                   return gg.length ? (
@@ -609,7 +609,7 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
         {cities.length > 0 && (
           <Section title="Top cities" hint="by views">
             {enhanced
-              ? <BarBreakdown color="#FF0000" items={cities.map((c) => ({ label: c.city, pct: c.pct, value: fmt(c.views) }))} />
+              ? <BarBreakdown color="#3A57E8" items={cities.map((c) => ({ label: c.city, pct: c.pct, value: fmt(c.views) }))} />
               : cities.map((c) => (
                 <div key={c.city} className="flex items-baseline justify-between text-sm py-0.5">
                   <span className="text-gray-800">{c.city}</span>

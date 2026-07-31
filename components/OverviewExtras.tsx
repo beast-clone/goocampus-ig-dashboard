@@ -18,11 +18,12 @@ type Post = {
   totalInteractions?: number;
 };
 
+// Hope-family, matched to HopeOverview's FMT_META so each format reads one colour.
 const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
-  REEL:           { label: "Reels",     color: "#EC4899", icon: "🎬" },
-  CAROUSEL_ALBUM: { label: "Carousels", color: "#0EA5E9", icon: "🖼️" },
-  IMAGE:          { label: "Static",    color: "#6D5AE6", icon: "📄" },
-  VIDEO:          { label: "Videos",    color: "#6366F1", icon: "🎥" },
+  REEL:           { label: "Reels",     color: "#6E48F8", icon: "🎬" },
+  CAROUSEL_ALBUM: { label: "Carousels", color: "#3A57E8", icon: "🖼️" },
+  IMAGE:          { label: "Static",    color: "#079AA2", icon: "📄" },
+  VIDEO:          { label: "Videos",    color: "#0EA5E9", icon: "🎥" },
 };
 
 function fmtNum(n: number): string {
@@ -313,17 +314,17 @@ function _UnusedEngagementRateCard({ loading, avgPct, deltaPts, series }: { load
             <svg viewBox="0 0 200 60" preserveAspectRatio="none" style={{ width: "100%", height: 60 }}>
               <defs>
                 <linearGradient id="er-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6D5AE6" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#6D5AE6" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#6E48F8" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#6E48F8" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path d={areaPath} fill="url(#er-grad)" />
-              <polyline points={points} fill="none" stroke="#6D5AE6" strokeWidth="1.5" />
+              <polyline points={points} fill="none" stroke="#6E48F8" strokeWidth="1.5" />
               {series.length > 0 && (() => {
                 const max = Math.max(...series, 0.01);
                 const lastX = 200;
                 const lastY = 60 - (series[series.length - 1] / max) * 60;
-                return <circle cx={lastX} cy={lastY} r="3" fill="#6D5AE6" />;
+                return <circle cx={lastX} cy={lastY} r="3" fill="#6E48F8" />;
               })()}
             </svg>
           </div>

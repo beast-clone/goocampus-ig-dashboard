@@ -80,16 +80,17 @@ const AUD_BARS = [
   "linear-gradient(90deg, #8AA0F7, #B4C2FB)",
   "linear-gradient(90deg, #AEBDF9, #D6DEFD)",
 ];
-// Softer, on-theme gender palette (Male blue · Female soft rose · Undisclosed light grey).
-const GENDER_COLORS = ["#4B6BF5", "#F58FB4", "#D3DAE6"];
-// Post-mix / format palette for the Hope version — cohesive & distinguishable.
+// Hope-family gender palette (brand blue · violet · light grey — no off-brand pink).
+const GENDER_COLORS = ["#3A57E8", "#6E48F8", "#D3DAE6"];
+// Post-mix / format palette — all Hope tokens (brand · violet · teal · sky), cohesive
+// & distinguishable, and matched to OverviewExtras so a format reads the same colour.
 const FMT_META: Record<string, { label: string; color: string }> = {
   CAROUSEL_ALBUM: { label: "Carousels", color: "#3A57E8" },
-  REEL:           { label: "Reels",     color: "#F5588B" },
-  IMAGE:          { label: "Static",    color: "#17B0BD" },
-  VIDEO:          { label: "Videos",    color: "#FBBF24" },
+  REEL:           { label: "Reels",     color: "#6E48F8" },
+  IMAGE:          { label: "Static",    color: "#079AA2" },
+  VIDEO:          { label: "Videos",    color: "#0EA5E9" },
 };
-const fmtMeta = (t: string) => FMT_META[t] || { label: t || "Other", color: "#9AA6B2" };
+const fmtMeta = (t: string) => FMT_META[t] || { label: t || "Other", color: "#8A92A6" };
 
 // Month-by-month helpers. Long ranges (60d / 1y / long custom) become a set of
 // calendar-month reports; the current month is shown as "so far" (month-to-date),
@@ -801,7 +802,7 @@ function HopeHowToRead() {
   const steps = [
     { n: 1, icon: IconChartBar, title: "Set the base", range: "90 days / 1 year", color: C.primary, body: <>Look at what won <b>most consistently</b> — make that <b>~50–60%</b> of every month&rsquo;s plan. Your reliable format.</> },
     { n: 2, icon: IconChartLine, title: "Check momentum", range: "30 days", color: C.teal, body: <>A different format winning this month? Bump its share <b>+10–15%</b> — something is shifting.</> },
-    { n: 3, icon: IconClock, title: "Tune this week", range: "7 days", color: "#F5588B", body: <>A 7-day spike? Add <b>one or two extras</b> to test next week — don&rsquo;t flip your whole strategy on it.</> },
+    { n: 3, icon: IconClock, title: "Tune this week", range: "7 days", color: "#6E48F8", body: <>A 7-day spike? Add <b>one or two extras</b> to test next week — don&rsquo;t flip your whole strategy on it.</> },
   ];
   return (
     <Card>
