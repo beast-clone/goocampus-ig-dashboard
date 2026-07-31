@@ -128,26 +128,42 @@ export async function listAdminedOrgs(token: string): Promise<{ urn: string; nam
   return out;
 }
 
+// Last known-good follower total per org. LinkedIn's networkSizes endpoint has a
+// tiny daily quota; when a request gets throttled the fallback can return a bogus
+// small number (e.g. 45 for a 1,747-follower page). We hold the last good value so
+// a transient throttle never surfaces a wrong count. Survives for the server's life.
+const lastGoodFollowers = new Map<string, number>();
+
 // Current total follower count. Enum casing changed across versions, so try both.
 async function fetchCurrentFollowers(token: string, orgUrn: string): Promise<number> {
   const enc = encodeURIComponent(orgUrn);
+  const prevGood = lastGoodFollowers.get(orgUrn) || 0;
+  let best = 0;
+
+  // Primary: networkSizes (authoritative total).
   for (const edge of ["COMPANY_FOLLOWED_BY_MEMBER", "CompanyFollowedByMember"]) {
     try {
       const data = await liGet(`/networkSizes/${enc}?edgeType=${edge}`, token);
-      const n = Number(data.firstDegreeSize || 0);
-      if (n > 0) return n;
+      best = Math.max(best, Number(data.firstDegreeSize || 0));
     } catch { /* try next casing */ }
   }
-  // Fallback: networkSizes rejects the param on newer API versions — sum the LIFETIME
-  // follower statistics segments (organic + paid) for the real total instead.
-  try {
-    const data = await liGet(`/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${enc}`, token);
-    const seg = data.elements?.[0]?.followerCountsByAssociationType || [];
-    const total = seg.reduce((s: number, r: any) =>
-      s + (r.followerCounts?.organicFollowerCount || 0) + (r.followerCounts?.paidFollowerCount || 0), 0);
-    if (total > 0) return total;
-  } catch { /* leave at 0 — growth chart anchors on gains */ }
-  return 0;
+  // Fallback: networkSizes rejects the param on newer API versions / when throttled —
+  // sum the LIFETIME follower statistics segments (organic + paid) instead.
+  if (best === 0) {
+    try {
+      const data = await liGet(`/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${enc}`, token);
+      const seg = data.elements?.[0]?.followerCountsByAssociationType || [];
+      const total = seg.reduce((s: number, r: any) =>
+        s + (r.followerCounts?.organicFollowerCount || 0) + (r.followerCounts?.paidFollowerCount || 0), 0);
+      best = Math.max(best, total);
+    } catch { /* leave at 0 */ }
+  }
+
+  // Plausibility guard: accept the fresh value only if it's real and not a throttled
+  // dip (< half the last known-good). Otherwise keep the last good total.
+  if (best > 0 && best >= prevGood * 0.5) { lastGoodFollowers.set(orgUrn, best); return best; }
+  if (prevGood > 0) return prevGood;   // throttled + we have history → hold last good
+  return best;                          // cold start with nothing better
 }
 
 // Daily follower gains → reconstruct a running total ending at `currentFollowers`.
