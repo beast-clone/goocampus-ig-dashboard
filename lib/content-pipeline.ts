@@ -1,4 +1,4 @@
-import { askPerplexity, parseLooseJson } from "@/lib/ai";
+import { askPerplexity, askPerplexityAsync, parseLooseJson } from "@/lib/ai";
 
 // Content pipeline.
 //  - Path A ("quick post" from Content Radar): a Radar item is already a specific,
@@ -68,12 +68,12 @@ ${POSTS_SPEC}
 // Deep-research models return a full report (with reasoning), not JSON, so asking them
 // for JSON directly does not parse — the second pass is what makes the output reliable.
 export async function generateFromTopic(topic: string): Promise<GenResult> {
-  // Step 1 — research. Slow (reads many pages); the make route runs this fire-and-forget
-  // on a long-lived server, so a wide timeout is safe.
+  // Step 1 — research via the async API (deep research runs for minutes; a normal
+  // request would have its connection dropped → "fetch failed"). Submit + poll instead.
   const researchUser = `Research this topic thoroughly using current, credible sources: "${topic}".
 Write a factual brief (150-250 words) for our content team: the key facts, exact dates, the authorities/exam bodies involved, any recent changes, and anything uncertain or contested. Use only what the sources support — never invent numbers or dates.`;
-  const research = await askPerplexity(`${SYSTEM}\n\nYou are researching a topic to brief a content writer.`, researchUser,
-    { model: "sonar-deep-research", maxTokens: 4000, temperature: 0.2, timeoutMs: 180_000 });
+  const research = await askPerplexityAsync(`${SYSTEM}\n\nYou are researching a topic to brief a content writer.`, researchUser,
+    { model: "sonar-deep-research", maxTokens: 4000, temperature: 0.2, maxWaitMs: 300_000 });
   const brief = (research.text || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   if (!brief) throw new Error("Deep research returned nothing to write from");
 

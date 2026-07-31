@@ -43,6 +43,57 @@ export async function askPerplexity(
   }
 }
 
+// Perplexity Async API — for long jobs (sonar-deep-research) that would otherwise hold
+// one HTTP connection open for minutes (which upstream proxies drop → "fetch failed").
+// We submit the job, then poll for the result. Safe on a long-lived server (the make
+// route runs this fire-and-forget); the page polls Supabase for the finished row.
+export async function askPerplexityAsync(
+  system: string,
+  user: string,
+  opts?: { model?: string; maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number },
+): Promise<{ text: string; citations: string[] }> {
+  const auth = { Authorization: `Bearer ${KEY}` };
+  const submit = await fetch("https://api.perplexity.ai/async/chat/completions", {
+    method: "POST",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      request: {
+        model: opts?.model || "sonar-deep-research",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: opts?.maxTokens ?? 4000,
+        temperature: opts?.temperature ?? 0.2,
+      },
+    }),
+  });
+  if (!submit.ok) throw new Error(`Perplexity async submit ${submit.status}: ${(await submit.text()).slice(0, 200)}`);
+  const created = await submit.json();
+  const id: string | undefined = created?.id;
+  if (!id) throw new Error("Perplexity async: no request id returned");
+
+  const pollMs = opts?.pollMs ?? 8_000;
+  const maxWaitMs = opts?.maxWaitMs ?? 300_000;
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    let j: { status?: string; error_message?: string; response?: { choices?: { message?: { content?: string } }[]; citations?: string[]; search_results?: { url: string }[] } };
+    try {
+      const res = await fetch(`https://api.perplexity.ai/async/chat/completions/${id}`, { headers: auth });
+      if (!res.ok) continue; // transient — keep polling
+      j = await res.json();
+    } catch { continue; } // network blip — keep polling
+    if (j.status === "COMPLETED") {
+      const r = j.response || {};
+      const citations: string[] = r.citations || (r.search_results || []).map((s) => s.url) || [];
+      return { text: r.choices?.[0]?.message?.content || "", citations };
+    }
+    if (j.status === "FAILED") throw new Error(`Perplexity async job failed${j.error_message ? `: ${j.error_message}` : ""}`);
+  }
+  throw new Error("Perplexity async job timed out");
+}
+
 // Pull a JSON value out of a model reply that may wrap it in prose / code fences.
 export function parseLooseJson<T>(text: string): T | null {
   if (!text) return null;
