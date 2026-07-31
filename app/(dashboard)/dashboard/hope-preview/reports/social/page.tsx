@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { ReportView, type ReportPayload } from "@/app/(dashboard)/dashboard/hope-preview/ai-reports/ReportView";
 import {
@@ -46,7 +47,11 @@ export default function SocialReportsPage() {
 }
 
 function SocialReports() {
-  const [tab, setTab] = useState<string>("instagram");
+  // Deep-link support: /reports/social?platform=instagram&open=<key> lands on the
+  // right channel tab (and PlatformTable auto-opens the report).
+  const sp = useSearchParams();
+  const initial = sp.get("platform");
+  const [tab, setTab] = useState<string>(initial && PLATFORMS.some((p) => p.key === initial) ? initial : "instagram");
   const active = PLATFORMS.find((p) => p.key === tab) || PLATFORMS[0];
   return (
     <div>
@@ -102,18 +107,26 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
       .catch((e) => setError((e as Error).message));
   }, [platform]);
 
-  const openRow = (r: SavedReportMeta) => {
-    setOpenKey(r.key);
+  const openByKey = (key: string) => {
+    setOpenKey(key);
     setOpenReport(null);
     setOpenError(null);
     setOpenLoading(true);
-    fetch(`/api/reports?key=${encodeURIComponent(r.key)}`)
+    fetch(`/api/reports?key=${encodeURIComponent(key)}`)
       .then((res) => res.json())
       .then((d) => { if (d.error) throw new Error(d.error); setOpenReport(d.report as ReportPayload); })
       .catch((e) => setOpenError((e as Error).message))
       .finally(() => setOpenLoading(false));
   };
+  const openRow = (r: SavedReportMeta) => openByKey(r.key);
   const closeRow = () => { setOpenKey(null); setOpenReport(null); setOpenError(null); };
+
+  // Auto-open a report when deep-linked from search (?open=<key>) — once per mount.
+  const autoOpen = useSearchParams().get("open");
+  useEffect(() => {
+    if (autoOpen) openByKey(autoOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
 
   // ── Inline report view (opened from a row) ──
   if (openKey) {

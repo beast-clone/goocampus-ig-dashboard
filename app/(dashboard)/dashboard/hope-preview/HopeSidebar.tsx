@@ -8,7 +8,7 @@ import {
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
-  IconDeviceMobile, IconArchive, IconTrash,
+  IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -78,6 +78,7 @@ const GROUPS: Group[] = [
     { label: "Organic Sales", href: `${HUB}/organic-sales`,  icon: IconBook2 },
   ] },
   { label: "AI", items: [
+    { label: "Ask GooCampus",   href: `${HUB}/assistant`,   icon: IconMessageChatbot },
     { label: "AI Insights",     href: `${HUB}/ai-insights`, icon: IconBulb },
     { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/ai-reports`, children: [
       { label: "Monthly Reports",      href: `${HUB}/ai-reports`,     icon: IconReportAnalytics },
