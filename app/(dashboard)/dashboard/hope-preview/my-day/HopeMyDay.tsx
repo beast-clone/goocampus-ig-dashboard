@@ -364,8 +364,6 @@ const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circ
 const CHEV = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-1px", opacity: 0.55 }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const IPLAY = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l11-6.8a1 1 0 0 0 0-1.7l-11-6.8A1 1 0 0 0 8 5.2Z" /></svg>;
 const ISTOP = <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>;
-const IUNDO = <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 7H5V3M5.5 6.5A8 8 0 1 1 4 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-const IREDO = <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M15 7h4V3M18.5 6.5A8 8 0 1 0 20 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
 // One due-date chip everywhere so the clock icon + label read uniformly on every
 // task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
@@ -2330,10 +2328,8 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
         <div className="topbar">
           <div className="topspacer" />
           <div className="icons">
-            {/* Undo / redo — session history of this person's changes (⌘Z / ⌘⇧Z). */}
-            <button className="iconbtn" title="Undo (⌘Z)" disabled={!undoStack.length} onClick={undo}>{IUNDO}</button>
-            <button className="iconbtn" title="Redo (⌘⇧Z)" disabled={!redoStack.length} onClick={redo}>{IREDO}</button>
-            <span className="topdivider" aria-hidden="true" />
+            {/* Undo / redo are keyboard-only now (Ctrl+Z / Ctrl+Shift+Z, ⌘Z / ⌘⇧Z) —
+                the arrow buttons were removed per user request; the shortcuts still work. */}
             {/* Day control — then a divider, so End day sits apart from the
                 notification icons + profile and isn't clicked by accident. End day only
                 OPENS the wrap-up (a confirm step) — it never logs out on a single tap. */}

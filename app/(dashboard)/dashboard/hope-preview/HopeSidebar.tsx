@@ -11,6 +11,7 @@ import {
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
+import { GlobalSearch } from "./GlobalSearch";
 
 // The ONE shared Hope UI sidebar — used by HopeShell (cloned tabs) AND the
 // hand-built HopeOverview so every V2 page has the identical grouped, expandable
@@ -70,7 +71,7 @@ const GROUPS: Group[] = [
   { label: "Ads", items: [
     { label: "Ads",            href: `${HUB}/ads`,         icon: IconSpeakerphone },
     { label: "Competitor Ads", href: `${HUB}/competitors`, icon: IconTargetArrow },
-    { label: "Benchmark",      href: `${HUB}/benchmark`,   icon: IconChartHistogram },
+    { label: "Competitors",    href: `${HUB}/benchmark`,   icon: IconChartHistogram },
   ] },
   { label: "Sales", items: [
     { label: "Social Leads",  href: `${HUB}/leads`,          icon: IconUserDollar },
@@ -162,6 +163,7 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
       </div>
+      <GlobalSearch />
       <LeafRow leaf={OVERVIEW} />
       {GROUPS.map((g) => (
         <div key={g.label}>

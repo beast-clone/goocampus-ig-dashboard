@@ -74,7 +74,7 @@ function periodMetrics(c: Competitor, days: number) {
 
 export default function BenchmarkPage() {
   return (
-    <HopeDashboardShell active="benchmark" title="Benchmark" subtitle="Track competitor IG accounts: followers, posting cadence, engagement." hideAccountPicker hideRange>
+    <HopeDashboardShell active="benchmark" title="Competitors" subtitle="Track competitor Instagram accounts — followers, posting cadence, engagement, and their top-performing posts." hideAccountPicker hideRange>
       {({ accountId, range }) => <BenchmarkInner accountId={accountId} range={range} />}
     </HopeDashboardShell>
   );
@@ -152,6 +152,13 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     ? [...erValues].sort((a, b) => a - b)[Math.floor(erValues.length / 2)]
     : 0;
 
+  // Best posts across ALL competitors shown, ranked by engagement — the top strip.
+  const topPostsAll = valid
+    .flatMap((c) => c.recent.map((m) => ({ m, handle: c.username })))
+    .filter(({ m }) => m.thumbnail_url || m.media_url)
+    .sort((a, b) => (b.m.like_count + b.m.comments_count) - (a.m.like_count + a.m.comments_count))
+    .slice(0, 10);
+
   // Clicking a competitor opens their full profile + all tracked posts IN the dashboard
   // (covers the whole tab) — never a redirect out to Instagram.
   if (detail) return <CompetitorDetail c={detail} medianER={medianER} onBack={() => setDetail(null)} />;
@@ -160,7 +167,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     <>
       <div className="flex items-end justify-between mb-5">
         <div>
-          <h2 className="text-base font-medium text-[#232D42]">Competitor Benchmark <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
+          <h2 className="text-base font-medium text-[#232D42]">Competitors <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
           <p className="text-sm text-gray-500 mt-0.5">Public Instagram accounts tracked via Meta&apos;s public data — followers, posting cadence, engagement rate.</p>
         </div>
         <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={refresh} loading={loading} />
@@ -232,6 +239,37 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           <SummaryCard label="Avg followers" value={fmt(Math.round(valid.reduce((s, c) => s + c.followers_count, 0) / valid.length))} />
           <SummaryCard label="Median engagement rate" value={`${medianER.toFixed(2)}%`} />
           <SummaryCard label="Avg posts / 30d" value={(valid.reduce((s, c) => s + c.postsLast30d, 0) / valid.length).toFixed(1)} />
+        </div>
+      )}
+
+      {/* Top competitor posts — best across everyone shown, ranked by engagement */}
+      {topPostsAll.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 mb-5 border border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-medium text-[#232D42]">🏆 Top competitor posts</span>
+            <span className="text-xs text-gray-400">across all competitors shown · ranked by engagement</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {topPostsAll.map(({ m, handle }, i) => (
+              <a
+                key={m.id}
+                href={m.permalink || "#"}
+                target={m.permalink ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                className="shrink-0 w-[150px]"
+              >
+                <div className="relative w-[150px] h-[150px] rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
+                  {i === 0 && (
+                    <span className="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-semibold px-2 h-5 grid place-items-center rounded-full shadow">🏆 Top</span>
+                  )}
+                </div>
+                <div className="mt-1.5 text-[12px] font-medium text-[#232D42] truncate">@{handle}</div>
+                <div className="text-[11px] text-gray-500 tabular-nums">♥ {fmt(m.like_count)} · 💬 {fmt(m.comments_count)}</div>
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
