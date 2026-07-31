@@ -21,6 +21,7 @@ export type SavedReportMeta = {
   to: string;
   generatedAt: string;
   headline?: { label: string; value: string; delta?: string }[];
+  trashedAt?: string;   // set when the report is in the Recycle Bin (soft-deleted)
 };
 
 type StoredRecord = SavedReportMeta & { report: unknown };
@@ -105,4 +106,51 @@ export async function getReport(key: string): Promise<unknown | null> {
     .maybeSingle();
   if (!data) return null;
   return (data.payload as StoredRecord).report;
+}
+
+// ---- Recycle Bin (soft delete) ----------------------------------------------
+// A report is NEVER hard-deleted by accident. "Deleting" flips its source tag to
+// TRASH_SOURCE so it leaves the archive but stays fully recoverable. Restore flips
+// it back; permanent delete removes the row for good — and only works from the bin.
+const TRASH_SOURCE = "saved_report_trash";
+
+export async function trashReport(key: string): Promise<boolean> {
+  const db = getSupabase();
+  if (!db) return false;
+  const { data } = await db.from("discover_cache").select("payload").eq("cache_key", key).eq("source", "saved_report").maybeSingle();
+  if (!data) return false;
+  const payload = { ...(data.payload as StoredRecord), trashedAt: new Date().toISOString() };
+  const { error } = await db.from("discover_cache").update({ source: TRASH_SOURCE, payload }).eq("cache_key", key);
+  return !error;
+}
+
+export async function restoreReport(key: string): Promise<boolean> {
+  const db = getSupabase();
+  if (!db) return false;
+  const { data } = await db.from("discover_cache").select("payload").eq("cache_key", key).eq("source", TRASH_SOURCE).maybeSingle();
+  if (!data) return false;
+  const rec = { ...(data.payload as StoredRecord) } as StoredRecord & { trashedAt?: string };
+  delete rec.trashedAt;
+  const { error } = await db.from("discover_cache").update({ source: "saved_report", payload: rec }).eq("cache_key", key);
+  return !error;
+}
+
+// Permanent delete — irreversible. Guarded to the trash so a live report can never
+// be hard-deleted directly; it must be moved to the bin first.
+export async function deleteReportPermanent(key: string): Promise<boolean> {
+  const db = getSupabase();
+  if (!db) return false;
+  const { error } = await db.from("discover_cache").delete().eq("cache_key", key).eq("source", TRASH_SOURCE);
+  return !error;
+}
+
+export async function listTrash(): Promise<SavedReportMeta[]> {
+  const db = getSupabase();
+  if (!db) return [];
+  const { data } = await db.from("discover_cache").select("payload").eq("source", TRASH_SOURCE);
+  if (!data) return [];
+  return data
+    .map((r) => r.payload as StoredRecord)
+    .map(({ report: _drop, ...meta }) => meta)
+    .sort((a, b) => (b.trashedAt || "").localeCompare(a.trashedAt || "") || b.to.localeCompare(a.to));
 }

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { ReportView, type ReportPayload } from "@/app/(dashboard)/dashboard/hope-preview/ai-reports/ReportView";
 import {
-  IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconChevronRight, IconArrowLeft,
+  IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconChevronRight, IconArrowLeft, IconTrash,
 } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -79,6 +79,19 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
   const [openReport, setOpenReport] = useState<ReportPayload | null>(null);
   const [openLoading, setOpenLoading] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // Soft-delete → Recycle Bin (recoverable). Row click opens the report, so stop
+  // the click here.
+  const trash = async (r: SavedReportMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Move this ${label} report (${fmtDateShort(r.from)} – ${fmtDateShort(r.to)}) to the Recycle Bin? You can restore it later.`)) return;
+    setBusyKey(r.key);
+    try {
+      const res = await fetch(`/api/reports?key=${encodeURIComponent(r.key)}`, { method: "DELETE", credentials: "same-origin" });
+      if (res.ok) setReports((prev) => (prev || []).filter((x) => x.key !== r.key));
+    } finally { setBusyKey(null); }
+  };
 
   useEffect(() => {
     setReports(null);
@@ -147,6 +160,7 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
               <th className={`${th} text-right`}>Engagement</th>
               <th className={th}>Generated</th>
               <th className="px-2" />
+              <th className="px-2" />
             </tr>
           </thead>
           <tbody>
@@ -167,6 +181,12 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
                   <td className={`${td} text-right tabular-nums text-[#232D42]`}>{metric(r, "follower") || "—"}</td>
                   <td className={`${td} text-right tabular-nums text-[#232D42]`}>{metric(r, "engage") || "—"}</td>
                   <td className={`${td} text-[#8A92A6] text-xs whitespace-nowrap`}>{fmtDateTime(r.generatedAt)}</td>
+                  <td className="px-1 text-right">
+                    <button onClick={(e) => trash(r, e)} disabled={busyKey === r.key} title="Move to Recycle Bin"
+                      className="text-gray-300 hover:text-rose-500 p-1 rounded disabled:opacity-40">
+                      <IconTrash size={16} />
+                    </button>
+                  </td>
                   <td className="px-2 text-gray-300"><IconChevronRight size={16} /></td>
                 </tr>
               );

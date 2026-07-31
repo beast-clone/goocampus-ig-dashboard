@@ -8,7 +8,7 @@ import {
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
-  IconDeviceMobile, IconBuildingSkyscraper, IconArchive,
+  IconDeviceMobile, IconArchive, IconTrash,
 } from "@tabler/icons-react";
 import type { HopeTab } from "./HopeShell";
 
@@ -79,10 +79,10 @@ const GROUPS: Group[] = [
   ] },
   { label: "AI", items: [
     { label: "AI Insights",     href: `${HUB}/ai-insights`, icon: IconBulb },
-    { label: "Monthly Reports", href: `${HUB}/ai-reports`,  icon: IconReportAnalytics },
-    { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/reports/social`, children: [
-      { label: "Social Media Reports", href: `${HUB}/reports/social`,  icon: IconDeviceMobile },
-      { label: "Company Reports",      href: `${HUB}/reports/company`, icon: IconBuildingSkyscraper },
+    { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/ai-reports`, children: [
+      { label: "Monthly Reports",      href: `${HUB}/ai-reports`,     icon: IconReportAnalytics },
+      { label: "Social Media Reports", href: `${HUB}/reports/social`, icon: IconDeviceMobile },
+      { label: "Recycle Bin",          href: `${HUB}/reports/trash`,  icon: IconTrash },
     ] },
   ] },
   { label: "System", items: [
