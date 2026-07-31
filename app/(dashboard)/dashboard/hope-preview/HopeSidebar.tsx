@@ -157,8 +157,8 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
     <aside className="hsidebar">
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
-        <span className="hlogo"><IconBrandInstagram size={16} style={{ transform: "rotate(-45deg)" }} /></span>
-        <span className="hbrandname">GooCampus</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
       </div>
       <LeafRow leaf={OVERVIEW} />
       {GROUPS.map((g) => (
@@ -179,9 +179,8 @@ const SIDEBAR_CSS = `
 .hsidebar *{box-sizing:border-box}
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
-.hsidebar .hbrand{display:flex;align-items:center;gap:10px;padding:20px 8px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
-.hsidebar .hlogo{width:32px;height:32px;border-radius:9px;background:var(--sb-brand);display:grid;place-items:center;color:#fff;transform:rotate(45deg);flex:0 0 32px}
-.hsidebar .hlogo svg{color:#fff}
+.hsidebar .hbrand{display:flex;align-items:center;justify-content:center;padding:16px 8px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hlogo-img{width:150px;max-width:100%;height:auto;object-fit:contain;display:block}
 .hsidebar .hbrandname{font-weight:600;font-size:1.05rem;color:var(--sb-ink)}
 .hsidebar .hnavgroup{font-family:ui-monospace,Menlo,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:var(--sb-faint);font-weight:700;padding:13px 10px 5px}
 .hsidebar .hnavitem{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:9px;font-size:.82rem;font-weight:500;color:var(--sb-ink-soft);cursor:pointer;margin-bottom:1px;text-decoration:none;width:100%;border:none;background:none;text-align:left;font-family:inherit}
