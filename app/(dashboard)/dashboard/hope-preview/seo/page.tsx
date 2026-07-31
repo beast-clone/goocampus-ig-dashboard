@@ -4,7 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { useApi } from "@/lib/use-api";
 import { AiInsights } from "@/components/AiInsights";
 import {
-  IconSearch, IconTrendingUp, IconStar, IconRefresh, IconPlus, IconX, IconTargetArrow, IconBulb,
+  IconSearch, IconTrendingUp, IconStar, IconRefresh, IconPlus, IconX, IconTargetArrow, IconBulb, IconTrophy,
 } from "@tabler/icons-react";
 
 const BRAND = "#3A57E8";
@@ -69,6 +69,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
   return (
     <div className="hope-scope space-y-6">
+      {/* Pinned rankings board — always-visible "where GooCampus ranks" */}
+      <RankingsBoard />
+
       {/* Totals */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Clicks" value={fmt(gsc?.totals?.clicks)} sub="from Google search" />
@@ -204,6 +207,62 @@ function RankChecker() {
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- Pinned board: "Where GooCampus ranks" ----------
+// Always-visible summary of our live Google positions for the keywords we track.
+// Reuses the tracked-keywords data; best (lowest) position first, unranked last.
+function RankingsBoard() {
+  const { data, refresh } = useApi<{ keywords: Tracked[] }>("/api/seo/keywords");
+  const [busy, setBusy] = useState(false);
+  const rows = [...(data?.keywords || [])].sort((a, b) => (a.latest?.position ?? 999) - (b.latest?.position ?? 999));
+  const onPage1 = rows.filter((r) => (r.latest?.position ?? 99) <= 10).length;
+  const notRanked = rows.filter((r) => r.latest?.position == null).length;
+
+  async function recheck() { setBusy(true); await fetch("/api/seo/refresh", { method: "POST" }); setBusy(false); refresh(); }
+  const delta = (t: Tracked) => {
+    const now = t.latest?.position, prev = t.previous?.position;
+    if (now == null || prev == null) return null;
+    return prev - now; // + = moved up
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 md:p-5">
+      <div className="flex items-start gap-2 mb-3">
+        <span className="text-brand mt-0.5"><IconTrophy size={17} /></span>
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold text-[#232D42]">Where GooCampus ranks</div>
+          <div className="text-[12.5px] text-gray-500">Live Google (India) position for the keywords you track. Lower is better — #1 is the top of page 1.</div>
+        </div>
+        <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+          {rows.length > 0 && <span className="text-[12px] text-gray-500 hidden sm:inline"><b className="text-emerald-600">{onPage1}</b> on page 1 · <b className="text-gray-600">{notRanked}</b> to win</span>}
+          <button onClick={recheck} disabled={busy || rows.length === 0} className="inline-flex items-center gap-1 text-[12px] font-medium text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1 hover:border-gray-300 disabled:opacity-50">
+            <IconRefresh size={13} className={busy ? "animate-spin" : ""} /> Re-check
+          </button>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-[13px] text-gray-400 text-center py-6">No keywords tracked yet. Check a keyword below and hit <b>+ Track this keyword</b> — it will show up here with its live position.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+          {rows.map((t) => {
+            const d = delta(t);
+            const p = t.latest?.position ?? null;
+            return (
+              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                <PosBadge p={p} />
+                <span className="flex-1 min-w-0 truncate text-[13px] font-medium text-[#232D42]" title={t.keyword}>{t.keyword}</span>
+                {p == null && <span className="text-[11px] text-gray-400 whitespace-nowrap">not top 10</span>}
+                {d != null && d !== 0 && <span className={`text-[11.5px] font-semibold tabular-nums ${d > 0 ? "text-emerald-600" : "text-rose-600"}`}>{d > 0 ? "▲" : "▼"}{Math.abs(d)}</span>}
+                <RankSpark history={t.history} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
