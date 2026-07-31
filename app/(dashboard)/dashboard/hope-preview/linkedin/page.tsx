@@ -138,8 +138,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <Stat label="Followers" value={fmt(data.summary.followers)} sub={`+${fmt(data.summary.followerGain)} in range`} accent />
             <Stat label="Impressions" value={fmt(data.summary.impressions)} sub="in range" />
             <Stat label="Unique impr." value={data.summary.uniqueImpressions != null ? fmt(data.summary.uniqueImpressions) : "—"} sub="reach" />
-            <Stat label="Engagement" value={`${data.summary.engagementRate}%`} sub="avg / post" />
-            <Stat label="CTR" value={data.summary.ctr != null ? `${data.summary.ctr}%` : "—"} sub="clicks / impr." />
+            <Stat label="Engagement" value={`${data.summary.engagementRate}%`} sub="reactions+comments+shares ÷ impr." />
+            <Stat label="Click rate" value={data.summary.ctr != null ? `${data.summary.ctr}%` : "—"} sub="all content clicks ÷ impr." />
             <Stat label="Posts" value={String(data.summary.posts)} sub="published" />
             <Stat label="Page views" value={fmt(data.summary.pageViews)} sub="in range" />
             <Stat label="Unique visitors" value={fmt(data.summary.uniqueVisitors)} sub="in range" />
@@ -403,7 +403,7 @@ function PostsTable({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => voi
               <th className="px-3 py-2.5 font-medium text-right">Impr.</th>
               <th className="px-3 py-2.5 font-medium text-right">Unique</th>
               <th className="px-3 py-2.5 font-medium text-right">Clicks</th>
-              <th className="px-3 py-2.5 font-medium text-right">CTR</th>
+              <th className="px-3 py-2.5 font-medium text-right" title="All content clicks ÷ impressions (LinkedIn counts every click, not just links)">Click %</th>
               <th className="px-3 py-2.5 font-medium text-right">React.</th>
               <th className="px-3 py-2.5 font-medium text-right">Comments</th>
               <th className="px-3 py-2.5 font-medium text-right">Shares</th>
@@ -502,7 +502,7 @@ function PostModal({ post, pageName, onClose }: { post: Post; pageName: string; 
               <BigMetric label="Unique reach" value={fmt(post.uniqueImpressions)} />
               <BigMetric label="Engagement" value={`${post.engagementRate}%`} accent />
               <BigMetric label="Clicks" value={fmt(post.clicks)} />
-              <BigMetric label="CTR" value={`${post.ctr}%`} />
+              <BigMetric label="Click rate" value={`${post.ctr}%`} />
               <BigMetric label="Reactions" value={fmt(post.reactions)} />
             </div>
 
