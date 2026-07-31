@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { generateQuickPost } from "@/lib/content-pipeline";
+import { generateQuickPost, generateFromTopic } from "@/lib/content-pipeline";
 import { hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
@@ -21,11 +21,15 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
+    // kind "topic" → the team typed a bare topic (Path B, deep research).
+    // Anything else → a Content Radar item with a known headline (Path A, quick).
+    const isTopic = body.kind === "topic";
+
     const { data, error } = await sb.from("content_drafts").insert({
       kind: body.kind || "radar",
       title,
-      source: body.source || null,
-      source_url: body.url || null,
+      source: isTopic ? null : (body.source || null),
+      source_url: isTopic ? null : (body.url || null),
       interest: body.interest || null,
       status: "generating",
     }).select("id").single();
@@ -33,7 +37,10 @@ export async function POST(req: Request) {
     const id = data.id as string;
 
     // Fire-and-forget: generate, then write the result back. Never blocks the response.
-    generateQuickPost({ title, source: body.source, url: body.url, interest: body.interest })
+    const work = isTopic
+      ? generateFromTopic(title)
+      : generateQuickPost({ title, source: body.source, url: body.url, interest: body.interest });
+    work
       .then((r) => sb.from("content_drafts").update({
         status: "ready", factcheck: r.factcheck, drafts: r.drafts, citations: r.citations, model: r.model,
       }).eq("id", id))

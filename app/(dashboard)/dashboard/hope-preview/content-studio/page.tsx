@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { useApi } from "@/lib/use-api";
 import {
   IconSparkles, IconBrandInstagram, IconBrandLinkedin, IconMovie, IconLayoutGrid, IconPencil, IconCopy,
   IconCircleDashed, IconCircleCheck, IconAlertTriangle, IconTrash, IconExternalLink, IconX, IconChevronRight, IconPalette,
+  IconFlame, IconSearch, IconMicroscope, IconWorldSearch, IconTrendingUp,
 } from "@tabler/icons-react";
 
 type Draft = { platform: string; label: string; content: string };
@@ -13,6 +14,11 @@ type Item = {
   interest: string | null; status: "generating" | "ready" | "failed"; factcheck: string | null;
   drafts: Draft[]; citations: string[] | null; model: string | null; error: string | null; created_at: string;
 };
+type FeedItem = { id?: string; title: string; link?: string; source?: string; primaryInterest?: string };
+
+// POST body for the make endpoint (Path A radar item or Path B bare topic).
+type MakeBody = { title: string; kind: "radar" | "topic"; url?: string; source?: string; interest?: string };
+const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 
 // Design work is coordinated by Manya (she sets publishing date, type, status) but the
 // assignee is pickable per hand-off.
@@ -39,14 +45,14 @@ const ago = (iso: string) => {
 export default function ContentStudioPage() {
   return (
     <HopeDashboardShell active="content-studio" title="Content Studio" hideAccountPicker hideRange
-      subtitle="AI-written copy from your topics. Review it, then send each piece to a designer to create the visual — nothing skips straight to publishing.">
+      subtitle="Pick a trending topic or research your own. Review the facts and sources, then send each piece to a designer — nothing skips straight to publishing.">
       {() => <Inner />}
     </HopeDashboardShell>
   );
 }
 
 function Inner() {
-  const { data, isLoading, refresh } = useApi<{ drafts: Item[] }>("/api/content");
+  const { data, refresh } = useApi<{ drafts: Item[] }>("/api/content");
   const items = data?.drafts || [];
   const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
@@ -55,51 +61,154 @@ function Inner() {
     return () => clearTimeout(t);
   }, [items, refresh]);
 
+  // Start a generation job (radar pick or bare topic), then refresh so the new
+  // "generating" row appears and polling takes over.
+  const startJob = useCallback(async (body: MakeBody) => {
+    await fetch("/api/content/make", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
+    await refresh();
+  }, [refresh]);
+
   const open = items.find((i) => i.id === openId) || null;
 
-  if (isLoading && items.length === 0) return <div className="hope-scope text-[13px] text-gray-400 py-16 text-center">Loading…</div>;
-
   return (
-    <div className="hope-scope space-y-4">
-      {items.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center">
-          <IconSparkles size={28} className="text-brand mx-auto mb-2" />
-          <div className="text-[15px] font-semibold text-[#232D42] mb-1">No content yet</div>
-          <div className="text-[13px] text-gray-500 max-w-md mx-auto">Open <b>Content Radar</b>, find a topic, and hit <b>Make content</b>. The AI-written copy lands here for you to review and hand to a designer.</div>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                  <th className="text-left font-medium px-4 py-2.5">Topic</th>
-                  <th className="text-left font-medium px-3 py-2.5">Interest</th>
-                  <th className="text-left font-medium px-3 py-2.5">Status</th>
-                  <th className="text-left font-medium px-3 py-2.5">Drafts</th>
-                  <th className="text-left font-medium px-3 py-2.5">Generated</th>
-                  <th className="px-3 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <tr key={it.id} onClick={() => setOpenId(it.id)}
-                    className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-brand-light/40 transition">
-                    <td className="px-4 py-3 max-w-md"><div className="font-medium text-[#232D42] truncate" title={it.title}>{it.title}</div><div className="text-[11px] text-gray-400">{it.source || "—"}</div></td>
-                    <td className="px-3 py-3">{it.interest ? <span className="bg-brand-light text-brand rounded-full px-2 py-0.5 text-[11.5px]">{it.interest}</span> : "—"}</td>
-                    <td className="px-3 py-3"><StatusPill status={it.status} /></td>
-                    <td className="px-3 py-3 text-gray-600">{it.status === "ready" ? `${it.drafts?.length || 0} pieces` : it.status === "generating" ? "…" : "—"}</td>
-                    <td className="px-3 py-3 text-gray-400 whitespace-nowrap">{ago(it.created_at)}</td>
-                    <td className="px-3 py-3 text-right"><IconChevronRight size={15} className="text-gray-300" /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="hope-scope space-y-5">
+      <TrendingStrip onPick={startJob} />
+      <ResearchBox onResearch={startJob} />
+
+      <div>
+        <SectionLabel icon={<IconSparkles size={13} className="text-brand" />}>Your content</SectionLabel>
+        {items.length === 0 ? (
+          <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+            <div className="text-[13.5px] text-gray-500 max-w-md mx-auto">Pick a trending topic above, or research your own — the AI-written drafts land here for you to review and hand to a designer.</div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                    <th className="text-left font-medium px-4 py-2.5">Topic</th>
+                    <th className="text-left font-medium px-3 py-2.5">Source</th>
+                    <th className="text-left font-medium px-3 py-2.5">Status</th>
+                    <th className="text-left font-medium px-3 py-2.5">Drafts</th>
+                    <th className="text-left font-medium px-3 py-2.5">Generated</th>
+                    <th className="px-3 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it) => (
+                    <tr key={it.id} onClick={() => setOpenId(it.id)}
+                      className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-brand-light/40 transition">
+                      <td className="px-4 py-3 max-w-md"><div className="font-medium text-[#232D42] truncate" title={it.title}>{it.title}</div>{it.interest && <div className="text-[11px] text-gray-400">{it.interest}</div>}</td>
+                      <td className="px-3 py-3">{it.kind === "topic"
+                        ? <span className="inline-flex items-center gap-1 bg-brand-light text-brand rounded-full px-2 py-0.5 text-[11px]"><IconMicroscope size={11} /> Researched</span>
+                        : <span className="text-gray-500 text-[12px]">{it.source || "Radar"}</span>}</td>
+                      <td className="px-3 py-3"><StatusPill status={it.status} /></td>
+                      <td className="px-3 py-3 text-gray-600">{it.status === "ready" ? `${it.drafts?.length || 0} pieces` : it.status === "generating" ? "…" : "—"}</td>
+                      <td className="px-3 py-3 text-gray-400 whitespace-nowrap">{ago(it.created_at)}</td>
+                      <td className="px-3 py-3 text-right"><IconChevronRight size={15} className="text-gray-300" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       {open && <DetailModal it={open} onClose={() => setOpenId(null)} onChanged={refresh} />}
+    </div>
+  );
+}
+
+function SectionLabel({ icon, children, right }: { icon: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-400 mb-2 px-0.5">
+      {icon} {children}
+      {right && <span className="ml-auto normal-case tracking-normal">{right}</span>}
+    </div>
+  );
+}
+
+// Top strip — trending picks pulled straight from Content Radar. Optional: the team
+// glances, picks one to turn into content, or ignores the strip entirely.
+function TrendingStrip({ onPick }: { onPick: (b: MakeBody) => Promise<void> }) {
+  const { data } = useApi<{ items: FeedItem[] }>("/api/radar/feed?limit=8");
+  const [pending, setPending] = useState<string | null>(null);
+  const items = (data?.items || []).filter((i) => i.title).slice(0, 6);
+  if (items.length === 0) return null;
+
+  const pick = async (it: FeedItem) => {
+    const key = it.link || it.title;
+    setPending(key);
+    try { await onPick({ title: it.title, url: it.link, source: it.source, interest: it.primaryInterest, kind: "radar" }); }
+    finally { setPending(null); }
+  };
+
+  return (
+    <div>
+      <SectionLabel icon={<IconFlame size={13} className="text-brand" />} right={<span className="text-brand text-[11px]">Optional — pick one or skip</span>}>
+        Trending now · from Content Radar
+      </SectionLabel>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {items.map((it) => {
+          const key = it.link || it.title;
+          const busy = pending === key;
+          return (
+            <div key={key} className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                {it.primaryInterest && <span className="bg-brand-light text-brand rounded-full px-2 py-0.5 text-[10.5px]">{it.primaryInterest}</span>}
+                <span className="inline-flex items-center gap-0.5 text-[10.5px] text-gray-400"><IconTrendingUp size={11} /> {it.source || "Radar"}</span>
+              </div>
+              <div className="text-[12.5px] font-medium text-[#232D42] leading-snug mb-2.5 line-clamp-2" title={it.title}>{it.title}</div>
+              <button onClick={() => pick(it)} disabled={busy}
+                className="mt-auto w-full inline-flex items-center justify-center gap-1 bg-brand text-white rounded-lg px-2 py-1.5 text-[11.5px] hover:bg-brand-dark disabled:opacity-60">
+                <IconSparkles size={13} /> {busy ? "Starting…" : "Make content"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Second section — the team types any topic; deep research + fact-check + drafts.
+function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void> }) {
+  const [topic, setTopic] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const t = topic.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    try { await onResearch({ title: t, kind: "topic" }); setTopic(""); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div>
+      <SectionLabel icon={<IconMicroscope size={13} className="text-brand" />}>Research your own topic</SectionLabel>
+      <div className="bg-white border border-gray-100 rounded-2xl p-4">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 focus-within:border-brand">
+            <IconSearch size={16} className="text-gray-400 shrink-0" />
+            <input value={topic} onChange={(e) => setTopic(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              placeholder="e.g. FMGE 2026 pass percentage trends"
+              className="w-full py-2.5 text-[13px] text-[#232D42] outline-none bg-transparent placeholder:text-gray-400" />
+          </div>
+          <button onClick={submit} disabled={busy || !topic.trim()}
+            className="inline-flex items-center justify-center gap-1.5 bg-brand text-white rounded-lg px-4 py-2.5 text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-60 whitespace-nowrap">
+            <IconSparkles size={14} /> {busy ? "Starting…" : "Research & write"}
+          </button>
+        </div>
+        <div className="text-[11.5px] text-gray-400 mt-2 flex items-center gap-1.5">
+          <IconWorldSearch size={13} /> Reads multiple live sources, fact-checks, then writes 4 drafts — and shows you where it searched. Takes ~1 minute.
+        </div>
+      </div>
     </div>
   );
 }
@@ -129,7 +238,7 @@ function DetailModal({ it, onClose, onChanged }: { it: Item; onClose: () => void
               <StatusPill status={it.status} />
               {it.source && <span>{it.source}</span>}
               <span>· {ago(it.created_at)}</span>
-              {it.model && <span className="text-gray-400">· via Perplexity</span>}
+              {it.model && <span className="text-gray-400">· via Perplexity{it.model.includes("deep") ? " deep research" : ""}</span>}
             </div>
           </div>
           <button onClick={del} className="text-gray-300 hover:text-rose-500" title="Delete"><IconTrash size={16} /></button>
@@ -144,6 +253,23 @@ function DetailModal({ it, onClose, onChanged }: { it: Item; onClose: () => void
             <div className="border border-gray-100 rounded-xl p-3 bg-gray-50/70 text-[12.5px] text-gray-600">
               <span className="font-semibold text-[#232D42]">Fact-check</span> — {it.factcheck}
               {it.source_url && <a href={it.source_url} target="_blank" rel="noreferrer" className="text-brand hover:underline ml-2 inline-flex items-center gap-0.5">source <IconExternalLink size={11} /></a>}
+            </div>
+          )}
+
+          {it.citations && it.citations.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-400 mb-1.5">
+                <IconWorldSearch size={13} /> Where it searched · {it.citations.length} source{it.citations.length > 1 ? "s" : ""}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {it.citations.map((u, i) => (
+                  <a key={i} href={u} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 text-[12px] text-brand hover:bg-brand-light/50 border border-gray-100 rounded-lg px-2.5 py-1.5">
+                    <IconExternalLink size={12} className="shrink-0" /> <span className="truncate">{hostOf(u)}</span>
+                    <span className="text-gray-400 truncate hidden sm:inline">— {u}</span>
+                  </a>
+                ))}
+              </div>
             </div>
           )}
 
