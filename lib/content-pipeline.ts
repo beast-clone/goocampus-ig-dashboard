@@ -61,24 +61,38 @@ ${POSTS_SPEC}
   return toResult(parseLooseJson<Raw>(text), citations, model);
 }
 
-// Path B — the team types a bare topic. Deep-research browses many sources, we
-// fact-check what it found, then write the drafts. Slower + pricier, but grounded
-// in real sources whose URLs we return so the team can verify.
+// Path B — the team types a bare topic. Done in two steps (mirrors the n8n flow):
+//   1. sonar-deep-research browses many sources and writes a grounded brief; we keep
+//      the source URLs it cited.
+//   2. a fast structured pass turns that brief into fact-check + drafts as strict JSON.
+// Deep-research models return a full report (with reasoning), not JSON, so asking them
+// for JSON directly does not parse — the second pass is what makes the output reliable.
 export async function generateFromTopic(topic: string): Promise<GenResult> {
-  const model = "sonar-deep-research";
-  const user = `Our team wants content on this topic. Research it thoroughly across current, credible sources, establish what is actually true right now, then write ready-to-post content for our audience.
+  // Step 1 — research. Slow (reads many pages); the make route runs this fire-and-forget
+  // on a long-lived server, so a wide timeout is safe.
+  const researchUser = `Research this topic thoroughly using current, credible sources: "${topic}".
+Write a factual brief (150-250 words) for our content team: the key facts, exact dates, the authorities/exam bodies involved, any recent changes, and anything uncertain or contested. Use only what the sources support — never invent numbers or dates.`;
+  const research = await askPerplexity(`${SYSTEM}\n\nYou are researching a topic to brief a content writer.`, researchUser,
+    { model: "sonar-deep-research", maxTokens: 4000, temperature: 0.2, timeoutMs: 180_000 });
+  const brief = (research.text || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  if (!brief) throw new Error("Deep research returned nothing to write from");
+
+  // Step 2 — write from the brief only (no new facts), as strict JSON.
+  const writeUser = `Using ONLY the researched brief below, write content for our audience. Do not add any fact that is not in the brief.
 
 TOPIC: ${topic}
 
+RESEARCHED BRIEF:
+${brief}
+
 Return ONLY JSON in exactly this shape:
 {
-  "factcheck": "2-4 sentences summarising what you verified: the key facts, dates, and authorities, and anything uncertain or contested. Do not invent numbers.",
+  "factcheck": "2-4 sentences summarising the verified facts from the brief (dates, authorities) and anything uncertain.",
 ${POSTS_SPEC}
 }`;
+  const { text } = await askPerplexity(SYSTEM, `${writeUser}\n\nIMPORTANT: reply with ONLY valid JSON — no markdown, no code fences, no prose.`,
+    { model: "sonar-pro", maxTokens: 2600, temperature: 0.4, timeoutMs: 60_000 });
 
-  // Deep research is slow (it reads many pages) — give it a wide timeout. The make
-  // route runs this fire-and-forget on a long-lived server, so a long wait is safe.
-  const { text, citations } = await askPerplexity(SYSTEM, `${user}\n\nIMPORTANT: the final message must be ONLY valid JSON — no markdown, no code fences, no prose before or after.`,
-    { model, maxTokens: 3200, temperature: 0.4, timeoutMs: 180_000 });
-  return toResult(parseLooseJson<Raw>(text), citations, model);
+  // Report the deep-research model so the UI labels it correctly; sources come from step 1.
+  return toResult(parseLooseJson<Raw>(text), research.citations || [], "sonar-deep-research");
 }
