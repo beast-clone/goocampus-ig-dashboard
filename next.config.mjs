@@ -1,7 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable instrumentation.ts (Next 14) — used to auto-warm caches in local dev.
-  experimental: { instrumentationHook: true },
+  experimental: {
+    instrumentationHook: true,
+    // The marketing-skills routes read framework .md files via fs at runtime — bundle
+    // them into the serverless functions so they exist on Netlify, not just locally.
+    outputFileTracingIncludes: {
+      "/api/marketing-skills/**": ["./marketing-skills/**/*"],
+    },
+  },
   // Served under goocampusevents.com/insights via a Netlify rewrite on the main site.
   // basePath ensures all generated asset/route URLs include this prefix so they resolve
   // correctly when proxied. Override locally with BASE_PATH= (empty) to run at root.

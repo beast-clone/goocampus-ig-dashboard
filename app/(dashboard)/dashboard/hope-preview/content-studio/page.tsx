@@ -7,6 +7,8 @@ import {
   IconCircleDashed, IconCircleCheck, IconAlertTriangle, IconTrash, IconExternalLink, IconX, IconChevronRight, IconPalette,
   IconFlame, IconSearch, IconMicroscope, IconWorldSearch, IconTrendingUp,
 } from "@tabler/icons-react";
+import { useSearchParams } from "next/navigation";
+import { PlaybooksLibrary } from "./PlaybooksLibrary";
 
 type Draft = { platform: string; label: string; content: string };
 type Item = {
@@ -46,8 +48,31 @@ export default function ContentStudioPage() {
   return (
     <HopeDashboardShell active="content-studio" title="Content Studio" hideAccountPicker hideRange
       subtitle="Pick a trending topic or research your own. Review the facts and sources, then send each piece to a designer — nothing skips straight to publishing.">
-      {() => <Inner />}
+      {() => <StudioTabs />}
     </HopeDashboardShell>
+  );
+}
+
+// Two modes live in Content Studio: "Create" (research → drafts) and "Playbooks"
+// (the 49-skill marketing framework library). Deep-linkable via ?tab=playbooks.
+function StudioTabs() {
+  const sp = useSearchParams();
+  const [tab, setTab] = useState<"create" | "playbooks">(sp.get("tab") === "playbooks" ? "playbooks" : "create");
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-5">
+        {(["create", "playbooks"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`text-[13px] font-medium px-4 py-2 rounded-xl border transition ${tab === k ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}
+          >
+            {k === "create" ? "Create" : "Playbooks"}
+          </button>
+        ))}
+      </div>
+      {tab === "create" ? <Inner /> : <PlaybooksLibrary />}
+    </>
   );
 }
 

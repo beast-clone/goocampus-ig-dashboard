@@ -1,0 +1,394 @@
+[
+  {
+    "slug": "cold-email",
+    "name": "Cold Email",
+    "category": "Content & Copy",
+    "version": "2.0.0",
+    "description": "Write B2B cold emails and follow-up sequences that get replies",
+    "chars": 7286
+  },
+  {
+    "slug": "copy-editing",
+    "name": "Copy Editing",
+    "category": "Content & Copy",
+    "version": "2.0.0",
+    "description": "Edit, review, or improve existing marketing copy, or refresh outdated content",
+    "chars": 14974
+  },
+  {
+    "slug": "copywriting",
+    "name": "Copywriting",
+    "category": "Content & Copy",
+    "version": "2.0.1",
+    "description": "Write, rewrite, or improve marketing copy for any page — including homepage, landing pages, pricing pages, feature pages, about pages, or product pages",
+    "chars": 7599
+  },
+  {
+    "slug": "emails",
+    "name": "Emails",
+    "category": "Content & Copy",
+    "version": "2.0.0",
+    "description": "Create or optimize an email sequence, drip campaign, automated email flow, or lifecycle email program",
+    "chars": 8550
+  },
+  {
+    "slug": "image",
+    "name": "Image",
+    "category": "Content & Copy",
+    "version": "2.0.1",
+    "description": "Create, generate, edit, or optimize images for marketing — blog heroes, social graphics, product mockups, profile banners, listing visuals, or brand assets",
+    "chars": 15634
+  },
+  {
+    "slug": "sms",
+    "name": "SMS",
+    "category": "Content & Copy",
+    "version": "1.0.0",
+    "description": "Plan, build, or optimize SMS or MMS marketing — including welcome flows, abandoned cart texts, post-purchase, win-back, promotional sends, or transactional/auth SMS",
+    "chars": 16683
+  },
+  {
+    "slug": "social",
+    "name": "Social",
+    "category": "Content & Copy",
+    "version": "2.2.0",
+    "description": "Wants help creating, scheduling, or optimizing social media content for LinkedIn, Twitter/X, Instagram, TikTok, Facebook, or other platforms, or wants to do social listening and engagement triage",
+    "chars": 14880
+  },
+  {
+    "slug": "video",
+    "name": "Video",
+    "category": "Content & Copy",
+    "version": "2.1.0",
+    "description": "Create, generate, or produce video content using AI tools or programmatic frameworks",
+    "chars": 14292
+  },
+  {
+    "slug": "cro",
+    "name": "CRO",
+    "category": "CRO",
+    "version": "2.0.0",
+    "description": "Optimize, improve, or increase conversions on any marketing page or form — including homepage, landing pages, pricing pages, feature pages, lead capture forms, or contact forms",
+    "chars": 6095
+  },
+  {
+    "slug": "onboarding",
+    "name": "Onboarding",
+    "category": "CRO",
+    "version": "2.0.0",
+    "description": "Optimize post-signup onboarding, user activation, first-run experience, or time-to-value",
+    "chars": 6553
+  },
+  {
+    "slug": "paywalls",
+    "name": "Paywalls",
+    "category": "CRO",
+    "version": "2.0.0",
+    "description": "Create or optimize in-app paywalls, upgrade screens, upsell modals, or feature gates",
+    "chars": 5781
+  },
+  {
+    "slug": "popups",
+    "name": "Popups",
+    "category": "CRO",
+    "version": "2.0.0",
+    "description": "Create or optimize popups, modals, overlays, slide-ins, or banners for conversion purposes",
+    "chars": 11795
+  },
+  {
+    "slug": "signup",
+    "name": "Signup",
+    "category": "CRO",
+    "version": "2.0.0",
+    "description": "Optimize signup, registration, account creation, or trial activation flows",
+    "chars": 10368
+  },
+  {
+    "slug": "churn-prevention",
+    "name": "Churn Prevention",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Reduce churn, build cancellation flows, set up save offers, recover failed payments, or implement retention strategies",
+    "chars": 17745
+  },
+  {
+    "slug": "co-marketing",
+    "name": "Co-Marketing",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Find co-marketing partners, plan joint campaigns, or brainstorm partnership opportunities",
+    "chars": 10143
+  },
+  {
+    "slug": "community-marketing",
+    "name": "Community Marketing",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Build and leverage online communities to drive product growth and brand loyalty",
+    "chars": 8855
+  },
+  {
+    "slug": "free-tools",
+    "name": "Free Tools",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Plan, evaluate, or build a free tool for marketing purposes — lead generation, SEO value, or brand awareness",
+    "chars": 5933
+  },
+  {
+    "slug": "influencer-marketing",
+    "name": "Influencer Marketing",
+    "category": "Growth & Retention",
+    "version": "1.0.0",
+    "description": "Run influencer, creator, or ambassador partnerships to promote their product — finding and vetting partners, structuring deals, briefing creators, disclosure compliance, and measuring ROI",
+    "chars": 16976
+  },
+  {
+    "slug": "lead-magnets",
+    "name": "Lead Magnets",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Create, plan, or optimize a lead magnet for email capture or lead generation",
+    "chars": 10901
+  },
+  {
+    "slug": "referrals",
+    "name": "Referrals",
+    "category": "Growth & Retention",
+    "version": "2.0.0",
+    "description": "Create, optimize, or analyze a referral program, affiliate program, or word-of-mouth strategy",
+    "chars": 7491
+  },
+  {
+    "slug": "ab-testing",
+    "name": "A/B Testing",
+    "category": "Paid & Measurement",
+    "version": "2.0.0",
+    "description": "Plan, design, or implement an A/B test or experiment, or build a growth experimentation program",
+    "chars": 11150
+  },
+  {
+    "slug": "ad-creative",
+    "name": "Ad Creative",
+    "category": "Paid & Measurement",
+    "version": "2.8.0",
+    "description": "Generate, iterate, or scale ad creative — headlines, descriptions, primary text, or full ad variations — for any paid advertising platform",
+    "chars": 20720
+  },
+  {
+    "slug": "ads",
+    "name": "Ads",
+    "category": "Paid & Measurement",
+    "version": "2.2.0",
+    "description": "Wants help with paid advertising campaigns on Google Ads, Meta (Facebook/Instagram), LinkedIn, Twitter/X, or other ad platforms",
+    "chars": 25493
+  },
+  {
+    "slug": "analytics",
+    "name": "Analytics",
+    "category": "Paid & Measurement",
+    "version": "2.0.1",
+    "description": "Set up, improve, or audit analytics tracking and measurement",
+    "chars": 8633
+  },
+  {
+    "slug": "attribution",
+    "name": "Attribution",
+    "category": "Paid & Measurement",
+    "version": "1.1.0",
+    "description": "Figure out which marketing actually drives conversions and revenue, choose or interpret an attribution model, or reconcile conflicting numbers across tools",
+    "chars": 20786
+  },
+  {
+    "slug": "competitor-profiling",
+    "name": "Competitor Profiling",
+    "category": "Sales & GTM",
+    "version": "2.0.0",
+    "description": "Research, profile, or analyze competitors from their URLs",
+    "chars": 14123
+  },
+  {
+    "slug": "competitors",
+    "name": "Competitors",
+    "category": "Sales & GTM",
+    "version": "2.0.1",
+    "description": "Create competitor comparison or alternative pages for SEO and sales enablement",
+    "chars": 8795
+  },
+  {
+    "slug": "directory-submissions",
+    "name": "Directory Submissions",
+    "category": "Sales & GTM",
+    "version": "2.0.0",
+    "description": "Submit their product to startup, SaaS, AI, agent, MCP, no-code, or review directories for backlinks, domain rating, and discovery",
+    "chars": 23155
+  },
+  {
+    "slug": "launch",
+    "name": "Launch",
+    "category": "Sales & GTM",
+    "version": "2.0.1",
+    "description": "Plan a product launch, feature announcement, or release strategy",
+    "chars": 12935
+  },
+  {
+    "slug": "offers",
+    "name": "Offers",
+    "category": "Sales & GTM",
+    "version": "1.0.0",
+    "description": "Design, construct, or improve an offer — the thing they actually sell — including value framing, bonus stacking, guarantee design, scarcity/urgency, naming, and payment structure",
+    "chars": 9252
+  },
+  {
+    "slug": "pricing",
+    "name": "Pricing",
+    "category": "Sales & GTM",
+    "version": "2.1.0",
+    "description": "Wants help with pricing decisions, packaging, or monetization strategy",
+    "chars": 9226
+  },
+  {
+    "slug": "prospecting",
+    "name": "Prospecting",
+    "category": "Sales & GTM",
+    "version": "1.1.0",
+    "description": "Find, qualify, and build a list of prospects to reach out to — across B2B SaaS, general B2B, or local small businesses",
+    "chars": 16901
+  },
+  {
+    "slug": "public-relations",
+    "name": "Public Relations",
+    "category": "Sales & GTM",
+    "version": "1.0.0",
+    "description": "Wants help with public relations, earned media, press coverage, journalist outreach, or media strategy (not pull requests)",
+    "chars": 7033
+  },
+  {
+    "slug": "revops",
+    "name": "RevOps",
+    "category": "Sales & GTM",
+    "version": "2.0.0",
+    "description": "Wants help with revenue operations, lead lifecycle management, or marketing-to-sales handoff processes",
+    "chars": 15247
+  },
+  {
+    "slug": "sales-enablement",
+    "name": "Sales Enablement",
+    "category": "Sales & GTM",
+    "version": "2.0.1",
+    "description": "Create sales collateral, pitch decks, one-pagers, objection handling docs, or demo scripts",
+    "chars": 14581
+  },
+  {
+    "slug": "ai-seo",
+    "name": "AI SEO",
+    "category": "SEO & Content",
+    "version": "2.2.0",
+    "description": "Optimize content for AI search engines, get cited by LLMs, or appear in AI-generated answers",
+    "chars": 26914
+  },
+  {
+    "slug": "aso",
+    "name": "ASO",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Audit or optimize an App Store or Google Play listing",
+    "chars": 15520
+  },
+  {
+    "slug": "content-strategy",
+    "name": "Content Strategy",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Plan a content strategy, decide what content to create, or figure out what topics to cover",
+    "chars": 12150
+  },
+  {
+    "slug": "programmatic-seo",
+    "name": "Programmatic SEO",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Create SEO-driven pages at scale using templates and data",
+    "chars": 7090
+  },
+  {
+    "slug": "schema",
+    "name": "Schema",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Add, fix, or optimize schema markup and structured data on their site",
+    "chars": 5248
+  },
+  {
+    "slug": "seo-audit",
+    "name": "SEO Audit",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Audit, review, or diagnose SEO issues on their site",
+    "chars": 16424
+  },
+  {
+    "slug": "site-architecture",
+    "name": "Site Architecture",
+    "category": "SEO & Content",
+    "version": "2.0.0",
+    "description": "Plan, map, or restructure their website's page hierarchy, navigation, URL structure, or internal linking",
+    "chars": 13480
+  },
+  {
+    "slug": "customer-research",
+    "name": "Customer Research",
+    "category": "Strategy",
+    "version": "2.0.1",
+    "description": "Conduct, analyze, or synthesize customer research",
+    "chars": 12665
+  },
+  {
+    "slug": "marketing-council",
+    "name": "Marketing Council",
+    "category": "Strategy",
+    "version": "1.0.0",
+    "description": "Wants multiple expert perspectives on a marketing question — a simulated board of advisors staffed by legendary marketers (Seth Godin, David Ogilvy, Eugene Schwartz, April Dunford, Rory Sutherland, Alex Hormozi, Byron Sh",
+    "chars": 12382
+  },
+  {
+    "slug": "marketing-ideas",
+    "name": "Marketing Ideas",
+    "category": "Strategy",
+    "version": "2.0.0",
+    "description": "Needs marketing ideas, inspiration, or strategies for their SaaS or software product",
+    "chars": 5301
+  },
+  {
+    "slug": "marketing-loops",
+    "name": "Marketing Loops",
+    "category": "Strategy",
+    "version": "1.2.0",
+    "description": "Set up a recurring, self-running marketing workflow — a repeatable loop an AI agent runs on a cadence (weekly, daily, on a trigger) rather than a one-off task",
+    "chars": 8980
+  },
+  {
+    "slug": "marketing-plan",
+    "name": "Marketing Plan",
+    "category": "Strategy",
+    "version": "",
+    "description": "",
+    "chars": 20988
+  },
+  {
+    "slug": "marketing-psychology",
+    "name": "Marketing Psychology",
+    "category": "Strategy",
+    "version": "2.0.0",
+    "description": "Apply psychological principles, mental models, or behavioral science to marketing",
+    "chars": 21836
+  },
+  {
+    "slug": "product-marketing",
+    "name": "Product Marketing",
+    "category": "Strategy",
+    "version": "2.1.0",
+    "description": "Create or update their product marketing context document",
+    "chars": 9389
+  }
+]
