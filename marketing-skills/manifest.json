@@ -40,6 +40,14 @@
     "chars": 15634
   },
   {
+    "slug": "pillar-content",
+    "name": "Pillar Content",
+    "category": "Content & Copy",
+    "version": "1.0.0",
+    "description": "Generate deep pillar content — a long-form, comprehensive explainer on a topic with full sections and real paragraphs, fact-checked, that shorter content is built from",
+    "chars": 1584
+  },
+  {
     "slug": "sms",
     "name": "SMS",
     "category": "Content & Copy",

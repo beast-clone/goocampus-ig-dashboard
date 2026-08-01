@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Studio — Pipeline concept</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --soft:#4A5468; --line:#EEF0F4;
+    --canvas:#F6F7FB; --ok:#157F3C; --ok-bg:#E3F5EA; --new:#B45309; --new-bg:#FCF0DA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);line-height:1.5;padding:28px 20px 60px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .hero{background:linear-gradient(115deg,#3A57E8,#4A64EA 45%,#6B7CF2);border-radius:18px;padding:22px 26px;color:#fff;margin-bottom:22px}
+  .hero h1{margin:0;font-size:1.35rem;font-weight:600}
+  .hero p{margin:6px 0 0;font-size:.9rem;color:rgba(255,255,255,.85);max-width:720px}
+  .sect-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:26px 4px 12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+  /* pipeline */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .stage{flex:1;min-width:180px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+  .stage .ic{width:34px;height:34px;border-radius:9px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-size:17px;margin-bottom:9px}
+  .stage h3{margin:0 0 3px;font-size:.92rem;font-weight:600}
+  .stage p{margin:0;font-size:.78rem;color:var(--muted)}
+  .badge-new{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--new);background:var(--new-bg);border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+  .arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px;color:var(--brand);min-width:78px}
+  .arrow .lbl{font-size:.62rem;color:var(--muted);margin-top:3px;white-space:nowrap}
+  .arrow .a{font-size:20px;font-weight:700}
+  @media(max-width:900px){.flow{flex-direction:column}.arrow{flex-direction:row;padding:6px 0;transform:rotate(90deg)}}
+  /* result mock */
+  .result{max-width:760px}
+  .rhead{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .rhead .ic{width:30px;height:30px;border-radius:8px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-size:15px}
+  .rhead .name{font-weight:600;font-size:1rem}
+  .chip{font-size:.62rem;font-weight:600;color:#6B7280;background:#F1F3F9;border-radius:20px;padding:2px 8px}
+  .out{font-size:.86rem;color:var(--ink)}
+  .out h4{font-size:.9rem;margin:14px 0 4px;font-weight:600}
+  .out ul{margin:4px 0;padding-left:18px}
+  .out li{margin:2px 0}
+  .verify{margin-top:16px;border:1px solid #CDEBD7;background:var(--ok-bg);border-radius:11px;padding:11px 13px}
+  .verify .t{font-size:.78rem;font-weight:600;color:var(--ok);display:flex;align-items:center;gap:6px}
+  .verify .s{font-size:.74rem;color:#3f6b4e;margin-top:5px}
+  .verify a{color:var(--brand);text-decoration:none}
+  .nextbar{margin-top:14px;border:1px dashed var(--brand);background:var(--brand-light);border-radius:12px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .nextbar .n{font-size:.8rem;color:var(--brand-dark)}
+  .nextbar .n b{color:var(--ink)}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:10px;padding:9px 15px;font-size:.8rem;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .btn.ghost{background:#fff;color:var(--soft);border:1px solid var(--line)}
+  .tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--brand);background:var(--brand-light);border-radius:6px;padding:2px 7px;margin-bottom:8px}
+  /* explainer */
+  .explain{max-width:760px}
+  .explain p{font-size:.85rem;color:var(--soft);margin:6px 0}
+  .note{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+  @media(max-width:760px){.note{grid-template-columns:1fr}}
+  .note .n{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px}
+  .note .n .k{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--brand);margin-bottom:5px}
+  .note .n p{margin:0;font-size:.78rem;color:var(--muted)}
+  .legend{font-size:.72rem;color:var(--muted);margin-top:10px}
+  .legend b{color:var(--new)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Content Studio — the content pipeline</h1>
+    <p>How one idea flows from strategy to a scheduled post — verified at every step, with one-click hand-offs instead of copy-paste. Items marked <span style="background:var(--new-bg);color:var(--new);border-radius:20px;padding:1px 8px;font-size:.7rem;font-weight:700">NEW</span> are what we'd add.</p>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="sect-label">The flow</div>
+  <div class="flow">
+    <div class="stage">
+      <div class="ic">🧭</div>
+      <h3>Content Strategy</h3>
+      <p>The plan — which pillars &amp; topics to cover.</p>
+    </div>
+    <div class="arrow"><span class="a">→</span><span class="lbl">Write pillar →</span></div>
+    <div class="stage" style="border-color:#EAD9B8">
+      <div class="ic" style="background:var(--new-bg);color:var(--new)">📚</div>
+      <h3>Pillar Content <span class="badge-new">New</span></h3>
+      <p>The deep explainer — full paragraphs, fact-checked.</p>
+    </div>
+    <div class="arrow"><span class="a">→</span><span class="lbl">Turn into posts →</span></div>
+    <div class="stage">
+      <div class="ic">✨</div>
+      <h3>Create</h3>
+      <p>4 ready drafts built from the pillar.</p>
+    </div>
+    <div class="arrow"><span class="a">→</span><span class="lbl">Send →</span></div>
+    <div class="stage">
+      <div class="ic">🗓️</div>
+      <h3>Scheduler</h3>
+      <p>Review &amp; publish. (already exists)</p>
+    </div>
+  </div>
+  <div class="legend">Every arrow is a <b>one-click hand-off</b> that carries the content forward — no copy-paste. Every stage keeps a <b>human review</b> so nothing publishes unchecked.</div>
+
+  <!-- RESULT MOCK: STRATEGY -->
+  <div class="sect-label">What a result looks like — Step 1: Content Strategy</div>
+  <div class="card result">
+    <span class="tag">Playbook result</span>
+    <div class="rhead"><span class="ic">🧭</span><span class="name">Content Strategy</span><span class="chip">SEO &amp; Content</span></div>
+    <div class="out">
+      <p style="color:var(--muted);font-size:.8rem">Task: “Plan content for AMC exam aspirants.”</p>
+      <h4>Recommended content pillars</h4>
+      <ul>
+        <li><b>What is the AMC exam</b> — structure, eligibility, MCQ vs clinical</li>
+        <li><b>Timeline &amp; costs</b> — application windows, fees, 2026 changes</li>
+        <li><b>Prep strategy</b> — India-centric vs Australia-aligned</li>
+        <li><b>Success stories</b> — Indian IMGs who cleared it</li>
+      </ul>
+    </div>
+    <!-- NEW: fact-check block -->
+    <div class="verify">
+      <div class="t">✓ Verified — checked against 6 live sources <span style="background:var(--new-bg);color:var(--new);border-radius:20px;padding:1px 7px;font-size:.6rem;font-weight:700;margin-left:4px">NEW</span></div>
+      <div class="s">Confirmed 2026 MCQ pass-standard change and clinical station count against medicalboard.gov.au and amc.org.au. · <a href="#">source 1</a> · <a href="#">source 2</a></div>
+    </div>
+    <!-- NEW: next step -->
+    <div class="nextbar">
+      <div class="n"><b>Next step:</b> turn a pillar into deep, publish-ready content.</div>
+      <button class="btn">Write pillar content →</button>
+    </div>
+  </div>
+
+  <!-- RESULT MOCK: PILLAR -->
+  <div class="sect-label">Step 2: Pillar Content <span style="color:var(--new)">(the new deep-explainer skill)</span></div>
+  <div class="card result">
+    <span class="tag" style="color:var(--new);background:var(--new-bg)">New skill</span>
+    <div class="rhead"><span class="ic" style="background:var(--new-bg);color:var(--new)">📚</span><span class="name">Pillar Content</span><span class="chip">Deep explainer</span></div>
+    <div class="out">
+      <p style="color:var(--muted);font-size:.8rem">Topic: “What is the AMC exam?” · carried over from Step 1</p>
+      <h4>What is the AMC exam?</h4>
+      <p>The Australian Medical Council (AMC) exam is the assessment international medical graduates must clear to gain general registration to practise medicine in Australia. It has two parts: the AMC CAT MCQ, a computer-based test of applied medical knowledge, and the AMC Clinical Examination, which assesses clinical skills across a series of stations…</p>
+      <h4>Eligibility</h4>
+      <p>Candidates need a primary medical qualification recognised by the AMC and… <span style="color:var(--muted)">(full sections continue: Structure · Fees · 2026 changes · Prep path — generated section-by-section so it can run long)</span></p>
+    </div>
+    <div class="verify">
+      <div class="t">✓ Verified — two-pass fact-check, 9 sources</div>
+      <div class="s">Each claim (dates, fees, station counts) traced to an official source before writing.</div>
+    </div>
+    <div class="nextbar">
+      <div class="n"><b>Next step:</b> turn this pillar into ready-to-post content.</div>
+      <button class="btn">Turn into posts →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 note -->
+  <div class="sect-label">Step 3: Create → Scheduler (already built)</div>
+  <div class="card explain">
+    <p>The <b>Create</b> tab already turns a source into 4 drafts (Instagram post, carousel, LinkedIn, reel) — but now it's fed your <b>verified pillar content</b> instead of a bare topic, so the posts are grounded and accurate. Each draft already has a <b>“Send to Scheduler”</b> button, so the last hop is done.</p>
+  </div>
+
+  <!-- THREE ADDITIONS -->
+  <div class="sect-label">So — the three things we'd add</div>
+  <div class="note">
+    <div class="n"><div class="k">1 · Fact-check block</div><p>Every playbook result shows “Verified against N sources” + what was confirmed. Answers “is it verified?” at a glance.</p></div>
+    <div class="n"><div class="k">2 · Pillar Content skill</div><p>The deep explainer — full paragraphs, section-by-section so it can go long, fact-checked. The raw knowledge everything draws from.</p></div>
+    <div class="n"><div class="k">3 · “Next step →” hand-offs</div><p>One click carries content Strategy → Pillar → Create → Scheduler. No copy-paste; a human checkpoint at each stage.</p></div>
+  </div>
+
+</div>
+</body>
+</html>

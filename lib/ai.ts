@@ -11,11 +11,13 @@ export function hasAI(): boolean {
   return Boolean(KEY);
 }
 
+export type Usage = { prompt: number; completion: number; total: number };
+
 export async function askPerplexity(
   system: string,
   user: string,
   opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number },
-): Promise<{ text: string; citations: string[] }> {
+): Promise<{ text: string; citations: string[]; usage: Usage }> {
   // Bound every call so a slow/stuck upstream can never hang a route.
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 25_000);
@@ -37,7 +39,9 @@ export async function askPerplexity(
     if (!res.ok) throw new Error(`Perplexity ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const j = await res.json();
     const citations: string[] = j.citations || (j.search_results || []).map((s: { url: string }) => s.url) || [];
-    return { text: j.choices?.[0]?.message?.content || "", citations };
+    const u = j.usage || {};
+    const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0 };
+    return { text: j.choices?.[0]?.message?.content || "", citations, usage };
   } finally {
     clearTimeout(timer);
   }

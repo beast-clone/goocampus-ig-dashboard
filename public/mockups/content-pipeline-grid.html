@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Studio — grid layout (no endless scrolling)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --soft:#4A5468; --line:#EEF0F4;
+    --canvas:#F6F7FB; --ok:#157F3C; --ok-bg:#E3F5EA; --new:#B45309; --new-bg:#FCF0DA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);line-height:1.5;padding:22px 20px 60px}
+  .wrap{max-width:1400px;margin:0 auto}
+  .hero{background:linear-gradient(115deg,#3A57E8,#4A64EA 45%,#6B7CF2);border-radius:16px;padding:18px 24px;color:#fff;margin-bottom:16px}
+  .hero h1{margin:0;font-size:1.25rem;font-weight:600}
+  .hero p{margin:5px 0 0;font-size:.87rem;color:rgba(255,255,255,.88);max-width:820px}
+  /* chooser bar */
+  .chooserbar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .chooserbar .q{font-size:.85rem;font-weight:600;margin-right:4px}
+  .chip{border:1.5px solid var(--line);border-radius:20px;padding:6px 13px;font-size:.78rem;font-weight:500;color:var(--soft);cursor:pointer;background:#fff}
+  .chip.on{border-color:var(--brand);background:var(--brand-light);color:var(--brand-dark)}
+  .chip.on::before{content:"✓ ";font-weight:700}
+  .gobtn{margin-left:auto;background:var(--brand);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:.8rem;font-weight:600;font-family:inherit}
+  /* masonry */
+  .masonry{column-count:3;column-gap:16px}
+  @media(max-width:1100px){.masonry{column-count:2}}
+  @media(max-width:680px){.masonry{column-count:1}}
+  .cardw{break-inside:avoid;margin-bottom:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+  .card.pillar{border-color:#CDEBD7}
+  .card.gen{border-color:#DCE2FB}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .chead .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px}
+  .chead .ic.p{background:var(--ok-bg);color:var(--ok)}
+  .chead .ic.g{background:var(--brand-light);color:var(--brand)}
+  .chead .name{font-weight:600;font-size:.9rem}
+  .tag{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:6px;padding:2px 7px}
+  .tag.src{color:var(--ok);background:var(--ok-bg)}
+  .tag.out{color:var(--brand);background:var(--brand-light)}
+  .body{font-size:.8rem;color:var(--soft)}
+  .body h5{font-size:.82rem;color:var(--ink);margin:10px 0 3px;font-weight:600}
+  .body p{margin:4px 0}
+  .body ul{margin:4px 0;padding-left:16px}
+  .body li{margin:1px 0}
+  .verify{margin-top:10px;border:1px solid #CDEBD7;background:var(--ok-bg);border-radius:9px;padding:7px 10px;font-size:.72rem;color:var(--ok);font-weight:600}
+  .dest{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:.75rem;color:var(--brand);font-weight:600}
+  .fade{-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+  .legend{font-size:.75rem;color:var(--muted);margin:2px 4px 14px}
+  .legend b{color:var(--ink)}
+  .empty{border:1.5px dashed var(--line);border-radius:16px;padding:22px;text-align:center;color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Content Studio — outputs fill the space (masonry grid)</h1>
+    <p>The pillar sits on the left. Each format you generate drops into the next open slot — so a blog, a carousel and a LinkedIn post sit side by side, and you see everything at a glance instead of scrolling down forever.</p>
+  </div>
+
+  <!-- chooser stays as a compact bar -->
+  <div class="chooserbar">
+    <span class="q">Make from this pillar:</span>
+    <span class="chip on">Carousel</span>
+    <span class="chip">Reel</span>
+    <span class="chip on">Blog</span>
+    <span class="chip on">LinkedIn</span>
+    <span class="chip">IG caption</span>
+    <span class="chip">Poster</span>
+    <button class="gobtn">Generate 3 selected →</button>
+  </div>
+  <div class="legend"><b>How it packs:</b> outputs flow into the shortest column automatically. If the pillar is short, outputs simply wrap underneath it. Nothing forces a single tall scroll.</div>
+
+  <!-- masonry grid -->
+  <div class="masonry">
+
+    <!-- PILLAR (tall, left) -->
+    <div class="cardw">
+      <div class="card pillar">
+        <div class="chead"><span class="ic p">📚</span><span class="name">Pillar Content</span><span class="tag src">Source</span></div>
+        <div class="body fade" style="max-height:520px;overflow:hidden">
+          <h5>Australian Medical Council (AMC) exam</h5>
+          <p>The AMC exam is the main licensing pathway for Indian medical graduates who want to practise in Australia. In the standard pathway, an IMG completes credential verification, passes the AMC MCQ, passes the AMC Clinical exam, then supervised practice before full AHPRA registration.</p>
+          <h5>What the AMC exam is</h5>
+          <p>The Australian Medical Council assesses the standard of medical education and training. Its exams confirm that a doctor's knowledge, clinical reasoning, communication and practice are suitable for Australian settings…</p>
+          <h5>The main AMC pathway in practice</h5>
+          <ul><li>Create an AMC candidate account</li><li>Primary source verification (ECFMG EPIC)</li><li>Meet the English requirement</li><li>Sit the AMC CAT MCQ</li><li>Pass the AMC Clinical exam</li><li>Apply to AHPRA · supervised practice · general registration</li></ul>
+          <h5>Fees &amp; timeline</h5>
+          <p>Guides cite total pathway costs around AUD 6,562, and roughly 2–4 years end to end…</p>
+        </div>
+        <div class="verify">✓ Verified — 15 live sources</div>
+      </div>
+    </div>
+
+    <!-- BLOG -->
+    <div class="cardw">
+      <div class="card gen">
+        <div class="chead"><span class="ic g">📝</span><span class="name">Blog article</span><span class="tag out">Output</span></div>
+        <div class="body">
+          <h5>The AMC Exam for Indian Doctors: A Complete 2026 Guide</h5>
+          <p>Planning to practise medicine in Australia after MBBS? Here's exactly how the AMC pathway works, step by step…</p>
+          <h5>What is the AMC exam?</h5>
+          <p>The AMC exam is a two-part assessment — the CAT MCQ and the Clinical exam — that international medical graduates must clear…</p>
+        </div>
+        <div class="dest">→ Save to blog drafts</div>
+      </div>
+    </div>
+
+    <!-- CAROUSEL -->
+    <div class="cardw">
+      <div class="card gen">
+        <div class="chead"><span class="ic g">🖼️</span><span class="name">Instagram Carousel</span><span class="tag out">Output</span></div>
+        <div class="body">
+          <p><b>Slide 1:</b> Want to practise medicine in Australia? The AMC pathway, decoded.</p>
+          <p><b>Slide 2:</b> Step 1 — verify your MBBS via ECFMG EPIC.</p>
+          <p><b>Slide 3:</b> Step 2 — clear the AMC MCQ (150 Qs, 3.5 hrs).</p>
+          <p><b>Slide 4:</b> Step 3 — the Clinical exam: 16 OSCE stations.</p>
+          <p><b>Slide 5:</b> Save this. DM "AMC 2026" for a prep roadmap.</p>
+        </div>
+        <div class="dest">→ Send to Scheduler</div>
+      </div>
+    </div>
+
+    <!-- LINKEDIN -->
+    <div class="cardw">
+      <div class="card gen">
+        <div class="chead"><span class="ic g">💼</span><span class="name">LinkedIn post</span><span class="tag out">Output</span></div>
+        <div class="body">
+          <p>Every year, thousands of Indian doctors ask the same question: how do I actually practise in Australia?</p>
+          <p>The AMC pathway isn't one exam — it's verification, the MCQ, the Clinical exam, and supervised practice. The doctors who plan for all four move fastest…</p>
+        </div>
+        <div class="dest">→ Send to Scheduler</div>
+      </div>
+    </div>
+
+    <!-- next slot placeholder -->
+    <div class="cardw">
+      <div class="empty">Pick another format (Reel, IG caption, Poster) and it drops into the next open slot here — no scrolling.</div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

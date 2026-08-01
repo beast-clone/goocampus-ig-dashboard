@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Studio — Pipeline concept (V2: you choose the output)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --soft:#4A5468; --line:#EEF0F4;
+    --canvas:#F6F7FB; --ok:#157F3C; --ok-bg:#E3F5EA; --new:#B45309; --new-bg:#FCF0DA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);line-height:1.5;padding:28px 20px 60px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .hero{background:linear-gradient(115deg,#2138B0,#3A57E8 55%,#5E78ED);border-radius:18px;padding:22px 26px;color:#fff;margin-bottom:14px}
+  .hero .v{font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.75);font-weight:700}
+  .hero h1{margin:2px 0 0;font-size:1.35rem;font-weight:600}
+  .hero p{margin:6px 0 0;font-size:.9rem;color:rgba(255,255,255,.9);max-width:760px}
+  .keepnote{background:#fff;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:12px 15px;font-size:.83rem;color:var(--soft);margin-bottom:8px}
+  .keepnote b{color:var(--ink)}
+  .sect-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:26px 4px 12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .stage{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .stage .ic{width:32px;height:32px;border-radius:9px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-size:16px;margin-bottom:8px}
+  .stage h3{margin:0 0 3px;font-size:.88rem;font-weight:600}
+  .stage p{margin:0;font-size:.75rem;color:var(--muted)}
+  .arrow{display:flex;align-items:center;justify-content:center;padding:0 6px;color:var(--brand);min-width:34px;font-size:19px;font-weight:700}
+  @media(max-width:900px){.flow{flex-direction:column}.arrow{transform:rotate(90deg);padding:5px 0}}
+  .fork{border-color:#EAD9B8;background:#FffdF7}
+  .fork .ic{background:var(--new-bg);color:var(--new)}
+  .badge-new{display:inline-block;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--new);background:var(--new-bg);border-radius:20px;padding:2px 7px;margin-left:5px;vertical-align:middle}
+  .result{max-width:780px}
+  .tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--new);background:var(--new-bg);border-radius:6px;padding:2px 7px;margin-bottom:8px}
+  .rhead{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .rhead .ic{width:30px;height:30px;border-radius:8px;background:var(--new-bg);color:var(--new);display:grid;place-items:center;font-size:15px}
+  .rhead .name{font-weight:600;font-size:1rem}
+  .chip{font-size:.62rem;font-weight:600;color:#6B7280;background:#F1F3F9;border-radius:20px;padding:2px 8px}
+  .out{font-size:.85rem;color:var(--ink)}
+  .out h4{font-size:.88rem;margin:12px 0 4px;font-weight:600}
+  .out p{margin:5px 0;color:var(--soft)}
+  .verify{margin-top:14px;border:1px solid #CDEBD7;background:var(--ok-bg);border-radius:11px;padding:10px 13px}
+  .verify .t{font-size:.77rem;font-weight:600;color:var(--ok)}
+  .verify .s{font-size:.73rem;color:#3f6b4e;margin-top:4px}
+  /* the chooser — the V2 idea */
+  .chooser{margin-top:16px;border:1px dashed var(--brand);background:#FbFcFF;border-radius:13px;padding:15px 16px}
+  .chooser .q{font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:2px}
+  .chooser .sub{font-size:.75rem;color:var(--muted);margin-bottom:12px}
+  .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media(max-width:680px){.opts{grid-template-columns:repeat(2,1fr)}}
+  .opt{border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;cursor:pointer;background:#fff;position:relative}
+  .opt .oi{font-size:17px}
+  .opt .ot{font-size:.82rem;font-weight:600;margin-top:5px}
+  .opt .od{font-size:.71rem;color:var(--muted);margin-top:1px}
+  .opt.sel{border-color:var(--brand);background:var(--brand-light)}
+  .opt.sel::after{content:"✓";position:absolute;top:8px;right:10px;color:var(--brand);font-weight:700;font-size:.8rem}
+  .cbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .cbar .picked{font-size:.76rem;color:var(--brand-dark)}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:.8rem;font-weight:600;font-family:inherit;cursor:pointer}
+  /* generated outputs */
+  .gen{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:680px){.gen{grid-template-columns:1fr}}
+  .gcard{border:1px solid var(--line);border-radius:13px;padding:14px;background:#fff}
+  .gcard .gt{font-size:.8rem;font-weight:600;display:flex;align-items:center;gap:7px}
+  .gcard .gd{font-size:.75rem;color:var(--muted);margin:6px 0 10px}
+  .gcard .ga{font-size:.72rem;color:var(--brand);font-weight:600}
+  .diff{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:680px){.diff{grid-template-columns:1fr}}
+  .diff .d{border:1px solid var(--line);border-radius:13px;padding:14px;background:#fff}
+  .diff .d h5{margin:0 0 6px;font-size:.82rem;font-weight:700}
+  .diff .d.v1 h5{color:var(--muted)}
+  .diff .d.v2 h5{color:var(--brand)}
+  .diff .d p{margin:0;font-size:.78rem;color:var(--soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="v">Version 2</div>
+    <h1>Content Studio pipeline — you choose the output</h1>
+    <p>Same pipeline, but after content is generated it does NOT force “4 social posts.” It asks what you want to make and generates only that — because a pillar might become a blog, not a carousel.</p>
+  </div>
+
+  <div class="keepnote"><b>Unchanged:</b> the Playbooks library (49 skills, the grid) stays exactly as-is. Click a skill → its runner opens inline → “← All playbooks” goes back. The only change is <b>what happens after you generate</b>.</div>
+
+  <!-- FLOW -->
+  <div class="sect-label">The flow — it forks at the output</div>
+  <div class="flow">
+    <div class="stage"><div class="ic">🧭</div><h3>Content Strategy</h3><p>The plan.</p></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="ic" style="background:var(--new-bg);color:var(--new)">📚</div><h3>Pillar Content <span class="badge-new">New</span></h3><p>Deep, verified explainer.</p></div>
+    <div class="arrow">→</div>
+    <div class="stage fork"><div class="ic">🍴</div><h3>Choose format <span class="badge-new">New</span></h3><p>You pick: carousel, reel, <b>blog</b>, LinkedIn, poster…</p></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="ic">🗓️</div><h3>Where it belongs</h3><p>Posts → Scheduler · Blog → blog. </p></div>
+  </div>
+
+  <!-- RESULT + CHOOSER -->
+  <div class="sect-label">After the pillar is generated — you decide what it becomes</div>
+  <div class="card result">
+    <span class="tag">Pillar content · result</span>
+    <div class="rhead"><span class="ic">📚</span><span class="name">Pillar Content</span><span class="chip">Deep explainer</span></div>
+    <div class="out">
+      <h4>What is the AMC exam?</h4>
+      <p>The Australian Medical Council (AMC) exam is the assessment international medical graduates must clear to gain general registration in Australia. It has two parts — the AMC CAT MCQ and the AMC Clinical Examination… <span style="color:var(--muted)">(full sections generated)</span></p>
+    </div>
+    <div class="verify"><div class="t">✓ Verified — two-pass fact-check, 9 sources</div><div class="s">Dates, fees and station counts traced to official sources.</div></div>
+
+    <!-- THE V2 CHOOSER -->
+    <div class="chooser">
+      <div class="q">Next — what do you want to make from this?</div>
+      <div class="sub">Pick one or more. It generates only what you choose (not a forced set).</div>
+      <div class="opts">
+        <div class="opt sel"><div class="oi">🖼️</div><div class="ot">Instagram Carousel</div><div class="od">5–7 slides</div></div>
+        <div class="opt"><div class="oi">🎬</div><div class="ot">Reel / Shorts</div><div class="od">30–45s script</div></div>
+        <div class="opt sel"><div class="oi">📝</div><div class="ot">Blog article</div><div class="od">SEO long-form</div></div>
+        <div class="opt"><div class="oi">💼</div><div class="ot">LinkedIn post</div><div class="od">120–180 words</div></div>
+        <div class="opt"><div class="oi">💬</div><div class="ot">IG caption</div><div class="od">single image</div></div>
+        <div class="opt"><div class="oi">🎨</div><div class="ot">Poster brief</div><div class="od">for a designer</div></div>
+      </div>
+      <div class="cbar">
+        <div class="picked">2 selected — Carousel + Blog article</div>
+        <button class="btn">Generate 2 selected →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT COMES BACK -->
+  <div class="sect-label">You get only what you picked — each routed to the right place</div>
+  <div class="gen">
+    <div class="gcard">
+      <div class="gt">🖼️ Instagram Carousel</div>
+      <div class="gd">5-slide script from the pillar, hooks + CTA. Verified.</div>
+      <div class="ga">→ Send to Scheduler</div>
+    </div>
+    <div class="gcard">
+      <div class="gt">📝 Blog article</div>
+      <div class="gd">SEO long-form from the same pillar, headings + meta. Verified.</div>
+      <div class="ga">→ Save to blog drafts</div>
+    </div>
+  </div>
+
+  <!-- V1 vs V2 -->
+  <div class="sect-label">V1 vs V2 — the one difference</div>
+  <div class="diff">
+    <div class="d v1"><h5>V1 — fixed hand-off</h5><p>After the pillar, one button: “Turn into posts” → always the same 4 social drafts. Fast, but forces every pillar into the same shapes.</p></div>
+    <div class="d v2"><h5>V2 — you choose (this page)</h5><p>After the pillar, pick the format(s) you actually want — carousel, reel, <b>blog</b>, LinkedIn, poster — and it makes only those, each routed to the right place. More control, one extra click.</p></div>
+  </div>
+
+</div>
+</body>
+</html>

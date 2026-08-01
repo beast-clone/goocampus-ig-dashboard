@@ -42,7 +42,7 @@ export function getSkillDoc(slug: string): string | null {
 const GC_CONTEXT =
   "GooCampus guides Indian medical students and doctors on NEET (UG/PG), MBBS/MD abroad, medical PG abroad, and international licensing (PLAB UK, AMC Australia, USMLE, Gulf/DHA). Audience: Indian medical aspirants and IMG doctors. Voice: warm, credible, specific, never hyped. Never invent statistics or dates.";
 
-export type RunResult = { output: string; citations: string[]; model: string };
+export type RunResult = { output: string; citations: string[]; model: string; tokens: number };
 
 // Run a skill's framework against the user's task, tailored to GooCampus. Uses
 // Perplexity (sonar-pro) — grounded, current, and no Claude API needed.
@@ -60,11 +60,13 @@ export async function runSkill(slug: string, task: string): Promise<RunResult> {
 
   const user = `FRAMEWORK — "${meta.name}":\n\n${doc}\n\n---\n\nTASK:\n${task}\n\nApply the framework above to this task for GooCampus and return the finished deliverable.`;
 
-  const { text, citations } = await askPerplexity(system, user, {
+  // Pillar Content is the deep explainer — give it a much larger budget so it can go long.
+  const isPillar = slug === "pillar-content";
+  const { text, citations, usage } = await askPerplexity(system, user, {
     model: "sonar-pro",
-    maxTokens: 2800,
+    maxTokens: isPillar ? 4200 : 2800,
     temperature: 0.4,
-    timeoutMs: 90_000,
+    timeoutMs: isPillar ? 120_000 : 90_000,
   });
-  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro" };
+  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total };
 }
