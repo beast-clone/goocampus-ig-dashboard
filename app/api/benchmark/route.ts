@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getAccount, fetchCompetitor, type CompetitorSnapshot } from "@/lib/instagram";
+import { guardRate } from "@/lib/api-guard";
 
 type NicheConfig = { name: string; handles: string[] };
 type CompetitorsFile = { niches: NicheConfig[] };
@@ -18,6 +19,8 @@ function loadNiches(): NicheConfig[] {
 }
 
 export async function GET(req: Request) {
+  const limited = guardRate(req, "benchmark", 15, 300_000);
+  if (limited) return limited;
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const nicheName = url.searchParams.get("niche") || "";

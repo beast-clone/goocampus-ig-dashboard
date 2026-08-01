@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { search } from "@/lib/assistant";
 import { safeError } from "@/lib/errors";
+import { guardRate } from "@/lib/api-guard";
 
 // POST /api/assistant { query } → { results: SearchResult[] }
 //
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const limited = guardRate(req, "assistant", 40, 60_000);
+  if (limited) return limited;
   try {
     const body = (await req.json().catch(() => ({}))) as { query?: string; question?: string };
     const query = (body.query || body.question || "").trim();

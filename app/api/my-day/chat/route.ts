@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 
 // GET  /api/my-day/chat?person=nandu  → the person's conversations (team + DMs)
 // POST /api/my-day/chat {convo, sender, body} → send a message
@@ -21,7 +22,11 @@ function dmConvo(a: string, b: string): string {
 
 export async function GET(req: Request) {
   try {
-    const person = (new URL(req.url).searchParams.get("person") || "").toLowerCase().trim();
+    // Identity comes from the SESSION, not the client. Non-admins can only read
+    // their own inbox; admins (the My Day switcher) may view any teammate's.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const requested = (new URL(req.url).searchParams.get("person") || "").toLowerCase().trim();
+    const person = getSessionIsAdmin() ? (requested || me) : me;
     if (!isTeamKey(person)) return NextResponse.json({ error: "unknown person" }, { status: 400 });
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -47,7 +52,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const b = (await req.json()) as { convo?: string; sender?: string; body?: string };
-    const sender = (b.sender || "").toLowerCase().trim();
+    // Sender is the SESSION user — a non-admin can never send as someone else.
+    // Admins (viewing another day via the switcher) may post as that teammate.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const sender = getSessionIsAdmin() ? ((b.sender || "").toLowerCase().trim() || me) : me;
     const convo = (b.convo || "").trim();
     const body = (b.body || "").trim();
     if (!isTeamKey(sender)) return NextResponse.json({ error: "unknown sender" }, { status: 400 });

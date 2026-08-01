@@ -3,6 +3,8 @@ import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { safeError } from "@/lib/errors";
+import net from "node:net";
+import { lookup } from "node:dns/promises";
 
 // In-dashboard reader. Fetches the article HTML directly, runs Mozilla
 // Readability (the same engine Firefox Reader View uses) to strip nav / ads /
@@ -19,6 +21,36 @@ function looksLikeUrl(u: string): boolean {
     const parsed = new URL(u);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch { return false; }
+}
+
+// SSRF guard: reject URLs whose host is (or resolves to) a private / loopback /
+// link-local / cloud-metadata address, so a logged-in user can't turn this
+// article reader into a probe of internal services.
+function isPrivateIp(ip: string): boolean {
+  const v = ip.replace(/^::ffff:/i, "");
+  if (net.isIPv4(v)) {
+    const p = v.split(".").map(Number);
+    if (p[0] === 10 || p[0] === 127 || p[0] === 0) return true;
+    if (p[0] === 169 && p[1] === 254) return true;              // link-local + cloud metadata
+    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return true;
+    if (p[0] === 192 && p[1] === 168) return true;
+    if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return true; // CGNAT
+    return false;
+  }
+  const l = ip.toLowerCase();
+  return l === "::1" || l === "::" || l.startsWith("fe80") || l.startsWith("fc") || l.startsWith("fd");
+}
+
+async function assertPublicUrl(urlStr: string): Promise<void> {
+  const u = new URL(urlStr);
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("blocked protocol");
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new Error("blocked host");
+  }
+  if (net.isIP(host)) { if (isPrivateIp(host)) throw new Error("blocked ip"); return; }
+  const addrs = await lookup(host, { all: true });
+  for (const a of addrs) if (isPrivateIp(a.address)) throw new Error("blocked resolved ip");
 }
 
 async function resolveRedirect(url: string): Promise<string> {
@@ -39,9 +71,11 @@ export async function GET(req: Request) {
   if (!target || target.length > MAX_URL_LEN || !looksLikeUrl(target)) {
     return NextResponse.json({ error: "url query param must be a valid http(s) URL" }, { status: 400 });
   }
+  try { await assertPublicUrl(target); } catch { return NextResponse.json({ error: "That URL isn't allowed." }, { status: 400 }); }
 
   try {
     const resolved = await resolveRedirect(target);
+    await assertPublicUrl(resolved); // re-check after redirect resolution
 
     // Fetch the article HTML with a browser-like UA so publishers don't hand
     // back a mobile stub or a bot-detection page.
@@ -54,7 +88,7 @@ export async function GET(req: Request) {
       timeoutMs: 20_000,
       redirect: "follow",
     });
-    if (!r.ok) throw new Error(`Fetch ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
     const html = await r.text();
     if (html.length > MAX_HTML_LEN) {
       throw new Error("Article HTML too large");

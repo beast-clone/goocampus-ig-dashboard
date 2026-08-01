@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 import { saveReport } from "@/lib/report-store";
+import { guardRate } from "@/lib/api-guard";
 
 // AI Report generator.
 //
@@ -147,6 +148,8 @@ function fmtDateRange(from: string, to: string): string {
 }
 
 export async function GET(req: Request) {
+  const limited = guardRate(req, "ai-report", 12, 300_000);
+  if (limited) return limited;
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const period = (url.searchParams.get("period") || "weekly") as ReportPeriod;

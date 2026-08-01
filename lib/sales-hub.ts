@@ -83,6 +83,11 @@ export async function airtableList<T = Record<string, unknown>>(
 // against the range. Safer than IS_AFTER/IS_BEFORE (which have timezone gotchas)
 // and works with the createdTime field type.
 export function dateRangeFormula(fieldName: string, from: string, to: string): string {
+  // Reject anything that isn't a strict YYYY-MM-DD so from/to can't break out of
+  // the quoted formula string (Airtable formula injection).
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    throw new Error("dateRangeFormula: from/to must be YYYY-MM-DD");
+  }
   const f = `{${fieldName}}`;
   return `AND(DATETIME_FORMAT(${f}, 'YYYY-MM-DD') >= '${from}', DATETIME_FORMAT(${f}, 'YYYY-MM-DD') <= '${to}')`;
 }

@@ -165,6 +165,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";
+  // Validate before these get inlined into the Supabase .or() filter below.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return NextResponse.json({ error: "from/to must be YYYY-MM-DD" }, { status: 400 });
+  }
   const open = url.searchParams.get("open") || "";
   const force = url.searchParams.get("force") === "1";
   if (!from || !to) return NextResponse.json({ error: "from and to required" }, { status: 400 });
