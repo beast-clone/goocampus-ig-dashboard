@@ -4,7 +4,8 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin } from "@tabler/icons-react";
+import { LinkedInScheduler } from "./LinkedInScheduler";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -89,9 +90,30 @@ const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = 
 
 export default function SchedulerPage() {
   return (
-    <HopeDashboardShell active="scheduler" title="Scheduler" subtitle="Create a post → it publishes to Instagram & Facebook in about 2 minutes (or schedule it for later)." hideAccountPicker>
-      {() => <Scheduler />}
+    <HopeDashboardShell active="scheduler" title="Scheduler" subtitle="Publish or schedule to Instagram, Facebook & LinkedIn — all from here." hideAccountPicker>
+      {() => <SchedulerTabs />}
     </HopeDashboardShell>
+  );
+}
+
+// Two engines under one tab: the Meta (Instagram/Facebook) composer, and the
+// self-contained LinkedIn scheduler (its own queue + cron worker).
+function SchedulerTabs() {
+  const [tab, setTab] = useState<"meta" | "linkedin">("meta");
+  return (
+    <div className="hope-scope">
+      <div className="flex items-center gap-2 mb-5">
+        <button onClick={() => setTab("meta")}
+          className={`inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-xl border transition ${tab === "meta" ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}>
+          <IconBrandMeta size={16} /> Instagram &amp; Facebook
+        </button>
+        <button onClick={() => setTab("linkedin")}
+          className={`inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-xl border transition ${tab === "linkedin" ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}>
+          <IconBrandLinkedin size={16} /> LinkedIn
+        </button>
+      </div>
+      {tab === "meta" ? <Scheduler /> : <LinkedInScheduler />}
+    </div>
   );
 }
 
