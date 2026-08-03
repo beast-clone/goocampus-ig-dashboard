@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Workspace — Competitor Briefing (v2)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --soft:#4A5468; --line:#EEF0F4;
+    --canvas:#F6F7FB; --ok:#157F3C; --ok-bg:#E3F5EA; --warn:#B45309; --warn-bg:#FCF0DA;
+    --li:#0A66C2; --ig:#C2185B; --yt:#CC0000; --meta:#5B6CF0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);line-height:1.5;padding:20px 22px 60px}
+  .wrap{max-width:1340px;margin:0 auto}
+  a{text-decoration:none}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:500;color:var(--soft)}
+  .tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .hero{background:linear-gradient(115deg,#3A57E8,#4A64EA 45%,#6B7CF2);border-radius:16px;padding:20px 26px;color:#fff;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+  .hero h1{margin:0;font-size:1.4rem;font-weight:600}
+  .hero p{margin:5px 0 0;font-size:.88rem;color:rgba(255,255,255,.9)}
+  .startchip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:9px 16px;color:#fff;font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#5EF08A;display:inline-block}
+
+  .sec{margin-bottom:18px}
+  .sechead{display:flex;align-items:center;gap:10px;margin:0 2px 10px;flex-wrap:wrap}
+  .sechead .t{font-size:1.0rem;font-weight:600}
+  .sechead .c{font-size:.68rem;font-weight:700;background:var(--brand-light);color:var(--brand-dark);border-radius:20px;padding:2px 9px}
+  .live{font-size:.6rem;font-weight:700;border-radius:5px;padding:2px 7px;background:var(--ok-bg);color:var(--ok)}
+  .soon{font-size:.6rem;font-weight:700;border-radius:5px;padding:2px 7px;background:var(--warn-bg);color:var(--warn)}
+  .sechead .sub{font-size:.76rem;color:var(--muted);margin-left:auto}
+  .sechead .sub a{color:var(--brand);font-weight:600}
+
+  /* scoreboard */
+  .board{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  @media(max-width:1100px){.board{grid-template-columns:repeat(3,1fr)}}
+  .bcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px}
+  .btop{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .bav{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff}
+  .bname{font-size:.76rem;font-weight:600;line-height:1.1}
+  .bstat{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:3px}
+  .bstat b{color:var(--ink);font-size:.74rem}
+  .up{color:var(--ok);font-weight:700}.dn{color:#C0392B;font-weight:700}
+
+  /* posts */
+  .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:1100px){.row4{grid-template-columns:repeat(2,1fr)}}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .pthumb{height:104px;background:linear-gradient(135deg,#DCE2FB,#c3ccf5);display:grid;place-items:center;color:var(--brand-dark);font-size:.64rem;font-weight:700;position:relative}
+  .pthumb.yt{background:linear-gradient(135deg,#f6d3d3,#e9b3b3);color:#8a1414}
+  .pthumb.li{background:linear-gradient(135deg,#cfe2f5,#a9cdee);color:#0a4a8a}
+  .plat{position:absolute;top:8px;left:8px;font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 6px;background:#fff}
+  .plat.li{color:var(--li)}.plat.ig{color:var(--ig)}.plat.yt{color:var(--yt)}
+  .pbody{padding:11px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
+  .ptop{display:flex;align-items:center;gap:7px}
+  .pav{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;flex:0 0 auto}
+  .pname{font-size:.76rem;font-weight:600}.ptime{font-size:.64rem;color:var(--muted)}
+  .ptext{font-size:.75rem;color:var(--soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+  .pstats{display:flex;gap:12px;font-size:.68rem;color:var(--muted)}.pstats b{color:var(--ink)}
+  .popen{font-size:.7rem;font-weight:600;display:flex;align-items:center;gap:5px;border-top:1px solid var(--line);padding-top:8px}
+  .popen.li{color:var(--li)}.popen.ig{color:var(--ig)}.popen.yt{color:var(--yt)}
+
+  .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+  @media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+
+  .ad{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .ad:last-child{border-bottom:0;padding-bottom:0}
+  .adthumb{width:70px;height:70px;border-radius:10px;flex:0 0 auto;background:linear-gradient(135deg,#DCE2FB,#c3ccf5);display:grid;place-items:center;color:var(--brand-dark);font-size:.58rem;font-weight:700;text-align:center;padding:6px}
+  .adbody{flex:1;min-width:0}
+  .adhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .adname{font-size:.8rem;font-weight:600}
+  .badge{font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 7px}
+  .badge.meta{background:#EEF0FF;color:var(--meta)}.badge.hot{background:var(--warn-bg);color:var(--warn)}.badge.new{background:var(--ok-bg);color:var(--ok)}
+  .adcopy{font-size:.74rem;color:var(--soft);margin:4px 0 5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .adfoot{font-size:.68rem;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}.adfoot b{color:var(--ink)}
+
+  .tc{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .tc:last-child{border-bottom:0;padding-bottom:0}
+  .rank{width:20px;height:20px;border-radius:6px;background:var(--brand-light);color:var(--brand-dark);font-size:.7rem;font-weight:700;display:grid;place-items:center;flex:0 0 auto}
+  .tcthumb{width:40px;height:40px;border-radius:8px;flex:0 0 auto;background:linear-gradient(135deg,#DCE2FB,#c3ccf5)}
+  .tcbody{flex:1;min-width:0}
+  .tctitle{font-size:.77rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tcsub{font-size:.66rem;color:var(--muted)}
+  .tcnum{text-align:right;flex:0 0 auto}.tcnum .n{font-size:.85rem;font-weight:700}.tcnum .l{font-size:.6rem;color:var(--muted)}
+
+  .lane{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+  .lane:last-child{border-bottom:0}
+  .src{font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 7px;flex:0 0 auto;margin-top:1px}
+  .src.rd{background:#FDEBE0;color:#C0562B}.src.qr{background:#FBE3E3;color:#B92B27}.src.mo{background:#E7EEF9;color:#2B5EAE}.src.nw{background:#EAF3EC;color:var(--ok)}
+  .lbody{flex:1;min-width:0}.ltitle{font-size:.76rem;font-weight:500;color:var(--ink)}.lsub{font-size:.65rem;color:var(--muted)}
+  .senti{font-size:.58rem;font-weight:700;border-radius:5px;padding:1px 6px;flex:0 0 auto;margin-top:1px}
+  .senti.pos{background:var(--ok-bg);color:var(--ok)}.senti.neg{background:#FBE3E3;color:#B92B27}.senti.neu{background:#EEF0F4;color:var(--muted)}
+
+  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:.73rem;color:var(--soft);display:inline-flex;align-items:center;gap:6px;margin:0 6px 6px 0}
+  .note{font-size:.71rem;color:var(--muted);margin:2px 2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="tabs">
+    <span class="tab on">Briefing</span>
+    <span class="tab">My Day</span>
+    <span class="tab">Workload</span>
+    <span class="tab">Master sheet</span>
+    <span class="tab">Pipeline</span>
+    <span class="tab">Content calendar</span>
+  </div>
+
+  <div class="hero">
+    <div>
+      <h1>Competitor radar · Good morning, Manya</h1>
+      <p>Monday, 3 August 2026 · what the competition did overnight — everything here is about them, not us.</p>
+    </div>
+    <span class="startchip"><span class="dot"></span> Day started · 9:02 AM</span>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div class="sec">
+    <div class="sechead"><span class="t">Competitor scoreboard</span><span class="live">LIVE · Instagram</span><span class="sub">who's growing &amp; posting most · last 30 days</span></div>
+    <div class="board">
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#0A66C2">MK</span><div class="bname">Moksh MBBS</div></div><div class="bstat"><span>Followers</span><b>128k <span class="up">▲2.1%</span></b></div><div class="bstat"><span>Eng. rate</span><b>3.4%</b></div><div class="bstat"><span>Posts/30d</span><b>41</b></div></div>
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#C2185B">RG</span><div class="bname">Rusvelt Global</div></div><div class="bstat"><span>Followers</span><b>74k <span class="up">▲0.8%</span></b></div><div class="bstat"><span>Eng. rate</span><b>2.1%</b></div><div class="bstat"><span>Posts/30d</span><b>22</b></div></div>
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#157F3C">SR</span><div class="bname">StudyMBBS Russia</div></div><div class="bstat"><span>Followers</span><b>39k <span class="dn">▼0.3%</span></b></div><div class="bstat"><span>Eng. rate</span><b>1.6%</b></div><div class="bstat"><span>Posts/30d</span><b>17</b></div></div>
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#B45309">MG</span><div class="bname">MetGlobal Edu</div></div><div class="bstat"><span>Followers</span><b>52k <span class="up">▲1.2%</span></b></div><div class="bstat"><span>Eng. rate</span><b>2.8%</b></div><div class="bstat"><span>Posts/30d</span><b>30</b></div></div>
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#6B7CF2">AM</span><div class="bname">AMC Australia</div></div><div class="bstat"><span>Followers</span><b>18k <span class="up">▲3.0%</span></b></div><div class="bstat"><span>Eng. rate</span><b>4.2%</b></div><div class="bstat"><span>Posts/30d</span><b>12</b></div></div>
+      <div class="bcard"><div class="btop"><span class="bav" style="background:#2B5EAE">IM</span><div class="bname">IMG Australia</div></div><div class="bstat"><span>Followers</span><b>9.4k <span class="up">▲1.9%</span></b></div><div class="bstat"><span>Eng. rate</span><b>5.1%</b></div><div class="bstat"><span>Posts/30d</span><b>9</b></div></div>
+    </div>
+  </div>
+
+  <!-- LATEST COMPETITOR POSTS -->
+  <div class="sec">
+    <div class="sechead"><span class="t">Latest competitor posts</span><span class="c">newest first</span>
+      <span class="sub">open each on its platform</span></div>
+    <div class="row4">
+      <div class="pcard">
+        <div class="pthumb"><span class="plat ig">Instagram</span>Carousel</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#0A66C2">MK</span><div><div class="pname">Moksh MBBS</div><div class="ptime">2h ago · <span class="live" style="padding:1px 5px">live</span></div></div></div>
+          <div class="ptext">"How 400+ students got MBBS seats in Russia — 2026 intake guide inside."</div>
+          <div class="pstats"><span><b>1,240</b> likes</span><span><b>86</b> comments</span></div>
+          <a class="popen ig" href="#">↗ Open on Instagram</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb yt"><span class="plat yt">YouTube</span>Video · 8:12</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#CC0000">MG</span><div><div class="pname">MetGlobal Edu</div><div class="ptime">6h ago · <span class="soon" style="padding:1px 5px">connect</span></div></div></div>
+          <div class="ptext">"MBBS in Georgia vs Russia — full 2026 fee &amp; process breakdown."</div>
+          <div class="pstats"><span><b>14.2k</b> views</span><span><b>310</b> likes</span></div>
+          <a class="popen yt" href="#">↗ Open on YouTube</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb li"><span class="plat li">LinkedIn</span>Post</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#B45309">AM</span><div><div class="pname">AMC Australia</div><div class="ptime">7h ago · <span class="soon" style="padding:1px 5px">connect</span></div></div></div>
+          <div class="ptext">"2026 AMC MCQ changes explained — what IMG doctors must know."</div>
+          <div class="pstats"><span><b>640</b> likes</span><span><b>54</b> comments</span></div>
+          <a class="popen li" href="#">↗ Open on LinkedIn</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb"><span class="plat ig">Instagram</span>Reel</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#C2185B">RG</span><div><div class="pname">Rusvelt Global</div><div class="ptime">9h ago · <span class="live" style="padding:1px 5px">live</span></div></div></div>
+          <div class="ptext">"5 mistakes students make choosing an MBBS-abroad consultant."</div>
+          <div class="pstats"><span><b>9.2k</b> views</span><span><b>212</b> saves</span></div>
+          <a class="popen ig" href="#">↗ Open on Instagram</a>
+        </div>
+      </div>
+    </div>
+    <div class="note">Instagram posts are live now (Benchmark). YouTube &amp; LinkedIn cards are the plan — they need a competitor-channel connector wired first (marked <span class="soon" style="padding:1px 5px">connect</span>).</div>
+  </div>
+
+  <div class="grid2">
+    <!-- COMPETITOR ADS -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px"><span class="t">Competitor ads running now</span><span class="live">LIVE · Meta Ad Library</span><span class="sub"><a href="#">see all →</a></span></div>
+      <div style="margin-top:8px">
+        <div class="ad">
+          <div class="adthumb">RUSSIA MBBS 2026</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">Moksh MBBS</span><span class="badge meta">Meta</span><span class="badge hot">Running 24 days</span></div>
+            <div class="adcopy">"Direct MBBS admission in Russia — free counselling. Limited seats for 2026 intake."</div>
+            <div class="adfoot"><span>Placements · <b>FB, IG</b></span><span><b>3</b> creatives live</span><span>CTA · Book call</span></div>
+          </div>
+        </div>
+        <div class="ad">
+          <div class="adthumb">AMC PREP</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">AMC Australia</span><span class="badge meta">Meta</span><span class="badge new">New · 3 days</span></div>
+            <div class="adcopy">"Free AMC MCQ masterclass this Sunday. Register — seats limited." Video ad.</div>
+            <div class="adfoot"><span>Placements · <b>IG Reels</b></span><span><b>1</b> creative</span><span>CTA · Register</span></div>
+          </div>
+        </div>
+        <div class="ad">
+          <div class="adthumb">GEORGIA MBBS</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">MetGlobal Edu</span><span class="badge meta">Meta</span><span class="badge hot">Running 12 days</span></div>
+            <div class="adcopy">"MBBS in Georgia from ₹18L — talk to an advisor today." Static offer ad.</div>
+            <div class="adfoot"><span>Placements · <b>FB</b></span><span><b>2</b> creatives</span><span>CTA · Message</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP COMPETITOR CONTENT -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px"><span class="t">Top competitor content</span><span class="live">LIVE · Instagram</span><span class="sub">by reach · 7 days</span></div>
+      <div style="margin-top:8px">
+        <div class="tc"><span class="rank">1</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"MBBS Russia 2026 intake guide" (carousel)</div><div class="tcsub">Moksh MBBS · Instagram · saved 1.2k</div></div><div class="tcnum"><div class="n">84.3k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">2</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"AMC vs PLAB — which is faster" reel</div><div class="tcsub">AMC Australia · Instagram</div></div><div class="tcnum"><div class="n">61.0k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">3</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"5 consultant mistakes" reel</div><div class="tcsub">Rusvelt Global · Instagram · saved 640</div></div><div class="tcnum"><div class="n">47.8k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">4</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"Georgia vs Russia fees" post</div><div class="tcsub">MetGlobal Edu · Instagram</div></div><div class="tcnum"><div class="n">33.1k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">5</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"IMG jobs in Australia 2026"</div><div class="tcsub">IMG Australia · Instagram · saved 410</div></div><div class="tcnum"><div class="n">29.5k</div><div class="l">reach</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:2px">
+    <!-- MENTIONS -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px"><span class="t">What people are saying</span><span class="live">LIVE · Content Radar</span><span class="sub">Reddit · Quora · MouthShut · News</span></div>
+      <div style="margin-top:8px">
+        <div class="lane"><span class="src rd">Reddit</span><div class="lbody"><div class="ltitle">"Has anyone used Moksh for MBBS Russia? Worth the fee?"</div><div class="lsub">r/MBBSAbroad · 3h ago · 42 comments</div></div><span class="senti neu">Neutral</span></div>
+        <div class="lane"><span class="src qr">Quora</span><div class="lbody"><div class="ltitle">"Is Rusvelt Global reliable for admissions?"</div><div class="lsub">Quora · 6h ago</div></div><span class="senti neg">Negative</span></div>
+        <div class="lane"><span class="src mo">MouthShut</span><div class="lbody"><div class="ltitle">"MetGlobal review — smooth visa process"</div><div class="lsub">MouthShut · 8h ago · ★★★★</div></div><span class="senti pos">Positive</span></div>
+        <div class="lane"><span class="src nw">News</span><div class="lbody"><div class="ltitle">"NMC tightens MBBS-abroad screening for 2026"</div><div class="lsub">Google News · 10h ago</div></div><span class="senti neu">Neutral</span></div>
+      </div>
+    </div>
+
+    <!-- TRENDS -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px"><span class="t">Trends they could jump on</span><span class="live">LIVE · Google Trends</span><span class="sub">breakouts · India</span></div>
+      <div style="margin-top:8px">
+        <span class="chip">"NEET PG 2026 result" <span class="up">▲ breakout</span></span>
+        <span class="chip">"MBBS Russia fees 2026" <span class="up">▲ 90%</span></span>
+        <span class="chip">"AMC exam dates" <span class="up">▲ 44%</span></span>
+        <span class="chip">"PLAB 2 booking" <span class="up">▲ 21%</span></span>
+        <span class="chip">"MBBS Georgia" <span class="up">▲ 18%</span></span>
+        <span class="chip">"IMG jobs Australia" <span class="up">▲ 12%</span></span>
+      </div>
+      <div class="note" style="margin-top:10px">Rising searches in your space — spot a topic before competitors post it.</div>
+    </div>
+  </div>
+
+  <!-- TRENDING BEYOND MEDICAL (trend-jack) -->
+  <div class="sec" style="margin-top:8px">
+    <div class="sechead"><span class="t">Trending beyond medical — adapt-worthy</span><span class="soon">needs a trends connector</span><span class="sub">viral moments we can remix, even if off-topic</span></div>
+    <div class="note" style="margin-bottom:11px">You don't only stick to medical — sometimes the best post is a viral moment remixed (like the tower-couple flag → "Free MBBS cutoff on 12thplus.com"). This lane surfaces big general trends; hit <b>Adapt this</b> and it flows into Content Studio to remix into a GooCampus / 12thplus piece.</div>
+    <div class="row4">
+      <div class="pcard">
+        <div class="pthumb" style="background:linear-gradient(135deg,#2a2a2a,#555);color:#fff"><span class="plat" style="color:#232D42">Viral · Reel</span>🔥 8.2M views</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#232D42">▶</span><div><div class="pname">Couple proposes on tower</div><div class="ptime">trending · held a flag, arrested</div></div></div>
+          <div class="ptext">The clip everyone's sharing — swap the flag for "Free MBBS cutoff on 12thplus.com" (like we did).</div>
+          <a class="popen" style="color:var(--brand)" href="#">✎ Adapt this →</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb" style="background:linear-gradient(135deg,#3A2A55,#6B4FA0);color:#fff"><span class="plat" style="color:#232D42">Meme format</span>😅 rising</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#6B4FA0">#</span><div><div class="pname">"Aura points" meme</div><div class="ptime">format · everywhere this week</div></div></div>
+          <div class="ptext">Template meme — "+1000 aura for cracking NEET on the first try." Easy caption remix.</div>
+          <a class="popen" style="color:var(--brand)" href="#">✎ Adapt this →</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb" style="background:linear-gradient(135deg,#0d5c4a,#1f9e7f);color:#fff"><span class="plat" style="color:#232D42">Trending audio</span>🎵 42k reels</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#1f9e7f">♪</span><div><div class="pname">Trending reel audio</div><div class="ptime">use before it peaks</div></div></div>
+          <div class="ptext">The sound blowing up on Reels — pair it with a "results day" or "abroad packing" cut.</div>
+          <a class="popen" style="color:var(--brand)" href="#">✎ Adapt this →</a>
+        </div>
+      </div>
+      <div class="pcard">
+        <div class="pthumb" style="background:linear-gradient(135deg,#7a3b12,#c2761f);color:#fff"><span class="plat" style="color:#232D42">Viral moment</span>📈 national</div>
+        <div class="pbody">
+          <div class="ptop"><span class="pav" style="background:#c2761f">!</span><div><div class="pname">Big cricket / festival moment</div><div class="ptime">everyone posting today</div></div></div>
+          <div class="ptext">Ride the moment with a topical spin tied to admissions / results season.</div>
+          <a class="popen" style="color:var(--brand)" href="#">✎ Adapt this →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW -->
+  <div class="card" style="background:var(--brand-light);border-color:#dce2fb;margin-bottom:14px">
+    <div class="sechead" style="margin-bottom:9px"><span class="t">From a trend to a scheduled post — one flow</span></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.78rem;color:var(--soft)">
+      <span class="chip" style="background:#fff"><b>1</b> · Spot it here</span><span style="color:var(--brand);font-weight:700">→</span>
+      <span class="chip" style="background:#fff"><b>2</b> · <b>Adapt this</b> — pull the format/idea out</span><span style="color:var(--brand);font-weight:700">→</span>
+      <span class="chip" style="background:#fff"><b>3</b> · Opens in <b>Content Studio</b>, remix into our message</span><span style="color:var(--brand);font-weight:700">→</span>
+      <span class="chip" style="background:#fff"><b>4</b> · <b>Manya</b> approves &amp; assigns</span><span style="color:var(--brand);font-weight:700">→</span>
+      <span class="chip" style="background:#fff"><b>5</b> · Producer makes it → <b>Pipeline</b></span>
+    </div>
+    <div class="note" style="margin-top:9px">This reuses what's already built — Content Studio's generate/edit and the Approve → assign → Content-Pending hand-off. The only new bit is the "Adapt this" button carrying the trend in as the brief.</div>
+  </div>
+
+  <div class="note" style="margin-top:14px">Mock with sample data. <b>Live now:</b> competitor Instagram (scoreboard, posts, top content), Meta ads, Content-Radar mentions &amp; Google Trends. <b>Needs a connector:</b> competitor YouTube &amp; LinkedIn posts, and the general/viral trends lane. Nothing about GooCampus's own content lives here — that stays in Analytics.</div>
+
+</div>
+</body>
+</html>

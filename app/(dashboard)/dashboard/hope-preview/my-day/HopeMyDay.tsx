@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
+import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
 
@@ -1468,6 +1469,8 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   const [pipeline, setPipeline] = useState<"offered" | "waiting" | "freed" | "done">("offered");
   const [movedId, setMovedId] = useState<string | null>(null); // which task Manya slid to tomorrow
   const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
+  // Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views.
+  const [wsTab, setWsTab] = useState<"myday" | "team" | "master" | "pipeline" | "calendar">("myday");
   const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
   const [dayStartAt, setDayStartAt] = useState("");
   const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
@@ -2324,6 +2327,20 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
 
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
 
+        {/* Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views. */}
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          {(([["myday", "My Day"], ["team", "Workload"], ["master", "Master sheet"], ["pipeline", "Pipeline"], ["calendar", "Content calendar"]]) as [typeof wsTab, string][]).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setWsTab(k)}
+              className={`rounded-xl border px-3.5 py-2 text-[13px] font-medium transition ${wsTab === k ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {wsTab === "myday" ? (<>
+
         {/* TOP BAR — icon triggers (page title lives in the greeting below) */}
         <div className="topbar">
           <div className="topspacer" />
@@ -2637,6 +2654,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
           </div>
         )}
         </>
+        )}
+        </>) : (
+          <MemberHub person={person} tab={wsTab} />
         )}
       </div>
       </div>{/* /shell */}

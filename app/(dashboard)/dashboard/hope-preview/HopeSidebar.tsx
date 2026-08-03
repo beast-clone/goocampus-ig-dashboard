@@ -34,7 +34,7 @@ const GROUPS: Group[] = [
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     ] },
-    { label: "My Day",              href: `${HUB}/my-day`,       icon: IconSunHigh },
+    { label: "My Workspace",        href: `${HUB}/my-day`,       icon: IconSunHigh },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
   ] },

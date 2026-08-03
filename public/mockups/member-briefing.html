@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Workspace — Daily Briefing (member landing)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --muted:#8A92A6; --soft:#4A5468; --line:#EEF0F4;
+    --canvas:#F6F7FB; --ok:#157F3C; --ok-bg:#E3F5EA; --warn:#B45309; --warn-bg:#FCF0DA;
+    --li:#0A66C2; --meta:#5B6CF0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);line-height:1.5;padding:20px 22px 60px}
+  .wrap{max-width:1340px;margin:0 auto}
+  a{text-decoration:none}
+
+  /* tab bar mock (matches My Workspace) */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:500;color:var(--soft)}
+  .tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  /* hero */
+  .hero{background:linear-gradient(115deg,#3A57E8,#4A64EA 45%,#6B7CF2);border-radius:16px;padding:20px 26px;color:#fff;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+  .hero h1{margin:0;font-size:1.45rem;font-weight:600}
+  .hero p{margin:5px 0 0;font-size:.9rem;color:rgba(255,255,255,.9)}
+  .startchip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:9px 16px;color:#fff;font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#5EF08A;display:inline-block}
+
+  /* section */
+  .sec{margin-bottom:20px}
+  .sechead{display:flex;align-items:center;gap:10px;margin:0 2px 11px}
+  .sechead .t{font-size:1.02rem;font-weight:600}
+  .sechead .c{font-size:.72rem;font-weight:700;background:var(--brand-light);color:var(--brand-dark);border-radius:20px;padding:2px 9px}
+  .sechead .sub{font-size:.78rem;color:var(--muted);margin-left:auto}
+  .sechead .sub a{color:var(--brand);font-weight:600}
+
+  /* competitor cards row */
+  .row5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  @media(max-width:1100px){.row5{grid-template-columns:repeat(2,1fr)}}
+  .ccard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px;display:flex;flex-direction:column;gap:9px}
+  .ctop{display:flex;align-items:center;gap:8px}
+  .cav{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto}
+  .cname{font-size:.82rem;font-weight:600;line-height:1.15}
+  .cmeta{font-size:.68rem;color:var(--muted)}
+  .plat{margin-left:auto;font-size:.6rem;font-weight:700;border-radius:5px;padding:2px 6px}
+  .plat.li{background:#E7F0FA;color:var(--li)}
+  .plat.ig{background:#FCEBF3;color:#C2185B}
+  .cbody{font-size:.78rem;color:var(--soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:54px}
+  .cstats{display:flex;gap:12px;font-size:.7rem;color:var(--muted)}
+  .cstats b{color:var(--ink)}
+  .copen{margin-top:2px;font-size:.72rem;font-weight:600;color:var(--li);display:flex;align-items:center;gap:5px;border-top:1px solid var(--line);padding-top:8px}
+
+  /* two-column lower area */
+  .grid2{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+  @media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+
+  /* ads */
+  .ad{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .ad:last-child{border-bottom:0;padding-bottom:0}
+  .adthumb{width:76px;height:76px;border-radius:10px;flex:0 0 auto;background:linear-gradient(135deg,#DCE2FB,#c3ccf5);display:grid;place-items:center;color:var(--brand-dark);font-size:.62rem;font-weight:700;text-align:center;padding:6px}
+  .adbody{flex:1;min-width:0}
+  .adhead{display:flex;align-items:center;gap:8px}
+  .adname{font-size:.82rem;font-weight:600}
+  .badge{font-size:.6rem;font-weight:700;border-radius:5px;padding:2px 7px}
+  .badge.meta{background:#EEF0FF;color:var(--meta)}
+  .badge.hot{background:var(--warn-bg);color:var(--warn)}
+  .badge.new{background:var(--ok-bg);color:var(--ok)}
+  .adcopy{font-size:.76rem;color:var(--soft);margin:4px 0 5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .adfoot{font-size:.7rem;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+  .adfoot b{color:var(--ink)}
+
+  /* top content */
+  .tc{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .tc:last-child{border-bottom:0;padding-bottom:0}
+  .rank{width:22px;height:22px;border-radius:6px;background:var(--brand-light);color:var(--brand-dark);font-size:.72rem;font-weight:700;display:grid;place-items:center;flex:0 0 auto}
+  .tcthumb{width:44px;height:44px;border-radius:9px;flex:0 0 auto;background:linear-gradient(135deg,#E3F5EA,#c7ecd6)}
+  .tcbody{flex:1;min-width:0}
+  .tctitle{font-size:.79rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tcsub{font-size:.68rem;color:var(--muted)}
+  .tcnum{text-align:right;flex:0 0 auto}
+  .tcnum .n{font-size:.9rem;font-weight:700}
+  .tcnum .l{font-size:.62rem;color:var(--muted)}
+
+  /* keyword strip */
+  .kw{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:.74rem;color:var(--soft);display:flex;align-items:center;gap:6px}
+  .chip .up{color:var(--ok);font-weight:700;font-size:.68rem}
+  .chip .dn{color:#C0392B;font-weight:700;font-size:.68rem}
+  .note{font-size:.72rem;color:var(--muted);margin:2px 2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- the My Workspace tab bar, with a new first tab -->
+  <div class="tabs">
+    <span class="tab on">Briefing</span>
+    <span class="tab">My Day</span>
+    <span class="tab">Workload</span>
+    <span class="tab">Master sheet</span>
+    <span class="tab">Pipeline</span>
+    <span class="tab">Content calendar</span>
+  </div>
+
+  <div class="hero">
+    <div>
+      <h1>Good morning, Manya</h1>
+      <p>Monday, 3 August 2026 · here's what moved overnight before you start your day.</p>
+    </div>
+    <span class="startchip"><span class="dot"></span> Day started · 9:02 AM</span>
+  </div>
+
+  <!-- COMPETITORS -->
+  <div class="sec">
+    <div class="sechead">
+      <span class="t">Competitors on the move</span><span class="c">5 new posts</span>
+      <span class="sub">from Content Radar · <a href="#">open radar →</a></span>
+    </div>
+    <div class="row5">
+      <div class="ccard">
+        <div class="ctop"><span class="cav" style="background:#0A66C2">MP</span><div><div class="cname">MedPrep Global</div><div class="cmeta">2h ago</div></div><span class="plat li">LinkedIn</span></div>
+        <div class="cbody">"How 400+ IMGs cleared PLAB in 2026 — our free roadmap inside." Carousel breaking down the 6-step pathway…</div>
+        <div class="cstats"><span><b>1,240</b> likes</span><span><b>86</b> comments</span></div>
+        <a class="copen" href="#">↗ Open on LinkedIn</a>
+      </div>
+      <div class="ccard">
+        <div class="ctop"><span class="cav" style="background:#C2185B">PA</span><div><div class="cname">PLAB Academy</div><div class="cmeta">5h ago</div></div><span class="plat ig">Instagram</span></div>
+        <div class="cbody">Reel: "AMC vs PLAB — which is faster for Indian doctors?" 38s explainer, trending audio…</div>
+        <div class="cstats"><span><b>9.2k</b> views</span><span><b>212</b> saves</span></div>
+        <a class="copen" href="#">↗ Open on Instagram</a>
+      </div>
+      <div class="ccard">
+        <div class="ctop"><span class="cav" style="background:#157F3C">IP</span><div><div class="cname">IMG Pathways</div><div class="cmeta">7h ago</div></div><span class="plat li">LinkedIn</span></div>
+        <div class="cbody">Founder post: "The USMLE timeline nobody tells you about." Long-form, strong engagement in comments…</div>
+        <div class="cstats"><span><b>640</b> likes</span><span><b>54</b> comments</span></div>
+        <a class="copen" href="#">↗ Open on LinkedIn</a>
+      </div>
+      <div class="ccard">
+        <div class="ctop"><span class="cav" style="background:#B45309">GA</span><div><div class="cname">GulfMed Advisors</div><div class="cmeta">9h ago</div></div><span class="plat li">LinkedIn</span></div>
+        <div class="cbody">"DHA vs DOH vs MOH — 2026 licensing changes." Infographic post on Gulf licensing routes…</div>
+        <div class="cstats"><span><b>410</b> likes</span><span><b>31</b> comments</span></div>
+        <a class="copen" href="#">↗ Open on LinkedIn</a>
+      </div>
+      <div class="ccard">
+        <div class="ctop"><span class="cav" style="background:#6B7CF2">SA</span><div><div class="cname">StudyAbroad Docs</div><div class="cmeta">11h ago</div></div><span class="plat ig">Instagram</span></div>
+        <div class="cbody">Carousel: "5 countries hiring Indian doctors in 2026." Saved-heavy post, good hook on slide 1…</div>
+        <div class="cstats"><span><b>6.1k</b> views</span><span><b>340</b> saves</span></div>
+        <a class="copen" href="#">↗ Open on Instagram</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <!-- META ADS -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px">
+        <span class="t">Competitor ads running now</span><span class="c">Meta Ad Library</span>
+        <span class="sub"><a href="#">see all →</a></span>
+      </div>
+      <div class="note">Live ads spotted from competitors — what they're spending on, and how long it's been running.</div>
+      <div style="margin-top:10px">
+        <div class="ad">
+          <div class="adthumb">FREE PLAB ROADMAP</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">MedPrep Global</span><span class="badge meta">Meta</span><span class="badge hot">Running 24 days</span></div>
+            <div class="adcopy">"Download the free 2026 PLAB roadmap — trusted by 400+ Indian doctors. Book a free counselling call."</div>
+            <div class="adfoot"><span>Objective · <b>Leads</b></span><span>Placements · FB, IG</span><span><b>3</b> creatives live</span></div>
+          </div>
+        </div>
+        <div class="ad">
+          <div class="adthumb">USMLE MASTERCLASS</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">IMG Pathways</span><span class="badge meta">Meta</span><span class="badge new">New · 3 days</span></div>
+            <div class="adcopy">"Free USMLE Step 1 masterclass this Sunday. Limited seats — register now." Video ad, testimonial-led.</div>
+            <div class="adfoot"><span>Objective · <b>Registrations</b></span><span>Placements · IG Reels</span><span><b>1</b> creative</span></div>
+          </div>
+        </div>
+        <div class="ad">
+          <div class="adthumb">GULF LICENSING 2026</div>
+          <div class="adbody">
+            <div class="adhead"><span class="adname">GulfMed Advisors</span><span class="badge meta">Meta</span><span class="badge hot">Running 12 days</span></div>
+            <div class="adcopy">"DHA license in 90 days — end-to-end support. Talk to an advisor." Static ad, offer-led.</div>
+            <div class="adfoot"><span>Objective · <b>Messages</b></span><span>Placements · FB</span><span><b>2</b> creatives</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP CONTENT -->
+    <div class="card">
+      <div class="sechead" style="margin-bottom:6px">
+        <span class="t">Top-reaching content</span><span class="c">last 7 days</span>
+        <span class="sub">GooCampus + market</span>
+      </div>
+      <div class="note">The best-performing pieces to learn from — ours and the market's top reach.</div>
+      <div style="margin-top:10px">
+        <div class="tc"><span class="rank">1</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">NEET PG 2026 — cut-off explained (carousel)</div><div class="tcsub">GooCampus · Instagram · saved 1.2k</div></div><div class="tcnum"><div class="n">84.3k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">2</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"AMC vs PLAB" reel</div><div class="tcsub">PLAB Academy · Instagram · market top</div></div><div class="tcnum"><div class="n">61.0k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">3</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">MBBS abroad fee comparison (post)</div><div class="tcsub">GooCampus · Facebook · shares 430</div></div><div class="tcnum"><div class="n">47.8k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">4</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">Founder story — LinkedIn long-form</div><div class="tcsub">IMG Pathways · LinkedIn · market</div></div><div class="tcnum"><div class="n">33.1k</div><div class="l">reach</div></div></div>
+        <div class="tc"><span class="rank">5</span><div class="tcthumb"></div><div class="tcbody"><div class="tctitle">"5 countries hiring Indian doctors"</div><div class="tcsub">GooCampus · Instagram · saved 890</div></div><div class="tcnum"><div class="n">29.5k</div><div class="l">reach</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYWORDS STRIP -->
+  <div class="sec" style="margin-top:20px">
+    <div class="sechead">
+      <span class="t">Tracked keywords &amp; mentions</span><span class="c">Content Radar</span>
+      <span class="sub">overnight movement</span>
+    </div>
+    <div class="kw">
+      <span class="chip">"NEET PG 2026" <span class="up">▲ 38%</span></span>
+      <span class="chip">"PLAB 2 dates" <span class="up">▲ 21%</span></span>
+      <span class="chip">"MBBS abroad fees" <span class="up">▲ 12%</span></span>
+      <span class="chip">"AMC exam India" <span class="up">▲ 9%</span></span>
+      <span class="chip">"USMLE step 1" <span class="dn">▼ 4%</span></span>
+      <span class="chip">"@goocampus mentions" <span class="up">▲ 6 new</span></span>
+    </div>
+    <div class="note" style="margin-top:9px">This is a mock with sample data — pulled live from Content Radar, Meta Ad Library, and your analytics once wired.</div>
+  </div>
+
+</div>
+</body>
+</html>
