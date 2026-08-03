@@ -2,8 +2,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   IconSearch, IconArrowLeft, IconSparkles, IconPlayerPlayFilled, IconExternalLink,
-  IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt,
+  IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt, IconBulb,
 } from "@tabler/icons-react";
+import { PLAYBOOK_GUIDES } from "@/lib/playbook-guides";
 
 // The marketing library (Corey Haines' open pack + a Pillar Content skill), run via
 // Perplexity. Lives inside Content Studio as the "Playbooks" tab. After a result,
@@ -228,6 +229,16 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
   );
 }
 
+// One labelled line in the "How to use this playbook" cheat-sheet.
+function GuideField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10.5px] uppercase tracking-wide text-[#8A92A6] font-semibold mb-0.5">{label}</div>
+      <div className="text-[13px] text-[#232D42] leading-snug">{children}</div>
+    </div>
+  );
+}
+
 function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }) {
   const [task, setTask] = useState("");
   const [loading, setLoading] = useState(false);
@@ -330,6 +341,29 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
         </div>
         <div className="text-[12.5px] text-[#8A92A6] leading-snug">{skill.description}</div>
       </div>
+
+      {(() => {
+        const g = PLAYBOOK_GUIDES[skill.slug];
+        if (!g) return null;
+        return (
+          <div className="rounded-2xl border border-[#D7DDFB] bg-brand-light/40 p-5 mb-4">
+            <div className="text-[12px] font-semibold uppercase tracking-wide text-brand mb-3 flex items-center gap-1.5"><IconBulb size={14} /> How to use this playbook</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              <GuideField label="What it is">{g.tagline}</GuideField>
+              <GuideField label="Use it when">{g.useWhen}</GuideField>
+              <GuideField label="You&rsquo;ll get">{g.expect}</GuideField>
+              <GuideField label="How to check it">{g.verify}</GuideField>
+            </div>
+            <div className="mt-4 rounded-xl border border-[#C9D2F9] bg-white p-3">
+              <div className="text-[10.5px] uppercase tracking-wide text-[#8A92A6] font-semibold mb-1">Try this</div>
+              <div className="flex items-start gap-3">
+                <p className="flex-1 text-[13px] text-[#232D42] italic">&ldquo;{g.example}&rdquo;</p>
+                <button onClick={() => setTask(g.example)} className="shrink-0 text-[11.5px] inline-flex items-center gap-1 border border-brand text-brand rounded-lg px-2.5 py-1 hover:bg-brand-light transition"><IconSparkles size={12} /> Use this example</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 mb-4">
         <label className="text-[12px] font-semibold text-[#232D42] uppercase tracking-wide">Your task</label>
