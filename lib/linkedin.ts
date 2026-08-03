@@ -6,7 +6,9 @@
 //
 // Env (all optional — absence just keeps the tab on demo data):
 //   LINKEDIN_ACCESS_TOKEN     — 2-month member token, scopes:
-//                               r_organization_social, r_organization_followers, rw_organization_admin
+//                               r_organization_social, r_organization_followers, rw_organization_admin,
+//                               r_organization_social_feed, r_member_profileAnalytics,
+//                               w_organization_social, w_member_social  ← write scopes enable posting
 //   LINKEDIN_REFRESH_TOKEN    — 1-year refresh token (used to mint a new access token)
 //   LINKEDIN_CLIENT_ID        — 86a1luhoymqmmy
 //   LINKEDIN_CLIENT_SECRET    — app primary client secret (only needed for refresh)
