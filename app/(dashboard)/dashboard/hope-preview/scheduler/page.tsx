@@ -137,6 +137,9 @@ function Scheduler() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  // Cross-post to LinkedIn too. Maps each selected brand page to its LinkedIn org
+  // page (Main → GooCampus, World → GooCampus World; India has no LinkedIn page).
+  const [alsoLinkedIn, setAlsoLinkedIn] = useState(false);
   // Keep the primary page (drives preview / limits / suggest-time) in sync with the
   // first checked cross-post page.
   useEffect(() => {
@@ -472,7 +475,31 @@ function Scheduler() {
         setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
         setResult({ ok: true, recordId: d.id });
-        setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null);
+        // Cross-post to LinkedIn too (best-effort — Meta is already queued). Scheduled →
+        // the LinkedIn queue + cron; publish-now → the immediate in-app LinkedIn route.
+        if (alsoLinkedIn) {
+          const liPages = Array.from(new Set(
+            composePages
+              .map((p): string | null => (/world/i.test(p) ? "world" : /india|12/i.test(p) ? null : "goocampus"))
+              .filter((x): x is string => !!x),
+          ));
+          if (liPages.length) {
+            try {
+              if (scheduleTimeISO) {
+                await fetch("/api/scheduler/linkedin", {
+                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+                  body: JSON.stringify({ pages: liPages, text: caption, imageUrl: cleanMediaUrls[0], scheduleTimeISO }),
+                });
+              } else {
+                await Promise.all(liPages.map((page) => fetch("/api/scheduler/publish-linkedin", {
+                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+                  body: JSON.stringify({ page, text: caption, imageUrl: cleanMediaUrls[0] }),
+                })));
+              }
+            } catch { /* LinkedIn best-effort; Meta post already committed */ }
+          }
+        }
+        setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
         loadToSchedule();               // the scheduled task leaves "To schedule"
         setTimeout(loadQueue, 800);
       }
@@ -1009,6 +1036,15 @@ function Scheduler() {
         <div className="lg:col-span-7 space-y-4">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
+            <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-gray-100">
+              <input type="checkbox" checked={alsoLinkedIn} onChange={(e) => setAlsoLinkedIn(e.target.checked)} className="w-4 h-4 accent-[#3A57E8]" />
+              <span className="text-sm text-gray-800 inline-flex items-center gap-1.5"><IconBrandLinkedin size={16} className="text-brand" /> Also post to LinkedIn</span>
+              {alsoLinkedIn && (
+                <span className="text-xs text-gray-500 ml-auto">
+                  {composePages.filter((p) => !/india|12/i.test(p)).map((p) => (/world/i.test(p) ? "World" : "GooCampus")).join(" · ") || "no LinkedIn page for selected brand"}
+                </span>
+              )}
+            </label>
           </Card>
 
           <Card title="Collaborator" subtitle="Add a collaborator to your post and they will automatically be invited.">
