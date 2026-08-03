@@ -67,7 +67,7 @@ export function PlaybooksLibrary() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search 49 playbooks — copywriting, SEO, pricing, cold email…"
+          placeholder={`Search ${skills?.length ?? 50} playbooks — copywriting, SEO, pricing, cold email…`}
           className="flex-1 bg-transparent outline-none text-[14px] text-[#232D42] placeholder:text-[#B4BAC6]"
         />
         {skills && <span className="text-[12px] text-[#8A92A6]">{filtered.length} / {skills.length}</span>}
