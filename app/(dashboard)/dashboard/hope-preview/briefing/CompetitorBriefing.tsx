@@ -4,7 +4,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconSpeakerphone, IconFlame, IconTrendingUp, IconMessages,
+  IconFlame, IconTrendingUp, IconMessages,
 } from "@tabler/icons-react";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
@@ -29,11 +29,6 @@ type TrendBreakout = { title: string; trafficNum?: number; traffic?: string; art
 type TrendsResp = { breakouts: TrendBreakout[]; ideas: { seed: string; ideas: string[] }[]; fetchedAt?: string };
 // Web mentions about competitors (news/web + sentiment), from /api/radar/search.
 type Mention = { platform: string; title: string; url: string; source: string | null; publishedAt: string; snippet: string; sentiment: "positive" | "negative" | "neutral"; about?: string };
-
-// Meta Ad Library deep-link for a competitor (the API doesn't expose India commercial
-// ads, but the public library site does — so we link straight to their live ads).
-const adLibraryUrl = (name: string) =>
-  `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=IN&q=${encodeURIComponent(name)}&search_type=keyword_unordered&media_type=all`;
 
 const isComp = (c: BenchmarkData["competitors"][number]): c is Competitor => !("error" in c);
 const nfmt = (n: number | undefined) => (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}k` : String(n ?? 0);
@@ -75,7 +70,6 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
-  const [adsFor, setAdsFor] = useState<Competitor | null>(null);
 
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -155,54 +149,39 @@ export function CompetitorBriefing({ person }: { person: string }) {
         )}
       </Section>
 
-      {/* What students are searching now — Google Trends (audience demand, not competitors) */}
-      <Section title="What students are searching now" badge="Live · Google Trends" right="audience demand · not a competitor" icon={<IconTrendingUp size={15} className="text-brand" />} flat>
+      {/* What students are searching now — Google Trends, enlarged. Seeds come from the
+          topics you track in Content Radar → Manage alerts. */}
+      <Section title="What students are searching now" badge="Live · Google Trends" right="audience demand · add keywords in Content Radar → Manage alerts" icon={<IconTrendingUp size={16} className="text-brand" />} flat>
         {(trends?.breakouts?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 mb-3">
-            {trends!.breakouts.slice(0, 3).map((b, i) => (
-              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(b.title)}`} target="_blank" rel="noreferrer" className="border border-gray-100 rounded-xl p-3 hover:border-brand transition block">
-                <div className="text-[13px] font-medium text-[#232D42]">{b.title}</div>
-                {(b.traffic || b.trafficNum) && <div className="text-[11px] text-emerald-600 mt-0.5">↑ {b.traffic || `${(b.trafficNum || 0).toLocaleString()}+ searches`}</div>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+            {trends!.breakouts.slice(0, 6).map((b, i) => (
+              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(b.title)}`} target="_blank" rel="noreferrer" className="border border-gray-100 rounded-xl p-3.5 hover:border-brand transition block">
+                <div className="text-[13.5px] font-medium text-[#232D42]">{b.title}</div>
+                {(b.traffic || b.trafficNum) && <div className="text-[12px] text-emerald-600 mt-0.5">↑ {b.traffic || `${(b.trafficNum || 0).toLocaleString()}+ searches`}</div>}
               </a>
             ))}
           </div>
         )}
         {risingQueries.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {risingQueries.map((q, i) => (
               <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[12px] bg-white border border-gray-200 hover:border-brand hover:bg-brand-light/40 text-[#232D42] rounded-full px-3 py-1.5 transition">
-                <IconTrendingUp size={12} className="text-brand" /> {q}
+                className="inline-flex items-center gap-1.5 text-[13.5px] bg-white border border-gray-200 hover:border-brand hover:bg-brand-light/40 text-[#232D42] rounded-full px-4 py-2 transition">
+                <IconTrendingUp size={13} className="text-brand" /> {q}
               </a>
             ))}
           </div>
-        ) : <div className="text-[12.5px] text-gray-400">Loading rising searches…</div>}
-        <div className="text-[11px] text-gray-400 mt-3">Real rising queries around your topics (Google Autocomplete + Daily Trends, free). Use these to pick what to write next.</div>
+        ) : <div className="text-[13px] text-gray-400">Loading rising searches…</div>}
+        <div className="text-[12px] text-gray-400 mt-4">Real rising queries around your tracked topics (Google Autocomplete + Daily Trends, free). Add or change topics in <b>Content Radar → Manage alerts</b> — then pick what to write next.</div>
       </Section>
 
-      {/* Ads + Mentions */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <Section title="Competitor ads" badge="Meta Ad Library" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
-          <div className="text-[12px] text-gray-500 mb-3">Open a competitor to see their live ads here in the dashboard:</div>
-          <div className="flex flex-col gap-2">
-            {competitors.map((c) => (
-              <button key={c.username} onClick={() => setAdsFor(c)}
-                className="flex items-center gap-2.5 border border-gray-100 rounded-xl px-3 py-2.5 hover:border-brand hover:bg-brand-light/40 transition text-left w-full">
-                <Avatar url={c.profile_picture_url} name={nameOf(c)} size={30} />
-                <span className="text-[13px] font-medium text-[#232D42] truncate flex-1">{nameOf(c).split("|")[0].trim()}</span>
-                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0 border border-brand/40 rounded-lg px-2.5 py-1">View ads <IconChevronRight size={13} /></span>
-              </button>
-            ))}
-          </div>
-        </Section>
-        <Section title="What people are saying" badge="Live · News & web" right="about your competitors" icon={<IconMessages size={15} className="text-brand" />} flat>
-          <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
-        </Section>
-      </div>
+      {/* What people are saying — full width */}
+      <Section title="What people are saying" badge="Live · News & web" right="about your competitors" icon={<IconMessages size={15} className="text-brand" />} flat>
+        <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
+      </Section>
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
-      {adsFor && <AdsModal c={adsFor} onClose={() => setAdsFor(null)} />}
     </div>
   );
 }
@@ -345,39 +324,6 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
             <a href={v.url} target="_blank" rel="noreferrer" className="text-brand text-[12px] inline-flex items-center gap-1 shrink-0">YouTube <IconExternalLink size={12} /></a>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Competitor ads — opens INSIDE the dashboard (a panel), not a new browser tab.
-// Tries to embed the Meta Ad Library; Meta usually blocks framing, so a clear
-// fallback + "open on Meta" deep-dive is always available.
-function AdsModal({ c, onClose }: { c: Competitor; onClose: () => void }) {
-  const name = nameOf(c).split("|")[0].trim();
-  const url = adLibraryUrl(name);
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
-          <Avatar url={c.profile_picture_url} name={name} size={30} />
-          <div className="min-w-0"><div className="text-[14px] font-semibold text-[#232D42] truncate">{name}</div><div className="text-[11px] text-gray-400">Live ads · Meta Ad Library</div></div>
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
-        </div>
-        <div className="px-6 py-8 text-center">
-          <IconSpeakerphone size={30} className="text-[#8A92A6] mb-2 mx-auto" />
-          <div className="text-[15px] font-semibold text-[#232D42]">See {name}&rsquo;s live ads</div>
-          <div className="text-[13px] text-[#8A92A6] mt-1.5 max-w-sm mx-auto">Meta doesn&rsquo;t allow its Ad Library to be shown inside other apps (no API for India commercial ads, no embedding). Their <b>real live ads</b> — every creative they&rsquo;re running right now — open on Meta&rsquo;s own site:</div>
-          <a href={url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
-            <IconExternalLink size={15} /> Open {name}&rsquo;s ads on Meta
-          </a>
         </div>
       </div>
     </div>
