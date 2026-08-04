@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     if (callsThisMonth("Serper") >= BUDGET) return NextResponse.json({ mentions: [], capped: true });
 
     type Item = { title: string; url: string; snippet: string; source: string; platform: string; publishedAt: string; sentiment: string; about: string };
-    const all: Item[] = [];
+    const byName: Item[][] = [];
     for (const name of names) {
       const r = await fetchWithTimeout("https://google.serper.dev/search", {
         method: "POST",
@@ -32,18 +32,22 @@ export async function GET(req: Request) {
         timeoutMs: 12_000, cache: "no-store",
       });
       recordApiCall("Serper", r.ok, r.status);
-      if (!r.ok) continue;
+      if (!r.ok) { byName.push([]); continue; }
       const j = (await r.json()) as { organic?: { title?: string; link?: string; snippet?: string; date?: string }[] };
-      for (const o of j.organic || []) {
-        if (!o.link || !o.title) continue;
-        all.push({
-          title: o.title, url: o.link, snippet: o.snippet || "", source: host(o.link), platform: host(o.link),
-          publishedAt: o.date || "", sentiment: sentiment(`${o.title} ${o.snippet || ""}`), about: name,
-        });
+      byName.push((j.organic || []).filter((o) => o.link && o.title).map((o) => ({
+        title: o.title!, url: o.link!, snippet: o.snippet || "", source: host(o.link!), platform: host(o.link!),
+        publishedAt: o.date || "", sentiment: sentiment(`${o.title} ${o.snippet || ""}`), about: name,
+      })));
+    }
+    // Round-robin so every competitor is represented, not just the first.
+    const seen = new Set<string>();
+    const mentions: Item[] = [];
+    for (let i = 0; i < 10 && mentions.length < 12; i++) {
+      for (const list of byName) {
+        const m = list[i];
+        if (m && !seen.has(m.url)) { seen.add(m.url); mentions.push(m); }
       }
     }
-    const seen = new Set<string>();
-    const mentions = all.filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true))).slice(0, 12);
     return NextResponse.json({ mentions });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load mentions"), { status: 502 });
