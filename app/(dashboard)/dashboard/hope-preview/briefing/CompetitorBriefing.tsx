@@ -4,7 +4,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconSpeakerphone, IconFlame, IconPlugConnected, IconTrendingUp, IconMessages,
+  IconSpeakerphone, IconFlame, IconTrendingUp, IconMessages,
 } from "@tabler/icons-react";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
@@ -27,6 +27,8 @@ type YtVid = { id: string; title: string; channel: string; thumbnail: string; pu
 // Google Trends (free) — audience demand, from /api/radar/trends.
 type TrendBreakout = { title: string; trafficNum?: number; traffic?: string; articles?: { title: string; url: string; source: string | null }[] };
 type TrendsResp = { breakouts: TrendBreakout[]; ideas: { seed: string; ideas: string[] }[]; fetchedAt?: string };
+// Web mentions about competitors (news/web + sentiment), from /api/radar/search.
+type Mention = { platform: string; title: string; url: string; source: string | null; publishedAt: string; snippet: string; sentiment: "positive" | "negative" | "neutral"; about?: string };
 
 // Meta Ad Library deep-link for a competitor (the API doesn't expose India commercial
 // ads, but the public library site does — so we link straight to their live ads).
@@ -192,8 +194,8 @@ export function CompetitorBriefing({ person }: { person: string }) {
             ))}
           </div>
         </Section>
-        <Section title="What people are saying" badge="Connect" icon={<IconMessages size={15} className="text-brand" />} flat>
-          <ConnectPlaceholder platform="Mentions" note="Public mentions & comments about competitors (Reddit, Quora, review sites) will surface here so you can see sentiment. Needs the mentions connector." />
+        <Section title="What people are saying" badge="Live · News & web" right="about your competitors" icon={<IconMessages size={15} className="text-brand" />} flat>
+          <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
         </Section>
       </div>
 
@@ -347,12 +349,49 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
   );
 }
 
-function ConnectPlaceholder({ platform, note }: { platform: string; note: string }) {
+// Live competitor mentions — searches each competitor name via /api/radar/search
+// (Google News + web) and shows recent items with sentiment.
+function MentionsSection({ names }: { names: string[] }) {
+  const [mentions, setMentions] = useState<Mention[] | null>(null);
+  const key = names.join("|");
+  useEffect(() => {
+    if (!names.length) { setMentions([]); return; }
+    let cancelled = false;
+    // Quote the brand name so generic words (e.g. "Hello", "Mentor") don't match
+    // unrelated news; keep the plain query as a fallback label.
+    Promise.all(names.map((n) =>
+      fetch(`/api/radar/search?q=${encodeURIComponent(`"${n}"`)}`, { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((r) => (r ? { ...r, query: n } : null)),
+    )).then((results) => {
+      if (cancelled) return;
+      const all: Mention[] = results.filter(Boolean).flatMap((r: { query: string; mentions?: Mention[] }) =>
+        (r.mentions || []).map((m) => ({ ...m, about: r.query })));
+      const seen = new Set<string>(); const merged: Mention[] = [];
+      for (const m of all.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))) {
+        if (m.url && !seen.has(m.url)) { seen.add(m.url); merged.push(m); }
+      }
+      setMentions(merged.slice(0, 8));
+    });
+    return () => { cancelled = true; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!mentions) return <div className="animate-pulse h-24 bg-gray-100 rounded-xl" />;
+  if (mentions.length === 0) return <div className="text-[13px] text-gray-400 py-4 text-center">No recent mentions found for these competitors.</div>;
+
+  const dot = (s: Mention["sentiment"]) => s === "positive" ? "bg-emerald-500" : s === "negative" ? "bg-rose-500" : "bg-gray-300";
   return (
-    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center">
-      <IconPlugConnected size={26} className="mx-auto text-[#8A92A6]" />
-      <div className="text-[13.5px] font-medium text-[#232D42] mt-2">{platform} feed not connected yet</div>
-      <div className="text-[12.5px] text-[#8A92A6] mt-1 max-w-md mx-auto">{note}</div>
+    <div className="flex flex-col divide-y divide-gray-50">
+      {mentions.map((m, i) => (
+        <a key={i} href={m.url} target="_blank" rel="noreferrer" className="flex items-start gap-2.5 py-2.5 hover:bg-brand-light/40 rounded-lg px-1 transition">
+          <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot(m.sentiment)}`} title={m.sentiment} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] text-[#232D42] leading-snug line-clamp-2">{m.title}</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
+          </div>
+          <IconExternalLink size={12} className="text-gray-300 mt-1 shrink-0" />
+        </a>
+      ))}
     </div>
   );
 }
