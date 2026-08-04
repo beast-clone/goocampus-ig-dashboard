@@ -15,9 +15,10 @@ type Media = {
   children?: { data: { id: string; media_type: string; media_url?: string; thumbnail_url?: string }[] };
 };
 type Competitor = {
-  username: string; name?: string; profile_picture_url?: string; followers_count: number;
-  media_count: number; recent: Media[]; engagementRatePct: number; postsLast30d: number;
-  avgLikesRecent: number;
+  username: string; name?: string; biography?: string; profile_picture_url?: string;
+  followers_count: number; follows_count?: number; media_count: number;
+  recent: Media[]; engagementRatePct: number; postsLast30d: number;
+  avgLikesRecent: number; avgCommentsRecent: number;
 };
 type BenchmarkData = { competitors: (Competitor | { error: string; username: string })[] };
 // A post flattened with its author so cards/modal know who posted it.
@@ -44,8 +45,8 @@ export function CompetitorBriefing({ person }: { person: string }) {
   const allPosts: Post[] = useMemo(() =>
     competitors.flatMap((c) => (c.recent || []).map((m) => ({ ...m, author: nameOf(c), authorPic: c.profile_picture_url }))),
     [competitors]);
-  const igLatest = useMemo(() => [...allPosts].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 8), [allPosts]);
-  const topByReach = useMemo(() => [...allPosts].sort((a, b) => eng(b) - eng(a)).slice(0, 5), [allPosts]);
+  const igLatest = useMemo(() => [...allPosts].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 10), [allPosts]);
+  const topByReach = useMemo(() => [...allPosts].sort((a, b) => eng(b) - eng(a)).slice(0, 10), [allPosts]);
 
   const [open, setOpen] = useState<Post | null>(null);
 
@@ -68,17 +69,26 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Live · Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={15} className="text-brand" />}>
-        {isLoading ? <RowSkeleton n={6} /> : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        {isLoading ? <RowSkeleton n={3} /> : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {competitors.map((c) => (
-              <div key={c.username} className="bg-white border border-gray-100 rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Avatar url={c.profile_picture_url} name={nameOf(c)} />
-                  <div className="text-[12.5px] font-medium text-[#232D42] truncate">{nameOf(c)}</div>
+              <div key={c.username} className="bg-white border border-gray-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Avatar url={c.profile_picture_url} name={nameOf(c)} size={34} />
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-[#232D42] truncate">{nameOf(c)}</div>
+                    <a href={`https://instagram.com/${c.username}`} target="_blank" rel="noreferrer" className="text-[11px] text-brand hover:underline">@{c.username}</a>
+                  </div>
                 </div>
-                <Metric label="Followers" value={nfmt(c.followers_count)} />
-                <Metric label="Eng. rate" value={`${c.engagementRatePct.toFixed(1)}%`} />
-                <Metric label="Posts/30d" value={String(c.postsLast30d)} />
+                <div className="grid grid-cols-2 gap-x-4">
+                  <Metric label="Followers" value={nfmt(c.followers_count)} />
+                  <Metric label="Following" value={nfmt(c.follows_count)} />
+                  <Metric label="Total posts" value={nfmt(c.media_count)} />
+                  <Metric label="Posts / 30d" value={String(c.postsLast30d)} />
+                  <Metric label="Avg likes" value={nfmt(c.avgLikesRecent)} />
+                  <Metric label="Avg comments" value={nfmt(c.avgCommentsRecent)} />
+                  <Metric label="Eng. rate" value={`${c.engagementRatePct.toFixed(1)}%`} />
+                </div>
               </div>
             ))}
           </div>
@@ -87,10 +97,10 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
       <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={15} className="text-brand" />}>
-        {isLoading ? <CardSkeleton n={8} /> : igLatest.length === 0 ? (
+        {isLoading ? <CardSkeleton n={10} /> : igLatest.length === 0 ? (
           <Empty>No competitor Instagram posts loaded yet.</Empty>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {igLatest.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
           </div>
         )}
@@ -106,34 +116,26 @@ export function CompetitorBriefing({ person }: { person: string }) {
         <ConnectPlaceholder platform="YouTube" note="Add competitor YouTube channels to pull their latest uploads with thumbnails. Needs a YouTube competitor-channel connector." />
       </Section>
 
-      {/* Ads + Top content + Mentions */}
+      {/* Top competitor content — same card style as the latest-posts grid */}
+      <Section title="Top competitor content" badge="Live · Instagram" right="most engagement · recent · click to open here" icon={<IconTrendingUp size={15} className="text-brand" />}>
+        {isLoading ? <CardSkeleton n={10} /> : topByReach.length === 0 ? (
+          <Empty>No competitor content loaded yet.</Empty>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+            {topByReach.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
+          </div>
+        )}
+      </Section>
+
+      {/* Ads + Mentions */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <Section title="Competitor ads running now" badge="Connect" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
           <ConnectPlaceholder platform="Meta Ad Library" note="See which ads competitors are actively running (creatives, placements, how long live). Needs the Meta Ad Library connector authorized." />
         </Section>
-
-        <Section title="Top competitor content" badge="Live · Instagram" right="by engagement · recent" icon={<IconTrendingUp size={15} className="text-brand" />} flat>
-          {isLoading ? <RowSkeleton n={5} /> : (
-            <div className="divide-y divide-gray-50">
-              {topByReach.map((p, i) => (
-                <button key={p.id} onClick={() => setOpen(p)} className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-brand-light/40 rounded-lg px-1 transition">
-                  <span className="text-[13px] text-gray-400 w-4 shrink-0">{i + 1}</span>
-                  <Thumb p={p} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] text-[#232D42] truncate">{p.caption?.replace(/\n/g, " ") || "(no caption)"}</div>
-                    <div className="text-[11px] text-gray-400">{p.author} · Instagram</div>
-                  </div>
-                  <div className="text-right shrink-0"><div className="text-[13px] font-semibold text-[#232D42] tabular-nums">{nfmt(eng(p))}</div><div className="text-[10.5px] text-gray-400">eng.</div></div>
-                </button>
-              ))}
-            </div>
-          )}
+        <Section title="What people are saying" badge="Connect" icon={<IconMessages size={15} className="text-brand" />} flat>
+          <ConnectPlaceholder platform="Mentions" note="Public mentions & comments about competitors (Reddit, Quora, review sites) will surface here so you can see sentiment. Needs the mentions connector." />
         </Section>
       </div>
-
-      <Section title="What people are saying" badge="Connect" icon={<IconMessages size={15} className="text-brand" />} flat>
-        <ConnectPlaceholder platform="Mentions" note="Public mentions & comments about competitors (Reddit, Quora, review sites) will surface here so you can see sentiment. Needs the mentions connector." />
-      </Section>
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
     </div>
@@ -160,22 +162,15 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between text-[11.5px] py-0.5"><span className="text-gray-400">{label}</span><span className="font-semibold text-[#232D42] tabular-nums">{value}</span></div>;
 }
 
-function Avatar({ url, name }: { url?: string; name: string }) {
+function Avatar({ url, name, size = 28 }: { url?: string; name: string; size?: number }) {
   const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   return url
-    ? <img src={url} alt={name} referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover shrink-0" />
-    : <span className="w-7 h-7 rounded-full bg-brand-light text-brand text-[10px] font-semibold flex items-center justify-center shrink-0">{initials}</span>;
+    ? <img src={url} alt={name} referrerPolicy="no-referrer" style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" />
+    : <span style={{ width: size, height: size }} className="rounded-full bg-brand-light text-brand text-[10px] font-semibold flex items-center justify-center shrink-0">{initials}</span>;
 }
 
 const TypeIcon = ({ t }: { t: Media["media_type"] }) =>
   t === "CAROUSEL_ALBUM" ? <IconLayoutGrid size={13} /> : t === "VIDEO" ? <IconVideo size={13} /> : <IconPhoto size={13} />;
-
-function Thumb({ p, size = 40 }: { p: Post; size?: number }) {
-  const src = p.thumbnail_url || p.media_url;
-  return src
-    ? <img src={src} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size }} className="rounded-lg object-cover shrink-0 bg-gray-100" />
-    : <span style={{ width: size, height: size }} className="rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-gray-300"><IconPhoto size={16} /></span>;
-}
 
 function PostCard({ p, onOpen }: { p: Post; onOpen: () => void }) {
   const src = p.thumbnail_url || p.media_url;
