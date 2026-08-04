@@ -181,15 +181,18 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* Ads + Mentions */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <Section title="Competitor ads running now" badge="Live · Meta Ad Library" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
-          <div className="text-[12px] text-gray-500 mb-3">Meta&rsquo;s Ad Library shows every ad a page is running right now. Open a competitor&rsquo;s live ads:</div>
+        <Section title="Competitor ads — on Meta Ad Library" badge="Opens on Meta ↗" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
+          <div className="text-[12px] text-gray-500 mb-3 flex items-start gap-1.5">
+            <IconExternalLink size={13} className="text-gray-400 mt-0.5 shrink-0" />
+            <span>Meta doesn&rsquo;t let competitor ads be shown inside other tools (no API for India commercial ads, and their Ad Library can&rsquo;t be embedded). These buttons open each competitor&rsquo;s <b>real live ads</b> on Meta&rsquo;s Ad Library in a new tab.</span>
+          </div>
           <div className="flex flex-col gap-2">
             {competitors.map((c) => (
               <a key={c.username} href={adLibraryUrl(nameOf(c).split("|")[0].trim())} target="_blank" rel="noreferrer"
                 className="flex items-center gap-2.5 border border-gray-100 rounded-xl px-3 py-2.5 hover:border-brand hover:bg-brand-light/40 transition">
                 <Avatar url={c.profile_picture_url} name={nameOf(c)} size={30} />
                 <span className="text-[13px] font-medium text-[#232D42] truncate flex-1">{nameOf(c).split("|")[0].trim()}</span>
-                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0">View live ads <IconExternalLink size={12} /></span>
+                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0 border border-brand/40 rounded-lg px-2.5 py-1 group-hover:bg-brand-light">See live ads on Meta <IconExternalLink size={12} /></span>
               </a>
             ))}
           </div>
