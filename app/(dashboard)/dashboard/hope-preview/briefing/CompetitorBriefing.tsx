@@ -75,6 +75,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
+  const [adsFor, setAdsFor] = useState<Competitor | null>(null);
 
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -181,19 +182,16 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* Ads + Mentions */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <Section title="Competitor ads — on Meta Ad Library" badge="Opens on Meta ↗" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
-          <div className="text-[12px] text-gray-500 mb-3 flex items-start gap-1.5">
-            <IconExternalLink size={13} className="text-gray-400 mt-0.5 shrink-0" />
-            <span>Meta doesn&rsquo;t let competitor ads be shown inside other tools (no API for India commercial ads, and their Ad Library can&rsquo;t be embedded). These buttons open each competitor&rsquo;s <b>real live ads</b> on Meta&rsquo;s Ad Library in a new tab.</span>
-          </div>
+        <Section title="Competitor ads" badge="Meta Ad Library" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
+          <div className="text-[12px] text-gray-500 mb-3">Open a competitor to see their live ads here in the dashboard:</div>
           <div className="flex flex-col gap-2">
             {competitors.map((c) => (
-              <a key={c.username} href={adLibraryUrl(nameOf(c).split("|")[0].trim())} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2.5 border border-gray-100 rounded-xl px-3 py-2.5 hover:border-brand hover:bg-brand-light/40 transition">
+              <button key={c.username} onClick={() => setAdsFor(c)}
+                className="flex items-center gap-2.5 border border-gray-100 rounded-xl px-3 py-2.5 hover:border-brand hover:bg-brand-light/40 transition text-left w-full">
                 <Avatar url={c.profile_picture_url} name={nameOf(c)} size={30} />
                 <span className="text-[13px] font-medium text-[#232D42] truncate flex-1">{nameOf(c).split("|")[0].trim()}</span>
-                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0 border border-brand/40 rounded-lg px-2.5 py-1 group-hover:bg-brand-light">See live ads on Meta <IconExternalLink size={12} /></span>
-              </a>
+                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0 border border-brand/40 rounded-lg px-2.5 py-1">View ads <IconChevronRight size={13} /></span>
+              </button>
             ))}
           </div>
         </Section>
@@ -204,6 +202,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
+      {adsFor && <AdsModal c={adsFor} onClose={() => setAdsFor(null)} />}
     </div>
   );
 }
@@ -346,6 +345,50 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
             <a href={v.url} target="_blank" rel="noreferrer" className="text-brand text-[12px] inline-flex items-center gap-1 shrink-0">YouTube <IconExternalLink size={12} /></a>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Competitor ads — opens INSIDE the dashboard (a panel), not a new browser tab.
+// Tries to embed the Meta Ad Library; Meta usually blocks framing, so a clear
+// fallback + "open on Meta" deep-dive is always available.
+function AdsModal({ c, onClose }: { c: Competitor; onClose: () => void }) {
+  const name = nameOf(c).split("|")[0].trim();
+  const url = adLibraryUrl(name);
+  const [loaded, setLoaded] = useState(false);
+  const [fallback, setFallback] = useState(false);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", k);
+    // Meta blocks framing → its iframe never fires onLoad. If it hasn't loaded in a
+    // few seconds, show the fallback instead of a blank/blocked frame.
+    const t = setTimeout(() => { if (!loaded) setFallback(true); }, 3000);
+    return () => { window.removeEventListener("keydown", k); clearTimeout(t); };
+  }, [onClose, loaded]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-5xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
+          <Avatar url={c.profile_picture_url} name={name} size={30} />
+          <div className="min-w-0"><div className="text-[14px] font-semibold text-[#232D42] truncate">{name}</div><div className="text-[11px] text-gray-400">Live ads · Meta Ad Library</div></div>
+          <a href={url} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light">Open on Meta <IconExternalLink size={12} /></a>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
+        </div>
+        <div className="flex-1 relative bg-gray-50">
+          {!fallback && <iframe src={url} title={`${name} ads`} className="w-full h-full" onLoad={() => { setLoaded(true); setFallback(false); }} />}
+          {fallback && !loaded && (
+            <div className="absolute inset-0 bg-white flex flex-col items-center justify-center text-center px-8">
+              <IconSpeakerphone size={30} className="text-[#8A92A6] mb-2" />
+              <div className="text-[15px] font-semibold text-[#232D42]">Meta won&rsquo;t display their ads inside other apps</div>
+              <div className="text-[13px] text-[#8A92A6] mt-1.5 max-w-md">Meta blocks its Ad Library from being embedded, and gives no API for India commercial ads — so the creatives can only render on Meta&rsquo;s own site. Their <b>real live ads</b> are one click away:</div>
+              <a href={url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
+                <IconExternalLink size={15} /> See {name}&rsquo;s live ads on Meta
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>
