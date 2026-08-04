@@ -357,38 +357,27 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
 function AdsModal({ c, onClose }: { c: Competitor; onClose: () => void }) {
   const name = nameOf(c).split("|")[0].trim();
   const url = adLibraryUrl(name);
-  const [loaded, setLoaded] = useState(false);
-  const [fallback, setFallback] = useState(false);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
-    // Meta blocks framing → its iframe never fires onLoad. If it hasn't loaded in a
-    // few seconds, show the fallback instead of a blank/blocked frame.
-    const t = setTimeout(() => { if (!loaded) setFallback(true); }, 3000);
-    return () => { window.removeEventListener("keydown", k); clearTimeout(t); };
-  }, [onClose, loaded]);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-5xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
           <Avatar url={c.profile_picture_url} name={name} size={30} />
           <div className="min-w-0"><div className="text-[14px] font-semibold text-[#232D42] truncate">{name}</div><div className="text-[11px] text-gray-400">Live ads · Meta Ad Library</div></div>
-          <a href={url} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light">Open on Meta <IconExternalLink size={12} /></a>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
+          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
         </div>
-        <div className="flex-1 relative bg-gray-50">
-          {!fallback && <iframe src={url} title={`${name} ads`} className="w-full h-full" onLoad={() => { setLoaded(true); setFallback(false); }} />}
-          {fallback && !loaded && (
-            <div className="absolute inset-0 bg-white flex flex-col items-center justify-center text-center px-8">
-              <IconSpeakerphone size={30} className="text-[#8A92A6] mb-2" />
-              <div className="text-[15px] font-semibold text-[#232D42]">Meta won&rsquo;t display their ads inside other apps</div>
-              <div className="text-[13px] text-[#8A92A6] mt-1.5 max-w-md">Meta blocks its Ad Library from being embedded, and gives no API for India commercial ads — so the creatives can only render on Meta&rsquo;s own site. Their <b>real live ads</b> are one click away:</div>
-              <a href={url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
-                <IconExternalLink size={15} /> See {name}&rsquo;s live ads on Meta
-              </a>
-            </div>
-          )}
+        <div className="px-6 py-8 text-center">
+          <IconSpeakerphone size={30} className="text-[#8A92A6] mb-2 mx-auto" />
+          <div className="text-[15px] font-semibold text-[#232D42]">See {name}&rsquo;s live ads</div>
+          <div className="text-[13px] text-[#8A92A6] mt-1.5 max-w-sm mx-auto">Meta doesn&rsquo;t allow its Ad Library to be shown inside other apps (no API for India commercial ads, no embedding). Their <b>real live ads</b> — every creative they&rsquo;re running right now — open on Meta&rsquo;s own site:</div>
+          <a href={url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
+            <IconExternalLink size={15} /> Open {name}&rsquo;s ads on Meta
+          </a>
         </div>
       </div>
     </div>
