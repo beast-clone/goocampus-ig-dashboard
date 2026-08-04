@@ -375,22 +375,11 @@ function MentionsSection({ names }: { names: string[] }) {
   useEffect(() => {
     if (!names.length) { setMentions([]); return; }
     let cancelled = false;
-    // Quote the brand name so generic words (e.g. "Hello", "Mentor") don't match
-    // unrelated news; keep the plain query as a fallback label.
-    Promise.all(names.map((n) =>
-      fetch(`/api/radar/search?q=${encodeURIComponent(`"${n}"`)}`, { credentials: "same-origin" })
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
-        .then((r) => (r ? { ...r, query: n } : null)),
-    )).then((results) => {
-      if (cancelled) return;
-      const all: Mention[] = results.filter(Boolean).flatMap((r: { query: string; mentions?: Mention[] }) =>
-        (r.mentions || []).map((m) => ({ ...m, about: r.query })));
-      const seen = new Set<string>(); const merged: Mention[] = [];
-      for (const m of all.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))) {
-        if (m.url && !seen.has(m.url)) { seen.add(m.url); merged.push(m); }
-      }
-      setMentions(merged.slice(0, 8));
-    });
+    // Serper (Google Search) → real snippets + direct links.
+    fetch(`/api/benchmark/mentions?names=${encodeURIComponent(names.join(","))}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : { mentions: [] }))
+      .then((d) => { if (!cancelled) setMentions((d.mentions || []).slice(0, 10)); })
+      .catch(() => { if (!cancelled) setMentions([]); });
     return () => { cancelled = true; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -406,7 +395,7 @@ function MentionsSection({ names }: { names: string[] }) {
             <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot(m.sentiment)}`} title={m.sentiment} />
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] text-[#232D42] leading-snug line-clamp-2">{m.title}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${m.publishedAt}` : ""}</div>
             </div>
             <IconChevronRight size={13} className="text-gray-300 mt-1 shrink-0" />
           </button>
@@ -429,16 +418,18 @@ function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
   const pill = s === "positive" ? "bg-emerald-50 text-emerald-700" : s === "negative" ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-500";
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 shrink-0">
           <span className={`text-[11px] font-medium rounded-full px-2.5 py-1 capitalize ${pill}`}>{s}</span>
           <span className="text-[12px] text-gray-400 truncate">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}</span>
           <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
         </div>
-        <div className="px-5 py-5">
+        <div className="px-5 py-5 overflow-y-auto">
           <div className="text-[16px] font-semibold text-[#232D42] leading-snug">{m.title}</div>
-          {m.snippet && <div className="text-[13px] text-gray-600 mt-2 leading-relaxed">{m.snippet}</div>}
-          <div className="text-[11.5px] text-gray-400 mt-3">{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
+          {m.snippet
+            ? <div className="text-[13.5px] text-gray-700 leading-relaxed mt-2.5">{m.snippet}</div>
+            : <div className="text-[13px] text-gray-400 mt-2.5">No preview text — open the article to read the full story.</div>}
+          <div className="text-[11.5px] text-gray-400 mt-3">{m.source || m.platform}{m.publishedAt ? ` · ${m.publishedAt}` : ""}</div>
           <a href={m.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
             <IconExternalLink size={15} /> Open article
           </a>
