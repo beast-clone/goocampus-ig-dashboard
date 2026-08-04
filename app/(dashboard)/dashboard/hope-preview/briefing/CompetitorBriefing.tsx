@@ -4,7 +4,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch,
+  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText,
 } from "@tabler/icons-react";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
@@ -332,6 +332,7 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
   const [cur, setCur] = useState(q);
   const [rep, setRep] = useState<RankReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reader, setReader] = useState<{ url: string; title: string } | null>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
@@ -369,11 +370,11 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
             <>
               <div className="flex flex-col divide-y divide-gray-50">
                 {rep.organic.map((o, i) => (
-                  <a key={i} href={o.link} target="_blank" rel="noreferrer" className="block py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
+                  <button key={i} onClick={() => setReader({ url: o.link, title: o.title })} className="block w-full text-left py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
                     <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
                     <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
                     {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
-                  </a>
+                  </button>
                 ))}
               </div>
               {rep.peopleAlsoAsk?.length > 0 && (
@@ -398,6 +399,78 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
               )}
             </>
           )}
+        </div>
+      </div>
+      {reader && <PageReader url={reader.url} title={reader.title} onClose={() => setReader(null)} />}
+    </div>
+  );
+}
+
+// In-dashboard page reader — fetches any public URL server-side (Mozilla Readability
+// via /api/radar/article), strips scripts, and renders the cleaned article inline so a
+// clicked result opens INSIDE the dashboard. External deep-dive only via "Open full page".
+function PageReader({ url, title, onClose }: { url: string; title?: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [rawHtml, setRawHtml] = useState("");
+  const [artTitle, setArtTitle] = useState<string | null>(title || null);
+  const [site, setSite] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true); setError(null);
+    fetch(`/api/radar/article?url=${encodeURIComponent(url)}`, { signal: ctrl.signal, credentials: "same-origin" })
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
+      .then((d: { html?: string; title?: string | null; siteName?: string | null; error?: string }) => {
+        setRawHtml(d.html || ""); if (d.title) setArtTitle(d.title); setSite(d.siteName || null);
+        if (d.error && !d.html) setError(d.error);
+      })
+      .catch((e) => { if (e.name !== "AbortError") setError((e as Error).message); })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [url]);
+  const html = useMemo(() => rawHtml ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "") : "", [rawHtml]);
+  const host = useMemo(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }, [url]);
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconFileText size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-semibold text-[#232D42] truncate">{artTitle || host}</div>
+            <div className="text-[11px] text-gray-400 truncate">{site || host} · reading inside the dashboard</div>
+          </div>
+          <a href={url} target="_blank" rel="noreferrer" className="text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open full page <IconExternalLink size={12} /></a>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="text-center py-12"><div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-[12px] text-gray-500 mt-3">Loading the page inside the dashboard…</div></div>
+          ) : html ? (
+            <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />
+          ) : (
+            <div className="text-center py-10 text-[13px] text-gray-500">{error || "This page couldn't be shown inline."}<div className="mt-2"><a href={url} target="_blank" rel="noreferrer" className="text-brand hover:underline">Open full page ↗</a></div></div>
+          )}
+          <style jsx>{`
+            :global(.reader-content) { color: #1F2937; font-size: 14.5px; line-height: 1.7; }
+            :global(.reader-content h1) { font-size: 22px; font-weight: 600; margin: 24px 0 12px; color: #111827; line-height: 1.3; }
+            :global(.reader-content h2) { font-size: 18px; font-weight: 600; margin: 22px 0 10px; color: #111827; line-height: 1.35; }
+            :global(.reader-content h3) { font-size: 16px; font-weight: 600; margin: 18px 0 8px; color: #111827; }
+            :global(.reader-content p) { margin: 12px 0; }
+            :global(.reader-content a) { color: #3A57E8; text-decoration: underline; text-underline-offset: 2px; }
+            :global(.reader-content a:hover) { color: #2138B0; }
+            :global(.reader-content ul), :global(.reader-content ol) { margin: 12px 0; padding-left: 24px; }
+            :global(.reader-content li) { margin: 4px 0; }
+            :global(.reader-content blockquote) { border-left: 3px solid #E5E7EB; padding: 4px 0 4px 14px; margin: 14px 0; color: #4B5563; font-style: italic; }
+            :global(.reader-content img) { max-width: 100%; height: auto; border-radius: 8px; margin: 14px 0; }
+            :global(.reader-content table) { border-collapse: collapse; margin: 14px 0; width: 100%; }
+            :global(.reader-content th), :global(.reader-content td) { border: 1px solid #E5E7EB; padding: 6px 10px; text-align: left; font-size: 13px; }
+            :global(.reader-content th) { background: #F9FAFB; font-weight: 600; }
+          `}</style>
         </div>
       </div>
     </div>
@@ -447,6 +520,7 @@ function MentionsSection({ names }: { names: string[] }) {
 // Mention preview — opens INSIDE the dashboard. The article opens externally only via
 // the explicit "Open article" button.
 function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
+  const [reader, setReader] = useState(false);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
@@ -468,11 +542,17 @@ function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
             ? <div className="text-[13.5px] text-gray-700 leading-relaxed mt-2.5">{m.snippet}</div>
             : <div className="text-[13px] text-gray-400 mt-2.5">No preview text — open the article to read the full story.</div>}
           <div className="text-[11.5px] text-gray-400 mt-3">{m.source || m.platform}{m.publishedAt ? ` · ${m.publishedAt}` : ""}</div>
-          <a href={m.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
-            <IconExternalLink size={15} /> Open article
-          </a>
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={() => setReader(true)} className="inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
+              <IconFileText size={15} /> Read here
+            </button>
+            <a href={m.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-gray-200 text-[#4A5468] rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-gray-50">
+              <IconExternalLink size={15} /> Open on the site
+            </a>
+          </div>
         </div>
       </div>
+      {reader && <PageReader url={m.url} title={m.title} onClose={() => setReader(false)} />}
     </div>
   );
 }
