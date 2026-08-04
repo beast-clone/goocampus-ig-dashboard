@@ -328,22 +328,32 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
 type SerpResult = { position?: number; title: string; link: string; domain: string; snippet: string };
 type RankReport = { keyword: string; organic: SerpResult[]; peopleAlsoAsk: string[]; relatedSearches: string[]; error?: string };
 
-// Source-quality rating for a result — so the team knows at a glance whether a link
-// is worth taking data from. Rule-based (no AI): official exam/regulatory bodies are
-// authoritative; competitor + social pages are promotional; everything else is a
-// third-party reference you should verify against the primary source.
-type SourceRating = { level: "high" | "medium" | "low"; label: string; why: string };
-function sourcePriority(link: string): SourceRating {
+// Source rating — so the team knows whether a result is worth taking data from.
+// Rule-based (no AI), judged on TWO grounds, both derived from what Google returns
+// (the domain + the title/snippet) — we do NOT open each page:
+//   1. Authority: official exam/regulatory bodies > third-party info sites > competitor/social.
+//   2. Content signal: a login / expired / 404 page is downgraded even on an official
+//      domain, because there's nothing useful to read there.
+type SourceRating = { level: "high" | "medium" | "low"; label: string; short: string; why: string };
+function sourcePriority(link: string, title = "", snippet = ""): SourceRating {
   let host = "";
   try { host = new URL(link).hostname.replace(/^www\./, "").toLowerCase(); } catch { host = String(link).toLowerCase(); }
   const is = (arr: string[]) => arr.some((d) => host === d || host.endsWith("." + d));
+  const text = `${title} ${snippet}`.toLowerCase();
+
   const official = ["natboard.edu.in", "nbe.edu.in", "nmc.org.in", "mcc.nic.in", "nta.ac.in", "aiimsexams.ac.in", "dghs.gov.in", "mciindia.org", "digialm.com", "nlmc.gov.in"];
   const officialTld = host.endsWith(".gov.in") || host.endsWith(".nic.in") || host.endsWith(".edu.in") || host.endsWith(".ac.in");
-  if (is(official) || officialTld) return { level: "high", label: "Really important", why: "Official / primary source — safe to quote directly" };
+  const isOfficial = is(official) || officialTld;
   const social = ["instagram.com", "facebook.com", "youtube.com", "linkedin.com", "twitter.com", "x.com", "t.me", "threads.net"];
   const competitor = ["hellomentor.in", "hellomentor.ai", "academically.com", "academically.global"];
-  if (is(social) || is(competitor)) return { level: "low", label: "Not important", why: "Competitor / social page — promotional, not a neutral source" };
-  return { level: "medium", label: "Important", why: "Third-party reference — useful, but verify against the official source" };
+
+  // Content signal — transactional / dead pages have no readable info to take.
+  const dead = /\b(date expired|no longer available|form is no longer|expired|log ?in|sign ?in|user id|password|register here|404|page not found)\b/i.test(text);
+  if (dead) return { level: "low", label: "Not important", short: "Login / expired page", why: "Reads like a login or expired-form page — nothing useful to take, even though the site itself is official." };
+  if (is(social)) return { level: "low", label: "Not important", short: "Social profile", why: "A social-media profile — promotional, not a neutral source." };
+  if (is(competitor)) return { level: "low", label: "Not important", short: "Competitor page", why: "A competitor's own page — promotional, not a neutral source." };
+  if (isOfficial) return { level: "high", label: "Really important", short: "Official source", why: "Published by the exam board / regulator — authoritative, safe to quote directly." };
+  return { level: "medium", label: "Important", short: "3rd-party reference", why: "A third-party news / info site — useful, but verify against the official source." };
 }
 function PriorityPill({ p, mini }: { p: SourceRating; mini?: boolean }) {
   const cls = p.level === "high" ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -351,9 +361,29 @@ function PriorityPill({ p, mini }: { p: SourceRating; mini?: boolean }) {
     : "bg-gray-100 text-gray-500 border-gray-200";
   const dot = p.level === "high" ? "bg-emerald-500" : p.level === "medium" ? "bg-amber-500" : "bg-gray-400";
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
+    <span title={p.why} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />{p.label}
     </span>
+  );
+}
+// One search-result row — badge + short reason sit on the right so the grounds are
+// visible and the empty right-hand space is used.
+function ResultRow({ o, onOpen }: { o: SerpResult; onOpen: () => void }) {
+  const rt = sourcePriority(o.link, o.title, o.snippet);
+  return (
+    <button onClick={onOpen} className="block w-full text-left py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
+          <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
+          {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
+        </div>
+        <div className="shrink-0 w-[104px] flex flex-col items-end gap-1 pt-0.5">
+          <PriorityPill p={rt} />
+          <span className="text-[10px] text-gray-400 text-right leading-tight">{rt.short}</span>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -399,14 +429,7 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
             <>
               <div className="flex flex-col divide-y divide-gray-50">
                 {rep.organic.map((o, i) => (
-                  <button key={i} onClick={() => setReader({ url: o.link, title: o.title })} className="block w-full text-left py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
-                      <PriorityPill p={sourcePriority(o.link)} mini />
-                    </div>
-                    <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
-                    {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
-                  </button>
+                  <ResultRow key={i} o={o} onOpen={() => setReader({ url: o.link, title: o.title })} />
                 ))}
               </div>
               {rep.peopleAlsoAsk?.length > 0 && (
@@ -469,7 +492,7 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
   }, [url]);
   const html = useMemo(() => rawHtml ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "") : "", [rawHtml]);
   const host = useMemo(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }, [url]);
-  const rating = useMemo(() => sourcePriority(url), [url]);
+  const rating = useMemo(() => sourcePriority(url, title || ""), [url, title]);
   const banner = rating.level === "high" ? "bg-emerald-50/70 border-emerald-100" : rating.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
