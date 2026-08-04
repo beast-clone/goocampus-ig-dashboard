@@ -328,6 +328,35 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
 type SerpResult = { position?: number; title: string; link: string; domain: string; snippet: string };
 type RankReport = { keyword: string; organic: SerpResult[]; peopleAlsoAsk: string[]; relatedSearches: string[]; error?: string };
 
+// Source-quality rating for a result — so the team knows at a glance whether a link
+// is worth taking data from. Rule-based (no AI): official exam/regulatory bodies are
+// authoritative; competitor + social pages are promotional; everything else is a
+// third-party reference you should verify against the primary source.
+type SourceRating = { level: "high" | "medium" | "low"; label: string; why: string };
+function sourcePriority(link: string): SourceRating {
+  let host = "";
+  try { host = new URL(link).hostname.replace(/^www\./, "").toLowerCase(); } catch { host = String(link).toLowerCase(); }
+  const is = (arr: string[]) => arr.some((d) => host === d || host.endsWith("." + d));
+  const official = ["natboard.edu.in", "nbe.edu.in", "nmc.org.in", "mcc.nic.in", "nta.ac.in", "aiimsexams.ac.in", "dghs.gov.in", "mciindia.org", "digialm.com", "nlmc.gov.in"];
+  const officialTld = host.endsWith(".gov.in") || host.endsWith(".nic.in") || host.endsWith(".edu.in") || host.endsWith(".ac.in");
+  if (is(official) || officialTld) return { level: "high", label: "Really important", why: "Official / primary source — safe to quote directly" };
+  const social = ["instagram.com", "facebook.com", "youtube.com", "linkedin.com", "twitter.com", "x.com", "t.me", "threads.net"];
+  const competitor = ["hellomentor.in", "hellomentor.ai", "academically.com", "academically.global"];
+  if (is(social) || is(competitor)) return { level: "low", label: "Not important", why: "Competitor / social page — promotional, not a neutral source" };
+  return { level: "medium", label: "Important", why: "Third-party reference — useful, but verify against the official source" };
+}
+function PriorityPill({ p, mini }: { p: SourceRating; mini?: boolean }) {
+  const cls = p.level === "high" ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : p.level === "medium" ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-gray-100 text-gray-500 border-gray-200";
+  const dot = p.level === "high" ? "bg-emerald-500" : p.level === "medium" ? "bg-amber-500" : "bg-gray-400";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />{p.label}
+    </span>
+  );
+}
+
 function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
   const [cur, setCur] = useState(q);
   const [rep, setRep] = useState<RankReport | null>(null);
@@ -371,7 +400,10 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
               <div className="flex flex-col divide-y divide-gray-50">
                 {rep.organic.map((o, i) => (
                   <button key={i} onClick={() => setReader({ url: o.link, title: o.title })} className="block w-full text-left py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
-                    <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
+                      <PriorityPill p={sourcePriority(o.link)} mini />
+                    </div>
                     <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
                     {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
                   </button>
@@ -415,6 +447,7 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
   const [artTitle, setArtTitle] = useState<string | null>(title || null);
   const [site, setSite] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
@@ -422,10 +455,11 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
   }, [onClose]);
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); setPdfUrl(null); setRawHtml("");
     fetch(`/api/radar/article?url=${encodeURIComponent(url)}`, { signal: ctrl.signal, credentials: "same-origin" })
       .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
-      .then((d: { html?: string; title?: string | null; siteName?: string | null; error?: string }) => {
+      .then((d: { html?: string; title?: string | null; siteName?: string | null; error?: string; isPdf?: boolean; finalUrl?: string }) => {
+        if (d.isPdf) { setPdfUrl(d.finalUrl || url); return; }
         setRawHtml(d.html || ""); if (d.title) setArtTitle(d.title); setSite(d.siteName || null);
         if (d.error && !d.html) setError(d.error);
       })
@@ -435,21 +469,30 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
   }, [url]);
   const html = useMemo(() => rawHtml ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "") : "", [rawHtml]);
   const host = useMemo(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }, [url]);
+  const rating = useMemo(() => sourcePriority(url), [url]);
+  const banner = rating.level === "high" ? "bg-emerald-50/70 border-emerald-100" : rating.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconFileText size={16} /></span>
           <div className="min-w-0 flex-1">
-            <div className="text-[13.5px] font-semibold text-[#232D42] truncate">{artTitle || host}</div>
+            <div className="text-[13.5px] font-semibold text-[#232D42] truncate">{artTitle || host}{pdfUrl ? " (PDF)" : ""}</div>
             <div className="text-[11px] text-gray-400 truncate">{site || host} · reading inside the dashboard</div>
           </div>
-          <a href={url} target="_blank" rel="noreferrer" className="text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open full page <IconExternalLink size={12} /></a>
+          <a href={pdfUrl || url} target="_blank" rel="noreferrer" className="text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open full page <IconExternalLink size={12} /></a>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
+        </div>
+        {/* Source-quality banner — tells the team how much to trust this link before reading. */}
+        <div className={`flex items-center gap-2 px-5 py-2 border-b ${banner} shrink-0`}>
+          <PriorityPill p={rating} />
+          <span className="text-[12px] text-gray-500 min-w-0 truncate">{rating.why}</span>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
             <div className="text-center py-12"><div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-[12px] text-gray-500 mt-3">Loading the page inside the dashboard…</div></div>
+          ) : pdfUrl ? (
+            <iframe title="PDF preview" src={`https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(pdfUrl)}`} className="w-full h-[74vh] rounded-lg border border-gray-100" />
           ) : html ? (
             <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />
           ) : (

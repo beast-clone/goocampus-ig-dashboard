@@ -89,6 +89,13 @@ export async function GET(req: Request) {
       redirect: "follow",
     });
     if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
+    // PDFs (e.g. official exam notices / web notices) can't go through Readability —
+    // the raw bytes render as mojibake. Detect them and hand back a flag so the
+    // reader embeds the PDF (via the Google viewer) instead of parsing it as HTML.
+    const ctype = (r.headers.get("content-type") || "").toLowerCase();
+    if (ctype.includes("application/pdf") || /\.pdf(?:$|[?#])/i.test(resolved)) {
+      return NextResponse.json({ isPdf: true, finalUrl: r.url || resolved, title: null });
+    }
     const html = await r.text();
     if (html.length > MAX_HTML_LEN) {
       throw new Error("Article HTML too large");
