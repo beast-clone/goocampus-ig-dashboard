@@ -4,7 +4,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText,
+  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText, IconSparkles,
 } from "@tabler/icons-react";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
@@ -490,10 +490,29 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, [url]);
+  // AI verdict ("Approach B"): rate this page ON OPEN by reading its real text, cached
+  // per-URL server-side. Until it lands (or if AI is unavailable) we show the instant
+  // rule-based estimate; the AI verdict replaces it and is marked as read-checked.
+  const [ai, setAi] = useState<(SourceRating & { relevance?: number; cached?: boolean }) | null>(null);
+  const [aiState, setAiState] = useState<"loading" | "done" | "off">("loading");
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setAi(null); setAiState("loading");
+    fetch(`/api/benchmark/rate?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || "")}`, { signal: ctrl.signal, credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d: { ai?: boolean; level?: "high" | "medium" | "low"; label?: string; why?: string; relevance?: number; cached?: boolean }) => {
+        if (d.ai && d.level && d.label) { setAi({ level: d.level, label: d.label, short: "AI-checked", why: d.why || "", relevance: d.relevance, cached: d.cached }); setAiState("done"); }
+        else setAiState("off");
+      })
+      .catch((e) => { if (e.name !== "AbortError") setAiState("off"); });
+    return () => ctrl.abort();
+  }, [url, title]);
+
   const html = useMemo(() => rawHtml ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "") : "", [rawHtml]);
   const host = useMemo(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }, [url]);
   const rating = useMemo(() => sourcePriority(url, title || ""), [url, title]);
-  const banner = rating.level === "high" ? "bg-emerald-50/70 border-emerald-100" : rating.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
+  const shown = ai || rating;
+  const banner = shown.level === "high" ? "bg-emerald-50/70 border-emerald-100" : shown.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -506,10 +525,20 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
           <a href={pdfUrl || url} target="_blank" rel="noreferrer" className="text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open full page <IconExternalLink size={12} /></a>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
         </div>
-        {/* Source-quality banner — tells the team how much to trust this link before reading. */}
+        {/* Source-quality banner — how much to trust this link. Rule-based estimate first,
+            then upgraded to an AI verdict that actually read the page (cached per URL). */}
         <div className={`flex items-center gap-2 px-5 py-2 border-b ${banner} shrink-0`}>
-          <PriorityPill p={rating} />
-          <span className="text-[12px] text-gray-500 min-w-0 truncate">{rating.why}</span>
+          <PriorityPill p={shown} />
+          <span className="text-[12px] text-gray-500 min-w-0 truncate flex-1">{shown.why}</span>
+          {ai ? (
+            <span className="inline-flex items-center gap-1 text-[10.5px] text-emerald-600 shrink-0" title={`Rated by reading the page${ai.cached ? " (cached)" : ""}`}>
+              <IconSparkles size={12} />{typeof ai.relevance === "number" ? `${ai.relevance}% relevant` : "AI-checked"}
+            </span>
+          ) : aiState === "loading" ? (
+            <span className="inline-flex items-center gap-1 text-[10.5px] text-gray-400 shrink-0"><span className="w-3 h-3 border-2 border-gray-200 border-t-brand rounded-full animate-spin" />reading…</span>
+          ) : (
+            <span className="text-[10.5px] text-gray-400 shrink-0" title="AI credit unavailable — showing a quick estimate from the domain + headline">quick estimate</span>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
