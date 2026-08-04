@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import {
-  IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconExternalLink, IconHeart,
+  IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
   IconSpeakerphone, IconFlame, IconPlugConnected, IconTrendingUp, IconMessages,
 } from "@tabler/icons-react";
@@ -23,6 +23,12 @@ type Competitor = {
 type BenchmarkData = { competitors: (Competitor | { error: string; username: string })[] };
 // A post flattened with its author so cards/modal know who posted it.
 type Post = Media & { author: string; authorPic?: string };
+type YtVid = { id: string; title: string; channel: string; thumbnail: string; publishedAt: string; views: number; url: string };
+
+// Meta Ad Library deep-link for a competitor (the API doesn't expose India commercial
+// ads, but the public library site does — so we link straight to their live ads).
+const adLibraryUrl = (name: string) =>
+  `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=IN&q=${encodeURIComponent(name)}&search_type=keyword_unordered&media_type=all`;
 
 const isComp = (c: BenchmarkData["competitors"][number]): c is Competitor => !("error" in c);
 const nfmt = (n: number | undefined) => (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}k` : String(n ?? 0);
@@ -48,7 +54,12 @@ export function CompetitorBriefing({ person }: { person: string }) {
   const igLatest = useMemo(() => [...allPosts].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 10), [allPosts]);
   const topByReach = useMemo(() => [...allPosts].sort((a, b) => eng(b) - eng(a)).slice(0, 10), [allPosts]);
 
+  // Competitor YouTube uploads (public data via the YouTube API key).
+  const { data: ytData, isLoading: ytLoading } = useApi<{ videos: YtVid[] }>(`/api/benchmark/youtube`);
+  const ytVideos = ytData?.videos || [];
+
   const [open, setOpen] = useState<Post | null>(null);
+  const [openYt, setOpenYt] = useState<YtVid | null>(null);
 
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -106,14 +117,15 @@ export function CompetitorBriefing({ person }: { person: string }) {
         )}
       </Section>
 
-      {/* LinkedIn — placeholder (needs a competitor-channel connector) */}
-      <Section title="LinkedIn — competitor posts" badge="Connect" icon={<IconBrandLinkedin size={15} className="text-brand" />}>
-        <ConnectPlaceholder platform="LinkedIn" note="Add competitor LinkedIn company pages to pull their posts here. Needs a LinkedIn competitor-channel connector." />
-      </Section>
-
-      {/* YouTube — placeholder */}
-      <Section title="YouTube — competitor uploads" badge="Connect" icon={<IconBrandYoutube size={15} className="text-brand" />}>
-        <ConnectPlaceholder platform="YouTube" note="Add competitor YouTube channels to pull their latest uploads with thumbnails. Needs a YouTube competitor-channel connector." />
+      {/* YouTube — live competitor uploads (public data) */}
+      <Section title="YouTube — latest competitor uploads" badge="Live" right="newest first · click to play here" icon={<IconBrandYoutube size={15} className="text-brand" />}>
+        {ytLoading ? <CardSkeleton n={5} /> : ytVideos.length === 0 ? (
+          <Empty>No competitor YouTube uploads loaded. Add channels in competitor-youtube.json.</Empty>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            {ytVideos.slice(0, 8).map((v) => <YtCard key={v.id} v={v} onOpen={() => setOpenYt(v)} />)}
+          </div>
+        )}
       </Section>
 
       {/* Top competitor content — same card style as the latest-posts grid */}
@@ -129,8 +141,18 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* Ads + Mentions */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <Section title="Competitor ads running now" badge="Connect" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
-          <ConnectPlaceholder platform="Meta Ad Library" note="See which ads competitors are actively running (creatives, placements, how long live). Needs the Meta Ad Library connector authorized." />
+        <Section title="Competitor ads running now" badge="Live · Meta Ad Library" icon={<IconSpeakerphone size={15} className="text-brand" />} flat>
+          <div className="text-[12px] text-gray-500 mb-3">Meta&rsquo;s Ad Library shows every ad a page is running right now. Open a competitor&rsquo;s live ads:</div>
+          <div className="flex flex-col gap-2">
+            {competitors.map((c) => (
+              <a key={c.username} href={adLibraryUrl(nameOf(c).split("|")[0].trim())} target="_blank" rel="noreferrer"
+                className="flex items-center gap-2.5 border border-gray-100 rounded-xl px-3 py-2.5 hover:border-brand hover:bg-brand-light/40 transition">
+                <Avatar url={c.profile_picture_url} name={nameOf(c)} size={30} />
+                <span className="text-[13px] font-medium text-[#232D42] truncate flex-1">{nameOf(c).split("|")[0].trim()}</span>
+                <span className="text-[12px] text-brand inline-flex items-center gap-1 shrink-0">View live ads <IconExternalLink size={12} /></span>
+              </a>
+            ))}
+          </div>
         </Section>
         <Section title="What people are saying" badge="Connect" icon={<IconMessages size={15} className="text-brand" />} flat>
           <ConnectPlaceholder platform="Mentions" note="Public mentions & comments about competitors (Reddit, Quora, review sites) will surface here so you can see sentiment. Needs the mentions connector." />
@@ -138,6 +160,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
       </div>
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
+      {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
     </div>
   );
 }
@@ -234,6 +257,51 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
             <span className="inline-flex items-center gap-1"><IconHeart size={14} /> {nfmt(p.like_count)}</span>
             <span className="inline-flex items-center gap-1"><IconMessageCircle size={14} /> {nfmt(p.comments_count)}</span>
             {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" className="ml-auto text-brand hover:underline inline-flex items-center gap-1">Open on Instagram <IconExternalLink size={12} /></a>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YtCard({ v, onOpen }: { v: YtVid; onOpen: () => void }) {
+  return (
+    <button onClick={onOpen} className="text-left bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-brand hover:shadow-sm transition group">
+      <div className="relative aspect-video bg-gray-100">
+        {v.thumbnail
+          ? <img src={v.thumbnail} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-gray-300"><IconBrandYoutube size={24} /></div>}
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-10 h-10 rounded-full bg-black/60 group-hover:bg-red-600 transition flex items-center justify-center text-white"><IconBrandYoutube size={20} /></span>
+        </span>
+      </div>
+      <div className="p-2.5">
+        <div className="text-[12px] font-medium text-[#232D42] line-clamp-2 leading-snug min-h-[32px]">{v.title}</div>
+        <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-500">
+          <span className="truncate">{v.channel}</span>
+          <span className="ml-auto shrink-0">{nfmt(v.views)} views</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="aspect-video bg-black">
+          <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${v.id}?autoplay=1`} title={v.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+        </div>
+        <div className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-medium text-[#232D42]">{v.title}</div>
+              <div className="text-[11.5px] text-gray-400 mt-0.5">{v.channel} · {nfmt(v.views)} views · {ago(v.publishedAt)}</div>
+            </div>
+            <a href={v.url} target="_blank" rel="noreferrer" className="text-brand text-[12px] inline-flex items-center gap-1 shrink-0">YouTube <IconExternalLink size={12} /></a>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
           </div>
         </div>
       </div>
