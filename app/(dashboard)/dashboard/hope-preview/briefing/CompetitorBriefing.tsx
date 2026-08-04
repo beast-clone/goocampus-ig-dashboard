@@ -4,7 +4,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconFlame, IconTrendingUp, IconMessages,
+  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch,
 } from "@tabler/icons-react";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
@@ -89,7 +89,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
       </div>
 
       {/* Competitor scoreboard */}
-      <Section title="Competitor scoreboard" badge="Live · Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={15} className="text-brand" />}>
+      <Section title="Competitor scoreboard" badge="Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={18} />} accent="#3A57E8">
         {isLoading ? <RowSkeleton n={3} /> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {competitors.map((c) => (
@@ -117,18 +117,18 @@ export function CompetitorBriefing({ person }: { person: string }) {
       </Section>
 
       {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
-      <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={15} className="text-brand" />}>
+      <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={18} />} accent="#6E48F8">
         {isLoading ? <CardSkeleton n={10} /> : igLatest.length === 0 ? (
           <Empty>No competitor Instagram posts loaded yet.</Empty>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
             {igLatest.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
           </div>
         )}
       </Section>
 
       {/* YouTube — live competitor uploads (public data) */}
-      <Section title="YouTube — latest competitor uploads" badge="Live" right="newest first · click to play here" icon={<IconBrandYoutube size={15} className="text-brand" />}>
+      <Section title="YouTube — latest competitor uploads" badge="Live" right="newest first · click to play here" icon={<IconBrandYoutube size={18} />} accent="#079AA2">
         {ytLoading ? <CardSkeleton n={5} /> : ytVideos.length === 0 ? (
           <Empty>No competitor YouTube uploads loaded. Add channels in competitor-youtube.json.</Empty>
         ) : (
@@ -139,11 +139,11 @@ export function CompetitorBriefing({ person }: { person: string }) {
       </Section>
 
       {/* Top competitor content — same card style as the latest-posts grid */}
-      <Section title="Top competitor content" badge="Live · Instagram" right="most engagement · recent · click to open here" icon={<IconTrendingUp size={15} className="text-brand" />}>
+      <Section title="Top competitor content" badge="Instagram" right="most engagement · recent · click to open here" icon={<IconStar size={18} />} accent="#0EA5E9">
         {isLoading ? <CardSkeleton n={10} /> : topByReach.length === 0 ? (
           <Empty>No competitor content loaded yet.</Empty>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
             {topByReach.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
           </div>
         )}
@@ -151,7 +151,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {/* What students are searching now — Google Trends, enlarged. Seeds come from the
           topics you track in Content Radar → Manage alerts. */}
-      <Section title="What students are searching now" badge="Live · Google Trends" right="audience demand · add keywords in Content Radar → Manage alerts" icon={<IconTrendingUp size={16} className="text-brand" />} flat>
+      <Section title="What students are searching now" badge="Google Trends" right="audience demand · add keywords in Content Radar → Manage alerts" icon={<IconSearch size={18} />} accent="#3A57E8" flat>
         {(trends?.breakouts?.length ?? 0) > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
             {trends!.breakouts.slice(0, 6).map((b, i) => (
@@ -176,7 +176,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
       </Section>
 
       {/* What people are saying — full width */}
-      <Section title="What people are saying" badge="Live · News & web" right="about your competitors" icon={<IconMessages size={15} className="text-brand" />} flat>
+      <Section title="What people are saying" badge="News & web" right="about your competitors" icon={<IconMessages size={18} />} accent="#079AA2" flat>
         <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
       </Section>
 
@@ -187,19 +187,24 @@ export function CompetitorBriefing({ person }: { person: string }) {
 }
 
 // ── building blocks ──
-function Section({ title, badge, right, icon, children, flat }: { title: string; badge?: string; right?: string; icon?: React.ReactNode; children: React.ReactNode; flat?: boolean }) {
+// Prominent, colour-coded section header so each block is instantly distinguishable.
+function Section({ title, badge, right, icon, children, flat, accent = "#3A57E8" }: { title: string; badge?: string; right?: string; icon?: React.ReactNode; children: React.ReactNode; flat?: boolean; accent?: string }) {
   const inner = (
     <>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {icon}
-        <span className="text-[14px] font-semibold text-[#232D42]">{title}</span>
-        {badge && <span className={`text-[10.5px] font-medium rounded-full px-2 py-0.5 ${badge === "Connect" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{badge}</span>}
-        {right && <span className="ml-auto text-[11.5px] text-gray-400">{right}</span>}
+      <div className="flex items-center gap-3 mb-4">
+        {icon && <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl shrink-0" style={{ background: `${accent}1A`, color: accent }}>{icon}</span>}
+        <div className="min-w-0 flex-1">
+          <div className="text-[16.5px] font-semibold text-[#232D42] leading-tight">{title}</div>
+          {right && <div className="text-[11.5px] text-gray-400 mt-0.5 truncate">{right}</div>}
+        </div>
+        {badge && <span className="text-[11px] font-medium rounded-full px-2.5 py-1 shrink-0 self-start" style={{ background: `${accent}14`, color: accent }}>{badge}</span>}
       </div>
       {children}
     </>
   );
-  return flat ? <div className="bg-white border border-gray-100 rounded-2xl p-5">{inner}</div> : <div>{inner}</div>;
+  return flat
+    ? <div className="bg-white border border-gray-100 rounded-2xl p-5">{inner}</div>
+    : <div className="bg-white border border-gray-100 rounded-2xl p-5">{inner}</div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
