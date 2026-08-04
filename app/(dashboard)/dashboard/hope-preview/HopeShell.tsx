@@ -4,7 +4,7 @@ import { HopeSidebar } from "./HopeSidebar";
 // (HopeSidebar) + an optional topbar. Used by every cloned tab (via
 // HopeDashboardShell) so all V2 pages share one identical Hope chrome.
 export type HopeTab =
-  | "my-day" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
+  | "my-day" | "my-workspace" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "sales" | "organic-sales" | "ai-insights" | "ai-reports"
   | "integrations" | "diagnostics" | "tools" | "team" | "account" | "reports" | "assistant";

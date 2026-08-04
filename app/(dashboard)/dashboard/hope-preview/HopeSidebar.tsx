@@ -28,13 +28,14 @@ const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 
 const GROUPS: Group[] = [
   { label: "Content", items: [
-    { key: "marketing-hub", label: "Marketing Hub", icon: IconChartBar, href: `${HUB}/marketing-hub?tab=team`, children: [
+    { key: "my-workspace", label: "My Workspace", icon: IconSunHigh, href: `${HUB}/briefing`, children: [
+      { label: "Briefing",         href: `${HUB}/briefing`,                   icon: IconChartBar },
+      { label: "My Day",           href: `${HUB}/my-day`,                     icon: IconSunHigh },
       { label: "Workload",         href: `${HUB}/marketing-hub?tab=team`,     icon: IconUsers },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     ] },
-    { label: "My Workspace",        href: `${HUB}/my-day`,       icon: IconSunHigh },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
   ] },
