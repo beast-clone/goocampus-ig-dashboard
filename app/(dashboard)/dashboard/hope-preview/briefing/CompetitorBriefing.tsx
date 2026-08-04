@@ -23,7 +23,6 @@ type BenchmarkData = { competitors: (Competitor | { error: string; username: str
 // A post flattened with its author so cards/modal know who posted it.
 type Post = Media & { author: string; authorPic?: string };
 
-const HANDLES = "moksh_mbbs,rusvelt_global,studymbbsinrussia.in,metglobaleducation,amcaustralia,img_australia,australianmedicalcouncil";
 const isComp = (c: BenchmarkData["competitors"][number]): c is Competitor => !("error" in c);
 const nfmt = (n: number | undefined) => (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}k` : String(n ?? 0);
 const ago = (iso: string) => {
@@ -36,7 +35,9 @@ const nameOf = (c: Competitor) => c.name || c.username;
 const eng = (m: Media) => (m.like_count || 0) + (m.comments_count || 0);
 
 export function CompetitorBriefing({ person }: { person: string }) {
-  const { data, isLoading } = useApi<BenchmarkData>(`/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(HANDLES)}`);
+  // Competitors come from competitors.json (the default niche) — edit that file to
+  // add/remove competitors and the whole briefing updates.
+  const { data, isLoading } = useApi<BenchmarkData>(`/api/benchmark?accountId=goocampus`);
   const competitors = useMemo(() => (data?.competitors || []).filter(isComp), [data]);
 
   // Every competitor post, tagged with its author.

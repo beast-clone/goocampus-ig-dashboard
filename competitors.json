@@ -1,12 +1,8 @@
 {
   "niches": [
     {
-      "name": "MBBS Abroad",
-      "handles": ["moksh_mbbs", "rusvelt_global", "studymbbsinrussia.in", "metglobaleducation"]
-    },
-    {
-      "name": "AMC / IMG",
-      "handles": ["amcaustralia", "img_australia", "australianmedicalcouncil"]
+      "name": "Competitors",
+      "handles": ["hellomentor.in", "academically.global"]
     }
   ]
 }
