@@ -168,7 +168,7 @@ export function CompetitorBriefing() {
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
-      {openTrend && <TrendModal q={openTrend} related={risingQueries} onPick={setOpenTrend} onClose={() => setOpenTrend(null)} />}
+      {openTrend && <TrendModal q={openTrend} onClose={() => setOpenTrend(null)} />}
     </div>
   );
 }
@@ -322,36 +322,25 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
   );
 }
 
-// Rising-search preview — opens INSIDE the dashboard. Shows the query + related rising
-// searches; only the explicit "Open in Google" button leaves the dashboard.
-function TrendModal({ q, related, onPick, onClose }: { q: string; related: string[]; onPick: (q: string) => void; onClose: () => void }) {
+// Rising-search preview — opens INSIDE the dashboard. Clean, single-purpose card:
+// the search term + two clear actions. Only the buttons leave the dashboard.
+function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
-  const others = related.filter((r) => r !== q).slice(0, 8);
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconSearch size={16} /></span>
-          <div className="text-[13px] font-medium text-[#232D42]">Rising search · Google Trends</div>
+          <div className="text-[13px] font-medium text-[#232D42]">Rising search on Google</div>
           <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
         </div>
-        <div className="px-5 py-5">
-          <div className="text-[19px] font-semibold text-[#232D42] leading-snug">&ldquo;{q}&rdquo;</div>
-          <div className="text-[12.5px] text-gray-500 mt-1">Students are searching this right now. Turn it into a post, or dig into the live results.</div>
-          {others.length > 0 && (
-            <div className="mt-4">
-              <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Related rising searches</div>
-              <div className="flex flex-wrap gap-2">
-                {others.map((r, i) => (
-                  <button key={i} onClick={() => onPick(r)} className="text-[12px] bg-gray-50 hover:bg-brand-light text-[#4A5468] rounded-full px-3 py-1.5 transition">{r}</button>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="px-5 py-6">
+          <div className="text-[18px] font-semibold text-[#232D42] leading-snug">{q}</div>
+          <div className="text-[13px] text-gray-500 mt-1.5">Students are searching this on Google right now — a strong topic to turn into content.</div>
           <div className="flex gap-2 mt-5">
             <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
               <IconExternalLink size={15} /> Open in Google
