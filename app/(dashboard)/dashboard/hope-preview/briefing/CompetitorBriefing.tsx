@@ -24,6 +24,9 @@ type BenchmarkData = { competitors: (Competitor | { error: string; username: str
 // A post flattened with its author so cards/modal know who posted it.
 type Post = Media & { author: string; authorPic?: string };
 type YtVid = { id: string; title: string; channel: string; thumbnail: string; publishedAt: string; views: number; url: string };
+// Google Trends (free) — audience demand, from /api/radar/trends.
+type TrendBreakout = { title: string; trafficNum?: number; traffic?: string; articles?: { title: string; url: string; source: string | null }[] };
+type TrendsResp = { breakouts: TrendBreakout[]; ideas: { seed: string; ideas: string[] }[]; fetchedAt?: string };
 
 // Meta Ad Library deep-link for a competitor (the API doesn't expose India commercial
 // ads, but the public library site does — so we link straight to their live ads).
@@ -57,6 +60,16 @@ export function CompetitorBriefing({ person }: { person: string }) {
   // Competitor YouTube uploads (public data via the YouTube API key).
   const { data: ytData, isLoading: ytLoading } = useApi<{ videos: YtVid[] }>(`/api/benchmark/youtube`);
   const ytVideos = ytData?.videos || [];
+
+  // Google Trends — what the audience is searching (demand, not competitor data).
+  const { data: trends } = useApi<TrendsResp>(`/api/radar/trends`);
+  const risingQueries = useMemo(() => {
+    const seen = new Set<string>(); const out: string[] = [];
+    for (const g of trends?.ideas || []) for (const q of g.ideas) {
+      const k = q.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(q); }
+    }
+    return out.slice(0, 18);
+  }, [trends]);
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
@@ -137,6 +150,31 @@ export function CompetitorBriefing({ person }: { person: string }) {
             {topByReach.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
           </div>
         )}
+      </Section>
+
+      {/* What students are searching now — Google Trends (audience demand, not competitors) */}
+      <Section title="What students are searching now" badge="Live · Google Trends" right="audience demand · not a competitor" icon={<IconTrendingUp size={15} className="text-brand" />} flat>
+        {(trends?.breakouts?.length ?? 0) > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 mb-3">
+            {trends!.breakouts.slice(0, 3).map((b, i) => (
+              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(b.title)}`} target="_blank" rel="noreferrer" className="border border-gray-100 rounded-xl p-3 hover:border-brand transition block">
+                <div className="text-[13px] font-medium text-[#232D42]">{b.title}</div>
+                {(b.traffic || b.trafficNum) && <div className="text-[11px] text-emerald-600 mt-0.5">↑ {b.traffic || `${(b.trafficNum || 0).toLocaleString()}+ searches`}</div>}
+              </a>
+            ))}
+          </div>
+        )}
+        {risingQueries.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {risingQueries.map((q, i) => (
+              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[12px] bg-white border border-gray-200 hover:border-brand hover:bg-brand-light/40 text-[#232D42] rounded-full px-3 py-1.5 transition">
+                <IconTrendingUp size={12} className="text-brand" /> {q}
+              </a>
+            ))}
+          </div>
+        ) : <div className="text-[12.5px] text-gray-400">Loading rising searches…</div>}
+        <div className="text-[11px] text-gray-400 mt-3">Real rising queries around your topics (Google Autocomplete + Daily Trends, free). Use these to pick what to write next.</div>
       </Section>
 
       {/* Ads + Mentions */}
