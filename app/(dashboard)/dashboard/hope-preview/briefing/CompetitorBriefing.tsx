@@ -492,7 +492,7 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
           {loading ? (
             <div className="text-center py-12"><div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-[12px] text-gray-500 mt-3">Loading the page inside the dashboard…</div></div>
           ) : pdfUrl ? (
-            <iframe title="PDF preview" src={`https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(pdfUrl)}`} className="w-full h-[74vh] rounded-lg border border-gray-100" />
+            <iframe title="PDF preview" src={`/api/radar/pdf?url=${encodeURIComponent(pdfUrl)}`} className="w-full h-[74vh] rounded-lg border border-gray-100" />
           ) : html ? (
             <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />
           ) : (
