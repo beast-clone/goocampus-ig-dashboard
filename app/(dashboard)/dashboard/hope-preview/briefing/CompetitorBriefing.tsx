@@ -322,33 +322,82 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
   );
 }
 
-// Rising-search preview — opens INSIDE the dashboard. Clean, single-purpose card:
-// the search term + two clear actions. Only the buttons leave the dashboard.
+// Rising-search results — the actual Google results shown INSIDE the dashboard (via
+// Serper; Google's own page can't be embedded). People-also-ask + related searches are
+// clickable to keep browsing without leaving. Only a result / "Open in Google" leaves.
+type SerpResult = { position?: number; title: string; link: string; domain: string; snippet: string };
+type RankReport = { keyword: string; organic: SerpResult[]; peopleAlsoAsk: string[]; relatedSearches: string[]; error?: string };
+
 function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
+  const [cur, setCur] = useState(q);
+  const [rep, setRep] = useState<RankReport | null>(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setRep(null);
+    fetch(`/api/seo/rank?q=${encodeURIComponent(cur)}`, { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) { setRep(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setRep({ keyword: cur, organic: [], peopleAlsoAsk: [], relatedSearches: [], error: "Could not load results" }); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [cur]);
+
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(cur)}`;
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconSearch size={16} /></span>
-          <div className="text-[13px] font-medium text-[#232D42]">Rising search on Google</div>
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
-        </div>
-        <div className="px-5 py-6">
-          <div className="text-[18px] font-semibold text-[#232D42] leading-snug">{q}</div>
-          <div className="text-[13px] text-gray-500 mt-1.5">Students are searching this on Google right now — a strong topic to turn into content.</div>
-          <div className="flex gap-2 mt-5">
-            <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
-              <IconExternalLink size={15} /> Open in Google
-            </a>
-            <a href={`https://trends.google.com/trends/explore?geo=IN&q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-gray-200 text-[#4A5468] rounded-xl px-4 py-2.5 text-[13px] font-medium hover:border-gray-300">
-              <IconTrendingUp size={15} /> See the trend
-            </a>
+      <div className="bg-white rounded-2xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconSearch size={16} /></span>
+          <div className="min-w-0">
+            <div className="text-[14px] font-semibold text-[#232D42] truncate">{cur}</div>
+            <div className="text-[11px] text-gray-400">Google results · what students find when they search this</div>
           </div>
+          <a href={googleUrl} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open in Google <IconExternalLink size={12} /></a>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />)}</div>
+          ) : rep?.error || !rep?.organic?.length ? (
+            <div className="text-center py-10 text-[13px] text-gray-500">{rep?.error || "No results to show."}<div className="mt-2"><a href={googleUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">Open in Google ↗</a></div></div>
+          ) : (
+            <>
+              <div className="flex flex-col divide-y divide-gray-50">
+                {rep.organic.map((o, i) => (
+                  <a key={i} href={o.link} target="_blank" rel="noreferrer" className="block py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
+                    <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
+                    <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
+                    {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
+                  </a>
+                ))}
+              </div>
+              {rep.peopleAlsoAsk?.length > 0 && (
+                <div className="mt-5">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">People also ask</div>
+                  <div className="flex flex-col gap-1.5">
+                    {rep.peopleAlsoAsk.map((p, i) => (
+                      <button key={i} onClick={() => setCur(p)} className="text-left text-[12.5px] text-[#232D42] border border-gray-100 rounded-lg px-3 py-2 hover:border-brand hover:bg-brand-light/30 transition">{p}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {rep.relatedSearches?.length > 0 && (
+                <div className="mt-5">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Related searches</div>
+                  <div className="flex flex-wrap gap-2">
+                    {rep.relatedSearches.map((r, i) => (
+                      <button key={i} onClick={() => setCur(r)} className="text-[12px] bg-gray-50 hover:bg-brand-light text-[#4A5468] rounded-full px-3 py-1.5 transition">{r}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
