@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { requireCapability } from "@/lib/api-guard";
 
 // Simple CRUD on mh_post_collaborators for the Team pills in the detail panel.
 //   POST   /api/marketing-hub/collaborators  { postId, memberKey }
@@ -11,6 +12,9 @@ const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
   try {
+    const denied = await requireCapability("edit_tasks");
+    if (denied) return denied;
+
     const body = (await req.json()) as { postId?: string; memberKey?: string; memberKeys?: string[] };
     if (!body.postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
 
@@ -39,6 +43,9 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const denied = await requireCapability("edit_tasks");
+    if (denied) return denied;
+
     const url = new URL(req.url);
     const postId = url.searchParams.get("postId");
     const memberKey = url.searchParams.get("memberKey");

@@ -3,13 +3,17 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { getSessionUserId } from "@/lib/auth";
+import { requireCapability } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/delete  { id, actor? }
 // Removes ONE mh_posts row. Gated in the UI by the `delete_tasks` capability
 // (Team permissions). Child rows are cleared first in case FKs aren't cascading.
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as { id?: string; actor?: string };
+    const denied = await requireCapability("delete_tasks");
+    if (denied) return denied;
+
+    const body = (await req.json()) as { id?: string };
     if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
     const sb = getSupabase();
@@ -18,7 +22,7 @@ export async function POST(req: Request) {
     const before = await sb.from("mh_posts").select("id, particulars").eq("id", body.id).single();
     if (before.error) throw new Error(before.error.message);
 
-    const actor = body.actor || getSessionUserId() || "system";
+    const actor = getSessionUserId() || "system";
 
     // Clear child rows first (ignore errors — some may cascade or not exist).
     await sb.from("mh_post_collaborators").delete().eq("post_id", body.id);

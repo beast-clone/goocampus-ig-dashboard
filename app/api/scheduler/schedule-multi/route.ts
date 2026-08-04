@@ -55,6 +55,10 @@ export async function POST(req: Request) {
     if (extra.length) {
       const rows = extra.map((page) => ({
         ...src,
+        // Clones are Supabase-native rows, not Airtable-sourced. Inheriting the
+        // source's airtable_record_id makes link-back write the published URL to the
+        // wrong row (and would trip a unique constraint), so clear it.
+        airtable_record_id: null,
         schedule_time: iso,
         publish_status: "scheduled",
         publish_to_pages: [page],

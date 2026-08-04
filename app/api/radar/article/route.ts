@@ -53,6 +53,29 @@ async function assertPublicUrl(urlStr: string): Promise<void> {
   for (const a of addrs) if (isPrivateIp(a.address)) throw new Error("blocked resolved ip");
 }
 
+// Sanitize the reader HTML before it goes to the client (rendered via
+// dangerouslySetInnerHTML). Readability strips <script>, but NOT event-handler
+// attributes, so `<img src=x onerror=...>` / `<svg onload=...>` survive and fire
+// when inserted through innerHTML. Scrub them here (JSDOM is already a dep):
+//  - remove executable / embedding elements (svg/math can carry handlers too)
+//  - drop every on* attribute
+//  - neutralise javascript:/vbscript: URLs on link/src attributes
+function sanitizeArticleHtml(rawHtml: string): string {
+  const frag = new JSDOM(`<!doctype html><body>${rawHtml}</body>`);
+  const d = frag.window.document;
+  d.querySelectorAll("script,noscript,style,iframe,object,embed,form,base,link,meta,template,svg,math").forEach((el) => el.remove());
+  const BAD_PROTO = /^\s*(javascript|vbscript):/i;
+  const URL_ATTRS = new Set(["href", "src", "xlink:href", "srcset", "formaction", "action", "background", "poster"]);
+  for (const el of Array.from(d.querySelectorAll("*"))) {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on")) el.removeAttribute(attr.name);
+      else if (URL_ATTRS.has(name) && BAD_PROTO.test(attr.value)) el.removeAttribute(attr.name);
+    }
+  }
+  return d.body.innerHTML;
+}
+
 async function resolveRedirect(url: string): Promise<string> {
   try {
     const r = await fetchWithTimeout(url, {
@@ -89,6 +112,10 @@ export async function GET(req: Request) {
       redirect: "follow",
     });
     if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
+    // The GET can follow a redirect the HEAD check didn't see (a server can answer
+    // HEAD and GET differently). Re-validate the FINAL url before we read/return the
+    // body, so it can't be pointed at an internal / cloud-metadata address.
+    await assertPublicUrl(r.url || resolved);
     // PDFs (e.g. official exam notices / web notices) can't go through Readability —
     // the raw bytes render as mojibake. Detect them and hand back a flag so the
     // reader embeds the PDF (via the Google viewer) instead of parsing it as HTML.
@@ -120,9 +147,11 @@ export async function GET(req: Request) {
     const article = new Readability(doc, { charThreshold: 200 }).parse();
 
     if (article && article.content && (article.textContent?.length ?? 0) > 200) {
-      const content = article.content.length > MAX_CONTENT_LEN
-        ? article.content.slice(0, MAX_CONTENT_LEN) + "<p><em>…(truncated)</em></p>"
-        : article.content;
+      const content = sanitizeArticleHtml(
+        article.content.length > MAX_CONTENT_LEN
+          ? article.content.slice(0, MAX_CONTENT_LEN) + "<p><em>…(truncated)</em></p>"
+          : article.content,
+      );
       return NextResponse.json({
         title: article.title || metaTitle,
         byline: article.byline || null,
@@ -137,7 +166,7 @@ export async function GET(req: Request) {
     // Fallback: use the OG description as a mini-article. Better than nothing —
     // most publishers pack their lede paragraph into og:description.
     if (metaDescription) {
-      const fallbackHtml = `${metaImage ? `<img src="${metaImage}" alt="" />` : ""}<p>${metaDescription}</p><p><em>This publisher renders the full article via JavaScript, so only the summary is available inline. Use "Open on the site" below for the full text.</em></p>`;
+      const fallbackHtml = sanitizeArticleHtml(`${metaImage ? `<img src="${metaImage}" alt="" />` : ""}<p>${metaDescription}</p><p><em>This publisher renders the full article via JavaScript, so only the summary is available inline. Use "Open on the site" below for the full text.</em></p>`);
       return NextResponse.json({
         title: metaTitle,
         byline: null,

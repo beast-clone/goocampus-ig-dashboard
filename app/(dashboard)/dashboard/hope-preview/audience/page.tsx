@@ -133,20 +133,13 @@ function Audience({ accountId }: { accountId: string }) {
   // Track fetchedAt + latency for the LiveIndicator chip
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
-  const [tick, setTick] = useState(0);
   const fetchStartRef = useRef<number>(0);
   useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
   useEffect(() => {
     if (data && !isLoading) { setFetchedAt(Date.now()); setLastLatencyMs(Date.now() - fetchStartRef.current); }
   }, [data, isLoading]);
 
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-
   const persona = useMemo(() => buildPersona(data ?? null), [data]);
-  void tick; // legacy — kept for safety, no-op
 
   if (loading && !data) return <div className="text-sm text-gray-500">Loading live audience…</div>;
   if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error.message}</div>;

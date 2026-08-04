@@ -30,3 +30,6 @@ public/pdf.worker.min.mjs
 
 # macOS AppleDouble sidecars (exFAT drive)
 ._*
+
+# never track .env.local backups (they hold real secrets)
+.env.local*

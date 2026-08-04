@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
+import { requireCapability } from "@/lib/api-guard";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -52,6 +53,9 @@ const OWNER_ALIASES: Record<string, string> = {
 
 export async function PATCH(req: Request) {
   try {
+    const denied = await requireCapability("edit_tasks");
+    if (denied) return denied;
+
     const body = (await req.json()) as UpdateBody;
     if (!body.id) return NextResponse.json({ error: "id is required" }, { status: 400 });
     if (!body.fields || Object.keys(body.fields).length === 0) {

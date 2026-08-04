@@ -3,6 +3,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
+import { requireCapability } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey }
 // Swaps ownership: the incoming person becomes the owner, the old owner is dropped from collabs
@@ -12,6 +13,9 @@ const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
   try {
+    const denied = await requireCapability("edit_tasks");
+    if (denied) return denied;
+
     const body = (await req.json()) as { postId?: string; newOwnerKey?: string };
     if (!body.postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     if (!body.newOwnerKey || !VALID_KEYS.has(body.newOwnerKey)) {

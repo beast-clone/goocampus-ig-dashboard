@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
+import { requireSection } from "@/lib/api-guard";
 import { airtableList, dateRangeFormula, pickName, pickNumber, CRM_TABLE } from "@/lib/sales-hub";
 
 // GET /api/leads-crm/counsellor?name=Robin%20Johnson%20J&from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -47,6 +48,11 @@ const CRM_FIELDS = [
 ];
 
 export async function GET(req: Request) {
+  // Same sales-lead PII (names + mobile numbers) as the parent /api/leads-crm —
+  // gate behind the "sales" section so the UI's tab-access can't be bypassed.
+  const denied = await requireSection("sales");
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const name = url.searchParams.get("name") || "";
   const from = url.searchParams.get("from") || "";

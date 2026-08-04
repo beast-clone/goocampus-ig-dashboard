@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { requireCapability } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/create
 // Creates ONE row in mh_posts (Supabase).
@@ -40,6 +41,9 @@ function normalizeOwner(v: string | undefined): string | null {
 
 export async function POST(req: Request) {
   try {
+    const denied = await requireCapability("create_tasks");
+    if (denied) return denied;
+
     const body = (await req.json()) as CreateBody;
     if (!body.title || body.title.trim().length === 0) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });

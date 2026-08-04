@@ -52,8 +52,11 @@ export async function GET() {
     }
     const vidIds = raw.map((v) => v.id).filter(Boolean);
     const statsMap: Record<string, number> = {};
-    if (vidIds.length) {
-      const st = await fetch(`${API}/videos?part=statistics&id=${vidIds.join(",")}&key=${key}`).then((r) => r.json());
+    // The YouTube Data API caps `id` at 50 per call. Chunk so channels beyond the
+    // first ~8 still get real view counts instead of silently reading as 0.
+    for (let i = 0; i < vidIds.length; i += 50) {
+      const chunk = vidIds.slice(i, i + 50);
+      const st = await fetch(`${API}/videos?part=statistics&id=${chunk.join(",")}&key=${key}`).then((r) => r.json());
       for (const it of st.items || []) statsMap[it.id] = Number(it.statistics?.viewCount || 0);
     }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { requireSection } from "@/lib/api-guard";
 import {
   airtableList,
   dateRangeFormula,
@@ -175,6 +176,11 @@ function topN<T>(entries: T[], n: number, getCount: (t: T) => number): T[] {
 }
 
 export async function GET(req: Request) {
+  // Sales-lead PII (names, phone numbers) — gate behind the "sales" section so the
+  // UI's tab-access can't be bypassed by hitting this endpoint directly.
+  const denied = await requireSection("sales");
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";

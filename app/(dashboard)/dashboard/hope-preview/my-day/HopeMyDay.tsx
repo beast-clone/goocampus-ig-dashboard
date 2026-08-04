@@ -1519,7 +1519,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   }, [person]);
   useEffect(() => {
     loadChat();
-    const id = setInterval(loadChat, 15_000);
+    // Skip the poll while the tab is hidden — don't hammer the network in background
+    // tabs; the next tick after refocus catches up (≤15s).
+    const id = setInterval(() => { if (!document.hidden) loadChat(); }, 15_000);
     return () => clearInterval(id);
   }, [loadChat]);
   useEffect(() => { // person switch: fresh chat buffer + their read-state, reminders and day-clock
@@ -2183,7 +2185,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       } catch { /* keep the last batch on a transient error */ }
     };
     pull();
-    const id = setInterval(pull, 20_000);
+    // Skip the data pull while the tab is hidden (background tabs shouldn't poll);
+    // the next tick after refocus refreshes (≤20s).
+    const id = setInterval(() => { if (!document.hidden) pull(); }, 20_000);
     return () => { alive = false; clearInterval(id); };
   }, [person]);
   // My-tasks row → expands inline in the "Up next" panel (setSel).

@@ -400,7 +400,11 @@ async function fetchOnlineFollowersRaw(
       const map = day.value || {};
       const keys = Object.keys(map);
       if (keys.length === 0) continue;
-      const weekday = new Date(day.end_time).getUTCDay(); // 0=Sun..6=Sat
+      // Normalise to Mon-first (0=Mon..6=Sun) to match DAY_LABELS / nextOccurrence
+      // in scheduler-helpers.ts — getUTCDay() is Sun-first, and consuming it as-is
+      // shifted every "best time to post" suggestion by the Sun/Mon offset.
+      const js = new Date(day.end_time).getUTCDay(); // 0=Sun..6=Sat
+      const weekday = js === 0 ? 6 : js - 1;
       for (const k of keys) {
         const hour = parseInt(k, 10);
         if (Number.isNaN(hour)) continue;
