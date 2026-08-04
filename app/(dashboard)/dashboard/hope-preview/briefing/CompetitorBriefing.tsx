@@ -41,7 +41,7 @@ const ago = (iso: string) => {
 const nameOf = (c: Competitor) => c.name || c.username;
 const eng = (m: Media) => (m.like_count || 0) + (m.comments_count || 0);
 
-export function CompetitorBriefing({ person }: { person: string }) {
+export function CompetitorBriefing() {
   // Competitors come from competitors.json (the default niche) — edit that file to
   // add/remove competitors and the whole briefing updates.
   const { data, isLoading } = useApi<BenchmarkData>(`/api/benchmark?accountId=goocampus`);
@@ -70,24 +70,10 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
-
-  const hour = new Date().getHours();
-  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const who = person ? person.charAt(0).toUpperCase() + person.slice(1) : "team";
+  const [openTrend, setOpenTrend] = useState<string | null>(null);
 
   return (
     <div className="hope-scope space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl px-6 py-5" style={{ background: "linear-gradient(100deg,#3A57E8,#6E48F8)" }}>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-white text-[19px] font-semibold">Competitor radar · {greet}, {who}</div>
-            <div className="text-[#D7DDFB] text-[12.5px] mt-0.5">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · what the competition is doing — everything here is about them, not us.</div>
-          </div>
-          <span className="inline-flex items-center gap-1.5 bg-white/15 text-white rounded-full px-3 py-1.5 text-[12px]"><span className="w-1.5 h-1.5 rounded-full bg-emerald-300" /> Instagram · live</span>
-        </div>
-      </div>
-
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={18} />} accent="#3A57E8">
         {isLoading ? <RowSkeleton n={3} /> : (
@@ -155,24 +141,24 @@ export function CompetitorBriefing({ person }: { person: string }) {
         {(trends?.breakouts?.length ?? 0) > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
             {trends!.breakouts.slice(0, 6).map((b, i) => (
-              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(b.title)}`} target="_blank" rel="noreferrer" className="border border-gray-100 rounded-xl p-3.5 hover:border-brand transition block">
+              <button key={i} onClick={() => setOpenTrend(b.title)} className="text-left border border-gray-100 rounded-xl p-3.5 hover:border-brand transition block w-full">
                 <div className="text-[13.5px] font-medium text-[#232D42]">{b.title}</div>
                 {(b.traffic || b.trafficNum) && <div className="text-[12px] text-emerald-600 mt-0.5">↑ {b.traffic || `${(b.trafficNum || 0).toLocaleString()}+ searches`}</div>}
-              </a>
+              </button>
             ))}
           </div>
         )}
         {risingQueries.length > 0 ? (
           <div className="flex flex-wrap gap-2.5">
             {risingQueries.map((q, i) => (
-              <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer"
+              <button key={i} onClick={() => setOpenTrend(q)}
                 className="inline-flex items-center gap-1.5 text-[13.5px] bg-white border border-gray-200 hover:border-brand hover:bg-brand-light/40 text-[#232D42] rounded-full px-4 py-2 transition">
                 <IconTrendingUp size={13} className="text-brand" /> {q}
-              </a>
+              </button>
             ))}
           </div>
         ) : <div className="text-[13px] text-gray-400">Loading rising searches…</div>}
-        <div className="text-[12px] text-gray-400 mt-4">Real rising queries around your tracked topics (Google Autocomplete + Daily Trends, free). Add or change topics in <b>Content Radar → Manage alerts</b> — then pick what to write next.</div>
+        <div className="text-[12px] text-gray-400 mt-4">Real rising queries around your tracked topics (Google Autocomplete + Daily Trends, free). Click one to preview; add or change topics in <b>Content Radar → Manage alerts</b>.</div>
       </Section>
 
       {/* What people are saying — full width */}
@@ -182,6 +168,7 @@ export function CompetitorBriefing({ person }: { person: string }) {
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
+      {openTrend && <TrendModal q={openTrend} related={risingQueries} onPick={setOpenTrend} onClose={() => setOpenTrend(null)} />}
     </div>
   );
 }
@@ -335,10 +322,55 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
   );
 }
 
+// Rising-search preview — opens INSIDE the dashboard. Shows the query + related rising
+// searches; only the explicit "Open in Google" button leaves the dashboard.
+function TrendModal({ q, related, onPick, onClose }: { q: string; related: string[]; onPick: (q: string) => void; onClose: () => void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  const others = related.filter((r) => r !== q).slice(0, 8);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconSearch size={16} /></span>
+          <div className="text-[13px] font-medium text-[#232D42]">Rising search · Google Trends</div>
+          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
+        </div>
+        <div className="px-5 py-5">
+          <div className="text-[19px] font-semibold text-[#232D42] leading-snug">&ldquo;{q}&rdquo;</div>
+          <div className="text-[12.5px] text-gray-500 mt-1">Students are searching this right now. Turn it into a post, or dig into the live results.</div>
+          {others.length > 0 && (
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Related rising searches</div>
+              <div className="flex flex-wrap gap-2">
+                {others.map((r, i) => (
+                  <button key={i} onClick={() => onPick(r)} className="text-[12px] bg-gray-50 hover:bg-brand-light text-[#4A5468] rounded-full px-3 py-1.5 transition">{r}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2 mt-5">
+            <a href={`https://www.google.com/search?q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
+              <IconExternalLink size={15} /> Open in Google
+            </a>
+            <a href={`https://trends.google.com/trends/explore?geo=IN&q=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-gray-200 text-[#4A5468] rounded-xl px-4 py-2.5 text-[13px] font-medium hover:border-gray-300">
+              <IconTrendingUp size={15} /> See the trend
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Live competitor mentions — searches each competitor name via /api/radar/search
 // (Google News + web) and shows recent items with sentiment.
 function MentionsSection({ names }: { names: string[] }) {
   const [mentions, setMentions] = useState<Mention[] | null>(null);
+  const [openM, setOpenM] = useState<Mention | null>(null);
   const key = names.join("|");
   useEffect(() => {
     if (!names.length) { setMentions([]); return; }
@@ -367,17 +399,51 @@ function MentionsSection({ names }: { names: string[] }) {
 
   const dot = (s: Mention["sentiment"]) => s === "positive" ? "bg-emerald-500" : s === "negative" ? "bg-rose-500" : "bg-gray-300";
   return (
-    <div className="flex flex-col divide-y divide-gray-50">
-      {mentions.map((m, i) => (
-        <a key={i} href={m.url} target="_blank" rel="noreferrer" className="flex items-start gap-2.5 py-2.5 hover:bg-brand-light/40 rounded-lg px-1 transition">
-          <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot(m.sentiment)}`} title={m.sentiment} />
-          <div className="min-w-0 flex-1">
-            <div className="text-[12.5px] text-[#232D42] leading-snug line-clamp-2">{m.title}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
-          </div>
-          <IconExternalLink size={12} className="text-gray-300 mt-1 shrink-0" />
-        </a>
-      ))}
+    <>
+      <div className="flex flex-col divide-y divide-gray-50">
+        {mentions.map((m, i) => (
+          <button key={i} onClick={() => setOpenM(m)} className="flex items-start gap-2.5 py-2.5 hover:bg-brand-light/40 rounded-lg px-1 transition text-left w-full">
+            <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot(m.sentiment)}`} title={m.sentiment} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] text-[#232D42] leading-snug line-clamp-2">{m.title}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
+            </div>
+            <IconChevronRight size={13} className="text-gray-300 mt-1 shrink-0" />
+          </button>
+        ))}
+      </div>
+      {openM && <MentionModal m={openM} onClose={() => setOpenM(null)} />}
+    </>
+  );
+}
+
+// Mention preview — opens INSIDE the dashboard. The article opens externally only via
+// the explicit "Open article" button.
+function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  const s = m.sentiment;
+  const pill = s === "positive" ? "bg-emerald-50 text-emerald-700" : s === "negative" ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-500";
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+          <span className={`text-[11px] font-medium rounded-full px-2.5 py-1 capitalize ${pill}`}>{s}</span>
+          <span className="text-[12px] text-gray-400 truncate">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}</span>
+          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
+        </div>
+        <div className="px-5 py-5">
+          <div className="text-[16px] font-semibold text-[#232D42] leading-snug">{m.title}</div>
+          {m.snippet && <div className="text-[13px] text-gray-600 mt-2 leading-relaxed">{m.snippet}</div>}
+          <div className="text-[11.5px] text-gray-400 mt-3">{m.source || m.platform}{m.publishedAt ? ` · ${ago(m.publishedAt)}` : ""}</div>
+          <a href={m.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
+            <IconExternalLink size={15} /> Open article
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
