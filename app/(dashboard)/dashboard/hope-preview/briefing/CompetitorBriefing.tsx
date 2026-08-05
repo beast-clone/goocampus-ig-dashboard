@@ -241,7 +241,7 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
   const s = slides[i];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 overflow-hidden max-h-[92vh] md:h-[82vh]" onClick={(e) => e.stopPropagation()}>
         {/* Media */}
         <div className="relative overflow-hidden bg-gray-900 min-h-[340px] md:h-full">
@@ -302,7 +302,7 @@ function YtCard({ v, onOpen }: { v: YtVid; onOpen: () => void }) {
 function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 !mt-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="aspect-video bg-black">
           <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${v.id}?autoplay=1`} title={v.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
@@ -409,7 +409,7 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
 
   const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(cur)}`;
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconSearch size={16} /></span>
@@ -514,7 +514,7 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
   const shown = ai || rating;
   const banner = shown.level === "high" ? "bg-emerald-50/70 border-emerald-100" : shown.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 !mt-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconFileText size={16} /></span>
@@ -624,7 +624,7 @@ function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
   const s = m.sentiment;
   const pill = s === "positive" ? "bg-emerald-50 text-emerald-700" : s === "negative" ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-500";
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 shrink-0">
           <span className={`text-[11px] font-medium rounded-full px-2.5 py-1 capitalize ${pill}`}>{s}</span>
