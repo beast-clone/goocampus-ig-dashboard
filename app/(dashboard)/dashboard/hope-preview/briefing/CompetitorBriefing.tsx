@@ -242,19 +242,19 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 overflow-hidden max-h-[92vh] md:h-[82vh]" onClick={(e) => e.stopPropagation()}>
         {/* Media */}
-        <div className="relative bg-black flex items-center justify-center min-h-[320px]">
+        <div className="relative overflow-hidden bg-gray-900 min-h-[340px] md:h-full">
           {s.type === "VIDEO" && s.url
-            ? <video src={s.url} poster={s.thumb} controls className="max-h-[90vh] w-full object-contain" />
+            ? <video src={s.url} poster={s.thumb} controls className="absolute inset-0 w-full h-full object-cover" />
             : (s.url || s.thumb)
-              ? <img src={s.url || s.thumb} alt="" referrerPolicy="no-referrer" className="max-h-[90vh] w-full object-contain" />
-              : <div className="text-gray-500 text-sm p-10">Media preview unavailable</div>}
+              ? <img src={s.url || s.thumb} alt="" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover" />
+              : <div className="flex items-center justify-center h-full text-gray-300 text-sm p-10">Media preview unavailable</div>}
           {slides.length > 1 && (
             <>
-              <button onClick={() => setI((v) => Math.max(0, v - 1))} disabled={i === 0} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-1.5 disabled:opacity-30"><IconChevronLeft size={18} /></button>
-              <button onClick={() => setI((v) => Math.min(slides.length - 1, v + 1))} disabled={i === slides.length - 1} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-1.5 disabled:opacity-30"><IconChevronRight size={18} /></button>
-              <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/55 text-white text-[11px] rounded-full px-2 py-0.5">{i + 1} / {slides.length}</span>
+              <button onClick={() => setI((v) => Math.max(0, v - 1))} disabled={i === 0} className="absolute z-20 left-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-1.5 disabled:opacity-30"><IconChevronLeft size={18} /></button>
+              <button onClick={() => setI((v) => Math.min(slides.length - 1, v + 1))} disabled={i === slides.length - 1} className="absolute z-20 right-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-1.5 disabled:opacity-30"><IconChevronRight size={18} /></button>
+              <span className="absolute z-20 bottom-2 left-1/2 -translate-x-1/2 bg-black/55 text-white text-[11px] rounded-full px-2 py-0.5">{i + 1} / {slides.length}</span>
             </>
           )}
         </div>
@@ -361,7 +361,7 @@ function PriorityPill({ p, mini }: { p: SourceRating; mini?: boolean }) {
     : "bg-gray-100 text-gray-500 border-gray-200";
   const dot = p.level === "high" ? "bg-emerald-500" : p.level === "medium" ? "bg-amber-500" : "bg-gray-400";
   return (
-    <span title={p.why} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
+    <span title={p.why} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />{p.label}
     </span>
   );
@@ -378,7 +378,7 @@ function ResultRow({ o, onOpen }: { o: SerpResult; onOpen: () => void }) {
           <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
           {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
         </div>
-        <div className="shrink-0 w-[104px] flex flex-col items-end gap-1 pt-0.5">
+        <div className="shrink-0 w-[132px] flex flex-col items-end gap-1 pt-0.5">
           <PriorityPill p={rt} />
           <span className="text-[10px] text-gray-400 text-right leading-tight">{rt.short}</span>
         </div>
