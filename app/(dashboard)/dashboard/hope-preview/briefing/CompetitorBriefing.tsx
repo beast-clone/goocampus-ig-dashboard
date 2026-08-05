@@ -242,14 +242,16 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 overflow-hidden max-h-[92vh] md:h-[82vh]" onClick={(e) => e.stopPropagation()}>
-        {/* Media */}
-        <div className="relative overflow-hidden bg-gray-900 min-h-[340px] md:h-full">
+      <div className="bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row w-[94vw] md:w-auto max-w-[94vw] max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+        {/* Media — shown at its TRUE aspect (a vertical reel stays vertical and fully
+            visible, a square post stays square). The panel shrink-wraps the media, so
+            there are no letterbox bars and nothing gets cropped. */}
+        <div className="relative bg-gray-900 shrink-0 flex items-center justify-center overflow-hidden">
           {s.type === "VIDEO" && s.url
-            ? <video src={s.url} poster={s.thumb} controls className="absolute inset-0 w-full h-full object-cover" />
+            ? <video src={s.url} poster={s.thumb} controls className="block max-h-[58vh] md:max-h-[86vh] w-auto max-w-full md:max-w-[480px] object-contain" />
             : (s.url || s.thumb)
-              ? <img src={s.url || s.thumb} alt="" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover" />
-              : <div className="flex items-center justify-center h-full text-gray-300 text-sm p-10">Media preview unavailable</div>}
+              ? <img src={s.url || s.thumb} alt="" referrerPolicy="no-referrer" className="block max-h-[58vh] md:max-h-[86vh] w-auto max-w-full md:max-w-[480px] object-contain" />
+              : <div className="flex items-center justify-center min-h-[300px] w-[300px] text-gray-300 text-sm p-10">Media preview unavailable</div>}
           {slides.length > 1 && (
             <>
               <button onClick={() => setI((v) => Math.max(0, v - 1))} disabled={i === 0} className="absolute z-20 left-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-1.5 disabled:opacity-30"><IconChevronLeft size={18} /></button>
@@ -259,13 +261,13 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
           )}
         </div>
         {/* Meta */}
-        <div className="p-5 flex flex-col min-h-0">
+        <div className="p-5 flex flex-col min-h-0 w-full md:w-[360px]">
           <div className="flex items-center gap-2 mb-3">
             <Avatar url={p.authorPic} name={p.author} />
             <div className="min-w-0"><div className="text-[13px] font-semibold text-[#232D42] truncate">{p.author}</div><div className="text-[11px] text-gray-400">{ago(p.timestamp)} · {p.media_type === "CAROUSEL_ALBUM" ? "Carousel" : p.media_type === "VIDEO" ? "Video" : "Image"}</div></div>
             <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
           </div>
-          <div className="text-[13px] text-gray-700 whitespace-pre-wrap leading-relaxed overflow-y-auto flex-1">{p.caption || "(no caption)"}</div>
+          <div className="text-[13px] text-gray-700 whitespace-pre-wrap leading-relaxed overflow-y-auto flex-1 min-h-0">{p.caption || "(no caption)"}</div>
           <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-[12.5px] text-gray-600">
             <span className="inline-flex items-center gap-1"><IconHeart size={14} /> {nfmt(p.like_count)}</span>
             <span className="inline-flex items-center gap-1"><IconMessageCircle size={14} /> {nfmt(p.comments_count)}</span>
