@@ -1870,7 +1870,11 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     const DAY = 86_400_000;
     const today = new Date(todayStr + "T00:00:00").getTime();
     const out: { id: string; title: string; text: string }[] = [];
-    for (const t of [...claimedTasks, ...tasks].filter(isMine)) {
+    // Drive reminders off workingTasks — the SAME set the task list shows — so a
+    // reminder is always a task the person can actually find and act on (a producer's
+    // list hides the content phase, so its reminders must too; else you get phantom
+    // "overdue" nudges for tasks that never appear in the list).
+    for (const t of workingTasks) {
       if (me.name === "Manya" && (t.status === "Content - Pending" || t.status === "Content - In Progress")) {
         const age = t.detail.createdAt ? Math.floor((today - new Date(t.detail.createdAt).getTime()) / DAY) : 0;
         if (age >= 2) out.push({ id: t.id, title: t.title, text: `pending ${age} days — why still open?` });
@@ -1880,7 +1884,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       }
     }
     return out;
-  }, [tasks, claimedTasks, me.name, todayStr]);
+  }, [workingTasks, me.name, todayStr]);
   const planBlocks = useMemo(() => {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
