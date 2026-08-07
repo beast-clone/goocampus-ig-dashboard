@@ -44,6 +44,8 @@ export function HopeDashboardShell({
   children: (ctx: { accountId: string; compareAll: boolean; range: Range; setRange: (r: Range) => void }) => React.ReactNode;
 }) {
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
+  // Real Instagram profile pictures for the account picker (accountId -> data URI).
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [range, setRange] = useState<Range>({
     from: format(subDays(new Date(), 30), "yyyy-MM-dd"),
     to: format(new Date(), "yyyy-MM-dd"),
@@ -57,6 +59,18 @@ export function HopeDashboardShell({
       window.localStorage.setItem(LS_COMPARE, "0");
     } catch { /* private-mode — fall back to defaults */ }
   }, []);
+
+  // Pull the accounts' real IG logos once; the picker falls back to text-only
+  // until they arrive (and per-image if a load fails). Skipped in profile view.
+  useEffect(() => {
+    if (hideAccountPicker) return;
+    let alive = true;
+    fetch("/api/account-avatars")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j?.avatars) setAvatars(j.avatars as Record<string, string>); })
+      .catch(() => { /* text-only picker */ });
+    return () => { alive = false; };
+  }, [hideAccountPicker]);
 
   const setAccountId = (id: string) => {
     setAccountIdRaw(id);
@@ -102,7 +116,7 @@ export function HopeDashboardShell({
                 <HopeSelect
                   value={accountId}
                   onChange={setAccountId}
-                  options={ACCOUNTS.map((a) => ({ value: a.id, label: a.label }))}
+                  options={ACCOUNTS.map((a) => ({ value: a.id, label: a.label, img: avatars[a.id] }))}
                 />
               ))}
               <TokenExpiryBadge />

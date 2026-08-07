@@ -1710,7 +1710,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)) : [],
     [isEditor, curTab.key, claimPool, claimedTasks],
   );
-  const planModalTask = planModalId ? tasks.find((t) => t.id === planModalId) || null : null;
+  const planModalTask = planModalId ? [...tasks, ...claimedTasks, ...samvaya].find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
   //  • CONTENT-FIRST HANDOFF: when the WRITER's task hits "Content - Approved", it
   //    auto-hands off to the producer by Type — design → Praveen (owner), video →
@@ -1861,7 +1861,11 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     const PRANK: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
     // Same role rule as dayFor: Manya plans only her pre-approval writing; producers
     // plan only approved work. So an approved (even urgent) task leaves Manya's timeline.
-    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+    // Nandu's Samvaya / other-platform work also lands on HIS timeline (spec §14) — it's
+    // real time on his day — while staying out of everyone else's board and out of the
+    // GooCampus lists. The dedicated Samvaya section below still shows the detail.
+    const base = me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks];
+    const mine = base.filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
       onTimelineFor(me.name, t.status));
     setPlan((p) => {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
@@ -1880,21 +1884,21 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       }
       return keep.length === p.length && missing.length === 0 ? p : [...keep.slice(0, at), ...high, ...keep.slice(at), ...rest];
     });
-  }, [tasks, claimedTasks, me.name]);
+  }, [tasks, claimedTasks, samvaya, me.name]);
 
   // Lay the (reorderable) tasks across the day, dropping the protected 1-hour
   // lunch in around 1 PM and filling the tail with buffer.
   // Today's plan is PER-PERSON: only the current person's own, still-in-production
   // tasks land on their timeline (output-ready/published/other people's are excluded).
   const myPlan = useMemo(() => {
-    const all = [...claimedTasks, ...tasks];
+    const all = me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks];
     return plan.flatMap((p) => {
       const t = all.find((x) => x.id === p.taskId);
       if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
       if (!onTimelineFor(me.name, t.status)) return []; // approved work is off Manya's timeline
-      return [{ ...p, high: isHot(t.detail.priority) }];
+      return [{ ...p, high: isHot(t.detail.priority), samvaya: samvaya.some((s) => s.id === t.id) }];
     });
-  }, [plan, tasks, claimedTasks, me.name]);
+  }, [plan, tasks, claimedTasks, samvaya, me.name]);
   // Capacity cap (spec §9, fixes Bug 3): only what fits the 8h shift lands on the
   // timeline; the rest SPILLS OVER (shown separately) instead of cramming 28h into 8h.
   const { fitPlan, spillPlan } = useMemo(() => {
@@ -1928,7 +1932,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     return out;
   }, [workingTasks, me.name, todayStr]);
   const planBlocks = useMemo(() => {
-    type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
+    type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean; samvaya?: boolean };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
     // Anchor the plan to the SHIFT START (9 AM, or 10 AM for Nandu's late shift), the
@@ -1950,12 +1954,12 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       // Part that fits before lunch.
       if (!lunchDone && cursor < LUNCH_AT) {
         const before = Math.min(remaining, LUNCH_AT - cursor);
-        if (before > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: before, high: p.high }); cursor += before; remaining -= before; }
+        if (before > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: before, high: p.high, samvaya: p.samvaya }); cursor += before; remaining -= before; }
         // The task runs into lunch → drop the protected lunch and continue after it (SPLIT).
         if (remaining > 0) { pushLunch(); cursor = LUNCH_END; }
       }
       // Remainder after lunch (or the whole task if it's already past 2 PM).
-      if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining, high: p.high }); cursor += remaining; }
+      if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining, high: p.high, samvaya: p.samvaya }); cursor += remaining; }
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     return out;
@@ -2597,7 +2601,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
               {planBlocks.map((b) => (
                 <div
                   key={`${b.kind}-${b.key || b.taskId || ""}-${b.start}`}
-                  className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.kind === "reel" ? "clickable" : ""}`}
+                  className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.samvaya ? "samvaya" : ""} ${b.kind === "reel" ? "clickable" : ""}`}
                   draggable={b.kind === "reel"}
                   onDragStart={b.kind === "reel" ? (e) => { dragKey.current = b.key!; grabDX.current = e.clientX - e.currentTarget.getBoundingClientRect().left; } : undefined}
                   onDragEnd={b.kind === "reel" ? () => { dragKey.current = null; setDropAt(null); } : undefined}
@@ -2611,8 +2615,8 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
                       <button className="tl-nudge r" title="Move later" onClick={(e) => { e.stopPropagation(); movePlan(b.key!, 1); }}>›</button>
                     </>
                   )}
-                  <div className="tl-t">{b.label}</div>
-                  <div className="tl-m">{b.kind === "reel" ? `${b.high ? "High priority · " : ""}Reel · ${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
+                  <div className="tl-t">{b.samvaya && <span className="tl-tag">Samvaya</span>}{b.label}</div>
+                  <div className="tl-m">{b.kind === "reel" ? `${b.samvaya ? "Samvaya · " : b.high ? "High priority · " : ""}${b.samvaya ? "" : "Reel · "}${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
                 </div>
               ))}
               {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /><span className="now-tag">● now</span></div>}
@@ -3221,6 +3225,10 @@ const CSS = `
 .hmd .tl-blk.reel.high:hover{filter:brightness(1.06)}
 .hmd .tl-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 6px,#DFE3EE 6px,#DFE3EE 12px);color:var(--muted);border-right:1px solid rgba(255,255,255,.5)}
 .hmd .tl-blk.buffer{background:repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9 6px,#E9ECF2 6px,#E9ECF2 12px);color:var(--faint)}
+/* Samvaya / other-platform work — a distinct teal so it never reads as GooCampus work. */
+.hmd .tl-blk.reel.samvaya{background:linear-gradient(135deg,#12B3A6,#0E8E86)}
+.hmd .tl-blk.reel.samvaya:hover{filter:brightness(1.06)}
+.hmd .tl-tag{display:inline-block;background:rgba(255,255,255,.24);font-size:.55rem;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;margin-right:.35rem;vertical-align:middle;text-transform:uppercase}
 .hmd .tl-t{font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .tl-m{font-size:.62rem;opacity:.85;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hmd .tl-nudge{position:absolute;top:50%;transform:translateY(-50%);width:18px;height:40px;border:none;border-radius:6px;background:rgba(255,255,255,.26);color:#fff;font-size:1.05rem;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;display:flex;align-items:center;justify-content:center;z-index:3;padding:0}
