@@ -96,7 +96,10 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
     title: r.particulars || "Untitled",
     meta: owner === "Unclaimed" ? `${type} · unclaimed` : `${type} · owned by ${owner}`,
     status: r.status,
-    due: ymd(r.due_date) || ymd(r.publishing_date) || "",
+    // Overdue/due chip tracks the PUBLISHING DATE — that's the date the writer sets and
+    // the team tracks. due_date is only a fallback (legacy tasks with no publishing date),
+    // so a stray/stale due_date can't show a false "overdue" against the real publish date.
+    due: ymd(r.publishing_date) || ymd(r.due_date) || "",
     detail: {
       typeLine: type,
       publishes: fmtDate(r.publishing_date),
