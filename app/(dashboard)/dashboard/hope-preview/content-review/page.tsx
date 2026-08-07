@@ -246,15 +246,15 @@ function Review() {
                 disabled={busy || !p.hasCreative}
                 onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
                 title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
-                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-2.5 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule
+                <IconCalendarPlus size={15} stroke={1.9} className="flex-shrink-0" /> Push to Schedule
               </button>
               <button
                 disabled={busy}
                 onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }}
                 title="Send back to the producer with feedback"
-                className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
+                className="whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
               >
                 <IconArrowBackUp size={15} stroke={1.9} /> Send back
               </button>
