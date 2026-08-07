@@ -761,7 +761,9 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
       {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
           scroll (the section grows; you scroll the card/page to read it all). */}
-      <div className="brief brief-full">{task.detail.content}</div>
+      {editing
+        ? <textarea className="nt-input nt-textarea" style={{ width: "100%", minHeight: "9rem", resize: "vertical", marginTop: ".2rem" }} value={contentEdit} onChange={(e) => setContentEdit(e.target.value)} placeholder="The write-up / brief — hook, body, CTA, specs…" />
+        : <div className="brief brief-full">{task.detail.content}</div>}
 
       <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
@@ -785,17 +787,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
           {editing && (
             <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem" }}>
-              {/* Content (the brief) — editable at any stage, including after approval. */}
-              <div style={{ marginBottom: ".8rem" }}>
-                <div className="mlbl">Content</div>
-                <textarea
-                  className="nt-input nt-textarea"
-                  style={{ marginTop: ".3rem", width: "100%", minHeight: "8rem", resize: "vertical" }}
-                  value={contentEdit}
-                  onChange={(e) => setContentEdit(e.target.value)}
-                  placeholder="The write-up / brief — hook, body, CTA, specs…"
-                />
-              </div>
+              {/* Content is edited in place in the Content-brief section above; this panel
+                  handles priority + due date. Everything saves together on Save changes. */}
               <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
                 <div>
                   <div className="mlbl">Priority</div>
