@@ -2382,8 +2382,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       {/* Logged-out screen (demo): End day / Log out lands here. "Log back in"
           re-anchors the plan to the new login time. No real session change. */}
       {loggedOut && (
-        <div className="logout-screen">
-          <div className="logout-card">
+        <div className="logout-screen" onClick={logBackIn}>
+          <div className="logout-card" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={logBackIn} title="Close" style={{ position: "absolute", top: ".8rem", right: ".9rem" }}>✕</button>
             <span className="logout-badge">{me.av}</span>
             <div className="logout-h">You&apos;re logged out</div>
             <div className="logout-p">Your day is wrapped up. Log in again to start a fresh day.</div>
