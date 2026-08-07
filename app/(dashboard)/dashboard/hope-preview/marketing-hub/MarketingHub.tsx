@@ -144,6 +144,7 @@ const PIPELINE_STAGES = [
   { key: "Content - Pending",     label: "Content Pending",     color: "#94A3B8" },
   { key: "Content - Approved",    label: "Approved",            color: "#D9A05B" },
   { key: "Output - In Progress",  label: "In Progress",         color: "#D9836E" },
+  { key: "Incorporating Feedback", label: "Incorporating Feedback", color: "#DD6B7B" },
   { key: "Output - Ready",        label: "Output Ready",        color: "#6F9BD1" },
   { key: "Ready to Publish",      label: "Ready to Publish",    color: "#5FB196" },
   { key: "Published/Scheduled",   label: "Published",           color: "#7A74C9" },
@@ -156,6 +157,7 @@ const STATUS_TINT: Record<string, { bg: string; text: string; border: string }> 
   "Content - Pending":    { bg: "#EEF1F5", text: "#46505F", border: "#DCE1E8" }, // slate
   "Content - Approved":   { bg: "#FBF3E6", text: "#8A5D1E", border: "#EFDFC2" }, // amber
   "Output - In Progress": { bg: "#FBEEEA", text: "#9B4A36", border: "#F1D6CD" }, // coral
+  "Incorporating Feedback": { bg: "#FCEAEE", text: "#9B2D45", border: "#F3D2DA" }, // rose — rework
   "Output - Ready":       { bg: "#EBF2FA", text: "#244D82", border: "#D2E0F1" }, // blue
   "Ready to Publish":     { bg: "#E9F6F0", text: "#1F7256", border: "#CCEADD" }, // green
   "Published/Scheduled":  { bg: "#EFEEFA", text: "#423B94", border: "#DAD7F2" }, // purple
@@ -795,34 +797,6 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
         </button>
       </div>
 
-      {/* Stage cards — one card per pipeline stage; click to drill in. */}
-      <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
-        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Content flows left → right. Click a stage to see its tasks.</div>
-        <div className="flex items-stretch gap-1.5">
-          {pipeline.map((s, i) => {
-            const isSel = s.key === selected;
-            const meta = stageMeta.get(s.key);
-            return (
-              <Fragment key={s.key}>
-                {i > 0 && <IconChevronRight size={16} className="text-gray-300 self-center flex-shrink-0" />}
-                <button
-                  onClick={() => setSelected(s.key)}
-                  className={`flex-1 min-w-0 rounded-lg border p-3 text-center transition ${isSel ? "border-brand bg-brand-light/40" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"}`}
-                >
-                  <div className={`text-2xl font-medium leading-none ${s.count === 0 ? "text-gray-300" : "text-gray-900"}`}>{fmtInt(s.count)}</div>
-                  <div className="text-[11px] text-gray-600 mt-1.5 leading-tight">{s.label}</div>
-                  {meta
-                    ? (s.count > 0
-                        ? <div className={`text-[11px] mt-1.5 ${meta.oldestAge >= 7 ? "text-rose-600 font-medium" : "text-amber-600"}`}>oldest {meta.oldestAge}d</div>
-                        : <div className="text-[11px] text-gray-300 mt-1.5">empty</div>)
-                    : <div className="text-[11px] text-gray-300 mt-1.5">{s.count > 0 ? "done" : "—"}</div>}
-                </button>
-              </Fragment>
-            );
-          })}
-        </div>
-      </Panel>
-
       {/* Bottleneck insight — where in-production work is sitting untouched */}
       <Panel icon={IconHistory} title="Needs chasing — oldest first">
         <div className="text-sm text-[#8A92A6] mb-4 -mt-1">In-production work that has sat the longest. Click one to open it.</div>
@@ -849,6 +823,34 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
             })}
           </div>
         )}
+      </Panel>
+
+      {/* Stage cards — one card per pipeline stage; click to drill in (table below). */}
+      <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
+        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Content flows left → right. Click a stage to see its tasks.</div>
+        <div className="flex items-stretch gap-1.5">
+          {pipeline.map((s, i) => {
+            const isSel = s.key === selected;
+            const meta = stageMeta.get(s.key);
+            return (
+              <Fragment key={s.key}>
+                {i > 0 && <IconChevronRight size={16} className="text-gray-300 self-center flex-shrink-0" />}
+                <button
+                  onClick={() => setSelected(s.key)}
+                  className={`flex-1 min-w-0 rounded-lg border p-3 text-center transition ${isSel ? "border-brand bg-brand-light/40" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"}`}
+                >
+                  <div className={`text-2xl font-medium leading-none ${s.count === 0 ? "text-gray-300" : "text-gray-900"}`}>{fmtInt(s.count)}</div>
+                  <div className="text-[11px] text-gray-600 mt-1.5 leading-tight">{s.label}</div>
+                  {meta
+                    ? (s.count > 0
+                        ? <div className={`text-[11px] mt-1.5 ${meta.oldestAge >= 7 ? "text-rose-600 font-medium" : "text-amber-600"}`}>oldest {meta.oldestAge}d</div>
+                        : <div className="text-[11px] text-gray-300 mt-1.5">empty</div>)
+                    : <div className="text-[11px] text-gray-300 mt-1.5">{s.count > 0 ? "done" : "—"}</div>}
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
       </Panel>
 
       {/* Drill-down table — tasks at the selected stage, all SBUs */}
