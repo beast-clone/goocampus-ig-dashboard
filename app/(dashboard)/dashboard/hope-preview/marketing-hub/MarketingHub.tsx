@@ -1104,7 +1104,9 @@ const MHCAL_CSS = `
 .mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
 .mhcal-hero-statl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.82)}
 /* Title card, pulled up to overlap the hero — mirrors the reference's "Calendar" card */
-.mhcal-titlecard{position:relative;z-index:2;margin:-2.35rem 1rem 0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;box-shadow:0 10px 30px rgba(35,45,66,.06);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.mhcal-titlecard{position:relative;z-index:2;margin:0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.mhcal-tc-right{display:flex;align-items:center;gap:1rem}
+.mhcal-tc-count{font-size:.8rem;font-weight:600;color:#8A92A6}
 .mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:#232D42;letter-spacing:-.012em}
 .mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:#8A92A6}
 .mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
@@ -1322,23 +1324,14 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     <div className="mhcal">
       <style dangerouslySetInnerHTML={{ __html: MHCAL_CSS }} />
 
-      {/* Hero */}
-      <div className="mhcal-hero">
-        <div className="mhcal-hero-txt">
-          <span className="mhcal-hero-tag">Team calendar</span>
-          <h1>Content Calendar</h1>
-          <p>Everything the marketing team is on — click to open, drag to reschedule.</p>
-        </div>
-        <div className="mhcal-hero-stat">
-          <div className="mhcal-hero-statv">{fmtInt(filteredRows.length)}</div>
-          <div className="mhcal-hero-statl">{activeBrand ? `${activeBrand} tasks` : "Tasks in view"}</div>
-        </div>
-      </div>
-
-      {/* Title card overlapping the hero — mirrors the Publishing Calendar's "Calendar" card */}
+      {/* Header card — the page already shows the "Marketing Hub › Content Calendar"
+          banner above, so no second hero here; just the calendar title + count + live. */}
       <div className="mhcal-titlecard">
         <h4>Calendar</h4>
-        <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
+        <div className="mhcal-tc-right">
+          <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>
+          <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
+        </div>
       </div>
 
       {/* Brand quick-filter — one-click SBU isolate (lives inside the calendar, not a top filter) */}
