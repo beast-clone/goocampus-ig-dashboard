@@ -6,7 +6,7 @@ export type IGAccount = {
 };
 
 export const ACCOUNTS: IGAccount[] = [
-  { id: "goocampus", handle: "@goocampus", label: "GooCampus Edu (main)", igUserId: "17841407196182440" },
+  { id: "goocampus", handle: "@goocampus", label: "GooCampus", igUserId: "17841407196182440" },
   { id: "goocampusworld", handle: "@goocampusworld", label: "GooCampus World", igUserId: "17841473429363077" },
   { id: "12thplusdotcom", handle: "@12thplusdotcom", label: "GooCampus India (12thplus)", igUserId: "17841451240960832" },
   // Samvaya is a separate business (no token in accounts.local.json) — selecting it
