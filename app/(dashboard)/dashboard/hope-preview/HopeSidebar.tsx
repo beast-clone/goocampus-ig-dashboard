@@ -4,7 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
-  IconUsers, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
+  IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
       { label: "Briefing",         href: `${HUB}/briefing`,                   icon: IconChartBar },
       { label: "My Day",           href: `${HUB}/my-day`,                     icon: IconSunHigh },
       { label: "Workload",         href: `${HUB}/marketing-hub?tab=team`,     icon: IconUsers },
+      { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },

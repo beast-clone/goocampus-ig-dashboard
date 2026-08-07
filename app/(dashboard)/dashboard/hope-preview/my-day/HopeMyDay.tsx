@@ -1352,7 +1352,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
 }
 
 // End-today wrap-up — confirm what's done; unchecked tasks roll to tomorrow.
-function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, reasons: Record<string, string>) => void; onClose: () => void }) {
+function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, rolled: { title: string; reason: string }[]) => void; onClose: () => void }) {
   const [done, setDone] = useState<Set<string>>(new Set(tasks.slice(0, Math.ceil(tasks.length / 2)).map((t) => t.id)));
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const toggle = (id: string) => setDone((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -1391,7 +1391,7 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
           <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
           <div style={{ display: "flex", gap: ".5rem" }}>
             <button className="btn" onClick={onClose}>Cancel</button>
-            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, reasons)}>End day &amp; log out</button>
+            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, rolling.map((t) => ({ title: t.title, reason: (reasons[t.id] || "").trim() })))}>End day &amp; log out</button>
           </div>
         </div>
       </div>
@@ -1557,9 +1557,14 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     // so overdue work front-loads into the morning instead of getting stuck late.
     const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
     let restored = false;
+    // Record login server-side for the admin Attendance board (first login of the day
+    // wins — the server ignores later posts, so re-posting a restored time is safe).
+    const recordLogin = (min: number, at: string) => {
+      fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action: "login", min, at }) }).catch(() => {});
+    };
     try {
       const j = JSON.parse(localStorage.getItem(`hmd-day-${person}`) || "null");
-      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; }
+      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; recordLogin(Number(j.min) || 0, j.at || ""); }
     } catch { /* old/plain/corrupt record → treat as stale */ }
     if (!restored) {
       const d = new Date();
@@ -1567,6 +1572,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       const at = clockOf(min);
       setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
       try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date: todayKey })); } catch { /* private mode */ }
+      recordLogin(min, at);
     }
   }, [person]);
   // Persist reminders as they change (skip the initial empty render).
@@ -2199,6 +2205,11 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
   // "Log back in" from the logged-out overlay: re-anchors the plan to the new login
   // time (demo — no real session change). Mirrors the auto-start on first view.
+  // Record this person's login / logout server-side so the admin Attendance board
+  // can show them. Best-effort — never blocks the UI.
+  const postAttendance = (action: "login" | "logout", min: number, at: string, rolled?: { title: string; reason: string }[]) => {
+    fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action, min, at, rolled }) }).catch(() => {});
+  };
   const logBackIn = () => {
     const d = new Date();
     const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
@@ -2206,10 +2217,14 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     setDayStarted(true); setDayStartAt(at); setDayStartMin(min); setLoggedOut(false);
     try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date })); } catch { /* private mode */ }
+    postAttendance("login", min, at);
   };
-  const endToday = (doneCount: number, rollCount: number) => {
+  const endToday = (doneCount: number, rollCount: number, rolled: { title: string; reason: string }[] = []) => {
     // End day = wrap-up (already confirmed) → demo logout. Clear the clock so the next
     // login re-anchors; show the logged-out overlay instead of ending the real session.
+    const d = new Date();
+    const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
+    postAttendance("logout", min, clockOf(min), rolled);
     setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
