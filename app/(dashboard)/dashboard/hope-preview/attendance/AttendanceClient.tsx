@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { IconLogin, IconLogout, IconClock, IconChevronRight, IconRefresh, IconLock, IconCalendar } from "@tabler/icons-react";
 
-type DayRow = { key: string; name: string; role: string; loginMin: number | null; loginAt: string | null; logoutMin: number | null; logoutAt: string | null; rolled: { title: string; reason: string }[]; doneToday: number; pending: number };
+type DayRow = { key: string; name: string; role: string; loginMin: number | null; loginAt: string | null; logoutMin: number | null; logoutAt: string | null; rolled: { title: string; reason: string }[]; doneToday: number; pending: number; tasks: { title: string; status: string; type: string; note: string; publishingDate: string }[] };
 type AggRow = { key: string; name: string; role: string; daysPresent: number; workedMin: number; doneCount: number; lastLoginAt: string | null };
 type Resp = { view: "day" | "week" | "month"; date: string; from: string; to: string; rows: DayRow[] | AggRow[] };
 
@@ -112,7 +112,7 @@ function DayTable({ rows, expanded, setExpanded }: { rows: DayRow[] | null; expa
          : rows.length === 0 ? <div className="px-4 py-8 text-center text-[13px] text-gray-400">No attendance recorded for this day.</div>
          : rows.map((r) => {
           const st = statusOf(r), worked = workedNet(r.loginMin, r.logoutMin), av = AV[r.key] || { bg: "#EEF1F5", fg: "#46505F" };
-          const open = expanded === r.key, hasDetail = r.rolled.length > 0;
+          const open = expanded === r.key, hasDetail = r.tasks.length > 0 || r.rolled.length > 0;
           return (
             <div key={r.key} className="border-b border-gray-50 last:border-0">
               <button onClick={() => hasDetail && setExpanded(open ? null : r.key)} className={`w-full text-left grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_0.8fr_0.9fr_1.1fr] items-center gap-x-3 px-4 py-3 ${hasDetail ? "hover:bg-gray-50 cursor-pointer" : "cursor-default"}`}>
@@ -133,13 +133,36 @@ function DayTable({ rows, expanded, setExpanded }: { rows: DayRow[] | null; expa
                 </span>
               </button>
               {open && hasDetail && (
-                <div className="px-4 pb-3 pt-0">
-                  <div className="bg-gray-50 rounded-lg px-3.5 py-2.5">
-                    <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">Rolled to tomorrow · {r.rolled.length}</div>
-                    <div className="flex flex-col gap-1.5">{r.rolled.map((t, i) => (
-                      <div key={i} className="text-[12.5px] text-[#232D42] flex items-baseline gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" /><span>{t.title}{t.reason ? <span className="text-gray-400"> — {t.reason}</span> : ""}</span></div>
-                    ))}</div>
-                  </div>
+                <div className="px-4 pb-3 pt-0 space-y-2">
+                  {r.tasks.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg px-3.5 py-2.5">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">Working on / pending · {r.tasks.length}</div>
+                      <table className="w-full text-[12.5px]">
+                        <thead><tr className="text-[10.5px] uppercase tracking-wide text-gray-400"><th className="text-left font-semibold pb-1 w-[46%]">Task</th><th className="text-left font-semibold pb-1 w-[38%]">Note</th><th className="text-left font-semibold pb-1">Publishing Date</th></tr></thead>
+                        <tbody>{r.tasks.map((t, i) => (
+                          <tr key={i} className="border-t border-gray-200/70 align-top">
+                            <td className="py-1.5 pr-4 text-[#232D42]">{t.title}<span className="block text-[10.5px] text-gray-400">{t.status}</span></td>
+                            <td className="py-1.5 pr-4 text-gray-600">{t.note || <span className="text-gray-300">—</span>}</td>
+                            <td className="py-1.5 text-gray-500 whitespace-nowrap">{t.publishingDate ? new Date(t.publishingDate.slice(0, 10) + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : <span className="text-gray-300">—</span>}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  {r.rolled.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg px-3.5 py-2.5">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">Rolled to tomorrow · {r.rolled.length}</div>
+                      <table className="w-full text-[12.5px]">
+                        <thead><tr className="text-[10.5px] uppercase tracking-wide text-gray-400"><th className="text-left font-semibold pb-1 w-1/2">Task</th><th className="text-left font-semibold pb-1">Note</th></tr></thead>
+                        <tbody>{r.rolled.map((t, i) => (
+                          <tr key={i} className="border-t border-gray-200/70 align-top">
+                            <td className="py-1.5 pr-4 text-[#232D42]">{t.title}</td>
+                            <td className="py-1.5 text-gray-500">{t.reason || "—"}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -101,12 +101,20 @@ export async function GET(req: Request) {
     if (view === "day") {
       const byPerson = new Map<string, Att>();
       for (const r of atts) if (r.date === anchor) byPerson.set(r.person_key, r);
-      const { data: pend } = await sb.from("mh_posts").select("owner_key,status").in("status", WORKING_NON_DONE).limit(1000);
-      const pendingBy = new Map<string, number>();
-      for (const r of pend || []) { const k = (r.owner_key || "").toLowerCase(); if (k) pendingBy.set(k, (pendingBy.get(k) || 0) + 1); }
+      // Each person's live task list — the actual work they're on / still pending — so the
+      // board can show the real tasks per person on expand, not just a count.
+      const { data: pend } = await sb.from("mh_posts").select("owner_key,status,particulars,type,additional_info,publishing_date").in("status", WORKING_NON_DONE).limit(2000);
+      const tasksBy = new Map<string, { title: string; status: string; type: string; note: string; publishingDate: string }[]>();
+      for (const r of pend || []) {
+        const k = (r.owner_key || "").toLowerCase(); if (!k) continue;
+        const list = tasksBy.get(k) || [];
+        list.push({ title: r.particulars || "(untitled)", status: r.status || "", type: r.type || "", note: r.additional_info || "", publishingDate: r.publishing_date || "" });
+        tasksBy.set(k, list);
+      }
       const rows = PEOPLE.map((p) => {
         const r = byPerson.get(p.key);
-        return { key: p.key, name: p.name, role: p.role, loginMin: r?.login_min ?? null, loginAt: r?.login_at ?? null, logoutMin: r?.logout_min ?? null, logoutAt: r?.logout_at ?? null, rolled: r?.rolled ?? [], doneToday: doneBy.get(p.key) || 0, pending: pendingBy.get(p.key) || 0 };
+        const tasks = tasksBy.get(p.key) || [];
+        return { key: p.key, name: p.name, role: p.role, loginMin: r?.login_min ?? null, loginAt: r?.login_at ?? null, logoutMin: r?.logout_min ?? null, logoutAt: r?.logout_at ?? null, rolled: r?.rolled ?? [], doneToday: doneBy.get(p.key) || 0, pending: tasks.length, tasks };
       });
       return NextResponse.json({ view, date: anchor, from, to, rows });
     }
