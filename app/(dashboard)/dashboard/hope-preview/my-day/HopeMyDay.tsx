@@ -1405,7 +1405,7 @@ type CapEntry = { permissions: Permissions; isAdmin: boolean };
 export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { initialPerson?: string; isAdmin?: boolean } = {}) {
   // `person` = whose day is shown. Seeded from the logged-in user (server-passed);
   // producers are locked to themselves, only admins can switch via the header tabs.
-  const [person, setPerson] = useState(initialPerson || "nandu");
+  const [person, setPerson] = useState(initialPerson || "manya");
   // Team-permission capabilities, keyed by first name (lowercase). Drives which
   // action buttons show. Sourced from the roster (admins) so the person switcher
   // previews everyone; falls back to /api/me for the logged-in person.
