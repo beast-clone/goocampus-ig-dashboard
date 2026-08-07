@@ -1484,7 +1484,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   const [movedId, setMovedId] = useState<string | null>(null); // which task Manya slid to tomorrow
   const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
   // Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views.
-  const [wsTab, setWsTab] = useState<"myday" | "team" | "master" | "pipeline" | "calendar">("myday");
+  const [wsTab] = useState<"myday" | "team" | "master" | "pipeline" | "calendar">("myday"); // pinned — top tab bar removed; sidebar handles the other views
   const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
   const [dayStartAt, setDayStartAt] = useState("");
   const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
@@ -2387,18 +2387,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
 
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
 
-        {/* Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views. */}
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          {(([["myday", "My Day"], ["team", "Workload"], ["master", "Master sheet"], ["pipeline", "Pipeline"], ["calendar", "Content calendar"]]) as [typeof wsTab, string][]).map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setWsTab(k)}
-              className={`rounded-xl border px-3.5 py-2 text-[13px] font-medium transition ${wsTab === k ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* The redundant top workspace-tab bar was removed — the sidebar's My Workspace
+            group already navigates to Workload / Master sheet / Pipeline / Content calendar.
+            This page is now just the personal My Day view (wsTab is pinned to "myday"). */}
         {wsTab === "myday" ? (<>
 
         {/* TOP BAR — icon triggers (page title lives in the greeting below) */}
