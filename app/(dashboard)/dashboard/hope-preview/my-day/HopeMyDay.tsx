@@ -1612,17 +1612,23 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     // LOGIN = DAY START (no manual button). Restore today's clock-in if one exists,
     // otherwise auto-start it now and anchor the plan to this minute. New format is
     // JSON {at, min}; tolerate the older plain string ("9:30 AM").
-    const raw = (() => { try { return localStorage.getItem(`hmd-day-${person}`) || ""; } catch { return ""; } })();
-    if (raw) {
-      let at = "", min = 0;
-      try { const j = JSON.parse(raw); at = j.at || ""; min = Number(j.min) || 0; } catch { at = raw; }
-      setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
-    } else {
+    // Clock-in is PER DAY. Only restore it if the stored record is from TODAY —
+    // otherwise a previous day's clock-in (e.g. "12:55 PM") anchors this morning's
+    // plan to the afternoon and leaves the morning wrongly empty. A stale / dateless
+    // / plain-string record is ignored, and we auto-start fresh at the current minute
+    // so overdue work front-loads into the morning instead of getting stuck late.
+    const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+    let restored = false;
+    try {
+      const j = JSON.parse(localStorage.getItem(`hmd-day-${person}`) || "null");
+      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; }
+    } catch { /* old/plain/corrupt record → treat as stale */ }
+    if (!restored) {
       const d = new Date();
       const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
       const at = clockOf(min);
       setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
-      try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min })); } catch { /* private mode */ }
+      try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date: todayKey })); } catch { /* private mode */ }
     }
   }, [person]);
   // Persist reminders as they change (skip the initial empty render).
@@ -2242,8 +2248,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     const d = new Date();
     const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
     const at = clockOf(min);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     setDayStarted(true); setDayStartAt(at); setDayStartMin(min); setLoggedOut(false);
-    try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min })); } catch { /* private mode */ }
+    try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date })); } catch { /* private mode */ }
   };
   const endToday = (doneCount: number, rollCount: number) => {
     // End day = wrap-up (already confirmed) → demo logout. Clear the clock so the next
