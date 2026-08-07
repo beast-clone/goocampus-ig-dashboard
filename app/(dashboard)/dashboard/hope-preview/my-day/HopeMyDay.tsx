@@ -121,6 +121,7 @@ type Task = {
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string }[]; // post media + uploaded assets
     references?: RefItem[];                             // links + images the team adds for context
+    outputLink?: string;                                // the finished-creative link (Drive/Canva) — output_link
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
     createdAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
@@ -452,10 +453,22 @@ type CreativeItem = { name: string; type: "image" | "video" | "doc"; url?: strin
 // Creatives & files — the task's post media + uploaded creative files. Upload (click
 // or drag-drop) persists to mh_attachments (kind='creative') and shows immediately;
 // click any creative to open the preview (image / carousel slideshow / video play).
-function CreativesSection({ creatives, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
+function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; outputLink?: string; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
+  const [link, setLink] = useState(outputLink || "");   // the output link (Drive/Canva) — output_link
+  const [linkInput, setLinkInput] = useState("");
   const viewable = creatives.filter((c) => c.url && c.type !== "doc");
+  const saveLink = async (url: string) => {
+    setLink(url);
+    await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: uploadedBy, fields: { output_link: url } }) }).catch(() => {});
+    onSaved();
+  };
+  const addLink = () => {
+    const raw = linkInput.trim(); if (!raw) return;
+    setLinkInput("");
+    saveLink(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  };
   const addFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
     setBusy(true);
@@ -499,6 +512,21 @@ function CreativesSection({ creatives, postId, uploadedBy, onSaved }: { creative
           <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click to add creatives</span></span>
           <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
+      )}
+      {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}
+      {link ? (
+        <div className="refs" style={{ marginTop: ".55rem" }}>
+          <a className="ref-link" href={link} target="_blank" rel="noreferrer" title={link}>
+            <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
+            <span className="ref-link-lbl">{link.replace(/^https?:\/\//i, "")}</span>
+            <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveLink(""); }} title="Remove">✕</span>
+          </a>
+        </div>
+      ) : (
+        <div className="ref-url" style={{ marginTop: ".55rem" }}>
+          <input className="nt-input" placeholder="…or paste the output link (Drive / Canva)…" value={linkInput} onChange={(e) => setLinkInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }} />
+          <button type="button" className="btn primary sm" onClick={addLink} disabled={!linkInput.trim()}>Add link</button>
+        </div>
       )}
       {preview !== null && viewable.length > 0 && (
         <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
@@ -734,7 +762,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           scroll (the section grows; you scroll the card/page to read it all). */}
       <div className="brief brief-full">{task.detail.content}</div>
 
-      <CreativesSection creatives={task.detail.creatives} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
+      <CreativesSection key={task.id} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
@@ -1745,6 +1773,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   // timeline + working-now) — free → approve; full → move a task or queue in
   // pipeline. The producer's day is never force-filled.
   const [approveGate, setApproveGate] = useState<null | { id: string; status: CCStatus; target: string; add: number }>(null);
+  // Completeness-gate block (server 422): the move was refused because required fields
+  // are missing. `gate` = which transition, `missing` = the human-readable list.
+  const [gateBlock, setGateBlock] = useState<null | { gate: "approve" | "output"; missing: string[]; title: string }>(null);
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
@@ -1770,7 +1801,13 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       .then(async (res) => {
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
-          setToast({ who: "Save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
+          // 422 = a completeness gate (approve / output-ready). Show the missing-fields
+          // modal instead of a generic error toast, and revert the optimistic move.
+          if (res.status === 422 && Array.isArray(j.missing)) {
+            setGateBlock({ gate: j.gate === "output" ? "output" : "approve", missing: j.missing as string[], title: prev?.title || "This task" });
+          } else {
+            setToast({ who: "Save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
+          }
           load(); // resync — the optimistic simulation below never persisted, so revert to server truth
           return;
         }
@@ -3000,6 +3037,34 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
           </div>
         );
       })()}
+
+      {/* COMPLETENESS GATE — required fields missing for approve / output-ready */}
+      {gateBlock && (
+        <div className="modal" onClick={() => setGateBlock(null)}>
+          <div className="modal-card" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setGateBlock(null)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem", color: "#C0392B" }}>Can&apos;t move it yet</div>
+            <div className="d-title" style={{ marginBottom: ".6rem" }}>
+              {gateBlock.gate === "output" ? "No creative to hand off" : "The brief isn't complete"}
+            </div>
+            <div style={{ fontSize: ".85rem", color: "#4A5468", marginBottom: ".8rem" }}>
+              {gateBlock.gate === "output"
+                ? <>“{gateBlock.title}” can&apos;t be marked <b>Output-Ready</b> until there&apos;s a deliverable. Upload the creative, or add the output link (Drive / Canva) in <b>Creatives &amp; files</b>.</>
+                : <>“{gateBlock.title}” can&apos;t be <b>Approved</b> until these are filled in:</>}
+            </div>
+            <ul style={{ margin: "0 0 1rem", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: ".4rem" }}>
+              {gateBlock.missing.map((m, i) => (
+                <li key={i} style={{ display: "flex", alignItems: "center", gap: ".5rem", fontSize: ".86rem", color: "#232D42" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 99, background: "#C0392B", flexShrink: 0 }} />{m}
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn primary" onClick={() => setGateBlock(null)}>Got it</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
       {assignWarn && (

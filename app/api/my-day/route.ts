@@ -70,7 +70,7 @@ type Row = {
   sbu: string | null; owner_key: string | null; priority: string | null;
   content: string | null; caption: string | null; media_urls: string[] | null;
   publishing_date: string | null; due_date: string | null; updated_at: string | null;
-  reference_links: string[] | null;
+  reference_links: string[] | null; output_link: string | null;
   created_at: string | null; start_at: string | null; end_at: string | null;
   duration_min: number | null;
   custom: Record<string, unknown> | null;
@@ -121,6 +121,7 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
       feedback: typeof r.custom?.incorporating_feedback === "string" ? (r.custom.incorporating_feedback as string) : "",
       activity: [] as unknown[],
       references,
+      outputLink: r.output_link || "",
       createdAt: r.created_at || "",
       startAt: r.start_at || "",
       endAt: r.end_at || "",
@@ -135,7 +136,7 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
     const cols =
-      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, created_at, start_at, end_at, duration_min, custom";
+      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, output_link, created_at, start_at, end_at, duration_min, custom";
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
     const [working, doneRecent] = await Promise.all([

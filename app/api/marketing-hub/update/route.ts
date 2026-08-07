@@ -116,6 +116,35 @@ export async function PATCH(req: Request) {
       .single();
     if (before.error) throw new Error(before.error.message);
 
+    // ── Completeness gates on status transitions (My Day workflow). Status is the
+    // choke-point every surface (My Day / Master sheet / Content Review) goes through,
+    // so enforcing here can't be bypassed. Returns 422 + a `missing` list the UI shows.
+    const preRow = before.data as Record<string, unknown>;
+    const newStatus = typeof clean.status === "string" ? (clean.status as string) : (preRow.status as string);
+    const wasStatus = preRow.status as string;
+    const eff = (field: string) => (field in clean ? clean[field] : preRow[field]);
+    const filled = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
+
+    // A) Content-Approved: the brief must be complete before it hands off to a producer.
+    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved") {
+      const missing: string[] = [];
+      if (!filled(eff("content")) && !filled(eff("caption"))) missing.push("Content (the brief)");
+      if (!filled(eff("sbu"))) missing.push("SBU");
+      if (!filled(eff("priority"))) missing.push("Priority");
+      if (!filled(eff("publishing_date"))) missing.push("Publishing date");
+      const { count: collabCount } = await sb.from("mh_post_collaborators").select("member_key", { count: "exact", head: true }).eq("post_id", body.id);
+      if (!(collabCount || 0)) missing.push("At least one collaborator");
+      if (missing.length) return NextResponse.json({ error: "Can't approve yet — some required fields are missing.", missing, gate: "approve" }, { status: 422 });
+    }
+
+    // B) Output-Ready: there must be a deliverable — a creative file OR an output link.
+    if (newStatus === "Output - Ready" && wasStatus !== "Output - Ready") {
+      const { count: creativeCount } = await sb.from("mh_attachments").select("id", { count: "exact", head: true }).eq("post_id", body.id).eq("kind", "creative");
+      if (!filled(eff("output_link")) && !(creativeCount || 0)) {
+        return NextResponse.json({ error: "No creative uploaded — add a creative file or an output link first.", missing: ["A creative file or an output link"], gate: "output" }, { status: 422 });
+      }
+    }
+
     const { data, error } = await sb
       .from("mh_posts")
       .update(clean)
