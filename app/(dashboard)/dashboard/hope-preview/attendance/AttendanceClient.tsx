@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
-import { IconLogin, IconLogout, IconClock, IconChevronRight, IconRefresh, IconLock } from "@tabler/icons-react";
+import { IconLogin, IconLogout, IconClock, IconChevronRight, IconRefresh, IconLock, IconCalendar } from "@tabler/icons-react";
 
 type Row = {
   key: string; name: string; role: string;
@@ -77,8 +77,14 @@ function Board() {
     <div className="hope-scope space-y-4">
       {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">
-        <input type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value || todayStr())}
-          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 text-[#232D42]" />
+        <div className="text-[15px] font-medium text-[#232D42]">
+          {new Date(date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          {isToday && <span className="text-[13px] text-gray-400 font-normal"> · today</span>}
+        </div>
+        <label className="relative inline-flex items-center gap-1 text-[12px] text-brand border border-brand/40 rounded-lg px-2.5 py-1.5 hover:bg-brand-light cursor-pointer">
+          <IconCalendar size={13} /> Change date
+          <input type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value || todayStr())} className="absolute inset-0 opacity-0 cursor-pointer" />
+        </label>
         {isToday && <span className="text-[11px] font-medium rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Live{fetchedAt ? ` · updated ${fetchedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}` : ""}</span>}
         <button onClick={load} className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1.5 hover:bg-brand-light"><IconRefresh size={13} /> Refresh</button>
       </div>
