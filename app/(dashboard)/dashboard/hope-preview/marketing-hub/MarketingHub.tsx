@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
+import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
@@ -126,13 +127,9 @@ const LUNCH_MIN = 60;
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
 
 // Rough time each content type takes to produce — just for laying out the plan bar.
-function taskDurMin(type: string): number {
-  if (VIDEO_TYPES.includes(type)) return 90;
-  if (type === "Carousel") return 60;
-  if (/Thumbnail/i.test(type)) return 30;
-  if (/Story/i.test(type) || type === "Post" || type === "Meta Ads") return 45;
-  return 60;
-}
+// Shared with My Day (lib/task-estimate) so a task's estimated length is identical
+// in the Workload timeline and the personal Today's-plan.
+const taskDurMin = estimateTaskMinutes;
 function blockColor(type: string): { bg: string; fg: string } {
   if (VIDEO_TYPES.includes(type)) return { bg: "#DDE3FB", fg: "#2A3EA8" };  // blue — video
   if (DESIGN_TYPES.includes(type)) return { bg: "#EDE9FE", fg: "#5B4AC4" }; // violet — design

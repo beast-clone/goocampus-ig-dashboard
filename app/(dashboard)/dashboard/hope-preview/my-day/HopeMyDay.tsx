@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
 import { HopeSidebar } from "../HopeSidebar";
+import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
@@ -239,16 +240,9 @@ const onTimelineFor = (name: string, status: string) =>
   name === "Manya"
     ? status === "Content - Pending" || status === "Content - In Progress"
     : status !== "Content - Pending" && status !== "Content - In Progress";
-function estMins(type: string): number {
-  const t = (type || "").toLowerCase();
-  if (/thumbnail/.test(t)) return 30;         // BEFORE /reel/ — "Reel Thumbnail" is design work, not a 90m video
-  if (/long-form/.test(t)) return 120;
-  if (/reel - cut|cut/.test(t)) return 60;
-  if (/reel|short|story|video/.test(t)) return 90;
-  if (/carousel/.test(t)) return 60;
-  if (/meta ads/.test(t)) return 45;
-  return 30;
-}
+// Shared with the Marketing-Hub Workload timeline (lib/task-estimate) so a task's
+// estimated length is identical in My Day and Workload.
+const estMins = estimateTaskMinutes;
 function fmtMins(m: number): string { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; }
 // minutes-past-9AM of the finish time → "6:30 PM"
 function finishLabel(committed: number, addMin: number): string {
@@ -1931,10 +1925,11 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
-    // Anchor (spec §10): once the day is started, the plan begins at the clock-in
-    // minute (login-anchored), not a fixed shift start — log in 9:30 and tasks slide
-    // to 9:30. Before starting, preview from the normal shift start.
-    const anchor = dayStarted && dayStartMin > shiftStartOf(me.name) ? dayStartMin : shiftStartOf(me.name);
+    // Anchor the plan to the SHIFT START (9 AM, or 10 AM for Nandu's late shift), the
+    // same reference the Workload timeline uses — so a person's plan reads identically
+    // in My Day and Workload. The now-line still marks the live time; work before it
+    // simply shows as already-elapsed rather than shifting the whole plan later.
+    const anchor = shiftStartOf(me.name);
     let cursor = anchor;
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
