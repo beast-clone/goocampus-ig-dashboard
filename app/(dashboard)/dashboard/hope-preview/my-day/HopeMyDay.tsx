@@ -988,7 +988,67 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 // Create-task flow (writer/Manya only). On submit it runs the Type→owner routing
 // so you can watch where the task lands — design types to Praveen, video to the
 // editors' claim pool. The routing preview updates live as you change the Type.
-function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t: Task, owner: string, note: string) => void }) {
+// Pending references / output for a NOT-YET-CREATED task. Holds picked images (with a
+// local preview) + links in memory; the parent uploads them once the task row exists
+// (references → mh_attachments kind='reference' + reference_links; output → kind='creative'
+// + output_link). `oneLink` caps output at a single final-creative link (the DB column
+// output_link is singular). Mirrors the detail-view ReferencesSection UI + classes.
+type PendingFile = { file: File; url: string };
+type PendingAsset = { links: string[]; files: PendingFile[] };
+export type NewTaskAssets = { refLinks: string[]; refFiles: File[]; outLink: string; outFiles: File[] };
+const EMPTY_ASSET: PendingAsset = { links: [], files: [] };
+
+function PendingAssets({ hint, oneLink, value, onChange }: { hint: string; oneLink?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
+  const [url, setUrl] = useState("");
+  const addUrl = () => {
+    const raw = url.trim(); if (!raw) return;
+    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    onChange({ ...value, links: oneLink ? [href] : [...value.links, href] });
+    setUrl("");
+  };
+  const addFiles = (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const added = Array.from(files).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    onChange({ ...value, files: [...value.files, ...added] });
+  };
+  const rmFile = (i: number) => { const f = value.files[i]; if (f) URL.revokeObjectURL(f.url); onChange({ ...value, files: value.files.filter((_, j) => j !== i) }); };
+  const rmLink = (i: number) => onChange({ ...value, links: value.links.filter((_, j) => j !== i) });
+  return (
+    <>
+      <div className="refs">
+        {value.files.map((f, i) => (
+          <div key={i} className="thumb ref-thumb" title={f.file.name}>
+            <div className="thumb-img" style={{ backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            <div className="thumb-name">{f.file.name}</div>
+            <button type="button" className="ref-x" onClick={() => rmFile(i)} title="Remove">✕</button>
+          </div>
+        ))}
+        <label className="thumb thumb-add" title="Add image">
+          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">Image</span>
+          <input type="file" accept="image/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        </label>
+      </div>
+      {value.links.length > 0 && (
+        <div className="refs" style={{ marginTop: ".45rem" }}>
+          {value.links.map((l, i) => (
+            <a key={i} className="ref-link" href={l} target="_blank" rel="noreferrer" title={l}>
+              <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
+              <span className="ref-link-lbl">{l.replace(/^https?:\/\//i, "")}</span>
+              <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); rmLink(i); }} title="Remove">✕</span>
+            </a>
+          ))}
+        </div>
+      )}
+      <div className="ref-url" style={{ marginTop: ".45rem" }}>
+        <input className="nt-input" placeholder={oneLink ? "Paste the final creative link (Drive / Canva)…" : "Paste a reference URL…"} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }} />
+        <button type="button" className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
+      </div>
+      <div className="nt-hint" style={{ marginTop: ".35rem", display: "block" }}>{hint}</div>
+    </>
+  );
+}
+
+function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t: Task, owner: string, note: string, assets: NewTaskAssets) => void }) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("Reel Thumbnail");
   const [sbu, setSbu] = useState<string>(CC_SBUS[0]);
@@ -996,6 +1056,8 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   const [status, setStatus] = useState<CCStatus>("Content - Pending");
   const [content, setContent] = useState("");
   const [publishDate, setPublishDate] = useState(""); // the writer picks it — no auto-date
+  const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
+  const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if Manya does it herself
   const assign = autoAssign(type);
   const canSubmit = !!title.trim() && !!content.trim() && !!publishDate; // required fields
   function create() {
@@ -1018,7 +1080,12 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
         activity: [{ who: "Manya", text: "created the task", time: "now" }],
       },
     };
-    onCreate(t, "Manya", assign.note);
+    onCreate(t, "Manya", assign.note, {
+      refLinks: refs.links,
+      refFiles: refs.files.map((f) => f.file),
+      outLink: output.links[0] || "",
+      outFiles: output.files.map((f) => f.file),
+    });
   }
   return (
     <div className="modal" onClick={onClose}>
@@ -1037,6 +1104,14 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
           <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as CCStatus)} options={CC_STATUS_ORDER.map((s) => ({ value: s, label: STATUS[s].label }))} /></div>
         </div>
         <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+        <div className="nt-field">
+          <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
+          <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />
+        </div>
+        <div className="nt-field">
+          <label className="nt-label">Output <span className="nt-hint">finishing it yourself? drop the ready creative here</span></label>
+          <PendingAssets oneLink hint="Upload the ready creative (images) + its Drive/Canva link — for tasks you can complete without a designer." value={output} onChange={setOutput} />
+        </div>
         <div className="nt-assign">
           <span className="status-dot" style={{ background: "#8A92A6" }} />
           <span><b>Flow:</b> starts with <b>Manya</b> in the content phase. On <b>Content - Approved</b> it auto-hands off to {assign.toPool ? <b>the editors&apos; claim pool (Nikhil / Nandu)</b> : <b>{assign.owner}</b>} — because {type} is {assign.toPool ? "video" : "design"} work.</span>
@@ -2046,16 +2121,16 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
   // Capacity-gated: a new task starts on Manya (writer) — warn if her day is full.
-  const createTask = (t: Task) => {
+  const createTask = (t: Task, _owner?: string, _note?: string, assets?: NewTaskAssets) => {
     const add = estMins(t.detail.typeLine);
     const committed = committedFor("Manya");
     if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: "Manya", committed, add, cta: "Create anyway", proceed: () => doCreateTask(t) });
+      setAssignWarn({ name: "Manya", committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, assets) });
       return;
     }
-    doCreateTask(t);
+    doCreateTask(t, assets);
   };
-  const doCreateTask = (t: Task) => {
+  const doCreateTask = (t: Task, assets?: NewTaskAssets) => {
     setShowNew(false);
     // Persist to mh_posts. Content-first: every new task starts with the writer
     // (Manya) at "Content - Pending"; the handoff to Praveen / the editors' pool
@@ -2077,7 +2152,26 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
       .then(async (res) => {
         const j = await res.json().catch(() => ({}));
         if (!res.ok) { setToast({ who: "Create failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); return; }
-        setToast({ who: "Created ✓", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending).` });
+        // Now the row exists — persist any references / output the writer attached in the
+        // modal (they need the real post id). Links go on the row; images become attachments.
+        const postId = j.id as string | undefined;
+        if (postId && assets) {
+          const fields: Record<string, unknown> = {};
+          if (assets.refLinks.length) fields.reference_links = assets.refLinks;
+          if (assets.outLink) fields.output_link = assets.outLink;
+          if (Object.keys(fields).length) {
+            await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: "manya", fields }) }).catch(() => {});
+          }
+          const upload = async (file: File, kind: "reference" | "creative") => {
+            const fd = new FormData();
+            fd.append("postId", postId); fd.append("uploadedBy", "manya"); fd.append("kind", kind); fd.append("file", file);
+            await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => {});
+          };
+          for (const f of assets.refFiles) await upload(f, "reference");
+          for (const f of assets.outFiles) await upload(f, "creative");
+        }
+        const extras = assets ? [assets.refFiles.length + assets.refLinks.length ? "references" : "", assets.outFiles.length + (assets.outLink ? 1 : 0) ? "output" : ""].filter(Boolean).join(" + ") : "";
+        setToast({ who: "Created ✓", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending)${extras ? ` · ${extras} attached` : ""}.` });
         load();
       })
       .catch((e) => setToast({ who: "Create failed", color: "#C03221", av: "!", body: String(e) }));
