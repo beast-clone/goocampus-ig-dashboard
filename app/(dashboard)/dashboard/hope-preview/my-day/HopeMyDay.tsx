@@ -599,10 +599,11 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const [busy, setBusy] = useState(false);
   const [prio, setPrio] = useState(task.detail.priority);
   const [due, setDue] = useState(task.due || "");
+  const [contentEdit, setContentEdit] = useState(task.detail.content || ""); // the brief — editable even after approval
   const saveEdit = async () => {
     setBusy(true);
     try {
-      await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null } }) });
+      await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null, content: contentEdit } }) });
       setEditing(false); onSaved?.();
     } finally { setBusy(false); }
   };
@@ -783,11 +784,22 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           </div>
 
           {editing && (
-            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem" }}>
+              {/* Content (the brief) — editable at any stage, including after approval. */}
+              <div style={{ marginBottom: ".8rem" }}>
+                <div className="mlbl">Content</div>
+                <textarea
+                  className="nt-input nt-textarea"
+                  style={{ marginTop: ".3rem", width: "100%", minHeight: "8rem", resize: "vertical" }}
+                  value={contentEdit}
+                  onChange={(e) => setContentEdit(e.target.value)}
+                  placeholder="The write-up / brief — hook, body, CTA, specs…"
+                />
+              </div>
+              <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
                 <div>
                   <div className="mlbl">Priority</div>
-                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem" }}>
+                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem", flexWrap: "wrap" }}>
                     {Object.keys(PRIO).map((k) => (
                       <button key={k} className="btn sm" onClick={() => setPrio(k as typeof prio)} style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
                     ))}
@@ -798,9 +810,9 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
                   <div style={{ marginTop: ".3rem" }}><DatePicker value={due} onChange={setDue} /></div>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: ".4rem", marginTop: ".7rem" }}>
+              <div style={{ display: "flex", gap: ".4rem", marginTop: ".9rem" }}>
                 <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); }}>Cancel</button>
+                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
               </div>
             </div>
           )}
@@ -3151,7 +3163,7 @@ const CSS = `
 .hmd .lbl{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
 .hmd .pill{display:inline-flex;align-items:center;gap:.3em;font-size:.68rem;font-weight:600;padding:.16em .5em;border-radius:6px;white-space:nowrap}
 .hmd .dot{width:8px;height:8px;border-radius:3px;display:inline-block}
-.hmd .btn{font-size:.8rem;font-weight:600;border-radius:9px;padding:.5em .9em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;transition:all .12s}
+.hmd .btn{display:inline-flex;align-items:center;justify-content:center;gap:.35em;white-space:nowrap;font-size:.8rem;font-weight:600;border-radius:9px;padding:.5em .9em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;transition:all .12s}
 .hmd .btn:hover{border-color:#D9DEEA}
 .hmd .btn.primary{background:var(--brand);color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(58,87,232,.24)}
 .hmd .btn.primary:hover{background:var(--brand-ink)}
