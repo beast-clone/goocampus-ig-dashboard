@@ -1352,7 +1352,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
 }
 
 // End-today wrap-up — confirm what's done; unchecked tasks roll to tomorrow.
-function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, rolled: { title: string; reason: string }[]) => void; onClose: () => void }) {
+function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, rolled: { id: string; title: string; reason: string }[]) => void; onClose: () => void }) {
   const [done, setDone] = useState<Set<string>>(new Set(tasks.slice(0, Math.ceil(tasks.length / 2)).map((t) => t.id)));
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const toggle = (id: string) => setDone((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -1391,7 +1391,7 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
           <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
           <div style={{ display: "flex", gap: ".5rem" }}>
             <button className="btn" onClick={onClose}>Cancel</button>
-            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, rolling.map((t) => ({ title: t.title, reason: (reasons[t.id] || "").trim() })))}>End day &amp; log out</button>
+            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, rolling.map((t) => ({ id: t.id, title: t.title, reason: (reasons[t.id] || "").trim() })))}>End day &amp; log out</button>
           </div>
         </div>
       </div>
@@ -2223,12 +2223,19 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date })); } catch { /* private mode */ }
     postAttendance("login", min, at);
   };
-  const endToday = (doneCount: number, rollCount: number, rolled: { title: string; reason: string }[] = []) => {
+  const endToday = (doneCount: number, rollCount: number, rolled: { id: string; title: string; reason: string }[] = []) => {
     // End day = wrap-up (already confirmed) → demo logout. Clear the clock so the next
     // login re-anchors; show the logged-out overlay instead of ending the real session.
     const d = new Date();
     const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
-    postAttendance("logout", min, clockOf(min), rolled);
+    // Persist each rolled task's "why it's not done" reason onto the task itself
+    // (additional_info) so it shows as the delay note on the admin Attendance board —
+    // typed once here, no separate entry. Best-effort; never blocks logout.
+    for (const t of rolled) {
+      if (!t.id || !t.reason) continue;
+      fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id, actor: person, fields: { additional_info: t.reason } }) }).catch(() => {});
+    }
+    postAttendance("logout", min, clockOf(min), rolled.map((t) => ({ title: t.title, reason: t.reason })));
     setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
