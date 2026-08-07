@@ -117,6 +117,178 @@ function Review() {
     }
   }
 
+  // Samvaya / other-platform work is a SEPARATE business — it must never sit mixed
+  // into the GooCampus review queue (same rule as the My Day timeline). Split it out
+  // by interest (SBU) and give it its own clearly-labelled section below.
+  const isSamvaya = (p: ReviewPost) => /samvaya|matrimony/i.test(p.sbu || "");
+  const mainPosts = posts.filter((p) => !isSamvaya(p));
+  const samvayaPosts = posts.filter(isSamvaya);
+
+  const renderRow = (p: ReviewPost) => {
+    const tc = typeChip(p.type);
+    const busy = busyId === p.id;
+    return (
+      <Fragment key={p.id}>
+        <tr onClick={() => setOpenPost(p)} className="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer">
+          <td className="px-4 py-2.5">
+            <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
+          </td>
+          <td className="px-4 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0 relative">
+                <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+              </span>
+              <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
+            </div>
+          </td>
+          <td className="px-4 py-2.5">
+            {p.sbu ? <span className="inline-flex text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">{p.sbu}</span> : <span className="text-gray-300">—</span>}
+          </td>
+          <td className="px-4 py-2.5">
+            {p.hasCreative ? <span className="text-emerald-700 text-xs font-medium">✓ Attached</span> : <span className="text-amber-700 text-xs bg-amber-50 rounded-md px-2 py-0.5">No creative</span>}
+          </td>
+          <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 justify-end">
+              <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
+                <IconCalendarPlus size={14} stroke={1.9} /> Push to Schedule
+              </button>
+              <button disabled={busy} onClick={() => { setFeedbackFor(feedbackFor === p.id ? null : p.id); setFeedbackText(""); }} className="flex items-center gap-1.5 text-xs font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40">
+                <IconArrowBackUp size={14} stroke={1.9} /> Send back
+              </button>
+            </div>
+          </td>
+        </tr>
+        {feedbackFor === p.id && (
+          <tr className="bg-rose-50/40 border-b border-gray-50">
+            <td colSpan={5} className="px-4 py-3">
+              <div className="flex items-center gap-2">
+                <input autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40 whitespace-nowrap">
+                  <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
+                </button>
+                <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  };
+
+  const renderCard = (p: ReviewPost) => {
+    const tc = typeChip(p.type);
+    const busy = busyId === p.id;
+    return (
+      <div
+        key={p.id}
+        onClick={() => setOpenPost(p)}
+        className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col cursor-pointer"
+      >
+        {/* Media preview */}
+        <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
+          <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+          <span
+            className="absolute top-2 left-2 text-[11px] font-semibold rounded-md px-2 py-0.5"
+            style={{ background: tc.bg, color: tc.fg }}
+          >
+            {p.type || "Post"}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div className="p-3.5 flex flex-col gap-2 flex-1">
+          <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
+            {p.title || "Untitled"}
+          </div>
+          {p.sbu && (
+            <div>
+              <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
+                {p.sbu}
+              </span>
+            </div>
+          )}
+          {(p.caption || p.content) && (
+            <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
+          )}
+          {!p.hasCreative && (
+            <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+              No creative attached — add media before scheduling.
+            </div>
+          )}
+
+          {/* Actions */}
+          {feedbackFor === p.id ? (
+            /* Send-back needs feedback notes (spec §7) — they land highlighted
+               on the producer's My Day task. */
+            <div className="mt-auto pt-1 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              <textarea
+                autoFocus
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="What needs changing? (the producer sees this on their task)"
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={busy || !feedbackText.trim()}
+                  onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)}
+                  className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"
+                >
+                  <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
+                </button>
+                <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
+              <button
+                disabled={busy || !p.hasCreative}
+                onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
+                title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
+                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }}
+                title="Send back to the producer with feedback"
+                className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
+              >
+                <IconArrowBackUp size={15} stroke={1.9} /> Send back
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTable = (list: ReviewPost[]) => (
+    <div className="rounded-xl border border-gray-100 bg-white overflow-hidden overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
+        <thead className="bg-gray-50 border-b border-gray-100 text-[#8A92A6] text-left">
+          <tr>
+            <th className="px-4 py-2.5 font-medium">Type</th>
+            <th className="px-4 py-2.5 font-medium">Post</th>
+            <th className="px-4 py-2.5 font-medium">Interest</th>
+            <th className="px-4 py-2.5 font-medium">Creative</th>
+            <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>{list.map(renderRow)}</tbody>
+      </table>
+    </div>
+  );
+
+  // Grid scales up on big monitors: 5 cols on ~24in (1536px+), 6 on ~27-32in (2100px+).
+  const renderGrid = (list: ReviewPost[]) => (
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
+      {list.map(renderCard)}
+    </div>
+  );
+
   return (
     <div>
       {/* Header strip */}
@@ -149,7 +321,7 @@ function Review() {
             </button>
           </div>
           <span className="text-sm font-medium text-brand bg-white rounded-full px-3 py-1">
-            {posts.length} in queue
+            {mainPosts.length} in queue
           </span>
           <button
             onClick={load}
@@ -178,165 +350,37 @@ function Review() {
             Posts appear here the moment they&apos;re marked <b>Output&nbsp;-&nbsp;Ready</b>.
           </div>
         </div>
-      ) : view === "table" ? (
-        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 border-b border-gray-100 text-[#8A92A6] text-left">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Type</th>
-                <th className="px-4 py-2.5 font-medium">Post</th>
-                <th className="px-4 py-2.5 font-medium">Interest</th>
-                <th className="px-4 py-2.5 font-medium">Creative</th>
-                <th className="px-4 py-2.5 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {posts.map((p) => {
-                const tc = typeChip(p.type);
-                const busy = busyId === p.id;
-                return (
-                  <Fragment key={p.id}>
-                    <tr onClick={() => setOpenPost(p)} className="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer">
-                      <td className="px-4 py-2.5">
-                        <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0 relative">
-                            <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
-                          </span>
-                          <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {p.sbu ? <span className="inline-flex text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">{p.sbu}</span> : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {p.hasCreative ? <span className="text-emerald-700 text-xs font-medium">✓ Attached</span> : <span className="text-amber-700 text-xs bg-amber-50 rounded-md px-2 py-0.5">No creative</span>}
-                      </td>
-                      <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2 justify-end">
-                          <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
-                            <IconCalendarPlus size={14} stroke={1.9} /> Push to Schedule
-                          </button>
-                          <button disabled={busy} onClick={() => { setFeedbackFor(feedbackFor === p.id ? null : p.id); setFeedbackText(""); }} className="flex items-center gap-1.5 text-xs font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40">
-                            <IconArrowBackUp size={14} stroke={1.9} /> Send back
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {feedbackFor === p.id && (
-                      <tr className="bg-rose-50/40 border-b border-gray-50">
-                        <td colSpan={5} className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <input autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-                            <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40 whitespace-nowrap">
-                              <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
-                            </button>
-                            <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
-          {/* Grid scales up on big monitors: 5 cols on ~24in (1536px+), 6 on ~27-32in (2100px+), so cards shrink and 5-6 fit per row. */}
-          {posts.map((p) => {
-            const tc = typeChip(p.type);
-            const busy = busyId === p.id;
-            return (
-              <div
-                key={p.id}
-                onClick={() => setOpenPost(p)}
-                className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col cursor-pointer"
-              >
-                {/* Media preview */}
-                <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
-                  <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
-                  <span
-                    className="absolute top-2 left-2 text-[11px] font-semibold rounded-md px-2 py-0.5"
-                    style={{ background: tc.bg, color: tc.fg }}
-                  >
-                    {p.type || "Post"}
-                  </span>
-                </div>
+        <>
+          {/* GooCampus review queue */}
+          {mainPosts.length > 0 ? (
+            view === "table" ? renderTable(mainPosts) : renderGrid(mainPosts)
+          ) : (
+            <div className="rounded-2xl border border-gray-100 bg-white py-10 text-center text-sm text-[#8A92A6]">
+              No GooCampus posts awaiting review.
+            </div>
+          )}
 
-                {/* Body */}
-                <div className="p-3.5 flex flex-col gap-2 flex-1">
-                  <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
-                    {p.title || "Untitled"}
-                  </div>
-                  {p.sbu && (
-                    <div>
-                      <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
-                        {p.sbu}
-                      </span>
-                    </div>
-                  )}
-                  {(p.caption || p.content) && (
-                    <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
-                  )}
-                  {!p.hasCreative && (
-                    <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
-                      No creative attached — add media before scheduling.
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  {feedbackFor === p.id ? (
-                    /* Send-back needs feedback notes (spec §7) — they land highlighted
-                       on the producer's My Day task. */
-                    <div className="mt-auto pt-1 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                      <textarea
-                        autoFocus
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        placeholder="What needs changing? (the producer sees this on their task)"
-                        rows={3}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          disabled={busy || !feedbackText.trim()}
-                          onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"
-                        >
-                          <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
-                        </button>
-                        <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        disabled={busy || !p.hasCreative}
-                        onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
-                        title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }}
-                        title="Send back to the producer with feedback"
-                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
-                      >
-                        <IconArrowBackUp size={15} stroke={1.9} /> Send back
-                      </button>
-                    </div>
-                  )}
+          {/* Samvaya / other-platform work — a separate business, sorted out of the
+              GooCampus queue so it's never mixed in (same rule as the My Day timeline). */}
+          {samvayaPosts.length > 0 && (
+            <section className="mt-7">
+              <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+                <span className="grid place-items-center w-8 h-8 rounded-lg text-white" style={{ background: "#0E8E86" }}>
+                  <IconChecklist size={16} stroke={1.8} />
+                </span>
+                <div>
+                  <div className="text-[#232D42] font-semibold text-sm">Samvaya · other platforms</div>
+                  <div className="text-xs text-[#8A92A6]">Separate from GooCampus — reviewed and scheduled on its own.</div>
                 </div>
+                <span className="ml-auto text-xs font-medium rounded-full px-3 py-1" style={{ background: "#DEF3F1", color: "#0E8E86" }}>
+                  {samvayaPosts.length} in queue
+                </span>
               </div>
-            );
-          })}
-        </div>
+              {view === "table" ? renderTable(samvayaPosts) : renderGrid(samvayaPosts)}
+            </section>
+          )}
+        </>
       )}
 
       {/* Preview popup — click any post (card or table row) to open it. */}
