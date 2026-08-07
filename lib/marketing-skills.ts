@@ -1,6 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { askPerplexity } from "@/lib/ai";
+import { askPerplexity, askClaudeViaPerplexity } from "@/lib/ai";
+
+// Which model runs a playbook. "sonar" = Perplexity's own Sonar (cheap, fast, good
+// research). "claude" = Claude Sonnet 4.5 resold through Perplexity (stronger writer,
+// pricier) — both billed to the same PERPLEXITY_API_KEY / balance.
+export type Engine = "sonar" | "claude";
 
 // The marketing-skills library — 49 framework prompts (Corey Haines' open pack,
 // see marketing-skills/NOTICE.md) imported under marketing-skills/. Each skill is
@@ -42,11 +47,13 @@ export function getSkillDoc(slug: string): string | null {
 const GC_CONTEXT =
   "GooCampus guides Indian medical students and doctors on NEET (UG/PG), MBBS/MD abroad, medical PG abroad, and international licensing (PLAB UK, AMC Australia, USMLE, Gulf/DHA). Audience: Indian medical aspirants and IMG doctors. Voice: warm, credible, specific, never hyped. Never invent statistics or dates.";
 
-export type RunResult = { output: string; citations: string[]; model: string; tokens: number };
+export type RunResult = { output: string; citations: string[]; model: string; tokens: number; cost?: number | null; engine: Engine };
 
-// Run a skill's framework against the user's task, tailored to GooCampus. Uses
-// Perplexity (sonar-pro) — grounded, current, and no Claude API needed.
-export async function runSkill(slug: string, task: string): Promise<RunResult> {
+// Run a skill's framework against the user's task, tailored to GooCampus. Engine
+// picks the writer: "sonar" (Perplexity, default) or "claude" (Claude Sonnet 4.5 via
+// Perplexity — stronger writing, same key/bill). Same framework + GooCampus context
+// go in either way, so switching engines is a true like-for-like comparison.
+export async function runSkill(slug: string, task: string, engine: Engine = "sonar"): Promise<RunResult> {
   const doc = getSkillDoc(slug);
   if (!doc) throw new Error("Unknown skill");
   const meta = listSkills().find((s) => s.slug === slug)!;
@@ -62,11 +69,18 @@ export async function runSkill(slug: string, task: string): Promise<RunResult> {
 
   // Pillar Content is the deep explainer — give it a much larger budget so it can go long.
   const isPillar = slug === "pillar-content";
+  const maxTokens = isPillar ? 4200 : 2800;
+  const timeoutMs = isPillar ? 120_000 : 90_000;
+
+  if (engine === "claude") {
+    const { text, citations, usage } = await askClaudeViaPerplexity(system, user, {
+      model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs,
+    });
+    return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine };
+  }
+
   const { text, citations, usage } = await askPerplexity(system, user, {
-    model: "sonar-pro",
-    maxTokens: isPillar ? 4200 : 2800,
-    temperature: 0.4,
-    timeoutMs: isPillar ? 120_000 : 90_000,
+    model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs,
   });
-  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total };
+  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine };
 }

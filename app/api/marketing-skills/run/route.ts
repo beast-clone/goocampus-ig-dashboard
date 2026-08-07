@@ -13,12 +13,13 @@ export async function POST(req: Request) {
   const limited = guardRate(req, "marketing-skill", 20, 300_000);
   if (limited) return limited;
   try {
-    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string };
+    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string; engine?: string };
     const slug = (b.slug || "").trim();
     const task = (b.task || "").trim();
+    const engine = b.engine === "claude" ? "claude" : "sonar"; // default Sonar; only "claude" opts into Claude-via-Perplexity
     if (!slug || !task) return NextResponse.json({ error: "slug and task are required" }, { status: 400 });
     if (task.length > 4000) return NextResponse.json({ error: "task too long (max 4000 chars)" }, { status: 400 });
-    const res = await runSkill(slug, task);
+    const res = await runSkill(slug, task, engine);
     return NextResponse.json(res);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";

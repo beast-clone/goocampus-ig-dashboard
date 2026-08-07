@@ -11,7 +11,7 @@ export function hasAI(): boolean {
   return Boolean(KEY);
 }
 
-export type Usage = { prompt: number; completion: number; total: number };
+export type Usage = { prompt: number; completion: number; total: number; cost?: number };
 
 export async function askPerplexity(
   system: string,
@@ -42,6 +42,55 @@ export async function askPerplexity(
     const u = j.usage || {};
     const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0 };
     return { text: j.choices?.[0]?.message?.content || "", citations, usage };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Claude via Perplexity — Perplexity resells Anthropic models through its Agentic
+// Research API (OpenAI "Responses" format on /v1/responses), billed to the SAME
+// PERPLEXITY_API_KEY / balance as Sonar (Anthropic token rate + a small per-search
+// fee). Anthropic models REQUIRE max_output_tokens. A far stronger writer than Sonar;
+// this powers the "Claude via Perplexity" engine toggle. Returns the same shape as
+// askPerplexity so callers can swap engines with one branch.
+export async function askClaudeViaPerplexity(
+  system: string,
+  user: string,
+  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number },
+): Promise<{ text: string; citations: string[]; usage: Usage }> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 90_000);
+  try {
+    const res = await fetch("https://api.perplexity.ai/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: opts?.model || "anthropic/claude-sonnet-4-5",
+        instructions: system,
+        input: user,
+        max_output_tokens: opts?.maxTokens ?? 2800, // required for Anthropic models
+        temperature: opts?.temperature ?? 0.4,
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`Perplexity(Claude) ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const j = await res.json();
+    const out: { type?: string; content?: { type?: string; text?: string; annotations?: { url?: string }[] }[] }[] =
+      Array.isArray(j.output) ? j.output : [];
+    const text = out
+      .filter((o) => o.type === "message")
+      .flatMap((o) => o.content || [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text || "")
+      .join("");
+    const citations = out
+      .flatMap((o) => o.content || [])
+      .flatMap((c) => c.annotations || [])
+      .map((a) => a.url || "")
+      .filter(Boolean);
+    const u = j.usage || {};
+    const usage: Usage = { prompt: u.input_tokens || 0, completion: u.output_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
+    return { text, citations, usage };
   } finally {
     clearTimeout(timer);
   }

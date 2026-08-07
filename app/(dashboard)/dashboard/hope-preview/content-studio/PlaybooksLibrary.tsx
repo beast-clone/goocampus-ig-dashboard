@@ -250,8 +250,13 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
   const [deriving, setDeriving] = useState(false);
   const [derived, setDerived] = useState<DeriveDraft[]>([]);
   const [deriveErr, setDeriveErr] = useState<string | null>(null);
+  // Engine: Perplexity Sonar (default) vs Claude Sonnet 4.5 resold via Perplexity.
+  // Both bill to the same Perplexity balance; Claude writes better but costs more.
+  const [engine, setEngine] = useState<"sonar" | "claude">("sonar");
+  const [resultEngine, setResultEngine] = useState<"sonar" | "claude" | null>(null);
   // Token usage so the team can see what each generation costs (Perplexity billing).
   const [runTokens, setRunTokens] = useState<number | null>(null);
+  const [runCost, setRunCost] = useState<number | null>(null);
   const [deriveTokens, setDeriveTokens] = useState(0);
   // Formats made in the most recent generation — tagged "New" so the team spots them.
   const [newFormats, setNewFormats] = useState<Set<string>>(new Set());
@@ -266,14 +271,15 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
     const t = task.trim();
     if (!t || loading) return;
     setLoading(true); setError(null); setOutput(null); setCitations([]);
-    setSelected(new Set()); setDerived([]); setDeriveErr(null); setRunTokens(null); setDeriveTokens(0); setNewFormats(new Set()); setColOf({});
+    setSelected(new Set()); setDerived([]); setDeriveErr(null); setRunTokens(null); setRunCost(null); setDeriveTokens(0); setNewFormats(new Set()); setColOf({});
     try {
       const r = await fetch("/api/marketing-skills/run", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t, engine }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
       setOutput(d.output || "—"); setCitations(d.citations || []); setRunTokens(typeof d.tokens === "number" ? d.tokens : 0);
+      setRunCost(typeof d.cost === "number" ? d.cost : null); setResultEngine(d.engine === "claude" ? "claude" : "sonar");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -328,14 +334,21 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconSparkles size={16} /></span>
           <div className="text-[16px] font-medium text-[#232D42]">{skill.name}</div>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#F1F3F9] text-[#6B7280]">{skill.category}</span>
+          {resultEngine && (
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${resultEngine === "claude" ? "bg-brand-light text-brand" : "bg-[#EAF6EE] text-emerald-700"}`}>
+              {resultEngine === "claude" ? "Claude via Perplexity" : "Perplexity Sonar"}
+            </span>
+          )}
           {runTokens !== null && (
             <span
               className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[12px] font-medium text-amber-900"
-              title="Perplexity tokens billed for this topic — the playbook run plus every output you generate. Watch this before generating dozens of formats."
+              title="Billed to your Perplexity balance for this topic — the playbook run plus every output you generate. Watch this before generating dozens of formats."
             >
               <IconBolt size={13} className="text-amber-600" />
               {(runTokens + deriveTokens).toLocaleString()} tokens
-              <span className="text-amber-700 font-normal">· run {runTokens.toLocaleString()}{deriveTokens > 0 ? ` + outputs ${deriveTokens.toLocaleString()}` : ""}</span>
+              <span className="text-amber-700 font-normal">
+                {runCost != null ? `· $${runCost.toFixed(4)} run` : `· run ${runTokens.toLocaleString()}`}{deriveTokens > 0 ? ` + outputs ${deriveTokens.toLocaleString()}` : ""}
+              </span>
             </span>
           )}
         </div>
@@ -366,7 +379,27 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
       })()}
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 mb-4">
-        <label className="text-[12px] font-semibold text-[#232D42] uppercase tracking-wide">Your task</label>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <label className="text-[12px] font-semibold text-[#232D42] uppercase tracking-wide">Your task</label>
+          <div className="inline-flex items-center gap-2">
+            <span className="text-[11px] text-[#8A92A6]">Engine</span>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-[#F6F7FB] p-0.5">
+              <button
+                onClick={() => setEngine("sonar")}
+                className={`px-3 py-1 rounded-md text-[12px] font-medium transition ${engine === "sonar" ? "bg-white text-[#232D42] border border-gray-200" : "text-[#8A92A6] border border-transparent"}`}
+              >Perplexity</button>
+              <button
+                onClick={() => setEngine("claude")}
+                className={`px-3 py-1 rounded-md text-[12px] font-medium transition ${engine === "claude" ? "bg-white text-brand border border-brand/40" : "text-[#8A92A6] border border-transparent"}`}
+              >Claude via Perplexity</button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-1.5 text-[11.5px] text-[#8A92A6] leading-snug">
+          {engine === "claude"
+            ? "Claude Sonnet 4.5 (resold via Perplexity) — same playbook framework + GooCampus voice, but a stronger writer. Billed to your Perplexity balance; costs more than Sonar."
+            : "Perplexity Sonar Pro — the playbook framework grounded in live web sources. Cheapest and fast."}
+        </div>
         <textarea
           value={task}
           onChange={(e) => setTask(e.target.value)}
@@ -385,7 +418,7 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
         </div>
       </div>
 
-      {loading && <div className="rounded-2xl border border-gray-100 bg-white p-5 text-[13px] text-[#8A92A6]">Applying the {skill.name} framework via Perplexity… this can take 20–40s.</div>}
+      {loading && <div className="rounded-2xl border border-gray-100 bg-white p-5 text-[13px] text-[#8A92A6]">Applying the {skill.name} framework via {engine === "claude" ? "Claude (Sonnet 4.5, through Perplexity)" : "Perplexity Sonar"}… this can take 20–40s.</div>}
       {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t run — {error}</div>}
       {output && (
         <>
