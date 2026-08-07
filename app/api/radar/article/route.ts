@@ -63,10 +63,10 @@ async function assertPublicUrl(urlStr: string): Promise<void> {
 function sanitizeArticleHtml(rawHtml: string): string {
   const frag = new JSDOM(`<!doctype html><body>${rawHtml}</body>`);
   const d = frag.window.document;
-  d.querySelectorAll("script,noscript,style,iframe,object,embed,form,base,link,meta,template,svg,math").forEach((el) => el.remove());
+  d.querySelectorAll("script,noscript,style,iframe,object,embed,form,base,link,meta,template,svg,math").forEach((el: Element) => el.remove());
   const BAD_PROTO = /^\s*(javascript|vbscript):/i;
   const URL_ATTRS = new Set(["href", "src", "xlink:href", "srcset", "formaction", "action", "background", "poster"]);
-  for (const el of Array.from(d.querySelectorAll("*"))) {
+  for (const el of Array.from(d.querySelectorAll("*")) as Element[]) {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
       if (name.startsWith("on")) el.removeAttribute(attr.name);
