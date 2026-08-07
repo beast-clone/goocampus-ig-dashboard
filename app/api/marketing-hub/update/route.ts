@@ -77,6 +77,14 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // Keep due_date in lockstep with publishing_date. The team tracks the publishing
+    // date; a due_date left behind on an edit causes a false "overdue" (see the My Day
+    // card/reminder logic). If a publishing date is set without an explicit due_date in
+    // the same patch, mirror it so the two can't drift apart.
+    if ("publishing_date" in clean && !("due_date" in clean)) {
+      clean.due_date = clean.publishing_date;
+    }
+
     // `custom` is a jsonb bag (collaborator / claim_role / incorporating_feedback).
     // Merge, never overwrite, so setting one key doesn't drop the others.
     const customPatch = (body.fields as { custom?: Record<string, unknown> }).custom;

@@ -145,72 +145,6 @@ const PPL: Record<string, Person> = {
   maheen: { name: "Maheen", av: "M", color: "#2F9E6F" },
 };
 
-const TASKS: Task[] = [
-  { id: "t1", title: "10k Mentorship — Speaking Reel", meta: "Reel · Original · 15 Jul", status: "Content - In Progress", due: "2026-07-14",
-    detail: {
-      typeLine: "Reel · Original", publishes: "15 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · 10k Mentorship",
-      content: "Talking-head reel introducing the 10k Mentorship program.\n\nHook (0–3s): open with a pattern-interrupt — “Most students pick a college blind. Here's how 10,000 of them didn't.” Keep the first frame text-only and high-contrast so it stops the scroll.\n\nBody (3–35s): three crisp benefits, one per beat. 1) A 1-on-1 counsellor who has actually walked the path. 2) Verified cutoff data, not WhatsApp-forward rumours. 3) A private community of 10,000 aspirants going through the same season.\n\nProof: drop the on-screen stat “10,000+ students guided” and a two-second montage of real counsellor-call screenshots so the claim lands.\n\nCTA (35–45s): “Comment or DM the word MENTOR and we'll send you the free starter kit.” End on a clean card with the logo and handle.\n\nSpecs: vertical 9:16, under 45 seconds, subtitles burned in (English). B-roll — campus shots plus the app screen-recording in the shared drive. Music upbeat but under 100 BPM so the voice stays clear.\n\nTone: warm and direct, like a senior telling a junior what they wish they'd known. No jargon, no fear-mongering — just clarity.",
-      creatives: [{ name: "cover-frame.png", type: "image" }, { name: "reel-cut-v3.mp4", type: "video" }],
-      references: [
-        { kind: "link", label: "notion.so/10k-mentorship-brief", url: "https://notion.so" },
-        { kind: "link", label: "youtube.com/watch?v=hook-ref", url: "https://youtube.com" },
-      ],
-      collaborators: [PPL.manya],
-      activity: [{ who: "Manya", text: "approved the script", time: "9:12 AM" }, { who: "You", text: "started editing", time: "10:31 AM" }] } },
-  { id: "t2", title: "Careers other than NEET — Reel", meta: "Reel Thumbnail · owned by Praveen", status: "Output - Ready", due: "2026-07-13",
-    detail: {
-      typeLine: "Reel Thumbnail", publishes: "14 Jul 2026", owner: "Praveen", priority: "Medium", brand: "GooCampus · Careers",
-      content: "Thumbnail and cover frame for the “Careers other than NEET” reel.\n\nOne face, bold high-contrast text hook (“NEET isn't the only door”), brand-blue accent. Keep the face on the right third, text on the left.\n\nDeliver a 9:16 cover plus a 1:1 crop for the grid. Output is ready in the drive — needs a quick review pass before it goes to the Scheduler.",
-      creatives: [{ name: "thumb-9x16-final.png", type: "image" }, { name: "thumb-1x1.png", type: "image" }],
-      collaborators: [PPL.manya],
-      activity: [{ who: "Praveen", text: "uploaded the output", time: "8:40 AM" }, { who: "Praveen", text: "marked output ready", time: "9:05 AM" }] } },
-  { id: "t3", title: "Careers other than NEET — Reel", meta: "Reel · Original · 13 Jul", status: "Incorporating Feedback", due: "2026-07-13",
-    detail: {
-      typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · Careers",
-      content: "Full reel cut on career alternatives after NEET — five options in a fast-paced sequence (research, allied health, biotech, data + health, abroad pathways).\n\nQuick jump-cuts, on-screen captions in English and Hindi, upbeat track under 100 BPM. Approved by Manya; currently in editing. Target runtime 40–50 seconds.",
-      creatives: [{ name: "reel-cut-final.mp4", type: "video" }, { name: "cover.png", type: "image" }],
-      collaborators: [PPL.manya],
-      activity: [{ who: "Manya", text: "left B-roll notes", time: "10:24 AM" }, { who: "You", text: "accepted the task", time: "10:31 AM" }] } },
-  { id: "t4", title: "Salary Tool — text based", meta: "Reel · owned by Manya", status: "Published/Scheduled", due: "2026-07-11",
-    detail: {
-      typeLine: "Reel · Text", publishes: "11 Jul 2026", owner: "Manya", priority: "Low", brand: "GooCampus · Tools",
-      content: "Text-based reel walking through the salary-estimator tool: pick a role, see the median package by city, and share the result.\n\nPublished and performing well (34k reach in 48h). Kept here for reference and as a template for the next tool explainer.",
-      creatives: [{ name: "salary-tool-demo.mp4", type: "video" }],
-      collaborators: [PPL.manya],
-      activity: [{ who: "Manya", text: "published the reel", time: "Jul 11" }, { who: "Maheen", text: "flagged it as a top performer", time: "Jul 12" }] } },
-  { id: "t5", title: "MBBS Govt Quota Cutoff — TN", meta: "Reel · owned by Nikhil", status: "Published/Scheduled", due: "2026-07-10",
-    detail: {
-      typeLine: "Reel · Original", publishes: "10 Jul 2026", owner: "Nikhil", priority: "Medium", brand: "GooCampus · NEET",
-      content: "Tamil Nadu government-quota MBBS cutoff explainer — the 2025 closing ranks by community, what changed vs 2024, and how to read the counselling table.\n\nPublished and steady. Use as the reference/template for the next state's cutoff reel (Karnataka is queued).",
-      creatives: [{ name: "reel-final.mp4", type: "video" }, { name: "cutoff-card.png", type: "image" }],
-      collaborators: [PPL.manya],
-      activity: [{ who: "Nikhil", text: "published the reel", time: "Jul 10" }] } },
-  { id: "t6", title: "Germany Approbation — Reel", meta: "Reel · Original · 13 Jul", status: "Content - In Progress", due: "2026-07-13",
-    detail: { typeLine: "Reel · Original", publishes: "13 Jul 2026", owner: "Nandu", priority: "High", brand: "GooCampus · Study Abroad",
-      content: "Reel explaining Germany's Approbation pathway for IMGs — the three steps, the timeline, and the language bar.\n\nApproved and you're mid-edit. It was due yesterday, so it needs wrapping up first.",
-      creatives: [{ name: "approbation-cut.mp4", type: "video" }], collaborators: [PPL.manya],
-      activity: [{ who: "Manya", text: "approved the script", time: "Jul 12" }] } },
-  { id: "t7", title: "AMC Exam Guide — Carousel", meta: "Carousel · 15 Jul", status: "Content - Approved", due: "2026-07-15",
-    detail: { typeLine: "Carousel · Original", publishes: "15 Jul 2026", owner: "Praveen", priority: "Medium", brand: "GooCampus · Australia",
-      content: "8-slide carousel breaking down the AMC exam pathway — MCQ then clinical, the documents, and the timelines.\n\nJust approved; queued for tomorrow.",
-      creatives: [], collaborators: [PPL.manya], activity: [{ who: "Manya", text: "approved the content", time: "Today" }] } },
-];
-
-// Videos are NOT auto-assigned — they sit in a shared pool that BOTH editors
-// (Nandu long-form, Nikhil short-form) can see and CLAIM. Whoever claims becomes
-// the owner. (Design/thumbnail work stays auto-assigned to Praveen.)
-const CLAIM_POOL_INIT: Task[] = [
-  { id: "v1", title: "NEET PG Strategy — Long-Form", meta: "YouTube Long-Form · unclaimed", status: "Content - Approved", due: "2026-07-18",
-    detail: { typeLine: "YouTube Long-Form", publishes: "18 Jul 2026", owner: "Unclaimed", priority: "High", brand: "GooCampus · NEET PG",
-      content: "Long-form explainer on how to build a NEET-PG counselling strategy — choosing branch vs college, reading closing ranks, and the round-by-round game plan.\n\nApproved script is in the doc. Needs an editor to claim it and cut a 6–8 min video with lower-thirds and chapter markers.",
-      creatives: [{ name: "script-final.txt", type: "doc" }, { name: "raw-interview.mp4", type: "video" }],
-      collaborators: [PPL.manya], activity: [{ who: "Manya", text: "approved the script", time: "9:40 AM" }] } },
-  { id: "v2", title: "Which Branch After NEET — Reel", meta: "Reel - Original · unclaimed", status: "Content - Approved", due: "2026-07-16",
-    detail: { typeLine: "Reel - Original", publishes: "16 Jul 2026", owner: "Unclaimed", priority: "Medium", brand: "GooCampus · NEET UG",
-      content: "Fast-paced reel: “Which branch should you pick after NEET?” — 4 factors in 30 seconds, punchy captions, trending audio.\n\nApproved and ready to edit. First editor to claim it owns it.",
-      creatives: [{ name: "reel-brief.txt", type: "doc" }], collaborators: [PPL.manya], activity: [{ who: "Manya", text: "moved it to Approved", time: "10:05 AM" }] } },
-];
-
 // Today's plan is time-proportional across an 8-hour workday (9 AM–6 PM) with a
 // protected 1-hour lunch. Tasks are reorderable — drag a block, or use the ◀ ▸
 // nudges to push it front/back.
@@ -1232,29 +1166,6 @@ function ManyaReschedule({ task, editorName, movedId, onMove, onConfirm }: { tas
   );
 }
 
-// The team capacity board on Manya's My Day — each person's day at a glance so she
-// assigns with eyes open. (Seeded for the mock.)
-const CAP_BOARD: { name: string; role: string; av: string; color: string; badge: "free" | "some" | "full"; free: string; blocks: { k: string; l: string; f: number }[] }[] = [
-  { name: "Praveen", role: "Designer", av: "P", color: "#C2410C", badge: "free", free: "2h 30m free", blocks: [{ k: "design", l: "Australia Carousel", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "design", l: "NEET Thumbnail", f: 1.5 }, { k: "free", l: "Free", f: 2.5 }] },
-  { name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8", badge: "some", free: "1h 30m free", blocks: [{ k: "reel", l: "Reel A", f: 2 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Reel B", f: 2 }, { k: "free", l: "Free", f: 1.5 }] },
-  { name: "Nandu", role: "Video editor", av: "Nd", color: "#3A57E8", badge: "full", free: "Full", blocks: [{ k: "reel", l: "NEET Cutoff", f: 1.5 }, { k: "reel", l: "Germany", f: 1.5 }, { k: "lunch", l: "Lunch", f: 1 }, { k: "reel", l: "Careers", f: 1.5 }, { k: "reel", l: "Australia", f: 1.5 }, { k: "reel", l: "Motivation", f: 1.5 }] },
-];
-function TeamCapacityBoard() {
-  return (
-    <div className="card pad tcb">
-      <div className="tcb-head">Team capacity — today <span className="tcb-sub">assign with everyone&apos;s day in view</span></div>
-      {CAP_BOARD.map((p) => (
-        <div key={p.name} className="tcb-row">
-          <div className="tcb-who"><span className="av" style={{ background: p.color }}>{p.av}</span><div><div className="tcb-n">{p.name}</div><div className="tcb-r">{p.role}</div></div></div>
-          <div className="tcb-tl">{p.blocks.map((b, i) => <div key={i} className={`tcb-blk ${b.k}`} style={{ flex: b.f }} title={b.l}>{b.k === "free" || b.k === "lunch" ? b.l : b.l}</div>)}</div>
-          <span className={`cap-badge ${p.badge}`}>{p.free}</span>
-        </div>
-      ))}
-      <div className="tcb-note">Assigning a video to someone <b>Full</b> pops a <b>&ldquo;send anyway, or route to a freer editor?&rdquo;</b> check — never a silent overload.</div>
-    </div>
-  );
-}
-
 // The Team-capacity PAGE (opened from the 👥 button, next to the bell) — its own
 // screen so Manya never confuses it with her own plan. Each teammate shows their
 // day planner (done faded, current highlighted + now-line) and what they're on now.
@@ -1740,7 +1651,10 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name);
     const n = (fn: (s: CCStatus) => boolean) => mine.filter((t) => fn(t.status)).length;
     return {
-      pending: n((s) => s === "Content - Pending" || s === "Content - In Progress"),
+      // Content phase belongs to the writer (Manya). Producers don't work
+      // Content-Pending and their task list hides it, so the stat must too — otherwise
+      // it counts tasks they can't see (e.g. legacy thumbnails owned by a designer).
+      pending: me.name === "Manya" ? n((s) => s === "Content - Pending" || s === "Content - In Progress") : 0,
       waiting: n((s) => s === "Content - Approved" || s === "Incorporating Feedback"),
       output: n((s) => s === "Output - Ready"),
       toPublish: n((s) => s === "Ready to Publish"),
@@ -2575,7 +2489,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
               )}
             </div>
             <div className="stats">
-              <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending today</div></div>
+              <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending</div></div>
               <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>
               <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
               <div className="stat"><div className="n">{stats.toPublish}</div><div className="k">To publish</div></div>
