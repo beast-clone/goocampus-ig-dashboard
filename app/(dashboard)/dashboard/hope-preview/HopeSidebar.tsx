@@ -162,8 +162,11 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
     <aside className="hsidebar">
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
+        {/* Logo → Overview (the main page). */}
+        <a href={OVERVIEW.href} aria-label="Go to Overview" className="hlogo-link">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
+        </a>
       </div>
       <GlobalSearch />
       <LeafRow leaf={OVERVIEW} />
@@ -186,6 +189,7 @@ const SIDEBAR_CSS = `
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
 .hsidebar .hbrand{display:flex;align-items:center;justify-content:center;padding:16px 8px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hlogo-link{display:inline-block;cursor:pointer;line-height:0}
 .hsidebar .hlogo-img{width:92px;max-width:100%;height:auto;object-fit:contain;display:block}
 .hsidebar .hbrandname{font-weight:600;font-size:1.05rem;color:var(--sb-ink)}
 .hsidebar .hnavgroup{font-family:ui-monospace,Menlo,monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;color:var(--sb-faint);font-weight:700;padding:13px 10px 5px}
