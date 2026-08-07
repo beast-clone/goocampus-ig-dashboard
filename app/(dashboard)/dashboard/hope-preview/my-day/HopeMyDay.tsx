@@ -762,7 +762,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           scroll (the section grows; you scroll the card/page to read it all). */}
       <div className="brief brief-full">{task.detail.content}</div>
 
-      <CreativesSection key={task.id} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
+      <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
