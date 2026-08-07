@@ -2386,7 +2386,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
           <div className="logout-card">
             <span className="logout-badge">{me.av}</span>
             <div className="logout-h">You&apos;re logged out</div>
-            <div className="logout-p">{me.name}&apos;s day is wrapped up. Log in again to start a fresh day.</div>
+            <div className="logout-p">Your day is wrapped up. Log in again to start a fresh day.</div>
             <button className="btn primary" onClick={logBackIn}>Log back in</button>
             <div className="logout-note">Demo — the session stays active; real sign-out comes later.</div>
           </div>
