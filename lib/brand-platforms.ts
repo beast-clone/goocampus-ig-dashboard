@@ -3,10 +3,13 @@
 // doesn't have, so one brand's numbers can never appear inside another's
 // profile. Update here when a new page/channel gets connected.
 
-// Dashboard account id → LinkedIn page key (live only for World; main GooCampus
-// LinkedIn is pending LinkedIn's API approval — counts as NOT connected).
+// Dashboard account id → LinkedIn page key. Both live: the same member token
+// (info@goocampus) is Super Admin of BOTH pages — main GooCampus (org 3358713)
+// and World (org 107157863). Each resolves via its own LINKEDIN_ORG_URN_* env var
+// (LINKEDIN_ORG_URN_GOOCAMPUS / LINKEDIN_ORG_URN_GCWORLD); both must be set for the
+// data to be correct.
 export const LI_PAGE: Record<string, string | null> = {
-  goocampus: null,
+  goocampus: "goocampus",
   goocampusworld: "gcworld",
   "12thplusdotcom": null,
   samvaya_matrimony: null,
