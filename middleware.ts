@@ -12,6 +12,7 @@ const PUBLIC_API_ROUTES = new Set<string>([
   "/api/logout",
   "/api/auth/google/start",
   "/api/auth/google/callback",
+  "/api/lead-form/submit", // public: leads submit the per-post capture form without a login
 ]);
 
 // CRON routes that auth themselves via x-cron-secret header — middleware should NOT gate them

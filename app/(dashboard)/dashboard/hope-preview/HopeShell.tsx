@@ -6,7 +6,7 @@ import { HopeSidebar } from "./HopeSidebar";
 export type HopeTab =
   | "my-day" | "my-workspace" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
-  | "ads" | "competitors" | "benchmark" | "leads" | "sales" | "organic-sales" | "ai-insights" | "ai-reports"
+  | "ads" | "competitors" | "benchmark" | "leads" | "inbox" | "sales" | "organic-sales" | "ai-insights" | "ai-reports"
   | "integrations" | "diagnostics" | "tools" | "team" | "account" | "reports" | "assistant";
 
 export function HopeShell({
