@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inbox → Leads (mockup)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB; --navy:#1B2559;
+    --ink:#232D42; --muted:#8A92A6; --faint:#A6ACBE; --line:#EEF0F4; --line2:#F3F5F9;
+    --canvas:#F6F7FB; --card:#FFF;
+    --green-bg:#E3F5EA; --green-fg:#137A3E; --amber-bg:#FEF3E2; --amber-fg:#B7791F;
+    --rose-bg:#FBE4EC; --rose-fg:#C03221; --sky-bg:#E1F0FB; --sky-fg:#0C447C;
+    --violet-bg:#EFEBFE; --violet-fg:#6E48F8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:22px 26px 60px}
+  a{color:inherit;text-decoration:none}
+  .mono{font-variant-numeric:tabular-nums}
+
+  /* header */
+  .hero{background:linear-gradient(120deg,var(--brand) 0%,var(--brand-dark) 60%,var(--navy) 100%);color:#fff;border-radius:18px;padding:22px 26px;position:relative;overflow:hidden}
+  .hero h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.3px}
+  .hero p{margin:6px 0 0;font-size:13.5px;opacity:.9;max-width:720px;line-height:1.5}
+  .hero .orb{position:absolute;right:-30px;top:-50px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.08)}
+
+  /* subtabs */
+  .subtabs{display:flex;gap:6px;margin:18px 0 16px;border-bottom:1px solid var(--line)}
+  .subtab{font-size:13.5px;font-weight:500;color:var(--muted);padding:10px 16px;cursor:pointer;position:relative;display:flex;align-items:center;gap:8px}
+  .subtab .n{font-size:11px;font-weight:600;background:var(--line2);color:var(--muted);border-radius:20px;padding:1px 8px}
+  .subtab.on{color:var(--brand-dark)}
+  .subtab.on .n{background:var(--brand-light);color:var(--brand-dark)}
+  .subtab.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--brand);border-radius:2px}
+
+  /* kpis */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 16px}
+  .kpi.accent{border-left:3px solid var(--brand)}
+  .kpi .lbl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .kpi .val{font-size:26px;font-weight:600;margin-top:4px;line-height:1}
+  .kpi .sub{font-size:11px;color:var(--faint);margin-top:5px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+  /* section header */
+  .sec{display:flex;align-items:flex-end;justify-content:space-between;margin:6px 0 12px}
+  .sec .t{font-size:15px;font-weight:600}
+  .sec .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .toolbar{display:flex;gap:8px;align-items:center}
+  .pill-btn{font-size:12px;font-weight:500;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:6px 11px;color:var(--ink);display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+  .pill-btn.brand{background:var(--brand);border-color:var(--brand);color:#fff}
+  .pill-btn.ghost{color:var(--muted)}
+
+  /* table */
+  .tablecard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 16px;border-bottom:1px solid var(--line);background:#FCFCFE}
+  tbody td{padding:13px 16px;border-bottom:1px solid var(--line2);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#FafbFe}
+  .who{display:flex;align-items:center;gap:10px}
+  .av{width:32px;height:32px;border-radius:50%;flex:0 0 32px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12.5px}
+  .name{font-weight:600;font-size:13.5px}
+  .hand{font-size:11px;color:var(--faint)}
+  .cell-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .q{font-size:12.5px;color:var(--ink);max-width:230px}
+  .src{display:inline-flex;flex-direction:column;gap:3px}
+  .kw{font-size:10px;font-weight:600;background:var(--line2);color:var(--muted);border-radius:6px;padding:1px 7px;width:max-content}
+  .chk{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--green-fg)}
+  .chk.partial{color:var(--amber-fg)}
+  .status{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;display:inline-block}
+  .s-new{background:var(--sky-bg);color:var(--sky-fg)}
+  .s-hot{background:var(--rose-bg);color:var(--rose-fg)}
+  .s-init{background:var(--green-bg);color:var(--green-fg)}
+  .s-reenq{background:#E4F4FD;color:#0B84C4}
+  .s-junk{background:#F0F2F8;color:#8A92A6}
+  .s-won{background:#CDEED9;color:#0F6B36}
+  .s-pending{background:var(--amber-bg);color:var(--amber-fg)}
+  .called{font-size:12px;color:var(--ink)}
+  .called .muted{color:var(--faint);font-size:11px}
+  .li{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--brand);border:1px solid var(--brand-light);border-radius:9px;padding:5px 9px;cursor:pointer}
+  .push{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#fff;background:var(--brand);border-radius:9px;padding:6px 10px;cursor:pointer}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;font-size:11.5px;color:var(--muted)}
+  .note{background:#FffdF5;border:1px solid #F3E6C4;border-radius:12px;padding:11px 14px;font-size:12.5px;color:#7a5b12;display:flex;gap:9px;margin-bottom:16px}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brand);background:var(--brand-light);border-radius:6px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="orb"></div>
+    <h1>Inbox</h1>
+    <p>Every DM lead captured from Instagram — tracked from capture, pushed to your Airtable CRM, and followed through to called / hot / junk. No replying here; this is the lead ledger.</p>
+  </div>
+
+  <!-- SUB-TABS -->
+  <div class="subtabs">
+    <div class="subtab on">📥 Leads <span class="n">41</span></div>
+    <div class="subtab">📊 Activity <span class="n">128</span></div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi accent">
+      <div class="lbl"><span class="dot" style="background:#137A3E"></span> Confirmed leads · this month</div>
+      <div class="val mono">41</div>
+      <div class="sub">all 5 details shared</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl"><span class="dot" style="background:#3A57E8"></span> Today</div>
+      <div class="val mono">3</div>
+      <div class="sub">new confirmed leads</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl"><span class="dot" style="background:#B7791F"></span> Enquiries</div>
+      <div class="val mono">63</div>
+      <div class="sub">partial — missing a field</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl"><span class="dot" style="background:#6E48F8"></span> Pushed to CRM</div>
+      <div class="val mono">38 <span style="font-size:13px;color:var(--faint)">/ 41</span></div>
+      <div class="sub">3 pending push</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl"><span class="dot" style="background:#0EA5E9"></span> Top source</div>
+      <div class="val" style="font-size:19px">Gulf webinar</div>
+      <div class="sub">14 leads · keyword “gulf”</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>How a lead qualifies:</b>&nbsp; a DM only becomes a lead when all <b>5</b> details are shared — <b>first name, last name, email, phone, and their question</b>. The moment that happens it’s <b>auto-pushed to Airtable</b>; the CRM link + status (called? hot? junk?) sync back into the table below. Partial ones stay under “Enquiries”.
+  </div>
+
+  <div class="sec">
+    <div>
+      <div class="t">Confirmed leads <span class="tag">5 / 5</span></div>
+      <div class="s">Newest first · click <b>Open ↗</b> to jump into the full Airtable record.</div>
+    </div>
+    <div class="toolbar">
+      <span class="pill-btn ghost">All · Hot · New · Junk · Re-enquiry</span>
+      <span class="pill-btn">⭳ Export</span>
+      <span class="pill-btn brand">Auto-push to CRM · ON</span>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="tablecard">
+    <table>
+      <thead>
+        <tr>
+          <th>Lead</th>
+          <th>Contact</th>
+          <th>Question</th>
+          <th>Source</th>
+          <th>Fields</th>
+          <th>CRM status</th>
+          <th>Last contact</th>
+          <th>Airtable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#3A57E8">A</span><div><div class="name">Dr. Ananya Reddy</div><div class="hand">2 Aug · 10:05</div></div></div></td>
+          <td>ananya.reddy@gmail.com<div class="cell-sub">+91 98450 11234</div></td>
+          <td class="q">Eligible for DHA with an Indian MBBS?</td>
+          <td><div class="src">Gulf webinar<span class="kw"># gulf</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-hot">Hot lead</span></td>
+          <td class="called">Called 3 Aug<div class="muted">by Robin</div></td>
+          <td><span class="li">Open ↗</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#079AA2">S</span><div><div class="name">Sneha Iyer</div><div class="hand">1 Aug · 09:03</div></div></div></td>
+          <td>sneha.iyer21@gmail.com<div class="cell-sub">+91 90350 78120</div></td>
+          <td class="q">MBBS Georgia fees & NEET for 2026?</td>
+          <td><div class="src">MBBS Georgia reel<span class="kw"># mbbs</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-init">Initial discussion</span></td>
+          <td class="called">Called 2 Aug<div class="muted">by Gopi</div></td>
+          <td><span class="li">Open ↗</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#8B5CF6">F</span><div><div class="name">Fatima Sheikh</div><div class="hand">31 Jul · 07:26</div></div></div></td>
+          <td>fatima.sheikh@outlook.com<div class="cell-sub">+91 97410 33098</div></td>
+          <td class="q">PLAB UK timeline and total cost?</td>
+          <td><div class="src">PLAB UK pathway<span class="kw"># plab</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-won">Closed won</span></td>
+          <td class="called">Enrolled 4 Aug</td>
+          <td><span class="li">Open ↗</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#0EA5E9">R</span><div><div class="name">Rahul Menon</div><div class="hand">1 Aug · 09:46</div></div></div></td>
+          <td>rahul.menon@gmail.com<div class="cell-sub">+91 99001 55221</div></td>
+          <td class="q">AMC exam guidance</td>
+          <td><div class="src">AMC MCQ guide<span class="kw"># amc</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-new">New</span></td>
+          <td class="called"><span class="muted">Not called yet</span></td>
+          <td><span class="li">Open ↗</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#1AA053">P</span><div><div class="name">Priya Nair</div><div class="hand">Just now</div></div></div></td>
+          <td>priya.nair@gmail.com<div class="cell-sub">+91 98765 43210</div></td>
+          <td class="q">Can I attend the Gulf webinar?</td>
+          <td><div class="src">Gulf webinar<span class="kw"># gulf</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-pending">Pending push</span></td>
+          <td class="called"><span class="muted">—</span></td>
+          <td><span class="push">Push to CRM →</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#D6336C">V</span><div><div class="name">Vikram Das</div><div class="hand">30 Jul · 04:09</div></div></div></td>
+          <td>vikram.das@gmail.com<div class="cell-sub">+91 96320 71145</div></td>
+          <td class="q">Re-enquiry — asked about Canada PRA again</td>
+          <td><div class="src">Canada PRA post<span class="kw"># canada</span></div></td>
+          <td><span class="chk">✓ 5/5</span></td>
+          <td><span class="status s-reenq">Re-enquiry</span></td>
+          <td class="called">Called 28 Jul<div class="muted">by Jeswin</div></td>
+          <td><span class="li">Open ↗</span></td>
+        </tr>
+        <tr>
+          <td><div class="who"><span class="av" style="background:#B7791F">K</span><div><div class="name">Karthik Nair</div><div class="hand">30 Jul · 05:11</div></div></div></td>
+          <td>—<div class="cell-sub">—</div></td>
+          <td class="q">just said “hi”, never shared details</td>
+          <td><div class="src">NEET PG carousel<span class="kw"># neet</span></div></td>
+          <td><span class="chk partial">1/5</span></td>
+          <td><span class="status s-junk">Junk / enquiry</span></td>
+          <td class="called"><span class="muted">—</span></td>
+          <td><span class="li" style="color:var(--faint);border-color:var(--line2)">not pushed</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <span><b>Status</b> is set by your sales team in Airtable and mirrors back here:</span>
+    <span><span class="status s-new">New</span></span>
+    <span><span class="status s-init">Initial discussion</span></span>
+    <span><span class="status s-hot">Hot lead</span></span>
+    <span><span class="status s-reenq">Re-enquiry</span></span>
+    <span><span class="status s-won">Closed won</span></span>
+    <span><span class="status s-junk">Junk</span></span>
+  </div>
+
+</div>
+</body>
+</html>
