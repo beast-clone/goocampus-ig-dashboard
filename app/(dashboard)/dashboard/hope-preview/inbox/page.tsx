@@ -3,33 +3,48 @@ import { useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import {
   IconSearch, IconMail, IconPhone, IconCircleCheck, IconExternalLink, IconInbox,
-  IconHash, IconPhoto, IconUser, IconSparkles, IconDownload, IconBolt, IconMessageDots,
-  IconArrowRight, IconChartBar, IconCalendarStats, IconTargetArrow,
+  IconHash, IconPhoto, IconUser, IconSparkles, IconDownload, IconChartBar,
+  IconCalendarStats, IconTargetArrow, IconInfoCircle, IconAlertTriangle, IconMessageDots,
 } from "@tabler/icons-react";
 
 // Inbox → Leads ledger. A native view of DM leads captured from Instagram via the
 // TezDM webhook → n8n pipeline. There is NO replying here (that needs Meta access);
-// this tab is the lead ledger: capture → 5-field gate → push to Airtable CRM →
-// follow-through (called? hot? junk?). CRM status is owned by sales in Airtable and
-// mirrors back. Real form submissions (mh_dm_leads) show at the top with a green
-// avatar; the rest is sample data showing the full layout.
+// this tab is the lead ledger: capture → 5-field gate → auto-push to the Airtable
+// Sales Hub → follow-through. Complete leads (5/5) go to Airtable automatically and
+// silently; only INCOMPLETE ones are flagged here for someone to chase.
+//
+// CRM status mirrors the Sales Hub → CRM table "Lead Status" single-select (the one
+// with Hot lead / Junk lead / Re-Enquiry / Closed won …). The colours below match
+// Airtable's own colours for each option, so whatever a counsellor sets shows here.
+// (There is a second, coarser "DM Status" on the DM Leads table — Pending / In
+// Progress / Converted … — used by the n8n pipeline; we mirror the richer CRM one.)
 
-// CRM status — set by the sales team in Airtable, mirrored back here.
-type CrmStatus = "new" | "initial" | "hot" | "reenq" | "won" | "junk" | "enquiry";
-const CRM: Record<CrmStatus, { label: string; bg: string; fg: string }> = {
-  new:      { label: "New",                bg: "#E1F0FB", fg: "#0C447C" },
-  initial:  { label: "Initial discussion", bg: "#E3F5EA", fg: "#137A3E" },
-  hot:      { label: "Hot lead",           bg: "#FBE4EC", fg: "#C03221" },
-  reenq:    { label: "Re-enquiry",         bg: "#E4F4FD", fg: "#0B84C4" },
-  won:      { label: "Closed won",         bg: "#CDEED9", fg: "#0F6B36" },
-  junk:     { label: "Junk",               bg: "#F0F2F8", fg: "#8A92A6" },
-  enquiry:  { label: "Enquiry",            bg: "#F0F2F8", fg: "#8A92A6" },
+// Airtable colour name → {bg,fg} for our pills.
+const AT: Record<string, { bg: string; fg: string }> = {
+  blueBright: { bg: "#E1F0FB", fg: "#0C447C" }, blueDark1: { bg: "#DCE6FA", fg: "#274BB5" },
+  greenBright: { bg: "#E3F5EA", fg: "#137A3E" }, greenLight1: { bg: "#EAF7EF", fg: "#2F8F52" },
+  greenLight2: { bg: "#EFF8F2", fg: "#3C9A5F" }, greenDark1: { bg: "#CDEED9", fg: "#0F6B36" },
+  redBright: { bg: "#FDE7E7", fg: "#C0342E" }, redDark1: { bg: "#FBE4E4", fg: "#B02A24" },
+  redLight1: { bg: "#FCECEC", fg: "#C85A54" }, grayDark1: { bg: "#EEF0F4", fg: "#5A6273" },
+  grayLight1: { bg: "#F3F5F9", fg: "#8A92A6" }, orangeDark1: { bg: "#FDEBD9", fg: "#B4661E" },
+  pinkBright: { bg: "#FBE4EF", fg: "#B83280" },
 };
+// Sales Hub → CRM "Lead Status" options → Airtable colour (exact names + colours).
+const LEAD_STATUS: Record<string, string> = {
+  "SQL": "greenBright", "Office enquiry": "grayDark1", "Open Leads": "blueDark1", "Bookings": "blueBright",
+  "New": "blueBright", "Re-Enquiry": "blueBright", "Attempted to contact": "greenLight2",
+  "Initial discussions": "greenLight1", "Interested": "greenBright", "Hot lead": "greenBright",
+  "Contract stage": "greenBright", "Contract sent": "greenBright", "Future prospect": "grayLight1",
+  "Not interested": "redDark1", "Closed won": "greenDark1", "Closed lost": "redDark1",
+  "Junk lead": "redDark1", "Not eligible": "orangeDark1", "Cold": "redLight1", "Unreachable": "redDark1",
+};
+const pillOf = (status: string) => AT[LEAD_STATUS[status]] || AT.grayLight1;
 
 type Lead = {
   id: string; first: string; last: string; email: string; phone: string; query: string;
   keyword: string; sourcePost: string; av: string; when: string;
-  crm: CrmStatus; called: { label: string; by?: string } | null;
+  status: string;                                   // mirror of Airtable Lead Status ("" until set)
+  lastMod: string | null; counsellor: string | null; // from Airtable (pending live sync)
   airtableUrl: string | null; live: boolean;
 };
 
@@ -39,25 +54,25 @@ const filledOf = (l: Lead) => [l.first, l.last, l.email, l.phone, l.query].filte
 const SAMPLE: Lead[] = [
   { id: "s1", first: "Ananya", last: "Reddy", email: "ananya.reddy@gmail.com", phone: "+91 98450 11234",
     query: "Eligible for DHA with an Indian MBBS?", keyword: "gulf", sourcePost: "Gulf webinar", av: "#3A57E8",
-    when: "2 Aug · 10:05", crm: "hot", called: { label: "Called 3 Aug", by: "Robin" }, airtableUrl: "#", live: false },
+    when: "2 Aug · 10:05", status: "Hot lead", lastMod: "3 Aug · 4:12pm", counsellor: "Robin", airtableUrl: "#", live: false },
   { id: "s2", first: "Sneha", last: "Iyer", email: "sneha.iyer21@gmail.com", phone: "+91 90350 78120",
     query: "MBBS Georgia fees & NEET for 2026?", keyword: "mbbs", sourcePost: "MBBS Georgia reel", av: "#079AA2",
-    when: "1 Aug · 09:03", crm: "initial", called: { label: "Called 2 Aug", by: "Gopi" }, airtableUrl: "#", live: false },
+    when: "1 Aug · 09:03", status: "Initial discussions", lastMod: "2 Aug · 11:40am", counsellor: "Gopi", airtableUrl: "#", live: false },
   { id: "s3", first: "Fatima", last: "Sheikh", email: "fatima.sheikh@outlook.com", phone: "+91 97410 33098",
     query: "PLAB UK timeline and total cost?", keyword: "plab", sourcePost: "PLAB UK pathway", av: "#8B5CF6",
-    when: "31 Jul · 07:26", crm: "won", called: { label: "Enrolled 4 Aug" }, airtableUrl: "#", live: false },
+    when: "31 Jul · 07:26", status: "Closed won", lastMod: "4 Aug · 6:02pm", counsellor: "Jeswin", airtableUrl: "#", live: false },
   { id: "s4", first: "Rahul", last: "Menon", email: "rahul.menon@gmail.com", phone: "+91 99001 55221",
     query: "AMC exam guidance", keyword: "amc", sourcePost: "AMC MCQ guide", av: "#0EA5E9",
-    when: "1 Aug · 09:46", crm: "new", called: null, airtableUrl: "#", live: false },
+    when: "1 Aug · 09:46", status: "New", lastMod: null, counsellor: null, airtableUrl: "#", live: false },
   { id: "s5", first: "Priya", last: "Nair", email: "priya.nair@gmail.com", phone: "+91 98765 43210",
     query: "Can I attend the Gulf webinar?", keyword: "gulf", sourcePost: "Gulf webinar", av: "#1AA053",
-    when: "Just now", crm: "new", called: null, airtableUrl: null, live: false },
+    when: "Just now", status: "New", lastMod: null, counsellor: null, airtableUrl: "#", live: false },
   { id: "s6", first: "Vikram", last: "Das", email: "vikram.das@gmail.com", phone: "+91 96320 71145",
     query: "Re-enquiry — asked about Canada PRA again", keyword: "canada", sourcePost: "Canada PRA post", av: "#D6336C",
-    when: "30 Jul · 04:09", crm: "reenq", called: { label: "Called 28 Jul", by: "Jeswin" }, airtableUrl: "#", live: false },
-  { id: "s7", first: "", last: "", email: "", phone: "", query: 'just said "hi", never shared details',
+    when: "30 Jul · 04:09", status: "Re-Enquiry", lastMod: "28 Jul · 3:20pm", counsellor: "Robin", airtableUrl: "#", live: false },
+  { id: "s7", first: "Karthik", last: "", email: "", phone: "+91 98220 41007", query: "",
     keyword: "neet", sourcePost: "NEET PG carousel", av: "#B7791F",
-    when: "30 Jul · 05:11", crm: "junk", called: null, airtableUrl: null, live: false },
+    when: "30 Jul · 05:11", status: "", lastMod: null, counsellor: null, airtableUrl: null, live: false },
 ];
 
 // A real submission from the public per-post form (mh_dm_leads) → the Lead shape.
@@ -68,18 +83,17 @@ function rowToLead(r: LeadRow): Lead {
     id: "live-" + r.id, first: r.first_name, last: r.last_name, email: r.email, phone: r.phone, query: r.query,
     keyword: r.keyword || "", av: "#1AA053", when: "just now",
     sourcePost: (r.source_post || "Lead form").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-    crm: filled >= 5 ? "new" : filled === 0 ? "junk" : "enquiry",
-    called: null, airtableUrl: null, live: true,
+    status: filled >= 5 ? "New" : "",     // real Airtable status arrives once the mirror is wired
+    lastMod: null, counsellor: null, airtableUrl: null, live: true,
   };
 }
 
 type SubTab = "leads" | "activity";
-type Filter = "all" | "hot" | "new" | "junk" | "reenq";
 
 export default function InboxPage() {
   return (
     <HopeDashboardShell active="inbox" title="Inbox" hideAccountPicker hideRange
-      subtitle="Every DM lead captured from Instagram — tracked from capture, pushed to your Airtable CRM, and followed through to called / hot / junk. No replying here; this is the lead ledger.">
+      subtitle="Every DM lead captured from Instagram — auto-pushed to your Airtable Sales Hub, then followed through by the sales team. No replying here; this is the lead ledger.">
       {() => <LeadsLedger />}
     </HopeDashboardShell>
   );
@@ -89,12 +103,8 @@ function LeadsLedger() {
   const [leads, setLeads] = useState<Lead[]>(SAMPLE);
   const [tab, setTab] = useState<SubTab>("leads");
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [autoPush, setAutoPush] = useState(true);
-  const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
 
-  // Pull REAL submissions (mh_dm_leads) and put them on top so a lead you just
-  // captured appears live. Falls back to sample-only if none yet.
   useEffect(() => {
     fetch("/api/dm-leads/list")
       .then((r) => r.json())
@@ -108,35 +118,31 @@ function LeadsLedger() {
   const stats = useMemo(() => {
     const confirmed = leads.filter((l) => filledOf(l) >= 5);
     const enquiries = leads.filter((l) => { const f = filledOf(l); return f >= 1 && f < 5; });
-    const pushed = confirmed.filter((l) => l.airtableUrl);
     const bySource = new Map<string, number>();
     leads.forEach((l) => bySource.set(l.sourcePost, (bySource.get(l.sourcePost) || 0) + 1));
     const top = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0];
     const topKw = leads.find((l) => l.sourcePost === top?.[0])?.keyword || "";
     return {
-      confirmed: confirmed.length, today: confirmed.filter((l) => /just now|today/i.test(l.when)).length,
-      enquiries: enquiries.length, pushed: pushed.length,
+      confirmed: confirmed.length,
+      today: confirmed.filter((l) => /just now|today/i.test(l.when)).length,
+      enquiries: enquiries.length,
+      flagged: leads.filter((l) => filledOf(l) < 5).length,
       top: top?.[0] || "—", topN: top?.[1] || 0, topKw,
     };
   }, [leads]);
 
   const rows = useMemo(() => leads.filter((l) => {
-    if (filter === "hot" && l.crm !== "hot") return false;
-    if (filter === "new" && l.crm !== "new") return false;
-    if (filter === "reenq" && l.crm !== "reenq") return false;
-    if (filter === "junk" && l.crm !== "junk" && l.crm !== "enquiry") return false;
-    if (q.trim()) { const t = q.toLowerCase(); return `${l.first} ${l.last} ${l.email} ${l.phone} ${l.keyword} ${l.sourcePost} ${l.query}`.toLowerCase().includes(t); }
+    if (onlyFlagged && filledOf(l) >= 5) return false;
+    if (q.trim()) { const t = q.toLowerCase(); return `${l.first} ${l.last} ${l.email} ${l.phone} ${l.keyword} ${l.sourcePost} ${l.query} ${l.status}`.toLowerCase().includes(t); }
     return true;
-  }), [leads, filter, q]);
-
-  const onPush = () => setPushMsg("Airtable CRM isn't connected yet — share your Sales Hub base + table and “Push to CRM” will create the record, store its link here, and mirror the status back.");
+  }), [leads, onlyFlagged, q]);
 
   return (
     <div className="hope-scope space-y-5">
       {/* Live-demo note */}
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12.5px] text-amber-900">
         <IconSparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
-        <span><b>Live demo.</b> Real submissions from the per-post lead form appear at the <b>top (green avatar)</b>; the rest is sample data showing the layout. Fill the form at <b>/lead/&lt;post&gt;</b> and it lands here.</span>
+        <span><b>Live demo.</b> Real submissions from the per-post lead form appear at the <b>top (green “live” badge)</b>; the rest is sample data showing the layout. Fill the form at <b>/lead/&lt;post&gt;</b> and it lands here.</span>
       </div>
 
       {/* Sub-tabs */}
@@ -156,71 +162,59 @@ function LeadsLedger() {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-            <Kpi icon={<IconCircleCheck size={16} className="text-emerald-600" />} label="Confirmed · this month" value={String(stats.confirmed)} sub="all 5 details shared" accent />
+            <Kpi icon={<IconCircleCheck size={16} className="text-emerald-600" />} label="Confirmed · this month" value={String(stats.confirmed)} sub="all 5 details — auto-sent to CRM" accent />
             <Kpi icon={<IconCalendarStats size={16} className="text-brand" />} label="Today" value={String(stats.today)} sub="new confirmed leads" />
             <Kpi icon={<IconUser size={16} className="text-amber-600" />} label="Enquiries" value={String(stats.enquiries)} sub="partial — missing a field" />
-            <Kpi icon={<IconBolt size={16} className="text-violet-600" />} label="Pushed to CRM" value={`${stats.pushed}`} sub={`${Math.max(stats.confirmed - stats.pushed, 0)} pending push`} muted={`/ ${stats.confirmed}`} />
+            <Kpi icon={<IconAlertTriangle size={16} className="text-rose-500" />} label="Flagged" value={String(stats.flagged)} sub="incomplete — chase for details" />
             <Kpi icon={<IconTargetArrow size={16} className="text-sky-600" />} label="Top source" value={stats.top} sub={`${stats.topN} leads · keyword "${stats.topKw}"`} small />
           </div>
 
           {/* Qualify rule */}
           <div className="flex items-start gap-2.5 rounded-xl border border-[#F3E6C4] bg-[#FFFDF5] px-4 py-3 text-[12.5px] text-[#7a5b12]">
             <IconCircleCheck size={16} className="mt-0.5 shrink-0 text-[#B7791F]" />
-            <span><b>How a lead qualifies:</b> a DM only becomes a lead when all <b>5</b> details are shared — <b>first name, last name, email, phone, and their question</b>. The moment that happens it's <b>auto-pushed to Airtable</b>; the CRM link + status (called? hot? junk?) sync back into the table below. Partial ones stay under "Enquiries".</span>
+            <span>A DM becomes a lead when all <b>5</b> details are shared — <b>first name, last name, email, phone, and their question</b>. Complete leads are <b>auto-sent to the Airtable Sales Hub</b> and the CRM status mirrors back here. Ones still <b>missing a detail are flagged</b> below so someone can chase them.</span>
           </div>
 
           {/* Section header + toolbar */}
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <div className="text-[15px] font-semibold text-[#232D42]">Confirmed leads</div>
-              <div className="text-[12.5px] text-[#8A92A6] mt-0.5">Newest first · click <b>Open ↗</b> to jump into the full Airtable record.</div>
+              <div className="text-[15px] font-semibold text-[#232D42]">Leads</div>
+              <div className="text-[12.5px] text-[#8A92A6] mt-0.5">Newest first · hover <IconInfoCircle size={13} className="inline -mt-0.5 text-[#8A92A6]" /> for source &amp; details · click <b>Open ↗</b> for the Airtable record.</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {(["all", "hot", "new", "junk", "reenq"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)}
-                  className={`text-[12px] font-medium px-3 py-1.5 rounded-lg border transition ${filter === f ? "border-brand bg-brand-light text-brand" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}>
-                  {f === "all" ? "All" : f === "reenq" ? "Re-enquiry" : f[0].toUpperCase() + f.slice(1)}
-                </button>
-              ))}
-              <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center gap-1.5 hover:border-gray-300"><IconDownload size={13} /> Export</button>
-              <button onClick={() => setAutoPush((v) => !v)}
-                className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition ${autoPush ? "bg-brand text-white" : "border border-gray-200 text-gray-500"}`}>
-                <IconBolt size={13} /> Auto-push to CRM · {autoPush ? "ON" : "OFF"}
+              <button onClick={() => setOnlyFlagged((v) => !v)}
+                className={`text-[12px] font-medium px-3 py-1.5 rounded-lg border inline-flex items-center gap-1.5 transition ${onlyFlagged ? "border-rose-300 bg-rose-50 text-rose-600" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}>
+                <IconAlertTriangle size={13} /> {onlyFlagged ? "Showing flagged only" : "Show flagged only"}
               </button>
+              <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center gap-1.5 hover:border-gray-300"><IconDownload size={13} /> Export</button>
             </div>
           </div>
 
           {/* Search */}
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 max-w-md focus-within:border-brand">
             <IconSearch size={16} className="text-[#8A92A6] shrink-0" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, keyword, question…"
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, email, question…"
               className="flex-1 bg-transparent outline-none text-[13px] text-[#232D42] placeholder:text-[#B4BAC6]" />
           </div>
-
-          {pushMsg && (
-            <div className="flex items-start gap-2 rounded-xl border border-brand/30 bg-brand-light/50 px-4 py-2.5 text-[12.5px] text-brand-dark">
-              <IconBolt size={15} className="mt-0.5 shrink-0" /><span>{pushMsg}</span>
-              <button onClick={() => setPushMsg(null)} className="ml-auto text-brand-dark/60 hover:text-brand-dark">✕</button>
-            </div>
-          )}
 
           {/* Ledger table */}
           <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[920px]">
+              <table className="w-full border-collapse min-w-[860px]">
                 <thead>
                   <tr className="bg-[#FCFCFE]">
-                    {["Lead", "Contact", "Question", "Source", "Fields", "CRM status", "Last contact", "Airtable"].map((h) => (
-                      <th key={h} className="text-left text-[10.5px] uppercase tracking-wider text-[#8A92A6] font-semibold px-4 py-3 border-b border-gray-100 whitespace-nowrap">{h}</th>
+                    {["Name", "Phone", "Email", "Question", "CRM status", "In CRM", ""].map((h, i) => (
+                      <th key={i} className="text-left text-[10.5px] uppercase tracking-wider text-[#8A92A6] font-semibold px-4 py-3 border-b border-gray-100 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((l) => {
                     const filled = filledOf(l); const done = filled >= 5;
-                    const st = CRM[l.crm];
+                    const p = pillOf(l.status);
                     return (
-                      <tr key={l.id} className="border-b border-gray-50 last:border-0 hover:bg-[#FafbFe] align-middle">
+                      <tr key={l.id} className={`border-b border-gray-50 last:border-0 hover:bg-[#FafbFe] align-middle ${!done ? "bg-rose-50/30" : ""}`}>
+                        {/* Name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-[12.5px] font-semibold" style={{ background: l.av }}>
@@ -235,50 +229,71 @@ function LeadsLedger() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-[12.5px] text-[#232D42] whitespace-nowrap">
-                          {l.email || <span className="text-gray-300">—</span>}
-                          <div className="text-[11.5px] text-[#8A92A6]">{l.phone || "—"}</div>
-                        </td>
-                        <td className="px-4 py-3 text-[12.5px] text-[#232D42] max-w-[230px]">{l.query || <span className="text-gray-300 italic">—</span>}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1 items-start">
-                            <span className="text-[12.5px] text-[#232D42] whitespace-nowrap">{l.sourcePost}</span>
-                            {l.keyword && <span className="text-[10px] font-semibold bg-gray-100 text-[#8A92A6] rounded px-1.5 py-[1px]">#&nbsp;{l.keyword}</span>}
-                          </div>
-                        </td>
+                        {/* Phone */}
+                        <td className="px-4 py-3 text-[12.5px] text-[#232D42] whitespace-nowrap">{l.phone || <span className="text-rose-400">— missing</span>}</td>
+                        {/* Email */}
+                        <td className="px-4 py-3 text-[12.5px] text-[#232D42] whitespace-nowrap">{l.email || <span className="text-rose-400">— missing</span>}</td>
+                        {/* Question */}
+                        <td className="px-4 py-3 text-[12.5px] text-[#232D42] max-w-[240px]">{l.query || <span className="text-rose-400 italic">— no question shared</span>}</td>
+                        {/* CRM status */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 text-[11.5px] font-semibold ${done ? "text-emerald-600" : "text-amber-600"}`}>
-                            {done ? <IconCircleCheck size={13} /> : null}{filled}/5
+                          {l.status
+                            ? <span className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: p.bg, color: p.fg }}>{l.status}</span>
+                            : <span className="text-[11.5px] text-[#A6ACBE]">—</span>}
+                        </td>
+                        {/* In CRM */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {done
+                            ? (l.airtableUrl
+                                ? <a href={l.airtableUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand border border-brand-light rounded-lg px-2.5 py-1.5 hover:bg-brand-light/60">Open <IconExternalLink size={12} /></a>
+                                : <span className="inline-flex items-center gap-1 text-[11.5px] text-emerald-600"><IconCircleCheck size={13} /> syncing…</span>)
+                            : <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rose-600 bg-rose-50 rounded-lg px-2 py-1"><IconAlertTriangle size={12} /> Incomplete · {filled}/5</span>}
+                        </td>
+                        {/* ⓘ hover — source, keyword, field check, last-modified */}
+                        <td className="px-3 py-3 text-right">
+                          <span className="relative inline-block group">
+                            <IconInfoCircle size={16} className="text-[#B4BAC6] hover:text-brand cursor-help" />
+                            <span className="pointer-events-none absolute right-0 top-6 z-20 hidden group-hover:block w-64 text-left bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-2">
+                              <span className="block">
+                                <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Source</span>
+                                <span className="flex items-center gap-1.5 text-[12.5px] text-[#232D42] mt-0.5"><IconPhoto size={13} className="text-brand shrink-0" />{l.sourcePost}</span>
+                                {l.keyword && <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-gray-100 text-[#8A92A6] rounded px-1.5 py-[1px] mt-1"><IconHash size={9} />{l.keyword}</span>}
+                              </span>
+                              <span className="block border-t border-gray-100 pt-2">
+                                <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Details captured · {filled}/5</span>
+                                <span className="grid grid-cols-1 gap-0.5 mt-1">
+                                  {([["First name", l.first], ["Last name", l.last], ["Email", l.email], ["Phone", l.phone], ["Question", l.query]] as const).map(([lbl, v]) => (
+                                    <span key={lbl} className="flex items-center gap-1.5 text-[11.5px]">
+                                      {(v || "").trim() ? <IconCircleCheck size={12} className="text-emerald-500 shrink-0" /> : <IconAlertTriangle size={12} className="text-rose-400 shrink-0" />}
+                                      <span className={(v || "").trim() ? "text-[#4A5468]" : "text-rose-400"}>{lbl}</span>
+                                    </span>
+                                  ))}
+                                </span>
+                              </span>
+                              <span className="block border-t border-gray-100 pt-2">
+                                <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Last activity <span className="text-[9px] normal-case">(Airtable · pending live sync)</span></span>
+                                <span className="block text-[12px] text-[#232D42] mt-0.5">{l.lastMod ? `${l.lastMod}` : "—"}{l.counsellor ? ` · ${l.counsellor}` : ""}</span>
+                              </span>
+                            </span>
                           </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
-                        </td>
-                        <td className="px-4 py-3 text-[12px] text-[#232D42] whitespace-nowrap">
-                          {l.called ? <>{l.called.label}{l.called.by && <div className="text-[11px] text-[#A6ACBE]">by {l.called.by}</div>}</> : <span className="text-[#A6ACBE]">{done ? "Not called yet" : "—"}</span>}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {l.airtableUrl
-                            ? <a href={l.airtableUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand border border-brand-light rounded-lg px-2.5 py-1.5 hover:bg-brand-light/60">Open <IconExternalLink size={12} /></a>
-                            : done
-                              ? <button onClick={onPush} className="inline-flex items-center gap-1 text-[12px] font-semibold text-white bg-brand rounded-lg px-2.5 py-1.5 hover:bg-brand-dark">Push to CRM <IconArrowRight size={12} /></button>
-                              : <span className="text-[12px] text-[#C2C7D3]">not pushed</span>}
                         </td>
                       </tr>
                     );
                   })}
-                  {rows.length === 0 && <tr><td colSpan={8} className="text-center text-[13px] text-gray-400 py-10">No leads match.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={7} className="text-center text-[13px] text-gray-400 py-10">No leads match.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-3 text-[11.5px] text-[#8A92A6]">
-            <span><b>Status</b> is set by your sales team in Airtable and mirrors back here:</span>
-            {(["new", "initial", "hot", "reenq", "won", "junk"] as const).map((k) => (
-              <span key={k} className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: CRM[k].bg, color: CRM[k].fg }}>{CRM[k].label}</span>
-            ))}
+          <div className="flex flex-wrap items-center gap-2.5 text-[11.5px] text-[#8A92A6]">
+            <span><b>CRM status</b> is set by the sales team in Airtable and mirrors back here:</span>
+            {(["New", "Initial discussions", "Hot lead", "Re-Enquiry", "Closed won", "Junk lead"] as const).map((k) => {
+              const p = pillOf(k);
+              return <span key={k} className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: p.bg, color: p.fg }}>{k}</span>;
+            })}
+            <span className="text-[#A6ACBE]">+ 14 more</span>
           </div>
         </>
       ) : (
@@ -293,7 +308,7 @@ function LeadsLedger() {
 function Activity({ leads }: { leads: Lead[] }) {
   return (
     <div className="space-y-4">
-      <div className="text-[12.5px] text-[#8A92A6]">Raw inbound DM feed — every conversation captured, complete or not. The <b>Leads</b> tab is the qualified subset (5/5).</div>
+      <div className="text-[12.5px] text-[#8A92A6]">Raw inbound DM feed — every conversation captured, complete or not. The <b>Leads</b> tab is the qualified subset (5/5, auto-sent to CRM).</div>
       <div className="bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50">
         {leads.map((l) => {
           const filled = filledOf(l); const done = filled >= 5;
@@ -310,7 +325,7 @@ function Activity({ leads }: { leads: Lead[] }) {
                 <div className="text-[11.5px] text-[#8A92A6] truncate mt-0.5 flex items-center gap-1.5"><IconMessageDots size={12} className="shrink-0" />{l.query || "(no question shared)"}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className={`text-[11.5px] font-semibold ${done ? "text-emerald-600" : "text-amber-600"}`}>{filled}/5</div>
+                <div className={`text-[11.5px] font-semibold ${done ? "text-emerald-600" : "text-rose-500"}`}>{filled}/5</div>
                 <div className="text-[10.5px] text-[#A6ACBE]">{l.when}</div>
               </div>
             </div>
@@ -321,13 +336,11 @@ function Activity({ leads }: { leads: Lead[] }) {
   );
 }
 
-function Kpi({ icon, label, value, sub, accent, muted, small }: { icon: React.ReactNode; label: string; value: string; sub: string; accent?: boolean; muted?: string; small?: boolean }) {
+function Kpi({ icon, label, value, sub, accent, small }: { icon: React.ReactNode; label: string; value: string; sub: string; accent?: boolean; small?: boolean }) {
   return (
     <div className={`bg-white border rounded-2xl p-4 ${accent ? "border-l-[3px] border-l-brand border-y-gray-100 border-r-gray-100" : "border-gray-100"}`}>
       <div className="flex items-center gap-1.5 text-[11.5px] text-[#8A92A6]">{icon}{label}</div>
-      <div className={`${small ? "text-[19px]" : "text-[26px]"} font-semibold text-[#232D42] tabular-nums mt-1 truncate leading-tight`}>
-        {value}{muted && <span className="text-[13px] text-[#A6ACBE] font-normal"> {muted}</span>}
-      </div>
+      <div className={`${small ? "text-[19px]" : "text-[26px]"} font-semibold text-[#232D42] tabular-nums mt-1 truncate leading-tight`}>{value}</div>
       <div className="text-[11px] text-[#A6ACBE] mt-1 truncate">{sub}</div>
     </div>
   );
