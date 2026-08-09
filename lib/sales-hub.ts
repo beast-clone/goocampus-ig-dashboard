@@ -22,6 +22,8 @@ export const SALES_SYSTEM_TABLE = "tbl7XIQr0T6FBrml1";       // meetings, rating
 export const ATTENDANCE_TABLE = "tblGjGNBWu4TeHZu9";         // daily attendance
 export const DISTRIBUTION_TABLE = "tbl19dC2C3ROOgfLW";       // daily lead allocation
 export const OFFICE_TABLE = "tblYQDbHZyW9Khbig";             // walk-in enquiries
+export const DM_LEADS_TABLE = "tbl8CpgnQSYcbFKEH";          // Instagram DM leads (~1.6k)
+export const PRIMARY_INTERESTS_TABLE = "tblvRRClI9ICwMwzV"; // DB: Primary Interests (id → name)
 
 function token(): string {
   const t = process.env.AIRTABLE_API_KEY;

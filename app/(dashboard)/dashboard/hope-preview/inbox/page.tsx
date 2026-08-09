@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import {
-  IconSearch, IconMail, IconPhone, IconCircleCheck, IconExternalLink, IconInbox,
-  IconHash, IconPhoto, IconUser, IconSparkles, IconDownload, IconChartBar,
+  IconSearch, IconCircleCheck, IconExternalLink, IconInbox,
+  IconHash, IconPhoto, IconSparkles, IconDownload, IconChartBar,
   IconCalendarStats, IconTargetArrow, IconInfoCircle, IconAlertTriangle, IconMessageDots,
 } from "@tabler/icons-react";
 
@@ -29,14 +29,21 @@ const AT: Record<string, { bg: string; fg: string }> = {
   grayLight1: { bg: "#F3F5F9", fg: "#8A92A6" }, orangeDark1: { bg: "#FDEBD9", fg: "#B4661E" },
   pinkBright: { bg: "#FBE4EF", fg: "#B83280" },
 };
-// Sales Hub → CRM "Lead Status" options → Airtable colour (exact names + colours).
+// Airtable status → colour. Two vocabularies live in Sales Hub and both mirror here:
+//  · DM Leads "DM Status" — what a DM lead carries on its own record (used now)
+//  · CRM "Lead Status"    — the richer sales lifecycle after "Converted to Lead"
+// Colours match each option's Airtable colour, so the pill looks like Airtable.
 const LEAD_STATUS: Record<string, string> = {
+  // DM Status (DM Leads table)
+  "Pending": "grayDark1", "In Progress": "blueBright", "Follow up": "pinkBright",
+  "Converted to Lead": "greenBright", "Failed to Convert": "redBright",
+  // CRM Lead Status (CRM table — after conversion)
   "SQL": "greenBright", "Office enquiry": "grayDark1", "Open Leads": "blueDark1", "Bookings": "blueBright",
   "New": "blueBright", "Re-Enquiry": "blueBright", "Attempted to contact": "greenLight2",
   "Initial discussions": "greenLight1", "Interested": "greenBright", "Hot lead": "greenBright",
   "Contract stage": "greenBright", "Contract sent": "greenBright", "Future prospect": "grayLight1",
   "Not interested": "redDark1", "Closed won": "greenDark1", "Closed lost": "redDark1",
-  "Junk lead": "redDark1", "Not eligible": "orangeDark1", "Cold": "redLight1", "Unreachable": "redDark1",
+  "Junk lead": "redDark1", "Not eligible": "orangeDark1", "Cold": "grayDark1", "Unreachable": "redDark1",
 };
 const pillOf = (status: string) => AT[LEAD_STATUS[status]] || AT.grayLight1;
 
@@ -88,6 +95,21 @@ function rowToLead(r: LeadRow): Lead {
   };
 }
 
+// A real record from the Airtable Sales Hub "DM Leads" table → the Lead shape.
+type AtRow = { id: string; first: string; last: string; email: string; phone: string; interest: string; note: string; status: string; lastMod: string | null; counsellor: string; airtableUrl: string };
+const AV_PALETTE = ["#3A57E8", "#079AA2", "#8B5CF6", "#0EA5E9", "#D6336C", "#1AA053", "#B7791F", "#6E48F8", "#0B84C4"];
+const colorFor = (s: string) => AV_PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_PALETTE.length];
+function atToLead(a: AtRow): Lead {
+  const phone = a.phone ? (a.phone.length >= 10 ? "+91 " + a.phone.slice(-10) : a.phone) : "";
+  return {
+    id: "at-" + a.id, first: a.first, last: a.last, email: a.email, phone,
+    query: a.interest || a.note || "", keyword: "", sourcePost: a.interest || "Instagram DM",
+    av: colorFor(a.id), when: a.lastMod || "",
+    status: a.status, lastMod: a.lastMod, counsellor: a.counsellor || null,
+    airtableUrl: a.airtableUrl, live: false,
+  };
+}
+
 type SubTab = "leads" | "activity";
 
 export default function InboxPage() {
@@ -104,29 +126,36 @@ function LeadsLedger() {
   const [tab, setTab] = useState<SubTab>("leads");
   const [q, setQ] = useState("");
   const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const [source, setSource] = useState<"sample" | "live">("sample");
 
+  // Real leads: Airtable Sales Hub "DM Leads" (the ledger) + any brand-new submissions
+  // from the per-post form (mh_dm_leads, not yet in Airtable) on top. Falls back to the
+  // sample layout only when neither returns anything.
   useEffect(() => {
-    fetch("/api/dm-leads/list")
-      .then((r) => r.json())
-      .then((d) => {
-        const rows = (d.leads || []) as LeadRow[];
-        if (rows.length) setLeads([...rows.map(rowToLead), ...SAMPLE]);
-      })
-      .catch(() => { /* keep sample */ });
+    Promise.all([
+      fetch("/api/dm-leads/airtable").then((r) => r.json()).catch(() => ({ leads: [] })),
+      fetch("/api/dm-leads/list").then((r) => r.json()).catch(() => ({ leads: [] })),
+    ]).then(([at, sup]) => {
+      const atLeads = ((at?.leads || []) as AtRow[]).map(atToLead);
+      const supLeads = ((sup?.leads || []) as LeadRow[]).map(rowToLead);
+      if (atLeads.length || supLeads.length) {
+        setLeads([...supLeads, ...atLeads]);
+        setSource("live");
+      }
+    }).catch(() => { /* keep sample */ });
   }, []);
 
   const stats = useMemo(() => {
-    const confirmed = leads.filter((l) => filledOf(l) >= 5);
-    const enquiries = leads.filter((l) => { const f = filledOf(l); return f >= 1 && f < 5; });
+    const inCrm = leads.filter((l) => l.airtableUrl);                       // has an Airtable record
+    const flagged = leads.filter((l) => !l.airtableUrl && filledOf(l) < 5); // incomplete, not yet synced
     const bySource = new Map<string, number>();
     leads.forEach((l) => bySource.set(l.sourcePost, (bySource.get(l.sourcePost) || 0) + 1));
     const top = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0];
     const topKw = leads.find((l) => l.sourcePost === top?.[0])?.keyword || "";
     return {
-      confirmed: confirmed.length,
-      today: confirmed.filter((l) => /just now|today/i.test(l.when)).length,
-      enquiries: enquiries.length,
-      flagged: leads.filter((l) => filledOf(l) < 5).length,
+      confirmed: inCrm.length,
+      today: leads.filter((l) => /just now|today/i.test(l.when)).length,
+      flagged: flagged.length,
       top: top?.[0] || "—", topN: top?.[1] || 0, topKw,
     };
   }, [leads]);
@@ -139,11 +168,18 @@ function LeadsLedger() {
 
   return (
     <div className="hope-scope space-y-5">
-      {/* Live-demo note */}
-      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12.5px] text-amber-900">
-        <IconSparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
-        <span><b>Live demo.</b> Real submissions from the per-post lead form appear at the <b>top (green “live” badge)</b>; the rest is sample data showing the layout. Fill the form at <b>/lead/&lt;post&gt;</b> and it lands here.</span>
-      </div>
+      {/* Connection note */}
+      {source === "live" ? (
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[12.5px] text-emerald-900">
+          <IconCircleCheck size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+          <span><b>Connected to Airtable Sales Hub.</b> Live DM leads with their real status, counsellor and last activity — click <b>Open ↗</b> for the record. New per-post form submissions show on top with a <b>green “live” badge</b> until they reach Airtable.</span>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12.5px] text-amber-900">
+          <IconSparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
+          <span><b>Sample layout.</b> Airtable returned no leads (or no token is set) — showing sample data. Real leads from the Sales Hub “DM Leads” table appear here once connected.</span>
+        </div>
+      )}
 
       {/* Sub-tabs */}
       <div className="flex gap-1 border-b border-gray-100">
@@ -161,12 +197,11 @@ function LeadsLedger() {
       {tab === "leads" ? (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-            <Kpi icon={<IconCircleCheck size={16} className="text-emerald-600" />} label="Confirmed · this month" value={String(stats.confirmed)} sub="all 5 details — auto-sent to CRM" accent />
-            <Kpi icon={<IconCalendarStats size={16} className="text-brand" />} label="Today" value={String(stats.today)} sub="new confirmed leads" />
-            <Kpi icon={<IconUser size={16} className="text-amber-600" />} label="Enquiries" value={String(stats.enquiries)} sub="partial — missing a field" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Kpi icon={<IconCircleCheck size={16} className="text-emerald-600" />} label="In CRM" value={String(stats.confirmed)} sub="leads synced to Airtable" accent />
+            <Kpi icon={<IconCalendarStats size={16} className="text-brand" />} label="New today" value={String(stats.today)} sub="captured today" />
             <Kpi icon={<IconAlertTriangle size={16} className="text-rose-500" />} label="Flagged" value={String(stats.flagged)} sub="incomplete — chase for details" />
-            <Kpi icon={<IconTargetArrow size={16} className="text-sky-600" />} label="Top source" value={stats.top} sub={`${stats.topN} leads · keyword "${stats.topKw}"`} small />
+            <Kpi icon={<IconTargetArrow size={16} className="text-sky-600" />} label="Top interest" value={stats.top} sub={`${stats.topN} leads`} small />
           </div>
 
           {/* Qualify rule */}
@@ -241,13 +276,13 @@ function LeadsLedger() {
                             ? <span className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: p.bg, color: p.fg }}>{l.status}</span>
                             : <span className="text-[11.5px] text-[#A6ACBE]">—</span>}
                         </td>
-                        {/* In CRM */}
+                        {/* In CRM — an Airtable record link means it's already in the CRM */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {done
-                            ? (l.airtableUrl
-                                ? <a href={l.airtableUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand border border-brand-light rounded-lg px-2.5 py-1.5 hover:bg-brand-light/60">Open <IconExternalLink size={12} /></a>
-                                : <span className="inline-flex items-center gap-1 text-[11.5px] text-emerald-600"><IconCircleCheck size={13} /> syncing…</span>)
-                            : <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rose-600 bg-rose-50 rounded-lg px-2 py-1"><IconAlertTriangle size={12} /> Incomplete · {filled}/5</span>}
+                          {l.airtableUrl
+                            ? <a href={l.airtableUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand border border-brand-light rounded-lg px-2.5 py-1.5 hover:bg-brand-light/60">Open <IconExternalLink size={12} /></a>
+                            : done
+                              ? <span className="inline-flex items-center gap-1 text-[11.5px] text-emerald-600"><IconCircleCheck size={13} /> syncing…</span>
+                              : <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rose-600 bg-rose-50 rounded-lg px-2 py-1"><IconAlertTriangle size={12} /> Incomplete · {filled}/5</span>}
                         </td>
                         {/* ⓘ hover — source, keyword, field check, last-modified */}
                         <td className="px-3 py-3 text-right">
@@ -271,7 +306,7 @@ function LeadsLedger() {
                                 </span>
                               </span>
                               <span className="block border-t border-gray-100 pt-2">
-                                <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Last activity <span className="text-[9px] normal-case">(Airtable · pending live sync)</span></span>
+                                <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Last activity <span className="text-[9px] normal-case">(from Airtable)</span></span>
                                 <span className="block text-[12px] text-[#232D42] mt-0.5">{l.lastMod ? `${l.lastMod}` : "—"}{l.counsellor ? ` · ${l.counsellor}` : ""}</span>
                               </span>
                             </span>
@@ -288,12 +323,12 @@ function LeadsLedger() {
 
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-2.5 text-[11.5px] text-[#8A92A6]">
-            <span><b>CRM status</b> is set by the sales team in Airtable and mirrors back here:</span>
-            {(["New", "Initial discussions", "Hot lead", "Re-Enquiry", "Closed won", "Junk lead"] as const).map((k) => {
+            <span><b>DM Status</b> mirrors the Sales Hub “DM Leads” record, set by the sales team:</span>
+            {(["Pending", "In Progress", "Follow up", "Converted to Lead", "Failed to Convert"] as const).map((k) => {
               const p = pillOf(k);
               return <span key={k} className="text-[11px] font-semibold rounded-full px-2.5 py-[3px]" style={{ background: p.bg, color: p.fg }}>{k}</span>;
             })}
-            <span className="text-[#A6ACBE]">+ 14 more</span>
+            <span className="text-[#A6ACBE]">Once <b>Converted to Lead</b>, the richer CRM status (Hot lead / Junk lead / Re-Enquiry …) applies.</span>
           </div>
         </>
       ) : (
