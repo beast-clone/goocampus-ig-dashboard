@@ -7,7 +7,7 @@
 // is a separate, explicitly-gated step and is intentionally not done here.
 
 import {
-  airtableList, pickName, SALES_HUB_BASE, DM_LEADS_TABLE, PRIMARY_INTERESTS_TABLE,
+  airtableList, pickName, SALES_HUB_BASE, DM_LEADS_TABLE, PRIMARY_INTERESTS_TABLE, CRM_TABLE,
 } from "./sales-hub";
 
 export type AirtableDmLead = {
@@ -18,10 +18,16 @@ export type AirtableDmLead = {
   phone: string;
   interest: string;     // resolved Primary Interest name(s)
   note: string;         // Automated Notes (free text)
-  status: string;       // DM Status (Pending / In Progress / Follow up / Converted to Lead / …)
+  status: string;       // DM Status, or the richer CRM Lead Status once converted
+  converted: boolean;   // matched to a CRM record (status is the CRM Lead Status)
   lastMod: string | null;   // friendly IST string, e.g. "20 Feb · 6:47 pm"
   counsellor: string;
-  airtableUrl: string;
+  airtableUrl: string;  // CRM record when converted, else the DM Leads record
+};
+
+const phone10 = (v: string): string => {
+  const d = (v || "").replace(/\D/g, "");
+  return d.length >= 10 ? d.slice(-10) : "";
 };
 
 // Primary Interest is a link field → Airtable returns record IDs. Resolve them to
@@ -51,6 +57,34 @@ function friendlyIST(iso: string | null | undefined): string | null {
   }
 }
 
+// Join to the CRM table by 10-digit phone → the richer "Lead Status" (Hot lead /
+// Junk lead / Re-Enquiry / Closed won …) plus a link to the CRM record. A DM lead
+// that's been "Converted to Lead" has a matching CRM row; latest match wins. Best-
+// effort: any failure just leaves the lead on its DM Status.
+async function crmStatusByPhone(phones: string[]): Promise<Map<string, { status: string; url: string }>> {
+  const map = new Map<string, { status: string; url: string }>();
+  const uniq = [...new Set(phones.filter((p) => /^\d{10}$/.test(p)))];
+  if (!uniq.length) return map;
+  // phones are validated 10-digit strings → safe to inline in the formula.
+  const formula = `OR(${uniq.map((p) => `{Raw 10-Digit Number}='${p}'`).join(",")})`;
+  const recs = await airtableList<Record<string, unknown>>(CRM_TABLE, {
+    fields: ["Raw 10-Digit Number", "Lead Status", "Link to Record"],
+    filterByFormula: formula,
+    sort: [{ field: "Actual Last Modified", direction: "desc" }],
+    maxRecords: 400,
+    pageSize: 100,
+  });
+  for (const r of recs) {
+    const p = phone10(String(r.fields["Raw 10-Digit Number"] || ""));
+    if (!p || map.has(p)) continue; // sorted latest-first → first match is newest
+    const status = typeof r.fields["Lead Status"] === "string" ? (r.fields["Lead Status"] as string) : pickName(r.fields["Lead Status"]);
+    if (!status) continue;
+    const url = String(r.fields["Link to Record"] || "") || `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${r.id}`;
+    map.set(p, { status, url });
+  }
+  return map;
+}
+
 export async function getAirtableDmLeads(limit = 60): Promise<AirtableDmLead[]> {
   const recs = await airtableList<Record<string, unknown>>(DM_LEADS_TABLE, {
     fields: ["First Name", "Last Name", "Phone", "Email", "DM Status", "Counsellor", "Last Modified", "Primary Interest", "Automated Notes"],
@@ -61,7 +95,7 @@ export async function getAirtableDmLeads(limit = 60): Promise<AirtableDmLead[]> 
 
   const imap = await interestMap().catch(() => new Map<string, string>());
 
-  return recs.map((r) => {
+  const base: AirtableDmLead[] = recs.map((r) => {
     const f = r.fields;
     const interestIds = Array.isArray(f["Primary Interest"]) ? (f["Primary Interest"] as string[]) : [];
     const interest = interestIds.map((id) => imap.get(id) || "").filter(Boolean).join(", ");
@@ -74,9 +108,18 @@ export async function getAirtableDmLeads(limit = 60): Promise<AirtableDmLead[]> 
       interest,
       note: String(f["Automated Notes"] || ""),
       status: typeof f["DM Status"] === "string" ? (f["DM Status"] as string) : pickName(f["DM Status"]),
+      converted: false,
       lastMod: friendlyIST(f["Last Modified"] as string | undefined),
       counsellor: pickName(f["Counsellor"]),
       airtableUrl: `https://airtable.com/${SALES_HUB_BASE}/${DM_LEADS_TABLE}/${r.id}`,
     };
+  });
+
+  // Overlay the richer CRM Lead Status where the lead has been converted.
+  const crm = await crmStatusByPhone(base.map((l) => phone10(l.phone))).catch(() => new Map<string, { status: string; url: string }>());
+  if (!crm.size) return base;
+  return base.map((l) => {
+    const c = crm.get(phone10(l.phone));
+    return c ? { ...l, status: c.status, converted: true, airtableUrl: c.url } : l;
   });
 }

@@ -4,7 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import {
   IconSearch, IconCircleCheck, IconExternalLink, IconInbox,
   IconHash, IconPhoto, IconSparkles, IconDownload, IconChartBar,
-  IconCalendarStats, IconTargetArrow, IconInfoCircle, IconAlertTriangle, IconMessageDots,
+  IconCalendarStats, IconTargetArrow, IconAlertTriangle, IconMessageDots,
 } from "@tabler/icons-react";
 
 // Inbox → Leads ledger. A native view of DM leads captured from Instagram via the
@@ -214,7 +214,7 @@ function LeadsLedger() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-[15px] font-semibold text-[#232D42]">Leads</div>
-              <div className="text-[12.5px] text-[#8A92A6] mt-0.5">Newest first · hover <IconInfoCircle size={13} className="inline -mt-0.5 text-[#8A92A6]" /> for source &amp; details · click <b>Open ↗</b> for the Airtable record.</div>
+              <div className="text-[12.5px] text-[#8A92A6] mt-0.5">Newest first · hover the <IconCircleCheck size={13} className="inline -mt-0.5 text-emerald-500" /> for source &amp; details · click <b>Open ↗</b> for the Airtable record.</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={() => setOnlyFlagged((v) => !v)}
@@ -287,7 +287,9 @@ function LeadsLedger() {
                         {/* ⓘ hover — source, keyword, field check, last-modified */}
                         <td className="px-3 py-3 text-right">
                           <span className="relative inline-block group">
-                            <IconInfoCircle size={16} className="text-[#B4BAC6] hover:text-brand cursor-help" />
+                            {done
+                              ? <IconCircleCheck size={17} className="text-emerald-500 hover:text-emerald-600 cursor-help" />
+                              : <IconAlertTriangle size={16} className="text-rose-400 hover:text-rose-500 cursor-help" />}
                             <span className="pointer-events-none absolute right-0 top-6 z-20 hidden group-hover:block w-64 text-left bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-2">
                               <span className="block">
                                 <span className="text-[10px] uppercase tracking-wide text-[#A6ACBE] font-semibold">Source</span>
