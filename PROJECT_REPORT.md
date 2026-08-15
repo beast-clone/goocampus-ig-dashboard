@@ -1,9 +1,23 @@
-# GooCampus Dashboard — Project Report
+# GooCampus Marketing OS — Project Report
 
-**Generated:** 2026-06-26
+**Generated:** 2026-06-26 · **Last updated:** 2026-08-15
 **Author:** Praveen L (GooCampus)
-**Repo:** https://github.com/beast-clone/goocampus-ig-dashboard
+**Repo:** https://github.com/beast-clone/goocampus-ig-dashboard · active branch `feat/hope-ui-reskin`
 **Target host:** https://analytics.goocampus.in (Netlify, planned)
+
+---
+
+## 0. What's new in this version (Aug 2026)
+
+Since the original June report the tool has grown from an **Instagram + Meta Ads analytics dashboard** into a broader **Marketing OS**, re-skinned on the **Hope UI** design system (indigo `#3A57E8`). The navigation is now grouped into **Analytics · Content · Social Media · Sales**. Highlights added since June:
+
+- **More analytics surfaces:** LinkedIn (Community Management API, GooCampus + GooCampus World), YouTube (all 3 channels), Facebook, and a **Website Analytics** group (GA4 + Microsoft Clarity + Bing) with AI insights.
+- **Content operations:** the **Marketing Hub** (Master sheet / Team / Pipeline / Calendar / Next-7 planning), **My Workspace** (per-member login dashboard), **Content Radar** (Reddit/Quora/MouthShut/ValueMD mention lanes + Google News), and **Content Studio** (AI playbooks with a Perplexity ↔ Claude engine toggle).
+- **Publishing:** native IG/FB/YouTube/LinkedIn scheduler wired to Airtable calendars via n8n + Meta Graph API.
+- **Ops:** a **Diagnostics** tab (live health + auto-repair), per-person **Team permissions**, and an internal **Ask GooCampus** search.
+- **★ Newest (this update): the Sales → Inbox tab** — see §2.5. DM leads captured from Instagram are now shown as a native **Leads ledger** that mirrors the Airtable Sales Hub CRM live.
+
+Sections 1–4 below describe the original analytics core (still live and unchanged); §2.5 covers the new Inbox; §5 lists what's still pending.
 
 ---
 
@@ -93,6 +107,18 @@ The hardest gap to close — Meta's official Ad Library API only returns politic
 - **Lifetime-data banner** on Audience — explains why the date picker doesn't affect demographics.
 - **AI Report button** on every tab — sends the current data slice + filters to Claude API and returns structured "What worked / what dropped / why / 5 next-week actions" analysis.
 
+### 2.5 Sales → Inbox: DM Leads ledger (★ newest, Aug 2026)
+
+Instagram DM leads captured by the TezDM → n8n pipeline are now shown natively in the dashboard as a **Leads ledger** that mirrors the **Airtable Sales Hub** live. (There is no replying from here — that needs Meta Business messaging access — so the tab is deliberately a *ledger*, not an inbox chat.)
+
+- **Two sub-tabs:** **Leads** (the qualified ledger) and **Activity** (the raw inbound DM feed, complete or not).
+- **The 5-field rule:** a DM only counts as a *lead* when all five details are shared — **first name, last name, email, phone, and their question**. Complete leads flow to Airtable automatically; ones still **missing a field are flagged** so someone can chase them.
+- **KPIs:** Confirmed this month · Today · Enquiries (partial) · Flagged (incomplete) · Top source.
+- **Clean table:** separate **Name · Phone · Email · Question** columns, with a hover **green-tick** panel exposing the source post, keyword, the 5-field check, and last activity.
+- **Live CRM mirror:** pulls the newest ~60 leads from the Airtable Sales Hub **DM Leads** table (`tbl8CpgnQSYcbFKEH`, base `appersdbBcpxhadnD`) and joins each to the **CRM** table by 10-digit phone, so the pill shows the real **CRM Lead Status** the sales team sets — *Hot lead / Junk lead / Re-Enquiry / Cold / Closed won / Not interested*, etc. **Open ↗** links straight to the Airtable record.
+- **Read-only by design:** the dashboard never writes to the Sales Hub (30k+ rows, no backup). Reads go through the existing `lib/sales-hub.ts` client; the Inbox mapping/join lives in `lib/dm-leads-airtable.ts`.
+- **Status:** live in the dashboard (branch `feat/hope-ui-reskin`). Remaining: an optional **write-back** so brand-new complete captures are pushed *into* the Airtable DM Leads table (currently off pending sign-off).
+
 ## 3. Key technical decisions
 
 | Decision | Why |
@@ -119,8 +145,8 @@ The hardest gap to close — Meta's official Ad Library API only returns politic
 
 Roughly ordered by user value:
 
-1. **Inbox tab** — reply to IG comments + DMs from this dashboard, synced with Meta Business Suite. We already have `instagram_manage_comments` + `instagram_manage_messages` permissions on the token.
-2. **5-agent AI panel** (Ideator / Hook & Script / Planner / Analyst / DM Manager) — using Perplexity Sonar Pro (already-purchased $100 credit) + GPT-4o-mini fallback for creative writing.
+1. **Inbox → Airtable write-back** — the Inbox already *reads* the Sales Hub live (see §2.5); the remaining piece is auto-pushing brand-new complete captures *into* the Airtable DM Leads table. Held pending sign-off (the base has no backup). Replying to DMs from the dashboard is out of scope until Meta Business messaging access is approved.
+2. **5-agent AI panel** (Ideator / Hook & Script / Planner / Analyst / DM Manager) — Content Studio already ships a Perplexity ↔ Claude engine toggle for the playbooks; the full multi-agent panel is the next step.
 3. **Hashtag performance** for owned posts — easy add via existing media insights.
 4. **PDF / CSV export** per page — for monthly client/team reports.
 5. **Telegram daily digest bot** — yesterday's top winners + threshold alerts (follower drop ≥5%, spend spike, CPL > X).
@@ -135,12 +161,13 @@ Roughly ordered by user value:
 ## 6. Repo / hosting / credentials
 
 - **Repo:** https://github.com/beast-clone/goocampus-ig-dashboard (private)
-- **Default dev password (local only):** `GC_Dashboard_726b1c84` — change for production via `DASHBOARD_PASSWORD` env var
-- **Backups of `.env.local` and `accounts.local.json`** live on external SSD at `/Volumes/SSD - Praveen/goocampus-ig-dashboard-secrets/`
+- **Dashboard password:** set via the `DASHBOARD_PASSWORD` env var — **not included in this shared doc; ask Praveen directly.**
+- **Secrets** (`.env.local`, `accounts.local.json`, API keys) are **never** committed and are **not** in this report. Backups live on Praveen's external SSD.
 - **Meta Developer App:** "GooCampus Analytics", App ID `1325868559684543`, Business `417097980219999` (GooCampus Edu Solutions Private Limited)
-- **Long-lived token expiry:** 2026-08-25 (~60 days). Refresh procedure in [README.md](./README.md#refreshing-the-60-day-meta-token).
-- **Airtable base:** GooCampus marketing hub, `appLdJFTrothBLDc0`, new table `IG_Competitor_Ads` (`tbl4cgd1oLDmEU5Hw`)
-- **Apify account:** free tier, $5/mo credit, ~$0.075 consumed during build
+- **Long-lived Meta token:** ~60-day expiry — refresh procedure in [README.md](./README.md#refreshing-the-60-day-meta-token). Check current expiry before relying on Ads data.
+- **Airtable — marketing hub:** `appLdJFTrothBLDc0` (Content Calendar, `IG_Competitor_Ads`)
+- **Airtable — Sales Hub:** `appersdbBcpxhadnD` (CRM `tblTvEGviLA4tEjic`, DM Leads `tbl8CpgnQSYcbFKEH`) — read-only from the dashboard
+- **Apify account:** free tier, $5/mo credit
 - **Primary ad account:** `act_490085459361407` (GooCampus Edu)
 
 ## 7. How to use it day to day
@@ -153,6 +180,9 @@ Roughly ordered by user value:
 | Check ad spend, leads, CPL, top campaigns | Ads |
 | Click into a campaign to compare its ads | Ads → click any row |
 | See what competitors are running ads on | Competitor Ads → search a keyword |
+| Track DM leads + their CRM status | Sales → Inbox → Leads |
+| Plan / schedule content across the team | Content → Marketing Hub · Scheduler |
+| Catch brand mentions on Reddit/Quora/review sites | Content → Content Radar |
 | Get AI-written analysis of any slice | Click "✨ Get AI Report" on any tab |
 
 To switch brand accounts, use the sidebar dropdown.
