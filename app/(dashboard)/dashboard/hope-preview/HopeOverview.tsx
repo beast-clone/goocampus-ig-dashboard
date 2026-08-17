@@ -37,7 +37,7 @@ type Insights = {
   deltas: { followers: number; reach: number; engagement: number; profileVisits: number };
   series: { date: string; reach: number; engagement: number }[];
 };
-type Post = { id: string; caption: string; mediaUrl: string; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number };
+type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number };
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[] };
 type Tip = { metric: "followers" | "reach" | "engagement" | "profileVisits"; detail: string; action: string };
 
@@ -669,7 +669,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
     <Card>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth refreshing</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>The best post from each of the last 6 months (by engagement), worth reworking — fact-check (medical rules change), refresh the copy &amp; redesign, then schedule. Not a raw repost.</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>The best post from each of the last 6 months (by engagement). Click <b>Schedule</b> to queue it again with its original caption &amp; creative — fact-check first, medical rules change.</div>
       </div>
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
@@ -682,7 +682,12 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
           {posts.map((p) => {
             const chip = typeChip(p.type);
             const title = (p.caption || "").split("\n")[0].slice(0, 80) || "(no caption)";
-            const draft = new URLSearchParams({ title, brief: `Rework of a previous top performer — fact-check, refresh the copy & redesign before publishing (don't repost as-is).\n\nOriginal caption:\n${(p.caption || "").slice(0, 400)}` }).toString();
+            // Carry the SAME post into the composer: original caption + its media
+            // (all carousel slides), so scheduling it again never asks for a re-upload.
+            const slides = (p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : (p.mediaUrl ? [p.mediaUrl] : [])).filter(Boolean);
+            const dp = new URLSearchParams({ title, brief: (p.caption || "").slice(0, 2000) });
+            slides.forEach((u) => dp.append("media", u));
+            const draft = dp.toString();
             return (
               <div key={p.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, display: "flex", flexDirection: "column" }}>
                 <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
@@ -699,7 +704,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
                   </div>
                   <Link href={`/dashboard/hope-preview/scheduler?draft=${encodeURIComponent(draft)}`}
                     style={{ marginTop: "auto", display: "block", textAlign: "center", fontSize: 12, fontWeight: 600, background: C.primary, color: "#fff", padding: "9px 12px", borderRadius: 9, textDecoration: "none" }}>
-                    ↻ Rework &amp; schedule
+                    Schedule
                   </Link>
                 </div>
               </div>

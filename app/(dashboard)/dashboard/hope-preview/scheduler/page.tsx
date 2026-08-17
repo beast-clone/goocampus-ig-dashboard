@@ -203,9 +203,11 @@ function Scheduler() {
     const d = new URLSearchParams(draft);
     const title = d.get("title") || "";
     const brief = d.get("brief") || "";
+    const media = d.getAll("media").filter(Boolean);
     if (title) setParticulars(title);
     if (brief) setCaption(brief);
-    if (title || brief) setShowCreateForm(true);
+    if (media.length) setMediaUrls(media);   // carry the original creative — no re-upload
+    if (title || brief || media.length) setShowCreateForm(true);
   }, []);
   // When the composer is scheduling an EXISTING Output-Ready task, we carry its id
   // so publishing UPDATES that mh_posts row (and it leaves "To schedule"). null =
