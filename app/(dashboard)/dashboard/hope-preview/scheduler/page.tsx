@@ -4,7 +4,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
@@ -2788,13 +2788,13 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <FacebookLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6]">Sponsored · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6] inline-flex items-center gap-1">Sponsored · <IconWorld size={11} /></div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
         <div className="px-3 pb-2 text-xs text-[#232D42]">{capNode}</div>
         {media("aspect-[4/5]")}
-        <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
-          <span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span>
+        <div className="flex items-center justify-around px-3 py-2 text-xs font-medium text-[#8A92A6] border-t border-gray-100">
+          <span className="inline-flex items-center gap-1.5"><IconThumbUp size={16} stroke={1.8} /> Like</span><span className="inline-flex items-center gap-1.5"><IconMessageCircle size={16} stroke={1.8} /> Comment</span><span className="inline-flex items-center gap-1.5"><IconShare3 size={16} stroke={1.8} /> Share</span>
         </div>
       </div>
     );
@@ -2804,13 +2804,13 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <LinkedInLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6]">Promoted · 🌐</div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6] inline-flex items-center gap-1">Promoted · <IconWorld size={11} /></div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
         <div className="px-3 pb-2 text-xs text-[#232D42]">{capNode}</div>
         {media("aspect-[1.91/1]")}
-        <div className="flex items-center justify-around px-3 py-2 text-xs text-gray-600 border-t border-gray-100">
-          <span>👍 Like</span><span>💬 Comment</span><span>🔁 Repost</span><span>➤ Send</span>
+        <div className="flex items-center justify-around px-3 py-2 text-xs font-medium text-[#8A92A6] border-t border-gray-100">
+          <span className="inline-flex items-center gap-1.5"><IconThumbUp size={16} stroke={1.8} /> Like</span><span className="inline-flex items-center gap-1.5"><IconMessageCircle size={16} stroke={1.8} /> Comment</span><span className="inline-flex items-center gap-1.5"><IconRepeat size={16} stroke={1.8} /> Repost</span><span className="inline-flex items-center gap-1.5"><IconSend size={16} stroke={1.8} /> Send</span>
         </div>
       </div>
     );
@@ -2824,7 +2824,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
         <div className="ml-auto text-gray-400">⋯</div>
       </div>
       {media("aspect-[4/5]")}
-      <div className="flex items-center gap-4 px-3 py-2 text-xl"><span>♡</span><span>💬</span><span>↗</span><span className="ml-auto">🔖</span></div>
+      <div className="flex items-center gap-4 px-3 py-2.5 text-[#232D42]"><IconHeart size={22} stroke={1.8} /><IconMessageCircle size={22} stroke={1.8} /><IconSend size={22} stroke={1.8} /><IconBookmark size={22} stroke={1.8} className="ml-auto" /></div>
       <div className="px-3 pb-3 text-xs"><span className="font-semibold mr-1.5 text-[#232D42]">{handle}</span><span className="text-[#232D42]">{capNode}</span></div>
     </div>
   );
