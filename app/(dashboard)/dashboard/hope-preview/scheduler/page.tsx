@@ -4,7 +4,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
@@ -2769,7 +2769,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
     <div className={`relative overflow-hidden flex items-center justify-center ${image ? "bg-gray-50" : `${placeholderRatio} bg-gray-100 flex-col text-gray-300`}`}>
       {image
         ? <img src={image} alt="" className="w-full h-auto max-h-[520px] object-contain block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-        : <><div className="text-4xl mb-1">🖼️</div><div className="text-xs">Add media to preview</div></>}
+        : <><div className="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center mb-2.5"><IconPhoto size={24} stroke={1.6} className="text-brand" /></div><div className="text-[12.5px] font-medium text-[#8A92A6]">Add media to preview</div></>}
       {images.length > 1 && (
         <>
           <button type="button" aria-label="Previous" onClick={() => go(-1)} className={`${arrowBtn} left-2`}><IconChevronLeft size={16} stroke={2.5} /></button>
