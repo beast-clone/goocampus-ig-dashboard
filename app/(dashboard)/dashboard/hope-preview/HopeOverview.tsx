@@ -219,29 +219,33 @@ export function HopeOverview() {
   }, [tips]);
 
 
-  // "Old winners worth reposting" — same data + logic as OverviewExtras:
-  // the 90 days BEFORE the current range, deduped, top by reach.
+  // "Old winners worth refreshing" — the 6 months BEFORE the current range, one
+  // best post per calendar month. Fetched WITHOUT insights (insights=false) so a
+  // 6-month window stays fast — we rank by engagement (likes + comments), which the
+  // media list carries directly, instead of the slow per-post reach insight.
   const [oldWinners, setOldWinners] = useState<Post[] | null>(null);
   useEffect(() => {
     let alive = true;
     const fromDate = new Date(range.from);
     const oldTo = new Date(fromDate.getTime() - 1 * 86_400_000).toISOString().slice(0, 10);
-    const oldFrom = new Date(fromDate.getTime() - 91 * 86_400_000).toISOString().slice(0, 10);
-    const qs = new URLSearchParams({ accountId, from: oldFrom, to: oldTo, limit: "200", insights: "true" }).toString();
+    const oldFrom = new Date(fromDate.getTime() - 183 * 86_400_000).toISOString().slice(0, 10);
+    const qs = new URLSearchParams({ accountId, from: oldFrom, to: oldTo, limit: "500", insights: "false" }).toString();
     setOldWinners(null);
     fetch(`/api/posts?${qs}`).then((r) => r.ok ? r.json() : { posts: [] }).then((d) => { if (alive) setOldWinners((d.posts || []) as Post[]); }).catch(() => { if (alive) setOldWinners([]); });
     return () => { alive = false; };
   }, [range, accountId]);
+  // One card per month: the highest-engagement post in each calendar month, newest month first.
   const reposts = useMemo(() => {
     if (!oldWinners) return [];
-    const seen = new Set<string>();
-    const uniq: Post[] = [];
-    for (const p of [...oldWinners].sort((a, b) => (b.reach || 0) - (a.reach || 0))) {
-      const key = (p.caption || "").split("\n")[0].slice(0, 60).toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key); uniq.push(p);
+    const eng = (p: Post) => (p.likes || 0) + (p.comments || 0);
+    const byMonth = new Map<string, Post>();
+    for (const p of oldWinners) {
+      const d = new Date(p.timestamp);
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const cur = byMonth.get(mk);
+      if (!cur || eng(p) > eng(cur)) byMonth.set(mk, p);
     }
-    return uniq.slice(0, 4);
+    return [...byMonth.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([, p]) => p).slice(0, 6);
   }, [oldWinners]);
 
   // Full-range posts (limit 200) → custom Hope Post-mix + Which-format-wins
@@ -665,7 +669,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
     <Card>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth refreshing</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Top-reaching posts from the last 90 days worth reworking — fact-check (medical rules change), refresh the copy &amp; redesign, then schedule. Not a raw repost.</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>The best post from each of the last 6 months (by engagement), worth reworking — fact-check (medical rules change), refresh the copy &amp; redesign, then schedule. Not a raw repost.</div>
       </div>
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
@@ -686,11 +690,12 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
                   <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                 </div>
                 <div style={{ padding: "11px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{fmtDateShort(p.timestamp)}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: C.primary, marginBottom: 3 }}>{new Date(p.timestamp).toLocaleDateString("en-IN", { month: "long", year: "numeric" })} · top</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{fmtDateShort(p.timestamp)}</div>
                   <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.35, height: 50, overflow: "hidden", marginBottom: 8 }}>{title}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11.5, color: C.muted, fontVariantNumeric: "tabular-nums", marginBottom: 10 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(p.reach || 0)}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(p.likes || 0)}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconMessageCircle size={13} /> {kfmt(p.comments || 0)}</span>
                   </div>
                   <Link href={`/dashboard/hope-preview/scheduler?draft=${encodeURIComponent(draft)}`}
                     style={{ marginTop: "auto", display: "block", textAlign: "center", fontSize: 12, fontWeight: 600, background: C.primary, color: "#fff", padding: "9px 12px", borderRadius: 9, textDecoration: "none" }}>
