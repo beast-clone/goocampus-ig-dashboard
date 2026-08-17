@@ -664,8 +664,8 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
   return (
     <Card>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth reposting</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Top-reaching posts from the last 90 days that could hit again with fresh eyes. Send to Scheduler in one click.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth refreshing</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Top-reaching posts from the last 90 days worth reworking — fact-check (medical rules change), refresh the copy &amp; redesign, then schedule. Not a raw repost.</div>
       </div>
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
@@ -678,7 +678,7 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
           {posts.map((p) => {
             const chip = typeChip(p.type);
             const title = (p.caption || "").split("\n")[0].slice(0, 80) || "(no caption)";
-            const draft = new URLSearchParams({ title, brief: `Repost of a previous top performer.\nOriginal caption:\n${(p.caption || "").slice(0, 400)}` }).toString();
+            const draft = new URLSearchParams({ title, brief: `Rework of a previous top performer — fact-check, refresh the copy & redesign before publishing (don't repost as-is).\n\nOriginal caption:\n${(p.caption || "").slice(0, 400)}` }).toString();
             return (
               <div key={p.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, display: "flex", flexDirection: "column" }}>
                 <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
@@ -692,9 +692,9 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(p.reach || 0)}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(p.likes || 0)}</span>
                   </div>
-                  <Link href={`/dashboard/scheduler?draft=${encodeURIComponent(draft)}`}
+                  <Link href={`/dashboard/hope-preview/scheduler?draft=${encodeURIComponent(draft)}`}
                     style={{ marginTop: "auto", display: "block", textAlign: "center", fontSize: 12, fontWeight: 600, background: C.primary, color: "#fff", padding: "9px 12px", borderRadius: 9, textDecoration: "none" }}>
-                    ↻ Send to Scheduler
+                    ↻ Rework &amp; schedule
                   </Link>
                 </div>
               </div>

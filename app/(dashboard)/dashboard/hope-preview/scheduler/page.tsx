@@ -193,6 +193,20 @@ function Scheduler() {
       .finally(() => setToScheduleLoading(false));
   };
   useEffect(() => { loadToSchedule(); }, []);
+  // Hand-off from the Overview "Old winners worth refreshing" cards: ?draft=title=…&brief=…
+  // opens the composer prefilled with the old post's copy as an EDITABLE starting point
+  // (GooCampus reworks + redesigns old content — never a locked raw repost).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const draft = new URLSearchParams(window.location.search).get("draft");
+    if (!draft) return;
+    const d = new URLSearchParams(draft);
+    const title = d.get("title") || "";
+    const brief = d.get("brief") || "";
+    if (title) setParticulars(title);
+    if (brief) setCaption(brief);
+    if (title || brief) setShowCreateForm(true);
+  }, []);
   // When the composer is scheduling an EXISTING Output-Ready task, we carry its id
   // so publishing UPDATES that mh_posts row (and it leaves "To schedule"). null =
   // a brand-new manual post (INSERT).
