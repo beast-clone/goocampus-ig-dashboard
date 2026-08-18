@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Leads Hub (mockup)</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB; --navy:#1B2559;
+    --ink:#232D42; --muted:#8A92A6; --faint:#A6ACBE; --line:#EEF0F4; --line2:#F3F5F9;
+    --canvas:#F6F7FB; --card:#FFF;
+    --green-bg:#E3F5EA; --green-fg:#137A3E; --amber-bg:#FEF3E2; --amber-fg:#B7791F;
+    --rose-bg:#FBE4E4; --rose-fg:#C0342E; --sky-bg:#E1F0FB; --sky-fg:#0C447C;
+    --violet-bg:#EFEBFE; --violet-fg:#6E48F8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:22px 26px 70px}
+  a{color:inherit;text-decoration:none}
+  .mono{font-variant-numeric:tabular-nums}
+  button{font-family:inherit;cursor:pointer}
+
+  .hero{background:linear-gradient(120deg,var(--brand) 0%,var(--brand-dark) 60%,var(--navy) 100%);color:#fff;border-radius:18px;padding:22px 26px;position:relative;overflow:hidden}
+  .hero h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.3px}
+  .hero p{margin:6px 0 0;font-size:13.5px;opacity:.9;max-width:760px;line-height:1.5}
+  .hero .orb{position:absolute;right:-30px;top:-50px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.08)}
+
+  .subtabs{display:flex;gap:6px;margin:18px 0 16px;border-bottom:1px solid var(--line)}
+  .subtab{font-size:13.5px;font-weight:500;color:var(--muted);padding:10px 16px;cursor:pointer;position:relative;display:flex;align-items:center;gap:8px;background:none;border:0}
+  .subtab .n{font-size:11px;font-weight:600;background:var(--line2);color:var(--muted);border-radius:20px;padding:1px 8px}
+  .subtab.on{color:var(--brand-dark)}
+  .subtab.on .n{background:var(--brand-light);color:var(--brand-dark)}
+  .subtab.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--brand);border-radius:2px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 16px}
+  .kpi.accent{border-left:3px solid var(--brand)}
+  .kpi .lbl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .kpi .val{font-size:26px;font-weight:600;margin-top:4px;line-height:1}
+  .kpi .sub{font-size:11px;color:var(--faint);margin-top:5px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .up{color:var(--green-fg)} .down{color:var(--rose-fg)}
+
+  .row2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .card h3{margin:0;font-size:15px;font-weight:600}
+  .card .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  .seg{display:inline-flex;background:var(--line2);border-radius:10px;padding:3px}
+  .seg button{border:0;background:none;font-size:12px;font-weight:500;color:var(--muted);padding:5px 12px;border-radius:8px}
+  .seg button.on{background:#fff;color:var(--brand-dark);box-shadow:0 1px 2px rgba(20,30,60,.08)}
+
+  .bar{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .bar .name{width:130px;font-size:12.5px;flex:0 0 130px}
+  .bar .track{flex:1;height:22px;background:var(--line2);border-radius:6px;overflow:hidden;position:relative}
+  .bar .fill{display:block;height:100%;background:linear-gradient(90deg,var(--brand),#6E82F0);border-radius:6px}
+  .bar .v{width:46px;text-align:right;font-size:12.5px;font-weight:600}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 14px;border-bottom:1px solid var(--line);background:#FCFCFE}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--line2);vertical-align:middle;font-size:12.5px}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#FafbFe}
+  tbody tr.sel{background:var(--brand-light)!important}
+  .tablecard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .who .name{font-weight:600;font-size:13px}
+  .who .sub{font-size:11px;color:var(--faint)}
+  .av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px;flex:0 0 30px}
+  .kw{font-size:10.5px;font-weight:600;background:var(--line2);color:#5A6273;border-radius:6px;padding:2px 8px;width:max-content}
+  .status{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;display:inline-block;white-space:nowrap}
+  .s-new{background:var(--sky-bg);color:var(--sky-fg)}
+  .s-reenq{background:#E4F4FD;color:#0B84C4}
+  .s-att{background:#EFF8F2;color:#3C9A5F}
+  .s-init{background:var(--green-bg);color:var(--green-fg)}
+  .s-hot{background:#FBE4EC;color:#C03221}
+  .s-junk{background:#F0F2F8;color:#8A92A6}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{font-size:12px;font-weight:500;border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;color:#4A5468}
+  .chip.on{border-color:var(--brand);background:var(--brand-light);color:var(--brand-dark)}
+  .chip .c{font-size:10.5px;color:var(--faint);margin-left:5px}
+  .chip.on .c{color:var(--brand-dark)}
+
+  .sel-input{border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;color:var(--ink);background:#fff;min-width:180px}
+
+  /* counsellor load */
+  .load{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .cc{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:#fff}
+  .cc .top{display:flex;align-items:center;gap:8px}
+  .cc .nm{font-size:13px;font-weight:600}
+  .cc .big{font-size:22px;font-weight:600;margin-top:8px}
+  .cc .st{font-size:11px;font-weight:600;margin-top:3px}
+  .cc.leave{border-color:#F3C7C7;background:#FEF6F6}
+  .badge{font-size:9.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+  .badge.active{background:var(--green-bg);color:var(--green-fg)}
+  .badge.off{background:var(--rose-bg);color:var(--rose-fg)}
+
+  /* selection action bar */
+  .actionbar{position:sticky;bottom:14px;margin-top:14px;display:none;align-items:center;gap:14px;background:var(--navy);color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 8px 24px rgba(20,30,60,.22)}
+  .actionbar.show{display:flex}
+  .actionbar .n{font-weight:600}
+  .btn{border:0;border-radius:9px;padding:9px 14px;font-size:12.5px;font-weight:600}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-ghost{background:rgba(255,255,255,.14);color:#fff}
+  .btn-line{background:#fff;border:1px solid var(--line);color:var(--ink)}
+
+  /* transfer drawer */
+  .scrim{position:fixed;inset:0;background:rgba(20,30,60,.35);display:none;z-index:40}
+  .scrim.show{display:block}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:#fff;z-index:50;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+  .drawer.show{transform:translateX(0)}
+  .drawer .dh{padding:18px 20px;border-bottom:1px solid var(--line)}
+  .drawer .dh h3{margin:0;font-size:16px;font-weight:600}
+  .drawer .db{padding:18px 20px;overflow:auto;flex:1}
+  .drawer .df{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .pick{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:9px}
+  .pick.on{border-color:var(--brand);background:var(--brand-light)}
+  .pick .nm{font-size:13px;font-weight:600}
+  .pick .sub{font-size:11px;color:var(--faint)}
+  textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-family:inherit;font-size:12.5px;resize:vertical;min-height:70px}
+  label.fld{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;display:block;margin:14px 0 7px}
+
+  .note{background:#FffdF5;border:1px solid #F3E6C4;border-radius:12px;padding:11px 14px;font-size:12.5px;color:#7a5b12;display:flex;gap:9px;margin-bottom:16px}
+  .sync{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .pulse{width:8px;height:8px;border-radius:50%;background:#2Faf52;box-shadow:0 0 0 3px rgba(47,175,82,.18)}
+  .star{cursor:pointer;font-size:16px;color:var(--faint)}
+  .star.on{color:#F2B01E}
+  .yes{color:var(--green-fg);font-weight:600}
+  .no{color:var(--rose-fg);font-weight:600}
+  .hide{display:none}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;font-size:11.5px;color:var(--muted)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="orb"></div>
+    <h1>Leads Hub</h1>
+    <p>Every lead from your Sales Hub in one place — volume by primary interest, bulk-transfer leads between counsellors (pull back a full queue in seconds), and track individual leads with a daily status refresh from Airtable.</p>
+  </div>
+
+  <!-- SUB-TABS -->
+  <div class="subtabs">
+    <button class="subtab on" data-tab="volume">📊 Volume</button>
+    <button class="subtab" data-tab="transfer">🔁 Transfer <span class="n">213</span></button>
+    <button class="subtab" data-tab="tracking">📍 Tracking <span class="n">7</span></button>
+  </div>
+
+  <!-- ============ VOLUME ============ -->
+  <section id="tab-volume">
+    <div class="toolbar" style="justify-content:space-between">
+      <div class="seg">
+        <button class="on">Today</button><button>Yesterday</button><button>This week</button><button>This month</button><button>Custom</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Source: Sales Hub · CRM table</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi accent"><div class="lbl"><span class="dot" style="background:#3A57E8"></span> Today</div><div class="val mono">38</div><div class="sub"><span class="up">▲ 12%</span> vs yesterday</div></div>
+      <div class="kpi"><div class="lbl"><span class="dot" style="background:#137A3E"></span> Yesterday</div><div class="val mono">34</div><div class="sub">Mon, 17 Aug</div></div>
+      <div class="kpi"><div class="lbl"><span class="dot" style="background:#B7791F"></span> This week</div><div class="val mono">213</div><div class="sub">avg 30 / day</div></div>
+      <div class="kpi"><div class="lbl"><span class="dot" style="background:#6E48F8"></span> This month</div><div class="val mono">742</div><div class="sub"><span class="up">▲ 8%</span> vs last month</div></div>
+    </div>
+
+    <div class="row2">
+      <div class="card">
+        <h3>Leads by primary interest</h3>
+        <div class="s">This week (213 leads) — where demand is landing.</div>
+        <div class="bar"><span class="name">AMC · Australia</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="v">58</span></div>
+        <div class="bar"><span class="name">MBBS Abroad</span><span class="track"><span class="fill" style="width:74%"></span></span><span class="v">43</span></div>
+        <div class="bar"><span class="name">PLAB · UK</span><span class="track"><span class="fill" style="width:60%"></span></span><span class="v">35</span></div>
+        <div class="bar"><span class="name">Gulf / DHA</span><span class="track"><span class="fill" style="width:48%"></span></span><span class="v">28</span></div>
+        <div class="bar"><span class="name">NEET PG</span><span class="track"><span class="fill" style="width:34%"></span></span><span class="v">20</span></div>
+        <div class="bar"><span class="name">Canada PRA</span><span class="track"><span class="fill" style="width:26%"></span></span><span class="v">15</span></div>
+        <div class="bar"><span class="name">Germany</span><span class="track"><span class="fill" style="width:24%"></span></span><span class="v">14</span></div>
+      </div>
+      <div class="card">
+        <h3>Leads by counsellor</h3>
+        <div class="s">This week — who's carrying the load.</div>
+        <div class="bar"><span class="name">Robin</span><span class="track"><span class="fill" style="width:52%"></span></span><span class="v">41</span></div>
+        <div class="bar"><span class="name">Gopi</span><span class="track"><span class="fill" style="width:44%"></span></span><span class="v">35</span></div>
+        <div class="bar"><span class="name">Jeswin ⚠</span><span class="track"><span class="fill" style="width:100%;background:linear-gradient(90deg,#C0342E,#E5736B)"></span></span><span class="v">111</span></div>
+        <div class="bar"><span class="name">Aravind</span><span class="track"><span class="fill" style="width:33%"></span></span><span class="v">26</span></div>
+        <div style="margin-top:14px;font-size:11.5px;color:var(--rose-fg);background:var(--rose-bg);border-radius:8px;padding:8px 11px">⚠ Jeswin is <b>On leave</b> but auto-assignment kept sending leads — 111 this week, none contacted. Fix it in the <b>Transfer</b> tab.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRANSFER ============ -->
+  <section id="tab-transfer" class="hide">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Counsellor load &amp; availability</h3>
+      <div class="s">Assigned open leads per counsellor this week. Red = on leave / overloaded.</div>
+      <div class="load">
+        <div class="cc"><div class="top"><span class="av" style="background:#3A57E8">R</span><span class="nm">Robin</span></div><div class="big mono">41</div><div class="st"><span class="badge active">Active</span></div></div>
+        <div class="cc"><div class="top"><span class="av" style="background:#079AA2">G</span><span class="nm">Gopi</span></div><div class="big mono">35</div><div class="st"><span class="badge active">Active</span></div></div>
+        <div class="cc leave"><div class="top"><span class="av" style="background:#C0342E">J</span><span class="nm">Jeswin</span></div><div class="big mono" style="color:var(--rose-fg)">111</div><div class="st"><span class="badge off">On leave · 6 days</span></div></div>
+        <div class="cc"><div class="top"><span class="av" style="background:#6E48F8">A</span><span class="nm">Aravind</span></div><div class="big mono">26</div><div class="st"><span class="badge active">Active</span></div></div>
+      </div>
+    </div>
+
+    <!-- filters -->
+    <div class="card" style="padding:14px 16px;margin-bottom:14px">
+      <div class="chips">
+        <span class="chip on">All <span class="c">213</span></span>
+        <span class="chip">New <span class="c">96</span></span>
+        <span class="chip">Re-Enquiry <span class="c">18</span></span>
+        <span class="chip">Attempted to contact <span class="c">44</span></span>
+        <span class="chip">Initial discussions <span class="c">31</span></span>
+        <span class="chip">Hot lead <span class="c">15</span></span>
+        <span class="chip">Junk <span class="c">9</span></span>
+      </div>
+      <div class="toolbar" style="margin-bottom:0">
+        <select class="sel-input"><option>Assigned to · Jeswin (on leave)</option><option>Anyone</option><option>Robin</option><option>Gopi</option><option>Aravind</option></select>
+        <select class="sel-input"><option>Primary interest · All</option><option>AMC · Australia</option><option>MBBS Abroad</option><option>PLAB · UK</option><option>Gulf / DHA</option></select>
+        <input class="sel-input" placeholder="Search name / phone…" style="flex:1" />
+        <button class="btn btn-line" onclick="selectAll()">Select all 111</button>
+      </div>
+    </div>
+
+    <div class="tablecard">
+      <table>
+        <thead><tr>
+          <th style="width:34px"><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Lead</th><th>Phone</th><th>Primary interest</th><th>Status</th><th>Assigned to</th><th>Created</th><th>Last activity</th>
+        </tr></thead>
+        <tbody id="leadrows">
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#3A57E8">A</span><span><span class="name">Dr. Anaya Kulkarni</span></span></span></div></td><td>+91 98450 11234</td><td><span class="kw">AMC · Australia</span></td><td><span class="status s-new">New</span></td><td>Jeswin</td><td>17 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#079AA2">S</span><span class="name">Dr. Sameer Nair</span></span></div></td><td>+91 90350 78120</td><td><span class="kw">PLAB · UK</span></td><td><span class="status s-new">New</span></td><td>Jeswin</td><td>16 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#8B5CF6">F</span><span class="name">Dr. Farah Sheikh</span></span></div></td><td>+91 97410 33098</td><td><span class="kw">Gulf / DHA</span></td><td><span class="status s-reenq">Re-Enquiry</span></td><td>Jeswin</td><td>16 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#B7791F">R</span><span class="name">Dr. Rohit Menon</span></span></div></td><td>+91 99001 55221</td><td><span class="kw">MBBS Abroad</span></td><td><span class="status s-new">New</span></td><td>Jeswin</td><td>15 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#D6336C">V</span><span class="name">Dr. Vidya Rao</span></span></div></td><td>+91 96320 71145</td><td><span class="kw">NEET PG</span></td><td><span class="status s-att">Attempted</span></td><td>Jeswin</td><td>14 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td><input type="checkbox" class="lc" onclick="rowSel(this)"></td><td><div class="who"><span style="display:flex;align-items:center;gap:9px"><span class="av" style="background:#0EA5E9">K</span><span class="name">Dr. Karan Bhat</span></span></div></td><td>+91 98220 41007</td><td><span class="kw">Canada PRA</span></td><td><span class="status s-new">New</span></td><td>Jeswin</td><td>14 Aug</td><td style="color:var(--rose-fg)">Never contacted</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:var(--faint);font-size:12px">…105 more leads assigned to Jeswin</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- selection action bar -->
+    <div class="actionbar" id="abar">
+      <span class="n"><span id="selcount">0</span> leads selected</span>
+      <span style="opacity:.6;font-size:12px">from Jeswin (on leave)</span>
+      <span style="margin-left:auto"></span>
+      <button class="btn btn-ghost" onclick="clearSel()">Clear</button>
+      <button class="btn btn-primary" onclick="openDrawer()">🔁 Transfer selected</button>
+    </div>
+  </section>
+
+  <!-- ============ TRACKING ============ -->
+  <section id="tab-tracking" class="hide">
+    <div class="note">
+      <b>How tracking works:</b>&nbsp; ⭐ any lead to add it here. Its <b>status</b> and whether it's been <b>contacted</b> live in Airtable — this list <b>refreshes once a day</b> (5 AM) and shows you the latest without opening Airtable. Star a lead from the Transfer table or from the Inbox.
+    </div>
+    <div class="toolbar" style="justify-content:space-between">
+      <div class="sync"><span class="pulse"></span> Last synced from Airtable: <b>today, 5:02 AM</b></div>
+      <button class="btn btn-line">↻ Refresh now</button>
+    </div>
+    <div class="tablecard">
+      <table>
+        <thead><tr><th style="width:34px"></th><th>Lead</th><th>Primary interest</th><th>Assigned to</th><th>Status (Airtable)</th><th>Contacted?</th><th>Last activity</th></tr></thead>
+        <tbody>
+          <tr><td><span class="star on">★</span></td><td class="name">Dr. Ananya Reddy</td><td><span class="kw">Gulf / DHA</span></td><td>Robin</td><td><span class="status s-hot">Hot lead</span></td><td class="yes">Yes · 3 Aug</td><td>Called 3 Aug by Robin</td></tr>
+          <tr><td><span class="star on">★</span></td><td class="name">Dr. Sneha Iyer</td><td><span class="kw">MBBS Abroad</span></td><td>Gopi</td><td><span class="status s-init">Initial discussions</span></td><td class="yes">Yes · 2 Aug</td><td>Called 2 Aug by Gopi</td></tr>
+          <tr><td><span class="star on">★</span></td><td class="name">Dr. Rohit Menon</td><td><span class="kw">MBBS Abroad</span></td><td>Aravind</td><td><span class="status s-new">New</span></td><td class="no">Not yet</td><td>Reassigned 18 Aug</td></tr>
+          <tr><td><span class="star on">★</span></td><td class="name">Dr. Farah Sheikh</td><td><span class="kw">Gulf / DHA</span></td><td>Robin</td><td><span class="status s-att">Attempted</span></td><td class="yes">Yes · 18 Aug</td><td>1 call, no answer</td></tr>
+          <tr><td><span class="star on">★</span></td><td class="name">Dr. Karan Bhat</td><td><span class="kw">Canada PRA</span></td><td>Gopi</td><td><span class="status s-reenq">Re-Enquiry</span></td><td class="no">Not yet</td><td>Reassigned 18 Aug</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend"><span><b>Contacted?</b> and <b>Status</b> come straight from what the sales team updates in Airtable — you're only viewing, never editing here.</span></div>
+  </section>
+
+</div>
+
+<!-- TRANSFER DRAWER -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh">
+    <h3>Transfer <span id="dcount">6</span> leads</h3>
+    <div class="s" style="color:var(--muted);font-size:12.5px;margin-top:3px">Currently assigned to <b>Jeswin</b> (on leave). They'll be reassigned to whoever you pick below.</div>
+  </div>
+  <div class="db">
+    <label class="fld">Transfer to — pick one or more counsellors</label>
+    <div class="pick on" onclick="togglePick(this)"><input type="checkbox" checked><span><div class="nm">Robin</div><div class="sub">Active · 41 open leads</div></span></div>
+    <div class="pick" onclick="togglePick(this)"><input type="checkbox"><span><div class="nm">Gopi</div><div class="sub">Active · 35 open leads</div></span></div>
+    <div class="pick" onclick="togglePick(this)"><input type="checkbox"><span><div class="nm">Aravind</div><div class="sub">Active · 26 open leads</div></span></div>
+    <div class="pick" style="opacity:.5"><input type="checkbox" disabled><span><div class="nm">Jeswin</div><div class="sub">On leave — unavailable</div></span></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">Pick 2+ to split the batch evenly between them (round-robin).</div>
+
+    <label class="fld">Notes (added to each lead in Airtable)</label>
+    <textarea placeholder="e.g. Bulk reassigned from Jeswin (on leave 12–18 Aug). None were contacted — treat as fresh new leads.">Bulk reassigned from Jeswin (on leave 12–18 Aug). None contacted yet — treat as fresh.</textarea>
+
+    <label class="fld">Notify</label>
+    <div style="display:flex;gap:16px;font-size:12.5px;color:#4A5468"><label style="display:flex;gap:7px;align-items:center"><input type="checkbox" checked> WhatsApp</label><label style="display:flex;gap:7px;align-items:center"><input type="checkbox" checked> Telegram</label></div>
+  </div>
+  <div class="df">
+    <button class="btn btn-line" style="flex:1" onclick="closeDrawer()">Cancel</button>
+    <button class="btn btn-primary" style="flex:1.6" onclick="closeDrawer()">Transfer 6 leads to Robin →</button>
+  </div>
+</aside>
+
+<script>
+  // sub-tabs
+  document.querySelectorAll('.subtab').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.subtab').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    ['volume','transfer','tracking'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hide', t!==b.dataset.tab));
+  });
+  // segmented (visual)
+  document.querySelectorAll('.seg').forEach(s=>s.querySelectorAll('button').forEach(b=>b.onclick=()=>{s.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
+  // status chips (visual)
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');});
+  // selection
+  function refresh(){var n=document.querySelectorAll('.lc:checked').length;document.getElementById('selcount').textContent=n;document.getElementById('dcount').textContent=n||6;document.getElementById('abar').classList.toggle('show',n>0);}
+  function rowSel(cb){cb.closest('tr').classList.toggle('sel',cb.checked);refresh();}
+  function toggleAll(cb){document.querySelectorAll('.lc').forEach(x=>{x.checked=cb.checked;x.closest('tr').classList.toggle('sel',cb.checked);});refresh();}
+  function selectAll(){document.querySelectorAll('.lc').forEach(x=>{x.checked=true;x.closest('tr').classList.add('sel');});refresh();}
+  function clearSel(){document.querySelectorAll('.lc').forEach(x=>{x.checked=false;x.closest('tr').classList.remove('sel');});refresh();}
+  // drawer
+  function openDrawer(){document.getElementById('scrim').classList.add('show');document.getElementById('drawer').classList.add('show');}
+  function closeDrawer(){document.getElementById('scrim').classList.remove('show');document.getElementById('drawer').classList.remove('show');}
+  function togglePick(p){var cb=p.querySelector('input');cb.checked=!cb.checked;p.classList.toggle('on',cb.checked);}
+</script>
+</body>
+</html>
