@@ -27,7 +27,7 @@ type AssignedLead = {
   status: string; source: string; interest: string; assignedOn: string; lastActivityAt: string;
   daysUntouched: number; callAttempts: number; link: string; onLeaveConflict: boolean;
 };
-type RosterEntry = { name: string; userId: string; email: string; label: string };
+type RosterEntry = { name: string; userId: string; email: string; label: string; inRoster: boolean };
 type Board = {
   range: { from: string; to: string };
   bucket: "day" | "week";
@@ -381,7 +381,11 @@ function ReassignModal({ lead, roster, onClose, onDone }: {
             <select value={toUserId} onChange={(e) => setToUserId(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white mb-4">
               <option value="">Pick a counsellor…</option>
-              {options.map((r) => <option key={r.userId} value={r.userId}>{r.name}</option>)}
+              {options.map((r) => (
+                <option key={r.userId} value={r.userId}>
+                  {r.name}{r.inRoster ? "" : " (not on the Counsellors list)"}
+                </option>
+              ))}
             </select>
 
             <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Reason <span className="text-rose-500">*</span></label>

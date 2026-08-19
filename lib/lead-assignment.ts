@@ -45,7 +45,10 @@ export function pickUser(v: unknown): { id: string; name: string; email: string 
   };
 }
 
-export type RosterEntry = { name: string; userId: string; email: string; label: string };
+// `inRoster: false` = holds leads but isn't in the Counsellors table. They still
+// need to be a valid transfer target, otherwise a lead sitting with someone
+// off-roster can never be moved from here.
+export type RosterEntry = { name: string; userId: string; email: string; label: string; inRoster: boolean };
 
 export async function getCounsellorRoster(): Promise<RosterEntry[]> {
   const rows = await airtableList<Record<string, unknown>>(COUNSELLORS_TABLE, {
@@ -58,7 +61,7 @@ export async function getCounsellorRoster(): Promise<RosterEntry[]> {
     const user = pickUser(r.fields["User"]);
     const name = pickName(r.fields["Name"]) || user?.name || "";
     if (!user || !name) continue; // no Airtable user = can't be a transfer target
-    out.push({ name, userId: user.id, email: pickName(r.fields["Email"]) || user.email, label: pickName(r.fields["Label"]) || name });
+    out.push({ name, userId: user.id, email: pickName(r.fields["Email"]) || user.email, label: pickName(r.fields["Label"]) || name, inRoster: true });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -156,6 +159,18 @@ const CRM_FIELDS = [
   "Call Attempts", "Link to Record",
 ];
 
+// Airtable returns Created Date as a UTC instant. Slicing the ISO string would
+// bucket a lead created 00:30 IST into the PREVIOUS day, because IST is UTC+5:30 —
+// so a night-time lead silently lands in yesterday's column. The team works in IST,
+// so every day bucket is computed in IST.
+function istDay(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
 // Monday-anchored ISO week key, so "this week" matches how the team talks about it.
 function weekKey(day: string): { key: string; label: string } {
   const d = new Date(`${day}T00:00:00Z`);
@@ -205,7 +220,7 @@ export async function getAssignmentBoard(
     const f = rec.fields;
     const createdIso = pickName(f["Created Date"]);
     if (!createdIso) continue;
-    const day = createdIso.slice(0, 10);
+    const day = istDay(createdIso);
     const user = pickUser(f["Counsellor"]);
     const counsellor = user?.name || "";
     const status = pickName(f["Lead Status"]) || "—";
@@ -262,6 +277,18 @@ export async function getAssignmentBoard(
     });
   }
 
+  // Anyone actually holding leads is a legitimate transfer target even if the
+  // Counsellors table doesn't list them (it currently misses a couple of people
+  // who hold live leads). Roster entries stay first so the real list leads.
+  const known = new Set(roster.map((r) => r.userId));
+  const fullRoster: RosterEntry[] = [...roster];
+  for (const t of tallies.values()) {
+    if (!known.has(t.userId)) {
+      known.add(t.userId);
+      fullRoster.push({ name: t.name, userId: t.userId, email: "", label: t.name, inRoster: false });
+    }
+  }
+
   for (const [name, sm] of statusByCounsellor) {
     const t = tallies.get(name);
     if (t) t.byStatus = [...sm.entries()].map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count);
@@ -282,7 +309,7 @@ export async function getAssignmentBoard(
     series: [...buckets.values()].sort((a, b) => (a.key < b.key ? -1 : 1)),
     // Conflicts first, then volume — the rows needing action sit at the top.
     counsellors: [...tallies.values()].sort((a, b) => b.conflicts - a.conflicts || b.assigned - a.assigned),
-    roster,
+    roster: fullRoster,
     // Newest first, but anything assigned to someone on leave floats up.
     leads: leads.sort((a, b) =>
       Number(b.onLeaveConflict) - Number(a.onLeaveConflict) || (a.assignedOn < b.assignedOn ? 1 : -1)),
