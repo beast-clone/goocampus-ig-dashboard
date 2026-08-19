@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { fmtDate } from "@/lib/date";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
   IconClipboardCheck, IconLayoutGrid, IconTable, IconX, IconChevronLeft, IconChevronRight,
@@ -57,6 +58,8 @@ function Review() {
   const [posts, setPosts] = useState<ReviewPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // Completeness gate (422) — the itemized popup, shared with My Day / the hub.
+  const [gate, setGate] = useState<GateBlock | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null); // post id being sent back with notes
   const [feedbackText, setFeedbackText] = useState("");
@@ -91,7 +94,7 @@ function Review() {
   // Move a post to a new status via the whitelisted update API, then drop it from the
   // queue. Surfaces the server error instead of failing silently (an approval that
   // didn't actually persist must never look like it succeeded).
-  async function move(id: string, status: string, label: string, feedback?: string) {
+  async function move(id: string, status: string, label: string, feedback?: string, title?: string) {
     setBusyId(id);
     setErr(null);
     try {
@@ -105,7 +108,13 @@ function Review() {
         body: JSON.stringify({ id, fields }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      if (!res.ok) {
+        // 422 = a completeness gate. The server already listed exactly what's
+        // missing; show that list instead of collapsing it to one line of banner.
+        const block = gateFromResponse(res.status, d, title || "This post");
+        if (block) { setGate(block); return; }
+        throw new Error((d as { error?: string }).error || `HTTP ${res.status}`);
+      }
       setPosts((p) => p.filter((x) => x.id !== id));
       setFeedbackFor(null);
       setFeedbackText("");
@@ -149,7 +158,7 @@ function Review() {
           </td>
           <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 justify-end">
-              <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
+              <button disabled={busy} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule", undefined, p.title)} title="Approve and send to the Scheduler" className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed">
                 <IconCalendarPlus size={14} stroke={1.9} /> Push to Schedule
               </button>
               <button disabled={busy} onClick={() => { setFeedbackFor(feedbackFor === p.id ? null : p.id); setFeedbackText(""); }} className="flex items-center gap-1.5 text-xs font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40">
@@ -163,7 +172,7 @@ function Review() {
             <td colSpan={5} className="px-4 py-3">
               <div className="flex items-center gap-2">
                 <input autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-                <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40 whitespace-nowrap">
+                <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText, p.title)} className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40 whitespace-nowrap">
                   <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
                 </button>
                 <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
@@ -232,7 +241,7 @@ function Review() {
               <div className="flex items-center gap-2">
                 <button
                   disabled={busy || !feedbackText.trim()}
-                  onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)}
+                  onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText, p.title)}
                   className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"
                 >
                   <IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback
@@ -243,9 +252,9 @@ function Review() {
           ) : (
             <div className="flex items-center gap-2 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
               <button
-                disabled={busy || !p.hasCreative}
-                onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")}
-                title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"}
+                disabled={busy}
+                onClick={() => move(p.id, "Ready to Publish", "Push to Schedule", undefined, p.title)}
+                title="Approve and send to the Scheduler"
                 className="flex-1 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-2.5 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <IconCalendarPlus size={15} stroke={1.9} className="flex-shrink-0" /> Push to Schedule
@@ -449,13 +458,13 @@ function Review() {
                   <div className="flex flex-col gap-2">
                     <textarea autoFocus value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="What needs changing? (the producer sees this on their task)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none" />
                     <div className="flex items-center gap-2">
-                      <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText)} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback</button>
+                      <button disabled={busy || !feedbackText.trim()} onClick={() => move(p.id, "Incorporating Feedback", "Send back", feedbackText, p.title)} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#C0201F] rounded-lg px-3 py-2 hover:bg-[#9E1A19] disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back with feedback</button>
                       <button onClick={() => { setFeedbackFor(null); setFeedbackText(""); }} className="text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-2 hover:border-brand hover:text-brand">Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <button disabled={busy || !p.hasCreative} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule")} title={p.hasCreative ? "Approve and send to the Scheduler" : "Add a creative first"} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"><IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule</button>
+                    <button disabled={busy} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule", undefined, p.title)} title="Approve and send to the Scheduler" className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"><IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule</button>
                     <button disabled={busy} onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }} className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2.5 hover:border-brand hover:text-brand disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back</button>
                   </div>
                 )}
@@ -464,6 +473,8 @@ function Review() {
           </div>
         );
       })()}
+
+      {gate && <MissingFieldsModal {...gate} onClose={() => setGate(null)} />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import MissingFieldsModal from "../MissingFieldsModal";
 import {
   IconBrandLinkedin, IconCalendarClock, IconPhoto, IconTrash, IconExternalLink,
   IconCircleCheck, IconCircleDashed, IconAlertTriangle, IconClock, IconSend,
@@ -48,16 +49,24 @@ export function LinkedInScheduler() {
     return () => clearTimeout(t);
   }, [posts]);
 
+  const [gate, setGate] = useState<string[] | null>(null);
   const togglePage = (k: string) => setPages((s) => s.includes(k) ? s.filter((x) => x !== k) : [...s, k]);
 
   const submit = async () => {
     setMsg(null);
-    if (!pages.length) { setMsg({ ok: false, text: "Pick at least one page." }); return; }
-    if (!body.trim() && !imageUrl.trim()) { setMsg({ ok: false, text: "Add some text or an image." }); return; }
+    // One consolidated list instead of four sequential one-liners — you used to fix
+    // the page, hit Post, then be told about the date, then about the time.
+    const missing = [
+      !pages.length && "At least one page to post to",
+      !body.trim() && !imageUrl.trim() && "Some text or an image",
+      when === "later" && !date && "A date to publish on",
+      when === "later" && !time && "A time to publish at",
+    ].filter((x): x is string => !!x);
+    if (missing.length) { setGate(missing); return; }
     let scheduleTimeISO: string | undefined;
     if (when === "later") {
-      if (!date || !time) { setMsg({ ok: false, text: "Pick a date and time." }); return; }
       const dt = new Date(`${date}T${time}`);
+      // These two aren't "missing" — they're wrong — so they stay as inline messages.
       if (isNaN(dt.getTime())) { setMsg({ ok: false, text: "Invalid date/time." }); return; }
       if (dt.getTime() < Date.now() - 60_000) { setMsg({ ok: false, text: "That time is in the past." }); return; }
       scheduleTimeISO = dt.toISOString();
@@ -148,6 +157,8 @@ export function LinkedInScheduler() {
           </div>
         )}
       </div>
+
+      {gate && <MissingFieldsModal gate="schedule" missing={gate} onClose={() => setGate(null)} />}
     </div>
   );
 }

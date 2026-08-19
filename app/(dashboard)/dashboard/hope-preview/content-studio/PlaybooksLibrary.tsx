@@ -5,6 +5,8 @@ import {
   IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt, IconBulb,
 } from "@tabler/icons-react";
 import { PLAYBOOK_GUIDES } from "@/lib/playbook-guides";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { SBU_OPTIONS } from "@/lib/sbus";
 
 // The marketing library (Corey Haines' open pack + a Pillar Content skill), run via
 // Perplexity. Lives inside Content Studio as the "Playbooks" tab. After a result,
@@ -146,6 +148,11 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
   const [assignee, setAssignee] = useState("manya");
   const [sending, setSending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  // A playbook draft carries no brand of its own, so the approver picks one — the
+  // create gate refuses a task with no SBU.
+  const [sbu, setSbu] = useState("");
+  const [gate, setGate] = useState<GateBlock | null>(null);
+  const [sendErr, setSendErr] = useState<string | null>(null);
   // Custom prompt to regenerate just this card (e.g. "add 2 bullets per slide", or a reference link).
   const [cardPrompt, setCardPrompt] = useState("");
   const [regenning, setRegenning] = useState(false);
@@ -171,12 +178,20 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
 
   const approve = async () => {
     setSending(true);
+    setSendErr(null);
     try {
+      const title = `${skillName} — ${d.label}`;
       const res = await fetch("/api/marketing-hub/create", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ title: `${skillName} — ${d.label}`, content: text, owner: assignee }),
+        body: JSON.stringify({ title, content: text, owner: assignee, sbu: sbu || undefined }),
       });
-      if (res.ok) { setSentTo(TEAM.find((t) => t.key === assignee)?.label || assignee); setPickOpen(false); }
+      if (res.ok) { setSentTo(TEAM.find((t) => t.key === assignee)?.label || assignee); setPickOpen(false); return; }
+      const j = await res.json().catch(() => ({}));
+      const block = gateFromResponse(res.status, j, title);
+      if (block) setGate(block);
+      else setSendErr((j as { error?: string }).error || `HTTP ${res.status}`);
+    } catch (e) {
+      setSendErr(e instanceof Error ? e.message : String(e));
     } finally { setSending(false); }
   };
 
@@ -217,6 +232,11 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
                 className="text-[12px] text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:border-brand outline-none">
                 {TEAM.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
+              <select value={sbu} onChange={(e) => setSbu(e.target.value)} title="SBU — which brand this is for"
+                className="text-[12px] text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:border-brand outline-none max-w-[180px]">
+                <option value="">SBU…</option>
+                {SBU_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
               <button onClick={approve} disabled={sending} className="text-[11.5px] inline-flex items-center gap-1 bg-brand text-white rounded-md px-3 py-1.5 hover:bg-brand-dark disabled:opacity-60">{sending ? "Sending…" : "Confirm"}</button>
               <button onClick={() => setPickOpen(false)} className="text-[11.5px] text-[#8A92A6] hover:text-[#232D42] px-1">Cancel</button>
             </div>
@@ -225,6 +245,8 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
           )}
         </div>
       </div>
+      {sendErr && <div className="text-[11.5px] text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5 mt-2">Couldn&apos;t assign — {sendErr}</div>}
+      {gate && <MissingFieldsModal {...gate} onClose={() => setGate(null)} />}
     </div>
   );
 }

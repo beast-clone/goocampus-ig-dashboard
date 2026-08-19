@@ -9,6 +9,8 @@ import {
 } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
 import { PlaybooksLibrary } from "./PlaybooksLibrary";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { SBU_OPTIONS } from "@/lib/sbus";
 
 type Draft = { platform: string; label: string; content: string };
 type Item = {
@@ -346,16 +348,31 @@ function DraftCard({ d, it }: { d: Draft; it: Item }) {
   const [assignee, setAssignee] = useState("manya");
   const [sending, setSending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  // The item usually carries its own interest; when it doesn't, the sender picks one
+  // here — a task with no SBU is refused by the create gate.
+  const [sbu, setSbu] = useState(it.interest || "");
+  const [gate, setGate] = useState<GateBlock | null>(null);
+  const [sendErr, setSendErr] = useState<string | null>(null);
 
   const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ } };
   const sendToDesign = async () => {
     setSending(true);
+    setSendErr(null);
     try {
+      const title = `${it.title} — ${d.label}`;
       const res = await fetch("/api/marketing-hub/create", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ title: `${it.title} — ${d.label}`, content: text, owner: assignee, sbu: it.interest || undefined }),
+        body: JSON.stringify({ title, content: text, owner: assignee, sbu: sbu || undefined }),
       });
-      if (res.ok) { setSentTo(TEAM.find((t) => t.key === assignee)?.label || assignee); setPickOpen(false); }
+      if (res.ok) { setSentTo(TEAM.find((t) => t.key === assignee)?.label || assignee); setPickOpen(false); return; }
+      // Previously this had no else at all — a refused create looked exactly like
+      // nothing had happened.
+      const j = await res.json().catch(() => ({}));
+      const block = gateFromResponse(res.status, j, title);
+      if (block) setGate(block);
+      else setSendErr((j as { error?: string }).error || `HTTP ${res.status}`);
+    } catch (e) {
+      setSendErr(e instanceof Error ? e.message : String(e));
     } finally { setSending(false); }
   };
 
@@ -374,12 +391,17 @@ function DraftCard({ d, it }: { d: Draft; it: Item }) {
           {sentTo ? (
             <span className="text-[11.5px] inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1"><IconCircleCheck size={13} /> Sent to {sentTo}</span>
           ) : pickOpen ? (
-            <div className="inline-flex items-center gap-1.5 border border-gray-200 rounded-lg p-1">
+            <div className="inline-flex flex-wrap items-center gap-1.5 border border-gray-200 rounded-lg p-1">
               <span className="text-[11px] text-gray-400 pl-1">Assign to</span>
               {TEAM.map((t) => (
                 <button key={t.key} onClick={() => setAssignee(t.key)}
                   className={`text-[11.5px] px-2 py-0.5 rounded-md ${assignee === t.key ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-100"}`}>{t.label}</button>
               ))}
+              <select value={sbu} onChange={(e) => setSbu(e.target.value)} title="SBU — which brand this is for"
+                className="text-[11.5px] border border-gray-200 rounded-md px-1.5 py-0.5 text-gray-700 max-w-[150px]">
+                <option value="">SBU…</option>
+                {Array.from(new Set([...(it.interest ? [it.interest] : []), ...SBU_OPTIONS])).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
               <button onClick={sendToDesign} disabled={sending} className="text-[11.5px] inline-flex items-center gap-1 bg-brand text-white rounded-md px-2.5 py-1 hover:bg-brand-dark disabled:opacity-60 ml-1"><IconPalette size={13} /> {sending ? "Sending…" : "Send"}</button>
             </div>
           ) : (
@@ -387,6 +409,8 @@ function DraftCard({ d, it }: { d: Draft; it: Item }) {
           )}
         </div>
       </div>
+      {sendErr && <div className="text-[11.5px] text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5">Couldn&apos;t send — {sendErr}</div>}
+      {gate && <MissingFieldsModal {...gate} onClose={() => setGate(null)} />}
     </div>
   );
 }

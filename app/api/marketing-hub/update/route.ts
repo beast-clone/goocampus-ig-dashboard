@@ -145,6 +145,20 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // C) Ready-to-Publish: the last stop before the Scheduler picks it up, so
+    // everything the publish step needs must already exist — the creative itself,
+    // the copy that goes out with it, and the date it's going out on. Without this
+    // the Scheduler's own client-side guard was the only check, and Content Review
+    // could push an empty shell straight into the queue.
+    if (newStatus === "Ready to Publish" && wasStatus !== "Ready to Publish") {
+      const missing: string[] = [];
+      const { count: creativeCount } = await sb.from("mh_attachments").select("id", { count: "exact", head: true }).eq("post_id", body.id).eq("kind", "creative");
+      if (!filled(eff("output_link")) && !(creativeCount || 0)) missing.push("A creative file or an output link");
+      if (!filled(eff("caption")) && !filled(eff("content"))) missing.push("A caption (or the content to post)");
+      if (!filled(eff("publishing_date"))) missing.push("Publishing date");
+      if (missing.length) return NextResponse.json({ error: "Not ready to publish yet — some required fields are missing.", missing, gate: "publish" }, { status: 422 });
+    }
+
     const { data, error } = await sb
       .from("mh_posts")
       .update(clean)

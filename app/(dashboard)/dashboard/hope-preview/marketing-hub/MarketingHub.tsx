@@ -10,6 +10,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
 import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
 export type Row = {
   id: string;
@@ -1206,6 +1207,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
 
   // Drag-to-reschedule: drop a task on a day to set its publishing date there.
   const [dragOver, setDragOver] = useState<string | null>(null);
+  // A refused drop used to leave the card sitting on the old day with no word about
+  // why; surface the reason instead.
+  const [failure, setFailure] = useState<SaveFailure | null>(null);
   const dropOn = async (e: React.DragEvent, dayKey: string) => {
     e.preventDefault();
     setDragOver(null);
@@ -1213,8 +1217,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     if (!id) return;
     const row = rows.find((r) => r.id === id);
     if (row && row.publishingDate?.slice(0, 10) === dayKey) return; // no-op: same day
-    const ok = await saveField(id, { publishing_date: dayKey });
-    if (ok) onSaved();
+    const r = await saveField(id, { publishing_date: dayKey });
+    if (r.ok) { onSaved(); return; }
+    setFailure(failureFrom(r, row?.particulars || "This task"));
   };
 
   // Filter by active brand first, then bucket by yyyy-mm-dd.
@@ -1477,6 +1482,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
           })}
         </div>
       )}
+      <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />
     </div>
   );
 }
@@ -1508,17 +1514,49 @@ function PlatformIcons({ platforms }: { platforms: string[] }) {
 }
 
 // Persist a single field edit to Supabase (whitelisted update API), then refresh.
-async function saveField(id: string, fields: Record<string, unknown>): Promise<boolean> {
+//
+// Returns the failure too, never a bare boolean: a completeness gate answers
+// 422 { missing } and the caller has to be able to show it. This used to swallow
+// the body, so setting a row to "Content - Approved" without a brief just snapped
+// the dropdown back with no explanation at all.
+type SaveResult = { ok: true } | { ok: false; status: number; body: unknown; error: string };
+
+async function saveField(id: string, fields: Record<string, unknown>): Promise<SaveResult> {
   try {
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, fields }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { ok: true };
+    const body = await res.json().catch(() => ({}));
+    const error = (body as { error?: string }).error || `HTTP ${res.status}`;
+    return { ok: false, status: res.status, body, error };
+  } catch (e) {
+    return { ok: false, status: 0, body: {}, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// What to show when a save is refused. A completeness gate (422 + missing[]) gets
+// the shared itemized popup; anything else gets a plain visible toast — the one
+// thing it must never do is disappear without a word.
+type SaveFailure = { kind: "gate"; block: GateBlock } | { kind: "error"; message: string };
+
+function failureFrom(r: Extract<SaveResult, { ok: false }>, title: string): SaveFailure {
+  const block = gateFromResponse(r.status, r.body, title);
+  return block ? { kind: "gate", block } : { kind: "error", message: r.error };
+}
+
+function SaveFailureOverlay({ failure, onClose }: { failure: SaveFailure | null; onClose: () => void }) {
+  if (!failure) return null;
+  if (failure.kind === "gate") return <MissingFieldsModal {...failure.block} onClose={onClose} />;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] flex items-center gap-3 bg-white border border-red-200 rounded-xl shadow-lg px-4 py-3 max-w-md">
+      <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+      <span className="text-[13px] text-[#232D42]">Couldn&apos;t save — {failure.message}</span>
+      <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none ml-1">×</button>
+    </div>
+  );
 }
 
 // Click-to-edit cell — shows `display`; clicking swaps in `editControl`. All
@@ -2402,9 +2440,13 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
   const allSbus = facets?.sbu || [];
   const statusOptions = facets?.status || PIPELINE_STAGES.map((s) => s.key);
   const priorityOptions = facets?.priority || ["Urgent", "High", "Medium", "Low"];
+  // Inline-cell save. On refusal the cell reverts on its own (it renders from the
+  // row prop, which never changed) — the overlay is what tells you why.
+  const [failure, setFailure] = useState<SaveFailure | null>(null);
   const save = async (id: string, fields: Record<string, unknown>) => {
-    const ok = await saveField(id, fields);
-    if (ok) onSaved();
+    const r = await saveField(id, fields);
+    if (r.ok) { onSaved(); return; }
+    setFailure(failureFrom(r, rows.find((x) => x.id === id)?.particulars || "This task"));
   };
   const saveCustom = async (id: string, key: string, value: unknown) => {
     const res = await fetch("/api/marketing-hub/set-custom", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: id, key, value }) });
@@ -2529,7 +2571,8 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     </div>
   );
 
-  if (bare) return table;
+  const overlay = <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />;
+  if (bare) return <>{table}{overlay}</>;
   return (
     <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
@@ -2537,6 +2580,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
         <div className="text-sm text-gray-400">{fmtInt(rows.length)} records · edit inline · click a row to open</div>
       </div>
       {table}
+      {overlay}
     </div>
   );
 }
@@ -2710,6 +2754,8 @@ type FeedItem =
 
 export function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
+  // Refused save → the shared missing-fields popup (422) or a visible toast.
+  const [failure, setFailure] = useState<SaveFailure | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<{ items: Creative[]; index: number } | null>(null);
@@ -2780,7 +2826,15 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: value } }),
     });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not save."); return; }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      // 422 = a completeness gate. Name the missing fields rather than alerting
+      // the one-line summary and dropping the list on the floor.
+      const block = gateFromResponse(res.status, j, row.particulars || "This task");
+      if (block) setFailure({ kind: "gate", block });
+      else setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+      return;
+    }
     await loadDetail();
   };
   const togglePlatform = (p: string) => {
@@ -2825,14 +2879,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         const fd = new FormData();
         fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", f); fd.append("kind", kind);
         const res = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
-        if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Upload failed"); }
+        if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "upload failed" }); }
       }
       await loadDetail();
     } finally { setUploading(false); }
   };
   const removeCreative = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not remove."); return; }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't remove that file" }); return; }
     await loadDetail();
   };
   const refFileRef = useRef<HTMLInputElement>(null);
@@ -2853,7 +2907,13 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [editSection]: draft } }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not save."); return; }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        const block = gateFromResponse(res.status, j, row.particulars || "This task");
+        if (block) setFailure({ kind: "gate", block });
+        else setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+        return;
+      }
       setEditSection(null);
       await loadDetail(); // refreshes the field + surfaces the new Activity entry
     } finally { setSavingEdit(false); }
@@ -2885,7 +2945,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId: row.id, authorKey: activeAuthor, body: text }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not post comment."); return; }
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't post that comment" }); return; }
       setCommentText("");
       await loadDetail();
     } finally { setPosting(false); }
@@ -3189,6 +3249,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     {lightbox && lightbox.items[lightbox.index] && (
       <CreativeViewer creatives={lightbox.items} index={lightbox.index} setIndex={(n) => setLightbox((l) => l ? { items: l.items, index: n } : null)} onClose={() => setLightbox(null)} />
     )}
+    <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />
     </>
   );
 }

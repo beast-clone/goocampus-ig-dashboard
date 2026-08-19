@@ -6,6 +6,8 @@ import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { SBU_OPTIONS } from "@/lib/sbus";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean; href?: string }) {
@@ -204,13 +206,7 @@ const isHot = (p: string) => p === "Urgent" || p === "High";
 const DESIGN_TYPES = ["Atomic Essay", "Post", "Carousel", "Story (Image)", "Reel Thumbnail", "YouTube Thumbnail", "Meta Ads"] as const;
 const VIDEO_TYPES = ["Reel - Original", "Reel - Cut", "YouTube Long-Form", "YouTube Shorts", "Story (Video)"] as const;
 const CC_TYPES = [...DESIGN_TYPES, ...VIDEO_TYPES];
-const CC_SBUS = [
-  "10K Mentorship", "12thPlus.com", "Allied Courses", "Australia-PGCP", "Buckingham Program", "Dr Divij's Course",
-  "General Content", "India NEET PG Consulting", "India NEET UG Consulting", "Interview Plus", "ISIP",
-  "Mentorship Platform", "Middle East", "Portfolio Plus", "Samvaya", "Special Days", "SSAHE",
-  "Standard Consulting Program - Australia", "Standard Consulting Program - UK", "Standard Consulting Program - USA",
-  "Study Abroad", "UK ALS Course", "UK-PGCP", "University Programs",
-];
+const CC_SBUS = SBU_OPTIONS;
 
 // The auto-assignment rule: given a Type, who owns the task? Design/thumbnail work
 // auto-assigns to the single designer (Praveen); video work is NOT auto-assigned to
@@ -1020,9 +1016,18 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
   const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if Manya does it herself
   const assign = autoAssign(type);
-  const canSubmit = !!title.trim() && !!content.trim() && !!publishDate; // required fields
+  // What's still missing, in the order the fields appear in the form. Drives both the
+  // button state and the popup — a disabled "Create task" now explains itself.
+  const missing = [
+    !title.trim() && "Particulars (the title)",
+    !publishDate && "Publishing date",
+    !sbu && "SBU (which brand it's for)",
+    !content.trim() && "Content (the brief)",
+  ].filter((x): x is string => !!x);
+  const canSubmit = missing.length === 0;
+  const [gate, setGate] = useState(false);
   function create() {
-    if (!canSubmit) return;
+    if (!canSubmit) { setGate(true); return; }
     const due = publishDate; // the writer's chosen publishing date (no +3 assumption)
     const publishes = new Date(publishDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     // Content-first: the task starts with the writer (Manya) in the content phase.
@@ -1079,9 +1084,10 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
         </div>
         <div className="nt-actions">
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={create} disabled={!canSubmit}>Create task</button>
+          <button className="btn primary" onClick={create} style={canSubmit ? undefined : { opacity: .55 }} title={canSubmit ? undefined : `Still missing: ${missing.join(", ")}`}>Create task</button>
         </div>
       </div>
+      {gate && <div onClick={(e) => e.stopPropagation()}><MissingFieldsModal gate="create" missing={missing} title={title.trim() || "This task"} onClose={() => setGate(false)} /></div>}
     </div>
   );
 }
@@ -1780,7 +1786,7 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
   const [approveGate, setApproveGate] = useState<null | { id: string; status: CCStatus; target: string; add: number }>(null);
   // Completeness-gate block (server 422): the move was refused because required fields
   // are missing. `gate` = which transition, `missing` = the human-readable list.
-  const [gateBlock, setGateBlock] = useState<null | { gate: "approve" | "output"; missing: string[]; title: string }>(null);
+  const [gateBlock, setGateBlock] = useState<GateBlock | null>(null);
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
@@ -1808,8 +1814,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
           const j = await res.json().catch(() => ({}));
           // 422 = a completeness gate (approve / output-ready). Show the missing-fields
           // modal instead of a generic error toast, and revert the optimistic move.
-          if (res.status === 422 && Array.isArray(j.missing)) {
-            setGateBlock({ gate: j.gate === "output" ? "output" : "approve", missing: j.missing as string[], title: prev?.title || "This task" });
+          const block = gateFromResponse(res.status, j, prev?.title || "This task");
+          if (block) {
+            setGateBlock(block);
           } else {
             setToast({ who: "Save failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
           }
@@ -2122,7 +2129,14 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
     })
       .then(async (res) => {
         const j = await res.json().catch(() => ({}));
-        if (!res.ok) { setToast({ who: "Create failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); return; }
+        if (!res.ok) {
+          // 422 = the create completeness gate — name the missing fields instead of
+          // a one-line "create failed" toast.
+          const block = gateFromResponse(res.status, j, t.title || "This task");
+          if (block) setGateBlock(block);
+          else setToast({ who: "Create failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` });
+          return;
+        }
         // Now the row exists — persist any references / output the writer attached in the
         // modal (they need the real post id). Links go on the row; images become attachments.
         const postId = j.id as string | undefined;
@@ -3056,33 +3070,9 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
         );
       })()}
 
-      {/* COMPLETENESS GATE — required fields missing for approve / output-ready */}
-      {gateBlock && (
-        <div className="modal" onClick={() => setGateBlock(null)}>
-          <div className="modal-card" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setGateBlock(null)} title="Close">✕</button>
-            <div className="lbl" style={{ marginBottom: ".4rem", color: "#C0392B" }}>Can&apos;t move it yet</div>
-            <div className="d-title" style={{ marginBottom: ".6rem" }}>
-              {gateBlock.gate === "output" ? "No creative to hand off" : "The brief isn't complete"}
-            </div>
-            <div style={{ fontSize: ".85rem", color: "#4A5468", marginBottom: ".8rem" }}>
-              {gateBlock.gate === "output"
-                ? <>“{gateBlock.title}” can&apos;t be marked <b>Output-Ready</b> until there&apos;s a deliverable. Upload the creative, or add the output link (Drive / Canva) in <b>Creatives &amp; files</b>.</>
-                : <>“{gateBlock.title}” can&apos;t be <b>Approved</b> until these are filled in:</>}
-            </div>
-            <ul style={{ margin: "0 0 1rem", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: ".4rem" }}>
-              {gateBlock.missing.map((m, i) => (
-                <li key={i} style={{ display: "flex", alignItems: "center", gap: ".5rem", fontSize: ".86rem", color: "#232D42" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 99, background: "#C0392B", flexShrink: 0 }} />{m}
-                </li>
-              ))}
-            </ul>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn primary" onClick={() => setGateBlock(null)}>Got it</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* COMPLETENESS GATE — required fields missing (approve / output-ready / publish).
+          Shared with the Master sheet, Content Review, Content Studio and the Scheduler. */}
+      {gateBlock && <MissingFieldsModal {...gateBlock} onClose={() => setGateBlock(null)} />}
 
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
       {assignWarn && (

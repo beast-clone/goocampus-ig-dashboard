@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { SBU_OPTIONS } from "@/lib/sbus";
+import MissingFieldsModal from "@/app/(dashboard)/dashboard/hope-preview/MissingFieldsModal";
 
 // Shared "+ New Task" modal used by Marketing Hub and My Day.
 // POSTs to /api/marketing-hub/create, which writes one row to the
@@ -38,15 +40,7 @@ const PRIORITY_OPTIONS = ["Low", "Medium", "High"];
 
 const PLATFORM_OPTIONS = ["Instagram", "Facebook", "YouTube", "LinkedIn"];
 
-const FALLBACK_SBUS = [
-  "10K Mentorship", "Australia-PGCP", "India NEET UG Consulting",
-  "India NEET PG Consulting", "General Content", "Middle East",
-  "Allied Courses", "UK ALS Course", "UK PGCP", "University Programs",
-  "Interview Plus", "Portfolio Plus", "Buckingham Program",
-  "Standard Consulting Program - Australia", "Standard Consulting Program - USA",
-  "Standard Consulting Program - UK", "Dr Divij's Course",
-  "Mentorship Platform",
-];
+const FALLBACK_SBUS = SBU_OPTIONS;
 
 export function NewTaskButton({ facets, onCreated, variant = "floating", label = "New task" }: { facets?: Facets; onCreated?: () => void; variant?: "floating" | "inline"; label?: string }) {
   const [open, setOpen] = useState(false);
@@ -86,6 +80,7 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
   const canMakeThumb = THUMBNAIL_ELIGIBLE.has(type);
 
   const [step, setStep] = useState<"form" | "confirm" | "saving" | "done" | "error">("form");
+  const [gate, setGate] = useState<string[] | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
 
@@ -108,11 +103,16 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
     setPlatforms((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
   }
 
+  // Required before a task can exist. SBU is the one the server also enforces (a
+  // brand-less row can't be routed anywhere); the rest are caught at the approve
+  // gate, so they're not blocked here.
+  const missing = [
+    !title.trim() && "Title",
+    !sbu && "SBU (which brand it's for)",
+  ].filter((x): x is string => !!x);
+
   function goConfirm() {
-    if (!title.trim()) {
-      setErrMsg("Title is required.");
-      return;
-    }
+    if (missing.length) { setGate(missing); return; }
     setErrMsg(null);
     setStep("confirm");
   }
@@ -139,6 +139,13 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
       });
       const j = await r.json();
       if (!r.ok || j.error) {
+        // A completeness gate names the fields; anything else falls back to the
+        // generic error step.
+        if (r.status === 422 && Array.isArray(j.missing) && j.missing.length) {
+          setGate(j.missing.map(String));
+          setStep("form");
+          return;
+        }
         setErrMsg(j.error || `HTTP ${r.status}`);
         setStep("error");
         return;
@@ -203,7 +210,7 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
             </Field>
 
             <div className="grid grid-cols-2 gap-5">
-              <Field label="SBU">
+              <Field label="SBU" required>
                 <select value={sbu} onChange={(e) => setSbu(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white">
                   <option value="">Not set</option>
                   {sbus.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -372,6 +379,9 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
           </div>
         )}
       </div>
+      {/* Wrapped: this backdrop closes the whole form on click, and dismissing the
+          popup must not throw away what's already been typed. */}
+      {gate && <div onClick={(e) => e.stopPropagation()}><MissingFieldsModal gate="create" missing={gate} title={title.trim() || "This task"} onClose={() => setGate(null)} /></div>}
     </div>
   );
 }

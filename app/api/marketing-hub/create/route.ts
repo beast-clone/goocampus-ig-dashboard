@@ -45,8 +45,23 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = (await req.json()) as CreateBody;
-    if (!body.title || body.title.trim().length === 0) {
-      return NextResponse.json({ error: "title is required" }, { status: 400 });
+
+    // Completeness gate — same 422 { error, missing, gate } shape the update route
+    // uses, so every caller renders the one shared missing-fields popup.
+    //
+    // Only title + SBU are required HERE. A row with no brand can't be routed,
+    // filtered or reported on by anyone, so it must never exist. Publishing date
+    // and collaborators are deliberately NOT required at creation — a task is often
+    // opened before those are known, and the approve gate in /update already blocks
+    // the handoff until they're filled in.
+    const missing: string[] = [];
+    if (!body.title || body.title.trim().length === 0) missing.push("Title");
+    if (!body.sbu || String(body.sbu).trim().length === 0) missing.push("SBU (which brand it's for)");
+    if (missing.length) {
+      return NextResponse.json(
+        { error: "Can't create the task — some required fields are missing.", missing, gate: "create" },
+        { status: 422 },
+      );
     }
 
     const sb = getSupabase();

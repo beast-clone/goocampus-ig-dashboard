@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
+import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -149,6 +150,8 @@ function Scheduler() {
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
+  // Missing-fields popup — client guards and any server 422 both land here.
+  const [gate, setGate] = useState<GateBlock | null>(null);
   const [result, setResult] = useState<{ ok: true; recordId: string } | { ok: false; error: string } | null>(null);
 
   // Smart features state
@@ -417,7 +420,16 @@ function Scheduler() {
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
-  const canSubmit = caption.trim().length > 0 && cleanMediaUrls.length > 0 && !submitting;
+  // Everything the queue needs, listed in one place. The Schedule/Publish button stays
+  // clickable when something's short so the popup can name it — a greyed-out button
+  // with no reason was the single most common "why won't it do anything?" complaint.
+  const missingToPublish = useMemo(() => [
+    !publishToPage && "A page to publish to",
+    !caption.trim() && "A caption",
+    cleanMediaUrls.length === 0 && "At least one image or video",
+    scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
+  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, scheduleEnabled, scheduleDate, scheduleTime]);
+  const canSubmit = missingToPublish.length === 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
   // publishing, or already published). Used by the over-posting guard.
@@ -443,6 +455,7 @@ function Scheduler() {
   }
 
   async function submit() {
+    if (missingToPublish.length) { setGate({ gate: "schedule", missing: missingToPublish, title: particulars.trim() || "This post" }); return; }
     let scheduleTimeISO: string | undefined;
     if (scheduleEnabled && scheduleDate && scheduleTime) {
       const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
@@ -488,7 +501,9 @@ function Scheduler() {
       });
       const d = await res.json();
       if (!res.ok || d.error) {
-        setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
+        const block = gateFromResponse(res.status, d, particulars.trim() || "This post");
+        if (block) setGate(block);
+        else setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
         setResult({ ok: true, recordId: d.id });
         // Cross-post to LinkedIn too (best-effort — Meta is already queued). Scheduled →
@@ -790,7 +805,7 @@ function Scheduler() {
                                     : result?.ok === false ? <span className="text-red-700">✗ {result.error}</span>
                                     : <span className="text-gray-500">to <b className="text-gray-700">{pageHandle(publishToPage)}</b></span>}
                                 </span>
-                                <button onClick={submit} disabled={!canSubmit} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed">
+                                <button onClick={submit} disabled={submitting} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed">
                                   {submitting ? "Sending…" : scheduleEnabled ? "Schedule →" : "Publish →"}
                                 </button>
                               </div>
@@ -963,6 +978,9 @@ function Scheduler() {
           }}
         />
       )}
+
+      {/* Completeness gate — what's still missing before this can go into the queue */}
+      {gate && <MissingFieldsModal {...gate} onClose={() => setGate(null)} />}
 
       {/* Over-posting warning — a day already hit the account's daily max */}
       {capWarn && (
@@ -1189,7 +1207,7 @@ function Scheduler() {
         </div>
         <button
           onClick={submit}
-          disabled={!canSubmit}
+          disabled={submitting}
           className="text-sm font-medium bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "Sending…" : scheduleEnabled ? "Schedule" : "Publish"}
