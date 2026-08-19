@@ -1,4 +1,4 @@
-// Read-only client for the GooCampus Sales Hub Airtable base.
+// Client for the GooCampus Sales Hub Airtable base.
 //
 // Base: appersdbBcpxhadnD
 // Tables used:
@@ -6,9 +6,18 @@
 //   Contract Generator (tbl82JrETFxd3EMzK) — contract events
 //   Revenue Tracker (tblILjlpqc9r3IgZT)    — booked payments
 //
-// NO WRITES. Only GET requests. If a caller ever adds a POST/PATCH here,
-// stop the review and check with the user — the base has 30k rows with
-// no backup.
+// READ-ONLY, WITH ONE DELIBERATE EXCEPTION.
+//
+// Everything here is GET except `createTransferRequest()`, which appends a row
+// to the Transfer Ownership table and nothing else. That exception was approved
+// explicitly (2026-08-19) for the Sales Hub reassignment UI. It is safe because
+// it CREATES a request row rather than editing a lead: Status stays "Pending"
+// and Confirm Transfer stays unticked, so no lead actually moves until a human
+// ticks the box in Airtable and the base's own automation runs.
+//
+// The old rule still stands for everything else: no PATCH or DELETE, and no
+// writes at all to CRM / Revenue / Contract. The base holds 30k rows with no
+// backup. If a caller needs to mutate a lead, stop and check with the user.
 
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
@@ -24,6 +33,20 @@ export const DISTRIBUTION_TABLE = "tbl19dC2C3ROOgfLW";       // daily lead alloc
 export const OFFICE_TABLE = "tblYQDbHZyW9Khbig";             // walk-in enquiries
 export const DM_LEADS_TABLE = "tbl8CpgnQSYcbFKEH";          // Instagram DM leads (~1.6k)
 export const PRIMARY_INTERESTS_TABLE = "tblvRRClI9ICwMwzV"; // DB: Primary Interests (id → name)
+export const TRANSFER_TABLE = "tblNbJfDXKE4iNrrM";           // Transfer Ownership (reassignment requests)
+export const COUNSELLORS_TABLE = "tblhSMVy2sDbEOPqp";        // Counsellors roster (name ↔ Airtable user)
+export const OPEN_CLAIMED_TABLE = "tblZ1eoeV0HbL5VXh";       // Open & Claimed Leads (claim trail)
+
+// Transfer Ownership field ids. Written by id, not name, so a rename in Airtable
+// can't silently start dropping the payload on the floor.
+export const TRANSFER_FIELDS = {
+  lead: "fldCdNo14YyA1TLZ2",          // "Full name"  → link to the CRM record
+  originalCounsellor: "fld7XBFKp3szcCcGe", // singleCollaborator
+  newOwner: "fldeIvIzBJ4HJnyN9",      // singleCollaborator
+  notes: "fldMqzw5LDIlq7JqK",         // "Transfer Notes"
+  confirm: "fldxOpQaDfZbb1Yps",       // "Confirm Transfer" checkbox
+  status: "fldeM2sPSOkdMG64J",        // "Pending" | "Transfer Completed"
+} as const;
 
 function token(): string {
   const t = process.env.AIRTABLE_API_KEY;
@@ -115,4 +138,54 @@ export function pickNumber(v: unknown): number {
     return isNaN(n) ? 0 : n;
   }
   return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ONE WRITE. See the header note before adding anything alongside it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TransferRequestInput = {
+  leadRecordId: string;      // rec… in CRM
+  fromUserId?: string;       // usr… current counsellor (blank when unassigned)
+  toUserId: string;          // usr… the counsellor picking it up
+  notes: string;             // why — shown in Airtable and in the request list
+};
+
+export type TransferRequestResult = { id: string; requestId?: number };
+
+const REC_ID = /^rec[A-Za-z0-9]{14}$/;
+const USR_ID = /^usr[A-Za-z0-9]{14}$/;
+
+// Append ONE "Pending" row to Transfer Ownership. Deliberately cannot express
+// anything else: no table parameter, no PATCH path, and Confirm Transfer is
+// hard-coded false so this can never complete a transfer on its own. A human
+// ticks the box in Airtable; the base's existing automation does the actual move.
+export async function createTransferRequest(input: TransferRequestInput): Promise<TransferRequestResult> {
+  if (!REC_ID.test(input.leadRecordId)) throw new Error("leadRecordId must be an Airtable record id");
+  if (!USR_ID.test(input.toUserId)) throw new Error("toUserId must be an Airtable user id");
+  if (input.fromUserId && !USR_ID.test(input.fromUserId)) throw new Error("fromUserId must be an Airtable user id");
+
+  const fields: Record<string, unknown> = {
+    [TRANSFER_FIELDS.lead]: [input.leadRecordId],
+    [TRANSFER_FIELDS.newOwner]: { id: input.toUserId },
+    [TRANSFER_FIELDS.notes]: input.notes.slice(0, 500),
+    [TRANSFER_FIELDS.confirm]: false,   // never true from here — that's the human's step
+    [TRANSFER_FIELDS.status]: "Pending",
+  };
+  if (input.fromUserId) fields[TRANSFER_FIELDS.originalCounsellor] = { id: input.fromUserId };
+
+  const r = await fetchWithTimeout(`https://api.airtable.com/v0/${SALES_HUB_BASE}/${TRANSFER_TABLE}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields, typecast: true }),
+    cache: "no-store",
+  });
+  recordApiCall("Airtable", r.ok, r.status);
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Airtable ${r.status}: ${text.slice(0, 300)}`);
+  }
+  const json = (await r.json()) as { id: string; fields?: Record<string, unknown> };
+  const reqNo = json.fields?.["Request ID"];
+  return { id: json.id, requestId: typeof reqNo === "number" ? reqNo : undefined };
 }

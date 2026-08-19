@@ -4,6 +4,7 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
+import { LeadAssignment } from "./LeadAssignment";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Counsellor = {
@@ -376,6 +377,10 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           Status mix: <span style={{ color: "#93A9F6" }}>New</span> / <span style={{ color: "#B7791F" }}>In-progress</span> / <span style={{ color: "#C0392B" }}>Junk</span> / <span style={{ color: "#0F9D58" }}>Qualified+</span>.
         </div>
       </Card>
+
+      {/* Lead assignment & tracker — per-lead view of the round-robin's output,
+          with revoke/reassign and the nightly per-lead history. */}
+      <LeadAssignment range={range} />
 
       {/* Conversion & revenue by source */}
       <Card>
