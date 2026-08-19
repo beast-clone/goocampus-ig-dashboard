@@ -1,0 +1,444 @@
+<title>Leads Per Day</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+
+<style>
+  /* Hope UI tokens — the dashboard's own system, so the mockup reads as the
+     real thing rather than a separate visual language. */
+  :root {
+    --canvas:#F6F7FB; --card:#FFFFFF; --line:#EDEFF4; --line-soft:#F4F5F9;
+    --ink:#232D42; --muted:#8A92A6; --faint:#B4BAC7;
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --bar:#C7D2F7; --warn:#B7791F; --warn-bg:#FEF6E7; --warn-line:#F5D89B;
+    --crit:#C0392B; --good:#1F7256; --good-bg:#E9F6F0; --strike:#F4F5F9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas:#111624; --card:#181E30; --line:#252C42; --line-soft:#1E2436;
+      --ink:#E7EAF3; --muted:#8992A8; --faint:#5C6480;
+      --brand:#7B8FF5; --brand-dark:#9DACF8; --brand-light:#232C4B;
+      --bar:#37447A; --warn:#E0AC58; --warn-bg:#2A2416; --warn-line:#4A3C1C;
+      --crit:#E7796F; --good:#5FBF9B; --good-bg:#12291F; --strike:#1E2436;
+    }
+  }
+  :root[data-theme="dark"] {
+    --canvas:#111624; --card:#181E30; --line:#252C42; --line-soft:#1E2436;
+    --ink:#E7EAF3; --muted:#8992A8; --faint:#5C6480;
+    --brand:#7B8FF5; --brand-dark:#9DACF8; --brand-light:#232C4B;
+    --bar:#37447A; --warn:#E0AC58; --warn-bg:#2A2416; --warn-line:#4A3C1C;
+    --crit:#E7796F; --good:#5FBF9B; --good-bg:#12291F; --strike:#1E2436;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--canvas); color:var(--ink);
+    font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1000px; margin:0 auto; padding:2.5rem 1.25rem 4rem; }
+
+  .kicker { font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:500; }
+  h1 { font-size:1.55rem; font-weight:600; margin:.35rem 0 .3rem; letter-spacing:-.015em; text-wrap:balance; }
+  .sub { color:var(--muted); margin:0 0 2.25rem; max-width:64ch; }
+
+  /* The three levels ARE a sequence — each answers the next question down. */
+  .step { display:flex; align-items:baseline; gap:.7rem; margin:2.5rem 0 .9rem; }
+  .step:first-of-type { margin-top:0; }
+  .step-n {
+    flex:0 0 auto; width:22px; height:22px; border-radius:6px; background:var(--brand-light);
+    color:var(--brand-dark); font-size:11px; font-weight:600; display:grid; place-items:center;
+    position:relative; top:2px;
+  }
+  .step-t { font-weight:500; }
+  .step-d { color:var(--muted); font-size:13px; }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+  .card-head {
+    display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+    padding:1.1rem 1.25rem; border-bottom:1px solid var(--line);
+  }
+  .card-title { font-weight:500; }
+  .card-note { color:var(--muted); font-size:12.5px; }
+  .back { color:var(--brand); font-size:12.5px; }
+
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { font:inherit; font-size:12px; padding:.4rem .75rem; border:0; cursor:pointer; background:transparent; color:var(--muted); }
+  .seg button[aria-pressed="true"] { background:var(--brand); color:#fff; }
+
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  thead th {
+    text-align:right; font-weight:400; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted); padding:.7rem 1rem; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  thead th:first-child, tbody td:first-child { text-align:left; }
+  tbody td { padding:.62rem 1rem; text-align:right; border-bottom:1px solid var(--line-soft); white-space:nowrap; }
+  tbody tr:hover { background:var(--line-soft); cursor:pointer; }
+  .day { font-weight:500; }
+  .dow { color:var(--faint); font-weight:400; margin-right:.45rem; }
+
+  /* The bar lives INSIDE the row — this is what replaces the separate chart. */
+  .leads { display:flex; align-items:center; justify-content:flex-end; gap:.6rem; }
+  .leads b { font-weight:600; min-width:2.2ch; text-align:right; }
+  .track { width:120px; height:7px; border-radius:99px; background:var(--strike); overflow:hidden; }
+  .fill { height:100%; border-radius:99px; background:var(--bar); }
+  .fill.peak { background:var(--brand); }
+  .zero { color:var(--faint); }
+  .idle { color:var(--warn); font-weight:500; }
+  .idle-0 { color:var(--faint); }
+  tfoot td { padding:.8rem 1rem; text-align:right; font-weight:600; border-top:1px solid var(--line); background:var(--line-soft); }
+  tfoot td:first-child { text-align:left; }
+
+  .hint { display:flex; gap:.6rem; align-items:flex-start; margin-top:.9rem; color:var(--muted); font-size:12.5px; }
+  .hint svg { flex:0 0 auto; margin-top:3px; }
+
+  /* level 2 — a day's leads */
+  .lead-row { display:grid; grid-template-columns:1.6fr 1.1fr 1fr .9fr auto; gap:1rem; align-items:center;
+              padding:.7rem 1.25rem; border-bottom:1px solid var(--line-soft); }
+  .lead-row:last-child { border-bottom:0; }
+  .lead-row:hover { background:var(--line-soft); }
+  .lead-name { font-weight:500; }
+  .lead-meta { color:var(--faint); font-size:11.5px; }
+  .pill { display:inline-block; font-size:11px; border-radius:99px; padding:.15rem .55rem; background:var(--brand-light); color:var(--brand-dark); }
+  .pill.cold { background:var(--warn-bg); color:var(--warn); }
+  .acts { display:flex; gap:.4rem; justify-content:flex-end; }
+  .btn { font:inherit; font-size:11.5px; border:1px solid var(--line); border-radius:7px; padding:.28rem .7rem;
+         color:var(--muted); background:transparent; cursor:pointer; white-space:nowrap; }
+  .btn.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+
+  /* level 3 — the tracker */
+  .split { display:grid; grid-template-columns:1.25fr 1fr; gap:0; }
+  @media (max-width:760px) { .split { grid-template-columns:1fr; } .track { width:70px; }
+    .lead-row { grid-template-columns:1fr; gap:.35rem; } .acts { justify-content:flex-start; } }
+  .pane { padding:1.25rem; }
+  .pane + .pane { border-left:1px solid var(--line); }
+  @media (max-width:760px) { .pane + .pane { border-left:0; border-top:1px solid var(--line); } }
+
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; margin-bottom:1.4rem; }
+  .stat { border:1px solid var(--line); border-radius:9px; padding:.55rem .7rem; }
+  .stat dt { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0; }
+  .stat dd { margin:.2rem 0 0; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .stat dd.warn { color:var(--warn); }
+
+  .lbl { font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:500; margin:0 0 .7rem; }
+
+  .tl { list-style:none; margin:0; padding:0 0 0 1.05rem; border-left:1px solid var(--line); }
+  .tl li { position:relative; padding:0 0 1rem .95rem; }
+  .tl li::before { content:""; position:absolute; left:-1.5rem; top:5px; width:8px; height:8px; border-radius:99px;
+                   background:var(--brand); box-shadow:0 0 0 3px var(--card); }
+  .tl li.now::before { background:var(--good); }
+  .tl .when { font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .tl .what { font-size:13px; }
+  .tl .what b { font-weight:600; }
+  .tl .from { color:var(--muted); }
+
+  .meet { border:1px solid var(--line); border-radius:9px; padding:.7rem .8rem; margin-bottom:.6rem; }
+  .meet-h { display:flex; justify-content:space-between; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+  .meet-t { font-size:13px; font-weight:500; }
+  .meet-w { font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .meet-m { font-size:11.5px; color:var(--muted); margin-top:.15rem; }
+  .meet-s { font-size:12.5px; color:var(--ink); margin-top:.5rem; line-height:1.55; }
+  .stars { color:var(--warn); letter-spacing:.06em; }
+
+  .note { border-radius:9px; padding:.7rem .85rem; font-size:12.5px; line-height:1.55;
+          background:var(--warn-bg); border:1px solid var(--warn-line); color:var(--warn); }
+  .note b { font-weight:600; }
+  .note.calm { background:var(--line-soft); border-color:var(--line); color:var(--muted); }
+
+  /* reassign */
+  .field { margin-bottom:.9rem; }
+  .field label { display:block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:.3rem; }
+  .fake-input { border:1px solid var(--line); border-radius:8px; padding:.5rem .7rem; font-size:13px; background:var(--canvas); }
+  .fake-input.ph { color:var(--faint); }
+  .chain { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-top:.2rem; }
+  .chain code { background:var(--line-soft); border-radius:5px; padding:.1rem .4rem; font-size:11.5px; color:var(--ink); }
+
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:2.5rem; }
+  @media (max-width:720px) { .compare { grid-template-columns:1fr; } }
+  .col { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.1rem 1.25rem; }
+  .col h3 { margin:0 0 .7rem; font-size:12.5px; font-weight:500; }
+  .col ul { margin:0; padding-left:1.05rem; color:var(--muted); font-size:13px; }
+  .col li { margin-bottom:.35rem; }
+  .out h3 { color:var(--crit); }
+  .in h3 { color:var(--brand); }
+</style>
+
+<div class="wrap">
+  <div class="kicker">Sales Hub · proposed replacement</div>
+  <h1>Leads per day</h1>
+  <p class="sub">
+    Three levels, each answering the next question. How many leads came in today → which ones →
+    what happened to this one. Tracking and reassigning live at the bottom, where you're already
+    looking at a single lead, instead of as buttons on a 400-row list.
+  </p>
+
+  <!-- ─── LEVEL 1 ─────────────────────────────────────────── -->
+  <div class="step">
+    <span class="step-n">1</span>
+    <span class="step-t">Leads per day</span>
+    <span class="step-d">— the only thing on screen by default</span>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Leads per day</div>
+        <div class="card-note">Last 14 days · real numbers from your CRM</div>
+      </div>
+      <div class="seg" role="group" aria-label="Grouping">
+        <button aria-pressed="true">Day</button>
+        <button aria-pressed="false">Week</button>
+        <button aria-pressed="false">Month</button>
+      </div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Date</th><th scope="col">Leads</th>
+            <th scope="col">Robin</th><th scope="col">Jeswin</th>
+            <th scope="col">Maheen</th><th scope="col">Alfiya</th>
+            <th scope="col">Gone cold</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+        <tfoot>
+          <tr><td>14 days</td><td>343</td><td>224</td><td>91</td><td>27</td><td>1</td><td>17</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <div class="hint">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>
+    </svg>
+    <span>The bar sits in the row, so there's no separate chart to cross-reference.
+      <b>17 Aug</b> is the spike — 72 leads, 57 to Robin. <b>Gone cold</b> = no CRM activity in over 7 days.</span>
+  </div>
+
+  <!-- ─── LEVEL 2 ─────────────────────────────────────────── -->
+  <div class="step">
+    <span class="step-n">2</span>
+    <span class="step-t">Click a day → its leads</span>
+    <span class="step-d">— where Track and Reassign appear</span>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div style="display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;">
+        <span class="back">← Back</span>
+        <span class="card-title">Monday 17 August</span>
+        <span class="card-note">72 leads · 57 to Robin</span>
+      </div>
+    </div>
+    <div class="lead-row">
+      <div><div class="lead-name">Balakumar Thulasidoss</div><div class="lead-meta">Instagram/Facebook DMs</div></div>
+      <div><span class="pill">Australia-PGCP</span></div>
+      <div style="color:var(--muted)">Robin Johnson J</div>
+      <div style="color:var(--muted)">New</div>
+      <div class="acts"><button class="btn">Track</button><button class="btn">Reassign</button></div>
+    </div>
+    <div class="lead-row">
+      <div><div class="lead-name">Dr. Dafodil Ghatak</div><div class="lead-meta">Instagram/Facebook DMs</div></div>
+      <div><span class="pill">United Arab Emirates</span></div>
+      <div style="color:var(--muted)">Robin Johnson J</div>
+      <div style="color:var(--muted)">Attempted to contact</div>
+      <div class="acts"><button class="btn">Track</button><button class="btn">Reassign</button></div>
+    </div>
+    <div class="lead-row">
+      <div><div class="lead-name">Ankita Shinde</div><div class="lead-meta">Digital marketing activity</div></div>
+      <div><span class="pill cold">UK-PGCP · cold 9d</span></div>
+      <div style="color:var(--muted)">Jeswin Shaju</div>
+      <div style="color:var(--muted)">Initial discussions</div>
+      <div class="acts"><button class="btn">Track</button><button class="btn">Reassign</button></div>
+    </div>
+  </section>
+
+  <!-- ─── LEVEL 3a — TRACKER ──────────────────────────────── -->
+  <div class="step">
+    <span class="step-n">3</span>
+    <span class="step-t">Track → the lead's whole story</span>
+    <span class="step-d">— stage history, quality, and what the counsellor did</span>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div style="display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;">
+        <span class="back">← Back</span>
+        <span class="card-title">Ankita Shinde</span>
+        <span class="card-note">UK-PGCP · Digital marketing activity · with Jeswin Shaju</span>
+      </div>
+      <button class="btn primary">Reassign</button>
+    </div>
+
+    <div class="split">
+      <div class="pane">
+        <dl class="stats">
+          <div class="stat"><dt>Stage now</dt><dd>Initial disc.</dd></div>
+          <div class="stat"><dt>Idle</dt><dd class="warn">9d</dd></div>
+          <div class="stat"><dt>Call attempts</dt><dd>3</dd></div>
+          <div class="stat"><dt>Quality</dt><dd class="stars">★★★☆☆</dd></div>
+        </dl>
+
+        <p class="lbl">What happened</p>
+        <ul class="tl">
+          <li class="now">
+            <div class="when">10 Aug — today</div>
+            <div class="what">Still <b>Initial discussions</b> <span class="from">· no change in 9 days</span></div>
+          </li>
+          <li>
+            <div class="when">01 Aug</div>
+            <div class="what"><span class="from">Attempted to contact</span> → <b>Initial discussions</b></div>
+          </li>
+          <li>
+            <div class="when">28 Jul</div>
+            <div class="what">Counsellor <span class="from">Robin Johnson J</span> → <b>Jeswin Shaju</b></div>
+          </li>
+          <li>
+            <div class="when">24 Jul</div>
+            <div class="what"><span class="from">New</span> → <b>Attempted to contact</b></div>
+          </li>
+          <li>
+            <div class="when">22 Jul</div>
+            <div class="what">Lead arrived as <b>New</b></div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="pane">
+        <p class="lbl">Meetings</p>
+        <div class="meet">
+          <div class="meet-h">
+            <span class="meet-t">Discovery call</span>
+            <span class="meet-w">01 Aug, 4:30pm</span>
+          </div>
+          <div class="meet-m">Jeswin Shaju · Completed · rated <span class="stars">★★★☆☆</span></div>
+          <div class="meet-s">
+            Wants UK PGCP but hasn't cleared OET yet. Asked about instalments. Said to call back
+            after her result in September — worth a nudge before then.
+          </div>
+        </div>
+        <div class="meet">
+          <div class="meet-h">
+            <span class="meet-t">Intro call</span>
+            <span class="meet-w">24 Jul, 11:05am</span>
+          </div>
+          <div class="meet-m">Robin Johnson J · Completed</div>
+        </div>
+
+        <p class="note calm" style="margin-top:1rem;">
+          Stage history comes from a snapshot taken <b>once a day</b>. Airtable only ever stores a lead's
+          current stage, so history starts building the day the job is switched on — nothing before that
+          can be recovered.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── LEVEL 3b — REASSIGN ─────────────────────────────── -->
+  <div class="step">
+    <span class="step-n">3</span>
+    <span class="step-t">Reassign → hand it to someone else</span>
+    <span class="step-d">— same panel, one click away</span>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">Reassign Ankita Shinde</div>
+      <span class="card-note">currently with Jeswin Shaju</span>
+    </div>
+    <div class="pane">
+      <div class="field">
+        <label>Move to</label>
+        <div class="fake-input">Robin Johnson J</div>
+      </div>
+      <div class="field">
+        <label>Reason</label>
+        <div class="fake-input ph">Jeswin is on leave this week — Robin can call her today.</div>
+      </div>
+      <div style="display:flex; gap:.5rem; justify-content:flex-end;">
+        <button class="btn">Cancel</button>
+        <button class="btn primary">Reassign</button>
+      </div>
+
+      <div class="chain" style="margin-top:1.1rem;">
+        <span>What happens:</span>
+        <code>row → Transfer Ownership</code> <span>→</span>
+        <code>n8n picks it up (every 20 min)</code> <span>→</span>
+        <code>CRM counsellor changes</code>
+      </div>
+
+      <p class="note" style="margin-top:.9rem;">
+        <b>Confirm before this ships.</b> The n8n workflow reads an Airtable view called
+        <b>Transfer Pending</b>, and I can't read that view's filter from the API. If it doesn't require
+        the <b>Confirm Transfer</b> tickbox, this button reassigns the lead on its own within 20 minutes
+        rather than waiting for approval. Check the view's filter and tell me which behaviour you want.
+      </p>
+    </div>
+  </section>
+
+  <div class="compare">
+    <div class="col out">
+      <h3>Removed</h3>
+      <ul>
+        <li>The generated-vs-assigned bar chart — the row bars replace it</li>
+        <li>The per-counsellor summary table — it's now just columns</li>
+        <li>The 400-row lead list — it lives inside the day you click</li>
+        <li>Day/Week toggle clutter, "Active only", conflict filter, status-mix chips</li>
+        <li>The on-leave column and its warning — no attendance data to feed it</li>
+      </ul>
+    </div>
+    <div class="col in">
+      <h3>Kept</h3>
+      <ul>
+        <li>The KPI tiles above — you said those are fine</li>
+        <li>Leads per day, at a glance, with who got them</li>
+        <li>Gone-cold count, so idle leads stay visible</li>
+        <li><b>Track</b> — stage history, quality rating, meeting notes</li>
+        <li><b>Reassign</b> — but one level down, on a lead you're already reading</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Real counts pulled from the CRM for the last 14 days (IST).
+  const DATA = [
+    ["Wed","19 Aug",22,11,10, 1,0,0],
+    ["Tue","18 Aug",14, 6, 5, 3,0,0],
+    ["Mon","17 Aug",72,57, 3,12,0,0],
+    ["Sun","16 Aug",13,13, 0, 0,0,0],
+    ["Sat","15 Aug",19,18, 0, 1,0,0],
+    ["Fri","14 Aug",33,28, 1, 4,0,0],
+    ["Thu","13 Aug",13, 6, 5, 2,0,0],
+    ["Wed","12 Aug",50,23,27, 0,0,0],
+    ["Tue","11 Aug",26,15,10, 1,0,0],
+    ["Mon","10 Aug",40,22,15, 2,1,2],
+    ["Sun","09 Aug", 6, 5, 1, 0,0,1],
+    ["Sat","08 Aug", 2, 1, 1, 0,0,1],
+    ["Fri","07 Aug", 8, 5, 3, 0,0,4],
+    ["Thu","06 Aug",25,14,10, 1,0,9],
+  ];
+  const peak = Math.max(...DATA.map(d => d[2]));
+  const num = n => n === 0 ? '<span class="zero">—</span>' : n;
+
+  document.getElementById("rows").innerHTML = DATA.map(([dow, date, total, r, j, m, a, idle]) => `
+    <tr>
+      <td class="day"><span class="dow">${dow}</span>${date}</td>
+      <td>
+        <span class="leads">
+          <b>${total}</b>
+          <span class="track"><span class="fill ${total === peak ? "peak" : ""}" style="width:${(total / peak) * 100}%"></span></span>
+        </span>
+      </td>
+      <td>${num(r)}</td>
+      <td>${num(j)}</td>
+      <td>${num(m)}</td>
+      <td>${num(a)}</td>
+      <td class="${idle ? "idle" : "idle-0"}">${idle || "—"}</td>
+    </tr>
+  `).join("");
+</script>

@@ -1,14 +1,11 @@
-// Lead assignment tracker — who got which leads, when, and whether that was sane.
+// Leads per day — the Sales Hub's lead board.
 //
-// Reads the Sales Hub base (see lib/sales-hub.ts) and joins four tables:
-//   CRM               → the leads themselves + their current counsellor & status
-//   Counsellors       → name ↔ Airtable user id (needed to raise a transfer)
-//   Attendance        → Present/Absent per counsellor per day
-//   Lead Distribution → the allocation counts the round-robin declared that day
+// One question per level, which is why this returns one cross-tab rather than a
+// pile of separate aggregates:
 //
-// The join that matters: a lead whose counsellor was marked **Absent** on the day
-// it landed is a misassignment — the round-robin handed it to someone on leave and
-// nobody is calling it. Those are surfaced as "conflicts" so they can be revoked.
+//   1. how many leads arrived each day, and who got them   → `rows`
+//   2. which leads arrived on a given day                  → `leads`, filtered client-side
+//   3. what happened to one of them                        → /api/leads-crm/lead-track
 //
 // ASSUMPTION worth knowing: the CRM has no explicit "assigned on" timestamp — the
 // round-robin assigns at creation — so **Created Date is treated as the assignment
@@ -21,16 +18,18 @@ import {
   pickNumber,
   CRM_TABLE,
   COUNSELLORS_TABLE,
-  ATTENDANCE_TABLE,
-  DISTRIBUTION_TABLE,
 } from "./sales-hub";
 
-// Statuses that mean the lead is finished — excluded from "active" tracking.
+// Statuses that mean the lead is finished. Used by the nightly snapshot to decide
+// what's still worth tracking.
 const CLOSED_STATUSES = new Set(["Converted", "Not Interested", "Junk", "Lost", "Dead", "Closed"]);
 
 export function isClosedStatus(s: string): boolean {
   return CLOSED_STATUSES.has(s.trim());
 }
+
+// No CRM activity in this many days = the lead has gone cold.
+const COLD_AFTER_DAYS = 7;
 
 // Airtable collaborator cells arrive as { id, name, email }. pickName() gives the
 // label; transfers need the user id too.
@@ -61,138 +60,106 @@ export async function getCounsellorRoster(): Promise<RosterEntry[]> {
     const user = pickUser(r.fields["User"]);
     const name = pickName(r.fields["Name"]) || user?.name || "";
     if (!user || !name) continue; // no Airtable user = can't be a transfer target
-    out.push({ name, userId: user.id, email: pickName(r.fields["Email"]) || user.email, label: pickName(r.fields["Label"]) || name, inRoster: true });
+    out.push({
+      name,
+      userId: user.id,
+      email: pickName(r.fields["Email"]) || user.email,
+      label: pickName(r.fields["Label"]) || name,
+      inRoster: true,
+    });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// "Absent" days per counsellor name → Set of YYYY-MM-DD.
-export async function getAbsenceMap(from: string, to: string): Promise<Map<string, Set<string>>> {
-  const rows = await getAttendanceRows(from, to);
-  const map = new Map<string, Set<string>>();
-  for (const r of rows) {
-    if (pickName(r.fields["Attendance"]) !== "Absent") continue;
-    const day = pickName(r.fields["Date"]).slice(0, 10);
-    const who = pickUser(r.fields["Assigned User"])?.name || pickName(r.fields["Name"]);
-    if (!day || !who) continue;
-    let set = map.get(who);
-    if (!set) { set = new Set(); map.set(who, set); }
-    set.add(day);
-  }
-  return map;
-}
-
-async function getAttendanceRows(from: string, to: string) {
-  return airtableList<Record<string, unknown>>(ATTENDANCE_TABLE, {
-    filterByFormula: dateRangeFormula("Date", from, to),
-    fields: ["Name", "Attendance", "Date", "Assigned User"],
-    pageSize: 100,
-    maxRecords: 5_000,
-  });
-}
-
-// The newest Attendance row in the whole table, regardless of range.
-//
-// This exists because the leave-conflict check is only as good as the Attendance
-// table, and that table stopped being filled in Oct 2025. Without this the board
-// would report a confident "0 went to someone on leave" when the truth is "nobody
-// recorded who was on leave". The UI shows a staleness warning instead.
-export async function getAttendanceCoverage(from: string, to: string): Promise<{ latest: string | null; rowsInRange: number }> {
-  const [latestRows, inRange] = await Promise.all([
-    airtableList<Record<string, unknown>>(ATTENDANCE_TABLE, {
-      fields: ["Date"],
-      sort: [{ field: "Date", direction: "desc" }],
-      pageSize: 1,
-      maxRecords: 1,
-    }),
-    getAttendanceRows(from, to),
-  ]);
-  const latest = latestRows.length ? pickName(latestRows[0].fields["Date"]).slice(0, 10) : null;
-  return { latest: latest || null, rowsInRange: inRange.length };
-}
-
-export type AssignedLead = {
+export type BoardLead = {
   id: string;
   name: string;
-  mobile: string;
+  source: string;
+  interest: string;
   counsellor: string;
   counsellorUserId: string;
   status: string;
-  source: string;
-  interest: string;
-  assignedOn: string;      // YYYY-MM-DD — see the Created-Date assumption above
-  lastActivityAt: string;
+  day: string;              // the bucket key it belongs to
+  date: string;             // the actual IST day it arrived
   daysUntouched: number;
-  callAttempts: number;
+  cold: boolean;
   link: string;
-  onLeaveConflict: boolean; // counsellor was Absent the day this landed
 };
 
-export type CounsellorTally = {
-  name: string;
-  userId: string;
-  assigned: number;
-  untouched: number;
-  conflicts: number;
-  closed: number;
-  byStatus: { status: string; count: number }[];
+export type BoardRow = {
+  key: string;              // YYYY-MM-DD (bucket start)
+  label: string;            // "19 Aug" / "04 – 10 Aug" / "August 2026"
+  dow: string;              // "Wed" — empty for week/month
+  total: number;
+  by: Record<string, number>;
+  cold: number;
 };
 
-export type BucketPoint = { key: string; label: string; generated: number; assigned: number; unassigned: number };
-
-export type AssignmentBoard = {
+export type LeadBoard = {
   range: { from: string; to: string };
-  bucket: "day" | "week";
-  totals: { generated: number; assigned: number; unassigned: number; conflicts: number; untouched: number };
-  series: BucketPoint[];
-  counsellors: CounsellorTally[];
+  bucket: Bucket;
+  counsellors: string[];    // column order, busiest first
+  rows: BoardRow[];         // newest bucket first
+  totals: { total: number; by: Record<string, number>; cold: number };
   roster: RosterEntry[];
-  leads: AssignedLead[];
-  declared: { date: string; counsellor: string; dmLeads: number; totalLeads: number; notes: string }[];
-  // Whether the leave-conflict figure can be trusted at all — see getAttendanceCoverage.
-  attendance: { latest: string | null; rowsInRange: number; coversRange: boolean };
+  leads: BoardLead[];
 };
+
+export type Bucket = "day" | "week" | "month";
 
 const CRM_FIELDS = [
-  "Full Name", "Mobile Number", "Created Date", "Actual Last Modified", "Counsellor",
-  "Lead Source (n8n)", "Lead Status", "Primary Interest (n8n)", "Days Untouched",
-  "Call Attempts", "Link to Record",
+  "Full Name", "Created Date", "Counsellor", "Lead Status",
+  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Link to Record",
 ];
+
+// Leads with no counsellor still have to appear somewhere, or the row totals stop
+// adding up and the table quietly lies.
+const UNASSIGNED = "Unassigned";
 
 // Airtable returns Created Date as a UTC instant. Slicing the ISO string would
 // bucket a lead created 00:30 IST into the PREVIOUS day, because IST is UTC+5:30 —
 // so a night-time lead silently lands in yesterday's column. The team works in IST,
-// so every day bucket is computed in IST.
+// so every bucket is computed in IST.
+const IST = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+});
+
 function istDay(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso.slice(0, 10);
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(d);
+  return IST.format(d);
 }
 
-// Monday-anchored ISO week key, so "this week" matches how the team talks about it.
-function weekKey(day: string): { key: string; label: string } {
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function shortDate(day: string): string {
+  const [, m, d] = day.split("-");
+  return `${d} ${MON[Number(m) - 1].slice(0, 3)}`;
+}
+
+// Bucket a day into its group key + display label. Weeks are Monday-anchored, which
+// is how the team talks about "this week".
+function bucketOf(day: string, bucket: Bucket): { key: string; label: string; dow: string } {
+  if (bucket === "month") {
+    const [y, m] = day.split("-");
+    return { key: `${y}-${m}-01`, label: `${MON[Number(m) - 1]} ${y}`, dow: "" };
+  }
+  if (bucket === "week") {
+    const d = new Date(`${day}T00:00:00Z`);
+    const offset = (d.getUTCDay() + 6) % 7; // Mon = 0
+    d.setUTCDate(d.getUTCDate() - offset);
+    const start = d.toISOString().slice(0, 10);
+    const end = new Date(d);
+    end.setUTCDate(end.getUTCDate() + 6);
+    return { key: start, label: `${shortDate(start)} – ${shortDate(end.toISOString().slice(0, 10))}`, dow: "" };
+  }
   const d = new Date(`${day}T00:00:00Z`);
-  const dow = (d.getUTCDay() + 6) % 7; // Mon=0
-  d.setUTCDate(d.getUTCDate() - dow);
-  const key = d.toISOString().slice(0, 10);
-  const end = new Date(d); end.setUTCDate(end.getUTCDate() + 6);
-  const fmt = (x: Date) => x.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
-  return { key, label: `${fmt(d)} – ${fmt(end)}` };
+  return { key: day, label: shortDate(day), dow: DOW[d.getUTCDay()] };
 }
 
-function dayLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
-}
-
-export async function getAssignmentBoard(
-  from: string,
-  to: string,
-  bucket: "day" | "week",
-  opts: { activeOnly?: boolean } = {},
-): Promise<AssignmentBoard> {
-  const [leadRows, roster, absence, distRows, attendance] = await Promise.all([
+export async function getLeadBoard(from: string, to: string, bucket: Bucket): Promise<LeadBoard> {
+  const [leadRows, roster] = await Promise.all([
     airtableList<Record<string, unknown>>(CRM_TABLE, {
       filterByFormula: dateRangeFormula("Created Date", from, to),
       fields: CRM_FIELDS,
@@ -200,120 +167,79 @@ export async function getAssignmentBoard(
       maxRecords: 20_000,
     }),
     getCounsellorRoster(),
-    getAbsenceMap(from, to),
-    airtableList<Record<string, unknown>>(DISTRIBUTION_TABLE, {
-      filterByFormula: dateRangeFormula("Date", from, to),
-      fields: ["Date", "Counsellor", "DM Leads Count", "Total Leads Count", "Notes"],
-      pageSize: 100,
-      maxRecords: 5_000,
-    }),
-    getAttendanceCoverage(from, to),
   ]);
 
-  const leads: AssignedLead[] = [];
-  const tallies = new Map<string, CounsellorTally>();
-  const statusByCounsellor = new Map<string, Map<string, number>>();
-  const buckets = new Map<string, BucketPoint>();
-  let generated = 0, assigned = 0, unassigned = 0, conflicts = 0, untouched = 0;
+  const leads: BoardLead[] = [];
+  const rowMap = new Map<string, BoardRow>();
+  const volume = new Map<string, number>();
+  const totalsBy: Record<string, number> = {};
+  let total = 0;
+  let coldTotal = 0;
 
   for (const rec of leadRows) {
     const f = rec.fields;
     const createdIso = pickName(f["Created Date"]);
     if (!createdIso) continue;
-    const day = istDay(createdIso);
+
+    const date = istDay(createdIso);
+    const b = bucketOf(date, bucket);
     const user = pickUser(f["Counsellor"]);
-    const counsellor = user?.name || "";
-    const status = pickName(f["Lead Status"]) || "—";
-    const closed = isClosedStatus(status);
-    if (opts.activeOnly && closed) continue;
-
-    generated++;
-    const bk = bucket === "week" ? weekKey(day) : { key: day, label: dayLabel(day) };
-    let point = buckets.get(bk.key);
-    if (!point) { point = { key: bk.key, label: bk.label, generated: 0, assigned: 0, unassigned: 0 }; buckets.set(bk.key, point); }
-    point.generated++;
-
-    if (!counsellor) {
-      unassigned++;
-      point.unassigned++;
-      continue;
-    }
-    assigned++;
-    point.assigned++;
-
+    const counsellor = user?.name || UNASSIGNED;
     const daysUntouched = pickNumber(f["Days Untouched"]);
-    const conflict = absence.get(counsellor)?.has(day) === true;
-    if (conflict) conflicts++;
-    if (daysUntouched > 7) untouched++;
+    const cold = daysUntouched > COLD_AFTER_DAYS;
 
-    let t = tallies.get(counsellor);
-    if (!t) {
-      t = { name: counsellor, userId: user!.id, assigned: 0, untouched: 0, conflicts: 0, closed: 0, byStatus: [] };
-      tallies.set(counsellor, t);
-      statusByCounsellor.set(counsellor, new Map());
-    }
-    t.assigned++;
-    if (conflict) t.conflicts++;
-    if (daysUntouched > 7) t.untouched++;
-    if (closed) t.closed++;
-    const sm = statusByCounsellor.get(counsellor)!;
-    sm.set(status, (sm.get(status) || 0) + 1);
+    let row = rowMap.get(b.key);
+    if (!row) { row = { key: b.key, label: b.label, dow: b.dow, total: 0, by: {}, cold: 0 }; rowMap.set(b.key, row); }
+    row.total++;
+    row.by[counsellor] = (row.by[counsellor] || 0) + 1;
+    if (cold) row.cold++;
+
+    total++;
+    totalsBy[counsellor] = (totalsBy[counsellor] || 0) + 1;
+    if (cold) coldTotal++;
+    volume.set(counsellor, (volume.get(counsellor) || 0) + 1);
 
     leads.push({
       id: rec.id,
       name: pickName(f["Full Name"]) || "(no name)",
-      mobile: pickName(f["Mobile Number"]),
-      counsellor,
-      counsellorUserId: user!.id,
-      status,
       source: pickName(f["Lead Source (n8n)"]) || "—",
       interest: pickName(f["Primary Interest (n8n)"]) || "—",
-      assignedOn: day,
-      lastActivityAt: pickName(f["Actual Last Modified"]),
+      counsellor: user?.name || "",
+      counsellorUserId: user?.id || "",
+      status: pickName(f["Lead Status"]) || "—",
+      day: b.key,
+      date,
       daysUntouched,
-      callAttempts: pickNumber(f["Call Attempts"]),
+      cold,
       link: pickName(f["Link to Record"]),
-      onLeaveConflict: conflict,
     });
   }
 
+  // Busiest counsellor first so the widest columns sit nearest the total, with
+  // Unassigned pinned last — it's an exception, not a person.
+  const counsellors = [...volume.entries()]
+    .sort((a, b) => (a[0] === UNASSIGNED ? 1 : 0) - (b[0] === UNASSIGNED ? 1 : 0) || b[1] - a[1])
+    .map(([name]) => name);
+
   // Anyone actually holding leads is a legitimate transfer target even if the
-  // Counsellors table doesn't list them (it currently misses a couple of people
-  // who hold live leads). Roster entries stay first so the real list leads.
+  // Counsellors table doesn't list them (it currently misses several people who
+  // hold live leads). Roster entries stay first so the real list leads.
   const known = new Set(roster.map((r) => r.userId));
   const fullRoster: RosterEntry[] = [...roster];
-  for (const t of tallies.values()) {
-    if (!known.has(t.userId)) {
-      known.add(t.userId);
-      fullRoster.push({ name: t.name, userId: t.userId, email: "", label: t.name, inRoster: false });
+  for (const l of leads) {
+    if (l.counsellorUserId && !known.has(l.counsellorUserId)) {
+      known.add(l.counsellorUserId);
+      fullRoster.push({ name: l.counsellor, userId: l.counsellorUserId, email: "", label: l.counsellor, inRoster: false });
     }
   }
-
-  for (const [name, sm] of statusByCounsellor) {
-    const t = tallies.get(name);
-    if (t) t.byStatus = [...sm.entries()].map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count);
-  }
-
-  const declared = distRows.map((r) => ({
-    date: pickName(r.fields["Date"]).slice(0, 10),
-    counsellor: pickUser(r.fields["Counsellor"])?.name || pickName(r.fields["Counsellor"]),
-    dmLeads: pickNumber(r.fields["DM Leads Count"]),
-    totalLeads: pickNumber(r.fields["Total Leads Count"]),
-    notes: pickName(r.fields["Notes"]),
-  })).filter((d) => d.date);
 
   return {
     range: { from, to },
     bucket,
-    totals: { generated, assigned, unassigned, conflicts, untouched },
-    series: [...buckets.values()].sort((a, b) => (a.key < b.key ? -1 : 1)),
-    // Conflicts first, then volume — the rows needing action sit at the top.
-    counsellors: [...tallies.values()].sort((a, b) => b.conflicts - a.conflicts || b.assigned - a.assigned),
+    counsellors,
+    rows: [...rowMap.values()].sort((a, b) => (a.key < b.key ? 1 : -1)), // newest first
+    totals: { total, by: totalsBy, cold: coldTotal },
     roster: fullRoster,
-    // Newest first, but anything assigned to someone on leave floats up.
-    leads: leads.sort((a, b) =>
-      Number(b.onLeaveConflict) - Number(a.onLeaveConflict) || (a.assignedOn < b.assignedOn ? 1 : -1)),
-    declared,
-    attendance: { ...attendance, coversRange: attendance.rowsInRange > 0 },
+    leads,
   };
 }
