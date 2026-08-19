@@ -104,76 +104,72 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
         </div>
       )}
 
-      {/* ── LEVEL 1 · leads per bucket ───────────────────────────── */}
+      {/* ── LEVEL 1 · one card per day / week / month ─────────────── */}
       {!openDay && (
         <>
-          <div className="overflow-x-auto mt-5">
-            <table className="w-full text-sm tabular-nums">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-100">
-                  <th className="py-2.5 pr-4 font-normal text-left text-[11px] uppercase tracking-wide">Date</th>
-                  <th className="py-2.5 px-4 font-normal text-right text-[11px] uppercase tracking-wide">Leads</th>
-                  {(data?.counsellors || []).map((c) => (
-                    <th key={c} className="py-2.5 px-4 font-normal text-right text-[11px] uppercase tracking-wide whitespace-nowrap">
-                      {c.split(" ")[0]}
-                    </th>
-                  ))}
-                  <th className="py-2.5 pl-4 font-normal text-right text-[11px] uppercase tracking-wide whitespace-nowrap">Gone cold</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.rows || []).map((r) => (
-                  <tr key={r.key} onClick={() => setOpenDay(r)}
-                    className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                    <td className="py-2.5 pr-4 whitespace-nowrap">
-                      {r.dow && <span className="text-gray-300 mr-1.5">{r.dow}</span>}
-                      <span className="font-medium text-[#232D42]">{r.label}</span>
-                    </td>
-                    <td className="py-2.5 px-4">
-                      {/* The bar lives in the row — this is what replaces a separate chart. */}
-                      <div className="flex items-center justify-end gap-2.5">
-                        <b className="font-semibold text-[#232D42]">{r.total}</b>
-                        <span className="w-[120px] h-[7px] rounded-full bg-gray-100 overflow-hidden hidden sm:block">
-                          <span className="block h-full rounded-full"
-                            style={{ width: `${(r.total / peak) * 100}%`, background: r.total === peak ? "#3A57E8" : "#C7D2F7" }} />
-                        </span>
-                      </div>
-                    </td>
-                    {(data?.counsellors || []).map((c) => (
-                      <td key={c} className="py-2.5 px-4 text-right">
-                        {r.by[c] ? <span className="text-[#232D42]">{r.by[c]}</span> : <span className="text-gray-300">—</span>}
-                      </td>
-                    ))}
-                    <td className="py-2.5 pl-4 text-right">
-                      {r.cold ? <span className="text-[#B7791F] font-medium">{r.cold}</span> : <span className="text-gray-300">—</span>}
-                    </td>
-                  </tr>
-                ))}
-                {!isLoading && (data?.rows || []).length === 0 && (
-                  <tr><td colSpan={3 + (data?.counsellors.length || 0)} className="py-10 text-center text-gray-400">No leads in this range.</td></tr>
-                )}
-                {isLoading && !data && (
-                  <tr><td colSpan={4} className="py-10 text-center text-gray-400">Loading…</td></tr>
-                )}
-              </tbody>
-              {data && data.rows.length > 0 && (
-                <tfoot>
-                  <tr className="bg-gray-50 border-t border-gray-100 font-semibold text-[#232D42]">
-                    <td className="py-3 pr-4">{fmtInt(data.rows.length)} {bucket === "day" ? "days" : bucket === "week" ? "weeks" : "months"}</td>
-                    <td className="py-3 px-4 text-right">{fmtInt(data.totals.total)}</td>
-                    {data.counsellors.map((c) => (
-                      <td key={c} className="py-3 px-4 text-right">{fmtInt(data.totals.by[c] || 0)}</td>
-                    ))}
-                    <td className="py-3 pl-4 text-right">{fmtInt(data.totals.cold)}</td>
-                  </tr>
-                </tfoot>
+          {data && data.rows.length > 0 && (
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 mt-4 text-sm text-gray-500">
+              <span><b className="text-[#232D42] font-semibold">{fmtInt(data.totals.total)}</b> leads</span>
+              {data.counsellors.map((c) => (
+                <span key={c}>{c.split(" ")[0]} <b className="text-[#232D42] font-medium">{fmtInt(data.totals.by[c] || 0)}</b></span>
+              ))}
+              {data.totals.cold > 0 && (
+                <span className="text-[#B7791F]"><b className="font-medium">{fmtInt(data.totals.cold)}</b> gone cold</span>
               )}
-            </table>
+            </div>
+          )}
+
+          <div className="grid gap-3 mt-4 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
+            {(data?.rows || []).map((r) => (
+              <button key={r.key} onClick={() => setOpenDay(r)}
+                className="text-left rounded-xl border border-gray-100 bg-[#FAFBFF] p-4 hover:border-brand hover:bg-white transition-colors">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-medium text-[#232D42]">
+                    {r.dow && <span className="text-gray-400 font-normal mr-1.5">{r.dow}</span>}{r.label}
+                  </span>
+                  {r.cold > 0 && (
+                    <span className="text-[10px] text-[#B7791F] bg-amber-50 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                      {r.cold} cold
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-baseline gap-1.5 mt-2.5 mb-3">
+                  <span className="text-[28px] leading-none font-semibold text-[#232D42] tabular-nums">{r.total}</span>
+                  <span className="text-[11px] text-gray-400">lead{r.total === 1 ? "" : "s"}</span>
+                </div>
+
+                {/* Per-counsellor split, as proportional bars — the shape of the
+                    split reads faster than two numbers side by side. */}
+                <div className="flex flex-col gap-1.5">
+                  {(data?.counsellors || []).map((c) => (
+                    <div key={c} className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-500 w-[46px] flex-shrink-0 truncate">{c.split(" ")[0]}</span>
+                      <span className="flex-1 h-[6px] rounded-full bg-gray-100 overflow-hidden">
+                        <span className="block h-full rounded-full"
+                          style={{ width: `${((r.by[c] || 0) / Math.max(1, peak)) * 100}%`, background: "#3A57E8" }} />
+                      </span>
+                      <span className="text-[11px] tabular-nums w-[22px] text-right flex-shrink-0 text-[#232D42]">
+                        {r.by[c] || <span className="text-gray-300">—</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </button>
+            ))}
           </div>
+
+          {!isLoading && (data?.rows || []).length === 0 && (
+            <div className="py-10 text-center text-gray-400 text-sm">No leads in this range.</div>
+          )}
+          {isLoading && !data && <div className="py-10 text-center text-gray-400 text-sm">Loading…</div>}
+
           <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
-            Click any row to see that {bucket === "day" ? "day" : bucket === "week" ? "week" : "month"}&apos;s leads.
+            Click a card to see that {bucket === "day" ? "day" : bucket === "week" ? "week" : "month"}&apos;s leads.
             <b className="text-[#3B4457] font-medium"> Gone cold</b> = no CRM activity in over 7 days.
-            A lead counts on the day it arrived, in IST.
+            Bars are scaled to the busiest {bucket}. Counts are the leads worked by
+            {" "}{(data?.counsellors || []).map((c) => c.split(" ")[0]).join(" and ") || "the counsellors"} — the
+            holding pool isn&apos;t a counsellor, so it isn&apos;t shown here; the total generated is in the tiles above.
           </div>
         </>
       )}

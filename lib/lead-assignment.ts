@@ -31,6 +31,16 @@ export function isClosedStatus(s: string): boolean {
 // No CRM activity in this many days = the lead has gone cold.
 const COLD_AFTER_DAYS = 7;
 
+// The people who actually work leads. Everything else in the CRM's Counsellor
+// field is either the holding pool (Maheen — where leads park before they're
+// distributed) or someone who happens to hold a stray record; showing either as a
+// counsellor made the board read as if six people were selling.
+//
+// Leads not held by one of these are excluded from this board entirely. The true
+// "leads generated" figure is unaffected — it's the KPI tile above this section.
+// Edit this list when the sales team changes.
+export const ACTIVE_COUNSELLORS = ["Robin Johnson J", "Jeswin Shaju"];
+
 // Airtable collaborator cells arrive as { id, name, email }. pickName() gives the
 // label; transfers need the user id too.
 export function pickUser(v: unknown): { id: string; name: string; email: string } | null {
@@ -181,10 +191,13 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
     const createdIso = pickName(f["Created Date"]);
     if (!createdIso) continue;
 
-    const date = istDay(createdIso);
-    const b = bucketOf(date, bucket);
     const user = pickUser(f["Counsellor"]);
     const counsellor = user?.name || UNASSIGNED;
+    // Pool + stray holders never reach the board — see ACTIVE_COUNSELLORS.
+    if (!ACTIVE_COUNSELLORS.includes(counsellor)) continue;
+
+    const date = istDay(createdIso);
+    const b = bucketOf(date, bucket);
     const daysUntouched = pickNumber(f["Days Untouched"]);
     const cold = daysUntouched > COLD_AFTER_DAYS;
 
@@ -215,11 +228,10 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
     });
   }
 
-  // Busiest counsellor first so the widest columns sit nearest the total, with
-  // Unassigned pinned last — it's an exception, not a person.
-  const counsellors = [...volume.entries()]
-    .sort((a, b) => (a[0] === UNASSIGNED ? 1 : 0) - (b[0] === UNASSIGNED ? 1 : 0) || b[1] - a[1])
-    .map(([name]) => name);
+  // Fixed order, not by volume — the same two people in the same two places every
+  // time, so the eye doesn't have to re-find a column when the range changes.
+  // Anyone with no leads in range is dropped rather than shown as a column of dashes.
+  const counsellors = ACTIVE_COUNSELLORS.filter((c) => (volume.get(c) || 0) > 0);
 
   // Anyone actually holding leads is a legitimate transfer target even if the
   // Counsellors table doesn't list them (it currently misses several people who
