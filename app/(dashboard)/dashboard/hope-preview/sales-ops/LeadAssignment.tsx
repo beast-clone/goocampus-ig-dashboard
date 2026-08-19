@@ -6,6 +6,10 @@ import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
   IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow,
 } from "@tabler/icons-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
+
+// Stacked-bar colours for the day-wise interest chart (last = grey for "Other").
+const PALETTE = ["#3A57E8", "#0EA5E9", "#1AA053", "#F2B01E", "#8B5CF6", "#EC4899", "#8A92A6"];
 
 // Sales Hub → Leads.
 //
@@ -92,6 +96,38 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
     () => (openDay ? (data?.leads || []).filter((l) => l.day === openDay.key) : []),
     [data, openDay],
   );
+
+  // Average leads generated per calendar day across the selected range.
+  const avgPerDay = useMemo(() => {
+    if (!data) return 0;
+    const d0 = new Date(range.from + "T00:00:00Z").getTime();
+    const d1 = new Date(range.to + "T00:00:00Z").getTime();
+    const days = Math.max(1, Math.round((d1 - d0) / 86_400_000) + 1);
+    return Math.round(data.generated / days);
+  }, [data, range]);
+
+  // Day-wise leads stacked by primary interest — top 6 interests + "Other", oldest → newest.
+  const chart = useMemo(() => {
+    if (!data) return { rows: [] as Record<string, string | number>[], keys: [] as string[] };
+    const top = [...data.interests].sort((a, b) => b.total - a.total).slice(0, 6).map((i) => i.interest);
+    const topSet = new Set(top);
+    const byBucket = new Map<string, Record<string, number>>();
+    let hasOther = false;
+    for (const l of data.allLeads) {
+      const k = topSet.has(l.interest) ? l.interest : ((hasOther = true), "Other");
+      const m = byBucket.get(l.day) || {};
+      m[k] = (m[k] || 0) + 1;
+      byBucket.set(l.day, m);
+    }
+    const keys = hasOther ? [...top, "Other"] : top;
+    const rows = [...data.rows].reverse().map((r) => {
+      const m = byBucket.get(r.key) || {};
+      const row: Record<string, string | number> = { label: r.label };
+      for (const k of keys) row[k] = m[k] || 0;
+      return row;
+    });
+    return { rows, keys };
+  }, [data]);
 
   const toggleStar = async (lead: BoardLead, on: boolean) => {
     await fetch("/api/leads-crm/tracked", {
@@ -221,6 +257,35 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
               </button>
             );
           })()}
+          {chart.rows.length > 0 && (
+            <div className="mt-7">
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+                <div>
+                  <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by primary interest</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Every lead in the range, stacked by interest.</div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-[#FAFBFF] px-4 py-2.5 text-center">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500">Avg leads / day</div>
+                  <div className="text-[22px] font-semibold text-[#232D42] tabular-nums leading-none mt-1">{fmtInt(avgPerDay)}</div>
+                </div>
+              </div>
+              <div style={{ width: "100%", height: 300 }}>
+                <ResponsiveContainer>
+                  <BarChart data={chart.rows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0F4" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8A92A6" }} minTickGap={16} tickLine={false} axisLine={{ stroke: "#EEF0F4" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#8A92A6" }} allowDecimals={false} tickLine={false} axisLine={false} width={30} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #EEF0F4" }} />
+                    <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 6 }} iconType="circle" iconSize={9} />
+                    {chart.keys.map((k, i) => (
+                      <Bar key={k} dataKey={k} stackId="s" fill={PALETTE[i % PALETTE.length]}
+                        radius={i === chart.keys.length - 1 ? [3, 3, 0, 0] : undefined} maxBarSize={38} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
           <Foot>Shows the current {bucket}. Click the card for its leads. <b className="text-[#3B4457] font-medium">Cold</b> = no CRM activity in over 7 days. Counted in IST.</Foot>
         </>
       ))}
