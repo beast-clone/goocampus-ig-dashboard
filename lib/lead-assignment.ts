@@ -18,6 +18,7 @@ import {
   pickNumber,
   CRM_TABLE,
   COUNSELLORS_TABLE,
+  idleDays,
 } from "./sales-hub";
 
 // Statuses that mean the lead is finished. Used by the nightly snapshot to decide
@@ -119,7 +120,7 @@ export type Bucket = "day" | "week" | "month";
 
 const CRM_FIELDS = [
   "Full Name", "Created Date", "Counsellor", "Lead Status",
-  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Link to Record",
+  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Actual Last Modified", "Link to Record",
 ];
 
 // Leads with no counsellor still have to appear somewhere, or the row totals stop
@@ -198,7 +199,7 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
 
     const date = istDay(createdIso);
     const b = bucketOf(date, bucket);
-    const daysUntouched = pickNumber(f["Days Untouched"]);
+    const daysUntouched = idleDays(f);
     const cold = daysUntouched > COLD_AFTER_DAYS;
 
     let row = rowMap.get(b.key);

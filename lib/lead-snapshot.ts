@@ -9,7 +9,7 @@
 // lead that is still open. Snapshotting all 30k rows every night would be a much
 // heavier job and far more Airtable calls for history nobody reads.
 
-import { airtableList, pickName, pickNumber, CRM_TABLE } from "./sales-hub";
+import { airtableList, pickName, pickNumber, idleDays, CRM_TABLE } from "./sales-hub";
 import { isClosedStatus, pickUser } from "./lead-assignment";
 import { getSupabase } from "./supabase";
 
@@ -17,7 +17,7 @@ const ACTIVE_WINDOW_DAYS = 90;
 
 const FIELDS = [
   "Full Name", "Created Date", "Counsellor", "Lead Status",
-  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Call Attempts",
+  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Actual Last Modified", "Call Attempts",
 ];
 
 export type SnapshotResult = { scanned: number; stored: number; skippedClosed: number };
@@ -58,7 +58,7 @@ export async function snapshotActiveLeads(day: string): Promise<SnapshotResult> 
       status: status || null,
       source: pickName(f["Lead Source (n8n)"]) || null,
       interest: pickName(f["Primary Interest (n8n)"]) || null,
-      days_untouched: pickNumber(f["Days Untouched"]),
+      days_untouched: idleDays(f),
       call_attempts: pickNumber(f["Call Attempts"]),
     });
   }

@@ -15,6 +15,7 @@ import {
   ATTENDANCE_TABLE,
   DISTRIBUTION_TABLE,
   OFFICE_TABLE,
+  idleDays,
 } from "@/lib/sales-hub";
 
 // GET /api/leads-crm?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -42,7 +43,7 @@ type Counsellor = {
   firstActivityAvgHrs: number | null;
   contracts: number;
   revenue: number;
-  untouched: number; // leads with Days Untouched > 7
+  untouched: number; // leads with no edit in > 7 days (see idleDays)
   byStatus: Record<string, number>; // status → count, for the mini status-mix bar
 };
 
@@ -278,7 +279,7 @@ export async function GET(req: Request) {
       const interest = pickName(f["Primary Interest (n8n)"]) || "—";
       const campaign = pickName(f["Campaign Name"]);
       const location = pickName(f["Location (n8n)"]);
-      const daysUntouched = pickNumber(f["Days Untouched"]);
+      const daysUntouched = idleDays(f);
       const fullName = pickName(f["Full Name"]);
       const isReEnquiry = f["Re-Enquiry"] === true;
       const lastReEnquiryAt = pickName(f["Last Re-Enquiry"]);

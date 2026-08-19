@@ -189,3 +189,24 @@ export async function createTransferRequest(input: TransferRequestInput): Promis
   const reqNo = json.fields?.["Request ID"];
   return { id: json.id, requestId: typeof reqNo === "number" ? reqNo : undefined };
 }
+
+// Days since anyone last edited a lead.
+//
+// DO NOT read the CRM's "Days Untouched" formula directly. It returns
+// {specialValue:"NaN"} on more than half the table — 433 of 813 rows in an
+// Aug-2026 sample — and pickNumber() turns that into 0. Every `idle > N` test
+// therefore answered false for those rows, so the untouched/cold counts silently
+// under-reported by roughly half, and the leads that most needed chasing were the
+// ones missing from the list.
+//
+// "Actual Last Modified" is a real lastModifiedTime field, so it's the source of
+// truth here; the formula is used only when it's genuinely numeric.
+export function idleDays(fields: Record<string, unknown>): number {
+  const iso = fields["Actual Last Modified"] ?? fields["Last Modified"];
+  if (typeof iso === "string" && iso) {
+    const t = new Date(iso).getTime();
+    if (!Number.isNaN(t)) return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+  }
+  const v = fields["Days Untouched"];
+  return typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
+}

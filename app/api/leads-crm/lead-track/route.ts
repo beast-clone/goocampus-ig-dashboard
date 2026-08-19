@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { airtableList, pickName, pickNumber, CRM_TABLE, SALES_SYSTEM_TABLE } from "@/lib/sales-hub";
+import { airtableList, pickName, pickNumber, idleDays, CRM_TABLE, SALES_SYSTEM_TABLE } from "@/lib/sales-hub";
 import { pickUser } from "@/lib/lead-assignment";
 
 // GET /api/leads-crm/lead-track?id=recXXXXXXXXXXXXXX
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         location: pickName(f["Location (n8n)"]),
         createdAt: pickName(f["Created Date"]),
         lastActivityAt: pickName(f["Actual Last Modified"]),
-        daysUntouched: pickNumber(f["Days Untouched"]),
+        daysUntouched: idleDays(f),
         callAttempts: pickNumber(f["Call Attempts"]),
         expectedRevenue: pickNumber(f["Expected Revenue"]),
         expectedClosure: pickName(f["Expected Closure Date"]),

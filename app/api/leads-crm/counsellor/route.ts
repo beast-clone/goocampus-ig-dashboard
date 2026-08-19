@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { requireSection } from "@/lib/api-guard";
-import { airtableList, dateRangeFormula, pickName, pickNumber, CRM_TABLE } from "@/lib/sales-hub";
+import { airtableList, dateRangeFormula, pickName, pickNumber, idleDays, CRM_TABLE } from "@/lib/sales-hub";
 
 // GET /api/leads-crm/counsellor?name=Robin%20Johnson%20J&from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -95,7 +95,7 @@ export async function GET(req: Request) {
         campaign: pickName(f["Campaign Name"]),
         createdAt: pickName(f["Created Date"]),
         lastActivityAt: pickName(f["Actual Last Modified"]),
-        daysUntouched: pickNumber(f["Days Untouched"]),
+        daysUntouched: idleDays(f),
         linkToRecord: pickName(f["Link to Record"]),
       });
     }
