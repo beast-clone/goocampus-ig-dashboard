@@ -232,81 +232,86 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <KpiTile label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} />
       </div>
 
-      {/* Leads by source (hero) + Speed to lead */}
-      <div className="grid grid-cols-5 gap-5 items-start">
-        <Card className="col-span-3">
-          <div className="flex items-baseline justify-between mb-4">
-            <div className="text-base font-medium text-[#232D42]">Leads by source</div>
-            <div className="text-sm text-gray-500">{data ? `${fmtInt(data.totals.leads)} in this window` : ""}</div>
-          </div>
-          <div className="space-y-3 text-sm">
-            {data?.bySource.map((s, i) => (
-              <div key={s.name} className="grid grid-cols-[160px_1fr_auto] items-center gap-3">
-                <span className="text-[#3B4457] truncate">{s.name}</span>
-                <span className="h-[9px] rounded-full bg-[#F3F5FA] overflow-hidden">
-                  <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: COLORS[i % COLORS.length] }} />
-                </span>
-                <span className="text-right tabular-nums font-medium min-w-[68px]">
-                  {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
-                </span>
-              </div>
-            ))}
-            {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
-          </div>
-          <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">The date range (top-right) re-scopes every card on this page.</div>
-        </Card>
+      {/* Leads by source — full-width banner */}
+      <Card>
+        <div className="flex items-baseline justify-between mb-4">
+          <div className="text-base font-medium text-[#232D42]">Leads by source</div>
+          <div className="text-sm text-gray-500">{data ? `${fmtInt(data.totals.leads)} in this window` : ""}</div>
+        </div>
+        <div className="space-y-3 text-sm">
+          {data?.bySource.map((s, i) => (
+            <div key={s.name} className="grid grid-cols-[200px_1fr_auto] items-center gap-3">
+              <span className="text-[#3B4457] truncate">{s.name}</span>
+              <span className="h-[10px] rounded-full bg-[#F3F5FA] overflow-hidden">
+                <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: COLORS[i % COLORS.length] }} />
+              </span>
+              <span className="text-right tabular-nums font-medium min-w-[72px]">
+                {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
+              </span>
+            </div>
+          ))}
+          {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
+        </div>
+        <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">The date range (top-right) re-scopes every card on this page.</div>
+      </Card>
 
-        <Card className="col-span-2">
-          <div className="flex items-baseline justify-between mb-4">
-            <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
-            <div className="text-sm text-gray-500">the biggest leak</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
-            </div>
-            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
-            </div>
-          </div>
-          {data && (() => {
-            const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
-            return (
-            <div className="mb-3">
-              <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
-                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
-                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
+      {/* Speed to lead — full width, under Leads by source */}
+      <Card>
+        <div className="flex items-baseline justify-between mb-4">
+          <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
+          <div className="text-sm text-gray-500">the biggest leak</div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 items-start">
+          <div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+                <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
+                <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
               </div>
-              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
-                <span>24h SLA target</span>
-                <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
+              <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+                <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
+                <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
               </div>
             </div>
-            );
-          })()}
-          {/* TEMP plain-English explainer for the demo — safe to delete this whole block later. */}
-          <div className="mb-3 rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
-            <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
-            <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
-            <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
-            <div className="mt-1"><b>SLA</b> = <i>Service Level Agreement</i> — your promise/target for how fast you respond. <b>“24h SLA target”</b> = the goal is to first-contact every new lead within 24 hours. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
-          </div>
-          <div className="space-y-2">
-            {(data?.awaiting || []).slice(0, 4).map((a, i) => (
-              <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-[13px] truncate">{a.name}</div>
-                  <div className="text-[11px] text-gray-500 truncate">{counsellorLabel(a.counsellor)} · {a.source}</div>
+            {data && (() => {
+              const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
+              return (
+              <div className="mb-3">
+                <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
+                  <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
+                  <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
                 </div>
-                <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap">{a.daysUntouched}d</div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1.5">
+                  <span>24h SLA target</span>
+                  <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
+                </div>
               </div>
-            ))}
+              );
+            })()}
+            <div className="rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
+              <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
+              <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
+              <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
+              <div className="mt-1"><b>SLA</b> = <i>Service Level Agreement</i> — your promise/target for how fast you respond. <b>“24h SLA target”</b> = the goal is to first-contact every new lead within 24 hours. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
+            </div>
           </div>
-          <div className="text-xs text-gray-400 mt-3">Oldest-untouched from the live Days Untouched field.</div>
-        </Card>
-      </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">Oldest untouched</div>
+            <div className="space-y-2">
+              {(data?.awaiting || []).slice(0, 4).map((a, i) => (
+                <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-[13px] truncate">{a.name}</div>
+                    <div className="text-[11px] text-gray-500 truncate">{counsellorLabel(a.counsellor)} · {a.source}</div>
+                  </div>
+                  <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap">{a.daysUntouched}d</div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-gray-400 mt-3">Oldest-untouched from the live Days Untouched field.</div>
+          </div>
+        </div>
+      </Card>
 
       {/* Assigned to counsellors — table (click a row → drill-down) */}
       <Card>
