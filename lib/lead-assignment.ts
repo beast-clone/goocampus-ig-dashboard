@@ -18,6 +18,7 @@ import {
   pickNumber,
   CRM_TABLE,
   COUNSELLORS_TABLE,
+  PRIMARY_INTERESTS_TABLE,
   idleDays,
 } from "./sales-hub";
 import { getSupabase } from "./supabase";
@@ -126,6 +127,7 @@ export type BoardLead = {
   name: string;
   source: string;
   interest: string;
+  sbu: string;              // interest → SBU (Study Abroad / UK / USA / …)
   counsellor: string;
   counsellorUserId: string;
   status: string;
@@ -247,8 +249,26 @@ function bucketOf(day: string, bucket: Bucket): { key: string; label: string; do
   return { key: day, label: shortDate(day), dow: DOW[d.getUTCDay()] };
 }
 
+// Primary Interest → SBU (Study Abroad / UK / USA / India UG / …) from the
+// DB: Primary Interests table. Cheap (~24 rows); best-effort — an interest that
+// isn't mapped falls back to "Other".
+async function getSbuMap(): Promise<Map<string, string>> {
+  try {
+    const rows = await airtableList<Record<string, unknown>>(PRIMARY_INTERESTS_TABLE, {
+      fields: ["Particulars", "SBU"], pageSize: 100, maxRecords: 200,
+    });
+    const m = new Map<string, string>();
+    for (const r of rows) {
+      const name = pickName(r.fields["Particulars"]);
+      const sbu = pickName(r.fields["SBU"]);
+      if (name && sbu) m.set(name, sbu);
+    }
+    return m;
+  } catch { return new Map(); }
+}
+
 export async function getLeadBoard(from: string, to: string, bucket: Bucket): Promise<LeadBoard> {
-  const [leadRows, roster, roles] = await Promise.all([
+  const [leadRows, roster, roles, sbuMap] = await Promise.all([
     airtableList<Record<string, unknown>>(CRM_TABLE, {
       filterByFormula: dateRangeFormula("Created Date", from, to),
       fields: CRM_FIELDS,
@@ -257,6 +277,7 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
     }),
     getCounsellorRoster(),
     getRoles(),
+    getSbuMap(),
   ]);
 
   const roleOf = (holder: string): Role => roles[holder] || UNCLASSIFIED;
@@ -303,6 +324,7 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
       name: pickName(f["Full Name"]) || "(no name)",
       source: pickName(f["Lead Source (n8n)"]) || "—",
       interest,
+      sbu: sbuMap.get(interest) || "Other",
       counsellor: user?.name || "",
       counsellorUserId: user?.id || "",
       status,

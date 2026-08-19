@@ -18,6 +18,13 @@ const CHART_RANGES = [
 ] as const;
 type ChartRange = (typeof CHART_RANGES)[number]["v"];
 
+// The interest chart can be sliced by any of these dimensions (all carried on each lead).
+const BREAKDOWNS = [
+  { v: "interest", label: "Primary interest" }, { v: "sbu", label: "SBU" },
+  { v: "counsellor", label: "Counsellor" }, { v: "source", label: "Source" },
+] as const;
+type BreakBy = (typeof BREAKDOWNS)[number]["v"];
+
 // Sales Hub → Leads.
 //
 // Six tabs over ONE Airtable read (the API returns every aggregate from a single
@@ -34,7 +41,7 @@ type ChartRange = (typeof CHART_RANGES)[number]["v"];
 type Role = "counsellor" | "pool" | "partner" | "inactive";
 type BoardRow = { key: string; label: string; dow: string; total: number; by: Record<string, number>; cold: number };
 type BoardLead = {
-  id: string; name: string; source: string; interest: string; counsellor: string;
+  id: string; name: string; source: string; interest: string; sbu: string; counsellor: string;
   counsellorUserId: string; status: string; day: string; date: string;
   daysUntouched: number; cold: boolean; link: string;
   role: Role; ageDays: number; callAttempts: number; flaggedNew: boolean; flaggedPool: boolean;
@@ -129,20 +136,30 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
     return Math.round(chartSrc.generated / days);
   }, [chartSrc, chartEff]);
 
-  // Day-wise leads stacked by primary interest — top 6 interests + "Other", oldest → newest.
+  // Day-wise leads stacked by the chosen dimension — top 6 categories + "Other", oldest → newest.
+  const [breakBy, setBreakBy] = useState<BreakBy>("interest");
   const chart = useMemo(() => {
     if (!chartSrc) return { rows: [] as Record<string, string | number>[], keys: [] as string[] };
-    const top = [...chartSrc.interests].sort((a, b) => b.total - a.total).slice(0, 6).map((i) => i.interest);
+    const fieldOf = (l: BoardLead) =>
+      breakBy === "sbu" ? (l.sbu || "Other")
+      : breakBy === "counsellor" ? (l.counsellor || "Unassigned")
+      : breakBy === "source" ? (l.source || "—")
+      : (l.interest || "— not set —");
+    const tally = new Map<string, number>();
+    for (const l of chartSrc.allLeads) { const k = fieldOf(l); tally.set(k, (tally.get(k) || 0) + 1); }
+    const top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]);
     const topSet = new Set(top);
     const byBucket = new Map<string, Record<string, number>>();
     let hasOther = false;
     for (const l of chartSrc.allLeads) {
-      const k = topSet.has(l.interest) ? l.interest : ((hasOther = true), "Other");
+      let k = fieldOf(l);
+      if (!topSet.has(k)) { hasOther = true; k = "Other"; }
       const m = byBucket.get(l.day) || {};
       m[k] = (m[k] || 0) + 1;
       byBucket.set(l.day, m);
     }
-    const keys = hasOther ? [...top, "Other"] : top;
+    const otherUsed = hasOther || top.includes("Other");
+    const keys = otherUsed ? [...top.filter((k) => k !== "Other"), "Other"] : top;
     const rows = [...chartSrc.rows].reverse().map((r) => {
       const m = byBucket.get(r.key) || {};
       const row: Record<string, string | number> = { label: r.label };
@@ -150,7 +167,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
       return row;
     });
     return { rows, keys };
-  }, [chartSrc]);
+  }, [chartSrc, breakBy]);
 
   const toggleStar = async (lead: BoardLead, on: boolean) => {
     await fetch("/api/leads-crm/tracked", {
@@ -284,7 +301,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
             <div className="mt-7">
               <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
                 <div>
-                  <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by primary interest</div>
+                  <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by {BREAKDOWNS.find((b) => b.v === breakBy)?.label.toLowerCase()}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
                     {chartRange === "match"
                       ? "Follows the range on top."
@@ -292,7 +309,14 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                     {chartLoading && " · loading…"}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                    Break down by
+                    <select value={breakBy} onChange={(e) => setBreakBy(e.target.value as BreakBy)}
+                      className="text-xs text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                      {BREAKDOWNS.map((b) => <option key={b.v} value={b.v}>{b.label}</option>)}
+                    </select>
+                  </label>
                   <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
                     {CHART_RANGES.map((r) => (
                       <button key={r.v} onClick={() => setChartRange(r.v)}
