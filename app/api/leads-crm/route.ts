@@ -8,6 +8,7 @@ import {
   pickName,
   pickNumber,
   CRM_TABLE,
+  SALES_HUB_BASE,
   CONTRACT_TABLE,
   REVENUE_TABLE,
   PERFORMANCE_TABLE,
@@ -92,7 +93,7 @@ type Payload = {
   counsellors: Counsellor[];
   revenueBySource: { name: string; closings: number; revenue: number }[]; // conversion/ROI by channel
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
-  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number }[];
+  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; link: string }[];
   awaitingTotal: number;
   // New sections
   callActivity: CallStat[];
@@ -265,7 +266,7 @@ export async function GET(req: Request) {
     // Per-lead rows for the frozen first-contact freeze + convert matching (below).
     const touchRows: { id: string; created: string; modified: string; counsellor: string; email: string; phone10: string }[] = [];
 
-    const awaitingRaw: { name: string; counsellor: string; source: string; daysUntouched: number }[] = [];
+    const awaitingRaw: { name: string; counsellor: string; source: string; daysUntouched: number; link: string }[] = [];
     const reEnquiriesWithin: { name: string; counsellor: string; lastReEnquiryAt: string }[] = [];
     let reEnquiryTotal = 0;
 
@@ -333,7 +334,7 @@ export async function GET(req: Request) {
       }
 
       if (daysUntouched > 7 && fullName) {
-        awaitingRaw.push({ name: fullName, counsellor, source, daysUntouched: Math.round(daysUntouched) });
+        awaitingRaw.push({ name: fullName, counsellor, source, daysUntouched: Math.round(daysUntouched), link: `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${rec.id}` });
       }
 
       if (isReEnquiry) {

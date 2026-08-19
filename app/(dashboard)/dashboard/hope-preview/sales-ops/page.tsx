@@ -57,7 +57,7 @@ type SalesOpsData = {
   counsellors: Counsellor[];
   revenueBySource: { name: string; closings: number; revenue: number }[];
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
-  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number }[];
+  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; link: string }[];
   awaitingTotal: number;
   callActivity: CallStat[];
   meetings: MeetingSummary;
@@ -299,13 +299,15 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">Oldest untouched</div>
             <div className="space-y-2">
               {(data?.awaiting || []).slice(0, 4).map((a, i) => (
-                <div key={`${a.name}-${i}`} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
+                <a key={`${a.name}-${i}`} href={a.link} target="_blank" rel="noreferrer"
+                  title="Open this lead in Airtable"
+                  className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2 hover:border-brand hover:bg-[#FAFBFF] transition-colors">
                   <div className="min-w-0">
-                    <div className="text-[13px] truncate">{a.name}</div>
+                    <div className="text-[13px] truncate text-[#232D42]">{a.name}</div>
                     <div className="text-[11px] text-gray-500 truncate">{counsellorLabel(a.counsellor)} · {a.source}</div>
                   </div>
-                  <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap">{a.daysUntouched}d</div>
-                </div>
+                  <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap flex items-center gap-1">{a.daysUntouched}d <span className="text-gray-300 font-normal">↗</span></div>
+                </a>
               ))}
             </div>
             <div className="text-xs text-gray-400 mt-3">Oldest-untouched from the live Days Untouched field.</div>
@@ -559,8 +561,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </thead>
             <tbody>
               {data!.awaiting.map((a, i) => (
-                <tr key={`${a.name}-${i}`} className="border-t border-gray-100">
-                  <td className="py-2.5">{a.name}</td>
+                <tr key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
+                  className="border-t border-gray-100 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
+                  <td className="py-2.5 text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></td>
                   <td className="py-2.5">{a.counsellor}</td>
                   <td className="py-2.5">{a.source}</td>
                   <td className="py-2.5 text-right">{a.daysUntouched}</td>
