@@ -88,7 +88,6 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
   const { data, isLoading, error, refresh } = useApi<Board>(`/api/leads-crm/assignments?${qs}`);
   const { data: tracked, refresh: refreshTracked } = useApi<{ ids: string[]; persisted: boolean }>("/api/leads-crm/tracked");
 
-  const peak = useMemo(() => Math.max(1, ...(data?.rows || []).map((r) => r.total)), [data]);
   const dayLeads = useMemo(
     () => (openDay ? (data?.leads || []).filter((l) => l.day === openDay.key) : []),
     [data, openDay],
@@ -191,35 +190,38 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
               ))}
             </div>
           </div>
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
-            {data.rows.map((r) => (
-              <button key={r.key} onClick={() => setOpenDay(r)}
-                className="text-left rounded-xl border border-gray-100 bg-[#FAFBFF] p-4 hover:border-brand hover:bg-white transition-colors">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[13px] font-medium text-[#232D42]">
-                    {r.dow && <span className="text-gray-400 font-normal mr-1.5">{r.dow}</span>}{r.label}
-                  </span>
-                  {r.cold > 0 && <span className="text-[10px] text-[#B7791F] bg-amber-50 rounded-full px-1.5 py-0.5">{r.cold} cold</span>}
+          {data.rows[0] && (() => {
+            const r = data.rows[0];
+            const tmax = Math.max(1, ...data.counsellors.map((c) => r.by[c] || 0));
+            return (
+              <button onClick={() => setOpenDay(r)}
+                className="w-full text-left rounded-2xl border border-gray-100 bg-[#FAFBFF] px-7 py-6 hover:border-brand hover:bg-white transition-colors flex flex-col md:flex-row md:items-center gap-x-10 gap-y-5">
+                <div className="md:w-[220px] flex-shrink-0">
+                  <div className="text-[13px] font-medium text-[#232D42] flex items-center gap-2 flex-wrap">
+                    <span>{r.dow && <span className="text-gray-400 font-normal mr-1.5">{r.dow}</span>}{r.label}</span>
+                    <span className="text-[10px] text-brand bg-brand-light rounded-full px-1.5 py-0.5">Today</span>
+                    {r.cold > 0 && <span className="text-[10px] text-[#B7791F] bg-amber-50 rounded-full px-1.5 py-0.5">{r.cold} cold</span>}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2.5">
+                    <span className="text-[46px] leading-none font-semibold text-[#232D42] tabular-nums">{r.total}</span>
+                    <span className="text-[13px] text-gray-400">lead{r.total === 1 ? "" : "s"}</span>
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-1.5 mt-2.5 mb-3">
-                  <span className="text-[28px] leading-none font-semibold text-[#232D42] tabular-nums">{r.total}</span>
-                  <span className="text-[11px] text-gray-400">lead{r.total === 1 ? "" : "s"}</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex-1 w-full grid gap-x-10 gap-y-3.5 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
                   {data.counsellors.map((c) => (
-                    <div key={c} className="flex items-center gap-2">
-                      <span className="text-[11px] text-gray-500 w-[46px] flex-shrink-0 truncate">{c.split(" ")[0]}</span>
-                      <span className="flex-1 h-[6px] rounded-full bg-gray-100 overflow-hidden">
-                        <span className="block h-full rounded-full bg-brand" style={{ width: `${((r.by[c] || 0) / peak) * 100}%` }} />
+                    <div key={c} className="flex items-center gap-3">
+                      <span className="text-[12.5px] text-gray-500 w-[72px] flex-shrink-0 truncate">{c.split(" ")[0]}</span>
+                      <span className="flex-1 h-[9px] rounded-full bg-gray-100 overflow-hidden">
+                        <span className="block h-full rounded-full bg-brand" style={{ width: `${((r.by[c] || 0) / tmax) * 100}%` }} />
                       </span>
-                      <span className="text-[11px] tabular-nums w-[22px] text-right flex-shrink-0 text-[#232D42]">{r.by[c] || dash}</span>
+                      <span className="text-[13.5px] tabular-nums w-[34px] text-right flex-shrink-0 font-medium text-[#232D42]">{r.by[c] || dash}</span>
                     </div>
                   ))}
                 </div>
               </button>
-            ))}
-          </div>
-          <Foot>Click a card for that {bucket}&apos;s leads. <b className="text-[#3B4457] font-medium">Cold</b> = no CRM activity in over 7 days. Counted in IST.</Foot>
+            );
+          })()}
+          <Foot>Shows the current {bucket}. Click the card for its leads. <b className="text-[#3B4457] font-medium">Cold</b> = no CRM activity in over 7 days. Counted in IST.</Foot>
         </>
       ))}
 
