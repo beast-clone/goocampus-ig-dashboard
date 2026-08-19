@@ -11,6 +11,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Responsive
 // Stacked-bar colours for the day-wise interest chart (last = grey for "Other").
 const PALETTE = ["#3A57E8", "#0EA5E9", "#1AA053", "#F2B01E", "#8B5CF6", "#EC4899", "#8A92A6"];
 
+// Optional per-card range override for the interest chart. "match" = follow the top range.
+const CHART_RANGES = [
+  { v: "match", label: "Match top" }, { v: "7", label: "7d" }, { v: "30", label: "30d" },
+  { v: "90", label: "90d" }, { v: "180", label: "6m" }, { v: "365", label: "1y" },
+] as const;
+type ChartRange = (typeof CHART_RANGES)[number]["v"];
+
 // Sales Hub → Leads.
 //
 // Six tabs over ONE Airtable read (the API returns every aggregate from a single
@@ -97,37 +104,53 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
     [data, openDay],
   );
 
-  // Average leads generated per calendar day across the selected range.
+  // The interest chart can override the global range without touching the rest of
+  // the tab: "match" reuses the page-level data; a preset fetches its own board.
+  const [chartRange, setChartRange] = useState<ChartRange>("match");
+  const chartEff = useMemo(() => {
+    if (chartRange === "match") return { from: range.from, to: range.to };
+    const days = Number(chartRange);
+    const end = new Date(range.to + "T00:00:00Z").getTime();
+    const from = new Date(end - (days - 1) * 86_400_000).toISOString().slice(0, 10);
+    return { from, to: range.to };
+  }, [chartRange, range.from, range.to]);
+  const chartKey = chartRange === "match"
+    ? null
+    : `/api/leads-crm/assignments?${new URLSearchParams({ from: chartEff.from, to: chartEff.to, bucket }).toString()}`;
+  const { data: chartOverride, isLoading: chartLoading } = useApi<Board>(chartKey);
+  const chartSrc = chartRange === "match" ? data : (chartOverride || data);
+
+  // Average leads generated per calendar day across the chart's range.
   const avgPerDay = useMemo(() => {
-    if (!data) return 0;
-    const d0 = new Date(range.from + "T00:00:00Z").getTime();
-    const d1 = new Date(range.to + "T00:00:00Z").getTime();
+    if (!chartSrc) return 0;
+    const d0 = new Date(chartEff.from + "T00:00:00Z").getTime();
+    const d1 = new Date(chartEff.to + "T00:00:00Z").getTime();
     const days = Math.max(1, Math.round((d1 - d0) / 86_400_000) + 1);
-    return Math.round(data.generated / days);
-  }, [data, range]);
+    return Math.round(chartSrc.generated / days);
+  }, [chartSrc, chartEff]);
 
   // Day-wise leads stacked by primary interest — top 6 interests + "Other", oldest → newest.
   const chart = useMemo(() => {
-    if (!data) return { rows: [] as Record<string, string | number>[], keys: [] as string[] };
-    const top = [...data.interests].sort((a, b) => b.total - a.total).slice(0, 6).map((i) => i.interest);
+    if (!chartSrc) return { rows: [] as Record<string, string | number>[], keys: [] as string[] };
+    const top = [...chartSrc.interests].sort((a, b) => b.total - a.total).slice(0, 6).map((i) => i.interest);
     const topSet = new Set(top);
     const byBucket = new Map<string, Record<string, number>>();
     let hasOther = false;
-    for (const l of data.allLeads) {
+    for (const l of chartSrc.allLeads) {
       const k = topSet.has(l.interest) ? l.interest : ((hasOther = true), "Other");
       const m = byBucket.get(l.day) || {};
       m[k] = (m[k] || 0) + 1;
       byBucket.set(l.day, m);
     }
     const keys = hasOther ? [...top, "Other"] : top;
-    const rows = [...data.rows].reverse().map((r) => {
+    const rows = [...chartSrc.rows].reverse().map((r) => {
       const m = byBucket.get(r.key) || {};
       const row: Record<string, string | number> = { label: r.label };
       for (const k of keys) row[k] = m[k] || 0;
       return row;
     });
     return { rows, keys };
-  }, [data]);
+  }, [chartSrc]);
 
   const toggleStar = async (lead: BoardLead, on: boolean) => {
     await fetch("/api/leads-crm/tracked", {
@@ -262,11 +285,24 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
               <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
                 <div>
                   <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by primary interest</div>
-                  <div className="text-xs text-gray-400 mt-0.5">Every lead in the range, stacked by interest.</div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    {chartRange === "match"
+                      ? "Follows the range on top."
+                      : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartEff.from} → ${chartEff.to}`}
+                    {chartLoading && " · loading…"}
+                  </div>
                 </div>
-                <div className="rounded-xl border border-gray-100 bg-[#FAFBFF] px-4 py-2.5 text-center">
-                  <div className="text-[10px] uppercase tracking-wide text-gray-500">Avg leads / day</div>
-                  <div className="text-[22px] font-semibold text-[#232D42] tabular-nums leading-none mt-1">{fmtInt(avgPerDay)}</div>
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                    {CHART_RANGES.map((r) => (
+                      <button key={r.v} onClick={() => setChartRange(r.v)}
+                        className={`text-xs px-2.5 py-1.5 ${chartRange === r.v ? "bg-brand text-white" : "text-[#4A5468] hover:bg-gray-50"}`}>{r.label}</button>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFF] px-4 py-2 text-center flex-shrink-0">
+                    <div className="text-[10px] uppercase tracking-wide text-gray-500">Avg / day</div>
+                    <div className="text-[20px] font-semibold text-[#232D42] tabular-nums leading-none mt-1">{fmtInt(avgPerDay)}</div>
+                  </div>
                 </div>
               </div>
               <div style={{ width: "100%", height: 300 }}>
