@@ -53,8 +53,43 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as {
-      leadId?: string; toUserId?: string; fromUserId?: string; notes?: string; leadName?: string;
+      leadId?: string; leadIds?: string[]; toUserId?: string; fromUserId?: string; notes?: string; leadName?: string;
     };
+
+    // Bulk path — the Transfer tab hands over a whole selection at once. Each lead
+    // still becomes its own Pending row, so a partial failure leaves the rest valid
+    // and nothing is half-applied.
+    if (Array.isArray(body.leadIds)) {
+      const ids = body.leadIds.filter((x) => typeof x === "string");
+      const missing: string[] = [];
+      if (ids.length === 0) missing.push("At least one lead to reassign");
+      if (!body.toUserId) missing.push("A counsellor to reassign them to");
+      if (!body.notes || !body.notes.trim()) missing.push("A reason (it goes into Transfer Notes)");
+      if (missing.length) {
+        return NextResponse.json({ error: "Can't raise the transfers — some required fields are missing.", missing, gate: "create" }, { status: 422 });
+      }
+      // A cap, not a limit of the API: 200 rows is already a very large manual
+      // action, and an accidental select-all over months shouldn't fire thousands.
+      if (ids.length > 200) {
+        return NextResponse.json({ error: `That's ${ids.length} leads. Narrow the range — 200 is the most that can go in one go.` }, { status: 400 });
+      }
+
+      const actorBulk = getSessionUserId();
+      const noteBulk = actorBulk ? `${body.notes!.trim()} — raised by ${actorBulk} via dashboard` : body.notes!.trim();
+      const results = await Promise.allSettled(ids.map((id) =>
+        createTransferRequest({ leadRecordId: id, toUserId: body.toUserId!, fromUserId: body.fromUserId || undefined, notes: noteBulk })));
+
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected");
+      return NextResponse.json({
+        ok: failed.length === 0,
+        requested: ok,
+        failed: failed.length,
+        firstError: failed.length ? String((failed[0] as PromiseRejectedResult).reason).slice(0, 200) : null,
+        pending: true,
+        message: `${ok} transfer request${ok === 1 ? "" : "s"} raised. They move once the Airtable/n8n step runs.`,
+      }, { status: failed.length && !ok ? 502 : 200 });
+    }
 
     // Completeness gate — same 422 { error, missing, gate } shape the rest of the
     // dashboard uses, so the UI can list what's missing instead of a vague error.

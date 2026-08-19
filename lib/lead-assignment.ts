@@ -20,6 +20,7 @@ import {
   COUNSELLORS_TABLE,
   idleDays,
 } from "./sales-hub";
+import { getSupabase } from "./supabase";
 
 // Statuses that mean the lead is finished. Used by the nightly snapshot to decide
 // what's still worth tracking.
@@ -32,15 +33,53 @@ export function isClosedStatus(s: string): boolean {
 // No CRM activity in this many days = the lead has gone cold.
 const COLD_AFTER_DAYS = 7;
 
-// The people who actually work leads. Everything else in the CRM's Counsellor
-// field is either the holding pool (Maheen — where leads park before they're
-// distributed) or someone who happens to hold a stray record; showing either as a
-// counsellor made the board read as if six people were selling.
+// Holding leads is not the same as selling. Six people appear in the CRM's
+// Counsellor field; two of them actually call. The rest are the holding pool
+// (Maheen — where leads park before distribution), a partner router (Arun, who
+// passes leads to an external partner rather than calling them), and legacy
+// holders. Treating "has leads" as "is a counsellor" made every number wrong.
 //
-// Leads not held by one of these are excluded from this board entirely. The true
-// "leads generated" figure is unaffected — it's the KPI tile above this section.
-// Edit this list when the sales team changes.
-export const ACTIVE_COUNSELLORS = ["Robin Johnson J", "Jeswin Shaju"];
+// A role decides how someone is counted. Roles live in Supabase, not in this file
+// and not in Airtable, so when Arun starts calling you change his role in the UI
+// and he becomes a counsellor everywhere — columns, alerts, transfer targets — with
+// no code change and no edit to the CRM.
+export type Role = "counsellor" | "pool" | "partner" | "inactive";
+
+export const ROLE_LABEL: Record<Role, string> = {
+  counsellor: "Counsellor",
+  pool: "Holding pool",
+  partner: "Partner router",
+  inactive: "Inactive",
+};
+
+// Used until someone sets a role explicitly, and as the fallback if the roles
+// table hasn't been created yet.
+export const DEFAULT_ROLES: Record<string, Role> = {
+  "Robin Johnson J": "counsellor",
+  "Jeswin Shaju": "counsellor",
+  "Maheen Ejaz": "pool",
+  "Arun Kannan": "partner",
+  "Alfiya Naaz": "inactive",
+  "Ralph Leander D Cruz": "inactive",
+};
+
+// Anyone holding leads who has never been given a role. Treated as inactive for
+// counting, but surfaced in the Roles tab so they can be classified.
+export const UNCLASSIFIED: Role = "inactive";
+
+export async function getRoles(): Promise<Record<string, Role>> {
+  const db = getSupabase();
+  if (!db) return { ...DEFAULT_ROLES };
+  const { data, error } = await db.from("lead_roles").select("holder, role");
+  // Missing table = the migration hasn't been run; defaults still give a correct
+  // board, so this degrades quietly rather than blanking the page.
+  if (error || !data) return { ...DEFAULT_ROLES };
+  const out: Record<string, Role> = { ...DEFAULT_ROLES };
+  for (const r of data as { holder: string; role: string }[]) {
+    if (r.holder) out[r.holder] = (r.role as Role) || UNCLASSIFIED;
+  }
+  return out;
+}
 
 // Airtable collaborator cells arrive as { id, name, email }. pickName() gives the
 // label; transfers need the user id too.
@@ -95,6 +134,11 @@ export type BoardLead = {
   daysUntouched: number;
   cold: boolean;
   link: string;
+  role: Role;
+  ageDays: number;         // days since the lead arrived
+  callAttempts: number;
+  flaggedNew: boolean;     // assigned, still "New", no edit in >2 days
+  flaggedPool: boolean;    // stuck in the pool for >2 days
 };
 
 export type BoardRow = {
@@ -106,21 +150,55 @@ export type BoardRow = {
   cold: number;
 };
 
+export type InterestRow = {
+  interest: string;
+  total: number;
+  assigned: number;      // held by a counsellor
+  pool: number;          // waiting in the holding pool
+  partner: number;       // routed to a partner
+  other: number;         // held by someone inactive/unclassified
+  newOver2: number;      // assigned, still "New", no edit in >2 days
+  poolStuck: number;     // in the pool, created >2 days ago
+};
+
+export type HolderRow = {
+  holder: string;
+  userId: string;
+  role: Role;
+  total: number;
+  stillNew: number;
+  newOver2: number;
+  idle7: number;
+  neverCalled: number;
+  byStatus: { key: string; n: number }[];
+  byInterest: { key: string; n: number }[];
+};
+
 export type LeadBoard = {
   range: { from: string; to: string };
   bucket: Bucket;
-  counsellors: string[];    // column order, busiest first
+  generated: number;        // every lead created in range, whoever holds it
+  counsellors: string[];    // fixed column order for the per-day cards
   rows: BoardRow[];         // newest bucket first
   totals: { total: number; by: Record<string, number>; cold: number };
   roster: RosterEntry[];
-  leads: BoardLead[];
+  leads: BoardLead[];       // counsellor-held only — powers the per-day drill-down
+  allLeads: BoardLead[];    // every lead, for Transfer and the tracker
+  interests: InterestRow[];
+  holders: HolderRow[];
+  alerts: { newOver2: number; poolStuck: number; poolStuck15: number };
+  roles: Record<string, Role>;
 };
+
+// The two rules the team asked for.
+const NEW_ALERT_DAYS = 2;   // assigned + still "New" + no edit in this many days
+const POOL_ALERT_DAYS = 2;  // sitting in the pool this long without being assigned
 
 export type Bucket = "day" | "week" | "month";
 
 const CRM_FIELDS = [
   "Full Name", "Created Date", "Counsellor", "Lead Status",
-  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Actual Last Modified", "Link to Record",
+  "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Actual Last Modified", "Call Attempts", "Link to Record",
 ];
 
 // Leads with no counsellor still have to appear somewhere, or the row totals stop
@@ -170,7 +248,7 @@ function bucketOf(day: string, bucket: Bucket): { key: string; label: string; do
 }
 
 export async function getLeadBoard(from: string, to: string, bucket: Bucket): Promise<LeadBoard> {
-  const [leadRows, roster] = await Promise.all([
+  const [leadRows, roster, roles] = await Promise.all([
     airtableList<Record<string, unknown>>(CRM_TABLE, {
       filterByFormula: dateRangeFormula("Created Date", from, to),
       fields: CRM_FIELDS,
@@ -178,68 +256,126 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
       maxRecords: 20_000,
     }),
     getCounsellorRoster(),
+    getRoles(),
   ]);
 
-  const leads: BoardLead[] = [];
+  const roleOf = (holder: string): Role => roles[holder] || UNCLASSIFIED;
+
+  const leads: BoardLead[] = [];        // counsellor-held — the per-day cards
+  const allLeads: BoardLead[] = [];     // everything — Transfer + tracker
   const rowMap = new Map<string, BoardRow>();
   const volume = new Map<string, number>();
   const totalsBy: Record<string, number> = {};
-  let total = 0;
-  let coldTotal = 0;
+  const interestMap = new Map<string, InterestRow>();
+  const holderMap = new Map<string, HolderRow>();
+  const statusBy = new Map<string, Map<string, number>>();
+  const interestBy = new Map<string, Map<string, number>>();
+  let total = 0, coldTotal = 0, generated = 0;
+  let alertNew = 0, alertPool = 0, alertPool15 = 0;
 
   for (const rec of leadRows) {
     const f = rec.fields;
     const createdIso = pickName(f["Created Date"]);
     if (!createdIso) continue;
+    generated++;
 
     const user = pickUser(f["Counsellor"]);
-    const counsellor = user?.name || UNASSIGNED;
-    // Pool + stray holders never reach the board — see ACTIVE_COUNSELLORS.
-    if (!ACTIVE_COUNSELLORS.includes(counsellor)) continue;
-
+    const holder = user?.name || UNASSIGNED;
+    const role = user ? roleOf(holder) : "pool"; // no counsellor set = effectively unassigned
     const date = istDay(createdIso);
     const b = bucketOf(date, bucket);
-    const daysUntouched = idleDays(f);
-    const cold = daysUntouched > COLD_AFTER_DAYS;
+    const idle = idleDays(f);
+    const status = pickName(f["Lead Status"]) || "—";
+    const interest = pickName(f["Primary Interest (n8n)"]) || "— not set —";
+    const ageDays = Math.floor((Date.now() - Date.parse(createdIso)) / 86_400_000);
+    const calls = pickNumber(f["Call Attempts"]);
+    const cold = idle > COLD_AFTER_DAYS;
 
-    let row = rowMap.get(b.key);
-    if (!row) { row = { key: b.key, label: b.label, dow: b.dow, total: 0, by: {}, cold: 0 }; rowMap.set(b.key, row); }
-    row.total++;
-    row.by[counsellor] = (row.by[counsellor] || 0) + 1;
-    if (cold) row.cold++;
+    // The two alert rules.
+    const isCounsellor = role === "counsellor";
+    const flaggedNew = isCounsellor && status === "New" && idle > NEW_ALERT_DAYS;
+    const flaggedPool = role === "pool" && ageDays > POOL_ALERT_DAYS;
+    if (flaggedNew) alertNew++;
+    if (flaggedPool) { alertPool++; if (ageDays > 14) alertPool15++; }
 
-    total++;
-    totalsBy[counsellor] = (totalsBy[counsellor] || 0) + 1;
-    if (cold) coldTotal++;
-    volume.set(counsellor, (volume.get(counsellor) || 0) + 1);
-
-    leads.push({
+    const lead: BoardLead = {
       id: rec.id,
       name: pickName(f["Full Name"]) || "(no name)",
       source: pickName(f["Lead Source (n8n)"]) || "—",
-      interest: pickName(f["Primary Interest (n8n)"]) || "—",
+      interest,
       counsellor: user?.name || "",
       counsellorUserId: user?.id || "",
-      status: pickName(f["Lead Status"]) || "—",
+      status,
       day: b.key,
       date,
-      daysUntouched,
+      daysUntouched: idle,
       cold,
       link: pickName(f["Link to Record"]),
-    });
+      role,
+      ageDays,
+      callAttempts: calls,
+      flaggedNew,
+      flaggedPool,
+    };
+    allLeads.push(lead);
+
+    // ── by primary interest
+    let ir = interestMap.get(interest);
+    if (!ir) { ir = { interest, total: 0, assigned: 0, pool: 0, partner: 0, other: 0, newOver2: 0, poolStuck: 0 }; interestMap.set(interest, ir); }
+    ir.total++;
+    if (isCounsellor) { ir.assigned++; if (flaggedNew) ir.newOver2++; }
+    else if (role === "pool") { ir.pool++; if (flaggedPool) ir.poolStuck++; }
+    else if (role === "partner") ir.partner++;
+    else ir.other++;
+
+    // ── by holder
+    let hr = holderMap.get(holder);
+    if (!hr) {
+      hr = { holder, userId: user?.id || "", role, total: 0, stillNew: 0, newOver2: 0, idle7: 0, neverCalled: 0, byStatus: [], byInterest: [] };
+      holderMap.set(holder, hr);
+      statusBy.set(holder, new Map());
+      interestBy.set(holder, new Map());
+    }
+    hr.total++;
+    if (status === "New") hr.stillNew++;
+    if (flaggedNew) hr.newOver2++;
+    if (idle > COLD_AFTER_DAYS) hr.idle7++;
+    if (!(calls > 0)) hr.neverCalled++;
+    const sm = statusBy.get(holder)!; sm.set(status, (sm.get(status) || 0) + 1);
+    const im = interestBy.get(holder)!; im.set(interest, (im.get(interest) || 0) + 1);
+
+    // ── per-day cards: counsellors only
+    if (!isCounsellor) continue;
+    let row = rowMap.get(b.key);
+    if (!row) { row = { key: b.key, label: b.label, dow: b.dow, total: 0, by: {}, cold: 0 }; rowMap.set(b.key, row); }
+    row.total++;
+    row.by[holder] = (row.by[holder] || 0) + 1;
+    if (cold) row.cold++;
+    total++;
+    totalsBy[holder] = (totalsBy[holder] || 0) + 1;
+    if (cold) coldTotal++;
+    volume.set(holder, (volume.get(holder) || 0) + 1);
+    leads.push(lead);
   }
 
-  // Fixed order, not by volume — the same two people in the same two places every
-  // time, so the eye doesn't have to re-find a column when the range changes.
-  // Anyone with no leads in range is dropped rather than shown as a column of dashes.
-  const counsellors = ACTIVE_COUNSELLORS.filter((c) => (volume.get(c) || 0) > 0);
+  for (const [holder, hr] of holderMap) {
+    hr.byStatus = [...(statusBy.get(holder) || new Map())].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n);
+    hr.byInterest = [...(interestBy.get(holder) || new Map())].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n);
+  }
+
+  // Fixed order — the same people in the same places every time, so the eye
+  // doesn't have to re-find a column when the range changes.
+  const counsellors = Object.entries(roles)
+    .filter(([, r]) => r === "counsellor")
+    .map(([name]) => name)
+    .filter((c) => (volume.get(c) || 0) > 0)
+    .sort();
 
   // Anyone actually holding leads is a legitimate transfer target even if the
-  // Counsellors table doesn't list them (it currently misses several people who
-  // hold live leads). Roster entries stay first so the real list leads.
+  // Counsellors table doesn't list them.
   const known = new Set(roster.map((r) => r.userId));
   const fullRoster: RosterEntry[] = [...roster];
-  for (const l of leads) {
+  for (const l of allLeads) {
     if (l.counsellorUserId && !known.has(l.counsellorUserId)) {
       known.add(l.counsellorUserId);
       fullRoster.push({ name: l.counsellor, userId: l.counsellorUserId, email: "", label: l.counsellor, inRoster: false });
@@ -249,10 +385,16 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
   return {
     range: { from, to },
     bucket,
+    generated,
     counsellors,
-    rows: [...rowMap.values()].sort((a, b) => (a.key < b.key ? 1 : -1)), // newest first
+    rows: [...rowMap.values()].sort((a, b) => (a.key < b.key ? 1 : -1)),
     totals: { total, by: totalsBy, cold: coldTotal },
     roster: fullRoster,
     leads,
+    allLeads,
+    interests: [...interestMap.values()].sort((a, b) => b.total - a.total),
+    holders: [...holderMap.values()].sort((a, b) => b.total - a.total),
+    alerts: { newOver2: alertNew, poolStuck: alertPool, poolStuck15: alertPool15 },
+    roles,
   };
 }
