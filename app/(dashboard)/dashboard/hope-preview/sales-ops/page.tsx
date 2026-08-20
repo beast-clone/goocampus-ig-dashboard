@@ -4,7 +4,6 @@ import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/Hop
 import { HopeSelect } from "@/app/(dashboard)/dashboard/hope-preview/HopeSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
-import { LeadAssignment } from "./LeadAssignment";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
 type Counsellor = {
@@ -193,6 +192,16 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const totalStatus = useMemo(() => data?.byStatus.reduce((s, i) => s + i.count, 0) || 0, [data]);
   const maxSource = useMemo(() => data?.bySource.reduce((m, s) => Math.max(m, s.count), 1) || 1, [data]);
   const assignedToTeam = useMemo(() => (data?.counsellors || []).filter((c) => c.name !== "Unassigned").reduce((s, c) => s + c.assigned, 0), [data]);
+  // Inclusive day count for the selected range — "21 Jul → 20 Aug" is 31 days, not 30.
+  const rangeDayCount = useMemo(() => {
+    const a = Date.parse(range.from + "T00:00:00Z"), b = Date.parse(range.to + "T00:00:00Z");
+    if (Number.isNaN(a) || Number.isNaN(b)) return 1;
+    return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
+  }, [range.from, range.to]);
+  const avgLeadsPerDay = useMemo(
+    () => Math.round((data?.totals.leads || 0) / rangeDayCount),
+    [data, rangeDayCount],
+  );
   const sortedCounsellors = useMemo(
     () => [...(data?.counsellors || [])].sort((a, b) => (isBucket(b.name) ? 1 : 0) - (isBucket(a.name) ? 1 : 0) || b.assigned - a.assigned),
     [data],
@@ -223,8 +232,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-6 gap-5">
+      <div className="grid grid-cols-7 gap-5">
         <KpiTile label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
+        <KpiTile label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
         <KpiTile label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
         <KpiTile label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first edit · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
         <KpiTile label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
@@ -384,10 +394,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           Status mix: <span style={{ color: "#93A9F6" }}>New</span> / <span style={{ color: "#B7791F" }}>In-progress</span> / <span style={{ color: "#C0392B" }}>Junk</span> / <span style={{ color: "#0F9D58" }}>Qualified+</span>.
         </div>
       </Card>
-
-      {/* Lead assignment & tracker — per-lead view of the round-robin's output,
-          with revoke/reassign and the nightly per-lead history. */}
-      <LeadAssignment range={range} />
 
       {/* Conversion & revenue by source */}
       <Card>

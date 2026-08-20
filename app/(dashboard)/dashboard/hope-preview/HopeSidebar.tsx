@@ -6,6 +6,7 @@ import {
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
+  IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
@@ -78,7 +79,16 @@ const GROUPS: Group[] = [
   { label: "Sales", items: [
     { label: "Inbox",         href: `${HUB}/inbox`,          icon: IconInbox },
     { label: "Social Leads",  href: `${HUB}/leads`,          icon: IconUserDollar },
-    { label: "Sales Hub",     href: `${HUB}/sales-ops`,      icon: IconReportMoney },
+    // Sales Hub is a folder, not a page with tabs inside it: the six views were
+    // in-page tabs and read as a second, competing navigation next to the sidebar.
+    { key: "sales-hub", label: "Sales Hub", icon: IconReportMoney, href: `${HUB}/sales-ops`, children: [
+      { label: "Per day",       href: `${HUB}/sales-ops/per-day`,     icon: IconCalendarStats },
+      { label: "By interest",   href: `${HUB}/sales-ops/interests`,   icon: IconChartPie },
+      { label: "Counsellors",   href: `${HUB}/sales-ops/counsellors`, icon: IconUsers },
+      { label: "Leads tracker", href: `${HUB}/sales-ops/tracker`,     icon: IconTimeline },
+      { label: "Transfer",      href: `${HUB}/sales-ops/transfer`,    icon: IconArrowsExchange },
+      { label: "Roles",         href: `${HUB}/sales-ops/roles`,       icon: IconIdBadge2 },
+    ] },
     { label: "Organic Sales", href: `${HUB}/organic-sales`,  icon: IconBook2 },
   ] },
   { label: "AI", items: [

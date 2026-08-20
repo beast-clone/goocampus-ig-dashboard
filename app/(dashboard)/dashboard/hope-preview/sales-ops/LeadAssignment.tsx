@@ -12,18 +12,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Responsive
 // Stacked-bar colours for the day-wise interest chart (last = grey for "Other").
 const PALETTE = ["#3A57E8", "#0EA5E9", "#1AA053", "#F2B01E", "#8B5CF6", "#EC4899", "#8A92A6"];
 
-// This chart can look at a different window from the rest of the page. "page" =
-// don't override, just follow the date range in the page header.
-const CHART_RANGES = [
-  { v: "page", label: "Page range", hint: "Follow the date range at the top of the page" },
-  { v: "7", label: "7d", hint: "Last 7 days, regardless of the page range" },
-  { v: "30", label: "30d", hint: "Last 30 days, regardless of the page range" },
-  { v: "90", label: "90d", hint: "Last 90 days, regardless of the page range" },
-  { v: "180", label: "6m", hint: "Last 6 months, regardless of the page range" },
-  { v: "365", label: "1y", hint: "Last 12 months, regardless of the page range" },
-] as const;
-type ChartRange = (typeof CHART_RANGES)[number]["v"];
-
 // The chart can be sliced by any of these dimensions (all carried on each lead).
 // `noun` is the already-cased form for the heading — lowercasing the label turned
 // the SBU acronym into "sbu".
@@ -105,8 +93,11 @@ type TabKey = (typeof TABS)[number]["key"];
 const dash = <span className="text-gray-300">—</span>;
 const n0 = (n: number) => (n ? fmtInt(n) : dash);
 
-export function LeadAssignment({ range }: { range: { from: string; to: string } }) {
-  const [tab, setTab] = useState<TabKey>("day");
+// `only` pins the component to a single view and hides the tab bar — each Sales Hub
+// sub-page renders one. Without it (nothing does today) the tab bar comes back.
+export function LeadAssignment({ range, only }: { range: { from: string; to: string }; only?: TabKey }) {
+  const [tabState, setTab] = useState<TabKey>(only ?? "day");
+  const tab = only ?? tabState;
   const [bucket, setBucket] = useState<"day" | "week" | "month">("day");
   const [openDay, setOpenDay] = useState<BoardRow | null>(null);
   const [track, setTrack] = useState<BoardLead | null>(null);
@@ -121,38 +112,10 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
     [data, openDay],
   );
 
-  // The interest chart can override the global range without touching the rest of
-  // the tab: "page" reuses the page-level data; a preset fetches its own board.
-  const [chartRange, setChartRange] = useState<ChartRange>("page");
-  const chartEff = useMemo(() => {
-    if (chartRange === "page") return { from: range.from, to: range.to };
-    const days = Number(chartRange);
-    const end = new Date(range.to + "T00:00:00Z").getTime();
-    const from = new Date(end - (days - 1) * 86_400_000).toISOString().slice(0, 10);
-    return { from, to: range.to };
-  }, [chartRange, range.from, range.to]);
-  const chartKey = chartRange === "page"
-    ? null
-    : `/api/leads-crm/assignments?${new URLSearchParams({ from: chartEff.from, to: chartEff.to, bucket }).toString()}`;
-  const { data: chartOverride, isLoading: chartLoading } = useApi<Board>(chartKey);
-  const chartSrc = chartRange === "page" ? data : (chartOverride || data);
-
-  // Average leads generated per calendar day.
-  //
-  // The day count comes from the payload's OWN range, never the requested one.
-  // chartSrc deliberately falls back to the previous payload while an override is
-  // in flight (so the bars don't blank out), and dividing last month's total by a
-  // 90-day span rendered a confident, wrong "9" — the numerator and denominator
-  // were describing different windows. Reading both off the same payload makes
-  // that impossible.
-  const avgPerDay = useMemo(() => {
-    if (!chartSrc?.range) return 0;
-    const d0 = Date.parse(chartSrc.range.from + "T00:00:00Z");
-    const d1 = Date.parse(chartSrc.range.to + "T00:00:00Z");
-    if (Number.isNaN(d0) || Number.isNaN(d1)) return 0;
-    const days = Math.max(1, Math.round((d1 - d0) / 86_400_000) + 1);
-    return Math.round(chartSrc.generated / days);
-  }, [chartSrc]);
+  // ONE date filter per page — the range in the page header. The chart used to
+  // carry its own 7d/30d/90d override, which meant two competing time controls on
+  // screen and a chart that could silently disagree with every number around it.
+  const chartSrc = data;
 
   // Day-wise leads stacked by the chosen dimension — top 6 categories + "Other", oldest → newest.
   const [breakBy, setBreakBy] = useState<BreakBy>("interest");
@@ -200,7 +163,9 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
     <div className="bg-white rounded-xl border border-gray-100 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
         <div>
-          <div className="text-base font-medium text-[#232D42]">Leads</div>
+          <div className="text-base font-medium text-[#232D42]">
+            {only ? TABS.find((t) => t.key === only)?.label : "Leads"}
+          </div>
           <div className="text-sm text-gray-500 mt-0.5">
             {data ? `${fmtInt(data.generated)} generated · ${range.from} → ${range.to}` : "Loading…"}
           </div>
@@ -219,7 +184,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
 
       {/* The two rules the team asked for, as standing alerts. */}
       {data && data.alerts.newOver2 > 0 && (
-        <button onClick={() => { setTab("tracker"); setOpenDay(null); }}
+        <button onClick={() => { if (only) { window.location.href = "/dashboard/hope-preview/sales-ops/tracker"; return; } setTab("tracker"); setOpenDay(null); }}
           className="w-full text-left mb-2.5 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5 hover:border-red-300">
           <IconAlertTriangle size={16} className="text-[#C0392B] flex-shrink-0 mt-0.5" />
           <span className="text-[13px] text-[#8E2C21] leading-relaxed">
@@ -229,7 +194,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
         </button>
       )}
       {data && data.alerts.poolStuck > 0 && (
-        <button onClick={() => { setTab("interest"); setOpenDay(null); }}
+        <button onClick={() => { if (only) { window.location.href = "/dashboard/hope-preview/sales-ops/interests"; return; } setTab("interest"); setOpenDay(null); }}
           className="w-full text-left mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2.5 hover:border-amber-300">
           <IconHourglassLow size={16} className="text-[#B7791F] flex-shrink-0 mt-0.5" />
           <span className="text-[13px] text-[#8A6D1F] leading-relaxed">
@@ -239,7 +204,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
         </button>
       )}
 
-      <div className="flex gap-1 border-b border-gray-100 mb-5 flex-wrap">
+      <div className={`flex gap-1 border-b border-gray-100 mb-5 flex-wrap ${only ? "hidden" : ""}`}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => { setTab(t.key); setOpenDay(null); }}
             className={`text-[13.5px] font-medium px-3 py-2 border-b-2 -mb-px transition-colors ${
@@ -324,12 +289,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                     One bar per {bucket}, full height = all leads that arrived.
                     {" "}Colours split it by the 6 biggest — the rest group into <b className="font-medium">Other</b>.
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {chartRange === "page"
-                      ? "Following the date range at the top of the page."
-                      : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartSrc?.range.from} → ${chartSrc?.range.to}`}
-                    {chartLoading && " · loading…"}
-                  </div>
+
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex items-center gap-1.5 text-xs text-gray-500">
@@ -337,18 +297,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                     <HopeSelect value={breakBy} onChange={(v) => setBreakBy(v as BreakBy)}
                       options={BREAKDOWNS.map((b) => ({ value: b.v, label: b.label }))} />
                   </label>
-                  <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                    {CHART_RANGES.map((r) => (
-                      <button key={r.v} onClick={() => setChartRange(r.v)} title={r.hint}
-                        className={`text-xs px-2.5 py-1.5 ${chartRange === r.v ? "bg-brand text-white" : "text-[#4A5468] hover:bg-gray-50"}`}>{r.label}</button>
-                    ))}
-                  </div>
-                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFF] px-4 py-2 text-center flex-shrink-0">
-                    <div className="text-[10px] uppercase tracking-wide text-gray-500">Avg / day</div>
-                    <div className={`text-[20px] font-semibold tabular-nums leading-none mt-1 ${chartLoading ? "text-gray-300" : "text-[#232D42]"}`}>
-                      {chartLoading ? "…" : fmtInt(avgPerDay)}
-                    </div>
-                  </div>
+
                 </div>
               </div>
               <div style={{ width: "100%", height: 300 }}>
