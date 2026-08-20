@@ -4,6 +4,8 @@ import { fetchRoster, rosterById, invalidateRosterCache } from "@/lib/team-db";
 import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/passwords";
 import { cleanPermissions, cleanSections } from "@/lib/permissions";
+import { sendMail, hasEmail, maskEmail } from "@/lib/email";
+import { INVITE_TTL_MS, inviteKey } from "@/lib/invites";
 
 // Admin-only management of the team roster (Supabase `ind_users`).
 // GET   → the roster (no password hashes, just a has-password flag)
@@ -161,6 +163,67 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     invalidateRosterCache();
     return NextResponse.json({ ok: true });
+  }
+
+  // Email someone their way in. Deliberately does NOT send a password: they get a
+  // one-time code and choose their own, so an intercepted email is useless on its
+  // own and no reusable secret is ever written down.
+  if (action === "invite") {
+    const id = String(body.id ?? "").trim();
+    if (!id) return NextResponse.json({ error: "Need id" }, { status: 400 });
+
+    const person = await rosterById(id);
+    if (!person) return NextResponse.json({ error: "No such person." }, { status: 404 });
+    if (!person.email) {
+      return NextResponse.json({ error: `${person.first || person.name} has no email on file — add one first.` }, { status: 400 });
+    }
+    if (!hasEmail()) {
+      return NextResponse.json(
+        { error: "Email isn't set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD to .env.local (Google Account -> Security -> 2-Step Verification -> App passwords)." },
+        { status: 503 },
+      );
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = Date.now() + INVITE_TTL_MS;
+    const { error: sErr } = await sb.from("discover_cache").upsert(
+      { cache_key: inviteKey(id), source: "invite_otp", last_fetched: new Date().toISOString(), payload: { codeHash: hashPassword(code), expiresAt } },
+      { onConflict: "cache_key" },
+    );
+    if (sErr) return NextResponse.json({ error: "Couldn't create the invite — try again." }, { status: 502 });
+
+    const base = process.env.PUBLIC_BASE_URL || new URL(req.url).origin;
+    const link = `${base}/invite`;
+    const who = person.first || person.name || "there";
+    try {
+      await sendMail({
+        to: person.email,
+        subject: "Your GooCampus dashboard access",
+        text: [
+          `Hi ${who},`, "",
+          "You've been given access to the GooCampus Marketing dashboard.", "",
+          `1. Go to ${link}`,
+          `2. Enter this email: ${person.email}`,
+          `3. Enter this code: ${code}`,
+          "4. Choose your own password", "",
+          "The code expires in 24 hours. If you weren't expecting this, ignore this email.", "",
+          "- GooCampus Dashboard",
+        ].join("\n"),
+        html: `<div style="font-family:Inter,Arial,sans-serif;color:#232D42;line-height:1.6">
+          <p>Hi ${who},</p>
+          <p>You've been given access to the <b>GooCampus Marketing dashboard</b>.</p>
+          <p style="margin:18px 0"><a href="${link}" style="background:#3A57E8;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;display:inline-block">Set up your access</a></p>
+          <p>Use <b>${person.email}</b> and this code:</p>
+          <p style="font-size:28px;font-weight:700;letter-spacing:4px;color:#3A57E8;margin:8px 0">${code}</p>
+          <p>You'll choose your own password on the next screen.</p>
+          <p style="color:#8A92A6;font-size:13px">The code expires in 24 hours. If you weren't expecting this, you can ignore this email.</p>
+          <p style="color:#8A92A6;font-size:13px">- GooCampus Dashboard</p>
+        </div>`,
+      });
+    } catch {
+      return NextResponse.json({ error: "Couldn't send the email - check the mail settings and try again." }, { status: 502 });
+    }
+    return NextResponse.json({ ok: true, sentTo: maskEmail(person.email) });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

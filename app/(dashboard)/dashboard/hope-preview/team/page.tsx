@@ -86,9 +86,10 @@ function TeamManager() {
     // every row wrap onto two lines. It runs to the edge of the dashboard now.
     <div className="space-y-4">
       <div className="rounded-xl bg-brand-light border border-brand/20 px-4 py-3 text-sm text-brand">
-        Admin and active changes apply the next time that person signs in. Someone with a
-        <span className="font-medium"> personal password</span> can only sign in with it — the shared
-        team password stops working for them. People without one keep using the shared password.
+        <span className="font-medium">Send invite</span> emails someone the dashboard link and a
+        6-digit code to set their own password — the code lasts 24 hours and the password is never
+        emailed. Someone with a personal password can only sign in with it; the shared team password
+        stops working for them. Admin and active changes apply from their next sign-in.
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -228,9 +229,25 @@ function TeamManager() {
                         ) : (
                           <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1 whitespace-nowrap">Shared</span>
                         )}
+                        {/* The normal way in. Emails them a one-time code so they pick
+                            their own password — nothing reusable travels by email, and
+                            nobody here ever knows what they chose. Setting a password by
+                            hand still works, for someone with no email or no patience. */}
+                        <button
+                          disabled={busy || !m.email}
+                          title={m.email ? `Email ${m.name} a code to set their own password` : "Add an email address first"}
+                          onClick={async () => {
+                            if (await call("POST", { action: "invite", id: m.id })) {
+                              flash(`Invite emailed to ${m.first} — they'll set their own password.`);
+                            }
+                          }}
+                          className="text-xs font-medium text-brand hover:underline whitespace-nowrap disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
+                        >
+                          {m.hasPassword ? "Re-send invite" : "Send invite"}
+                        </button>
                         <button
                           onClick={() => { setPwFor(m.id); setPwValue(""); }}
-                          className="text-xs text-brand hover:underline whitespace-nowrap"
+                          className="text-xs text-gray-400 hover:text-gray-900 whitespace-nowrap"
                         >
                           {m.hasPassword ? "Change password" : "Set password"}
                         </button>
