@@ -50,30 +50,46 @@ const GROUPS: Group[] = [
 
 const TOTAL = GROUPS.reduce((s, g) => s + g.tools.length, 0);
 
+// Flattened once: the page is a single table, so the group only survives as a
+// column. Per-category grids left a one-tool category like Automation sitting
+// beside three empty columns.
+const ROWS = GROUPS.flatMap((g) => g.tools.map((t) => ({ ...t, category: g.title })));
+
 export default function ToolsPage() {
   return (
     <HopeDashboardShell active="tools" title="Tools" subtitle="The stack behind the Marketing OS — what each tool does." hideAccountPicker>
       {() => (
-        <div className="space-y-8">
-          <div className="text-xs text-gray-500">{TOTAL} tools across {GROUPS.length} categories.</div>
-          {GROUPS.map((g) => (
-            <div key={g.title}>
-              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-3">{g.title}</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {g.tools.map((t) => (
-                  <div key={t.name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ background: t.color }}>
-                      {t.mark}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-base font-medium text-[#232D42]">{t.name}</div>
-                      <div className="text-[12px] text-gray-500 leading-snug mt-0.5">{t.purpose}</div>
-                    </div>
-                  </div>
+        <div className="bg-white rounded-xl border border-gray-100 p-6">
+          <div className="text-sm text-gray-500 mb-4">{TOTAL} tools across {GROUPS.length} categories.</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-100">
+                  <th className="py-2.5 pr-4 font-normal text-left text-[11px] uppercase tracking-wide">Tool</th>
+                  <th className="py-2.5 px-3 font-normal text-left text-[11px] uppercase tracking-wide">Category</th>
+                  <th className="py-2.5 pl-3 font-normal text-left text-[11px] uppercase tracking-wide">What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ROWS.map((t) => (
+                  <tr key={t.name} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2.5 pr-4">
+                      <span className="flex items-center gap-2.5">
+                        {/* Monogram, not a logo file — works offline and never trips the CSP. */}
+                        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-semibold text-[11px] flex-shrink-0"
+                          style={{ background: t.color }}>{t.mark}</span>
+                        <span className="font-medium text-[#232D42] whitespace-nowrap">{t.name}</span>
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="text-[11px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">{t.category}</span>
+                    </td>
+                    <td className="py-2.5 pl-3 text-gray-500">{t.purpose}</td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </HopeDashboardShell>
