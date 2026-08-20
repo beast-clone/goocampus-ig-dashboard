@@ -20,13 +20,18 @@ export async function GET() {
   try {
     const roles = await getRoles();
     const db = getSupabase();
-    // Tell the UI whether edits will actually stick.
+    // Who last changed each role and when — so the table can show its own audit
+    // trail rather than just the current value.
+    const meta: Record<string, { updatedBy: string | null; updatedAt: string | null }> = {};
     let persisted = false;
     if (db) {
-      const { error } = await db.from("lead_roles").select("holder").limit(1);
+      const { data, error } = await db.from("lead_roles").select("holder, updated_by, updated_at");
       persisted = !error;
+      for (const r of (data || []) as { holder: string; updated_by: string | null; updated_at: string | null }[]) {
+        meta[r.holder] = { updatedBy: r.updated_by, updatedAt: r.updated_at };
+      }
     }
-    return NextResponse.json({ roles, persisted, defaults: DEFAULT_ROLES });
+    return NextResponse.json({ roles, meta, persisted, defaults: DEFAULT_ROLES });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not load roles"), { status: 502 });
   }

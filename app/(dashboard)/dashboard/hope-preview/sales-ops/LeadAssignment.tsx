@@ -830,10 +830,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /* ── roles tab ─────────────────────────────────────────────────── */
 
+type RolesMeta = Record<string, { updatedBy: string | null; updatedAt: string | null }>;
+
 function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [local, setLocal] = useState<Record<string, Role>>(data.roles);
+  // Who changed each role and when — the roles table keeps its own audit columns.
+  const { data: rolesInfo, refresh: refreshRoles } =
+    useApi<{ roles: Record<string, Role>; meta: RolesMeta }>("/api/leads-crm/roles");
+  const meta: RolesMeta = rolesInfo?.meta || {};
 
   const save = async (holder: string, role: Role) => {
     setSaving(holder); setErr(null);
@@ -850,6 +856,7 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
         setErr((j as { error?: string }).error || `HTTP ${res.status}`);
         return;
       }
+      refreshRoles();
       onSaved();
     } catch (e) {
       setLocal((r) => ({ ...r, [holder]: prev }));
@@ -861,17 +868,38 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
     <>
       {err && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</div>}
 
-      <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
-        {data.holders.map((h) => (
-          <div key={h.holder} className="rounded-xl border border-gray-100 p-4">
-            <div className="font-medium text-[#232D42] mb-2.5">{h.holder}</div>
-            <HopeSelect value={local[h.holder] || "inactive"} disabled={saving === h.holder} className="w-full justify-between"
-              onChange={(v) => save(h.holder, v as Role)}
-              options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-500 border-b border-gray-100">
+              <th className="py-2.5 pr-4 font-normal text-left text-[11px] uppercase tracking-wide">Holder</th>
+              <th className="py-2.5 px-3 font-normal text-left text-[11px] uppercase tracking-wide">Role</th>
+              <th className="py-2.5 px-3 font-normal text-left text-[11px] uppercase tracking-wide">Changed by</th>
+              <th className="py-2.5 pl-3 font-normal text-left text-[11px] uppercase tracking-wide">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.holders.map((h) => {
+              const m = meta[h.holder];
+              return (
+                <tr key={h.holder} className="border-b border-gray-50">
+                  <td className="py-2.5 pr-4 font-medium text-[#232D42] whitespace-nowrap">{h.holder}</td>
+                  <td className="py-2.5 px-3">
+                    <HopeSelect value={local[h.holder] || "inactive"} disabled={saving === h.holder}
+                      onChange={(v) => save(h.holder, v as Role)}
+                      options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />
+                  </td>
+                  {/* Never edited since it was seeded — no name to show, so say nothing. */}
+                  <td className="py-2.5 px-3 text-gray-500">{m?.updatedBy || dash}</td>
+                  <td className="py-2.5 pl-3 text-gray-500 whitespace-nowrap">
+                    {m?.updatedBy && m?.updatedAt ? fmtDateTime(m.updatedAt) : dash}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
     </>
   );
 }
