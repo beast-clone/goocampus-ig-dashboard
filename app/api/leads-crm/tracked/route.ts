@@ -13,7 +13,9 @@ import { getSupabase } from "@/lib/supabase";
 // recorded by the nightly snapshot either way.
 
 const REC_ID = /^rec[A-Za-z0-9]{14}$/;
-const MISSING_TABLE = /relation .* does not exist/i;
+// PostgREST reports a missing table as "Could not find the table 'public.x' in
+// the schema cache"; Postgres itself uses 42P01 / "does not exist". Match both.
+const MISSING_TABLE = /does not exist|schema cache|42P01/i;
 
 export async function GET() {
   const denied = await requireSection("sales");

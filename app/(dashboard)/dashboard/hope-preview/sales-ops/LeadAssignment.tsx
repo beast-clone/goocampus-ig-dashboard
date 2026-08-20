@@ -150,14 +150,37 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
     return { rows, keys };
   }, [chartSrc, breakBy]);
 
+  // Pinning threw away the response, so when the write failed the star simply
+  // didn't move and nothing was said — the click looked like it did nothing.
+  // Now it moves immediately, confirms, and reverts loudly if the write is refused.
+  const [pinNote, setPinNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
+
   const toggleStar = async (lead: BoardLead, on: boolean) => {
-    await fetch("/api/leads-crm/tracked", {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-      body: JSON.stringify({ leadId: lead.id, leadName: lead.name, on }),
-    });
-    refreshTracked();
+    setOptimistic((o) => ({ ...o, [lead.id]: on }));
+    setPinNote(null);
+    try {
+      const res = await fetch("/api/leads-crm/tracked", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ leadId: lead.id, leadName: lead.name, on }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOptimistic((o) => { const n = { ...o }; delete n[lead.id]; return n; });
+        setPinNote({ ok: false, text: (j as { error?: string }).error || `Couldn't save that (HTTP ${res.status}).` });
+        return;
+      }
+      setPinNote({ ok: true, text: on ? `“${lead.name}” added to the Leads tracker.` : `“${lead.name}” removed from the tracker.` });
+      refreshTracked();
+    } catch (e) {
+      setOptimistic((o) => { const n = { ...o }; delete n[lead.id]; return n; });
+      setPinNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
   };
+
   const starred = new Set(tracked?.ids || []);
+  // Apply the in-flight optimistic state on top of what the server last told us.
+  for (const [id, on] of Object.entries(optimistic)) { if (on) starred.add(id); else starred.delete(id); }
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
@@ -177,6 +200,15 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       {error && (
         <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           Couldn&apos;t load — {(error as Error).message}
+        </div>
+      )}
+
+      {pinNote && (
+        <div className={`mb-4 flex items-start gap-2 text-[13px] rounded-lg px-3 py-2.5 border ${
+          pinNote.ok ? "bg-emerald-50 border-emerald-200 text-[#1F7256]" : "bg-red-50 border-red-200 text-[#8E2C21]"}`}>
+          {pinNote.ok ? <IconCircleCheck size={16} className="flex-shrink-0 mt-0.5" /> : <IconAlertTriangle size={16} className="flex-shrink-0 mt-0.5" />}
+          <span className="leading-relaxed">{pinNote.text}</span>
+          <button onClick={() => setPinNote(null)} className="ml-auto text-lg leading-none opacity-60 hover:opacity-100">×</button>
         </div>
       )}
 

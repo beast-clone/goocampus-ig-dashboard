@@ -55,7 +55,10 @@ export async function PUT(req: Request) {
       { onConflict: "holder" },
     );
     if (error) {
-      if (/relation .* does not exist/i.test(error.message)) {
+      // PostgREST says "Could not find the table … in the schema cache"; Postgres
+      // says 42P01 / "does not exist". Match both, or a missing table looks like
+      // a generic server error and the caller can't explain it.
+      if (/does not exist|schema cache|42P01/i.test(error.message)) {
         return NextResponse.json(
           { error: "Roles table is missing — run supabase/lead-roles-and-tracking.sql in the Supabase SQL editor first." },
           { status: 503 },
