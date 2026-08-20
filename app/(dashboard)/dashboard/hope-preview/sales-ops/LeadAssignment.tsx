@@ -12,17 +12,26 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Responsive
 // Stacked-bar colours for the day-wise interest chart (last = grey for "Other").
 const PALETTE = ["#3A57E8", "#0EA5E9", "#1AA053", "#F2B01E", "#8B5CF6", "#EC4899", "#8A92A6"];
 
-// Optional per-card range override for the interest chart. "match" = follow the top range.
+// This chart can look at a different window from the rest of the page. "page" =
+// don't override, just follow the date range in the page header.
 const CHART_RANGES = [
-  { v: "match", label: "Match top" }, { v: "7", label: "7d" }, { v: "30", label: "30d" },
-  { v: "90", label: "90d" }, { v: "180", label: "6m" }, { v: "365", label: "1y" },
+  { v: "page", label: "Page range", hint: "Follow the date range at the top of the page" },
+  { v: "7", label: "7d", hint: "Last 7 days, regardless of the page range" },
+  { v: "30", label: "30d", hint: "Last 30 days, regardless of the page range" },
+  { v: "90", label: "90d", hint: "Last 90 days, regardless of the page range" },
+  { v: "180", label: "6m", hint: "Last 6 months, regardless of the page range" },
+  { v: "365", label: "1y", hint: "Last 12 months, regardless of the page range" },
 ] as const;
 type ChartRange = (typeof CHART_RANGES)[number]["v"];
 
-// The interest chart can be sliced by any of these dimensions (all carried on each lead).
+// The chart can be sliced by any of these dimensions (all carried on each lead).
+// `noun` is the already-cased form for the heading — lowercasing the label turned
+// the SBU acronym into "sbu".
 const BREAKDOWNS = [
-  { v: "interest", label: "Primary interest" }, { v: "sbu", label: "SBU" },
-  { v: "counsellor", label: "Counsellor" }, { v: "source", label: "Source" },
+  { v: "interest", label: "Primary interest", noun: "primary interest" },
+  { v: "sbu", label: "SBU", noun: "SBU" },
+  { v: "counsellor", label: "Counsellor", noun: "counsellor" },
+  { v: "source", label: "Source", noun: "source" },
 ] as const;
 type BreakBy = (typeof BREAKDOWNS)[number]["v"];
 
@@ -113,20 +122,20 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
   );
 
   // The interest chart can override the global range without touching the rest of
-  // the tab: "match" reuses the page-level data; a preset fetches its own board.
-  const [chartRange, setChartRange] = useState<ChartRange>("match");
+  // the tab: "page" reuses the page-level data; a preset fetches its own board.
+  const [chartRange, setChartRange] = useState<ChartRange>("page");
   const chartEff = useMemo(() => {
-    if (chartRange === "match") return { from: range.from, to: range.to };
+    if (chartRange === "page") return { from: range.from, to: range.to };
     const days = Number(chartRange);
     const end = new Date(range.to + "T00:00:00Z").getTime();
     const from = new Date(end - (days - 1) * 86_400_000).toISOString().slice(0, 10);
     return { from, to: range.to };
   }, [chartRange, range.from, range.to]);
-  const chartKey = chartRange === "match"
+  const chartKey = chartRange === "page"
     ? null
     : `/api/leads-crm/assignments?${new URLSearchParams({ from: chartEff.from, to: chartEff.to, bucket }).toString()}`;
   const { data: chartOverride, isLoading: chartLoading } = useApi<Board>(chartKey);
-  const chartSrc = chartRange === "match" ? data : (chartOverride || data);
+  const chartSrc = chartRange === "page" ? data : (chartOverride || data);
 
   // Average leads generated per calendar day.
   //
@@ -310,14 +319,14 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
             <div className="mt-7">
               <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
                 <div>
-                  <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by {BREAKDOWNS.find((b) => b.v === breakBy)?.label.toLowerCase()}</div>
+                  <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by {BREAKDOWNS.find((b) => b.v === breakBy)?.noun}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
                     One bar per {bucket}, full height = all leads that arrived.
                     {" "}Colours split it by the 6 biggest — the rest group into <b className="font-medium">Other</b>.
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">
-                    {chartRange === "match"
-                      ? "Following the range at the top of the page."
+                    {chartRange === "page"
+                      ? "Following the date range at the top of the page."
                       : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartSrc?.range.from} → ${chartSrc?.range.to}`}
                     {chartLoading && " · loading…"}
                   </div>
@@ -330,7 +339,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                   </label>
                   <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
                     {CHART_RANGES.map((r) => (
-                      <button key={r.v} onClick={() => setChartRange(r.v)}
+                      <button key={r.v} onClick={() => setChartRange(r.v)} title={r.hint}
                         className={`text-xs px-2.5 py-1.5 ${chartRange === r.v ? "bg-brand text-white" : "text-[#4A5468] hover:bg-gray-50"}`}>{r.label}</button>
                     ))}
                   </div>
