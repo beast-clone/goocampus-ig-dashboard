@@ -113,7 +113,12 @@ export function dateRangeFormula(fieldName: string, from: string, to: string): s
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
     throw new Error("dateRangeFormula: from/to must be YYYY-MM-DD");
   }
-  const f = `{${fieldName}}`;
+  // Airtable stores these as UTC instants. Formatting without a timezone compared
+  // UTC days, so a lead created at, say, 01:00 IST — 19:30 UTC the day before —
+  // landed in the wrong day and could fall outside the range entirely at its edges.
+  // SET_TIMEZONE makes the comparison happen on IST calendar days, which is what
+  // "leads on 20 August" means to the team.
+  const f = `SET_TIMEZONE({${fieldName}}, 'Asia/Kolkata')`;
   return `AND(DATETIME_FORMAT(${f}, 'YYYY-MM-DD') >= '${from}', DATETIME_FORMAT(${f}, 'YYYY-MM-DD') <= '${to}')`;
 }
 

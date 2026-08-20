@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
+import { fmtDateTime } from "@/lib/date";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { HopeSelect } from "../HopeSelect";
 import {
@@ -986,7 +987,7 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
                         <span className="absolute -left-[4.5px] w-2 h-2 rounded-full ring-2 ring-white"
                           style={{ background: EVENT_DOT[e.kind] || "#3A57E8" }} />
                         <div className="text-[11px] text-gray-400 tabular-nums">
-                          {(e.at || "").replace("T", " ").slice(0, 16)}
+                          {fmtDateTime(e.at)}
                         </div>
                         <div className="text-[13px] text-[#232D42] font-medium">
                           {e.title}
@@ -1031,7 +1032,7 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
                     ["Source", l.source],
                     ["Campaign", l.campaign],
                     ["Location", l.location],
-                    ["Callback", String(l.scheduledCallback || "").replace("T", " ").slice(0, 16)],
+                    ["Callback", l.scheduledCallback ? fmtDateTime(String(l.scheduledCallback)) : ""],
                   ] as [string, unknown][]).filter(([, v]) => v).map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-3">
                       <dt className="text-gray-400">{k}</dt>
