@@ -1,4 +1,3 @@
-import { HopeSidebar } from "./HopeSidebar";
 
 // Shared Hope UI (Version 2) shell — theme root + the shared grouped sidebar
 // (HopeSidebar) + an optional topbar. Used by every cloned tab (via
@@ -19,31 +18,29 @@ export function HopeShell({
   headerRight?: React.ReactNode;
   hideTopbar?: boolean;
 }) {
+  // The theme root, the flex shell and the sidebar all live in the route layout
+  // now, so they survive navigation instead of being rebuilt per page. What's left
+  // here is this page's own main column.
+  void active;
   return (
-    <div className="hope-root">
-      <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
-      <div className="hshell">
-        <HopeSidebar active={active} />
-        <main className="hmain">
-          {!hideTopbar && (
-            <div className="htopbar">
-              <div className="htitle-wrap">
-                <p className="hbanner">
-                  <b>{title}</b>
-                </p>
-                {subtitle && <p className="hsub">{subtitle}</p>}
-              </div>
-              {headerRight && <div className="htopbar-right">{headerRight}</div>}
-            </div>
-          )}
-          {children}
-        </main>
-      </div>
-    </div>
+    <main className="hmain">
+      {!hideTopbar && (
+        <div className="htopbar">
+          <div className="htitle-wrap">
+            <p className="hbanner">
+              <b>{title}</b>
+            </p>
+            {subtitle && <p className="hsub">{subtitle}</p>}
+          </div>
+          {headerRight && <div className="htopbar-right">{headerRight}</div>}
+        </div>
+      )}
+      {children}
+    </main>
   );
 }
 
-const SHELL_CSS = `
+export const SHELL_CSS = `
 .hope-root{
   --bg:#F5F6FA;--panel:#FFFFFF;--panel-2:#F7F8FC;
   --ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;

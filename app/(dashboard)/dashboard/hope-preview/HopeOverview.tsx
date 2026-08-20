@@ -8,7 +8,6 @@ import {
   IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
   IconChevronDown, IconCheck,
 } from "@tabler/icons-react";
-import { HopeSidebar } from "./HopeSidebar";
 import { HopeDatePicker } from "./HopeDatePicker";
 import HubNotificationBell from "@/components/HubNotificationBell";
 import { HeaderProfile } from "@/components/HeaderProfile";
@@ -316,12 +315,9 @@ export function HopeOverview() {
   ] : [];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.heading }}>
-      {/* ───────── Sidebar ───────── */}
-      <HopeSidebar active="overview" />
-
-      {/* ───────── Main ───────── */}
-      <main style={{ flex: 1, minWidth: 0 }}>
+    // The flex shell and the sidebar come from the route layout; this page owns
+    // only its main column, which is full-bleed with its own sticky header.
+    <main style={{ flex: 1, minWidth: 0, color: C.heading }}>
         <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 28px", background: C.card, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 5 }}>
           {/* Brand / account switcher — which page's data the whole Overview shows */}
           <div style={{ position: "relative" }}>
@@ -608,7 +604,6 @@ export function HopeOverview() {
           )}
         </div>
       </main>
-    </div>
   );
 }
 

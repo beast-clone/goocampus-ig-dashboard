@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
-import { HopeSidebar } from "../HopeSidebar";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
@@ -2421,11 +2420,8 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
 
       {/* (Videos-up-for-grabs now surfaces through the chat-panel notification stack.) */}
 
-      <div className="shell">
-      {/* ── Shared V2 Hope sidebar — same grouped nav as every other V2 page,
-             so every link stays inside /dashboard/hope-preview (no V1 leaks). ── */}
-      <HopeSidebar active="my-day" />
-
+      {/* The shell and sidebar are in the route layout; this keeps its own main,
+          which carries the chat-pane padding. */}
       <div className={`main ${chatOpen ? "chatpad" : ""}`}>
 
         {/* The redundant top workspace-tab bar was removed — the sidebar's My Workspace
@@ -2751,7 +2747,6 @@ export function HopeMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { i
           <MemberHub person={person} tab={wsTab} />
         )}
       </div>
-      </div>{/* /shell */}
 
       {/* TEAM CHAT — collapsible slide-in panel */}
       <aside className={`chatpanel ${chatOpen ? "open" : ""}`}>

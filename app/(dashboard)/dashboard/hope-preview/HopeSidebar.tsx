@@ -29,10 +29,6 @@ type Folder = { key: string; label: string; icon: any; href?: string; children: 
 type Group = { label?: string; items: (Leaf | Folder)[] };
 const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 
-// Survives a remount (same module instance) but resets on a real page load — so
-// the sidebar stays put as you move between pages, and starts fresh on reload.
-let lastScrollTop = 0;
-
 const HUB = "/dashboard/hope-preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 
@@ -124,41 +120,36 @@ const GROUPS: Group[] = [
 //
 // Remember where it was and put it back before the browser paints, and if there's
 // nothing remembered (first load, new tab) bring the active item into view instead.
-export function HopeSidebar({ active }: { active: HopeTab }) {
+// `active` is gone: the sidebar lives in the layout now and works out what's
+// current from the pathname, which it already did for every leaf.
+export function HopeSidebar() {
   const asideRef = useRef<HTMLElement>(null);
 
 
   const pathname = usePathname();
 
-  // Every page renders its own copy of this sidebar, so navigating REMOUNTS it and
-  // its scroll starts at 0. Two things matter here, and the second is what made it
-  // visibly jump:
+  // The sidebar lives in the route layout, so it stays mounted across navigation
+  // and its scroll position simply never changes — nothing to save or restore.
   //
-  //   1. put the scroll back where it was — remembered in a module variable, which
-  //      survives a remount but resets on a real page load, exactly right
-  //   2. do it in useLayoutEffect, BEFORE the browser paints. An earlier version
-  //      used useEffect, which runs after paint: the sidebar was drawn at the top,
-  //      then snapped down. That snap was the jump.
+  // The one case still worth handling is arriving at a page whose nav item is off
+  // screen (a deep link, or a jump from a card elsewhere). Then, and only then,
+  // bring it into view. Correcting merely-near-an-edge items was making the
+  // sidebar shift by a few dozen pixels for no reason.
+  useLayoutEffect(() => {
+    const current = GROUPS.flatMap((g) => g.items).filter(isFolder).find(folderActive);
+    if (current) setOpenKeys((s) => (s[current.key] ? s : { ...s, [current.key]: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   useLayoutEffect(() => {
     const el = asideRef.current;
     if (!el || el.scrollHeight <= el.clientHeight) return;
-
-    if (lastScrollTop > 0) el.scrollTop = lastScrollTop;
-
-    // Only correct when the active item genuinely isn't in view — otherwise the
-    // remembered position is left alone and nothing moves at all.
     const current = el.querySelector<HTMLElement>(".hnavitem.active");
-    if (current) {
-      const box = current.getBoundingClientRect();
-      const frame = el.getBoundingClientRect();
-      const visible = box.top >= frame.top + 56 && box.bottom <= frame.bottom - 24;
-      if (!visible) el.scrollTop += (box.top - frame.top) - el.clientHeight / 2 + box.height / 2;
-    }
-    lastScrollTop = el.scrollTop;
-
-    const onScroll = () => { lastScrollTop = el.scrollTop; };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    if (!current) return;
+    const box = current.getBoundingClientRect();
+    const frame = el.getBoundingClientRect();
+    const offScreen = box.bottom <= frame.top || box.top >= frame.bottom;
+    if (offScreen) el.scrollTop += (box.top - frame.top) - el.clientHeight / 2 + box.height / 2;
   }, [pathname]);
   const searchParams = useSearchParams();
   const [hash, setHash] = useState("");
@@ -180,8 +171,12 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
     if (frag) return hash === frag;
     return true;
   };
-  const folderActive = (f: Folder) => (f.href ? isActive(f.href) : false) || f.children.some((c) => isActive(c.href)) || active === (f.key as HopeTab);
+  const folderActive = (f: Folder) => (f.href ? isActive(f.href) : false) || f.children.some((c) => isActive(c.href));
 
+  // A folder opens when you navigate into it and STAYS open. It used to fall back
+  // to "is this folder active", so leaving Sales Hub collapsed its six children and
+  // everything below them snapped up ~150px — then reappeared on the way back.
+  // That reflow was the jump; scroll position was never the whole story.
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
 
   const LeafRow = ({ leaf, indent }: { leaf: Leaf; indent?: boolean }) => {
@@ -193,7 +188,7 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
     );
   };
   const FolderRow = ({ f }: { f: Folder }) => {
-    const open = openKeys[f.key] ?? folderActive(f);
+    const open = openKeys[f.key] ?? folderActive(f);  // first visit: open if it's the one you're in
     const Icon = f.icon;
     const pActive = f.href ? isActive(f.href) : false;
     const semi = !pActive && folderActive(f);
