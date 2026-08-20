@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -28,6 +28,10 @@ type Leaf = { label: string; href: string; icon: any };
 type Folder = { key: string; label: string; icon: any; href?: string; children: Leaf[] };
 type Group = { label?: string; items: (Leaf | Folder)[] };
 const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
+
+// Survives a remount (same module instance) but resets on a real page load — so
+// the sidebar stays put as you move between pages, and starts fresh on reload.
+let lastScrollTop = 0;
 
 const HUB = "/dashboard/hope-preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
@@ -127,26 +131,34 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
   const pathname = usePathname();
 
   // Every page renders its own copy of this sidebar, so navigating REMOUNTS it and
-  // its scroll snaps back to 0. Sales Hub and its children sit ~1100px down a
-  // 1650px nav, so clicking a sub-page left you staring at Overview with the thing
-  // you just clicked 340px below the fold.
+  // its scroll starts at 0. Two things matter here, and the second is what made it
+  // visibly jump:
   //
-  // Restoring a remembered pixel offset proved unreliable (it clamps if applied
-  // before layout settles). Centring the active item is deterministic: wherever it
-  // is, you can see it and its siblings after every navigation. Runs after paint,
-  // when the folder is expanded and offsets are final, and moves only the sidebar —
-  // never the page.
-  useEffect(() => {
+  //   1. put the scroll back where it was — remembered in a module variable, which
+  //      survives a remount but resets on a real page load, exactly right
+  //   2. do it in useLayoutEffect, BEFORE the browser paints. An earlier version
+  //      used useEffect, which runs after paint: the sidebar was drawn at the top,
+  //      then snapped down. That snap was the jump.
+  useLayoutEffect(() => {
     const el = asideRef.current;
     if (!el || el.scrollHeight <= el.clientHeight) return;
+
+    if (lastScrollTop > 0) el.scrollTop = lastScrollTop;
+
+    // Only correct when the active item genuinely isn't in view — otherwise the
+    // remembered position is left alone and nothing moves at all.
     const current = el.querySelector<HTMLElement>(".hnavitem.active");
-    if (!current) return;
-    const box = current.getBoundingClientRect();
-    const frame = el.getBoundingClientRect();
-    const fullyVisible = box.top >= frame.top + 56 && box.bottom <= frame.bottom - 24;
-    if (fullyVisible) return;
-    const delta = box.top - frame.top;
-    el.scrollTop += delta - el.clientHeight / 2 + box.height / 2;
+    if (current) {
+      const box = current.getBoundingClientRect();
+      const frame = el.getBoundingClientRect();
+      const visible = box.top >= frame.top + 56 && box.bottom <= frame.bottom - 24;
+      if (!visible) el.scrollTop += (box.top - frame.top) - el.clientHeight / 2 + box.height / 2;
+    }
+    lastScrollTop = el.scrollTop;
+
+    const onScroll = () => { lastScrollTop = el.scrollTop; };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
   }, [pathname]);
   const searchParams = useSearchParams();
   const [hash, setHash] = useState("");
