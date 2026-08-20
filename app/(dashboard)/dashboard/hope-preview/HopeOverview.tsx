@@ -9,6 +9,7 @@ import {
   IconChevronDown, IconCheck,
 } from "@tabler/icons-react";
 import { HopeSidebar } from "./HopeSidebar";
+import { HopeDatePicker } from "./HopeDatePicker";
 import HubNotificationBell from "@/components/HubNotificationBell";
 import { HeaderProfile } from "@/components/HeaderProfile";
 import { OverviewExtras } from "@/components/OverviewExtras";
@@ -869,11 +870,13 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
       {rangeKey === "custom" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: "6px 10px" }}>
           {/* Capped at today — analytics can't report on a date that hasn't happened. */}
-          <input type="date" value={custom.from} max={custom.to && custom.to < todayLocalISO() ? custom.to : todayLocalISO()}
-            onChange={(e) => setCustom({ ...custom, from: clampToTodayISO(e.target.value) })} style={inputStyle} />
+          <HopeDatePicker size="sm" allowClear={false} value={custom.from}
+            max={custom.to && custom.to < todayLocalISO() ? custom.to : todayLocalISO()}
+            onChange={(v) => setCustom({ ...custom, from: clampToTodayISO(v) })} />
           <span style={{ color: C.muted, fontSize: 13 }}>→</span>
-          <input type="date" value={custom.to} min={custom.from || undefined} max={todayLocalISO()}
-            onChange={(e) => setCustom({ ...custom, to: clampToTodayISO(e.target.value) })} style={inputStyle} />
+          <HopeDatePicker size="sm" allowClear={false} value={custom.to}
+            min={custom.from || undefined} max={todayLocalISO()}
+            onChange={(v) => setCustom({ ...custom, to: clampToTodayISO(v) })} />
         </div>
       )}
     </div>

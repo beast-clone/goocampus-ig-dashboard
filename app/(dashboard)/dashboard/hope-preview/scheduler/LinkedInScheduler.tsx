@@ -134,7 +134,9 @@ export function LinkedInScheduler() {
         </div>
         {when === "later" && (
           <div className="flex gap-2 mb-4">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-lg border border-gray-200 focus:border-brand outline-none p-2 text-[13px] text-[#232D42]" />
+            <input type="date" value={date} min={new Date().toLocaleDateString("en-CA")}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-lg border border-gray-200 focus:border-brand outline-none p-2 text-[13px] text-[#232D42]" />
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-lg border border-gray-200 focus:border-brand outline-none p-2 text-[13px] text-[#232D42]" />
           </div>
         )}

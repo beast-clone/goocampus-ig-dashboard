@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
+import { HopeDatePicker, ymdStr } from "../HopeDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
@@ -2594,68 +2595,6 @@ function CollaboratorField({ value, onChange }: { value: string; onChange: (v: s
         className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand"
       />
       <div className="text-xs text-gray-400 mt-1">They&apos;re automatically invited when the post goes live. Up to 3 — separate with commas.</div>
-    </div>
-  );
-}
-
-// Hope-UI date picker — native <input type="date"> renders the un-themeable OS
-// calendar, so this is a custom popover styled to match the rest of the scheduler.
-// value/onChange use the native "YYYY-MM-DD" string so all existing logic is unchanged.
-function ymdStr(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function HopeDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const selected = value ? new Date(value + "T00:00:00") : null;
-  const today = new Date();
-  const [view, setView] = useState(() => { const b = selected || today; return { y: b.getFullYear(), m: b.getMonth() }; });
-  const monthLabel = new Date(view.y, view.m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  const firstDow = new Date(view.y, view.m, 1).getDay();
-  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(view.y, view.m, d));
-  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const label = selected ? selected.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "Pick a date";
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-2 text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 ${selected ? "text-gray-900" : "text-gray-400"}`}>
-        <IconCalendarEvent size={16} stroke={1.8} className="text-gray-400" />
-        <span className="whitespace-nowrap">{label}</span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 bottom-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-64">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-gray-900">{monthLabel}</div>
-              <div className="flex items-center gap-1">
-                <button type="button" aria-label="Previous month" onClick={() => setView((v) => { const m = v.m - 1; return m < 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m }; })} className="p-1 rounded hover:bg-gray-100 text-gray-500"><IconChevronLeft size={16} stroke={2} /></button>
-                <button type="button" aria-label="Next month" onClick={() => setView((v) => { const m = v.m + 1; return m > 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m }; })} className="p-1 rounded hover:bg-gray-100 text-gray-500"><IconChevronRight size={16} stroke={2} /></button>
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-0.5 mb-1">
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="text-xs text-gray-400 text-center font-medium">{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-0.5">
-              {cells.map((d, i) => d === null ? <div key={i} /> : (
-                <button key={i} type="button" onClick={() => { onChange(ymdStr(d)); setOpen(false); }}
-                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-lg transition ${
-                    selected && sameDay(d, selected) ? "bg-brand text-white font-medium"
-                      : sameDay(d, today) ? "border border-brand text-brand"
-                      : "text-gray-700 hover:bg-gray-100"}`}>
-                  {d.getDate()}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-xs text-gray-500 hover:text-gray-800">Clear</button>
-              <button type="button" onClick={() => { onChange(ymdStr(today)); setView({ y: today.getFullYear(), m: today.getMonth() }); setOpen(false); }} className="text-xs text-brand font-medium hover:underline">Today</button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { format, subDays } from "date-fns";
 import { IconCalendar } from "@tabler/icons-react";
+import { HopeDatePicker } from "@/app/(dashboard)/dashboard/hope-preview/HopeDatePicker";
 
 export type Range = { from: string; to: string };
 
@@ -101,22 +102,18 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
         {open && (
           <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[230px]">
             <div className="text-[11px] font-medium text-gray-500 mb-1">From</div>
-            <input
-              type="date"
-              value={value.from}
-              max={value.to && value.to < today ? value.to : today}
-              onChange={(e) => onChange({ ...value, from: clampToToday(e.target.value) })}
-              className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-200 mb-2.5"
-            />
+            <div className="mb-2.5">
+              <HopeDatePicker size="sm" allowClear={false}
+                value={value.from}
+                max={value.to && value.to < today ? value.to : today}
+                onChange={(v) => onChange({ ...value, from: clampToToday(v) })} />
+            </div>
             <div className="text-[11px] font-medium text-gray-500 mb-1">To</div>
-            <input
-              type="date"
+            <HopeDatePicker size="sm" allowClear={false}
               value={value.to}
               min={value.from || undefined}
               max={today}
-              onChange={(e) => onChange({ ...value, to: clampToToday(e.target.value) })}
-              className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-200"
-            />
+              onChange={(v) => onChange({ ...value, to: clampToToday(v) })} />
             <div className="text-[10.5px] text-gray-400 mt-2 leading-snug">
               Up to today — there&apos;s no data for a date that hasn&apos;t happened.
             </div>
