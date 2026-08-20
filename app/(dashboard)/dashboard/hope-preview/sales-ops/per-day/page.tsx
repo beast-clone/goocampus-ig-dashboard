@@ -6,7 +6,7 @@ import { LeadAssignment } from "../LeadAssignment";
 // the shell supplies the single date range every Sales page shares.
 export default function Page() {
   return (
-    <HopeDashboardShell active="sales" title="Per day" subtitle="How many leads arrived each day, and who they went to." hideAccountPicker>
+    <HopeDashboardShell active="sales" title="Per day" subtitle="How many leads arrived each day, and who they went to." hideAccountPicker compact>
       {({ range }) => <LeadAssignment range={range} only="day" />}
     </HopeDashboardShell>
   );

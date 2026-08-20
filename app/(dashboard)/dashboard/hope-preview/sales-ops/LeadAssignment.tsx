@@ -161,13 +161,11 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+      <div className={`flex flex-wrap items-baseline justify-between gap-3 ${only ? "mb-3" : "mb-4"}`}>
         <div>
-          <div className="text-base font-medium text-[#232D42]">
-            {only ? TABS.find((t) => t.key === only)?.label : "Leads"}
-          </div>
-          <div className="text-sm text-gray-500 mt-0.5">
-            {data ? `${fmtInt(data.generated)} generated · ${range.from} → ${range.to}` : "Loading…"}
+          {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
+          <div className="text-sm text-gray-500">
+            {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
           </div>
         </div>
         <button onClick={() => refresh()} title="Refresh"
@@ -182,9 +180,26 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         </div>
       )}
 
-      {/* The two rules the team asked for, as standing alerts. */}
-      {data && data.alerts.newOver2 > 0 && (
-        <button onClick={() => { if (only) { window.location.href = "/dashboard/hope-preview/sales-ops/tracker"; return; } setTab("tracker"); setOpenDay(null); }}
+      {/* The two rules the team asked for. Full banners on the hub page; on a
+          sub-page they collapse to one line so the data starts near the top. */}
+      {only && data && (data.alerts.newOver2 > 0 || data.alerts.poolStuck > 0) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[12.5px]">
+          {data.alerts.newOver2 > 0 && (
+            <a href="/dashboard/hope-preview/sales-ops/tracker" className="inline-flex items-center gap-1.5 text-[#C0392B] hover:underline">
+              <IconAlertTriangle size={13} />
+              <b className="font-semibold">{fmtInt(data.alerts.newOver2)}</b> stuck in “New” &gt; 2 days
+            </a>
+          )}
+          {data.alerts.poolStuck > 0 && (
+            <a href="/dashboard/hope-preview/sales-ops/interests" className="inline-flex items-center gap-1.5 text-[#B7791F] hover:underline">
+              <IconHourglassLow size={13} />
+              <b className="font-semibold">{fmtInt(data.alerts.poolStuck)}</b> unassigned in the pool &gt; 2 days
+            </a>
+          )}
+        </div>
+      )}
+      {!only && data && data.alerts.newOver2 > 0 && (
+        <button onClick={() => { setTab("tracker"); setOpenDay(null); }}
           className="w-full text-left mb-2.5 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5 hover:border-red-300">
           <IconAlertTriangle size={16} className="text-[#C0392B] flex-shrink-0 mt-0.5" />
           <span className="text-[13px] text-[#8E2C21] leading-relaxed">
@@ -193,8 +208,8 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
           </span>
         </button>
       )}
-      {data && data.alerts.poolStuck > 0 && (
-        <button onClick={() => { if (only) { window.location.href = "/dashboard/hope-preview/sales-ops/interests"; return; } setTab("interest"); setOpenDay(null); }}
+      {!only && data && data.alerts.poolStuck > 0 && (
+        <button onClick={() => { setTab("interest"); setOpenDay(null); }}
           className="w-full text-left mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2.5 hover:border-amber-300">
           <IconHourglassLow size={16} className="text-[#B7791F] flex-shrink-0 mt-0.5" />
           <span className="text-[13px] text-[#8A6D1F] leading-relaxed">

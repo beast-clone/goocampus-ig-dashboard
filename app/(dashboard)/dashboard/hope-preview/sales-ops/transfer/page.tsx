@@ -6,7 +6,7 @@ import { LeadAssignment } from "../LeadAssignment";
 // the shell supplies the single date range every Sales page shares.
 export default function Page() {
   return (
-    <HopeDashboardShell active="sales" title="Transfer" subtitle="Move leads in bulk — e.g. when a counsellor is unexpectedly away." hideAccountPicker>
+    <HopeDashboardShell active="sales" title="Transfer" subtitle="Move leads in bulk — e.g. when a counsellor is unexpectedly away." hideAccountPicker compact>
       {({ range }) => <LeadAssignment range={range} only="transfer" />}
     </HopeDashboardShell>
   );

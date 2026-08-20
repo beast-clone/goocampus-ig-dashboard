@@ -34,13 +34,17 @@ function rangeLabel(r: Range): string {
 }
 
 export function HopeDashboardShell({
-  active, title, subtitle, hideAccountPicker, hideRange, children,
+  active, title, subtitle, hideAccountPicker, hideRange, compact, children,
 }: {
   active: HopeTab;
   title: string;
   subtitle?: string;
   hideAccountPicker?: boolean;
   hideRange?: boolean;   // hide the top date bar (page drives the range itself via setRange)
+  // Slimmer hero for drill-down pages. A full-height band is right for a landing
+  // page you arrive at; on a sub-page you clicked into deliberately it just pushes
+  // the thing you came to read below the fold.
+  compact?: boolean;
   children: (ctx: { accountId: string; compareAll: boolean; range: Range; setRange: (r: Range) => void }) => React.ReactNode;
 }) {
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
@@ -91,13 +95,15 @@ export function HopeDashboardShell({
         {/* Brand hero band — uniform across every tab (mirrors the Publishing Calendar).
             Extra bottom padding only when a white control card overlaps it. */}
         <div
-          className={`relative overflow-hidden rounded-2xl px-7 pt-6 text-white ${showControls ? "pb-16" : "pb-6 mb-6"}`}
+          className={`relative overflow-hidden rounded-2xl text-white ${
+            compact ? "px-6 pt-4" : "px-7 pt-6"} ${
+            showControls ? (compact ? "pb-12" : "pb-16") : (compact ? "pb-4 mb-4" : "pb-6 mb-6")}`}
           style={{ background: "linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%)" }}
         >
           <div className="relative z-10">
             {/* Inline colour: .hope-scope forces heading colour dark, so force white here. */}
-            <h1 className="hope-hero-h1 text-[1.7rem] leading-tight tracking-tight" style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
-            {headerSub && <p className="mt-1.5 text-sm" style={{ color: "rgba(255,255,255,0.85)" }}>{headerSub}</p>}
+            <h1 className={`hope-hero-h1 leading-tight tracking-tight ${compact ? "text-[1.25rem]" : "text-[1.7rem]"}`} style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
+            {headerSub && <p className={compact ? "mt-0.5 text-[12.5px]" : "mt-1.5 text-sm"} style={{ color: "rgba(255,255,255,0.85)" }}>{headerSub}</p>}
           </div>
           <div className="pointer-events-none absolute -right-10 -top-16 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)" }} />
           <div className="pointer-events-none absolute right-28 -bottom-24 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)" }} />
@@ -105,7 +111,8 @@ export function HopeDashboardShell({
 
         {/* White control card, pulled up to overlap the band (matches the calendar). */}
         {showControls && (
-          <div className="relative z-10 mx-1 -mt-10 mb-6 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-5 py-3">
+          <div className={`relative z-10 mx-1 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-5 ${
+            compact ? "-mt-8 mb-4 py-2" : "-mt-10 mb-6 py-3"}`}>
             <div className="flex items-center gap-2 min-h-[38px]">
               {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
             </div>
