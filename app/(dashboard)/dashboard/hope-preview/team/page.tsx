@@ -82,7 +82,9 @@ function TeamManager() {
   if (team === null) return <p className="text-sm text-gray-500">Loading the team…</p>;
 
   return (
-    <div className="max-w-6xl space-y-4">
+    // No width cap (was max-w-6xl): eight columns squeezed into that width made
+    // every row wrap onto two lines. It runs to the edge of the dashboard now.
+    <div className="space-y-4">
       <div className="rounded-xl bg-brand-light border border-brand/20 px-4 py-3 text-sm text-brand">
         Admin and active changes apply the next time that person signs in. Someone with a
         <span className="font-medium"> personal password</span> can only sign in with it — the shared
@@ -96,13 +98,13 @@ function TeamManager() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
-              <th className="px-4 py-3 font-medium">Person</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium text-center">Admin</th>
-              <th className="px-4 py-3 font-medium text-center">Active</th>
-              <th className="px-4 py-3 font-medium text-center">Access</th>
-              <th className="px-4 py-3 font-medium">Password</th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Person</th>
+              <th className="px-4 py-3 font-medium" style={{ width: "26%" }}>Email</th>
+              <th className="px-4 py-3 font-medium" style={{ width: "22%" }}>Role</th>
+              <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Admin</th>
+              <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Active</th>
+              <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Access</th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Password</th>
             </tr>
           </thead>
           <tbody>
@@ -119,7 +121,7 @@ function TeamManager() {
                       <div className="w-8 h-8 rounded-full bg-brand-light text-brand text-xs font-semibold flex items-center justify-center shrink-0">
                         {m.initials}
                       </div>
-                      <div>
+                      <div className="whitespace-nowrap">
                         <div className="font-medium text-gray-900">{m.name}</div>
                         <div className="text-xs text-gray-400">{m.id}</div>
                       </div>
@@ -222,13 +224,13 @@ function TeamManager() {
                     ) : (
                       <div className="flex items-center gap-2">
                         {m.hasPassword ? (
-                          <span className="text-xs font-medium text-green-700 bg-green-50 rounded-full px-2.5 py-1">Personal ✓</span>
+                          <span className="text-xs font-medium text-green-700 bg-green-50 rounded-full px-2.5 py-1 whitespace-nowrap">Personal ✓</span>
                         ) : (
-                          <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">Shared</span>
+                          <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1 whitespace-nowrap">Shared</span>
                         )}
                         <button
                           onClick={() => { setPwFor(m.id); setPwValue(""); }}
-                          className="text-xs text-brand hover:underline"
+                          className="text-xs text-brand hover:underline whitespace-nowrap"
                         >
                           {m.hasPassword ? "Change password" : "Set password"}
                         </button>
@@ -240,7 +242,7 @@ function TeamManager() {
                                 flash(`${m.first} is back on the shared password.`);
                               }
                             }}
-                            className="text-xs text-gray-400 hover:text-red-600"
+                            className="text-xs text-gray-400 hover:text-red-600 whitespace-nowrap"
                           >
                             Remove
                           </button>
