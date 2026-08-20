@@ -188,9 +188,11 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       <div className={`flex flex-wrap items-baseline justify-between gap-3 ${only ? "mb-3" : "mb-4"}`}>
         <div>
           {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
-          <div className="text-sm text-gray-500">
-            {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
-          </div>
+          {tab !== "roles" && (
+            <div className="text-sm text-gray-500">
+              {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
+            </div>
+          )}
         </div>
         <button onClick={() => refresh()} title="Refresh"
           className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[#4A5468] hover:border-gray-300 inline-flex items-center gap-1">
@@ -215,7 +217,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
 
       {/* The two rules the team asked for. Full banners on the hub page; on a
           sub-page they collapse to one line so the data starts near the top. */}
-      {only && data && (data.alerts.newOver2 > 0 || data.alerts.poolStuck > 0) && (
+      {only && tab !== "roles" && data && (data.alerts.newOver2 > 0 || data.alerts.poolStuck > 0) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[12.5px]">
           {data.alerts.newOver2 > 0 && (
             <a href="/dashboard/hope-preview/sales-ops/tracker" className="inline-flex items-center gap-1.5 text-[#C0392B] hover:underline">
