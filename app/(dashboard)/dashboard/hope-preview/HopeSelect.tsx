@@ -4,11 +4,13 @@ import { IconChevronDown, IconCheck } from "@tabler/icons-react";
 
 // Hope-themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function HopeSelect({ value, onChange, options, placeholder }: {
+export function HopeSelect({ value, onChange, options, placeholder, disabled, className }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; img?: string }[];
   placeholder?: string;
+  disabled?: boolean;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
@@ -27,8 +29,9 @@ export function HopeSelect({ value, onChange, options, placeholder }: {
   const isPlaceholder = !current && !!placeholder;
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:border-gray-300 text-gray-800">
+      <button type="button" onClick={() => !disabled && setOpen((o) => !o)} disabled={disabled}
+        className={`flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-gray-800 ${
+          disabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-300"} ${className || ""}`}>
         <Avatar src={current?.img} />
         <span className={`whitespace-nowrap ${isPlaceholder ? "text-gray-400" : ""}`}>{label}</span>
         <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />

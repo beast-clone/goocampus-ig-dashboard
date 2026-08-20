@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { HopeSelect } from "../HopeSelect";
 import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
   IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow,
@@ -303,8 +304,12 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                 <div>
                   <div className="text-[14px] font-medium text-[#232D42]">Leads per {bucket} by {BREAKDOWNS.find((b) => b.v === breakBy)?.label.toLowerCase()}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
+                    One bar per {bucket}, full height = all leads that arrived.
+                    {" "}Colours split it by the 6 biggest — the rest group into <b className="font-medium">Other</b>.
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
                     {chartRange === "match"
-                      ? "Follows the range on top."
+                      ? "Following the range at the top of the page."
                       : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartEff.from} → ${chartEff.to}`}
                     {chartLoading && " · loading…"}
                   </div>
@@ -312,10 +317,8 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex items-center gap-1.5 text-xs text-gray-500">
                     Break down by
-                    <select value={breakBy} onChange={(e) => setBreakBy(e.target.value as BreakBy)}
-                      className="text-xs text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                      {BREAKDOWNS.map((b) => <option key={b.v} value={b.v}>{b.label}</option>)}
-                    </select>
+                    <HopeSelect value={breakBy} onChange={(v) => setBreakBy(v as BreakBy)}
+                      options={BREAKDOWNS.map((b) => ({ value: b.v, label: b.label }))} />
                   </label>
                   <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
                     {CHART_RANGES.map((r) => (
@@ -335,7 +338,11 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0F4" />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8A92A6" }} minTickGap={16} tickLine={false} axisLine={{ stroke: "#EEF0F4" }} />
                     <YAxis tick={{ fontSize: 11, fill: "#8A92A6" }} allowDecimals={false} tickLine={false} axisLine={false} width={30} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #EEF0F4" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #EEF0F4" }}
+                      labelFormatter={(l, payload) => {
+                        const total = (payload || []).reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+                        return `${l} — ${total} lead${total === 1 ? "" : "s"}`;
+                      }} />
                     <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 6 }} iconType="circle" iconSize={9} />
                     {chart.keys.map((k, i) => (
                       <Bar key={k} dataKey={k} stackId="s" fill={PALETTE[i % PALETTE.length]}
@@ -346,7 +353,10 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
               </div>
             </div>
           )}
-          <Foot>Shows the current {bucket}. Click the card for its leads. <b className="text-[#3B4457] font-medium">Cold</b> = no CRM activity in over 7 days. Counted in IST.</Foot>
+          <Foot>
+            The card at the top is <b className="text-[#3B4457] font-medium">today</b> — click it for today&apos;s leads.
+            <b className="text-[#3B4457] font-medium"> Cold</b> = no CRM activity in over 7 days. Days are counted in IST.
+          </Foot>
         </>
       ))}
 
@@ -695,21 +705,19 @@ function TransferTab({ data, onDone }: { data: Board; onDone: () => void }) {
     <>
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <Field label="Currently with">
-          <select value={fromHolder} onChange={(e) => { setFromHolder(e.target.value); setSel(new Set()); }} className={SELECT}>
-            {data.holders.map((h) => <option key={h.holder} value={h.holder}>{h.holder} ({h.total})</option>)}
-          </select>
+          <HopeSelect value={fromHolder} onChange={(v) => { setFromHolder(v); setSel(new Set()); }}
+            options={data.holders.map((h) => ({ value: h.holder, label: `${h.holder} (${h.total})` }))} />
         </Field>
         <Field label="Untouched for">
-          <select value={minIdle} onChange={(e) => { setMinIdle(+e.target.value); setSel(new Set()); }} className={SELECT}>
-            <option value={0}>any</option><option value={2}>more than 2 days</option>
-            <option value={7}>more than 7 days</option><option value={14}>more than 14 days</option>
-          </select>
+          <HopeSelect value={String(minIdle)} onChange={(v) => { setMinIdle(+v); setSel(new Set()); }}
+            options={[
+              { value: "0", label: "any" }, { value: "2", label: "more than 2 days" },
+              { value: "7", label: "more than 7 days" }, { value: "14", label: "more than 14 days" },
+            ]} />
         </Field>
         <Field label="Stage">
-          <select value={status} onChange={(e) => { setStatus(e.target.value); setSel(new Set()); }} className={SELECT}>
-            <option value="">Any stage</option>
-            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <HopeSelect value={status} onChange={(v) => { setStatus(v); setSel(new Set()); }} placeholder="Any stage"
+            options={[{ value: "", label: "Any stage" }, ...statuses.map((x) => ({ value: x, label: x }))]} />
         </Field>
         <div className="text-sm text-gray-500 pb-2">
           <b className="text-[#232D42]">{fmtInt(matches.length)}</b> match{matches.length === 1 ? "" : "es"}
@@ -751,10 +759,8 @@ function TransferTab({ data, onDone }: { data: Board; onDone: () => void }) {
       <div className="sticky bottom-2 mt-3 bg-white border border-brand rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
         <span className="text-sm"><b className="font-semibold text-[#232D42]">{fmtInt(sel.size)}</b> selected</span>
         <span className="text-sm text-gray-500">→ move to</span>
-        <select value={toUserId} onChange={(e) => setToUserId(e.target.value)} className={SELECT}>
-          <option value="">Pick a counsellor…</option>
-          {targets.map((r) => <option key={r.userId} value={r.userId}>{r.name}{r.inRoster ? "" : " (not on the Counsellors list)"}</option>)}
-        </select>
+        <HopeSelect value={toUserId} onChange={setToUserId} placeholder="Pick a counsellor…"
+          options={targets.map((r) => ({ value: r.userId, label: `${r.name}${r.inRoster ? "" : " (not on the Counsellors list)"}` }))} />
         <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason — goes into Transfer Notes"
           className="flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-2 text-sm" />
         <button onClick={submit} disabled={busy || sel.size === 0}
@@ -834,11 +840,9 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
           <div key={h.holder} className="rounded-xl border border-gray-100 p-4">
             <div className="font-medium text-[#232D42]">{h.holder}</div>
             <div className="text-[11.5px] text-gray-400 mb-2.5">{fmtInt(h.total)} leads held</div>
-            <select value={local[h.holder] || "inactive"} disabled={saving === h.holder}
-              onChange={(e) => save(h.holder, e.target.value as Role)}
-              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-[13px] bg-white disabled:opacity-50">
-              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-            </select>
+            <HopeSelect value={local[h.holder] || "inactive"} disabled={saving === h.holder} className="w-full justify-between"
+              onChange={(v) => save(h.holder, v as Role)}
+              options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />
           </div>
         ))}
       </div>
@@ -1047,10 +1051,10 @@ function ReassignModal({ lead, roster, roles, onClose, onDone }: {
             <p className="text-sm text-gray-500 mt-1 mb-4">currently with {lead.counsellor || "nobody"}</p>
 
             <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Move to <span className="text-rose-500">*</span></label>
-            <select value={toUserId} onChange={(e) => setToUserId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white mb-4">
-              <option value="">Pick a counsellor…</option>
-              {options.map((r) => <option key={r.userId} value={r.userId}>{r.name}{r.inRoster ? "" : " (not on the Counsellors list)"}</option>)}
-            </select>
+            <div className="mb-4">
+              <HopeSelect value={toUserId} onChange={setToUserId} placeholder="Pick a counsellor…" className="w-full justify-between"
+                options={options.map((r) => ({ value: r.userId, label: `${r.name}${r.inRoster ? "" : " (not on the Counsellors list)"}` }))} />
+            </div>
 
             <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Reason <span className="text-rose-500">*</span></label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
