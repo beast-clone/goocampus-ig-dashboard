@@ -128,14 +128,22 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
   const { data: chartOverride, isLoading: chartLoading } = useApi<Board>(chartKey);
   const chartSrc = chartRange === "match" ? data : (chartOverride || data);
 
-  // Average leads generated per calendar day across the chart's range.
+  // Average leads generated per calendar day.
+  //
+  // The day count comes from the payload's OWN range, never the requested one.
+  // chartSrc deliberately falls back to the previous payload while an override is
+  // in flight (so the bars don't blank out), and dividing last month's total by a
+  // 90-day span rendered a confident, wrong "9" — the numerator and denominator
+  // were describing different windows. Reading both off the same payload makes
+  // that impossible.
   const avgPerDay = useMemo(() => {
-    if (!chartSrc) return 0;
-    const d0 = new Date(chartEff.from + "T00:00:00Z").getTime();
-    const d1 = new Date(chartEff.to + "T00:00:00Z").getTime();
+    if (!chartSrc?.range) return 0;
+    const d0 = Date.parse(chartSrc.range.from + "T00:00:00Z");
+    const d1 = Date.parse(chartSrc.range.to + "T00:00:00Z");
+    if (Number.isNaN(d0) || Number.isNaN(d1)) return 0;
     const days = Math.max(1, Math.round((d1 - d0) / 86_400_000) + 1);
     return Math.round(chartSrc.generated / days);
-  }, [chartSrc, chartEff]);
+  }, [chartSrc]);
 
   // Day-wise leads stacked by the chosen dimension — top 6 categories + "Other", oldest → newest.
   const [breakBy, setBreakBy] = useState<BreakBy>("interest");
@@ -310,7 +318,7 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                   <div className="text-xs text-gray-400 mt-0.5">
                     {chartRange === "match"
                       ? "Following the range at the top of the page."
-                      : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartEff.from} → ${chartEff.to}`}
+                      : `${CHART_RANGES.find((r) => r.v === chartRange)?.label} · ${chartSrc?.range.from} → ${chartSrc?.range.to}`}
                     {chartLoading && " · loading…"}
                   </div>
                 </div>
@@ -328,7 +336,9 @@ export function LeadAssignment({ range }: { range: { from: string; to: string } 
                   </div>
                   <div className="rounded-xl border border-gray-100 bg-[#FAFBFF] px-4 py-2 text-center flex-shrink-0">
                     <div className="text-[10px] uppercase tracking-wide text-gray-500">Avg / day</div>
-                    <div className="text-[20px] font-semibold text-[#232D42] tabular-nums leading-none mt-1">{fmtInt(avgPerDay)}</div>
+                    <div className={`text-[20px] font-semibold tabular-nums leading-none mt-1 ${chartLoading ? "text-gray-300" : "text-[#232D42]"}`}>
+                      {chartLoading ? "…" : fmtInt(avgPerDay)}
+                    </div>
                   </div>
                 </div>
               </div>
