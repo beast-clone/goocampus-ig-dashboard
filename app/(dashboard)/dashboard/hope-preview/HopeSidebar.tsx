@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -113,8 +113,41 @@ const GROUPS: Group[] = [
   ] },
 ];
 
+// The sidebar is its own scroll container (100vh, overflow-y:auto) and there is no
+// shared layout, so every page renders — and therefore REMOUNTS — it. Its scroll
+// jumped back to 0 on each navigation: you clicked a Sales Hub sub-page near the
+// bottom and landed looking at Overview, with Sales scrolled out of sight.
+//
+// Remember where it was and put it back before the browser paints, and if there's
+// nothing remembered (first load, new tab) bring the active item into view instead.
 export function HopeSidebar({ active }: { active: HopeTab }) {
+  const asideRef = useRef<HTMLElement>(null);
+
+
   const pathname = usePathname();
+
+  // Every page renders its own copy of this sidebar, so navigating REMOUNTS it and
+  // its scroll snaps back to 0. Sales Hub and its children sit ~1100px down a
+  // 1650px nav, so clicking a sub-page left you staring at Overview with the thing
+  // you just clicked 340px below the fold.
+  //
+  // Restoring a remembered pixel offset proved unreliable (it clamps if applied
+  // before layout settles). Centring the active item is deterministic: wherever it
+  // is, you can see it and its siblings after every navigation. Runs after paint,
+  // when the folder is expanded and offsets are final, and moves only the sidebar —
+  // never the page.
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el || el.scrollHeight <= el.clientHeight) return;
+    const current = el.querySelector<HTMLElement>(".hnavitem.active");
+    if (!current) return;
+    const box = current.getBoundingClientRect();
+    const frame = el.getBoundingClientRect();
+    const fullyVisible = box.top >= frame.top + 56 && box.bottom <= frame.bottom - 24;
+    if (fullyVisible) return;
+    const delta = box.top - frame.top;
+    el.scrollTop += delta - el.clientHeight / 2 + box.height / 2;
+  }, [pathname]);
   const searchParams = useSearchParams();
   const [hash, setHash] = useState("");
   useEffect(() => {
@@ -175,7 +208,7 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
   };
 
   return (
-    <aside className="hsidebar">
+    <aside className="hsidebar" ref={asideRef}>
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
         {/* Logo → Overview (the main page). */}
