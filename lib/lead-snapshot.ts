@@ -10,7 +10,7 @@
 // heavier job and far more Airtable calls for history nobody reads.
 
 import { airtableList, pickName, pickNumber, idleDays, CRM_TABLE } from "./sales-hub";
-import { isClosedStatus, pickUser } from "./lead-assignment";
+import { isClosedStatus, pickUser, CLOSED_STATUSES } from "./lead-assignment";
 import { getSupabase } from "./supabase";
 
 const ACTIVE_WINDOW_DAYS = 90;
@@ -20,7 +20,7 @@ const FIELDS = [
   "Lead Source (n8n)", "Primary Interest (n8n)", "Days Untouched", "Actual Last Modified", "Call Attempts",
 ];
 
-export type SnapshotResult = { scanned: number; stored: number; skippedClosed: number };
+export type SnapshotResult = { scanned: number; stored: number; skippedClosed: number; truncated?: boolean };
 
 export async function snapshotActiveLeads(day: string): Promise<SnapshotResult> {
   const db = getSupabase();
@@ -30,15 +30,25 @@ export async function snapshotActiveLeads(day: string): Promise<SnapshotResult> 
   cutoff.setUTCDate(cutoff.getUTCDate() - ACTIVE_WINDOW_DAYS);
   const cutoffDay = cutoff.toISOString().slice(0, 10);
 
-  // Recent-by-date OR still-open. IS_AFTER on the created time covers the window;
-  // the open-status half is filtered client-side because Lead Status is a select
-  // with a long, changing choice list.
+  // Recent-by-date OR still open, both pushed into the formula so Airtable does the
+  // filtering. The previous version used `{Lead Status} != ''`, which is true for
+  // almost every row — the OR made the filter a no-op and pulled the entire 35k-row
+  // CRM every night, then silently truncated at the record cap.
+  const closedList = [...CLOSED_STATUSES]
+    .map((st) => `{Lead Status} = '${st.replace(/'/g, "\\'")}'`)
+    .join(", ");
+  const formula = `OR(DATETIME_FORMAT({Created Date}, 'YYYY-MM-DD') >= '${cutoffDay}', NOT(OR(${closedList})))`;
+
+  const CAP = 40_000;
   const rows = await airtableList<Record<string, unknown>>(CRM_TABLE, {
-    filterByFormula: `OR(DATETIME_FORMAT({Created Date}, 'YYYY-MM-DD') >= '${cutoffDay}', {Lead Status} != '')`,
+    filterByFormula: formula,
     fields: FIELDS,
     pageSize: 100,
-    maxRecords: 30_000,
+    maxRecords: CAP,
   });
+  // Never truncate in silence — if the cap is ever reached the snapshot is
+  // incomplete and whoever reads the history needs to know.
+  const truncated = rows.length >= CAP;
 
   let skippedClosed = 0;
   const payload: Record<string, unknown>[] = [];
@@ -83,5 +93,5 @@ export async function snapshotActiveLeads(day: string): Promise<SnapshotResult> 
     stored += slice.length;
   }
 
-  return { scanned: rows.length, stored, skippedClosed };
+  return { scanned: rows.length, stored, skippedClosed, ...(truncated ? { truncated: true } : {}) };
 }

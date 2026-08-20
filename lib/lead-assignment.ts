@@ -23,9 +23,21 @@ import {
 } from "./sales-hub";
 import { getSupabase } from "./supabase";
 
-// Statuses that mean the lead is finished. Used by the nightly snapshot to decide
+// Statuses that mean the lead is finished — used by the nightly snapshot to decide
 // what's still worth tracking.
-const CLOSED_STATUSES = new Set(["Converted", "Not Interested", "Junk", "Lost", "Dead", "Closed"]);
+//
+// These are the CRM's ACTUAL values, checked against the live table. An earlier
+// guess ("Converted", "Junk", "Lost", …) matched none of them, so the snapshot
+// skipped nothing and copied all 35k rows every night. "Cold" is deliberately NOT
+// here: a cold lead can still be revived, so it stays tracked.
+export const CLOSED_STATUSES = new Set([
+  "Junk lead",
+  "Not interested",
+  "Not eligible",
+  "Unreachable",
+  "Closed won",
+  "Closed lost",
+]);
 
 export function isClosedStatus(s: string): boolean {
   return CLOSED_STATUSES.has(s.trim());
