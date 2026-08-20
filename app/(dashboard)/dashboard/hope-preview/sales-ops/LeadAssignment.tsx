@@ -451,7 +451,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       {/* ── TRACKER ─────────────────────────────────────────────── */}
       {tab === "tracker" && data && (
         <TrackerTab data={data} starred={starred} persisted={tracked?.persisted !== false}
-          onStar={toggleStar} onTrack={setTrack} onReassign={setReassign} />
+          onStar={toggleStar} onTrack={setTrack} />
       )}
 
       {/* ── TRANSFER ────────────────────────────────────────────── */}
@@ -463,7 +463,8 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       {track && (
         <LeadTracker lead={track} onClose={() => setTrack(null)}
           onReassign={() => { setReassign(track); setTrack(null); }}
-          pinned={starred.has(track.id)} onPin={(on) => toggleStar(track, on)} />
+          pinned={starred.has(track.id)} onPin={(on) => toggleStar(track, on)}
+          allowReassign={tab !== "tracker"} />
       )}
       {reassign && (
         <ReassignModal lead={reassign} roster={data?.roster || []} roles={data?.roles || {}}
@@ -512,10 +513,14 @@ function Split({ title, rows, total, critKey }: { title: string; rows: { key: st
   );
 }
 
-function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy }: {
+function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy, allowReassign = true }: {
   leads: BoardLead[]; starred: Set<string>;
   onStar: (l: BoardLead, on: boolean) => void;
-  onTrack: (l: BoardLead) => void; onReassign: (l: BoardLead) => void; showWhy?: boolean;
+  onTrack: (l: BoardLead) => void; onReassign: (l: BoardLead) => void;
+  showWhy?: boolean;
+  // The Leads-tracker page is for following leads, nothing else — moving them is
+  // what the Transfer page is for, and having both here just duplicated it.
+  allowReassign?: boolean;
 }) {
   if (leads.length === 0) return <div className="text-sm text-gray-400 py-8 text-center">Nothing here.</div>;
   return (
@@ -566,10 +571,12 @@ function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy }: {
                       className="text-xs inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">
                       <IconTimeline size={13} /> History
                     </button>
-                    <button onClick={() => onReassign(l)}
-                      className="text-xs inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">
-                      <IconArrowsExchange size={13} /> Reassign
-                    </button>
+                    {allowReassign && (
+                      <button onClick={() => onReassign(l)}
+                        className="text-xs inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">
+                        <IconArrowsExchange size={13} /> Reassign
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -586,10 +593,12 @@ function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy }: {
 
 /* ── tracker tab ───────────────────────────────────────────────── */
 
-function TrackerTab({ data, starred, persisted, onStar, onTrack, onReassign }: {
+function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
   data: Board; starred: Set<string>; persisted: boolean;
-  onStar: (l: BoardLead, on: boolean) => void; onTrack: (l: BoardLead) => void; onReassign: (l: BoardLead) => void;
+  onStar: (l: BoardLead, on: boolean) => void; onTrack: (l: BoardLead) => void;
 }) {
+  // Tracking only. Moving a lead lives on the Transfer page.
+  const noop = () => {};
   const pinned = data.allLeads.filter((l) => starred.has(l.id));
   const flagged = data.allLeads
     .filter((l) => !starred.has(l.id) && (l.flaggedNew || l.flaggedPool))
@@ -607,7 +616,7 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack, onReassign }: {
         Pinned <span className="text-gray-400 font-normal">· {fmtInt(pinned.length)}</span>
       </div>
       {pinned.length > 0
-        ? <LeadTable leads={pinned} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={onReassign} />
+        ? <LeadTable leads={pinned} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} allowReassign={false} />
         : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">
             Nothing pinned yet. Open any lead&apos;s <b className="font-medium text-[#3B4457]">History</b> and choose
             <b className="font-medium text-[#3B4457]"> Add to tracker</b> — or click the star beside it in any list.
@@ -616,7 +625,7 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack, onReassign }: {
       <div className="text-sm font-medium text-[#232D42] mt-7 mb-3">
         Flagged automatically <span className="text-gray-400 font-normal">· {fmtInt(flagged.length)}</span>
       </div>
-      <LeadTable leads={flagged} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={onReassign} showWhy />
+      <LeadTable leads={flagged} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} showWhy allowReassign={false} />
       <Foot>
         Every lead&apos;s history is recorded nightly regardless — pinning only decides what shows up here.
         Flagged = assigned but still “New” after 2 days, or sitting in the pool more than 2 days.
@@ -878,9 +887,9 @@ function Stars({ n }: { n: number }) {
   );
 }
 
-function LeadTracker({ lead, onClose, onReassign, pinned, onPin }: {
+function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign = true }: {
   lead: BoardLead; onClose: () => void; onReassign: () => void;
-  pinned: boolean; onPin: (on: boolean) => void;
+  pinned: boolean; onPin: (on: boolean) => void; allowReassign?: boolean;
 }) {
   const { data, isLoading, error } = useApi<TrackPayload>(`/api/leads-crm/lead-track?id=${encodeURIComponent(lead.id)}`);
   const l = data?.lead as (TrackPayload["lead"] & Record<string, string | number | boolean>) | undefined;
@@ -904,9 +913,11 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin }: {
               {pinned ? <IconStarFilled size={13} /> : <IconStar size={13} />}
               {pinned ? "On tracker" : "Add to tracker"}
             </button>
-            <button onClick={onReassign} className="text-xs font-medium bg-brand text-white rounded-lg px-3 py-1.5 inline-flex items-center gap-1">
-              <IconArrowsExchange size={13} /> Reassign
-            </button>
+            {allowReassign && (
+              <button onClick={onReassign} className="text-xs font-medium bg-brand text-white rounded-lg px-3 py-1.5 inline-flex items-center gap-1">
+                <IconArrowsExchange size={13} /> Reassign
+              </button>
+            )}
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
           </div>
         </div>
