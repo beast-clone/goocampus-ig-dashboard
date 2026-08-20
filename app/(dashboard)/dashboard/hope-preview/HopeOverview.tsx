@@ -19,6 +19,16 @@ import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import Link from "next/link";
 
+// A future date returns nothing from any analytics source, so the custom range
+// can't go past today. `max` greys out the picker; the clamp catches typed input.
+function todayLocalISO(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+function clampToTodayISO(d: string): string {
+  const t = todayLocalISO();
+  return d && d > t ? t : d;
+}
+
 // Brands you can switch between on the analytics tabs. Samvaya is a separate
 // business and excluded from the GooCampus marketing view.
 const SWITCHABLE_ACCOUNTS = ACCOUNTS.filter((a) => a.id !== "samvaya_matrimony");
@@ -858,9 +868,12 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
       </div>
       {rangeKey === "custom" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: "6px 10px" }}>
-          <input type="date" value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom({ ...custom, from: e.target.value })} style={inputStyle} />
+          {/* Capped at today — analytics can't report on a date that hasn't happened. */}
+          <input type="date" value={custom.from} max={custom.to && custom.to < todayLocalISO() ? custom.to : todayLocalISO()}
+            onChange={(e) => setCustom({ ...custom, from: clampToTodayISO(e.target.value) })} style={inputStyle} />
           <span style={{ color: C.muted, fontSize: 13 }}>→</span>
-          <input type="date" value={custom.to} min={custom.from || undefined} onChange={(e) => setCustom({ ...custom, to: e.target.value })} style={inputStyle} />
+          <input type="date" value={custom.to} min={custom.from || undefined} max={todayLocalISO()}
+            onChange={(e) => setCustom({ ...custom, to: clampToTodayISO(e.target.value) })} style={inputStyle} />
         </div>
       )}
     </div>

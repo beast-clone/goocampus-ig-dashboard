@@ -32,7 +32,21 @@ function fmtShort(d: string): string {
   }
 }
 
+// Analytics only ever looks backwards, so a future date can't return anything —
+// picking one silently produced an empty range. `max` greys them out in the
+// picker; clampToToday() covers the case where a date is typed straight into the
+// field, which bypasses `max` in several browsers.
+function todayLocal(): string {
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in the viewer's timezone
+}
+
+function clampToToday(d: string): string {
+  const t = todayLocal();
+  return d && d > t ? t : d;
+}
+
 export function DateRangePicker({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
+  const today = todayLocal();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // A custom range = the current range doesn't match any preset.
@@ -90,16 +104,22 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
             <input
               type="date"
               value={value.from}
-              onChange={(e) => onChange({ ...value, from: e.target.value })}
+              max={value.to && value.to < today ? value.to : today}
+              onChange={(e) => onChange({ ...value, from: clampToToday(e.target.value) })}
               className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-200 mb-2.5"
             />
             <div className="text-[11px] font-medium text-gray-500 mb-1">To</div>
             <input
               type="date"
               value={value.to}
-              onChange={(e) => onChange({ ...value, to: e.target.value })}
+              min={value.from || undefined}
+              max={today}
+              onChange={(e) => onChange({ ...value, to: clampToToday(e.target.value) })}
               className="w-full px-3 py-1.5 text-xs rounded-md border border-gray-200"
             />
+            <div className="text-[10.5px] text-gray-400 mt-2 leading-snug">
+              Up to today — there&apos;s no data for a date that hasn&apos;t happened.
+            </div>
           </div>
         )}
       </div>
