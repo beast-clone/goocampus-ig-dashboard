@@ -903,12 +903,21 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
 
 /* ── lead tracker drawer ───────────────────────────────────────── */
 
+type TrackEvent = {
+  at: string;
+  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched";
+  title: string; detail?: string; who?: string; rating?: number | null;
+};
 type TrackPayload = {
   lead: Record<string, unknown> & { name: string; status: string; counsellor: string };
-  changes: { date: string; field: "status" | "counsellor"; from: string; to: string }[];
-  meetings: { title: string; when: string; status: string; counsellor: string; rating: number | null; summary: string; notes: string }[];
-  trackedSince: string | null;
-  snapshotDays: number;
+  events: TrackEvent[];
+  note: string;
+};
+
+// One colour per kind of thing that happened, so the timeline reads at a glance.
+const EVENT_DOT: Record<TrackEvent["kind"], string> = {
+  arrived: "#8A92A6", assigned: "#3A57E8", reenquiry: "#B7791F", meeting: "#1F7256",
+  contract: "#7C3AED", callback: "#0EA5E9", closed: "#C0392B", touched: "#C7D2F7",
 };
 
 function Stars({ n }: { n: number }) {
@@ -925,7 +934,6 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
 }) {
   const { data, isLoading, error } = useApi<TrackPayload>(`/api/leads-crm/lead-track?id=${encodeURIComponent(lead.id)}`);
   const l = data?.lead as (TrackPayload["lead"] & Record<string, string | number | boolean>) | undefined;
-  const topRating = data?.meetings.find((m) => m.rating)?.rating ?? null;
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-6 overflow-y-auto hope-scope" onClick={onClose}>
@@ -959,62 +967,81 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
           {isLoading && !data && <div className="p-6 text-sm text-gray-400">Loading…</div>}
 
           {data && l && (
-            <div className="grid grid-cols-1 md:grid-cols-[1.25fr_1fr]">
+            <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr]">
               <div className="p-6">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
                   <Mini label="Stage now" value={String(l.status)} />
                   <Mini label="Idle" value={`${l.daysUntouched}d`} tone={Number(l.daysUntouched) > 7 ? "warn" : undefined} />
                   <Mini label="Call attempts" value={String(l.callAttempts ?? 0)} />
-                  <Mini label="Quality" node={topRating ? <Stars n={topRating} /> : <span className="text-gray-300 text-sm">not rated</span>} />
+                  <Mini label="Arrived" value={String(l.createdAt || "").slice(0, 10) || "—"} />
                 </div>
-                <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-3">What happened</div>
-                {data.changes.length > 0 ? (
+
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-3">
+                  What happened <span className="normal-case tracking-normal text-gray-400">· from Airtable</span>
+                </div>
+                {data.events.length > 0 ? (
                   <ol className="relative border-l border-gray-200 ml-1">
-                    {data.changes.map((c, i) => (
+                    {data.events.map((e, i) => (
                       <li key={i} className="ml-4 pb-4">
-                        <span className={`absolute -left-[4.5px] w-2 h-2 rounded-full ring-2 ring-white ${i === 0 ? "bg-[#1F7256]" : "bg-brand"}`} />
-                        <div className="text-[11px] text-gray-400 tabular-nums">{c.date}</div>
-                        <div className="text-[13px] text-[#232D42]">
-                          {c.field === "status" ? "Stage" : "Counsellor"}{" "}
-                          <span className="text-gray-500">{c.from || "—"}</span> → <b className="font-semibold">{c.to || "—"}</b>
+                        <span className="absolute -left-[4.5px] w-2 h-2 rounded-full ring-2 ring-white"
+                          style={{ background: EVENT_DOT[e.kind] || "#3A57E8" }} />
+                        <div className="text-[11px] text-gray-400 tabular-nums">
+                          {(e.at || "").replace("T", " ").slice(0, 16)}
                         </div>
+                        <div className="text-[13px] text-[#232D42] font-medium">
+                          {e.title}
+                          {e.rating ? <span className="ml-1.5 align-middle"><Stars n={e.rating} /></span> : null}
+                        </div>
+                        {(e.detail || e.who) && (
+                          <div className="text-[12px] text-gray-500 mt-0.5 leading-relaxed">
+                            {e.who && <span className="text-[#4A5468]">{e.who}</span>}
+                            {e.who && e.detail && " · "}
+                            {e.detail}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ol>
-                ) : (
-                  <div className="text-sm text-gray-400">
-                    {data.snapshotDays === 0
-                      ? "No history yet. The nightly snapshot that records stage changes hasn't run — until it does, this stays empty for every lead."
-                      : `No stage changes since ${data.trackedSince}. It has sat in "${l.status}" the whole time.`}
-                  </div>
-                )}
+                ) : <div className="text-sm text-gray-400">Nothing recorded on this lead beyond its arrival.</div>}
               </div>
 
               <div className="p-6 md:border-l border-gray-100">
-                <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-3">Meetings</div>
-                {data.meetings.length > 0 ? (
-                  <div className="flex flex-col gap-2.5">
-                    {data.meetings.map((m, i) => (
-                      <div key={i} className="border border-gray-100 rounded-lg p-3">
-                        <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                          <div className="text-[13px] font-medium text-[#232D42]">{m.title || "Meeting"}</div>
-                          <div className="text-[11px] text-gray-400 tabular-nums">{(m.when || "").replace("T", " ").slice(0, 16)}</div>
-                        </div>
-                        <div className="text-[11.5px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                          <span>{m.counsellor}{m.status ? ` · ${m.status}` : ""}</span>
-                          {m.rating ? <Stars n={m.rating} /> : null}
-                        </div>
-                        {m.summary && <div className="text-[12.5px] text-[#4A5468] mt-2 leading-relaxed whitespace-pre-wrap">{m.summary.slice(0, 700)}</div>}
-                      </div>
-                    ))}
-                  </div>
-                ) : <div className="text-sm text-gray-400">No meetings logged on this lead.</div>}
+                {typeof l.notes === "string" && l.notes && (
+                  <>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">Counsellor notes</div>
+                    <div className="text-[12.5px] text-[#4A5468] leading-relaxed whitespace-pre-wrap border border-gray-100 rounded-lg p-3 mb-4">
+                      {String(l.notes).slice(0, 1200)}
+                    </div>
+                  </>
+                )}
+                {typeof l.automatedNotes === "string" && l.automatedNotes && (
+                  <>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">From the form</div>
+                    <div className="text-[12.5px] text-gray-500 leading-relaxed border border-gray-100 rounded-lg p-3 mb-4">
+                      {l.automatedNotes.slice(0, 600)}
+                    </div>
+                  </>
+                )}
 
-                <div className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg p-3 mt-4 leading-relaxed">
-                  Stage history comes from a snapshot taken <b className="text-[#3B4457] font-medium">once a day</b>.
-                  Airtable only stores a lead&apos;s current stage, so history starts building the day the job is switched
-                  on — nothing before that can be recovered.
-                  {data.trackedSince && <> Tracked since <b className="text-[#3B4457] font-medium">{data.trackedSince}</b>.</>}
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">Details</div>
+                <dl className="text-[12.5px] flex flex-col gap-1.5 mb-4">
+                  {([
+                    ["Counsellor", l.counsellor || "nobody"],
+                    ["Last edited by", l.lastModifiedBy || "—"],
+                    ["Source", l.source],
+                    ["Campaign", l.campaign],
+                    ["Location", l.location],
+                    ["Callback", String(l.scheduledCallback || "").replace("T", " ").slice(0, 16)],
+                  ] as [string, unknown][]).filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-3">
+                      <dt className="text-gray-400">{k}</dt>
+                      <dd className="text-[#232D42] text-right">{String(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg p-3 leading-relaxed">
+                  {data.note}
                 </div>
                 {typeof l.link === "string" && l.link && (
                   <a href={l.link} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline mt-3 inline-block">Open in Airtable →</a>

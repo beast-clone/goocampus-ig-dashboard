@@ -1,24 +1,47 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { requireSection } from "@/lib/api-guard";
-import { getSupabase } from "@/lib/supabase";
-import { airtableList, pickName, pickNumber, idleDays, CRM_TABLE, SALES_SYSTEM_TABLE } from "@/lib/sales-hub";
+import {
+  airtableList, pickName, pickNumber, idleDays,
+  CRM_TABLE, SALES_SYSTEM_TABLE, TRANSFER_TABLE, CONTRACT_TABLE,
+} from "@/lib/sales-hub";
 import { pickUser } from "@/lib/lead-assignment";
 
 // GET /api/leads-crm/lead-track?id=recXXXXXXXXXXXXXX
 //
-// "Track this lead" — everything known about one lead in one place:
-//   · where it stands now (live from Airtable)
-//   · how it got there (the nightly snapshots, collapsed into change events)
-//   · every meeting held on it, with the counsellor's rating and AI summary
+// One lead's history, built ENTIRELY from Airtable. Airtable is the source of
+// truth for a lead, so tracking one means reading what Airtable already records
+// about it — not a copy kept somewhere else.
 //
-// History only goes back to the day the nightly snapshot started running, and
-// that's stated in the payload so the UI doesn't imply a lead was idle when it
-// simply predates tracking.
+// The events come from four places, all of them already in the base:
+//   the lead's own timestamps  — arrived, re-enquired, callback, closed
+//   Transfer Ownership          — every ownership change, with who and why
+//   Sales System v2.0           — meetings, ratings, AI summaries
+//   Contract Generator          — contract raised / sent
+//
+// The one thing Airtable genuinely cannot give is the sequence of Lead Status
+// values: the field is overwritten in place and record revision history isn't
+// exposed by the API. Everything else about the lead's life is here.
 
 const REC_ID = /^rec[A-Za-z0-9]{14}$/;
 
-type Change = { date: string; field: "status" | "counsellor"; from: string; to: string };
+type Event = {
+  at: string;             // ISO timestamp
+  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched";
+  title: string;
+  detail?: string;
+  who?: string;
+  rating?: number | null;
+};
+
+const CRM_FIELDS = [
+  "Full Name", "Mobile Number", "Email", "Counsellor", "Lead Status", "Created Date",
+  "New/Re-Enquiry Date", "Last Re-Enquiry", "Re-Enquiry", "Actual Last Modified",
+  "Last Modified By", "Call Attempts", "Notes", "Automated Notes",
+  "Lead Source (n8n)", "Primary Interest (n8n)", "Campaign Name", "Location (n8n)",
+  "Expected Revenue", "Expected Closure Date", "Actual Closure Date", "Schedule Callback",
+  "Move to Contract Stage?", "Link to Record", "Transferred Lead?",
+];
 
 export async function GET(req: Request) {
   const denied = await requireSection("sales");
@@ -30,66 +53,97 @@ export async function GET(req: Request) {
   }
 
   try {
-    const db = getSupabase();
-
-    const [leadRows, meetingRows, history] = await Promise.all([
+    const [leadRows, meetingRows, transferRows, contractRows] = await Promise.all([
       airtableList<Record<string, unknown>>(CRM_TABLE, {
         filterByFormula: `RECORD_ID() = '${id}'`,
-        fields: [
-          "Full Name", "Mobile Number", "Email", "Counsellor", "Lead Status", "Created Date",
-          "Actual Last Modified", "Days Untouched", "Call Attempts", "Notes", "Automated Notes",
-          "Lead Source (n8n)", "Primary Interest (n8n)", "Campaign Name", "Location (n8n)",
-          "Expected Revenue", "Expected Closure Date", "Schedule Callback", "Link to Record",
-          "Re-Enquiry", "Last Re-Enquiry", "Move to Contract Stage?",
-        ],
+        fields: CRM_FIELDS,
         maxRecords: 1,
       }),
       airtableList<Record<string, unknown>>(SALES_SYSTEM_TABLE, {
         filterByFormula: `FIND('${id}', ARRAYJOIN({Link to Record (from Lead Name)}))`,
         fields: ["Particulars", "Meeting Date & Time", "Status", "Assigned Counsellor", "Lead Rating by Counsellor", "Summary", "Counsellor's Notes"],
-        pageSize: 50,
-        maxRecords: 50,
+        pageSize: 50, maxRecords: 50,
       }),
-      db
-        ? db.from("lead_status_snapshots")
-            .select("snapshot_date, status, counsellor, days_untouched, call_attempts")
-            .eq("lead_id", id)
-            .order("snapshot_date", { ascending: true })
-        : Promise.resolve({ data: null, error: null }),
+      airtableList<Record<string, unknown>>(TRANSFER_TABLE, {
+        filterByFormula: `FIND('${id}', ARRAYJOIN({Record ID}))`,
+        fields: ["Created Date", "Original Counsellor (Manual)", "New Owner", "Transfer Notes", "Status", "Requested by"],
+        pageSize: 50, maxRecords: 50,
+      }),
+      airtableList<Record<string, unknown>>(CONTRACT_TABLE, {
+        filterByFormula: `FIND('${id}', ARRAYJOIN({Record ID}))`,
+        fields: ["Contract ID", "Generated Date", "Contract Status", "Discount Offered", "Validity Date"],
+        pageSize: 20, maxRecords: 20,
+      }),
     ]);
 
-    if (!leadRows.length) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
-    }
+    if (!leadRows.length) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     const f = leadRows[0].fields;
+    const events: Event[] = [];
+    const push = (e: Event | null) => { if (e && e.at) events.push(e); };
 
-    // Collapse the daily rows into just the days something actually changed —
-    // a row per day would be noise, and most days nothing moves.
-    const snaps = (history as { data: Array<Record<string, unknown>> | null }).data || [];
-    const changes: Change[] = [];
-    let prevStatus: string | null = null;
-    let prevCounsellor: string | null = null;
-    for (const s of snaps) {
-      const date = String(s.snapshot_date);
-      const status = (s.status as string) || "";
-      const counsellor = (s.counsellor as string) || "";
-      if (prevStatus !== null && status !== prevStatus) changes.push({ date, field: "status", from: prevStatus, to: status });
-      if (prevCounsellor !== null && counsellor !== prevCounsellor) changes.push({ date, field: "counsellor", from: prevCounsellor, to: counsellor });
-      prevStatus = status;
-      prevCounsellor = counsellor;
+    const created = pickName(f["Created Date"]);
+    push(created ? {
+      at: created, kind: "arrived", title: "Lead arrived",
+      detail: [pickName(f["Lead Source (n8n)"]), pickName(f["Campaign Name"])].filter(Boolean).join(" · ") || undefined,
+    } : null);
+
+    // Ownership changes — the answer to "when was it assigned, and by whom".
+    for (const t of transferRows) {
+      const tf = t.fields;
+      const from = pickUser(tf["Original Counsellor (Manual)"])?.name;
+      const to = pickUser(tf["New Owner"])?.name;
+      const done = pickName(tf["Status"]) === "Transfer Completed";
+      push({
+        at: pickName(tf["Created Date"]),
+        kind: "assigned",
+        title: from ? `Moved from ${from} to ${to || "—"}` : `Assigned to ${to || "—"}`,
+        detail: [pickName(tf["Transfer Notes"]), done ? undefined : "still pending"].filter(Boolean).join(" · ") || undefined,
+        who: pickUser(tf["Requested by"])?.name,
+      });
     }
 
-    const meetings = meetingRows
-      .map((m) => ({
-        title: pickName(m.fields["Particulars"]),
-        when: pickName(m.fields["Meeting Date & Time"]),
-        status: pickName(m.fields["Status"]),
-        counsellor: pickUser(m.fields["Assigned Counsellor"])?.name || "",
-        rating: pickNumber(m.fields["Lead Rating by Counsellor"]) || null,
-        summary: pickName(m.fields["Summary"]),
-        notes: pickName(m.fields["Counsellor's Notes"]),
-      }))
-      .sort((a, b) => (a.when < b.when ? 1 : -1));
+    const reEnq = pickName(f["Last Re-Enquiry"]) || pickName(f["New/Re-Enquiry Date"]);
+    if (f["Re-Enquiry"] === true && reEnq) {
+      push({ at: reEnq, kind: "reenquiry", title: "Re-enquired", detail: "Came back after going quiet" });
+    }
+
+    for (const m of meetingRows) {
+      const mf = m.fields;
+      push({
+        at: pickName(mf["Meeting Date & Time"]),
+        kind: "meeting",
+        title: pickName(mf["Particulars"]) || "Meeting",
+        detail: [pickName(mf["Status"]), pickName(mf["Summary"]).slice(0, 400)].filter(Boolean).join(" · ") || undefined,
+        who: pickUser(mf["Assigned Counsellor"])?.name,
+        rating: pickNumber(mf["Lead Rating by Counsellor"]) || null,
+      });
+    }
+
+    for (const c of contractRows) {
+      const cf = c.fields;
+      push({
+        at: pickName(cf["Generated Date"]),
+        kind: "contract",
+        title: `Contract ${pickName(cf["Contract ID"]) || "raised"}`,
+        detail: pickName(cf["Contract Status"]) || undefined,
+      });
+    }
+
+    const callback = pickName(f["Schedule Callback"]);
+    if (callback) push({ at: callback, kind: "callback", title: "Callback scheduled" });
+
+    const closed = pickName(f["Actual Closure Date"]);
+    if (closed) push({ at: closed, kind: "closed", title: `Closed — ${pickName(f["Lead Status"]) || "done"}` });
+
+    // Last edit. Only worth showing if nothing else happened that day, otherwise
+    // it just repeats the event that caused it.
+    const touched = pickName(f["Actual Last Modified"]);
+    const modifiedBy = pickUser(f["Last Modified By"])?.name;
+    if (touched && !events.some((e) => e.at.slice(0, 10) === touched.slice(0, 10))) {
+      push({ at: touched, kind: "touched", title: "Record last edited", who: modifiedBy });
+    }
+
+    events.sort((a, b) => (a.at < b.at ? 1 : -1)); // newest first
 
     return NextResponse.json({
       lead: {
@@ -103,27 +157,25 @@ export async function GET(req: Request) {
         interest: pickName(f["Primary Interest (n8n)"]) || "—",
         campaign: pickName(f["Campaign Name"]),
         location: pickName(f["Location (n8n)"]),
-        createdAt: pickName(f["Created Date"]),
-        lastActivityAt: pickName(f["Actual Last Modified"]),
+        createdAt: created,
+        lastActivityAt: touched,
+        lastModifiedBy: modifiedBy || "",
         daysUntouched: idleDays(f),
         callAttempts: pickNumber(f["Call Attempts"]),
         expectedRevenue: pickNumber(f["Expected Revenue"]),
         expectedClosure: pickName(f["Expected Closure Date"]),
-        scheduledCallback: pickName(f["Schedule Callback"]),
-        reEnquiry: f["Re-Enquiry"] === true,
-        lastReEnquiry: pickName(f["Last Re-Enquiry"]),
+        scheduledCallback: callback,
         contractStage: f["Move to Contract Stage?"] === true,
+        transferred: f["Transferred Lead?"] === true,
         notes: pickName(f["Notes"]),
-        automatedNotes: pickName(f["Automated Notes"]),
+        automatedNotes: pickName(f["Automated Notes"]).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
         link: pickName(f["Link to Record"]),
       },
-      changes: changes.reverse(), // newest first
-      meetings,
-      // So the UI can say "tracked since X" rather than implying a silent history.
-      trackedSince: snaps.length ? String(snaps[0].snapshot_date) : null,
-      snapshotDays: snaps.length,
+      events,
+      // So the UI can be straight about the one gap rather than implying nothing happened.
+      note: "Built from Airtable. Airtable overwrites Lead Status in place and doesn't expose record revision history, so the sequence of stage changes isn't available — everything else about the lead is.",
     });
   } catch (err) {
-    return NextResponse.json(safeError(err, "Could not load the lead tracker"), { status: 502 });
+    return NextResponse.json(safeError(err, "Could not load the lead history"), { status: 502 });
   }
 }
