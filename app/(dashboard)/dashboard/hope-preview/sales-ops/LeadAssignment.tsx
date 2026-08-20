@@ -857,19 +857,12 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
 
   return (
     <>
-      <p className="text-sm text-gray-500 mb-4 max-w-2xl leading-relaxed">
-        A role decides how someone is counted. Holding leads isn&apos;t the same as selling them — the pool parks leads
-        before assignment, and a partner router passes them on rather than calling. Change a role here and the whole
-        tab follows: columns, alerts, and who can receive a transfer. Nothing is written to Airtable.
-      </p>
-
       {err && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</div>}
 
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
         {data.holders.map((h) => (
           <div key={h.holder} className="rounded-xl border border-gray-100 p-4">
-            <div className="font-medium text-[#232D42]">{h.holder}</div>
-            <div className="text-[11.5px] text-gray-400 mb-2.5">{fmtInt(h.total)} leads held</div>
+            <div className="font-medium text-[#232D42] mb-2.5">{h.holder}</div>
             <HopeSelect value={local[h.holder] || "inactive"} disabled={saving === h.holder} className="w-full justify-between"
               onChange={(v) => save(h.holder, v as Role)}
               options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />
@@ -877,27 +870,6 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
         ))}
       </div>
 
-      <div className="overflow-x-auto mt-5">
-        <table className="w-full text-sm">
-          <Head cols={["Role", "Counts as workload", "Gets alerts", "Can receive transfers", "Shown as"]} firstLeft />
-          <tbody className="text-gray-600">
-            {[
-              ["Counsellor", "Yes", "Yes", "Yes", "Own column"],
-              ["Holding pool", "No", "Pool alert only", "Yes — to park a lead", "“In pool”"],
-              ["Partner router", "No", "No — nobody calls these", "Yes", "“Partner”"],
-              ["Inactive", "No", "No", "No", "Hidden"],
-            ].map((r) => (
-              <tr key={r[0]} className="border-b border-gray-50">
-                {r.map((c, i) => <td key={i} className={`py-2.5 ${i === 0 ? "pr-4 font-medium text-[#232D42]" : "px-3"} text-left`}>{c}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Foot>
-        This is the answer to “what happens when Arun starts calling” — change him from Partner router to Counsellor
-        and he appears in the columns, gets alerts and becomes a transfer target. No code change, no CRM edit.
-      </Foot>
     </>
   );
 }
