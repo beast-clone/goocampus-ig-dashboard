@@ -460,7 +460,11 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       {/* ── ROLES ───────────────────────────────────────────────── */}
       {tab === "roles" && data && <RolesTab data={data} onSaved={refresh} />}
 
-      {track && <LeadTracker lead={track} onClose={() => setTrack(null)} onReassign={() => { setReassign(track); setTrack(null); }} />}
+      {track && (
+        <LeadTracker lead={track} onClose={() => setTrack(null)}
+          onReassign={() => { setReassign(track); setTrack(null); }}
+          pinned={starred.has(track.id)} onPin={(on) => toggleStar(track, on)} />
+      )}
       {reassign && (
         <ReassignModal lead={reassign} roster={data?.roster || []} roles={data?.roles || {}}
           onClose={() => setReassign(null)} onDone={() => { setReassign(null); refresh(); }} />
@@ -558,9 +562,9 @@ function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy }: {
                 )}
                 <td className="py-2.5 pl-3">
                   <div className="flex items-center gap-1.5 justify-end">
-                    <button onClick={() => onTrack(l)}
+                    <button onClick={() => onTrack(l)} title="See this lead's history — stage changes, calls and meetings"
                       className="text-xs inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">
-                      <IconTimeline size={13} /> Track
+                      <IconTimeline size={13} /> History
                     </button>
                     <button onClick={() => onReassign(l)}
                       className="text-xs inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">
@@ -605,7 +609,8 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack, onReassign }: {
       {pinned.length > 0
         ? <LeadTable leads={pinned} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={onReassign} />
         : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">
-            Nothing pinned. Star a lead anywhere to follow it here.
+            Nothing pinned yet. Open any lead&apos;s <b className="font-medium text-[#3B4457]">History</b> and choose
+            <b className="font-medium text-[#3B4457]"> Add to tracker</b> — or click the star beside it in any list.
           </div>}
 
       <div className="text-sm font-medium text-[#232D42] mt-7 mb-3">
@@ -873,7 +878,10 @@ function Stars({ n }: { n: number }) {
   );
 }
 
-function LeadTracker({ lead, onClose, onReassign }: { lead: BoardLead; onClose: () => void; onReassign: () => void }) {
+function LeadTracker({ lead, onClose, onReassign, pinned, onPin }: {
+  lead: BoardLead; onClose: () => void; onReassign: () => void;
+  pinned: boolean; onPin: (on: boolean) => void;
+}) {
   const { data, isLoading, error } = useApi<TrackPayload>(`/api/leads-crm/lead-track?id=${encodeURIComponent(lead.id)}`);
   const l = data?.lead as (TrackPayload["lead"] & Record<string, string | number | boolean>) | undefined;
   const topRating = data?.meetings.find((m) => m.rating)?.rating ?? null;
@@ -887,6 +895,15 @@ function LeadTracker({ lead, onClose, onReassign }: { lead: BoardLead; onClose: 
             <div className="text-sm text-gray-500 mt-0.5">{lead.interest} · {lead.source} · with {lead.counsellor || "nobody"}</div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* This is what actually puts a lead on the Leads-tracker page. It used to
+                live only as a small star in the row, where nobody found it. */}
+            <button onClick={() => onPin(!pinned)}
+              title={pinned ? "Remove from the Leads tracker page" : "Pin this lead to the Leads tracker page"}
+              className={`text-xs font-medium rounded-lg px-3 py-1.5 inline-flex items-center gap-1 border ${
+                pinned ? "border-[#E0A930] text-[#8A6D1F] bg-amber-50" : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
+              {pinned ? <IconStarFilled size={13} /> : <IconStar size={13} />}
+              {pinned ? "On tracker" : "Add to tracker"}
+            </button>
             <button onClick={onReassign} className="text-xs font-medium bg-brand text-white rounded-lg px-3 py-1.5 inline-flex items-center gap-1">
               <IconArrowsExchange size={13} /> Reassign
             </button>
@@ -924,7 +941,7 @@ function LeadTracker({ lead, onClose, onReassign }: { lead: BoardLead; onClose: 
                 ) : (
                   <div className="text-sm text-gray-400">
                     {data.snapshotDays === 0
-                      ? "No history yet — the nightly tracker hasn't recorded this lead. It builds from its first run."
+                      ? "No history yet. The nightly snapshot that records stage changes hasn't run — until it does, this stays empty for every lead."
                       : `No stage changes since ${data.trackedSince}. It has sat in "${l.status}" the whole time.`}
                   </div>
                 )}
