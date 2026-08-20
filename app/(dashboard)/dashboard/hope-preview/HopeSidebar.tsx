@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
@@ -16,6 +17,10 @@ import { GlobalSearch } from "./GlobalSearch";
 
 // The ONE shared Hope UI sidebar — used by HopeShell (cloned tabs) AND the
 // hand-built HopeOverview so every V2 page has the identical grouped, expandable
+// Links are next/link, not <a>: a plain anchor makes every sidebar click a full
+// browser page load — the app unmounts, every bundle re-downloads and the whole
+// screen rebuilds. Link keeps the app mounted and swaps only the page.
+//
 // nav (no V1 sidebar anywhere). Self-contained: it injects its own scoped CSS and
 // theme vars, so it renders correctly whether or not a `.hope-root` wraps it.
 // Grouping matches V1 components/Sidebar.tsx exactly, hrefs point to hope-preview.
@@ -137,9 +142,9 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
   const LeafRow = ({ leaf, indent }: { leaf: Leaf; indent?: boolean }) => {
     const Icon = leaf.icon;
     return (
-      <a href={leaf.href} className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
+      <Link href={leaf.href} prefetch className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
         <Icon size={indent ? 15 : 16} stroke={1.8} /> <span>{leaf.label}</span>
-      </a>
+      </Link>
     );
   };
   const FolderRow = ({ f }: { f: Folder }) => {
@@ -152,9 +157,9 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
       <div>
         <div className="hnavfolder">
           {f.href ? (
-            <a href={f.href} onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: true }))} className={`hnavitem folderlink ${(pActive || semi) ? "semi" : ""}`}>
+            <Link href={f.href} prefetch onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: true }))} className={`hnavitem folderlink ${(pActive || semi) ? "semi" : ""}`}>
               <Icon size={16} stroke={1.8} /> <span>{f.label}</span>
-            </a>
+            </Link>
           ) : (
             <button onClick={toggle} className={`hnavitem folderlink ${semi ? "semi" : ""}`}>
               <Icon size={16} stroke={1.8} /> <span>{f.label}</span>
@@ -174,10 +179,10 @@ export function HopeSidebar({ active }: { active: HopeTab }) {
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
         {/* Logo → Overview (the main page). */}
-        <a href={OVERVIEW.href} aria-label="Go to Overview" className="hlogo-link">
+        <Link href={OVERVIEW.href} aria-label="Go to Overview" className="hlogo-link">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
-        </a>
+        </Link>
       </div>
       <GlobalSearch />
       <LeafRow leaf={OVERVIEW} />
