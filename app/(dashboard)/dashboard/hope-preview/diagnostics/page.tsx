@@ -14,7 +14,6 @@ type Summary = { checked: number; healthy: number; warn: number; error: number; 
 type Report = { ranAt: number; trigger: string; summary: Summary; systems: SystemResult[]; repairs: { system: string; action: string; result: string; note: string }[]; host: Host; durationMs: number };
 type HistRow = { id: string; ran_at: string; trigger: string; summary: Summary; duration_ms: number };
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function fromRow(r: any): Report {
   return { ranAt: +new Date(r.ran_at), trigger: r.trigger, summary: r.summary, systems: r.systems || [], repairs: r.repairs || [], host: r.host || {}, durationMs: r.duration_ms };
 }

@@ -1137,8 +1137,8 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
         <div className={`impact ${fits ? "ok" : ""}`}>
           <span>{ICLOCK}</span>
           {fits
-            ? <span>You have <b>{fmtMins(free)}</b> free today — this fits. You'd still finish by <b>{DAY_END_LABEL}</b>.</span>
-            : <span>Your day is <b>9:00 AM–{DAY_END_LABEL}</b>. Adding this pushes you to <b className="over">{finish}</b> — you'd work <b>{fmtMins(over)} over</b> your usual checkout.</span>}
+            ? <span>You have <b>{fmtMins(free)}</b> free today — this fits. You&rsquo;d still finish by <b>{DAY_END_LABEL}</b>.</span>
+            : <span>Your day is <b>9:00 AM–{DAY_END_LABEL}</b>. Adding this pushes you to <b className="over">{finish}</b> — you&rsquo;d work <b>{fmtMins(over)} over</b> your usual checkout.</span>}
         </div>
         <div className="aw-choice">
           <button className="btn primary" onClick={onAcceptWork}>{fits ? "Accept & work" : `Accept & work — finish ${finish}`}</button>

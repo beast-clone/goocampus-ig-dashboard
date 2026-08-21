@@ -225,7 +225,9 @@ function Scheduler() {
     } finally { setTopLoading(false); }
   }
 
-  function useTopPerformer(p: TopPerformer) {
+  // Named applyTopPerformer, not useTopPerformer: a plain handler whose name starts
+  // with "use" trips the rules-of-hooks lint, which reads it as a misplaced hook.
+  function applyTopPerformer(p: TopPerformer) {
     setParticulars(`Repost: ${(p.caption || "").slice(0, 60)}`);
     setCaption(p.caption || "");
     if (p.thumbnail) setMediaUrls([p.thumbnail]);
@@ -821,7 +823,7 @@ function Scheduler() {
                   {topPerformers.map((p, i) => (
                     <button
                       key={p.id}
-                      onClick={() => useTopPerformer(p)}
+                      onClick={() => applyTopPerformer(p)}
                       className="w-full text-left flex gap-4 p-3 border border-gray-100 rounded-xl hover:border-violet-300 hover:bg-violet-50/30 transition"
                     >
                       <div className="flex-shrink-0">

@@ -1,0 +1,8 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": [".next/", "node_modules/", "public/", "graphify-out/", "marketing-skills/"],
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn",
+    "@next/next/no-img-element": "off"
+  }
+}

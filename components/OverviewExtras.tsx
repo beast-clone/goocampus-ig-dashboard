@@ -270,69 +270,6 @@ function PostMixCard({ loading, mix }: { loading: boolean; mix: { total: number;
   );
 }
 
-// EngagementRateCard removed — engagement rate moved up to the top KPI tile row.
-// Old component code kept commented in git history if we ever want it back inline.
-function _UnusedEngagementRateCard({ loading, avgPct, deltaPts, series }: { loading: boolean; avgPct: number; deltaPts: number; series: number[] }) {
-  const points = useMemo(() => {
-    if (series.length === 0) return "";
-    const max = Math.max(...series, 0.01);
-    const w = 200; const h = 60;
-    return series.map((v, i) => {
-      const x = (i / (series.length - 1 || 1)) * w;
-      const y = h - (v / max) * h;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
-  }, [series]);
-  const areaPath = useMemo(() => {
-    if (series.length === 0) return "";
-    const max = Math.max(...series, 0.01);
-    const w = 200; const h = 60;
-    const parts = series.map((v, i) => {
-      const x = (i / (series.length - 1 || 1)) * w;
-      const y = h - (v / max) * h;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    return parts.join(" ") + ` L200,60 L0,60 Z`;
-  }, [series]);
-  return (
-    <section className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-      <div className="mb-3">
-        <h3 className="text-[14px] font-semibold text-gray-900">Engagement rate</h3>
-        <div className="text-[11.5px] text-gray-500">Of every 100 people who saw your posts, this many reacted.</div>
-      </div>
-      {loading ? (
-        <div className="h-[100px] bg-gray-50 rounded animate-pulse" />
-      ) : (
-        <div>
-          <div className="text-[26px] font-medium tabular-nums leading-none tracking-tight text-gray-900">
-            {avgPct.toFixed(1)}%
-          </div>
-          <div className={`text-[11.5px] mt-1 font-semibold ${deltaPts >= 0.05 ? "text-emerald-700" : deltaPts <= -0.05 ? "text-rose-700" : "text-gray-500"}`}>
-            {deltaPts >= 0 ? "▲" : "▼"} {Math.abs(deltaPts).toFixed(1)} pts across the range
-          </div>
-          <div className="mt-3">
-            <svg viewBox="0 0 200 60" preserveAspectRatio="none" style={{ width: "100%", height: 60 }}>
-              <defs>
-                <linearGradient id="er-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6E48F8" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#6E48F8" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d={areaPath} fill="url(#er-grad)" />
-              <polyline points={points} fill="none" stroke="#6E48F8" strokeWidth="1.5" />
-              {series.length > 0 && (() => {
-                const max = Math.max(...series, 0.01);
-                const lastX = 200;
-                const lastY = 60 - (series[series.length - 1] / max) * 60;
-                return <circle cx={lastX} cy={lastY} r="3" fill="#6E48F8" />;
-              })()}
-            </svg>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
 
 // Suggested hashtags for GooCampus's IMG-doctor audience — surfaced when the
 // range has no hashtag usage so the card doesn't sit empty. Grouped by the
