@@ -162,9 +162,11 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
           doesn't feel broken. */}
       {(topToday || topWeek || topMonth) && (() => {
         const winners: Array<{ label: string; reel: ApiPost }> = [];
-        if (topToday) winners.push({ label: "Today", reel: topToday });
-        if (topWeek && topWeek.id !== topToday?.id) winners.push({ label: "This week", reel: topWeek });
-        if (topMonth && topMonth.id !== topToday?.id && topMonth.id !== topWeek?.id) winners.push({ label: "This month", reel: topMonth });
+        // Rolling windows ending now, named for what they measure — "Today" put
+        // yesterday afternoon's reel under today. Same fix as the Posts tab.
+        if (topToday) winners.push({ label: "Last 24 hours", reel: topToday });
+        if (topWeek && topWeek.id !== topToday?.id) winners.push({ label: "Last 7 days", reel: topWeek });
+        if (topMonth && topMonth.id !== topToday?.id && topMonth.id !== topWeek?.id) winners.push({ label: "Last 30 days", reel: topMonth });
         if (winners.length === 0) return null;
         const cols = winners.length === 1 ? "md:grid-cols-1" : winners.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
         return (

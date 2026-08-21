@@ -72,12 +72,19 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {/* Pinned rankings board — always-visible "where GooCampus ranks" */}
       <RankingsBoard />
 
-      {/* Totals */}
+      {/* Totals.
+          Clicks and impressions come from `full.summary` — Search Console queried
+          with NO dimensions, which is Google's own total for the window. They used
+          to be summed from the per-QUERY rows, and Google withholds rare queries
+          for privacy, so that sum always came out short: the tile read "0 clicks"
+          on a window where the pages list below it showed a page earning 3.
+          Keywords ranked still comes from the query rows — that one IS a count of
+          the queries you show for. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Clicks" value={fmt(gsc?.totals?.clicks)} sub="from Google search" />
-        <Stat label="Impressions" value={fmt(gsc?.totals?.impressions)} sub="times you appeared" />
+        <Stat label="Clicks" value={fmt(full?.summary?.clicks)} sub="from Google search" />
+        <Stat label="Impressions" value={fmt(full?.summary?.impressions)} sub="times you appeared" />
         <Stat label="Avg position" value={full?.summary?.avgPosition != null ? String(full.summary.avgPosition) : "—"} sub="across all queries" />
-        <Stat label="Keywords ranked" value={fmt(gsc?.totals?.queries)} sub="queries you show for" />
+        <Stat label="Keywords ranked" value={fmt(gsc?.totals?.queries)} sub="queries Google will name" />
       </div>
 
       {notConfigured ? (
