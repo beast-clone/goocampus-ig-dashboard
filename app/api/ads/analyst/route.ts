@@ -79,10 +79,23 @@ export async function GET(req: Request) {
         evidence: learning.map((c) => `${c.campaign_name} (${c.leads}/50 conversions)`).join("; "),
         fix: "Don’t change it for about 2 days — it’s still learning who to show it to.", campaigns: learning.map((c) => c.campaign_name) });
 
-    const underPacing = campaigns.filter((c) => c.daily_budget > 0 && c.spend / days < c.daily_budget * 0.75);
+    // Pace against the days the campaign was actually live inside this window, not the
+    // window itself — dividing by the full 30 or 90 days made anything launched partway
+    // through look starved, and the advice attached to it is "raise the bid". Paused
+    // campaigns are excluded for the same reason: they under-spend because they're off.
+    const liveDays = (c: (typeof campaigns)[number]) => {
+      const started = c.start_time ? c.start_time.slice(0, 10) : from;
+      const begin = started > from ? started : from;
+      if (begin > to) return 0;
+      return Math.max(1, Math.round((new Date(to).getTime() - new Date(begin).getTime()) / 86_400_000) + 1);
+    };
+    const perDay = (c: (typeof campaigns)[number]) => (liveDays(c) > 0 ? c.spend / liveDays(c) : 0);
+    const underPacing = campaigns.filter(
+      (c) => c.status === "ACTIVE" && c.daily_budget > 0 && liveDays(c) > 0 && perDay(c) < c.daily_budget * 0.75,
+    );
     if (underPacing.length)
       diagnostics.push({ key: "pacing", label: "Budget under-pacing", status: "warn",
-        evidence: underPacing.map((c) => `${c.campaign_name} avg ${inr(c.spend / days)}/day of ${inr(c.daily_budget)}`).join("; "),
+        evidence: underPacing.map((c) => `${c.campaign_name} avg ${inr(perDay(c))}/day of ${inr(c.daily_budget)} over ${liveDays(c)} live day${liveDays(c) === 1 ? "" : "s"}`).join("; "),
         fix: "Raise the bid or widen the audience so it spends its full budget and reaches more people.", campaigns: underPacing.map((c) => c.campaign_name) });
 
     const lowCtr = campaigns.filter((c) => c.ctr > 0 && c.ctr < 1.0);

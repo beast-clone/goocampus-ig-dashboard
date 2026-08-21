@@ -1,4 +1,5 @@
 "use client";
+import { nowMinutesIST } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HopeDashboardShell } from "@/app/(dashboard)/dashboard/hope-preview/HopeDashboardShell";
 import { IconLogin, IconLogout, IconClock, IconChevronRight, IconRefresh, IconLock, IconCalendar } from "@tabler/icons-react";
@@ -13,7 +14,9 @@ const AV: Record<string, { bg: string; fg: string }> = {
   maheen: { bg: "#C0DD97", fg: "#27500A" },
 };
 const LUNCH_START = 240, LUNCH_END = 300, DAY_MINS = 600;
-const nowMin = () => { const d = new Date(); return Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - 540, DAY_MINS)); };
+// IST, matching the server's nowMinIST() — the browser's own clock would put the
+// "now" line in a different place than the bars it sits on for anyone abroad.
+const nowMin = () => Math.max(0, Math.min(nowMinutesIST() - 540, DAY_MINS));
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
 function workedNet(loginMin: number | null, logoutMin: number | null): number | null {
   if (loginMin == null) return null;

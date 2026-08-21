@@ -23,6 +23,33 @@ function parse(iso: string | null | undefined): Date | null {
 // laptop abroad and differently again when rendered on the server.
 export const IST = "Asia/Kolkata";
 
+// "Today" as the team means it — the calendar day in India — not the calendar day
+// of whatever machine happens to be running the code. This matters because the same
+// component renders twice: once on the server (Netlify runs UTC) and once in the
+// browser (IST). Between midnight and 5:30am IST those two disagree about the date,
+// which silently shifts every default date range by a day AND makes the two renders
+// differ, which React treats as a hydration failure and the production build reports
+// as "a client-side exception".
+export function todayIST(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: IST }).format(new Date());
+}
+
+/** N days before today (IST), as "YYYY-MM-DD". Calendar arithmetic, so no DST drift. */
+export function daysAgoIST(n: number): string {
+  const [y, m, d] = todayIST().split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() - n);
+  return t.toISOString().slice(0, 10);
+}
+
+/** Minutes since midnight, IST — for "where are we in the working day" markers. */
+export function nowMinutesIST(): number {
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: IST, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+  const h = Number(p.find((x) => x.type === "hour")?.value ?? 0);
+  const mi = Number(p.find((x) => x.type === "minute")?.value ?? 0);
+  return h * 60 + mi;
+}
+
 const DATE_FULL: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long", year: "numeric" };
 const DATE_SHORT: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit", hour12: true };

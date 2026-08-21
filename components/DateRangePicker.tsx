@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { format, subDays } from "date-fns";
+import { todayIST, daysAgoIST } from "@/lib/date";
 import { IconCalendar } from "@tabler/icons-react";
 import { HopeDatePicker } from "@/app/(dashboard)/dashboard/hope-preview/HopeDatePicker";
 
@@ -19,9 +20,9 @@ export function rangeDays(r: Range): number {
 }
 
 function isPresetActive(r: Range, days: number): boolean {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayIST();
   if (r.to !== today) return false;
-  const expected = format(subDays(new Date(), days), "yyyy-MM-dd");
+  const expected = daysAgoIST(days);
   return r.from === expected;
 }
 
@@ -38,7 +39,7 @@ function fmtShort(d: string): string {
 // picker; clampToToday() covers the case where a date is typed straight into the
 // field, which bypasses `max` in several browsers.
 function todayLocal(): string {
-  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in the viewer's timezone
+  return todayIST(); // the team's calendar day, not the viewer's machine
 }
 
 function clampToToday(d: string): string {
@@ -70,7 +71,7 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
           <button
             key={p.label}
             onClick={() => {
-              onChange({ from: format(subDays(new Date(), p.days), "yyyy-MM-dd"), to: format(new Date(), "yyyy-MM-dd") });
+              onChange({ from: daysAgoIST(p.days), to: todayIST() });
               setOpen(false);
             }}
             className={`px-3 py-1.5 text-xs rounded-md border transition ${

@@ -71,6 +71,12 @@ export async function airtableList<T = Record<string, unknown>>(
 ): Promise<Array<{ id: string; fields: T }>> {
   const out: Array<{ id: string; fields: T }> = [];
   let offset: string | undefined;
+  // A caller that asks for maxRecords wants a sample and truncating is the point.
+  // The 50k default is a runaway guard, not a limit anyone chose — hitting it means
+  // the table outgrew it and every total built from this read is quietly short. The
+  // CRM is already ~35k rows, so say so loudly instead of returning wrong numbers:
+  // this dashboard's whole job is to be exact about what Airtable holds.
+  const explicitCap = typeof params.maxRecords === "number";
   const cap = params.maxRecords ?? 50_000;
 
   do {
@@ -96,7 +102,13 @@ export async function airtableList<T = Record<string, unknown>>(
     const json = (await r.json()) as AirtableListResponse<T>;
     for (const rec of json.records) {
       out.push({ id: rec.id, fields: rec.fields });
-      if (out.length >= cap) return out;
+      if (out.length >= cap) {
+        if (explicitCap) return out;
+        throw new Error(
+          `Airtable table ${tableId} has more than ${cap.toLocaleString()} matching records — ` +
+          `this read would be incomplete. Raise the cap in airtableList() or narrow the filter.`,
+        );
+      }
     }
     offset = json.offset;
   } while (offset);

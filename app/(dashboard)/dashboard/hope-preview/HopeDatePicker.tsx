@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { IconCalendarEvent, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { todayIST } from "@/lib/date";
 
 // Hope-UI date picker.
 //
@@ -18,7 +19,7 @@ export function ymdStr(d: Date): string {
 }
 
 export function todayYmd(): string {
-  return ymdStr(new Date());
+  return todayIST();
 }
 
 export function HopeDatePicker({

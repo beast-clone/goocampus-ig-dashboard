@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { format, subDays, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { todayIST, daysAgoIST } from "@/lib/date";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
 import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
@@ -21,7 +22,7 @@ const LS_COMPARE = "gc-dash:compareAll";
 
 function rangeLabel(r: Range): string {
   const days = rangeDays(r);
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayIST();
   const isToToday = r.to === today;
   if (isToToday && days === 7) return "Last 7 days";
   if (isToToday && days === 30) return "Last 30 days";
@@ -51,8 +52,8 @@ export function HopeDashboardShell({
   // Real Instagram profile pictures for the account picker (accountId -> data URI).
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [range, setRange] = useState<Range>({
-    from: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-    to: format(new Date(), "yyyy-MM-dd"),
+    from: daysAgoIST(30),
+    to: todayIST(),
   });
 
   useEffect(() => {

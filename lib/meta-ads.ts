@@ -114,6 +114,9 @@ export type CampaignRow = AdsTotals & {
   daily_budget: number;
   lifetime_budget: number;
   status: string;  // ACTIVE | PAUSED | DELETED | ARCHIVED
+  // When the campaign began. Needed to judge pacing: spend divided by the whole
+  // reporting window makes anything launched mid-window look starved.
+  start_time: string | null;
 };
 
 export type AdRow = AdsTotals & {
@@ -223,20 +226,21 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
       level: "campaign",
       limit: "200",
     }),
-    gget<{ data: { id: string; name: string; daily_budget?: string; lifetime_budget?: string; effective_status?: string; status?: string }[] }>(`${acct.id}/campaigns`, acct.token, {
-      fields: "id,name,daily_budget,lifetime_budget,effective_status,status",
+    gget<{ data: { id: string; name: string; daily_budget?: string; lifetime_budget?: string; effective_status?: string; status?: string; start_time?: string }[] }>(`${acct.id}/campaigns`, acct.token, {
+      fields: "id,name,daily_budget,lifetime_budget,effective_status,status,start_time",
       limit: "200",
     }),
   ]);
 
   // Build a budget lookup — Meta returns budgets in the smallest currency unit (paise for INR),
   // so we divide by 100 to get rupees.
-  const budgetById = new Map<string, { daily: number; lifetime: number; status: string }>();
+  const budgetById = new Map<string, { daily: number; lifetime: number; status: string; start_time: string | null }>();
   for (const c of cfgJson.data || []) {
     budgetById.set(c.id, {
       daily: parseFloat(c.daily_budget || "0") / 100,
       lifetime: parseFloat(c.lifetime_budget || "0") / 100,
       status: c.effective_status || c.status || "UNKNOWN",
+      start_time: c.start_time || null,
     });
   }
 
@@ -260,7 +264,7 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
     }));
     for (const r of results) {
       if (r.status === "fulfilled" && r.value.total > 0) {
-        const existing = budgetById.get(r.value.id) || { daily: 0, lifetime: 0, status: "UNKNOWN" };
+        const existing = budgetById.get(r.value.id) || { daily: 0, lifetime: 0, status: "UNKNOWN", start_time: null };
         budgetById.set(r.value.id, { ...existing, daily: r.value.total });
       }
     }
@@ -268,13 +272,14 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
 
   return perfList
     .map((r) => {
-      const budget = budgetById.get(r.campaign_id) || { daily: 0, lifetime: 0, status: "UNKNOWN" };
+      const budget = budgetById.get(r.campaign_id) || { daily: 0, lifetime: 0, status: "UNKNOWN", start_time: null };
       return {
         campaign_id: r.campaign_id,
         campaign_name: r.campaign_name,
         daily_budget: budget.daily,
         lifetime_budget: budget.lifetime,
         status: budget.status,
+        start_time: budget.start_time,
         ...mapInsightsRow(r),
       };
     })
