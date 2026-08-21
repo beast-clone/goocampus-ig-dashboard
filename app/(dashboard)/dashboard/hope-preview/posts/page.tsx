@@ -189,13 +189,16 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
       </div>
 
       {/* Top performers by rolling window. Only windows that actually have a post are
-          rendered — no more empty "Today" card when nothing was posted in the last 24h.
-          Also skips repeat entries (if today's top is also the week's top). */}
+          rendered — no empty card when nothing was posted in the last 24h. Also skips
+          repeat entries (if the 24h top is also the 7-day top). */}
       {(topToday || topWeek || topMonth) && (() => {
         const winners: Array<{ label: string; post: ApiPost }> = [];
-        if (topToday) winners.push({ label: "Today", post: topToday });
-        if (topWeek && topWeek.id !== topToday?.id) winners.push({ label: "This week", post: topWeek });
-        if (topMonth && topMonth.id !== topToday?.id && topMonth.id !== topWeek?.id) winners.push({ label: "This month", post: topMonth });
+        // Labelled by the window they actually measure. These are rolling windows
+        // ending now — "Today" read as the calendar day and put yesterday's
+        // afternoon post under it.
+        if (topToday) winners.push({ label: "Last 24 hours", post: topToday });
+        if (topWeek && topWeek.id !== topToday?.id) winners.push({ label: "Last 7 days", post: topWeek });
+        if (topMonth && topMonth.id !== topToday?.id && topMonth.id !== topWeek?.id) winners.push({ label: "Last 30 days", post: topMonth });
         if (winners.length === 0) return null;
         const cols = winners.length === 1 ? "md:grid-cols-1" : winners.length === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
         return (

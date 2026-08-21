@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { serperRank } from "@/lib/seo";
 import { safeError } from "@/lib/errors";
@@ -9,6 +10,9 @@ import { safeError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });

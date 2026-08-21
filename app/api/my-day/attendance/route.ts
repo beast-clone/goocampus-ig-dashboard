@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
@@ -49,6 +50,9 @@ type Att = { person_key: string; date: string; login_min: number | null; login_a
 
 // POST — a person's My Day reports login / logout. { person, action, min, at, rolled? }
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const b = (await req.json()) as { person?: string; action?: string; min?: number; at?: string; rolled?: { title: string; reason: string }[] };
     const person = (b.person || "").toLowerCase().trim();
@@ -77,6 +81,9 @@ export async function POST(req: Request) {
 
 // GET — admin board. ?view=day|week|month & date=<anchor YYYY-MM-DD>
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     if (!getSessionIsAdmin()) return NextResponse.json({ error: "admin only" }, { status: 403 });
     const sb = getSupabase();

@@ -3,12 +3,15 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { getSessionUserId } from "@/lib/auth";
-import { requireCapability } from "@/lib/api-guard";
+import { requireCapability, requireSection } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/delete  { id, actor? }
 // Removes ONE mh_posts row. Gated in the UI by the `delete_tasks` capability
 // (Team permissions). Child rows are cleared first in case FKs aren't cascading.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const denied = await requireCapability("delete_tasks");
     if (denied) return denied;

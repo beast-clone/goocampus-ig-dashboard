@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { fetchContentCalendarBody } from "@/lib/content-calendar";
@@ -12,6 +13,9 @@ import { getSessionUserId } from "@/lib/auth";
 //   - activity (log, most recent 10)
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

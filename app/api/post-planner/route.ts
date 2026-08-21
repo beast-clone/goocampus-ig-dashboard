@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { getSupabase } from "@/lib/supabase";
 import { getTopTimeSuggestions, getTopPerformers } from "@/lib/scheduler-helpers";
@@ -77,6 +78,9 @@ function nextSlot(afterMs: number, bestHours: number[]): Date {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const force = new URL(req.url).searchParams.get("force") === "1";
   if (!force && cache && Date.now() - cache.at < TTL_MS) {
     return NextResponse.json({ ...(cache.payload as object), cached: true });

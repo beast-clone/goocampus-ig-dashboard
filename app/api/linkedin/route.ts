@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildLive, linkedinToken, listAdminedOrgs } from "@/lib/linkedin";
 import { cached } from "@/lib/api-cache";
 
@@ -185,6 +186,9 @@ function buildDemo(pageKey: string, from: string, to: string) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const pageKey = (url.searchParams.get("page") || "goocampus").toLowerCase();

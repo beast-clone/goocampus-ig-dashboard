@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 
@@ -7,6 +8,9 @@ import { getSessionUserId } from "@/lib/auth";
 // source, every row carries a real mh_posts.id — so a row on /me can deep-link
 // straight to its task detail in the Hub (/dashboard/marketing-hub?open=<id>).
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const sb = getSupabase();
   const uid = getSessionUserId();
   if (!sb || !uid) return NextResponse.json({ items: [] });

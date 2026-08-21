@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
-import { requireCapability } from "@/lib/api-guard";
+import { requireCapability, requireSection } from "@/lib/api-guard";
 
 // Simple CRUD on mh_post_collaborators for the Team pills in the detail panel.
 //   POST   /api/marketing-hub/collaborators  { postId, memberKey }
@@ -11,6 +11,9 @@ import { requireCapability } from "@/lib/api-guard";
 const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const denied = await requireCapability("edit_tasks");
     if (denied) return denied;
@@ -42,6 +45,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const denied = await requireCapability("edit_tasks");
     if (denied) return denied;

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchBasic, fetchAudience } from "@/lib/instagram";
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const account = getAccount(accountId);

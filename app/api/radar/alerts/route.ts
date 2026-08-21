@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { listAlerts, createAlert } from "@/lib/content-radar";
 import { safeError } from "@/lib/errors";
 
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const alerts = await listAlerts();
     return NextResponse.json({ alerts });
@@ -15,6 +19,9 @@ export async function GET() {
 //   { name, primaryInterest, searchQuery }  — dashboard-native topic (preferred)
 //   { name, primaryInterest, feedUrl }      — Google Alerts RSS URL (advanced)
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { name?: string; primaryInterest?: string; feedUrl?: string; searchQuery?: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

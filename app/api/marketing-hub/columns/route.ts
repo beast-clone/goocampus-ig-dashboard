@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
@@ -25,6 +26,9 @@ const canDeleteColumn = (createdBy: string | null, me: { id: string; isAdmin: bo
   !!me?.isAdmin || !createdBy || (!!me && createdBy === me.id);
 
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ columns: [], me: null });
@@ -40,6 +44,9 @@ export async function GET() {
 
 // POST — add a column. Body: { label, type, options? }. Open to any signed-in teammate.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { label?: string; type?: string; options?: string[] };
     if (!body.label || !body.label.trim()) return NextResponse.json({ error: "label is required" }, { status: 400 });
@@ -62,6 +69,9 @@ export async function POST(req: Request) {
 
 // DELETE — remove a column (creator or admin only). ?id=
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });

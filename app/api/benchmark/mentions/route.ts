@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { recordApiCall, callsThisMonth } from "@/lib/api-usage";
 import { safeError } from "@/lib/errors";
@@ -15,6 +16,9 @@ const sentiment = (t: string): "positive" | "negative" | "neutral" => (NEG.test(
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   try {
     const key = process.env.SERPER_API_KEY;
     if (!key) return NextResponse.json({ mentions: [], error: "No Serper key" });

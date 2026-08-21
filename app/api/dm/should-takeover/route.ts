@@ -5,6 +5,7 @@
 // If queued_reply is non-null, n8n should send that text as the DM (single-shot — it's popped from queue on read).
 // If mode is "human" with no queued_reply, n8n should NOT call the AI and should NOT respond (just save the message via /api/dm/mirror).
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getThread, popQueuedReply, recordInbound } from "@/lib/dm";
 
 function authorized(req: Request) {
@@ -14,6 +15,9 @@ function authorized(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const account = url.searchParams.get("account") || "";

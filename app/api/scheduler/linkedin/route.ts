@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { orgUrnFor } from "@/lib/linkedin-publish";
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 const COLS = "id, pages, body, image_url, schedule_time, status, results, error, created_at, published_at";
 
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -26,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const b = (await req.json()) as { pages?: string[]; text?: string; imageUrl?: string; scheduleTimeISO?: string };
     const pages = (b.pages || []).map((p) => (p || "").trim()).filter(Boolean).filter((p) => orgUrnFor(p));
@@ -52,6 +59,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });

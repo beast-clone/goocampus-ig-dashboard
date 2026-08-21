@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 
@@ -17,6 +18,9 @@ function normalizePerson(v: string | null | undefined): string | null {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const person = normalizePerson(url.searchParams.get("person"));
@@ -41,6 +45,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { person?: string; body?: string };
     const person = normalizePerson(body.person);
@@ -66,6 +73,9 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { id?: string; body?: string; done?: boolean };
     if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -95,6 +105,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

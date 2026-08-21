@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { readSnapshots } from "@/lib/snapshot";
 
 // Reconstruct a period's account KPIs from the daily snapshots we stored in
@@ -7,6 +8,9 @@ import { readSnapshots } from "@/lib/snapshot";
 // totals/series, so the dashboard can consume it interchangeably.
 //   GET /api/insights-stored?accountId=goocampus&from=2026-06-01&to=2026-06-30
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const from = url.searchParams.get("from");

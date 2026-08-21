@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { fetchRedditThread, hasRedditAuth } from "@/lib/reddit";
 import { safeError } from "@/lib/errors";
 
@@ -7,6 +8,9 @@ import { safeError } from "@/lib/errors";
 // Returns { needsAuth: true } (200) when no Reddit app is configured, so the
 // reader can fall back to the snippet gracefully instead of erroring.
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const url = new URL(req.url).searchParams.get("url") || "";
   if (!url) return NextResponse.json({ error: "url query param required" }, { status: 400 });
   if (!hasRedditAuth()) return NextResponse.json({ needsAuth: true }, { status: 200 });

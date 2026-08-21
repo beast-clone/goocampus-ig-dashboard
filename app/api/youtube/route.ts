@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildLiveYouTube, hasYouTubeAuth, resolveChannelId } from "@/lib/youtube";
 import { CHANNELS } from "@/lib/youtube-channels";
 import { cached } from "@/lib/api-cache";
@@ -191,6 +192,9 @@ function buildDemo(channelKey: string, from: string, to: string) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const channelKey = (url.searchParams.get("channel") || "goocampus").toLowerCase();

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { format, subDays } from "date-fns";
 import { getConfiguredAccounts, fetchBasic, fetchAccountInsights, fetchRecentMedia } from "@/lib/instagram";
 import { buildLive as linkedinBuildLive } from "@/lib/linkedin";
@@ -65,6 +66,9 @@ async function igSnapshot(a: ReturnType<typeof getConfiguredAccounts>[number], f
 }
 
 export async function GET() {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const accts = getConfiguredAccounts();
   if (!accts.length) return NextResponse.json({ live: false, brands: {} });
 

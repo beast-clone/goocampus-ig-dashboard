@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { setThreadMode } from "@/lib/dm";
 
 // POST /api/dm/takeover  { account, sender_id, mode: "ai"|"human" }
 export async function POST(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const body = await req.json() as { account?: string; sender_id?: string; mode?: "ai" | "human" };
   if (!body.account || !body.sender_id || !body.mode) {
     return NextResponse.json({ error: "Missing account / sender_id / mode" }, { status: 400 });

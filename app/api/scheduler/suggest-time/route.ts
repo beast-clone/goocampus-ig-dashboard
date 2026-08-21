@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getTopTimeSuggestions } from "@/lib/scheduler-helpers";
 import { safeError } from "@/lib/errors";
 
@@ -8,6 +9,9 @@ const cache = new Map<string, CacheEntry>();
 const TTL_MS = 30 * 60 * 1000; // 30 min
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const page = url.searchParams.get("publishToPage") || "";
   if (!page) return NextResponse.json({ error: "publishToPage required" }, { status: 400 });

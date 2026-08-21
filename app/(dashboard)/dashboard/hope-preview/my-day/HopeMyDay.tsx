@@ -152,7 +152,9 @@ const PPL: Record<string, Person> = {
 // protected 1-hour lunch. Tasks are reorderable — drag a block, or use the ◀ ▸
 // nudges to push it front/back.
 const DAY_START_H = 9, DAY_END_H = 19;             // 9 AM – 7 PM span (covers both shifts: 9–6 and 10–7)
-const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 540 = 8h work + 1h lunch
+const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 600 — the width the timeline DRAWS,
+                                                   // wide enough for both the 9–6 and 10–7 shifts.
+                                                   // A shift itself is 540 (8h work + 1h lunch).
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
 const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
@@ -52,6 +53,9 @@ const SELECT = "id, name, section, config, position, access, description, create
 
 // GET — list every saved view, with a per-viewer canEdit flag + the current user id.
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ views: [], me: null });
@@ -75,6 +79,9 @@ export async function GET() {
 
 // POST — create a view. Body: { name, config, section?, access?, description? }
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { name?: string; config?: Record<string, unknown>; section?: string; access?: Access; description?: string };
     if (!body.name || body.name.trim().length === 0) {
@@ -105,6 +112,9 @@ export async function POST(req: Request) {
 // PATCH — update a view. Body: { id, name?, config?, description?, access?, createdBy? }
 // Config/name/description edits need canEditConfig; access/reassign need owner-or-admin.
 export async function PATCH(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { id?: string; name?: string; config?: Record<string, unknown>; description?: string; access?: Access; createdBy?: string | null };
     if (!body.id) return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -142,6 +152,9 @@ export async function PATCH(req: Request) {
 
 // DELETE — remove a view (owner or admin). ?id=<uuid>
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });

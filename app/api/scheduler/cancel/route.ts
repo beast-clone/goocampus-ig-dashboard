@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // no longer shows as scheduled/publishing/failed. The content row itself is kept and
 // drops back into the "Ready to schedule" backlog (reversible — nothing is destroyed).
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const { recordId } = (await req.json()) as { recordId?: string };
     if (!recordId) return NextResponse.json({ error: "recordId required" }, { status: 400 });

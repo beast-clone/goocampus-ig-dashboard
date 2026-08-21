@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { format, subDays } from "date-fns";
 import { getAdAccount, fetchActiveAdsForDay } from "@/lib/meta-ads";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
@@ -23,6 +24,9 @@ async function adCreative(adId: string, token: string): Promise<{ image: string 
 }
 
 export async function GET() {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const acct = await getAdAccount();
   if (!acct) return NextResponse.json({ live: false, ads: [] });
   const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");

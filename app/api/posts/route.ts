@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { metaLimiter } from "@/lib/concurrency";
@@ -41,6 +42,9 @@ async function fetchMediaInDateRange(igUserId: string, token: string, fromIso?: 
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const from = url.searchParams.get("from") || undefined;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { mhCacheGet, mhCacheSet } from "@/lib/mh-cache";
@@ -162,6 +163,9 @@ async function resolveOpen(
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";

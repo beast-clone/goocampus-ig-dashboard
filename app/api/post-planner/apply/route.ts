@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 // mh_posts.publishing_date for each post, so the team's Publishing Calendar picks
 // up the whole sequence at once. Only touches publishing_date.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { items?: { id: string; dateISO: string }[] };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { serperRank } from "@/lib/seo";
 import { safeError } from "@/lib/errors";
 
@@ -8,6 +9,9 @@ import { safeError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const q = new URL(req.url).searchParams.get("q")?.trim();
     if (!q) return NextResponse.json({ error: "keyword (q) is required" }, { status: 400 });

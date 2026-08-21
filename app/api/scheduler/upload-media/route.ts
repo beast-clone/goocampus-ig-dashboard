@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -21,6 +22,9 @@ function safeFilename(name: string): string {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
@@ -72,5 +76,8 @@ export async function POST(req: Request) {
 
 // Reject non-POST requests cleanly
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   return NextResponse.json({ error: "POST a file as multipart/form-data with field 'file'" }, { status: 405 });
 }

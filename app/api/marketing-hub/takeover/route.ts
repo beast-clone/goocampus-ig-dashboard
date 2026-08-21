@@ -3,7 +3,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
-import { requireCapability } from "@/lib/api-guard";
+import { requireCapability, requireSection } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey }
 // Swaps ownership: the incoming person becomes the owner, the old owner is dropped from collabs
@@ -12,6 +12,9 @@ import { requireCapability } from "@/lib/api-guard";
 const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const denied = await requireCapability("edit_tasks");
     if (denied) return denied;

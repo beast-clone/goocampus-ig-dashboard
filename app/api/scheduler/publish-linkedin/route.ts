@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { writeBackLink } from "@/lib/mh-linkback";
@@ -14,6 +15,9 @@ import { publishToPages } from "@/lib/linkedin-publish";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { page?: string; text?: string; imageUrl?: string; postId?: string };
     let { page, text, imageUrl } = body;

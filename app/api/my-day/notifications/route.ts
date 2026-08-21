@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
@@ -30,6 +31,9 @@ type SwapCand = { id: string; title: string; dur: number; due?: string };
 type Notif = { id: string; kind: string; emoji: string; title: string; sub: string; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] } };
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const person = (new URL(req.url).searchParams.get("person") || "").toLowerCase();
     if (!person) return NextResponse.json({ notifs: [] });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 
@@ -12,6 +13,9 @@ import { getSupabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
@@ -6,6 +7,9 @@ const GRAPH = "https://graph.facebook.com/v25.0";
 // GET /api/scheduler/media-children?mediaId=<carousel-id>&accountId=goocampus
 // Returns every slide's media URL for a CAROUSEL_ALBUM (so a repost keeps all images).
 export async function GET(req: NextRequest) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const mediaId = req.nextUrl.searchParams.get("mediaId");
   const accountId = req.nextUrl.searchParams.get("accountId") || "goocampus";
   if (!mediaId) return NextResponse.json({ error: "mediaId required" }, { status: 400 });

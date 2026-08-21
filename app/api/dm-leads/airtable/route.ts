@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAirtableDmLeads } from "@/lib/dm-leads-airtable";
 import { safeError } from "@/lib/errors";
 
@@ -10,6 +11,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   if (!process.env.AIRTABLE_API_KEY) {
     return NextResponse.json({ configured: false, leads: [] });
   }

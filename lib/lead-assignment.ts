@@ -24,6 +24,8 @@ import {
 import { getSupabase } from "./supabase";
 
 // No CRM activity in this many days = the lead has gone cold.
+export { CLOSED_STATUSES, isClosedStatus } from "./lead-status";
+
 const COLD_AFTER_DAYS = 7;
 
 // Holding leads is not the same as selling. Six people appear in the CRM's

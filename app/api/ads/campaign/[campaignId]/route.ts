@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { format, subDays } from "date-fns";
 import { getAdAccount, fetchAdsForCampaign } from "@/lib/meta-ads";
 
 export async function GET(req: Request, { params }: { params: { campaignId: string } }) {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || format(subDays(new Date(), 29), "yyyy-MM-dd");
   const to = url.searchParams.get("to") || format(new Date(), "yyyy-MM-dd");

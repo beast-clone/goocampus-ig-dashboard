@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { MH_NAME } from "@/lib/mh-chat";
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 const TEAM = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const b = (await req.json()) as { pendingId?: string; from?: string; candidates?: { id: string; title: string; dur: number; due?: string }[] };
     const from = (b.from || "").toLowerCase().trim();

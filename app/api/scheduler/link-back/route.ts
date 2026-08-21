@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { writeBackLink, type LinkPlatform } from "@/lib/mh-linkback";
 
@@ -15,6 +16,9 @@ import { writeBackLink, type LinkPlatform } from "@/lib/mh-linkback";
 const PLATFORMS = new Set(["instagram", "facebook", "linkedin"]);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const b = (await req.json()) as { postId?: string; airtableRecordId?: string; platform?: string; url?: string };
     if (!b.platform || !PLATFORMS.has(b.platform)) {

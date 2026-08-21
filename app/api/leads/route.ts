@@ -3,6 +3,7 @@
 // and reply rate for a given account + date range.
 
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchRecentMedia, fetchMediaComments } from "@/lib/instagram";
 import { getAdAccount, fetchAdsDaily } from "@/lib/meta-ads";
 import { getSupabase } from "@/lib/supabase";
@@ -60,6 +61,9 @@ async function cacheSet(key: string, payload: unknown) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const from = url.searchParams.get("from") || "";

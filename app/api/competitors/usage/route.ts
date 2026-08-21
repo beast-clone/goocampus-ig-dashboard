@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getApifyToken } from "@/lib/apify";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
@@ -10,6 +11,9 @@ let cache: { at: number; body: unknown } | null = null;
 const TTL = 5 * 60 * 1000;
 
 export async function GET() {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const token = getApifyToken();
   if (!token) return NextResponse.json({ error: "APIFY_API_TOKEN not set" }, { status: 400 });
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 
@@ -8,6 +9,9 @@ import { getSupabase } from "@/lib/supabase";
 const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { postId?: string; authorKey?: string; body?: string };
     if (!body.postId) return NextResponse.json({ error: "postId required" }, { status: 400 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { search } from "@/lib/assistant";
 import { safeError } from "@/lib/errors";
-import { guardRate } from "@/lib/api-guard";
+import { guardRate, requireSection } from "@/lib/api-guard";
 
 // POST /api/assistant { query } → { results: SearchResult[] }
 //
@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const limited = guardRate(req, "assistant", 40, 60_000);
   if (limited) return limited;
   try {

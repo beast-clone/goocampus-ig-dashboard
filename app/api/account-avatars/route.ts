@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getConfiguredAccounts, fetchBasic } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
 
@@ -29,6 +30,9 @@ async function toDataUri(url: string): Promise<string | null> {
 }
 
 export async function GET() {
+  const __denied = await requireSection("system");
+  if (__denied) return __denied;
+
   const db = getSupabase();
 
   // 1) Serve from cache when fresh.

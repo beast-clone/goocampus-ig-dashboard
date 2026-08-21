@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildSearchConsole, buildSearchConsoleFull, hasGSCAuth, GscNoAccessError, GscApiDisabledError, gscSiteUrl, gscServiceAccount, listGscSites } from "@/lib/search-console";
 import { cached } from "@/lib/api-cache";
 
@@ -9,6 +10,9 @@ import { cached } from "@/lib/api-cache";
 const daysAgo = (n: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   if (!hasGSCAuth()) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // so the change reflects for them immediately. Only touches publishing_date (does NOT
 // enqueue the post for publishing).
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { id?: string; dateISO?: string; note?: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

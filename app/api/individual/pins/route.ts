@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { getUserById } from "@/lib/users";
@@ -7,6 +8,9 @@ import { getUserById } from "@/lib/users";
 // Middleware already requires a valid session; POST/DELETE are same-origin (CSRF-checked).
 
 export async function GET() {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ configured: false, pins: [] });
   const { data, error } = await sb
@@ -26,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
   const uid = getSessionUserId();
@@ -50,6 +57,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ ok: false }, { status: 503 });
   const id = new URL(req.url).searchParams.get("id");

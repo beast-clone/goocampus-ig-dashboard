@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { askPerplexityJSON } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
@@ -64,6 +65,9 @@ function humanFormatName(t: string): string {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const from = url.searchParams.get("from") || "";

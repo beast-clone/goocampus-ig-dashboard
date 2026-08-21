@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getApifyToken, searchCompetitorAds } from "@/lib/apify";
 import { cacheKey, readCache, writeCache, isStale, formatAge } from "@/lib/competitor-cache";
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const query = url.searchParams.get("q");
   const country = url.searchParams.get("country") || "IN";

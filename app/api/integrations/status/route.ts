@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { usageSnapshot, callsThisMonth, callsAllTime } from "@/lib/api-usage";
 import { authPing as sendpulsePing } from "@/lib/sendpulse";
 import { airtableList, CRM_TABLE } from "@/lib/sales-hub";
@@ -213,6 +214,9 @@ function configOnly(key: string, name: string, category: string, envKeys: string
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("system");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
   if (!force && cache && Date.now() - cache.at < TTL_MS) {

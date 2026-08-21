@@ -122,7 +122,17 @@ const DESIGN_TYPES = ["Post", "Carousel", "Reel Thumbnail", "YouTube Thumbnail",
 // The team doesn't log start/stop times, so we lay each person's real pending tasks
 // into a suggested day-plan (9 AM–6 PM, 1h lunch). It's a PLAN, not live tracking.
 const WORK_START_H = 9, WORK_END_H = 19;   // 9 AM – 7 PM (covers both shifts: 9–6 and 10–7)
-const SPAN_MIN = (WORK_END_H - WORK_START_H) * 60; // 600
+const SPAN_MIN = (WORK_END_H - WORK_START_H) * 60; // 600 — the width the timeline DRAWS
+
+// Nobody actually works all ten of those hours. A shift is 8h of work plus an hour
+// of lunch, and the span is wide only so the 9–6 and 10–7 shifts can share one
+// timeline. Capacity has to come from the person's own shift, not the drawing
+// width — using SPAN_MIN gave everyone on the 9–6 shift a phantom extra hour and
+// made this screen disagree with My Day about the same person's free time.
+const SHIFT_MIN = 9 * 60;                  // 540 = 8h work + 1h lunch
+const LATE_SHIFT = new Set(["Nandu"]);     // 10–7 instead of 9–6
+const shiftStart = (m: { label: string }) => (LATE_SHIFT.has(m.label) ? 60 : 0);
+const shiftEnd = (m: { label: string }) => shiftStart(m) + SHIFT_MIN;
 const LUNCH_AT_MIN = 240;                  // ~1 PM
 const LUNCH_MIN = 60;
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
@@ -480,10 +490,11 @@ function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
-  let cur = member.label === "Nandu" ? 60 : 0, lunchDone = false, overflow = 0;   // Nandu = 10–7 late shift
+  const dayEnd = shiftEnd(member);
+  let cur = shiftStart(member), lunchDone = false, overflow = 0;
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
   for (const q of queue) {
-    if (cur >= SPAN_MIN) { overflow++; continue; }
+    if (cur >= dayEnd) { overflow++; continue; }
     let remaining = taskDurMin(q.r.type);
     const label = q.r.particulars || q.r.type || "Task";
     if (!lunchDone && cur >= LUNCH_AT_MIN && cur < LUNCH_END) pushLunch();
@@ -498,7 +509,7 @@ function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]
     if (cur < LUNCH_AT_MIN) { blocks.push({ kind: "free", label: "Free", dur: LUNCH_AT_MIN - cur, start: cur }); cur = LUNCH_AT_MIN; }
     pushLunch();
   }
-  if (cur < SPAN_MIN) blocks.push({ kind: "free", label: "Free", dur: SPAN_MIN - cur, start: cur });
+  if (cur < dayEnd) blocks.push({ kind: "free", label: "Free", dur: dayEnd - cur, start: cur });
   const seenT = new Set<string>();
   const taskBlocks = blocks.filter((b) => b.kind === "task" && b.row != null && !seenT.has(b.row.id) && (seenT.add(b.row.id), true));
   const free = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);

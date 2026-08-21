@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import fs from "fs";
 import path from "path";
 import { safeError } from "@/lib/errors";
@@ -20,6 +21,9 @@ function loadChannels(): ChannelCfg[] {
 }
 
 export async function GET() {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   try {
     const key = process.env.YOUTUBE_API_KEY;
     if (!key) return NextResponse.json({ error: "YOUTUBE_API_KEY not configured" }, { status: 500 });

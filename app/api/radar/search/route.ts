@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { searchWebMentions } from "@/lib/web-mentions";
 import { safeError } from "@/lib/errors";
 
@@ -8,6 +9,9 @@ import { safeError } from "@/lib/errors";
 // the Brand-mentions lane (just seeded with the brand name).
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const q = (new URL(req.url).searchParams.get("q") || "").trim();
     if (!q) return NextResponse.json({ error: "Add a keyword to search (?q=…)" }, { status: 400 });

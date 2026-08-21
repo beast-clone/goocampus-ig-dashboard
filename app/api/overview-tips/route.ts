@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
@@ -39,6 +40,9 @@ const CACHE = new Map<string, Cached>();
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const from = url.searchParams.get("from") || "";

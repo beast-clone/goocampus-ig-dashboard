@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { askPerplexityJSON, hasAI } from "@/lib/ai";
 import { resolveAccountForPage, predictForCaption, type Prediction } from "@/lib/scheduler-helpers";
 import { fetchRecentMedia } from "@/lib/instagram";
@@ -30,6 +31,9 @@ function extractHashtags(text: string): string[] {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { publishToPage?: string; contentBrief?: string; currentCaption?: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

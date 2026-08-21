@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { generateQuickPost, generateFromTopic } from "@/lib/content-pipeline";
 import { hasAI } from "@/lib/ai";
@@ -12,6 +13,9 @@ import { safeError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     if (!hasAI()) return NextResponse.json({ error: "PERPLEXITY_API_KEY not configured" }, { status: 503 });
     const body = (await req.json()) as { title?: string; source?: string; url?: string; interest?: string; kind?: string };

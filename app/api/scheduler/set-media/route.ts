@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -6,6 +7,9 @@ import { safeError } from "@/lib/errors";
 // Saves directly-uploaded media (Supabase Storage URLs) onto an mh_posts row so
 // the "To schedule" card shows the real thumbnail — no more Slack link.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const { postId, mediaUrls } = (await req.json()) as { postId?: string; mediaUrls?: string[] };
     if (!postId) return NextResponse.json({ error: "postId is required" }, { status: 400 });

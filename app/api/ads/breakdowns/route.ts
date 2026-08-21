@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { format, subDays } from "date-fns";
 import { getAdAccount, fetchAdsBreakdown, type AdBreakdownRow } from "@/lib/meta-ads";
 import { cached } from "@/lib/api-cache";
@@ -12,6 +13,9 @@ const DAY_MS = 24 * 60 * 60_000; // Ads breakdowns refreshed once/day
 // dimension never breaks the whole response.
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || format(subDays(new Date(), 29), "yyyy-MM-dd");
   const to = url.searchParams.get("to") || format(new Date(), "yyyy-MM-dd");

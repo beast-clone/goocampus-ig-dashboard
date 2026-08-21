@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { createContentCalendarRow, type CreatePostInput } from "@/lib/content-calendar";
 import { safeError } from "@/lib/errors";
 
@@ -10,6 +11,9 @@ const ALLOWED_PUBLISH_TO_PAGE = new Set([
 ] as const);
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: Partial<CreatePostInput>;
   try {
     body = await req.json();

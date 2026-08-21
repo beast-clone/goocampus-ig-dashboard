@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getAdAccount, fetchCampaigns } from "@/lib/meta-ads";
 import { askPerplexityJSON, hasAI } from "@/lib/ai";
-import { guardRate } from "@/lib/api-guard";
+import { guardRate, requireSection } from "@/lib/api-guard";
 
 // GET /api/ads/analyst?from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -32,6 +32,9 @@ const CACHE = new Map<string, { at: number; payload: unknown }>();
 const TTL = 6 * 60 * 60 * 1000;
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("ads");
+  if (__denied) return __denied;
+
   const limited = guardRate(req, "ads-analyst", 15, 300_000);
   if (limited) return limited;
   try {

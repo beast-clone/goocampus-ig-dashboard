@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { organicSales } from "@/lib/organic-sales";
 import { safeError } from "@/lib/errors";
 
@@ -8,6 +9,9 @@ import { safeError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const today = new Date().toISOString().slice(0, 10);

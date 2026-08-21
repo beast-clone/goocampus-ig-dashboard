@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { airtableList, dateRangeFormula, pickName, CRM_TABLE, REVENUE_TABLE, SALES_HUB_BASE } from "@/lib/sales-hub";
@@ -300,6 +301,9 @@ async function computeSamvaya(ads: unknown) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const to = url.searchParams.get("to") || ymd(new Date());

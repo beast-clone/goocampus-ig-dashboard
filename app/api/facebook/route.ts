@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
 import { fetchPageProfile, fetchPageInsights, fetchPagePosts, fetchPageAudience } from "@/lib/facebook";
 import { cached } from "@/lib/api-cache";
@@ -19,6 +20,9 @@ import { cached } from "@/lib/api-cache";
 // Anything unreadable is null / available:false — never fabricated.
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("account") || url.searchParams.get("accountId") || "goocampus";
   const to = url.searchParams.get("to") || new Date().toISOString().slice(0, 10);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runSkill } from "@/lib/marketing-skills";
-import { guardRate } from "@/lib/api-guard";
+import { guardRate, requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 
 // POST /api/marketing-skills/run { slug, task } → { output, citations, model }
@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const limited = guardRate(req, "marketing-skill", 20, 300_000);
   if (limited) return limited;
   try {

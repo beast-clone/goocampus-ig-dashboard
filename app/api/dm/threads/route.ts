@@ -1,6 +1,7 @@
 // Dashboard reads this to populate the DM threads list.
 // Also classifies each thread as a Verified Lead by reading inbound message content.
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { listThreads, listAllInbound, type DMMessage, type DMThread } from "@/lib/dm";
 import { classifyThread } from "@/lib/lead-detection";
 
@@ -11,6 +12,9 @@ type EnrichedThread = DMThread & {
 };
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const account = url.searchParams.get("account") || undefined;
   const onlyLeads = url.searchParams.get("onlyLeads") === "1";

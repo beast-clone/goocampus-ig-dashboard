@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { predictForCaption } from "@/lib/scheduler-helpers";
 import { safeError } from "@/lib/errors";
 
@@ -20,6 +21,9 @@ function captionKey(caption: string): string {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { publishToPage?: string; caption?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const page = body.publishToPage;

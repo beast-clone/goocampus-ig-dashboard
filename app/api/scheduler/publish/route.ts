@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
@@ -56,6 +57,9 @@ async function publishToAccount(accountId: string, imageUrl: string, caption: st
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { accountId?: string; imageUrl?: string; caption?: string; postId?: string; collaborators?: string[] };
     let { accountId, imageUrl, caption } = body;

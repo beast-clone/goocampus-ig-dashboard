@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { requireSection } from "@/lib/api-guard";
 import net from "node:net";
 import { lookup } from "node:dns/promises";
 
@@ -38,6 +39,9 @@ async function assertPublicUrl(urlStr: string): Promise<void> {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const target = new URL(req.url).searchParams.get("url") || "";
   if (!target || target.length > MAX_URL_LEN) return new Response("bad url", { status: 400 });
   try { new URL(target); } catch { return new Response("bad url", { status: 400 }); }

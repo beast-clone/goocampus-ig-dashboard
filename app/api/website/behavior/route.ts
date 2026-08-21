@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildClarity, hasClarityAuth } from "@/lib/clarity";
 import { readClarityHistory } from "@/lib/web-history";
 import { cached } from "@/lib/api-cache";
@@ -10,6 +11,9 @@ import { cached } from "@/lib/api-cache";
 // stored (> the live 3-day window), we serve the selected range from history;
 // otherwise we fall back to the live 3-day view. `history.days` drives the UI badge.
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   if (!hasClarityAuth()) {
     return NextResponse.json({ error: "Clarity not configured — set CLARITY_API_TOKEN." }, { status: 503 });
   }

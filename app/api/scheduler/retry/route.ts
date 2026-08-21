@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 // Retry a stuck/failed post — re-arm it in Supabase mh_posts (publish_status back to
 // 'scheduled', clear the failure reason) so the worker attempts it again.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { recordId?: string };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { refreshAlert, refreshAllActive } from "@/lib/content-radar";
 import { safeError } from "@/lib/errors";
 
@@ -7,6 +8,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Refresh a single alert (POST body { id }) or all active alerts (empty body).
 // The dashboard button uses the "all" path; the settings row calls it per-alert.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { id?: string } = {};
   try { body = await req.json(); }
   catch { /* empty body is OK — means refresh-all */ }

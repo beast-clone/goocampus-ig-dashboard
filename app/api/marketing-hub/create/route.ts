@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
-import { requireCapability } from "@/lib/api-guard";
+import { requireCapability, requireSection } from "@/lib/api-guard";
 
 // POST /api/marketing-hub/create
 // Creates ONE row in mh_posts (Supabase).
@@ -40,6 +40,9 @@ function normalizeOwner(v: string | undefined): string | null {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const denied = await requireCapability("create_tasks");
     if (denied) return denied;

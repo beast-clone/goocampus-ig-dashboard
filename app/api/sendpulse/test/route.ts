@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { authPing, listBots, listContacts, listMessages, sendText } from "@/lib/sendpulse";
 
 // Hit:
 //   GET /api/sendpulse/test                → ping + bots + contacts (no send)
 //   GET /api/sendpulse/test?send=hi%20!    → also send "hi !" back to the most-recent contact
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const sendBody = url.searchParams.get("send");
   const t0 = Date.now();

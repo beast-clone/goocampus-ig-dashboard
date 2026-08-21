@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { fmtDateTime } from "@/lib/date";
+import { isClosedStatus } from "@/lib/lead-status";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { HopeSelect } from "../HopeSelect";
 import {
@@ -684,13 +685,19 @@ function TransferTab({ data, onDone }: { data: Board; onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [gate, setGate] = useState<GateBlock | null>(null);
 
+  // Dead leads are excluded unless you deliberately pick that stage. Robin alone
+  // holds 104 junk leads; with them in the list, "select all" hands the next
+  // counsellor a pile of work that can never go anywhere.
   const matches = useMemo(() => data.allLeads.filter((l) =>
     (l.counsellor || "Unassigned") === fromHolder &&
     l.daysUntouched >= minIdle &&
-    (!status || l.status === status)
+    (status ? l.status === status : !isClosedStatus(l.status))
   ), [data, fromHolder, minIdle, status]);
 
   const statuses = useMemo(() => [...new Set(data.allLeads.filter((l) => (l.counsellor || "Unassigned") === fromHolder).map((l) => l.status))].sort(), [data, fromHolder]);
+  const closedHeld = useMemo(() => data.allLeads.filter((l) =>
+    (l.counsellor || "Unassigned") === fromHolder && l.daysUntouched >= minIdle && isClosedStatus(l.status)).length,
+    [data, fromHolder, minIdle]);
   const fromUserId = data.holders.find((h) => h.holder === fromHolder)?.userId || "";
   const targets = data.roster.filter((r) => r.userId !== fromUserId);
 
@@ -749,10 +756,13 @@ function TransferTab({ data, onDone }: { data: Board; onDone: () => void }) {
         </Field>
         <Field label="Stage">
           <HopeSelect value={status} onChange={(v) => { setStatus(v); setSel(new Set()); }} placeholder="Any stage"
-            options={[{ value: "", label: "Any stage" }, ...statuses.map((x) => ({ value: x, label: x }))]} />
+            options={[{ value: "", label: "Any open stage" }, ...statuses.map((x) => ({ value: x, label: isClosedStatus(x) ? `${x} (closed)` : x }))]} />
         </Field>
         <div className="text-sm text-gray-500 pb-2">
           <b className="text-[#232D42]">{fmtInt(matches.length)}</b> match{matches.length === 1 ? "" : "es"}
+          {!status && closedHeld > 0 && (
+            <span className="text-gray-400"> · {fmtInt(closedHeld)} closed hidden</span>
+          )}
         </div>
       </div>
 

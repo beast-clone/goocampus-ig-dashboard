@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildGA4Traffic, buildGA4Realtime, hasGA4Auth } from "@/lib/ga4";
 import { cached } from "@/lib/api-cache";
 
@@ -7,6 +8,9 @@ import { cached } from "@/lib/api-cache";
 // Google Analytics 4 for goocampusevents.com (GooCampus Events property).
 // Heavy report set is cached 10 min; realtime ("active now") is kept fresh (30s).
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const to = url.searchParams.get("to") || new Date().toISOString().slice(0, 10);
   const from = url.searchParams.get("from") || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);

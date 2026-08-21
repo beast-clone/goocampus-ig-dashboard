@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
@@ -21,6 +22,9 @@ function dmConvo(a: string, b: string): string {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     // Identity comes from the SESSION, not the client. Non-admins can only read
     // their own inbox; admins (the My Day switcher) may view any teammate's.
@@ -50,6 +54,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const b = (await req.json()) as { convo?: string; sender?: string; body?: string };
     // Sender is the SESSION user — a non-admin can never send as someone else.

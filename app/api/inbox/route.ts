@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { askPerplexityJSON, hasAI } from "@/lib/ai";
 import {
   getAccount,
@@ -135,6 +136,9 @@ async function buildInbox(accountId: string): Promise<{ items: InboxItem[]; dmAv
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const force = url.searchParams.get("force") === "1";
@@ -170,6 +174,9 @@ function pickLead(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   let body: {
     action?: "reply" | "save_lead";
     account?: string;

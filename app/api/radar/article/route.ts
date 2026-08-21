@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
@@ -89,6 +90,9 @@ async function resolveRedirect(url: string): Promise<string> {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const u = new URL(req.url);
   const target = u.searchParams.get("url") || "";
   if (!target || target.length > MAX_URL_LEN || !looksLikeUrl(target)) {

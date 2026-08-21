@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -11,6 +12,9 @@ import { safeError } from "@/lib/errors";
 // Row shape written by the hourly snapshot cron — see /api/cron/snapshot-stories.
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "30", 10) || 30, 100);

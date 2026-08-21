@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { listAlerts } from "@/lib/content-radar";
 import { getDomainTrends } from "@/lib/google-trends";
 import { safeError } from "@/lib/errors";
@@ -18,6 +19,9 @@ const DEFAULT_SEEDS = [
 ];
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const force = new URL(req.url).searchParams.get("force") === "1";
 

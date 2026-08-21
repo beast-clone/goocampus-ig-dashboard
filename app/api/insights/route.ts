@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, eachDayOfInterval, differenceInDays, subDays } from "date-fns";
 import { getAccount, fetchBasic, fetchAccountInsights, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
 import { mockInsights } from "@/lib/mock";
 import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampusworld";
   let from = url.searchParams.get("from") || format(subDays(new Date(), 29), "yyyy-MM-dd");

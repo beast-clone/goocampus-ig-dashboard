@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import {
   listReports, getReport, listTrash, trashReport, restoreReport, deleteReportPermanent, type ReportPlatform,
 } from "@/lib/report-store";
@@ -14,6 +15,9 @@ import { safeError } from "@/lib/errors";
 //   DELETE /api/reports?key=..&permanent=1       -> delete forever (only from the bin)
 //   POST /api/reports { action:"restore", key }  -> recover a report from the bin
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
@@ -35,6 +39,9 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
@@ -49,6 +56,9 @@ export async function DELETE(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json().catch(() => ({}))) as { action?: string; key?: string };
     if (body.action !== "restore" || !body.key) return NextResponse.json({ error: "expected { action: 'restore', key }" }, { status: 400 });

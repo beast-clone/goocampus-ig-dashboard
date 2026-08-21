@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 
@@ -15,6 +16,9 @@ const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const MAX_MB = 25;
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const form = await req.formData();
     const postId = form.get("postId");
@@ -82,6 +86,9 @@ export async function POST(req: Request) {
 // DELETE /api/marketing-hub/attach?id=<uuid>
 // Removes the storage object AND the mh_attachments row.
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

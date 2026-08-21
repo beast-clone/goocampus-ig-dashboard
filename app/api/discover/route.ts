@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import fs from "fs";
 import path from "path";
 import {
@@ -191,6 +192,9 @@ async function searchHashtag(clean: string, force: boolean) {
 }
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
   const type = url.searchParams.get("type") || "all"; // mentions | tagged | niche | all

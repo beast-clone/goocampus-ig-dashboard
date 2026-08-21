@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { serperRank } from "@/lib/seo";
 import { safeError } from "@/lib/errors";
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 type Snap = { keyword_id: string; position: number | null; checked_at: string };
 
 export async function GET() {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -43,6 +47,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const body = (await req.json()) as { keyword?: string; domain?: string };
     const keyword = (body.keyword || "").trim();
@@ -67,6 +74,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });

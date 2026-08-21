@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { canAccessSection, type Section, type Sections } from "@/lib/permissions";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -26,14 +27,14 @@ import { GlobalSearch } from "./GlobalSearch";
 // Grouping matches V1 components/Sidebar.tsx exactly, hrefs point to hope-preview.
 type Leaf = { label: string; href: string; icon: any };
 type Folder = { key: string; label: string; icon: any; href?: string; children: Leaf[] };
-type Group = { label?: string; items: (Leaf | Folder)[] };
+type Group = { label?: string; sec: Section; items: (Leaf | Folder)[] };
 const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 
 const HUB = "/dashboard/hope-preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 
 const GROUPS: Group[] = [
-  { label: "Content", items: [
+  { label: "Content", sec: "content", items: [
     { key: "my-workspace", label: "My Workspace", icon: IconSunHigh, href: `${HUB}/briefing`, children: [
       { label: "Briefing",         href: `${HUB}/briefing`,                   icon: IconChartBar },
       { label: "My Day",           href: `${HUB}/my-day`,                     icon: IconSunHigh },
@@ -46,12 +47,12 @@ const GROUPS: Group[] = [
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
   ] },
-  { label: "Social Media", items: [
+  { label: "Social Media", sec: "content", items: [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
     { label: "Content Review",      href: `${HUB}/content-review`,  icon: IconChecklist },
     { label: "Scheduler",           href: `${HUB}/scheduler`,       icon: IconClockHour4 },
   ] },
-  { label: "Analytics", items: [
+  { label: "Analytics", sec: "analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [
       { label: "Posts",   href: `${HUB}/posts`,   icon: IconPhoto },
       { label: "Reels",   href: `${HUB}/reels`,   icon: IconMovie },
@@ -75,13 +76,13 @@ const GROUPS: Group[] = [
     ] },
     { label: "SEO", href: `${HUB}/seo`, icon: IconTrendingUp },
   ] },
-  { label: "Audience", items: [{ label: "All platforms", href: `${HUB}/audience`, icon: IconUsers }] },
-  { label: "Ads", items: [
+  { label: "Audience", sec: "analytics", items: [{ label: "All platforms", href: `${HUB}/audience`, icon: IconUsers }] },
+  { label: "Ads", sec: "ads", items: [
     { label: "Ads",            href: `${HUB}/ads`,         icon: IconSpeakerphone },
     { label: "Competitor Ads", href: `${HUB}/competitors`, icon: IconTargetArrow },
     { label: "Competitors",    href: `${HUB}/benchmark`,   icon: IconChartHistogram },
   ] },
-  { label: "Sales", items: [
+  { label: "Sales", sec: "sales", items: [
     { label: "Inbox",         href: `${HUB}/inbox`,          icon: IconInbox },
     { label: "Social Leads",  href: `${HUB}/leads`,          icon: IconUserDollar },
     // Sales Hub is a folder, not a page with tabs inside it: the six views were
@@ -96,7 +97,7 @@ const GROUPS: Group[] = [
     ] },
     { label: "Organic Sales", href: `${HUB}/organic-sales`,  icon: IconBook2 },
   ] },
-  { label: "AI", items: [
+  { label: "AI", sec: "ai", items: [
     { label: "Ask GooCampus",   href: `${HUB}/assistant`,   icon: IconMessageChatbot },
     { label: "AI Insights",     href: `${HUB}/ai-insights`, icon: IconBulb },
     { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/ai-reports`, children: [
@@ -105,7 +106,7 @@ const GROUPS: Group[] = [
       { label: "Recycle Bin",          href: `${HUB}/reports/trash`,  icon: IconTrash },
     ] },
   ] },
-  { label: "System", items: [
+  { label: "System", sec: "system", items: [
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
@@ -127,6 +128,25 @@ export function HopeSidebar() {
 
 
   const pathname = usePathname();
+
+  // The Team page has always offered per-person tab access, but nothing ever read
+  // it: every signed-in person saw the whole sidebar. /api/me has returned
+  // `sections` for exactly this purpose since it was written. Until it loads,
+  // render nothing rather than flashing tabs the person cannot open.
+  const [me, setMe] = useState<{ isAdmin?: boolean; sections?: Sections } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMe(d?.user ?? { }); })
+      .catch(() => { if (alive) setMe({}); });
+    return () => { alive = false; };
+  }, []);
+  const groups = useMemo(
+    () => (me ? GROUPS.filter((g) => canAccessSection(me, g.sec)) : []),
+    [me],
+  );
+  const canOverview = !me || canAccessSection(me, "overview");
 
   // The sidebar lives in the route layout, so it stays mounted across navigation
   // and its scroll position simply never changes — nothing to save or restore.
@@ -225,8 +245,8 @@ export function HopeSidebar() {
         </Link>
       </div>
       <GlobalSearch />
-      <LeafRow leaf={OVERVIEW} />
-      {GROUPS.map((g) => (
+      {canOverview && <LeafRow leaf={OVERVIEW} />}
+      {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}
           {g.items.map((it) => (isFolder(it) ? <FolderRow key={it.key} f={it} /> : <LeafRow key={it.href} leaf={it} />))}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // remaining page (same media/caption/type, different publish_to_pages). The publish
 // worker then fires one post per row.
 export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
   let body: { recordId?: string; scheduleTime?: string; pages?: string[] };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

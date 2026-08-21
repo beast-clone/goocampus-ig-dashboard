@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getThread, listMessages, markThreadRead, peekQueuedReply } from "@/lib/dm";
 
 // GET /api/dm/thread/{senderId}?account=goocampus  → one thread + messages
 export async function GET(req: Request, { params }: { params: Promise<{ senderId: string }> }) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   const { senderId } = await params;
   const url = new URL(req.url);
   const account = url.searchParams.get("account") || "";

@@ -2,6 +2,7 @@
 // Usage: POST /api/dm/mirror  with header x-cron-secret OR ?secret=
 // Body: { account, sender_id, username?, direction: "in"|"out", text, source?: "user"|"ai"|"human", message_id?, at? }
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { recordInbound, recordOutbound } from "@/lib/dm";
 
 function authorized(req: Request) {
@@ -11,6 +12,9 @@ function authorized(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("sales");
+  if (__denied) return __denied;
+
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json() as {

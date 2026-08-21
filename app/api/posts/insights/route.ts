@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
 
 // Batched insights endpoint: takes a list of media IDs + their types and returns
@@ -12,6 +13,9 @@ import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
 type Item = { id: string; mediaType: string; mediaProductType?: string };
 
 export async function POST(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   let body: { accountId?: string; items?: Item[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const accountId = body.accountId || "goocampus";

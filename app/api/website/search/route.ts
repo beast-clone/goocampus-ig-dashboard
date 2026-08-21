@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { buildBing, hasBingAuth } from "@/lib/bing";
 import { readBingHistory } from "@/lib/web-history";
 import { cached } from "@/lib/api-cache";
@@ -10,6 +11,9 @@ import { cached } from "@/lib/api-cache";
 // and history survives Bing trimming its window. Serve the range from history
 // when available; else fall back to the live window. `history.days` drives the UI.
 export async function GET(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
   if (!hasBingAuth()) {
     return NextResponse.json({ error: "Bing not configured — set BING_WEBMASTER_API_KEY / BING_SITE_URL." }, { status: 503 });
   }
