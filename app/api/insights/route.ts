@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, eachDayOfInterval, differenceInDays, subDays } from "date-fns";
-import { getAccount, fetchBasic, fetchAccountInsights, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
+import { getAccount, fetchBasic, fetchAccountInsights, fetchAccountReachUnique, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
 import { mockInsights } from "@/lib/mock";
 import { safeError } from "@/lib/errors";
 
@@ -23,9 +23,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [basic, insights, media] = await Promise.all([
+    const [basic, insights, uniqueReach, media] = await Promise.all([
       fetchBasic(account),
       fetchAccountInsights(account, from, to),
+      fetchAccountReachUnique(account, from, to),
       fetchRecentMedia(account, 1),
     ]);
 
@@ -63,8 +64,16 @@ export async function GET(req: Request) {
       };
     });
 
-    const totalReach = series.reduce((s, x) => s + x.reach, 0);
-    const totalEngagement = series.reduce((s, x) => s + x.engagement, 0);
+    // Headline reach = unique accounts over the window, deduplicated by Meta.
+    // Summing the daily series would count a repeat viewer once per day they
+    // saw us. Keep the daily sum only as a fallback if that call failed.
+    const dailyReachSum = series.reduce((s, x) => s + x.reach, 0);
+    const totalReach = uniqueReach ?? dailyReachSum;
+    // Engagement and profile visits stay estimates — Instagram's account
+    // insights don't expose them — but they are defined as a share of reach, so
+    // they follow the corrected reach. Anchoring them here (rather than summing
+    // the per-day estimates) is what keeps Eng. Rate at the intended 6%.
+    const totalEngagement = Math.round(totalReach * 0.06);
     const totalNewFollowers = series.reduce((s, x) => s + x.newFollowers, 0);
     const avgDailyGain = series.length > 0 ? totalNewFollowers / series.length : 0;
 
@@ -109,6 +118,9 @@ export async function GET(req: Request) {
       series,
       latestPost,
       meta: {
+        // "unique" = Meta deduplicated the window; "daily-sum" = that call failed
+        // and the figure is the inflated per-day sum.
+        reachBasis: uniqueReach != null ? "unique" : "daily-sum",
         rangeDays: differenceInDays(parseISO(to), parseISO(from)) + 1,
         mediaCount: basic.media_count,
         following: basic.follows_count,

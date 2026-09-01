@@ -308,6 +308,43 @@ export async function fetchAccountInsights(acc: IGAccountConfig, fromIsoDate: st
   return data.data;
 }
 
+// Unique accounts reached across the WHOLE window, deduplicated by Meta.
+//
+// Do not sum the per-day `reach` values to get this: each day is its own set of
+// unique accounts, so a person who saw you on ten days is counted ten times.
+// For 2 Aug–31 Aug 2026 the daily sum came to 1,138,987 against a true unique
+// reach of 506,986 — the sum overstates by better than 2x.
+//
+// `metric_type=total_value` asks Meta to do the dedupe over since→until. Meta
+// rejects windows longer than 30 days (error #100); callers already clamp to 30.
+// Returns null when the call fails so the caller can fall back rather than
+// blanking the card.
+export async function fetchAccountReachUnique(
+  acc: IGAccountConfig,
+  fromIsoDate: string,
+  toIsoDate: string,
+): Promise<number | null> {
+  const since = Math.floor(new Date(fromIsoDate + "T00:00:00Z").getTime() / 1000);
+  const until = Math.floor(new Date(toIsoDate + "T23:59:59Z").getTime() / 1000);
+  try {
+    const data = await gget<{ data: { total_value?: { value?: number } }[] }>(
+      `${acc.igUserId}/insights`,
+      {
+        metric: "reach",
+        period: "day",
+        metric_type: "total_value",
+        since: String(since),
+        until: String(until),
+        access_token: acc.pageAccessToken,
+      },
+    );
+    const v = data.data?.[0]?.total_value?.value;
+    return typeof v === "number" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 export type IGMedia = {
   id: string;
   caption?: string;
