@@ -345,6 +345,45 @@ export async function fetchAccountReachUnique(
   }
 }
 
+// Real engagement + profile views for the window.
+//
+// These used to be guessed from reach (6%, then 35% of that) on the belief that
+// Instagram doesn't expose them at account level. It does: `total_interactions`
+// (likes + comments + saves + shares) and `profile_views`, both via
+// metric_type=total_value. Neither supports metric_type=time_series, so a
+// single window total is all Meta will give — there is no real daily series.
+//
+// Same 30-day window cap as reach. Returns null on failure so the caller can
+// fall back to the old estimate rather than blank the cards.
+export async function fetchAccountEngagement(
+  acc: IGAccountConfig,
+  fromIsoDate: string,
+  toIsoDate: string,
+): Promise<{ interactions: number; profileViews: number } | null> {
+  const since = Math.floor(new Date(fromIsoDate + "T00:00:00Z").getTime() / 1000);
+  const until = Math.floor(new Date(toIsoDate + "T23:59:59Z").getTime() / 1000);
+  try {
+    const data = await gget<{ data: { name: string; total_value?: { value?: number } }[] }>(
+      `${acc.igUserId}/insights`,
+      {
+        metric: "total_interactions,profile_views",
+        period: "day",
+        metric_type: "total_value",
+        since: String(since),
+        until: String(until),
+        access_token: acc.pageAccessToken,
+      },
+    );
+    const pick = (n: string) => data.data?.find((m) => m.name === n)?.total_value?.value;
+    const interactions = pick("total_interactions");
+    const profileViews = pick("profile_views");
+    if (typeof interactions !== "number" || typeof profileViews !== "number") return null;
+    return { interactions, profileViews };
+  } catch {
+    return null;
+  }
+}
+
 export type IGMedia = {
   id: string;
   caption?: string;

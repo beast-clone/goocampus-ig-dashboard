@@ -46,6 +46,9 @@ type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number };
   deltas: { followers: number; reach: number; engagement: number; profileVisits: number };
   series: { date: string; reach: number; engagement: number }[];
+  // "measured" once engagement + profile views come from Meta rather than the
+  // old reach-derived guess; drives whether the cards still say EST.
+  meta?: { engagementBasis?: "measured" | "estimated" };
 };
 type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number };
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[] };
@@ -304,14 +307,19 @@ export function PreviewOverview() {
   const postEngagement = useMemo(() => (rangePosts || []).reduce((s, p) => s + (p.totalInteractions || ((p.likes || 0) + (p.comments || 0))), 0), [rangePosts]);
   const engVal = insStored ? postEngagement : (t?.engagement ?? 0);
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
+  // Engagement + profile views are real now (Meta's total_interactions and
+  // profile_views), so drop the EST badge — unless that call fell back to the
+  // old reach-derived estimate.
+  const engEst = !insStored && ins?.meta?.engagementBasis !== "measured";
   const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string; est?: boolean }[] = t ? [
     { key: "followers", label: "Followers", value: fmt(t.followers), delta: insStored ? null : (d?.followers ?? 0), badge: insStored ? "saved" : undefined },
     { key: "reach", label: "Reach", value: fmt(t.reach), delta: insStored ? null : (d?.reach ?? 0), badge: insStored ? "saved" : undefined },
-    // Live-window engagement & profile visits are estimated from reach (Instagram's
-    // account-insights API doesn't expose them directly), so flag them "est".
-    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? 0), badge: insStored ? "from posts" : undefined, est: !insStored },
-    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? 0), badge: insStored ? "not recorded" : undefined, est: !insStored },
-    { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true, est: !insStored },
+    // Live-window engagement & profile visits come straight from Meta
+    // (total_interactions / profile_views). `engEst` only turns back on if that
+    // call failed and we're showing the old reach-derived estimate.
+    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? 0), badge: insStored ? "from posts" : undefined, est: engEst },
+    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? 0), badge: insStored ? "not recorded" : undefined, est: engEst },
+    { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true, est: engEst },
   ] : [];
 
   return (
@@ -1045,7 +1053,10 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
       {/* The headline above is the period total; this line is per-day. Say so —
           otherwise a 5-lakh total over a chart peaking at 66K reads as a bug. */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4, fontSize: 11.5, color: C.muted }}>
-        <span>Daily {label.toLowerCase()}</span>
+        {/* The engagement TOTAL is real, but Meta only gives it per window, so
+            the daily line is that total spread across days by reach share. Say
+            so rather than let it pass as measured per-day data. */}
+        <span>{metric === "reach" ? "Daily reach" : "Daily engagement · total is exact, split across days by reach"}</span>
         <span>Hover any point for that day&rsquo;s figure</span>
       </div>
     </div>

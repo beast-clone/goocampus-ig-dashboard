@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, eachDayOfInterval, differenceInDays, subDays } from "date-fns";
-import { getAccount, fetchBasic, fetchAccountInsights, fetchAccountReachUnique, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
+import { getAccount, fetchBasic, fetchAccountInsights, fetchAccountReachUnique, fetchAccountEngagement, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
 import { mockInsights } from "@/lib/mock";
 import { safeError } from "@/lib/errors";
+
+// Period-over-period change, or null when either side is missing or the
+// baseline is zero (which would divide by zero / read as an infinite jump).
+function pctChange(cur?: number, prev?: number): number | null {
+  if (typeof cur !== "number" || typeof prev !== "number" || prev <= 0) return null;
+  return ((cur - prev) / prev) * 100;
+}
 
 export async function GET(req: Request) {
   const __denied = await requireSection("analytics");
@@ -23,10 +30,18 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [basic, insights, uniqueReach, media] = await Promise.all([
+    // Equal-length window immediately before this one, so engagement and
+    // profile views get a real period-over-period delta instead of a guess.
+    const spanDays = differenceInDays(parseISO(to), parseISO(from)) + 1;
+    const prevTo = format(subDays(parseISO(from), 1), "yyyy-MM-dd");
+    const prevFrom = format(subDays(parseISO(prevTo), spanDays - 1), "yyyy-MM-dd");
+
+    const [basic, insights, uniqueReach, engagement, prevEngagement, media] = await Promise.all([
       fetchBasic(account),
       fetchAccountInsights(account, from, to),
       fetchAccountReachUnique(account, from, to),
+      fetchAccountEngagement(account, from, to),
+      fetchAccountEngagement(account, prevFrom, prevTo),
       fetchRecentMedia(account, 1),
     ]);
 
@@ -60,29 +75,40 @@ export async function GET(req: Request) {
       cumulativeAfter += deltaByDay.get(key) ?? 0;
     }
 
-    const series = days.map((d) => {
+    const daily = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      const reachVal = reachMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
-      const followerDelta = deltaByDay.get(key) ?? 0;
       return {
         date: format(d, "MMM d"),
-        reach: reachVal,
+        reach: reachMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0,
         followers: totalsByDay.get(key) ?? basic.followers_count,
-        engagement: Math.round(reachVal * 0.06),
-        newFollowers: followerDelta,
+        newFollowers: deltaByDay.get(key) ?? 0,
       };
     });
 
     // Headline reach = unique accounts over the window, deduplicated by Meta.
     // Summing the daily series would count a repeat viewer once per day they
     // saw us. Keep the daily sum only as a fallback if that call failed.
-    const dailyReachSum = series.reduce((s, x) => s + x.reach, 0);
+    const dailyReachSum = daily.reduce((s, x) => s + x.reach, 0);
     const totalReach = uniqueReach ?? dailyReachSum;
-    // Engagement and profile visits stay estimates — Instagram's account
-    // insights don't expose them — but they are defined as a share of reach, so
-    // they follow the corrected reach. Anchoring them here (rather than summing
-    // the per-day estimates) is what keeps Eng. Rate at the intended 6%.
-    const totalEngagement = Math.round(totalReach * 0.06);
+
+    // Engagement and profile views are now MEASURED, not guessed from reach.
+    // Fall back to the old 6%/35% estimate only if Meta's call failed.
+    const measured = engagement != null;
+    const totalEngagement = engagement?.interactions ?? Math.round(totalReach * 0.06);
+    const totalProfileVisits = engagement?.profileViews ?? Math.round(totalEngagement * 0.35);
+
+    // Meta gives one window total for these — total_interactions and
+    // profile_views both reject metric_type=time_series — so there is no real
+    // daily engagement to chart. Spread the real total across the days in
+    // proportion to that day's reach: the total is then correct and the shape
+    // is honest about being reach-driven. The UI labels the line estimated.
+    const series = daily.map((x) => ({
+      ...x,
+      engagement: measured
+        ? (dailyReachSum > 0 ? Math.round(totalEngagement * (x.reach / dailyReachSum)) : 0)
+        : Math.round(x.reach * 0.06),
+    }));
+
     const totalNewFollowers = series.reduce((s, x) => s + x.newFollowers, 0);
     const avgDailyGain = series.length > 0 ? totalNewFollowers / series.length : 0;
 
@@ -114,15 +140,21 @@ export async function GET(req: Request) {
         followers: basic.followers_count,
         reach: totalReach,
         engagement: totalEngagement,
-        profileVisits: Math.round(totalEngagement * 0.35),
+        profileVisits: totalProfileVisits,
         newFollowers: totalNewFollowers,
         avgDailyGain: avgDailyGain,
       },
       deltas: {
         followers: totalNewFollowers === 0 ? 0 : (totalNewFollowers / Math.max(1, basic.followers_count - totalNewFollowers)) * 100,
+        // NOTE: reach's delta is the trend WITHIN the window (first half vs
+        // second), unchanged. Engagement and profile views have no daily series
+        // to split, so theirs compare against the previous window of equal
+        // length — a real period-over-period change, but a different question
+        // from reach's. Only if that comparison is unavailable do they fall
+        // back to the old made-up multiples of the reach trend.
         reach: reachDelta,
-        engagement: reachDelta * 0.9,
-        profileVisits: reachDelta * 0.7,
+        engagement: pctChange(engagement?.interactions, prevEngagement?.interactions) ?? reachDelta * 0.9,
+        profileVisits: pctChange(engagement?.profileViews, prevEngagement?.profileViews) ?? reachDelta * 0.7,
       },
       series,
       latestPost,
@@ -130,6 +162,9 @@ export async function GET(req: Request) {
         // "unique" = Meta deduplicated the window; "daily-sum" = that call failed
         // and the figure is the inflated per-day sum.
         reachBasis: uniqueReach != null ? "unique" : "daily-sum",
+        // "measured" = real total_interactions / profile_views from Meta;
+        // "estimated" = that call failed and we're back on the 6%/35% guess.
+        engagementBasis: measured ? "measured" : "estimated",
         rangeDays: differenceInDays(parseISO(to), parseISO(from)) + 1,
         mediaCount: basic.media_count,
         following: basic.follows_count,
