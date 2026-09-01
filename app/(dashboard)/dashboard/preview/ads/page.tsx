@@ -107,9 +107,18 @@ type AdsData = {
 };
 type LiveAd = {
   ad_id: string; ad_name: string; campaign_name: string; adset_name: string;
+  objective: string | null; destination: string | null; offPixel: boolean;
   thumbnail: string | null;
-  spend: number; reach: number; impressions: number; leads: number; ctr: number; costPerLead: number;
+  spend: number; reach: number; impressions: number; leads: number; clicks: number; ctr: number;
+  costPerLead: number; costPerClick: number;
 };
+
+// Which number actually judges a campaign depends on what it was set up to do.
+// Printing "0 leads" against a clicks campaign reads as failure when leads were
+// never the point — that is the confusion this whole section exists to remove.
+const CLICK_OBJECTIVES = ["LINK_CLICKS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_ENGAGEMENT", "POST_ENGAGEMENT", "REACH", "BRAND_AWARENESS", "VIDEO_VIEWS"];
+const goalOf = (objective: string | null) =>
+  CLICK_OBJECTIVES.includes(objective || "") ? "clicks" as const : "leads" as const;
 
 function fmtINR(n: number) {
   return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -424,9 +433,18 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
       .map(([name, list]) => {
         const spend = list.reduce((s, x) => s + x.spend, 0);
         const leads = list.reduce((s, x) => s + x.leads, 0);
+        const clicks = list.reduce((s, x) => s + x.clicks, 0);
+        const goal = goalOf(list[0]?.objective ?? null);
+        const count = goal === "clicks" ? clicks : leads;
+        // A leads campaign sending people off-Meta to a page without the pixel
+        // reports 0 because Meta never sees the signup — flag it as unmeasured
+        // rather than letting it read as a dead campaign.
+        const untracked = goal === "leads" && leads === 0 && list.some((x) => x.offPixel);
         return {
           name, ads: [...list].sort((x, y) => y.spend - x.spend),
-          spend, leads, costPerLead: leads > 0 ? spend / leads : 0,
+          spend, leads, clicks, goal, count, untracked,
+          destination: list.find((x) => x.destination)?.destination || null,
+          costPer: count > 0 ? spend / count : 0,
         };
       })
       .sort((a, b) => b.spend - a.spend);
@@ -443,6 +461,7 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
   const spend = ads.reduce((s, a) => s + a.spend, 0);
   const leads = ads.reduce((s, a) => s + a.leads, 0);
   const campaigns = groups.length;
+  const untrackedCount = groups.filter((g) => g.untracked).length;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -459,7 +478,10 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-gray-500">
-            {fmtINR(spend)} spent · {fmtNum(leads)} leads <span className="text-gray-400">({rangeLabel})</span>
+            {fmtINR(spend)} spent · {fmtNum(leads)} leads
+            {/* Say the total is short rather than presenting it as complete. */}
+            {untrackedCount > 0 && <span className="text-amber-700"> · {untrackedCount} not tracked</span>}
+            {" "}<span className="text-gray-400">({rangeLabel})</span>
           </div>
           {groups.length > 0 && (
             <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.name)))}
@@ -484,19 +506,33 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
                     className={`text-gray-400 flex-shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-medium text-[#232D42] truncate" title={g.name}>{g.name}</div>
-                    <div className="text-[11.5px] text-gray-500">{g.ads.length} {g.ads.length === 1 ? "ad" : "ads"} live</div>
+                    <div className="text-[11.5px] text-gray-500">
+                      {g.ads.length} {g.ads.length === 1 ? "ad" : "ads"} live
+                      <span className="text-gray-300"> · </span>
+                      {g.goal === "clicks" ? "optimised for clicks" : "optimised for leads"}
+                      {g.destination && <><span className="text-gray-300"> · </span>{g.destination}</>}
+                    </div>
                   </div>
                   <div className="hidden sm:block text-right w-24 flex-shrink-0">
                     <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{fmtINR(g.spend)}</div>
                     <div className="text-[11px] text-gray-400">spent</div>
                   </div>
                   <div className="text-right w-20 flex-shrink-0">
-                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{fmtNum(g.leads)}</div>
-                    <div className="text-[11px] text-gray-400">leads</div>
+                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.untracked ? "—" : fmtNum(g.count)}</div>
+                    <div className="text-[11px] text-gray-400">{g.goal === "clicks" ? "clicks" : "leads"}</div>
                   </div>
                   <div className="text-right w-24 flex-shrink-0">
-                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.leads > 0 ? fmtINR(g.costPerLead) : g.spend > 0 ? "—" : "not spent yet"}</div>
-                    <div className="text-[11px] text-gray-400">{g.leads > 0 ? "per lead" : g.spend > 0 ? "no leads" : ""}</div>
+                    {g.untracked ? (
+                      <>
+                        <div className="text-[12px] font-medium text-amber-700">not tracked</div>
+                        <div className="text-[11px] text-gray-400" title={`The Meta pixel isn't installed on ${g.destination}, so signups there can't be counted.`}>no pixel on site</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.count > 0 ? fmtINR(g.costPer) : g.spend > 0 ? "—" : "not spent yet"}</div>
+                        <div className="text-[11px] text-gray-400">{g.count > 0 ? (g.goal === "clicks" ? "per click" : "per lead") : g.spend > 0 ? `no ${g.goal}` : ""}</div>
+                      </>
+                    )}
                   </div>
                 </button>
 
@@ -512,11 +548,20 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
                         </div>
                         <div className="min-w-0 flex-1 text-[12.5px] text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
                         <div className="hidden sm:block text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtINR(a.spend)}</div>
-                        <div className="text-right w-20 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtNum(a.leads)}</div>
-                        {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
-                        <div className="text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">
-                          {a.leads > 0 ? fmtINR(a.costPerLead) : a.spend > 0 ? "—" : "not spent yet"}
-                        </div>
+                        {(() => {
+                          // Same goal as its campaign, so the columns line up.
+                          const n = g.goal === "clicks" ? a.clicks : a.leads;
+                          const per = g.goal === "clicks" ? a.costPerClick : a.costPerLead;
+                          return (
+                            <>
+                              <div className="text-right w-20 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{g.untracked ? "—" : fmtNum(n)}</div>
+                              {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
+                              <div className="text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">
+                                {g.untracked ? "not tracked" : n > 0 ? fmtINR(per) : a.spend > 0 ? "—" : "not spent yet"}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>

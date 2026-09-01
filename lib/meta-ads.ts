@@ -296,25 +296,52 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
 // the parents in, so an ad set to ACTIVE inside a paused campaign correctly reads
 // as not live. Spend/leads are still the SELECTED RANGE, so a freshly launched ad
 // legitimately shows ₹0 — it is live, it just hasn't spent yet.
+// Domains carrying the Meta pixel ("GooCampus Edu Event Data", 1387753849107574).
+// A leads campaign pointing anywhere ELSE cannot report conversions — Meta never
+// sees the signup — so its 0 means "not measured", not "not working". Add a
+// domain here once the pixel is actually installed on it.
+const PIXEL_TRACKED_DOMAINS = ["goocampusevents.com"];
+
 export type LiveAd = {
   ad_id: string; ad_name: string;
   campaign_name: string; adset_name: string;
+  objective: string | null;
+  // Hostname the ad sends people to, or null when it stays inside Meta (an
+  // Instant Form or Messenger thread) — those report leads natively.
+  destination: string | null;
+  offPixel: boolean;          // leaves Meta AND lands somewhere the pixel isn't
   thumbnail: string | null;
-  spend: number; reach: number; impressions: number; leads: number; ctr: number;
-  costPerLead: number;
+  spend: number; reach: number; impressions: number; leads: number; clicks: number; ctr: number;
+  costPerLead: number; costPerClick: number;
 };
+
+type StorySpec = {
+  link_data?: { link?: string };
+  video_data?: { call_to_action?: { value?: { link?: string } } };
+  template_data?: { link?: string };
+};
+
+function destinationHost(spec: StorySpec | undefined): string | null {
+  const raw = spec?.link_data?.link || spec?.video_data?.call_to_action?.value?.link || spec?.template_data?.link;
+  if (!raw) return null;
+  try {
+    const h = new URL(raw).hostname.replace(/^www\./, "");
+    // fb.me / facebook.com means the click stays on Meta (form or Messenger).
+    return /(^|\.)(fb\.me|facebook\.com|instagram\.com)$/i.test(h) ? null : h;
+  } catch { return null; }
+}
 
 export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: string): Promise<LiveAd[]> {
   const [cfg, perf] = await Promise.all([
-    gget<{ data: { id: string; name: string; adset?: { name?: string }; campaign?: { name?: string }; creative?: { thumbnail_url?: string } }[] }>(
+    gget<{ data: { id: string; name: string; adset?: { name?: string }; campaign?: { name?: string; objective?: string }; creative?: { thumbnail_url?: string; object_story_spec?: StorySpec } }[] }>(
       `${acct.id}/ads`, acct.token, {
-        fields: "id,name,adset{name},campaign{name},creative{thumbnail_url}",
+        fields: "id,name,adset{name},campaign{name,objective},creative{thumbnail_url,object_story_spec}",
         filtering: JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE"] }]),
         limit: "200",
       }),
-    gget<{ data: { ad_id: string; spend?: string; reach?: string; impressions?: string; ctr?: string; actions?: RawAction[] }[] }>(
+    gget<{ data: { ad_id: string; spend?: string; reach?: string; impressions?: string; ctr?: string; inline_link_clicks?: string; actions?: RawAction[] }[] }>(
       `${acct.id}/insights`, acct.token, {
-        fields: "ad_id,spend,reach,impressions,ctr,actions",
+        fields: "ad_id,spend,reach,impressions,ctr,inline_link_clicks,actions",
         time_range: JSON.stringify({ since: from, until: to }),
         level: "ad",
         limit: "500",
@@ -327,18 +354,25 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
       const p = perfById.get(a.id);
       const spend = parseFloat(p?.spend || "0");
       const leads = extractAction(p?.actions, LEAD_TYPES);
+      const clicks = parseInt(p?.inline_link_clicks || "0", 10);
+      const destination = destinationHost(a.creative?.object_story_spec);
       return {
         ad_id: a.id,
         ad_name: a.name || "(unnamed ad)",
         campaign_name: a.campaign?.name || "—",
         adset_name: a.adset?.name || "—",
+        objective: a.campaign?.objective || null,
+        destination,
+        offPixel: !!destination && !PIXEL_TRACKED_DOMAINS.includes(destination),
         thumbnail: a.creative?.thumbnail_url || null,
         spend,
         reach: parseInt(p?.reach || "0", 10),
         impressions: parseInt(p?.impressions || "0", 10),
         ctr: parseFloat(p?.ctr || "0"),
         leads,
+        clicks,
         costPerLead: leads > 0 ? spend / leads : 0,
+        costPerClick: clicks > 0 ? spend / clicks : 0,
       };
     })
     .sort((a, b) => b.spend - a.spend);
