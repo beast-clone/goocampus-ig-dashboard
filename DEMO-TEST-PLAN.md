@@ -5,7 +5,7 @@ This is the tester's script — what to click, the flow to exercise, and what "c
 Not executed here; kept ready so testing is systematic, not ad-hoc.
 
 **Environment to test on:** the branch/URL you're demoing from. Latest My Day work lives on
-`feat/hope-ui-reskin` — test THAT, not `main`. Localhost = `.env.local`; deployed = Netlify env vars.
+`feat/dashboard-reskin` — test THAT, not `main`. Localhost = `.env.local`; deployed = Netlify env vars.
 
 **Legend:** ✅ real/live · 🟡 real-with-caveat · 🟠 demo data (labelled) · ⚙️ needs env key
 
@@ -170,15 +170,15 @@ The one tab that must be flawless. Test as **each persona** (Manya / Praveen / N
 ## SECTION D — CROSS-CUTTING  *(test once, affects everything)*
 
 - **D1 Auth & roles:** login works; middleware sends Maheen (admin) to `/dashboard`, members to `/me`; non-admin can't reach admin-only pages. *A broken login kills the demo — test first.*
-- **D2 Navigation:** every sidebar link routes inside `/dashboard/hope-preview/*` (no V1 leaks / 404s). Note: `/dashboard/hope-preview/instagram` is NOT a route — IG lives under Posts/Reels/Stories.
-- **D3 Chrome removed:** no "Hope UI theme / Version 2 preview / V2" dev labels on any tab (removed this session — confirm none reappear).
+- **D2 Navigation:** every sidebar link routes inside `/dashboard/preview/*` (no V1 leaks / 404s). Note: `/dashboard/preview/instagram` is NOT a route — IG lives under Posts/Reels/Stories.
+- **D3 Chrome removed:** no "dashboard theme / Version 2 preview / V2" dev labels on any tab (removed this session — confirm none reappear).
 - **D4 Console/network:** open each demo tab with devtools — no red console errors, no failed API calls (405/500).
-- **D5 Branch:** the demo environment is running **`feat/hope-ui-reskin`** (has the latest My Day). If it's on `main`, the flagship work is missing.
+- **D5 Branch:** the demo environment is running **`feat/dashboard-reskin`** (has the latest My Day). If it's on `main`, the flagship work is missing.
 
 ---
 
 ## PRE-DEMO CHECKLIST (do in order, day-of)
-1. [ ] Confirm demo env is on `feat/hope-ui-reskin` (or merge to main + deploy).
+1. [ ] Confirm demo env is on `feat/dashboard-reskin` (or merge to main + deploy).
 2. [ ] Verify env keys present: GA4, Clarity, Bing, Meta Ads, Apify, Perplexity, YouTube OAuth/channel-ids, LinkedIn World token.
 3. [ ] Content Radar: click "Pull latest" so the feed is fresh.
 4. [ ] Decide Publishing Calendar demo toggle: on (full) or off (real-only).

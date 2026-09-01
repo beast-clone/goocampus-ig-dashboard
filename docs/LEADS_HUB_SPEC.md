@@ -2,7 +2,7 @@
 
 **Status:** mockup done, not built. Build from this spec + the mockup.
 **Mockup:** `public/mockups/leads-hub.html` (open in a browser, or dev server → `/mockups/leads-hub.html`). Interactive: switch sub-tabs, tick leads → transfer drawer.
-**Proposed route:** `app/(dashboard)/dashboard/hope-preview/leads-hub/page.tsx` (Hope UI, `.hope-scope`). Add a sidebar item "Leads Hub" under the Sales group in `HopeSidebar.tsx`.
+**Proposed route:** `app/(dashboard)/dashboard/preview/leads-hub/page.tsx` (the dashboard theme, `.preview-scope`). Add a sidebar item "Leads Hub" under the Sales group in `PreviewSidebar.tsx`.
 
 ## Goal
 A Sales-side hub over the Airtable **Sales Hub** CRM that solves three real needs:

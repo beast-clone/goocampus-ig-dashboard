@@ -28,7 +28,7 @@ Adversarially audit what landed recently and fix what's actually broken. Optimis
 
 3. **Verify before you trust it.** For each candidate defect, prove it's real: trace the exact inputs/state that trigger it and the wrong output/crash it produces. If you can't construct a concrete failure, drop it — do not fix phantom issues. Default to *not a bug* when unsure.
 
-4. **Fix at the root.** Fix the underlying cause, not the symptom. Match surrounding code style (Hope UI tokens, existing patterns, `getIntegrationToken()` etc. — reuse, don't reinvent). Keep each fix minimal.
+4. **Fix at the root.** Fix the underlying cause, not the symptom. Match surrounding code style (dashboard theme tokens, existing patterns, `getIntegrationToken()` etc. — reuse, don't reinvent). Keep each fix minimal.
 
 5. **Guard against regression.** Where the project has a way to prove the fix (a test, a typecheck, a live check via the page's own `fetch`), add or run it. At minimum run `npx tsc --noEmit` after your edits. Prefer a real end-to-end check in the running app over asserting it's fixed.
 

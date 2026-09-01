@@ -24,13 +24,13 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-07-22 (pt 12) — Dashboard-wide design audit + Tier-1 fixes
 
-Ran a full Hope UI design audit across all 35 tabs (4 parallel section auditors + a mechanical
+Ran a full the dashboard theme design audit across all 35 tabs (4 parallel section auditors + a mechanical
 scan). Verdict: broadly on-brand; issues are consistency drift. Fixed the top-3 systemic ones:
 
-- **HopeSelect dropdown was visually broken app-wide.** Its popover used `shadow-lg`, which
-  `.hope-scope` strips to none → every open menu read as a flat bordered box. Gave it an inline
+- **PreviewSelect dropdown was visually broken app-wide.** Its popover used `shadow-lg`, which
+  `.preview-scope` strips to none → every open menu read as a flat bordered box. Gave it an inline
   `boxShadow` that survives the strip. One fix, every branded dropdown floats again.
-- **Native `<select>` → `HopeSelect` in 7 tabs (10 dropdowns):** competitors (country), posts
+- **Native `<select>` → `PreviewSelect` in 7 tabs (10 dropdowns):** competitors (country), posts
   (type + sort), reels (sort), youtube/videos (sort), sales-ops (sort), ads (status + category),
   radar (interest ×2). Verified live (branded menu opens, no console errors). Left the
   Marketing-Hub inline-edit cell selects (different on-blur-commit pattern).
@@ -62,9 +62,9 @@ fixed two real bugs:
 Also noted (not changed): Praveen holds 68% of tasks (flagged "Overbooked"), and the
 Workload view plans unapproved tasks whereas My Day enforces "Content-Approved+".
 
-**Hope UI colour pass (Pipeline stat strip):** the top stats used a bright generic rainbow
+**the dashboard theme colour pass (Pipeline stat strip):** the top stats used a bright generic rainbow
 (#378ADD/#EF9F27/#D4537E/#7F77DD/#5DCAA5) that clashed with the muted pipeline palette right
-below. Re-accented on the Hope UI system — brand indigo for "Publishing today" (hero), then
+below. Re-accented on the the dashboard theme system — brand indigo for "Publishing today" (hero), then
 muted tones echoing the stages (amber Approved, rose Overdue, slate Awaiting-approval = Content
 Pending, green Completed). Whole tab now reads as one cohesive colour system. Team/Workload tab
 was already on-brand (brand-blue video / violet design / teal writing block coding) — left as is.
@@ -77,7 +77,7 @@ Master-sheet / calendar / drill-down dots read cohesively. Verified: no old rain
 **Unified status colours (one source of truth):** statuses were coloured by THREE different maps —
 pipeline dots (`PIPELINE_STAGES`), Master-sheet pills (`STATUS_PILL`, pale tan/green), and Calendar
 bars (`CAL_STATUS_COLORS`, another pale set) — so "Content Pending" was slate in one place, tan in
-another, grey-blue in a third. Collapsed the two pill maps into a single `STATUS_TINT` (soft Hope UI
+another, grey-blue in a third. Collapsed the two pill maps into a single `STATUS_TINT` (soft the dashboard theme
 pills, each hue tinted from its pipeline dot) and pointed `statusPill()` + `calStatusStyle()` at it.
 Added the missing "Output - In Progress" entry. Now a status reads the same hue in the Pipeline,
 Master sheet and Calendar. Verified pills == tints and match the stage dots.
@@ -165,10 +165,10 @@ citations). Found and fixed real bugs:
 - **Activity-feed filter dropdown** (All activity / Revision history / Comments) in the task
   DetailModal was clipped by the modal's *scrollable* body — can't strip that overflow. Fixed
   with a new `PortalMenu` helper: portals the menu to `<body>` (fixed-positioned under the
-  trigger, re-anchors on scroll/resize), re-wrapped in `.hope-scope` so brand tokens still
+  trigger, re-anchors on scroll/resize), re-wrapped in `.preview-scope` so brand tokens still
   apply. Verified: menu renders in full near the modal bottom, and selecting "Comments"
   updates the trigger (clicks register through the portal).
-- Swept all of `hope-preview/**` for the same pattern (HopeSelect / inline dropdowns / popovers
+- Swept all of `preview/**` for the same pattern (PreviewSelect / inline dropdowns / popovers
   inside overflow ancestors); these were the only two real collisions — everything else clear.
 
 ## 2026-07-22 (pt 6) — Competitor Ads: usage chip, timeout fix, brand-first + Exact advertiser
@@ -213,17 +213,17 @@ citations). Found and fixed real bugs:
   their full metrics (reach/shares/saves). Verified on the "MD Radiology Karnataka" carousel
   (1/4 → 2/4). `IGMedia` gained an optional `children` field.
 
-## 2026-07-22 (pt 3) — Account picker → Hope UI, Benchmark category/period tracking
+## 2026-07-22 (pt 3) — Account picker → the dashboard theme, Benchmark category/period tracking
 
-- The header **account/brand picker** in `HopeDashboardShell` was a native browser
-  `<select>` (default system styling). Swapped it for the shared **`HopeSelect`** branded
+- The header **account/brand picker** in `PreviewDashboardShell` was a native browser
+  `<select>` (default system styling). Swapped it for the shared **`PreviewSelect`** branded
   dropdown (rounded card, brand-check on the selected account, hover rows). Applies to every
   dashboard tab at once (shared shell). Verified on Benchmark.
 - **Benchmark: account picker hidden** on this page (`hideAccountPicker`) — it's for your own
   accounts, irrelevant when benchmarking competitors.
 - **Benchmark: tracked competitors now carry a category + period.** The tracked model went
   from `string[]` → `{handle, category, period}` (localStorage, old entries auto-migrate).
-  The + Track row gained a **category** input and a **period** `HopeSelect` (7/30/90d/all).
+  The + Track row gained a **category** input and a **period** `PreviewSelect` (7/30/90d/all).
   Each tracked card shows a category chip + period chip, and its headline metrics (ER, avg
   likes/comments, posts) are **recomputed over its own period** (`periodMetrics`). Verified:
   added @amcaustralia under "AMC / IMG prep" · 30d.
@@ -288,7 +288,7 @@ citations). Found and fixed real bugs:
 Demo-prep refinements across My Day + Marketing Hub.
 
 - **Simplified role labels** everywhere: Designer / Video editor / Content writer (dropped
-  "· short-form / · long-form / Ads ·"). Updated the `TEAM` roster in both `HopeMyDay.tsx`
+  "· short-form / · long-form / Ads ·"). Updated the `TEAM` roster in both `PreviewMyDay.tsx`
   and `marketing-hub/page.tsx` (displayRole).
 - **Dropped the "Working late" greeting** — `greetingFor` late/early now returns "Hello".
 - **"● now" marker on the red now-line** — added to the main plan, the assign/approve
@@ -304,7 +304,7 @@ Demo-prep refinements across My Day + Marketing Hub.
 
 ## 2026-07-21 (pt 5) — My Day: red priority blocks, live now-line, timer extend/complete
 
-Demo-prep pass on the My Day cockpit (`hope-preview/my-day/HopeMyDay.tsx`).
+Demo-prep pass on the My Day cockpit (`preview/my-day/PreviewMyDay.tsx`).
 
 **High-priority = red block.** Today's-plan reels carry the task's priority; a High task
 renders a **red gradient** block labelled "⚡ High priority" (legend gained a red swatch).
@@ -341,14 +341,14 @@ System is admin-only. Role presets: **Designer** (Overview+Content+Analytics+Ads
 **Video editor** (Overview+Content+Analytics), **Content writer** (+AI), **Manager** (all
 but System). Admins bypass.
 
-- `lib/permissions.ts`: `SECTIONS`, `GRANTABLE_SECTIONS`, `TAB_SECTION` map (HopeTab →
+- `lib/permissions.ts`: `SECTIONS`, `GRANTABLE_SECTIONS`, `TAB_SECTION` map (PreviewTab →
   section), `canAccessSection()`, `ROLE_PRESETS`, `cleanSections()`.
 - Storage: `ind_users.sections` jsonb (sql/009). Roster + `/api/admin/team` thread it.
 - Team page: the Access panel now has **Tab access** (6 section boxes + role presets)
   above **Functions**; the Access column reads "N tabs · M fns". Verified: Praveen →
   Designer preset → 5 sections persisted.
 - NEXT (enforcement): filter the sidebar by `canAccessSection` for the logged-in user,
-  and update middleware so a non-admin WITH sections reaches /dashboard/hope-preview
+  and update middleware so a non-admin WITH sections reaches /dashboard/preview
   (today non-admins bounce to /me). That's the sensitive routing change — pending, and
   needs a real non-admin login to verify.
 
@@ -371,7 +371,7 @@ seed the boxes, then fine-tune. Admins bypass (implicitly all).
 
 ## 2026-07-21 (pt 2) — Diagnostics tab (self-healing system health)
 
-**New Diagnostics tab** (`/dashboard/hope-preview/diagnostics`, separate from
+**New Diagnostics tab** (`/dashboard/preview/diagnostics`, separate from
 Integrations). One click checks all 11 systems live (Meta, YouTube, LinkedIn,
 Airtable, SendPulse, Supabase, Perplexity, Serper, Reddit, Apify, HikerAPI),
 **auto-repairs** what it safely can, and flags the rest — no Claude Code, all
@@ -433,10 +433,10 @@ to the Instagram permalink. Sources `post.mediaUrls` (already returned by
 `/api/scheduler/queue`); demo posts seeded with self-contained data-URI SVG
 creatives so it's demonstrable. **Reels/carousels open a WIDE landscape modal**
 (media in a left column sized to its shape — no black side-bars — details on the
-right); single images keep the compact layout. (`calendar/HopeCalendar.tsx`.)
+right); single images keep the compact layout. (`calendar/PreviewCalendar.tsx`.)
 
 **V1 dashboard retired / offline.** Admins kept landing on the old `/dashboard`
-(V1) after login. Middleware now lands admins on `/dashboard/hope-preview` (V2)
+(V1) after login. Middleware now lands admins on `/dashboard/preview` (V2)
 and redirects ANY other `/dashboard/*` path to V2, so V1 is never served or opened
 by accident. V2 is a superset of V1's active tabs (V1's extras — discover/dms/
 hashtags/inbox — are already hidden/orphaned; V2 adds Content Review + Website).
@@ -454,17 +454,17 @@ kind='creative' attachments. Verified live end-to-end (upload → thumbnail → 
 Also: scrapped the throwaway `/calendar-v2` full-shell comparison tab (kept the
 original gradient-hero calendar + the shared library exports).
 
-All committed on `feat/hope-ui-reskin`. Admin login = Maheen (`maheen@goocampus.in`);
-members land on `/me`. V2 lives at `/dashboard/hope-preview/`.
+All committed on `feat/dashboard-reskin`. Admin login = Maheen (`maheen@goocampus.in`);
+members land on `/me`. V2 lives at `/dashboard/preview/`.
 
-## 2026-07-18 — Task timing, publish link write-back & full Hope-UI theme sweep
+## 2026-07-18 — Task timing, publish link write-back & full Dashboard-themed theme sweep
 
 **My Day — task timing captured + shown.** A new task now stamps `start_at` on
 creation and `end_at` the first time it reaches a done state; the My Day task
 detail shows **Created / Started / Time taken** (mirrors the Content Calendar
 modal). Verified live: creating a task set `start_at`; the modal showed the
 timestamps. (`create/route.ts`, `update/route.ts`, `my-day/route.ts`,
-`HopeMyDay.tsx`.)
+`PreviewMyDay.tsx`.)
 
 **Published Links auto-fill on publish.** New write-back seam `lib/mh-linkback.ts`
 + `POST /api/scheduler/link-back`: when a post goes live, its permalink is written
@@ -477,13 +477,13 @@ helper. Verified live (DB-level, no real post published). **Still to wire:** the
 n8n IG+FB scheduler must POST to `/link-back` after publishing for FB/LinkedIn/
 scheduled posts to auto-fill.
 
-**Pipeline tab → Hope UI.** Sections now use the brand-tinted `Panel` header
+**Pipeline tab → the dashboard theme.** Sections now use the brand-tinted `Panel` header
 (icon + `#232D42` title), `rounded-xl` cards, `#232D42`/`#8A92A6` text tokens.
 
-**Whole-app theme sweep (all 22 shell tabs).** Audited every tab against the Hope
-UI reference and normalized to one scale: **section/card headers → 16px
+**Whole-app theme sweep (all 22 shell tabs).** Audited every tab against the theme
+reference and normalized to one scale: **section/card headers → 16px
 `text-base font-medium #232D42`**, tiny <12px content raised (labels 12px, body
-14px), `font-bold` → semibold (plus a central `.hope-scope` cap), off-brand
+14px), `font-bold` → semibold (plus a central `.preview-scope` cap), off-brand
 violet/blue/pink accents → brand `#3A57E8` — keeping platform data colors
 (FB `#1877F2`, LinkedIn `#0A66C2`, GA orange, YT red) and semantic status colors.
 Worst offenders fixed: Social Leads (was zero-brand), Scheduler (38 violet),
@@ -527,8 +527,8 @@ Third and final source. The **Website** folder now holds **Google Analytics · C
 - goocampusevents.com was already a verified property in Bing Webmaster (imported via the linked Google Search Console account). Generated an account-level API key (Settings → API access → API Key) → `.env.local` as `BING_WEBMASTER_API_KEY` (+ `BING_SITE_URL=https://goocampusevents.com/`).
 - `lib/bing.ts` — calls `GetRankAndTrafficStats` (daily clicks/impressions), `GetQueryStats` (top queries), `GetPageStats` (top pages) on the JSON endpoints; parses the WCF `/Date(ms-offset)/` format.
 - `app/api/website/search/route.ts` — cached 6h.
-- `app/(dashboard)/dashboard/hope-preview/website/search/page.tsx` — Hope UI, Bing-teal accent: Clicks/Impressions/CTR/Avg-position KPIs, clicks-&-impressions area chart, top-queries table, top-pages table, "Open in Bing" link, and an honest empty-state banner.
-- Sidebar: added **Bing** child under the Website folder in `HopeSidebar.tsx`.
+- `app/(dashboard)/dashboard/preview/website/search/page.tsx` — the dashboard theme, Bing-teal accent: Clicks/Impressions/CTR/Avg-position KPIs, clicks-&-impressions area chart, top-queries table, top-pages table, "Open in Bing" link, and an honest empty-state banner.
+- Sidebar: added **Bing** child under the Website folder in `PreviewSidebar.tsx`.
 
 Verified live: API returns HTTP 200 but **0 clicks / 0 impressions** (Bing isn't ranking the site yet — every Bing property in the account is flat at zero). The tab is correct and will populate if/when Bing sends traffic; the empty-state banner says so.
 
@@ -539,14 +539,14 @@ Second source of the web-analytics group. **Website** is now a sidebar folder wi
 - Clarity project: "Univeristy Webinar June 15th 2026" (ID `x258m54ioh`, URL goocampusevents.com). Generated a Data Export API token (Settings → Data export) → `.env.local` as `CLARITY_API_TOKEN` (+ `CLARITY_PROJECT_ID`).
 - `lib/clarity.ts` — fetches `project-live-insights` (last 3 days; the API's hard limit) and reshapes traffic, engagement time, scroll depth, the six frustration/error signals (rage/dead/quick-back/excessive-scroll/error-click/script-error), and Device/Browser/OS/Country/Referrer/PopularPages breakdowns.
 - `app/api/website/behavior/route.ts` — cached **3h** (Clarity caps the API at 10 calls/project/day); client SWR has `revalidateOnFocus:false` to avoid burning calls.
-- `app/(dashboard)/dashboard/hope-preview/website/behavior/page.tsx` — Hope UI, Clarity-violet accent: 6 KPIs, frustration-signal tiles, popular pages, breakdown donuts, "Open in Clarity" link, and an explicit note that heatmaps/recordings aren't API-exposed.
-- Sidebar: Website leaf → folder (Traffic + Behavior) in `HopeSidebar.tsx`.
+- `app/(dashboard)/dashboard/preview/website/behavior/page.tsx` — the dashboard theme, Clarity-violet accent: 6 KPIs, frustration-signal tiles, popular pages, breakdown donuts, "Open in Clarity" link, and an explicit note that heatmaps/recordings aren't API-exposed.
+- Sidebar: Website leaf → folder (Traffic + Behavior) in `PreviewSidebar.tsx`.
 
 Verified live (sparse but real: 1 session / 6 users / 3 bot sessions / 8% scroll depth over 3 days — webinar traffic has wound down). **Remaining:** Bing Webmaster.
 
 ## 2026-07-17 — New "Website" tab: live Google Analytics for goocampusevents.com
 
-Added a **Website** tab under the Analytics section (`/dashboard/hope-preview/website`) that pulls **live GA4 data** for the GooCampus Events property (`540348377`) — first of a planned 3-source web-analytics group (GA4 done; Microsoft Clarity + Bing Webmaster still to come).
+Added a **Website** tab under the Analytics section (`/dashboard/preview/website`) that pulls **live GA4 data** for the GooCampus Events property (`540348377`) — first of a planned 3-source web-analytics group (GA4 done; Microsoft Clarity + Bing Webmaster still to come).
 
 **What was set up (via Google Cloud + GA Admin):**
 - Service account `ig-dashboard-ga-reader@gc-dashboard-analytics.iam.gserviceaccount.com`, Analytics Data API enabled, granted **Viewer** on the GooCampus Events property. Credentials in `.env.local` (`GA4_PROPERTY_ID` / `GA4_CLIENT_EMAIL` / `GA4_PRIVATE_KEY`). For a Netlify deploy these three must be set in the Netlify UI.
@@ -554,51 +554,51 @@ Added a **Website** tab under the Analytics section (`/dashboard/hope-preview/we
 **What was built:**
 - `lib/ga4.ts` — **zero-dependency** GA4 Data API + Realtime API client: signs the service-account JWT with Node's built-in `crypto`, caches the access token, runs **16 reports across 4 parallel `:batchRunReports` batches** plus `:runRealtimeReport`, all over `fetch`. No `@google-analytics/data` / `googleapis` added.
 - `app/api/website/traffic/route.ts` — heavy report set cached 10 min; realtime kept fresh (30s, best-effort).
-- `app/(dashboard)/dashboard/hope-preview/website/page.tsx` — Hope UI page (GA-orange accent) rendering the **full Data API surface**: realtime "active now" strip, 6 KPI tiles, users-over-time chart, conversions/events table, top pages + landing pages, channels + source/medium, countries + cities, devices + browsers + OS, and new-vs-returning + age + gender + languages. Age/gender degrade to an empty state (need Google Signals). "Open in GA" deep-link for the reports no API exposes (Explorations/funnels/paths).
-- Nav wiring: `"website"` added to `HopeTab` (`HopeShell.tsx`) + a **Website** leaf under Analytics in `HopeSidebar.tsx`.
+- `app/(dashboard)/dashboard/preview/website/page.tsx` — the dashboard theme page (GA-orange accent) rendering the **full Data API surface**: realtime "active now" strip, 6 KPI tiles, users-over-time chart, conversions/events table, top pages + landing pages, channels + source/medium, countries + cities, devices + browsers + OS, and new-vs-returning + age + gender + languages. Age/gender degrade to an empty state (need Google Signals). "Open in GA" deep-link for the reports no API exposes (Explorations/funnels/paths).
+- Nav wiring: `"website"` added to `PreviewTab` (`PreviewShell.tsx`) + a **Website** leaf under Analytics in `PreviewSidebar.tsx`.
 
 Verified live in the authenticated dashboard: real numbers (634 users / 672 sessions / 7 active now; India 86%, Hyderabad 28%, Android Webview 75%, meta/paid_social 68%). **Two GA-config gaps surfaced:** Key events = 0 (no events marked as conversions in GA4) and age/gender withheld (Google Signals off).
 
 ## 2026-07-17 — Marketing Hub Content Calendar reskinned to match the Publishing Calendar
 
-Restyled the Marketing Hub's **Content Calendar** tab (`/dashboard/hope-preview/marketing-hub?tab=calendar`) so it reads as a sibling of the Hope UI Publishing Calendar — same visual DNA (gradient hero, overlapping title card, full-width month card, colored event pills), same Hope V1 event-pill style. The old flat white-card layout is gone.
+Restyled the Marketing Hub's **Content Calendar** tab (`/dashboard/preview/marketing-hub?tab=calendar`) so it reads as a sibling of the dashboard.s own Publishing Calendar — same visual DNA (gradient hero, overlapping title card, full-width month card, colored event pills), same reference event-pill style. The old flat white-card layout is gone.
 
-**What changed** in `app/(dashboard)/dashboard/hope-preview/marketing-hub/page.tsx`:
+**What changed** in `app/(dashboard)/dashboard/preview/marketing-hub/page.tsx`:
 
 - **Hero band** — indigo→violet gradient, deliberately distinct from the Publishing Calendar's blue so team members don't confuse "team calendar" with "socials-only calendar". "Team calendar" tag, "Content Calendar" headline, one-line subtitle, and a live "N tasks in view" stat card on the right that reflects the active brand filter.
 - **Title card** overlapping the hero, showing the month + a live entry count and the "drag any card to reschedule" hint.
 - **Brand quick-filter chips** above the grid — one chip per SBU with an SBU-color dot and count; one click isolates that brand across the whole calendar (active chip goes to filled-dark). The hero stat + title-card counter both update to reflect the active brand.
-- **Event pills** adopt the Hope V1 look — 1px border matching a soft-tint background, colored text driven by task **status** (Content-Pending = gray, Content-In-Progress = amber, Content-Approved = green, Output-Ready = blue, Ready-to-Publish = green-mint, Published/Scheduled = purple). Status meaning is now legible across the grid.
+- **Event pills** adopt the reference look — 1px border matching a soft-tint background, colored text driven by task **status** (Content-Pending = gray, Content-In-Progress = amber, Content-Approved = green, Output-Ready = blue, Ready-to-Publish = green-mint, Published/Scheduled = purple). Status meaning is now legible across the grid.
 - **Primary interest visible on every pill** — small SBU-color square at the left + SBU name on the right (ellipsis-truncated), so brand reads at a glance even without a filter set.
 - **Status legend** at the bottom auto-hides statuses not currently in view (dropped the old all-SBU legend — the brand chips do that job).
 - **Kept intact** — drag-to-reschedule (writes `publishing_date` to Supabase via `saveField`), click-to-open modal, range prop driven by the hub-level range picker, "+ N more" overflow.
 
 Scoped under `.mhcal-*` class prefix so nothing collides with `.hcal-*` (Publishing Calendar). No other tabs touched. V1 (`/dashboard/marketing-hub`) is untouched and separate.
 
-Shipped as commit `7d6eb60` on `feat/hope-ui-reskin`.
+Shipped as commit `7d6eb60` on `feat/dashboard-reskin`.
 
 ## 2026-07-17 — Workload: Today / This-period tabs, My Day team, in-tab date range
 
 - Split the Workload into two sub-tabs: **Today** (the per-person planned timeline; expand a person → each task's name + primary interest + time) and **This period** (the stat cards → click a person to drill into their tasks grouped by status, each showing a "Nd at stage" days-stuck badge from `lastModified`).
 - Roster now matches the My Day team exactly — Manya (Content), Praveen (Ads · Senior Graphic Designer), Nikhil (Video editor · short-form), Nandu (Video editor · long-form) — same colours + avatars.
-- Removed the top date bar on the Marketing Hub (new `hideRange` prop on `HopeDashboardShell`, which now also exposes `setRange`) and moved the range **next to the tabs**: 7d / 30d / 60d / 90d chips + a custom from–to picker, driving the "This period" overview.
+- Removed the top date bar on the Marketing Hub (new `hideRange` prop on `PreviewDashboardShell`, which now also exposes `setRange`) and moved the range **next to the tabs**: 7d / 30d / 60d / 90d chips + a custom from–to picker, driving the "This period" overview.
 
 ## 2026-07-17 — Marketing Hub Workload: planned day-timeline per person
 
 - The Workload tab's compact stat cards are now full-width **timeline rows** (like My Day's Team-capacity view) built from each person's **real** `mh_posts` tasks: a 9 AM–6 PM day-plan bar (tasks laid out by type-estimated duration, lunch + free blocks, a live "now" line), the now/next task, a Full / "Xh free" load badge, and the real Today / This week / Overdue / Done counts. "All tasks ↓" still expands the full list.
 - Since the team doesn't log start/stop times, the bar is an honest **plan** (suggested schedule from real pending tasks), not live time-tracking.
-- `HopeSelect` now accepts an optional `placeholder` (the marketing-hub facet filters use it).
+- `PreviewSelect` now accepts an optional `placeholder` (the marketing-hub facet filters use it).
 
 ## 2026-07-17 — Sidebar: "Social Media" section + fix the marketing-hub build
 
-- **Sidebar regroup** (`HopeSidebar.tsx`) — moved **Publishing Calendar, Scheduler, and Post Planner** out of Content into a new **Social Media** section. Content now holds Marketing Hub, My Day, and Content Radar.
-- **Build fix** — the 16 Jul marketing-hub commit imported a shared `HopeSelect` from `@/app/(dashboard)/dashboard/hope-preview/HopeSelect`, but that file was never committed (it only existed as a local function in `scheduler/page.tsx`), so the branch failed to compile. Added the missing `HopeSelect.tsx` (same API/styling, extracted from the scheduler) so the marketing-hub calendar reskin builds.
+- **Sidebar regroup** (`PreviewSidebar.tsx`) — moved **Publishing Calendar, Scheduler, and Post Planner** out of Content into a new **Social Media** section. Content now holds Marketing Hub, My Day, and Content Radar.
+- **Build fix** — the 16 Jul marketing-hub commit imported a shared `PreviewSelect` from `@/app/(dashboard)/dashboard/preview/PreviewSelect`, but that file was never committed (it only existed as a local function in `scheduler/page.tsx`), so the branch failed to compile. Added the missing `PreviewSelect.tsx` (same API/styling, extracted from the scheduler) so the marketing-hub calendar reskin builds.
 
 ## 2026-07-16 — Scheduler goes Supabase-only + Post Planner becomes a Perplexity-ranked drag-drop calendar
 
-All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_posts`) — no Airtable writes; the only remaining Airtable use is reading post captions from the Content Calendar's Content field.
+All on `feat/dashboard-reskin`. The whole V2 flow is now Supabase-native (`mh_posts`) — no Airtable writes; the only remaining Airtable use is reading post captions from the Content Calendar's Content field.
 
-**Post Planner** (`/dashboard/hope-preview/post-planner`) — reworked from a static ranked list into a two-tab, drag-and-drop calendar for @12thplus:
+**Post Planner** (`/dashboard/preview/post-planner`) — reworked from a static ranked list into a two-tab, drag-and-drop calendar for @12thplus:
 
 - **Two calendar tabs** — **AI post planner** (AI-suggested order) and **Publishing calendar** (the team's real `publishing_date`s), with month navigation.
 - **Drag to reschedule** — drop a post on a new day → writes `publishing_date` to Supabase, so it reflects in the team's Marketing Hub. An in-app "moved" note is stamped on the row as the owner's notification.
@@ -609,7 +609,7 @@ All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_post
 - **Web-search-grounded, trend-aware ranking** — reads each post's real content and ranks by what's currently trending in India. Runs on **Perplexity `sonar`** (provider is env-swappable), with a "🔎 Ranked with live web search" badge and a graceful fallback ranker if the search model fails. Trimmed for speed (~35s → ~21s cold, cached 30 min); Perplexity `[2][5]` source markers stripped from the copy.
 - **Recommended-order numbers** on planner cards (1 = publish first) + a highlight on the selected card, so the summary's post names map to visible cards. AI reasoning shows only on the AI planner tab.
 
-**Scheduler** (`/dashboard/hope-preview/scheduler`):
+**Scheduler** (`/dashboard/preview/scheduler`):
 
 - **Fixed** — every write endpoint (reschedule, publish-now, edit-caption, retry, schedule-multi) was still writing to Airtable and rejecting the Supabase UUIDs; repointed all to `mh_posts`.
 - **Fixed** — Queue/Calendar now read from Supabase (`fetchScheduledQueueFromSupabase`), not the legacy Airtable table, so scheduled posts appear and counters update; killed stale caching on the read APIs.
@@ -626,9 +626,9 @@ All on `feat/hope-ui-reskin`. The whole V2 flow is now Supabase-native (`mh_post
 
 **Known limitation:** the actual carousel **images** for @12thplus posts live in private Slack and can't render inline yet (shown as a "View creative in Slack" link); captions and details work. Real creatives need Slack access (files:read + a proxy) or the creatives uploaded into the dashboard (`media_urls`).
 
-## 2026-07-15 — Hope My Day V2: full workflow (capacity pipeline, Start/End day, team page) + working tabs
+## 2026-07-15 — My Day V2: full workflow (capacity pipeline, Start/End day, team page) + working tabs
 
-Built the standalone Hope-UI **My Day V2** (`/dashboard/hope-preview/my-day`) up from a static design preview into a rich, working prototype. Still an **in-memory mock** (hardcoded seed data, resets on reload — not yet wired to Supabase). V1 (the original `/dashboard`) is untouched and separate.
+Built the standalone Dashboard-themed **My Day V2** (`/dashboard/preview/my-day`) up from a static design preview into a rich, working prototype. Still an **in-memory mock** (hardcoded seed data, resets on reload — not yet wired to Supabase). V1 (the original `/dashboard`) is untouched and separate.
 
 - **Task card** — adopted the exact Airtable Content Calendar **11 statuses** via a custom themed status **dropdown** (top-right of the card, not a native select); split **Owner** (claimer) vs **Collaborators** (writer) into separate fields; content brief now shows the **full write-up** (all paragraphs preserved, no inner scroll).
 - **Create → auto-assign** — create-task modal (Manya) with a **Content** write-up field; **Type→owner routing** (design/thumbnail → Praveen, video → editors' claim pool) with a **content-first handoff** (starts with Manya at Content-Pending → routes to the producer on Content-Approved). Per-person filtering so a task only shows for its owner.
@@ -637,7 +637,7 @@ Built the standalone Hope-UI **My Day V2** (`/dashboard/hope-preview/my-day`) up
 - **Team capacity page** — its own screen via a Manya-only **"Team capacity"** button (next to Start day); each teammate's day planner + "currently working on".
 - **Start day / End today** for everyone (End-today = completed-tasks checklist; unchecked roll to tomorrow).
 - **Planner** made square/edge-to-edge (only the outer track rounded), lunch centred at noon, buffer block removed.
-- **V2 tabs now navigate** — the Hope sidebar links were decorative; wired **My Day V2 ↔ Overview V2**, and other tabs → the V1 pages.
+- **V2 tabs now navigate** — the themed sidebar links were decorative; wired **My Day V2 ↔ Overview V2**, and other tabs → the V1 pages.
 - Mockups saved under `public/mockups/` (chat-notifs, capacity-pipeline, start/end + team page).
 - **Next:** wire everything to real Supabase `mh_posts` (persist + real-time). Open TODO: also add the Team-capacity page to the admin dashboard.
 

@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
-import { useV2Href } from "@/lib/hopeHref";
+import { useV2Href } from "@/lib/previewHref";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { IconEye, IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
 export { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS };

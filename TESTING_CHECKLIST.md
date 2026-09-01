@@ -1,6 +1,6 @@
 # Dashboard Testing Checklist
 
-Tab-by-tab QA of the Hope UI dashboard (`/dashboard/hope-preview/*`). Work top to
+Tab-by-tab QA of the the dashboard theme dashboard (`/dashboard/preview/*`). Work top to
 bottom. For each tab, log anything broken in **AUDIT_LOG.md** (don't fix inline
 unless trivial — see "Ground rules"). Dev server: `ig-dashboard` on port 4324.
 
@@ -14,7 +14,7 @@ unless trivial — see "Ground rules"). Dev server: `ig-dashboard` on port 4324.
 - [ ] Underlying API returns **200** (check Network / preview logs), not 4xx/5xx
 - [ ] Data **renders** (real where expected; "demo"/"live" badge is honest; empty-states are graceful, not blank)
 - [ ] **Interactions** work: buttons, filters, account switcher, date range, in-page sub-tabs, modals, drag/reschedule
-- [ ] **Hope UI** consistent (brand tokens, no default-Tailwind look, no stray shadows)
+- [ ] **the dashboard theme** consistent (brand tokens, no default-Tailwind look, no stray shadows)
 - [ ] Numbers are **plausible** (no NaN, no `undefined`, no absurd values)
 
 ## Tabs (sidebar order)

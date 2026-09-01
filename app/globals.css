@@ -13,93 +13,93 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
   --brand-light: 237 231 254;
 }
 
-/* Hope UI reskin scope — flips the brand accent to Hope blue (#3A57E8) for any
-   subtree wrapped in .hope-scope, so shared Overview components (post-mix,
-   cadence, best-times) render in Hope blue ONLY inside the Hope preview. */
-.hope-scope {
+/* Dashboard reskin scope — flips the brand accent to brand blue (#3A57E8) for any
+   subtree wrapped in .preview-scope, so shared Overview components (post-mix,
+   cadence, best-times) render in brand blue ONLY inside the preview. */
+.preview-scope {
   --brand: 58 87 232;
   --brand-dark: 33 56 176;
   --brand-light: 233 236 251;
 }
 /* The ER trend chart hardcodes #6D5AE6 as SVG presentation attributes; CSS
-   overrides win over presentation attributes, so recolor them to Hope blue. */
-.hope-scope [stroke="#6D5AE6"] { stroke: #3A57E8 !important; }
-.hope-scope [fill="#6D5AE6"] { fill: #3A57E8 !important; }
-.hope-scope [stop-color="#6D5AE6"] { stop-color: #3A57E8 !important; }
+   overrides win over presentation attributes, so recolor them to brand blue. */
+.preview-scope [stroke="#6D5AE6"] { stroke: #3A57E8 !important; }
+.preview-scope [fill="#6D5AE6"] { fill: #3A57E8 !important; }
+.preview-scope [stop-color="#6D5AE6"] { stop-color: #3A57E8 !important; }
 /* The post-type palette uses the old brand violet (#6D5AE6, normalized to
-   rgb(109 90 230)) for "Static" via inline styles; retint just that one to Hope
+   rgb(109 90 230)) for "Static" via inline styles; retint just that one to brand
    blue so no brand-violet lingers. Pink/sky/indigo category colors stay for
    legend clarity. Inline styles require !important to override. */
-.hope-scope [style*="background: rgb(109, 90, 230)"] { background-color: #3A57E8 !important; }
-.hope-scope [style*="color: rgb(109, 90, 230)"] { color: #3A57E8 !important; }
-.hope-scope [style*="rgba(109, 90, 230"] { border-color: rgba(58, 87, 232, 0.33) !important; background-image: linear-gradient(135deg, rgba(58, 87, 232, 0.07), rgba(58, 87, 232, 0)) !important; }
+.preview-scope [style*="background: rgb(109, 90, 230)"] { background-color: #3A57E8 !important; }
+.preview-scope [style*="color: rgb(109, 90, 230)"] { color: #3A57E8 !important; }
+.preview-scope [style*="rgba(109, 90, 230"] { border-color: rgba(58, 87, 232, 0.33) !important; background-image: linear-gradient(135deg, rgba(58, 87, 232, 0.07), rgba(58, 87, 232, 0)) !important; }
 
 /* ===================================================================
-   HOPE UI DESIGN TOKENS — applied to ALL Version-2 content (.hope-scope)
-   so every cloned tab matches the REAL Hope UI theme, not recoloured V1.
-   Values pulled from the live Hope template (dist/index.html computed
+   DASHBOARD DESIGN TOKENS — applied to ALL Version-2 content (.preview-scope)
+   so every cloned tab matches the REAL dashboard theme, not recoloured V1.
+   Values pulled from the live theme template (dist/index.html computed
    styles): Inter · weight-500 headings (#232D42) · soft #8A92A6 body ·
    FLAT white cards (no shadow, hairline edge) on the #F5F6FA canvas.
    =================================================================== */
-/* Default body text → Hope's soft grey (explicit text-* classes still win). */
-.hope-scope { color: #8A92A6; }
-/* Headings: Hope uses weight 500 everywhere (even the hero). Kill V1's
+/* Default body text → the theme.s soft grey (explicit text-* classes still win). */
+.preview-scope { color: #8A92A6; }
+/* Headings: The theme uses weight 500 everywhere (even the hero). Kill V1's
    semibold/bold/extrabold on real heading tags. */
-.hope-scope h1, .hope-scope h2, .hope-scope h3, .hope-scope h4,
-.hope-scope h5, .hope-scope h6 { font-weight: 500 !important; color: #232D42; }
+.preview-scope h1, .preview-scope h2, .preview-scope h3, .preview-scope h4,
+.preview-scope h5, .preview-scope h6 { font-weight: 500 !important; color: #232D42; }
 /* Exception: the blue hero-band title matches the Publishing Calendar — bold + white
    (higher specificity than the rule above, so it wins over the 500 !important). */
-.hope-scope .hope-hero-h1 { font-weight: 700 !important; color: #fff !important; }
-/* Emphasis weight tops out at semibold (600) in Hope — never 700 "bold".
+.preview-scope .preview-hero-h1 { font-weight: 700 !important; color: #fff !important; }
+/* Emphasis weight tops out at semibold (600) in this theme — never 700 "bold".
    Catches the KPI-number `font-bold` drift on div-based content app-wide. */
-.hope-scope .font-bold, .hope-scope .font-black { font-weight: 600 !important; }
-/* Cards are FLAT in Hope — no drop shadow (the biggest V1 tell), gentle
+.preview-scope .font-bold, .preview-scope .font-black { font-weight: 600 !important; }
+/* Cards are FLAT in this theme — no drop shadow (the biggest V1 tell), gentle
    8px radius, hairline edge instead of the V1 border+shadow combo. */
-.hope-scope .shadow-sm, .hope-scope .shadow, .hope-scope .shadow-md,
-.hope-scope .shadow-lg, .hope-scope .shadow-xl { box-shadow: none !important; }
-.hope-scope .rounded-2xl { border-radius: 8px !important; }
-.hope-scope .rounded-xl { border-radius: 8px !important; }
-.hope-scope .border-gray-100, .hope-scope .border-gray-200 { border-color: #EEF0F4 !important; }
-/* Tables (Team / Master-sheet / any V2 table) restyled to the REAL Hope table
+.preview-scope .shadow-sm, .preview-scope .shadow, .preview-scope .shadow-md,
+.preview-scope .shadow-lg, .preview-scope .shadow-xl { box-shadow: none !important; }
+.preview-scope .rounded-2xl { border-radius: 8px !important; }
+.preview-scope .rounded-xl { border-radius: 8px !important; }
+.preview-scope .border-gray-100, .preview-scope .border-gray-200 { border-color: #EEF0F4 !important; }
+/* Tables (Team / Master-sheet / any V2 table) restyled to the REAL theme table
    look: generous cell padding (1rem 1.5rem), #eee row borders, uppercase grey
-   header on a soft header row, row-hover tint, Hope-blue checkboxes — pulled from
-   the live Hope template's .table component. Wide tables scroll inside their card
+   header on a soft header row, row-hover tint, brand-blue checkboxes — pulled from
+   the live theme template's .table component. Wide tables scroll inside their card
    instead of clipping columns. */
-.hope-scope .overflow-hidden:has(> table),
-.hope-scope .overflow-hidden:has(table) { overflow-x: auto !important; }
-.hope-scope table { width: 100%; color: #8A92A6; border-collapse: collapse; }
-.hope-scope table thead th {
+.preview-scope .overflow-hidden:has(> table),
+.preview-scope .overflow-hidden:has(table) { overflow-x: auto !important; }
+.preview-scope table { width: 100%; color: #8A92A6; border-collapse: collapse; }
+.preview-scope table thead th {
   text-transform: uppercase; font-size: 0.7rem !important; font-weight: 600 !important;
   letter-spacing: 0.05em; color: #8A92A6 !important; background: #F7F8FC !important;
   padding: 0.8rem 1rem !important; border-bottom: 1px solid #eee !important;
 }
-.hope-scope table tbody td { padding: 0.85rem 1rem !important; border-bottom: 1px solid #eee !important; vertical-align: middle; }
-.hope-scope table tbody tr:last-child td { border-bottom: none !important; }
-.hope-scope table tbody tr:hover { background: rgba(138, 146, 166, 0.05); }
-.hope-scope input[type="checkbox"] { accent-color: #3A57E8; width: 16px; height: 16px; cursor: pointer; }
+.preview-scope table tbody td { padding: 0.85rem 1rem !important; border-bottom: 1px solid #eee !important; vertical-align: middle; }
+.preview-scope table tbody tr:last-child td { border-bottom: none !important; }
+.preview-scope table tbody tr:hover { background: rgba(138, 146, 166, 0.05); }
+.preview-scope input[type="checkbox"] { accent-color: #3A57E8; width: 16px; height: 16px; cursor: pointer; }
 
 /* Kill the V1 brand VIOLET everywhere in V2 — remap the violet/fuchsia palette to
-   Hope blue so no page (e.g. the Scheduler composer) leaks the old accent. */
-.hope-scope .bg-violet-50 { background-color:#EEF1FB !important; }
-.hope-scope .bg-violet-100 { background-color:#DFE4FB !important; }
-.hope-scope .bg-violet-600 { background-color:#3A57E8 !important; }
-.hope-scope .bg-violet-700 { background-color:#2138B0 !important; }
-.hope-scope .text-violet-600 { color:#3A57E8 !important; }
-.hope-scope .text-violet-700 { color:#2138B0 !important; }
-.hope-scope .text-violet-800 { color:#1E3299 !important; }
-.hope-scope .text-violet-900 { color:#172A80 !important; }
-.hope-scope .border-violet-200 { border-color:#C7D0F7 !important; }
-.hope-scope .border-violet-300 { border-color:#A9B6F0 !important; }
-.hope-scope .border-violet-400 { border-color:#7E92E8 !important; }
-.hope-scope .accent-violet-600 { accent-color:#3A57E8 !important; }
-.hope-scope .hover\:bg-violet-50:hover { background-color:#EEF1FB !important; }
-.hope-scope .hover\:bg-violet-100:hover { background-color:#DFE4FB !important; }
-.hope-scope .hover\:bg-violet-700:hover { background-color:#2138B0 !important; }
-.hope-scope .hover\:border-violet-300:hover { border-color:#A9B6F0 !important; }
-.hope-scope .hover\:border-violet-400:hover { border-color:#7E92E8 !important; }
-/* gradients: light banners → solid light-blue; strong ones → Hope-blue gradient */
-.hope-scope [class*="from-violet-50"] { background-image:none !important; background-color:#EEF1FB !important; }
-.hope-scope [class*="from-violet-500"], .hope-scope [class*="from-violet-600"] { background-image:linear-gradient(135deg,#3A57E8,#5B73F0) !important; }
+   brand blue so no page (e.g. the Scheduler composer) leaks the old accent. */
+.preview-scope .bg-violet-50 { background-color:#EEF1FB !important; }
+.preview-scope .bg-violet-100 { background-color:#DFE4FB !important; }
+.preview-scope .bg-violet-600 { background-color:#3A57E8 !important; }
+.preview-scope .bg-violet-700 { background-color:#2138B0 !important; }
+.preview-scope .text-violet-600 { color:#3A57E8 !important; }
+.preview-scope .text-violet-700 { color:#2138B0 !important; }
+.preview-scope .text-violet-800 { color:#1E3299 !important; }
+.preview-scope .text-violet-900 { color:#172A80 !important; }
+.preview-scope .border-violet-200 { border-color:#C7D0F7 !important; }
+.preview-scope .border-violet-300 { border-color:#A9B6F0 !important; }
+.preview-scope .border-violet-400 { border-color:#7E92E8 !important; }
+.preview-scope .accent-violet-600 { accent-color:#3A57E8 !important; }
+.preview-scope .hover\:bg-violet-50:hover { background-color:#EEF1FB !important; }
+.preview-scope .hover\:bg-violet-100:hover { background-color:#DFE4FB !important; }
+.preview-scope .hover\:bg-violet-700:hover { background-color:#2138B0 !important; }
+.preview-scope .hover\:border-violet-300:hover { border-color:#A9B6F0 !important; }
+.preview-scope .hover\:border-violet-400:hover { border-color:#7E92E8 !important; }
+/* gradients: light banners → solid light-blue; strong ones → brand-blue gradient */
+.preview-scope [class*="from-violet-50"] { background-image:none !important; background-color:#EEF1FB !important; }
+.preview-scope [class*="from-violet-500"], .preview-scope [class*="from-violet-600"] { background-image:linear-gradient(135deg,#3A57E8,#5B73F0) !important; }
 
 /* Always reserve the scrollbar gutter so a page whose height crosses the
    viewport (e.g. filtering the Marketing Hub tables shorter/taller) doesn't

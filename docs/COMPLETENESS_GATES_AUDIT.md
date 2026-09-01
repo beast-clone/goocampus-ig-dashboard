@@ -9,7 +9,7 @@ silently, showing a vague one-line error, or just greying out a button with no r
 either fails silently, shows a generic error, or disables a control with no explanation.
 This doc is the work list. Nothing here is built yet — it's a checklist to work through.
 
-Audited: 2026-08-07 · Scope: `app/(dashboard)/dashboard/hope-preview/` (V2 UI) + `app/api/`.
+Audited: 2026-08-07 · Scope: `app/(dashboard)/dashboard/preview/` (V2 UI) + `app/api/`.
 
 ---
 
@@ -75,13 +75,13 @@ Button greyed with at most a tooltip; no list of what's missing. These transitio
   inline `setMsg` guards ("Pick a page", "Add text/image", "Pick date/time", past-time), not a
   consolidated popup. *(b/c)*
 - [ ] **Create-task modals** — shared `components/NewTaskModal.tsx` (requires only `title`,
-  `goConfirm` 112-115) and My Day's `NewTaskModal` (`HopeMyDay.tsx:1023`, silent no-op on the
+  `goConfirm` 112-115) and My Day's `NewTaskModal` (`PreviewMyDay.tsx:1023`, silent no-op on the
   disabled button). Neither validates SBU / date / collaborators nor shows a missing-fields
   popup. Create is ungated server-side. *(c)*
 
 ## ✅ Already correct — leave alone (this is the reusable pattern)
 
-- **My Day → Approve gate** and **Output-Ready gate** — `HopeMyDay.tsx` handler at 1809-1812
+- **My Day → Approve gate** and **Output-Ready gate** — `PreviewMyDay.tsx` handler at 1809-1812
   reads `res.status === 422 && j.missing` into `gateBlock`; modal at **3052-3078** maps every
   `gateBlock.missing[]` item into a bulleted list ("The brief isn't complete…" / "No creative
   to hand off…"), and reverts the optimistic move. *(a)* — **no change needed.**
@@ -90,7 +90,7 @@ Button greyed with at most a tooltip; no list of what's missing. These transitio
 
 ## Recommended approach (roughly one pass)
 
-1. **Lift** My Day's `gateBlock` modal (`HopeMyDay.tsx:3052-3078`) into a shared
+1. **Lift** My Day's `gateBlock` modal (`PreviewMyDay.tsx:3052-3078`) into a shared
    `<MissingFieldsModal missing={…} gate={…} />` component.
 2. **Add server gates** in `marketing-hub/update` (and/or `create`) for the currently-ungated
    transitions that need them — `Ready to Publish`, and create — returning the same

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, subDays } from "date-fns";
 import { todayIST, daysAgoIST } from "@/lib/date";
 import { IconCalendar } from "@tabler/icons-react";
-import { HopeDatePicker } from "@/app/(dashboard)/dashboard/hope-preview/HopeDatePicker";
+import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 
 export type Range = { from: string; to: string };
 
@@ -104,13 +104,13 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
           <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[230px]">
             <div className="text-[11px] font-medium text-gray-500 mb-1">From</div>
             <div className="mb-2.5">
-              <HopeDatePicker size="sm" allowClear={false}
+              <PreviewDatePicker size="sm" allowClear={false}
                 value={value.from}
                 max={value.to && value.to < today ? value.to : today}
                 onChange={(v) => onChange({ ...value, from: clampToToday(v) })} />
             </div>
             <div className="text-[11px] font-medium text-gray-500 mb-1">To</div>
-            <HopeDatePicker size="sm" allowClear={false}
+            <PreviewDatePicker size="sm" allowClear={false}
               value={value.to}
               min={value.from || undefined}
               max={today}

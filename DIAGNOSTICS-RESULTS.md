@@ -1,6 +1,6 @@
 # Diagnostics Results — live run
 
-**Run date:** 2026-07-21 · **Branch:** `feat/hope-ui-reskin` · **Env:** localhost:4324 (`.env.local`)
+**Run date:** 2026-07-21 · **Branch:** `feat/dashboard-reskin` · **Env:** localhost:4324 (`.env.local`)
 **Method:** live checks in the signed-in Chrome — API status, real-vs-demo data, dates, console.
 Companion plan: `FINAL-DIAGNOSTICS-CHECKLIST.md`. This file = what was actually observed.
 

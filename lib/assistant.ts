@@ -10,7 +10,7 @@ import { getSupabase } from "@/lib/supabase";
 import { listReports } from "@/lib/report-store";
 import { airtableList, CRM_TABLE, SALES_HUB_BASE, pickName } from "@/lib/sales-hub";
 
-const HUB = "/dashboard/hope-preview";
+const HUB = "/dashboard/preview";
 
 export type SearchResult = {
   id: string;                 // "post:<uuid>" | "report:<key>" | "lead:<recId>"

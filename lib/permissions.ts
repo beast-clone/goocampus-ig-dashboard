@@ -65,7 +65,7 @@ export const SECTIONS: { key: Section; label: string; tabs: string; adminOnly?: 
 // Sections a non-admin can be granted (system excluded).
 export const GRANTABLE_SECTIONS = SECTIONS.filter((s) => !s.adminOnly);
 
-// Each HopeTab -> its section, so the sidebar can filter what a person sees.
+// Each PreviewTab -> its section, so the sidebar can filter what a person sees.
 export const TAB_SECTION: Record<string, Section> = {
   overview: "overview",
   "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", "post-planner": "content",

@@ -11,7 +11,7 @@ tab confirm three things:
 
 **Legend:** ✅ real/live · 🟡 real-with-caveat · 🟠 demo/placeholder data · ⚙️ needs an env key to go live · ❓ verify
 **Companion:** flow-level "how to click it" detail lives in `DEMO-TEST-PLAN.md`; this file is the
-connection/real-data/dead-button audit. Test on **`feat/hope-ui-reskin`** (localhost `.env.local`).
+connection/real-data/dead-button audit. Test on **`feat/dashboard-reskin`** (localhost `.env.local`).
 
 > How to run: open each tab with DevTools open. Watch Network for the tab's API call (200 + a real
 > JSON body), watch Console for red errors, then click **every** control once. Mark each row.
@@ -55,7 +55,7 @@ For each: **API** = route to watch · **Data** = expected reality · **Verify** 
 - [ ] **Overview** (`/`) — API `/api/overview-tips`, `/api/posts`, `/api/insights`
   - Data 🟡 — followers/reach/posts/audience real (goocampus IG); **engagement + profile-visits are derived from reach ×0.06 — not measured**.
   - Verify: platform toggle (IG/FB/LI/YT), **date range (7/30/60d/1y/Custom)** updates all cards + chart, "Analyze with AI" is prescriptive.
-  - Watch: **"Who you reached" showed `1 reached`** — verify it's a real audience number, not 1. Key-spread React warning (`HopeOverview.tsx:259`) in console.
+  - Watch: **"Who you reached" showed `1 reached`** — verify it's a real audience number, not 1. Key-spread React warning (`PreviewOverview.tsx:259`) in console.
 
 - [ ] **Marketing Hub** (`/marketing-hub?tab=…`) — API `/api/marketing-hub/*`
   - Data ✅ — real `mh_posts` (Supabase).
@@ -144,8 +144,8 @@ Click each once; it must do something real (navigate, open a modal, write, or to
 ## PART 5 — CROSS-CUTTING  *(test once)*
 
 - [ ] **Auth & roles** — login works; admin (Maheen) → `/dashboard`, members → `/me`; non-admin blocked from admin pages. *Test first.*
-- [ ] **Navigation** — every sidebar link stays inside `/dashboard/hope-preview/*`, no 404 / V1 leak. (`/hope-preview/instagram` is NOT a route.)
-- [ ] **No dev chrome** — no "Hope UI / V2 / preview" labels on any tab.
+- [ ] **Navigation** — every sidebar link stays inside `/dashboard/preview/*`, no 404 / V1 leak. (`/preview/instagram` is NOT a route.)
+- [ ] **No dev chrome** — no "the dashboard theme / V2 / preview" labels on any tab.
 - [ ] **Console/network** — no red errors, no 4xx/5xx on any tab.
 - [ ] **Token expiry** — note days-remaining for Meta / LinkedIn-World / YouTube OAuth so nothing silently expires over the break.
 - [ ] **Dates everywhere** — spot-check that timestamps render in the right format/timezone (IST) and correct year; no `Invalid Date` / 1970 / placeholder dates.

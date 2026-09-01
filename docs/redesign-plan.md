@@ -8,7 +8,7 @@ For each tab we run the same loop we did for **My Day**:
 2. **Mock up a decluttered layout** — *structure first*, in the current app styling (purple/light). Served at `/mockups/<tab>.html` and shown in the user's real Chrome (full screen).
 3. **Review with the user** → refine until the structure is approved.
 4. **Build it for real** into the actual `/dashboard/<tab>` page.
-5. **Skin it in Hope UI** (blue `#3a57e8`, Inter, real template CSS) as the last step.
+5. **Skin it in the dashboard theme** (blue `#3a57e8`, Inter, real template CSS) as the last step.
 
 > Decisions carry across tabs: merges from the readiness plan mean we redesign the **curated** nav (~5 groups), not all 30 tabs.
 
@@ -24,7 +24,7 @@ For each tab we run the same loop we did for **My Day**:
 | # | Tab (curated) | Status | Mockup |
 |---|---|---|---|
 | 1 | **My Day** (Daily Planner) | ✅ layout approved — pending build | `/mockups/my-day.html` |
-| 2 | Overview | Hope UI V2 exists (`/hope-overview.html`); needs rearrange (top posts first) | — |
+| 2 | Overview | the dashboard theme V2 exists (``); needs rearrange (top posts first) | — |
 | 3 | Marketing Hub (Workload/Master/Pipeline/Calendar) | to do | — |
 | 4 | Scheduler (the one "create a post" surface) | to do | — |
 | 5 | Publishing Calendar (or merge into MH calendar) | to do | — |
@@ -42,5 +42,5 @@ For each tab we run the same loop we did for **My Day**:
 
 ## Saved assets
 - `public/mockups/my-day.html` — approved My Day layout mockup
-- `public/hope-overview.html` + `public/hope-ui/` — Hope UI Overview (V2, standalone)
+- `public` + `` — the dashboard theme Overview (V2, standalone)
 - Readiness plan artifact (demo plan) — see chat

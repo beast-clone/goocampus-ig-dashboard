@@ -27,7 +27,7 @@ You are landing code, not auditing it. If you want a correctness pass first, run
 
 6. **Supabase RLS / DB gate** *(only when staged files include a migration or raw SQL that touches the database — Beast Clone `wlhbmzaernchwebapszq`)*: verify row-level security is enabled on every affected table before committing. If a table has RLS disabled, STOP — don't commit; report the offending tables and the one-line fix. If the check can't be run locally, warn in one line rather than blocking.
 
-7. **Branch.** Work stays on `feat/hope-ui-reskin` (per `CLAUDE.md`). If you somehow find yourself on the default branch, branch first before committing.
+7. **Branch.** Work stays on `feat/dashboard-reskin` (per `CLAUDE.md`). If you somehow find yourself on the default branch, branch first before committing.
 
 8. **Typecheck if code changed.** If any `.ts`/`.tsx` changed, run `npx tsc --noEmit` and fix errors before committing. (A full `LIGHT_BUILD=1 BASE_PATH= npm run build` is the caller's call — mention if you skipped it.)
 

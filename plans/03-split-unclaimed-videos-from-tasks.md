@@ -5,7 +5,7 @@
 
 ## Problem
 
-app/api/my-day/route.ts builds `tasks` by mapping ALL working rows (line 152) and `pool` as a filtered subset of the same rows (156-163). On video approval the server keeps owner_key on the writer (only design work hands to Praveen — update/route.ts:198 auto-assigns only when !isVideo), so an unclaimed approved video row has owner=writer AND matches the pool filter — it is returned in BOTH arrays. When a writer (e.g. Manya) approves a video, the client optimistically moves it off her board into the pool, but the next load() re-adds it to her board because workingTasks special-cases Manya to include every in-view status (HopeMyDay.tsx:1242) and the row is still in `tasks` with owner=Manya. Net effect: the handoff visually reverts on the next poll. Server truth must match the optimistic UI: an unclaimed approved video belongs only in `pool`.
+app/api/my-day/route.ts builds `tasks` by mapping ALL working rows (line 152) and `pool` as a filtered subset of the same rows (156-163). On video approval the server keeps owner_key on the writer (only design work hands to Praveen — update/route.ts:198 auto-assigns only when !isVideo), so an unclaimed approved video row has owner=writer AND matches the pool filter — it is returned in BOTH arrays. When a writer (e.g. Manya) approves a video, the client optimistically moves it off her board into the pool, but the next load() re-adds it to her board because workingTasks special-cases Manya to include every in-view status (PreviewMyDay.tsx:1242) and the row is still in `tasks` with owner=Manya. Net effect: the handoff visually reverts on the next poll. Server truth must match the optimistic UI: an unclaimed approved video belongs only in `pool`.
 
 ## Files
 

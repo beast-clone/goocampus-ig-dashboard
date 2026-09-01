@@ -2,14 +2,14 @@
 
 **Generated:** 2026-06-26 · **Last updated:** 2026-08-15
 **Author:** Praveen L (GooCampus)
-**Repo:** https://github.com/beast-clone/goocampus-ig-dashboard · active branch `feat/hope-ui-reskin`
+**Repo:** https://github.com/beast-clone/goocampus-ig-dashboard · active branch `feat/dashboard-reskin`
 **Target host:** https://analytics.goocampus.in (Netlify, planned)
 
 ---
 
 ## 0. What's new in this version (Aug 2026)
 
-Since the original June report the tool has grown from an **Instagram + Meta Ads analytics dashboard** into a broader **Marketing OS**, re-skinned on the **Hope UI** design system (indigo `#3A57E8`). The navigation is now grouped into **Analytics · Content · Social Media · Sales**. Highlights added since June:
+Since the original June report the tool has grown from an **Instagram + Meta Ads analytics dashboard** into a broader **Marketing OS**, re-skinned on the **the dashboard theme** design system (indigo `#3A57E8`). The navigation is now grouped into **Analytics · Content · Social Media · Sales**. Highlights added since June:
 
 - **More analytics surfaces:** LinkedIn (Community Management API, GooCampus + GooCampus World), YouTube (all 3 channels), Facebook, and a **Website Analytics** group (GA4 + Microsoft Clarity + Bing) with AI insights.
 - **Content operations:** the **Marketing Hub** (Master sheet / Team / Pipeline / Calendar / Next-7 planning), **My Workspace** (per-member login dashboard), **Content Radar** (Reddit/Quora/MouthShut/ValueMD mention lanes + Google News), and **Content Studio** (AI playbooks with a Perplexity ↔ Claude engine toggle).
@@ -117,7 +117,7 @@ Instagram DM leads captured by the TezDM → n8n pipeline are now shown natively
 - **Clean table:** separate **Name · Phone · Email · Question** columns, with a hover **green-tick** panel exposing the source post, keyword, the 5-field check, and last activity.
 - **Live CRM mirror:** pulls the newest ~60 leads from the Airtable Sales Hub **DM Leads** table (`tbl8CpgnQSYcbFKEH`, base `appersdbBcpxhadnD`) and joins each to the **CRM** table by 10-digit phone, so the pill shows the real **CRM Lead Status** the sales team sets — *Hot lead / Junk lead / Re-Enquiry / Cold / Closed won / Not interested*, etc. **Open ↗** links straight to the Airtable record.
 - **Read-only by design:** the dashboard never writes to the Sales Hub (30k+ rows, no backup). Reads go through the existing `lib/sales-hub.ts` client; the Inbox mapping/join lives in `lib/dm-leads-airtable.ts`.
-- **Status:** live in the dashboard (branch `feat/hope-ui-reskin`). Remaining: an optional **write-back** so brand-new complete captures are pushed *into* the Airtable DM Leads table (currently off pending sign-off).
+- **Status:** live in the dashboard (branch `feat/dashboard-reskin`). Remaining: an optional **write-back** so brand-new complete captures are pushed *into* the Airtable DM Leads table (currently off pending sign-off).
 
 ## 3. Key technical decisions
 

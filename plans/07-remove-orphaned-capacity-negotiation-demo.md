@@ -1,15 +1,15 @@
-# Remove the unreachable capacity-negotiation demo code from HopeMyDay
+# Remove the unreachable capacity-negotiation demo code from PreviewMyDay
 
 - **Priority:** P2
 - **Area:** my-day
 
 ## Problem
 
-Since notifications now come from the server (which only emits kind 'claim'/'message' and never sets n.task), a whole sub-pipeline in HopeMyDay.tsx is dead: setAskManya(true) is never called (0 occurrences), so AskManyaModal never renders, so sendToManya/manyaConfirmMove/ManyaReschedule and the pipeline 'waiting'/'freed' states are unreachable; the hardcoded demo constants URGENT_TASK, MOVABLE, CLAIM_POOL_INIT are dead; addNotif has no callers; and the `if (n.task)` branch in onAcceptNotif is dead since server notifs never carry a task. This dead weight (~150 lines) in a 2860-line file obscures the LIVE swap flow and is a latent source of duplicate-flow bugs. CRITICAL: the REAL swap path (acceptWork / askManyaToMove → /api/my-day/swap-request, AcceptWorkModal reachable via the Pipeline drawer 'Open' button at line 2206, and pipelineTasks / the Pipeline drawer) is LIVE and must NOT be removed.
+Since notifications now come from the server (which only emits kind 'claim'/'message' and never sets n.task), a whole sub-pipeline in PreviewMyDay.tsx is dead: setAskManya(true) is never called (0 occurrences), so AskManyaModal never renders, so sendToManya/manyaConfirmMove/ManyaReschedule and the pipeline 'waiting'/'freed' states are unreachable; the hardcoded demo constants URGENT_TASK, MOVABLE, CLAIM_POOL_INIT are dead; addNotif has no callers; and the `if (n.task)` branch in onAcceptNotif is dead since server notifs never carry a task. This dead weight (~150 lines) in a 2860-line file obscures the LIVE swap flow and is a latent source of duplicate-flow bugs. CRITICAL: the REAL swap path (acceptWork / askManyaToMove → /api/my-day/swap-request, AcceptWorkModal reachable via the Pipeline drawer 'Open' button at line 2206, and pipelineTasks / the Pipeline drawer) is LIVE and must NOT be removed.
 
 ## Files
 
-- `app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx`
+- `app/(dashboard)/dashboard/preview/my-day/PreviewMyDay.tsx`
 
 ## Steps
 

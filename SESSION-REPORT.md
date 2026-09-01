@@ -1,6 +1,6 @@
 # Session Report — 2026-07-21 (Windows)
 
-Handoff for continuing on the **Mac at the office**. Branch: **`feat/hope-ui-reskin`** (all pushed).
+Handoff for continuing on the **Mac at the office**. Branch: **`feat/dashboard-reskin`** (all pushed).
 To resume: `git pull` the branch, then read this + `DIAGNOSTICS-RESULTS.md`.
 
 > Scope note: this session ran in **parallel** with your own session (Diagnostics tab, Serper
@@ -27,7 +27,7 @@ To resume: `git pull` the branch, then read this + `DIAGNOSTICS-RESULTS.md`.
 
 ---
 
-## 2 · My commits (on `feat/hope-ui-reskin`)
+## 2 · My commits (on `feat/dashboard-reskin`)
 
 | Commit | What |
 |---|---|

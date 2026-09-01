@@ -1,5 +1,5 @@
 # GooCampus Dashboard — Audit & Hardening Report
-**Date:** 2026-08-04 · **Branch:** `feat/hope-ui-reskin` · **Landed in:** commit `bd45931`
+**Date:** 2026-08-04 · **Branch:** `feat/dashboard-reskin` · **Landed in:** commit `bd45931`
 **Detailed companions:** [`AUDIT_2026-08-04.md`](AUDIT_2026-08-04.md) (findings) · [`FIXES_2026-08-04.md`](FIXES_2026-08-04.md) (bug→fix)
 
 This is the top-level summary of the audit + hardening pass. Readable on both machines once pulled.
@@ -56,16 +56,16 @@ Vendored into `.claude/skills/` so they sync via the repo:
 5. Extract shared `lib/discover-cache.ts`; back `leads-crm` cache with Supabase.
 6. Consolidate the two Airtable pagination clients.
 7. `readSnapshots` date column (needs a DB migration).
-8. Split the 3 god-components (HopeMyDay 3,602 / MarketingHub 3,238 / scheduler 2,828 lines).
+8. Split the 3 god-components (PreviewMyDay 3,602 / MarketingHub 3,238 / scheduler 2,828 lines).
 9. Design polish: loading-vs-empty states, Master-sheet z-index overlap, perceived load speed.
 
 ## 7. Where it lives
-- Branch `feat/hope-ui-reskin`, latest `bd45931` (pushed).
+- Branch `feat/dashboard-reskin`, latest `bd45931` (pushed).
 - Reports: this file + `AUDIT_2026-08-04.md` + `FIXES_2026-08-04.md`.
 - Dev server: `npm run dev -- -p 4324` (was running during the audit).
 
 ## 8. ✅ Action items for YOU
-- [ ] **On the Mac, before any work:** `git fetch origin && git checkout feat/hope-ui-reskin && git reset --hard origin/feat/hope-ui-reskin` (history was rewritten — a stale Mac push would reintroduce the secret).
+- [ ] **On the Mac, before any work:** `git fetch origin && git checkout feat/dashboard-reskin && git reset --hard origin/feat/dashboard-reskin` (history was rewritten — a stale Mac push would reintroduce the secret).
 - [ ] Delete the local `.env.local.bak.1785733150` file (untracked now).
 - [ ] Install Claude-Mem on the Mac (`npx --yes claude-mem@latest install`).
 - [ ] At go-live: rotate the leaked credentials and move all secrets to Netlify env vars.

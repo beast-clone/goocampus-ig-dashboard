@@ -24,9 +24,9 @@ own chat inbox — no more shared profile-switcher that let anyone view anyone.
 2. `my-day/page.tsx` (server) reads both and passes them in:
    - producer (`user && !admin`) → `initialPerson = user.id`, `isAdmin = false` → locked.
    - admin → `initialPerson = undefined` (defaults to a producer view) + `isAdmin = true` → switcher shown.
-3. `HopeMyDay({ initialPerson, isAdmin })` seeds `person` from `initialPerson` and only
+3. `PreviewMyDay({ initialPerson, isAdmin })` seeds `person` from `initialPerson` and only
    renders the header switcher when `isAdmin`.
-4. `middleware.ts`: any authenticated teammate may open `/dashboard/hope-preview`
+4. `middleware.ts`: any authenticated teammate may open `/dashboard/preview`
    (V1 still redirects to V2); `/me` is retired (authed hits → V2); `/login` → V2 for all.
 
 ## Known follow-ups (not done here)

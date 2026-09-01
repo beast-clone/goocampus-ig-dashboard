@@ -2,7 +2,7 @@
 
 > Captured from an interactive spec session with the user on **2026-07-22**.
 > This is the agreed model for the **My Day** tab. Build against THIS, not old code.
-> Tab: `app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx` (live-wired to Supabase `mh_posts`).
+> Tab: `app/(dashboard)/dashboard/preview/my-day/PreviewMyDay.tsx` (live-wired to Supabase `mh_posts`).
 > Companion skill: `/my-day-spec` — re-runs the clarifying discussion before any build.
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: goocampus-brand
-description: GooCampus visual brand / art-direction guide for GRAPHIC & MARKETING design — posters, Instagram carousels & stories, WhatsApp banners, standees, thumbnails, print. Use whenever designing or generating any public-facing GooCampus visual, choosing brand colors/type/logo usage, or art-directing an image so it looks on-brand instead of generic. NOT for the internal dashboard UI (that uses the Hope UI indigo system — see note below).
+description: GooCampus visual brand / art-direction guide for GRAPHIC & MARKETING design — posters, Instagram carousels & stories, WhatsApp banners, standees, thumbnails, print. Use whenever designing or generating any public-facing GooCampus visual, choosing brand colors/type/logo usage, or art-directing an image so it looks on-brand instead of generic. NOT for the internal dashboard UI (that uses the dashboard indigo system — see note below).
 ---
 
 # GooCampus — Brand & Art Direction (graphic / marketing)
@@ -11,7 +11,7 @@ description: GooCampus visual brand / art-direction guide for GRAPHIC & MARKETIN
 | System | Where it's used | Colors |
 |--------|-----------------|--------|
 | **Marketing / graphic** (this guide) | Posters, social, print, banners, thumbnails — anything the public sees | **Orange + Navy** (from the logo) |
-| **Product / dashboard** | Internal Marketing-OS dashboard UI only | Hope UI indigo `#3A57E8` |
+| **Product / dashboard** | Internal Marketing-OS dashboard UI only | dashboard indigo `#3A57E8` |
 
 Public-facing graphics use **orange + navy**. Never put the dashboard indigo on a poster.
 

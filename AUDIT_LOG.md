@@ -1,4 +1,4 @@
-# Audit Log — `feat/hope-ui-reskin` session
+# Audit Log — `feat/dashboard-reskin` session
 
 ## QA 2026-07-18 — Task-detail **Activity** log (mh_activity)
 
@@ -21,7 +21,7 @@ The marketing team's operating base. All 4 subtabs verified LIVE in Chrome (fron
 |---|-------|-----|-----|----------|
 | 1 | **Phantom status `"Content - In Progress"`** (doesn't exist in Supabase) orphaned 12 `Content - Approved` tasks → pipeline showed 172 not 184 | HIGH (wrong data) | Point 5 code sites + PIPELINE_STAGES to real `Content - Approved`; deleted 2 dead colour/pill map entries | Pipeline reconciles 57+12+11+2+102 = **184**, APPROVED=12, live ✓ (commit `3e8aa3a`) |
 | 2 | **Redundant entry count** on calendar (hero stat + meta line) | LOW (repetitive) | Removed the duplicate meta count | Calendar shows count once ✓ |
-| 3 | **Content Calendar off-brand** (no month toolbar, range-derived month) | MED (Hope UI) | Rebuilt CalendarView: `‹ › Today` toolbar, centred month title, `monthCursor` defaulting to current month, brand chips retained; MHCAL_CSS toolbar styles | Opens on July 2026 w/ toolbar; month nav + Today + brand filter all work live ✓ |
+| 3 | **Content Calendar off-brand** (no month toolbar, range-derived month) | MED (the dashboard theme) | Rebuilt CalendarView: `‹ › Today` toolbar, centred month title, `monthCursor` defaulting to current month, brand chips retained; MHCAL_CSS toolbar styles | Opens on July 2026 w/ toolbar; month nav + Today + brand filter all work live ✓ |
 | 4 | **🔴 Calendar hid all upcoming content** — shared the retrospective fetch (`to=today`); 25 posts on Jul 19–31 invisible, future half of month empty. Surfaced by the live drag demo (dragged card vanished past today). | HIGH (data hidden) | `page.tsx`: when `tab==='calendar'`, fetch a wide window (−180d…+365d) instead of `range`. API already respects `to` (no server cap). | Count 184→270; Jul 19–31 populate; console clean ✓ |
 | 5 | **🟠 Edits snapped back** — GET route cached 12h, writes didn't invalidate it, so drag/edit reverted on refresh until TTL. | MED (stale UI) | New `lib/mh-cache.ts` (cache Map + `bustMarketingHubCache`; a route.ts can't export helpers). `update`/`create`/`takeover` call the bust after a successful write. | Dragged 11→19 (moved+persisted, no snap-back) → 19→11 (restored); DB confirmed both ✓ |
 
@@ -37,26 +37,26 @@ The marketing team's operating base. All 4 subtabs verified LIVE in Chrome (fron
 
 ---
 
-## QA 2026-07-18 — Overview tab (`/dashboard/hope-preview` → `HopeOverview.tsx`)
+## QA 2026-07-18 — Overview tab (`/dashboard/preview` → `PreviewOverview.tsx`)
 
 Thorough tab check (code + APIs + runtime). 3 issues found, all FIXED & verified live.
 
 | # | Issue | Severity | Fix | Verified |
 |---|---|---|---|---|
 | 1 | **React "key" spread warning** on every render — `<StatCard key={s.key} {...s}/>` spread the `key` field into props (console error ×2). | med (console noise, React anti-pattern) | Destructure key out of the spread: `stats.map(({key, ...rest}) => <StatCard key={key} {...rest} …/>)`. Root cause, one spot. | Console clean after reload ✓ |
-| 2 | **Dead code** — `NavGroup`, `NavItem`, `Legend` defined but never used (sidebar is `HopeSidebar`); 5 unused icon imports (`IconSettings/Sun/Users/Wand/Speakerphone`). | low (lint/bundle) | Deleted the 3 functions + 5 imports. | Compiles + renders ✓ |
+| 2 | **Dead code** — `NavGroup`, `NavItem`, `Legend` defined but never used (sidebar is `PreviewSidebar`); 5 unused icon imports (`IconSettings/Sun/Users/Wand/Speakerphone`). | low (lint/bundle) | Deleted the 3 functions + 5 imports. | Compiles + renders ✓ |
 | 3 | **`/api/overview-tips` returned 502** — still on OpenAI `gpt-4o-mini` (out of quota → 429), so the per-KPI AI "action" tips silently fell back to hardcoded plain copy. | high (feature dead) | Swapped OpenAI → `askPerplexity` (reuse `lib/ai.ts`), same as the ai-report migration; prescriptive prompt + robust JSON parse. | `200` via Perplexity; live prescriptive tips render ✓ |
 
 **Observations (NOT changed — noted for later):**
 - Overview is hardcoded to `accountId="goocampus"` and header shows a hardcoded "Maheen Ejaz / CMO" — it's the original "proof page", no account picker. Fine as-is; flag if it should reflect the logged-in user / switch brands.
-- Font-weights use 700/800 throughout, which contradicts CLAUDE.md ("400/500 only"). Deliberate hand-built proof-page style (own `C` tokens, not `.hope-scope`). Left alone — a mass restyle is out of scope for QA.
+- Font-weights use 700/800 throughout, which contradicts CLAUDE.md ("400/500 only"). Deliberate hand-built proof-page style (own `C` tokens, not `.preview-scope`). Left alone — a mass restyle is out of scope for QA.
 - Fires `/api/posts` 3× on load (limit 10 + 2× limit 200) plus child components' own fetches — heavy; posts API is slow (~20s). Works; optimize only if load time becomes a complaint.
 
 ---
 
 
 **Date:** 2026-07-17
-**Branch:** `feat/hope-ui-reskin`
+**Branch:** `feat/dashboard-reskin`
 **Status:** ⚠️ **WORK IN PROGRESS — DO NOT PUSH / DEPLOY.** Round-1 fixes applied; **Round-2 findings still OPEN** (see below). Typecheck passes for Round-1 state.
 
 This log is the resume point. When we reconnect, start at **"Round 2 — OPEN findings"** and fix top-down.
@@ -66,12 +66,12 @@ This log is the resume point. When we reconnect, start at **"Round 2 — OPEN fi
 ## What this session built
 
 1. **Content Review tab** — a human gate between `Output - Ready` and the Scheduler.
-   - New: `app/(dashboard)/dashboard/hope-preview/content-review/page.tsx`, `app/api/content-review/route.ts`
+   - New: `app/(dashboard)/dashboard/preview/content-review/page.tsx`, `app/api/content-review/route.ts`
    - Gate change: `app/api/scheduler/to-schedule/route.ts` now surfaces only `Ready to Publish`
    - Push to Schedule → `Ready to Publish`; Send back → `Incorporating Feedback`
 2. **My Day wired to live `mh_posts`** (was a mock).
    - New: `app/api/my-day/route.ts` (per-person tasks + claim pool + stats)
-   - `HopeMyDay.tsx` fetches it; persists writes: status via `/api/marketing-hub/update`, claim via `/api/marketing-hub/takeover`, create via `/api/marketing-hub/create`
+   - `PreviewMyDay.tsx` fetches it; persists writes: status via `/api/marketing-hub/update`, claim via `/api/marketing-hub/takeover`, create via `/api/marketing-hub/create`
 3. **Real notifications** from the `mh_activity` event log.
    - New: `app/api/my-day/notifications/route.ts` (claim→other editor, handoff→receiver, send-back→owner, push→owner; never self)
    - `app/api/marketing-hub/update/route.ts` now logs non-approval status transitions
@@ -105,12 +105,12 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 - **Planned fix:** In both routes, after fetching posts, run a second query on `mh_attachments` (`select post_id where post_id in (ids)`), build a `Set` of post_ids that have attachments, and treat `hasCreative` (and the to-schedule filter) as true when `media_urls`/`output_link` **or** an attachment exists. `mh_attachments` columns confirmed: `id, post_id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at`.
 
 ### B. 🟠 MED — reconcile dedupes against the VIEWER, not the CLAIMER (bug introduced by Round-1 #6)
-- **File:** `app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx:~923` (the `load()` `setClaimedTasks` reconcile) + `meNameRef` at ~907/~933
+- **File:** `app/(dashboard)/dashboard/preview/my-day/PreviewMyDay.tsx:~923` (the `load()` `setClaimedTasks` reconcile) + `meNameRef` at ~907/~933
 - **Problem:** Reconcile keeps a buffered claim while `server.detail.owner !== meNameRef.current`. `meNameRef` is the **currently-viewed** person, not the claimer. Claim as Nandu → switch person to Manya before takeover resolves → reconcile keeps the row → switching back to Nandu renders the card **twice** (duplicate React key).
 - **Planned fix:** Compare against the **claimer captured on the buffered entry** — i.e. `server.detail.owner !== c.detail.owner` (each `claimedTasks` entry already has `detail.owner = claimer`). This is viewer-independent AND still keeps in-flight claims (satisfies Round-1 #6). Then **remove `meNameRef`** (no longer needed).
 
 ### C. 🟠 MED — video approval optimistic "→ pool" diverges from server → card bounces back
-- **Files:** `HopeMyDay.tsx:~992` (setTaskStatus video branch) ↔ `app/api/my-day/route.ts:~101`
+- **Files:** `PreviewMyDay.tsx:~992` (setTaskStatus video branch) ↔ `app/api/my-day/route.ts:~101`
 - **Problem:** On a writer approving a video, the client optimistically removes it from the writer's list and shows it in the pool as "Unclaimed". But the server **keeps `owner_key` on the writer** for video (only design → Praveen). `my-day` returns that row in **both** `tasks` (owner=writer) and `pool`, so after `load()` it reappears on the writer's board — the handoff visually reverts.
 - **Planned fix (server-side, cleanest):** In `app/api/my-day/route.ts`, exclude **unclaimed approved videos** from `tasks` (they live only in `pool`). Refactor:
   ```ts
@@ -128,7 +128,7 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 - **DECISION NEEDED (Praveen):** Enforce server-side (in `update` route, only allow `→ Ready to Publish` when prior status is `Output - Ready`, i.e. the Content Review push path) — **or** accept the Master-sheet's admin flexibility as intended and leave it. Enforcing is stricter but changes admin-grid behaviour. Recommend a short chat before implementing.
 
 ### E. 🟡 LOW — orphaned dead code (Accept-&-Work capacity pipeline)
-- **File:** `HopeMyDay.tsx` — `URGENT_TASK` (~291), `pipeline` state, `onAcceptNotif`/`acceptWork`/`askManyaToMove`/`sendToManya`/`manyaConfirmMove`/`addNotif`, `AcceptWorkModal`/`AskManyaModal`/`ManyaReschedule`, and the `NotificationStack` urgent/freed button branch.
+- **File:** `PreviewMyDay.tsx` — `URGENT_TASK` (~291), `pipeline` state, `onAcceptNotif`/`acceptWork`/`askManyaToMove`/`sendToManya`/`manyaConfirmMove`/`addNotif`, `AcceptWorkModal`/`AskManyaModal`/`ManyaReschedule`, and the `NotificationStack` urgent/freed button branch.
 - **Problem:** Replacing the mock notification effect (Round-1) orphaned the whole capacity-negotiation demo — the poll only emits `claim`/`message` notifs with no `task`, so the Accept-&-Work flow is now unreachable dead code.
 - **DECISION NEEDED (Praveen):** Remove the dead pipeline (declutter) — **or** re-wire it later if the urgent-task escalation feature is wanted. Removal is a sizeable, careful edit; recommend deciding before doing it.
 
@@ -141,7 +141,7 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 
 - Round-1 fixes: **applied**, `npx tsc --noEmit` clean for touched files.
 - Round-2 findings A–E: **not started.**
-- Nothing committed or pushed. Branch in sync with `origin/feat/hope-ui-reskin` (this session's work is all uncommitted working-tree changes).
+- Nothing committed or pushed. Branch in sync with `origin/feat/dashboard-reskin` (this session's work is all uncommitted working-tree changes).
 - No Netlify deploy.
 
 ## Resume checklist (next session)
@@ -150,7 +150,7 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 3. Fix **C** (unclaimed-video exclusion) — my-day route.
 4. Decide **D** (gate enforcement) and **E** (dead code) with Praveen, then act.
 5. `tsc` → re-sweep (same workflow) → repeat until clean.
-6. When clean: write/refresh `CHANGELOG.md`, commit, `git push` to `feat/hope-ui-reskin`.
+6. When clean: write/refresh `CHANGELOG.md`, commit, `git push` to `feat/dashboard-reskin`.
 
 ## 2026-07-21 — Part 1 (API/Integration matrix) diagnostics pass
 
@@ -223,32 +223,32 @@ Fix these next, top-down. Notes include the planned fix and exact locations.
 
 ## Part 5 — CROSS-CUTTING diagnostics pass
 
-- **Auth & roles** ✅ (code-verified `middleware.ts`) — unauth → `/login` (pages) / 401 (API); non-admin on `/dashboard` → `/me`; admin on `/me` → `/dashboard/hope-preview`; any non-`hope-preview` `/dashboard` path → `/dashboard/hope-preview` (V1 never leaks).
-- **Navigation** ✅ — every sidebar link visited in Part 2 stayed under `/dashboard/hope-preview/*`; no 404 / V1 leak.
-- **No dev chrome** ✅ — no "Hope UI / V2 / preview" labels on any of the 25 tabs.
+- **Auth & roles** ✅ (code-verified `middleware.ts`) — unauth → `/login` (pages) / 401 (API); non-admin on `/dashboard` → `/me`; admin on `/me` → `/dashboard/preview`; any non-`preview` `/dashboard` path → `/dashboard/preview` (V1 never leaks).
+- **Navigation** ✅ — every sidebar link visited in Part 2 stayed under `/dashboard/preview/*`; no 404 / V1 leak.
+- **No dev chrome** ✅ — no "the dashboard theme / V2 / preview" labels on any of the 25 tabs.
 - **Console/network** ✅ — Overview clean; across Part 2 only transient 503→200 retries seen (radar reddit-thread, scheduler suggest-time) + the logged Ads cold-compile 500. No persistent red errors / 4xx-5xx.
 - **Token expiry** (note) — Meta: never-expires; LinkedIn member token ~60d; YouTube OAuth auto-refresh (~60m access). Nothing silently expires over the break.
 - **Dates** ✅ — all timestamps render correctly (2026, IST); no Invalid Date / 1970 / placeholder dates seen.
 
 ### Part 5 / Part 4 fix — header notification bell
-- **Overview header bell + mail were STATIC/dead** (`HopeOverview.tsx:305` rendered bare `IconBell` + `IconMail`, no onClick) while the fully-wired `components/HubNotificationBell.tsx` (polls `/api/my-day/notifications`, badge + dropdown) was imported nowhere (dead code). FIXED: Overview now renders `HubNotificationBell` (verified: opens "Notifications · You're all caught up" dropdown); dead mail icon removed. Commit 25acf1f.
+- **Overview header bell + mail were STATIC/dead** (`PreviewOverview.tsx:305` rendered bare `IconBell` + `IconMail`, no onClick) while the fully-wired `components/HubNotificationBell.tsx` (polls `/api/my-day/notifications`, badge + dropdown) was imported nowhere (dead code). FIXED: Overview now renders `HubNotificationBell` (verified: opens "Notifications · You're all caught up" dropdown); dead mail icon removed. Commit 25acf1f.
 
 ## Parts 3 & 4 — status (covered during Parts 2 & 5)
 - **Part 3 (demo/placeholder):** Stories demo-grid RESOLVED (live + Supabase history); Overview derived engagement/profile-visits now labeled **EST**; LinkedIn main honestly badged "Demo data"; Content Radar connect-chips are honest placeholders (by design); Publishing Calendar demo toggle defaults OFF + opens on current month; Tools static by design. All either real or clearly labeled.
 - **Part 4 (buttons wired):** verified live in Part 2 — Content Radar article-reader + Manage-alerts modals open; account switcher + date range re-fetch; Analyze-with-AI / Generate-insights call Perplexity and render; Scheduler set-time/suggest/enqueue/reschedule/cancel present; Marketing Hub add-column/save-view/detail-modal; My Day capsules; **header bell now wired (above).** No dead clickable buttons found beyond the by-design Content Radar connect placeholders.
 
-## Hope UI theme-consistency audit (code-level, all tabs)
+## dashboard theme-consistency audit (code-level, all tabs)
 
-Audited every hope-preview tab + shared component against the Hope UI tokens.
-- **Colours** ✅ — on-token everywhere. Overview uses JS constants (primary #3A57E8, ink #232D42, muted #8A92A6, white cards, #F5F6FA canvas) that match the tokens; `.hope-scope` also auto-maps the legacy purple #6D5AE6 → #3A57E8. No off-brand hardcoded colours found.
-- **Shadows** ✅ — `.hope-scope` strips Tailwind `shadow-*` classes; Overview's `SHADOW` constant = "none". Cards are flat. (Two brand-tinted glows remain on the Overview hero band + a rank badge — intentional accents, not the grey V1 card-shadow anti-pattern.)
-- **Font weight** 🟢 FIXED — Overview had 30× inline `fontWeight: 700` + 1× `800` (bypassing `.hope-scope`'s `.font-bold`→600 cap), rendering HEAVIER than every other tab (which top out at 600). No other file used 700. Normalised all to 600. Now uniform.
+Audited every preview tab + shared component against the dashboard theme tokens.
+- **Colours** ✅ — on-token everywhere. Overview uses JS constants (primary #3A57E8, ink #232D42, muted #8A92A6, white cards, #F5F6FA canvas) that match the tokens; `.preview-scope` also auto-maps the legacy purple #6D5AE6 → #3A57E8. No off-brand hardcoded colours found.
+- **Shadows** ✅ — `.preview-scope` strips Tailwind `shadow-*` classes; Overview's `SHADOW` constant = "none". Cards are flat. (Two brand-tinted glows remain on the Overview hero band + a rank badge — intentional accents, not the grey V1 card-shadow anti-pattern.)
+- **Font weight** 🟢 FIXED — Overview had 30× inline `fontWeight: 700` + 1× `800` (bypassing `.preview-scope`'s `.font-bold`→600 cap), rendering HEAVIER than every other tab (which top out at 600). No other file used 700. Normalised all to 600. Now uniform.
 - **Font family** 🟢 FIXED — only 3 pages (Overview, Calendar, My Day) loaded Inter via `next/font`; the root layout set no font, so the other ~22 tabs fell back to the system font (SF Pro on macOS). Loaded **Inter globally on `<html>`** in `app/layout.tsx`. Verified: `document.body` computes Inter on both the Overview and a previously-system-font tab (Content Review). Typography now identical across all tabs.
 - **Spelling** ✅ — codebase-wide typo scan clean; no user-facing misspellings (only British spellings + `cancelled` in comments/vars).
 
 ## Account page + password-reset OTP (Gmail SMTP) — setup note
 
-- **Feature:** `/dashboard/hope-preview/account` (reached from the Overview profile menu) shows the logged-in user's name/email/username/role and lets them change their own password via an emailed 6-digit OTP. Routes: `POST /api/account/otp` (send code) + `POST /api/account/change-password` (verify + update). Email: `lib/email.ts` (nodemailer + Gmail SMTP). OTP stored hashed (scrypt) in `discover_cache`, 10-min expiry, burned on use.
+- **Feature:** `/dashboard/preview/account` (reached from the Overview profile menu) shows the logged-in user's name/email/username/role and lets them change their own password via an emailed 6-digit OTP. Routes: `POST /api/account/otp` (send code) + `POST /api/account/change-password` (verify + update). Email: `lib/email.ts` (nodemailer + Gmail SMTP). OTP stored hashed (scrypt) in `discover_cache`, 10-min expiry, burned on use.
 - **Env vars required (NOT in git — set per machine + on Netlify):**
   - `GMAIL_USER=praveen@goocampus.in`  ← must match the Google account the app password belongs to (the app password was generated under praveen@, NOT info@ — using info@ gives Gmail 535 "Username and Password not accepted").
   - `GMAIL_APP_PASSWORD=<16-char Google app password>`  (Google Account → Security → 2-Step Verification → App passwords). Optional: `GMAIL_FROM_NAME`.

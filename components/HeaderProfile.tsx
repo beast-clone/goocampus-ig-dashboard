@@ -56,7 +56,7 @@ export function HeaderProfile() {
             <div style={{ fontSize: 11.5, color: "#8A92A6" }}>{role}</div>
           </div>
           <Link
-            href="/dashboard/hope-preview/account"
+            href="/dashboard/preview/account"
             onClick={() => setOpen(false)}
             style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, fontSize: 13, color: "#232D42", textDecoration: "none" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#F6F7FB")}

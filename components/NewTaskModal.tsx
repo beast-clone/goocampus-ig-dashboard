@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SBU_OPTIONS } from "@/lib/sbus";
-import MissingFieldsModal from "@/app/(dashboard)/dashboard/hope-preview/MissingFieldsModal";
+import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
 
 // Shared "+ New Task" modal used by Marketing Hub and My Day.
 // POSTs to /api/marketing-hub/create, which writes one row to the

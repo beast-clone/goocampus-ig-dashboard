@@ -27,7 +27,7 @@ const PPL_META: Record<string, { name: string; av: string; color: string; photo?
 };
 // Statuses still moving through the pipeline (the working view) + the queued
 // Ready-to-Publish. Must match every status the client renders as in-view (the
-// HopeMyDay STATUS `inView` set) or a task moved into a missing status would vanish
+// PreviewMyDay STATUS `inView` set) or a task moved into a missing status would vanish
 // from the board after the post-write reconcile. Recently-published rows are fetched
 // separately for the Done stat.
 // Only real mh_status enum values — "Content - Needs Approval" is NOT in the enum

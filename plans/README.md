@@ -14,7 +14,7 @@ The Content Review + My Day pipeline is functionally solid but carries one genui
 04. **[P1]** Make the design auto-handoff atomic and error-check secondary writes in the update route — [`04-harden-update-route-write-failures.md`](04-harden-update-route-write-failures.md)
 05. **[P1]** Enforce the Content Review status gate server-side and derive actor identity from the session — [`05-enforce-review-gate-and-actor-identity.md`](05-enforce-review-gate-and-actor-identity.md)
 06. **[P2]** Guard the takeover claim against a race and stop mis-firing 'claimed a video' notifications — [`06-fix-takeover-race-and-claim-notification.md`](06-fix-takeover-race-and-claim-notification.md)
-07. **[P2]** Remove the unreachable capacity-negotiation demo code from HopeMyDay — [`07-remove-orphaned-capacity-negotiation-demo.md`](07-remove-orphaned-capacity-negotiation-demo.md)
+07. **[P2]** Remove the unreachable capacity-negotiation demo code from PreviewMyDay — [`07-remove-orphaned-capacity-negotiation-demo.md`](07-remove-orphaned-capacity-negotiation-demo.md)
 08. **[P2]** Add My Day loading skeleton, replace Content Review window.alert with branded feedback, and seed a unit-test baseline — [`08-myday-loading-and-content-review-toast-plus-tests.md`](08-myday-loading-and-content-review-toast-plus-tests.md)
 
 _Land P0 first, then the P1 state-sync fixes. The P1 security/gate items are **decision-gated** — need Praveen's sign-off (they change Master-sheet admin flexibility). P2 = polish/cleanup._

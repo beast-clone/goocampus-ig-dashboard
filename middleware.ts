@@ -114,24 +114,24 @@ export async function middleware(req: NextRequest) {
   // parked member world at /me is retired — send any authed hit there into V2.
   if (isAuthed && (pathname === "/me" || pathname.startsWith("/me/"))) {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard/hope-preview";
+    url.pathname = "/dashboard/preview";
     return NextResponse.redirect(url);
   }
 
   // The dashboard is open to any authenticated teammate. V1 is RETIRED / OFFLINE
-  // (user order 2026-07-18): all live tabs are under /dashboard/hope-preview (V2),
+  // (user order 2026-07-18): all live tabs are under /dashboard/preview (V2),
   // so any other /dashboard path (old V1 pages) redirects to V2 and is never served.
   if (isAuthed && pathname.startsWith("/dashboard")) {
-    if (!pathname.startsWith("/dashboard/hope-preview")) {
+    if (!pathname.startsWith("/dashboard/preview")) {
       const url = req.nextUrl.clone();
-      url.pathname = "/dashboard/hope-preview";
+      url.pathname = "/dashboard/preview";
       return NextResponse.redirect(url);
     }
   }
 
   if (isAuthed && pathname === "/login") {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard/hope-preview";
+    url.pathname = "/dashboard/preview";
     return NextResponse.redirect(url);
   }
 

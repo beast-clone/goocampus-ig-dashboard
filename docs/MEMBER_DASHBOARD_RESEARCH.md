@@ -27,10 +27,10 @@ How it's wired:
   `TeamView`, `PipelineView`, `CalendarView`, `MasterTab`, `DetailModal`.
 - New `my-day/MemberHub.tsx` fetches `/api/marketing-hub`, filters rows to the member via
   `ownerMatchesKey(row.owner, person)`, renders the chosen view.
-- `my-day/HopeMyDay.tsx` hosts the tab bar inside its own `.main` content column (My Day owns its
+- `my-day/PreviewMyDay.tsx` hosts the tab bar inside its own `.main` content column (My Day owns its
   shell/sidebar) and swaps the body: `wsTab === "myday" ? <day content> : <MemberHub person tab>`.
-  Reuses HopeMyDay's existing `person` state.
-- Sidebar label renamed **"My Day" → "My Workspace"** (`HopeSidebar.tsx`).
+  Reuses PreviewMyDay's existing `person` state.
+- Sidebar label renamed **"My Day" → "My Workspace"** (`PreviewSidebar.tsx`).
 
 Verified live: Master sheet + Content calendar render scoped to Nandu (his tasks only);
 admin Marketing Hub still team-wide (17 tasks). tsc clean.

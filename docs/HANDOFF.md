@@ -1,15 +1,15 @@
 # Session Handoff — GooCampus Marketing OS dashboard
 
-**Written:** 2026-07-22 · **Branch:** `feat/hope-ui-reskin` · **Everything below is pushed to GitHub.**
+**Written:** 2026-07-22 · **Branch:** `feat/dashboard-reskin` · **Everything below is pushed to GitHub.**
 New session: read this file, then `CLAUDE.md`, then `docs/MY_DAY_SPEC.md` before doing anything.
 
 ---
 
 ## 1. Project at a glance
 - **Repo:** `goocampus-ig-dashboard` (GitHub: `beast-clone/goocampus-ig-dashboard`, private)
-- **Branch:** `feat/hope-ui-reskin` — ⚠️ this branch does **NOT** deploy. Only `main` deploys to Netlify prod.
-- **Stack:** Next.js 14 App Router + **Hope UI** design system (brand `#3A57E8`). V2 UI lives under
-  `app/(dashboard)/dashboard/hope-preview/` and renders inside `.hope-scope`.
+- **Branch:** `feat/dashboard-reskin` — ⚠️ this branch does **NOT** deploy. Only `main` deploys to Netlify prod.
+- **Stack:** Next.js 14 App Router + **the dashboard theme** design system (brand `#3A57E8`). V2 UI lives under
+  `app/(dashboard)/dashboard/preview/` and renders inside `.preview-scope`.
 - **DB:** Supabase project **“Beast Clone”** `wlhbmzaernchwebapszq` (`mh_posts`, `mh_messages`,
   `mh_attachments`, `ind_users`, `discover_cache`, …). Writes go through the service client.
 - **Docs:** `CHANGELOG.md` (running log), `docs/MY_DAY_SPEC.md` (feature spec), this file.
@@ -18,14 +18,14 @@ New session: read this file, then `CLAUDE.md`, then `docs/MY_DAY_SPEC.md` before
 ## 2. What shipped this session (all pushed)
 | Commit | What |
 |---|---|
-| `98955f2` | Marketing Hub pipeline logic fixes (6th stage “Output - In Progress”, awaiting-approval count), status-colour unification, dashboard-wide Hope-UI Tier-1 audit fixes (HopeSelect shadow, 10 native `<select>` → HopeSelect, purple → brand), Post Planner mh_posts-only + “Rescheduled by AI” block, and a real cache bug fix (`.maybeSingle()` → `.limit(1)+[0]` in leads, leads/social, competitor-cache, web-history) |
+| `98955f2` | Marketing Hub pipeline logic fixes (6th stage “Output - In Progress”, awaiting-approval count), status-colour unification, dashboard-wide Dashboard-themed Tier-1 audit fixes (PreviewSelect shadow, 10 native `<select>` → PreviewSelect, purple → brand), Post Planner mh_posts-only + “Rescheduled by AI” block, and a real cache bug fix (`.maybeSingle()` → `.limit(1)+[0]` in leads, leads/social, competitor-cache, web-history) |
 | `0ef135f` | Overview **Performance** section → aligned 2-column layout (Post mix + Hashtags left 40%, Which-format-wins + Your-read right 60%) |
 | `0dfed0f` | `docs/MY_DAY_SPEC.md` (My Day source of truth) + CLAUDE.md pointer |
 | `962a39e` | Universal **`spec-first`** skill (generalized from a My-Day-only version) |
 
 ## 3. CURRENT FOCUS — rebuild the My Day tab to spec (NOT started)
 A long interactive session produced a complete, user-agreed spec for **My Day**
-(`app/(dashboard)/dashboard/hope-preview/my-day/HopeMyDay.tsx`, ~3,100 lines, already live-wired to
+(`app/(dashboard)/dashboard/preview/my-day/PreviewMyDay.tsx`, ~3,100 lines, already live-wired to
 `mh_posts`). **Read `docs/MY_DAY_SPEC.md` in full — it is the source of truth; the code does NOT match it yet.**
 
 **Agreed build order** (verify each phase live before the next):
@@ -59,7 +59,7 @@ restore with `insert into mh_posts select * from mh_posts_backup_20260722 on con
 - **NEVER `git push` without explicit user approval.** Committing locally is fine.
 - **NEVER `git add -A`** — stage files intentionally. **Pull first** (same user works on two machines:
   Windows @ home, Mac @ office, synced via GitHub).
-- **Hope UI is mandatory** on every view/panel/modal — brand `#3A57E8`, no drop shadows, weights 400/500.
+- **the dashboard theme is mandatory** on every view/panel/modal — brand `#3A57E8`, no drop shadows, weights 400/500.
 - **Local-first:** verify every change live in the user’s Chrome before saying it’s done.
 - **`spec-first` skill is mandatory** for any complex/confusing feature (see `CLAUDE.md`).
 - **`ponytail` skill** for all coding — leanest solution, reuse over rewrite, no bloat.
@@ -68,7 +68,7 @@ restore with `insert into mh_posts select * from mh_posts_backup_20260722 on con
 
 ## 7. Environment
 - Dev server: `npm run dev -- -p 4324` → http://localhost:4324 (currently **stopped**).
-- My Day: `/dashboard/hope-preview/my-day` · Overview: `/dashboard/hope-preview`
+- My Day: `/dashboard/preview/my-day` · Overview: `/dashboard/preview`
 - Verify in the user’s Chrome via the browser tools (the extension must be connected; the Windows
   Chrome is the one that can reach `localhost:4324`).
 - Refresh the code graph after edits: `node ".claude/skills/graphify/bin/graphify.js" update .`

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useV2Href } from "@/lib/hopeHref";
+import { useV2Href } from "@/lib/previewHref";
 
 type Post = {
   id: string;
@@ -18,7 +18,7 @@ type Post = {
   totalInteractions?: number;
 };
 
-// Hope-family, matched to HopeOverview's FMT_META so each format reads one colour.
+// Brand-family, matched to PreviewOverview's FMT_META so each format reads one colour.
 const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
   REEL:           { label: "Reels",     color: "#6E48F8", icon: "🎬" },
   CAROUSEL_ALBUM: { label: "Carousels", color: "#3A57E8", icon: "🖼️" },
@@ -118,7 +118,7 @@ export function OverviewExtras({ accountId, range, hideReposts, hidePostMix, hid
   return (
     <>
       {/* Row 1: 2 small cards — engagement rate moved to top KPI row.
-          hidePostMix lets a caller (Hope preview) render its own post-mix and
+          hidePostMix lets a caller (preview) render its own post-mix and
           keep only the hashtags here. */}
       <div className={`grid grid-cols-1 ${hidePostMix ? "" : "md:grid-cols-2"} gap-4 mb-6`}>
         {!hidePostMix && <PostMixCard loading={loading} mix={mix} />}
@@ -129,7 +129,7 @@ export function OverviewExtras({ accountId, range, hideReposts, hidePostMix, hid
       {!hideFormat && <FormatComparisonCard accountId={accountId} defaultRange={range} />}
 
       {/* Row 3: Repost opportunities — grid of old winners.
-          hideReposts lets a caller (e.g. the Hope preview) render this block
+          hideReposts lets a caller (e.g. the preview) render this block
           somewhere else without changing the data or the default layout. */}
       {!hideReposts && <RepostOpportunitiesCard loading={oldWinners === null} posts={reposts} />}
     </>
