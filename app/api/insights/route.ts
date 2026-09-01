@@ -33,11 +33,20 @@ export async function GET(req: Request) {
     const reachMetric = insights.find((m) => m.name === "reach");
     const followerMetric = insights.find((m) => m.name === "follower_count");
 
+    // Day keys must be LOCAL calendar dates, matching `from`/`to` and the
+    // "MMM d" label below. `d.toISOString()` looked equivalent but is not: east
+    // of UTC it converts local midnight back into the previous day, so in IST
+    // every lookup missed by one. The first point then found nothing and drew a
+    // phantom 0, and the last real day was dropped off the end entirely.
+    //
+    // Matching on the calendar date is right: asking Meta for a window covering
+    // only 31 Aug returns end_time 2026-08-31, and only 2 Aug returns
+    // 2026-08-02 — end_time's date IS the day the value belongs to.
     const days = eachDayOfInterval({ start: parseISO(from), end: parseISO(to) });
     // Build per-day delta first
     const deltaByDay = new Map<string, number>();
     for (const d of days) {
-      const key = d.toISOString().slice(0, 10);
+      const key = format(d, "yyyy-MM-dd");
       const delta = followerMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
       deltaByDay.set(key, delta);
     }
@@ -46,13 +55,13 @@ export async function GET(req: Request) {
     const totalsByDay = new Map<string, number>();
     let cumulativeAfter = 0;
     for (let i = days.length - 1; i >= 0; i--) {
-      const key = days[i].toISOString().slice(0, 10);
+      const key = format(days[i], "yyyy-MM-dd");
       totalsByDay.set(key, basic.followers_count - cumulativeAfter);
       cumulativeAfter += deltaByDay.get(key) ?? 0;
     }
 
     const series = days.map((d) => {
-      const key = d.toISOString().slice(0, 10);
+      const key = format(d, "yyyy-MM-dd");
       const reachVal = reachMetric?.values.find((v) => v.end_time.slice(0, 10) === key)?.value ?? 0;
       const followerDelta = deltaByDay.get(key) ?? 0;
       return {

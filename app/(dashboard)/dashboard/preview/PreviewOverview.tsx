@@ -968,32 +968,86 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
     return { path: { area, line }, max };
   }, [pts, metric]);
 
+  // Gridlines double as the y-scale, so include the top one (= max) and label
+  // all five. Without numbers the line's height meant nothing absolute.
+  const GRIDS = [0, 0.25, 0.5, 0.75, 1];
+  const yPct = (g: number) => ((PT + g * (H - PT - PB)) / H) * 100;
+  // Same mapping the line uses, so ticks and crosshair sit on the real points
+  // rather than a plain 0–100% approximation that ignores the side padding.
+  const xPct = (i: number) => (pts.length < 2 ? 50 : ((PL + (i / (pts.length - 1)) * (W - PL - PR)) / W) * 100);
+
+  // ~6 dates across the axis. Short ranges (a week) label every day instead.
+  const tickIdx = useMemo(() => {
+    const n = pts.length;
+    if (n === 0) return [];
+    if (n <= 8) return pts.map((_, i) => i);
+    const step = Math.ceil(n / 6);
+    const out: number[] = [];
+    for (let i = 0; i < n; i += step) out.push(i);
+    if (out[out.length - 1] !== n - 1) out.push(n - 1);
+    // Drop the penultimate tick when the forced last one would crowd it.
+    if (out.length > 2 && n - 1 - out[out.length - 2] < step / 2) out.splice(out.length - 2, 1);
+    return out;
+  }, [pts]);
+
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const frac = (e.clientX - r.left) / r.width;
     setHover(Math.max(0, Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))));
   };
-  const hx = hover != null && pts.length > 1 ? (hover / (pts.length - 1)) * 100 : 0;
+  const hx = hover != null ? xPct(hover) : 0;
   const hy = hover != null ? ((PT + (1 - (pts[hover][metric] || 0) / max) * (H - PT - PB)) / H) * 100 : 0;
 
+  const AXIS_W = 46;
+
   return (
-    <div style={{ position: "relative", cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
-        <defs><linearGradient id="hpFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.28" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
-        {[0.25, 0.5, 0.75, 1].map((g) => <line key={g} x1={PL} x2={W - PR} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke={C.line} strokeWidth="1" />)}
-        {path.area && <path d={path.area} fill="url(#hpFill)" />}
-        {path.line && <path d={path.line} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}
-      </svg>
-      {hover != null && pts[hover] && (
-        <>
-          <div style={{ position: "absolute", left: `${hx}%`, top: 0, bottom: 0, width: 1, background: "rgba(35,45,66,0.18)", transform: "translateX(-0.5px)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", left: `${hx}%`, top: `${hy}%`, width: 11, height: 11, borderRadius: 99, background: color, border: "2.5px solid #fff", transform: "translate(-50%, -50%)", boxShadow: "0 2px 6px rgba(35,45,66,0.25)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", left: `${hx}%`, top: 6, transform: hx > 62 ? "translateX(calc(-100% - 10px))" : "translateX(10px)", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: SHADOW, padding: "8px 11px", fontSize: 12, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 2 }}>
-            <div style={{ fontWeight: 600, color: C.heading, marginBottom: 3 }}>{pts[hover].date}</div>
-            <div style={{ color: C.muted, display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: color }} /> {label} <b style={{ color: C.heading, marginLeft: 2 }}>{fmt(pts[hover][metric] || 0)}</b></div>
+    <div>
+      <div style={{ position: "relative", display: "flex" }}>
+        {/* y-axis gutter — the labels are absolutely positioned over it so they
+            line up with the gridlines drawn inside the SVG. */}
+        <div style={{ width: AXIS_W, flex: "0 0 auto" }} />
+        {GRIDS.map((g) => (
+          <div key={g} style={{ position: "absolute", left: 0, top: `${yPct(g)}%`, width: AXIS_W - 8, textAlign: "right", transform: "translateY(-50%)", fontSize: 11, color: C.muted, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }}>
+            {kfmt(Math.round(max * (1 - g)))}
           </div>
-        </>
-      )}
+        ))}
+
+        <div style={{ position: "relative", flex: 1, minWidth: 0, cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
+            <defs><linearGradient id="hpFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.28" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+            {GRIDS.map((g) => <line key={g} x1={PL} x2={W - PR} y1={PT + g * (H - PT - PB)} y2={PT + g * (H - PT - PB)} stroke={C.line} strokeWidth="1" />)}
+            {path.area && <path d={path.area} fill="url(#hpFill)" />}
+            {path.line && <path d={path.line} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}
+          </svg>
+          {hover != null && pts[hover] && (
+            <>
+              <div style={{ position: "absolute", left: `${hx}%`, top: 0, bottom: 0, width: 1, background: "rgba(35,45,66,0.18)", transform: "translateX(-0.5px)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", left: `${hx}%`, top: `${hy}%`, width: 11, height: 11, borderRadius: 99, background: color, border: "2.5px solid #fff", transform: "translate(-50%, -50%)", boxShadow: "0 2px 6px rgba(35,45,66,0.25)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", left: `${hx}%`, top: 6, transform: hx > 62 ? "translateX(calc(-100% - 10px))" : "translateX(10px)", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: SHADOW, padding: "8px 11px", fontSize: 12, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 2 }}>
+                <div style={{ fontWeight: 600, color: C.heading, marginBottom: 3 }}>{pts[hover].date}</div>
+                <div style={{ color: C.muted, display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: color }} /> {label} <b style={{ color: C.heading, marginLeft: 2 }}>{fmt(pts[hover][metric] || 0)}</b></div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* x-axis — placed at each point's true position, with the end labels
+          pulled inside so they don't overhang the card. */}
+      <div style={{ position: "relative", height: 16, marginLeft: AXIS_W }}>
+        {tickIdx.map((i) => (
+          <div key={i} style={{ position: "absolute", left: `${xPct(i)}%`, top: 0, fontSize: 11, color: C.muted, whiteSpace: "nowrap", transform: i === 0 ? "translateX(0)" : i === pts.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}>
+            {pts[i].date}
+          </div>
+        ))}
+      </div>
+
+      {/* The headline above is the period total; this line is per-day. Say so —
+          otherwise a 5-lakh total over a chart peaking at 66K reads as a bug. */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4, fontSize: 11.5, color: C.muted }}>
+        <span>Daily {label.toLowerCase()}</span>
+        <span>Hover any point for that day&rsquo;s figure</span>
+      </div>
     </div>
   );
 }
