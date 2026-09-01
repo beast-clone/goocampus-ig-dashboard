@@ -4,7 +4,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
@@ -69,6 +69,18 @@ type TopPerformer = {
 // A .pdf in the media list means a LinkedIn document carousel, not an image.
 // Kept as a URL test because that is all the composer holds after upload.
 const isPdfUrl = (u: string) => /\.pdf(\?|#|$)/i.test(u);
+// Filename off the storage URL, minus the upload timestamp prefix we add.
+const pdfName = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "document.pdf"))
+  .replace(/^\d{10,}-[a-z0-9]{4,8}-/i, "");
+
+// Brand page -> its LinkedIn page key. GooCampus India has no LinkedIn page, so
+// the LinkedIn option is unavailable (not merely unticked) whenever that is the
+// only brand selected. Mirrors the mapping used when publishing.
+function linkedInKeyFor(page: string): string | null {
+  if (/world/i.test(page)) return "world";
+  if (/india|12/i.test(page)) return null;
+  return "goocampus";
+}
 
 const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] = [
   { value: "GooCampus Main",     label: "GooCampus Main",       subtitle: "@goocampus + 2 FB pages" },
@@ -145,13 +157,25 @@ function Scheduler() {
   const [scheduleTime, setScheduleTime] = useState("");
   // Cross-post to LinkedIn too. Maps each selected brand page to its LinkedIn org
   // page (Main → GooCampus, World → GooCampus World; India has no LinkedIn page).
-  const [alsoLinkedIn, setAlsoLinkedIn] = useState(false);
+  const [alsoLinkedIn, setAlsoLinkedIn] = useState(true);
+  // LinkedIn pages reachable from the brands currently ticked. Empty for India.
+  const linkedInPages = useMemo(
+    () => Array.from(new Set(composePages.map(linkedInKeyFor).filter((k): k is string => !!k))),
+    [composePages],
+  );
+  const linkedInAvailable = linkedInPages.length > 0;
   // Keep the primary page (drives preview / limits / suggest-time) in sync with the
   // first checked cross-post page.
   useEffect(() => {
     const primary = composePages[0];
     if (primary && primary !== publishToPage) setPublishToPage(primary as PublishToPage);
   }, [composePages]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ticking a brand that HAS a LinkedIn page turns cross-posting on by itself —
+  // posting to both is the normal case, so it shouldn't need a second click. Still
+  // un-tickable. Forced back off when the selection has no LinkedIn page at all.
+  useEffect(() => {
+    setAlsoLinkedIn(linkedInAvailable);
+  }, [linkedInAvailable]);
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -444,11 +468,11 @@ function Scheduler() {
     !publishToPage && "A page to publish to",
     !caption.trim() && "A caption",
     cleanMediaUrls.length === 0 && "At least one image or video",
-    // A PDF can only go to LinkedIn, so a PDF-only post with the LinkedIn box
-    // unticked has nowhere to publish. Name that rather than failing at Meta.
-    linkedInOnly && !alsoLinkedIn && "“Also post to LinkedIn” — a PDF can only be posted there",
+    // LinkedIn is ticked automatically, so this only fires if it was turned off
+    // on a post whose only file is a PDF — nothing left to publish anywhere.
+    linkedInOnly && !(alsoLinkedIn && linkedInAvailable) && "Somewhere to post the PDF — turn LinkedIn back on, or add an image",
     scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
-  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, scheduleEnabled, scheduleDate, scheduleTime]);
+  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime]);
   const canSubmit = missingToPublish.length === 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
@@ -507,11 +531,7 @@ function Scheduler() {
   // Sends the PDF when there is one, so the post lands as a document carousel.
   async function crossPostLinkedIn(scheduleTimeISO?: string): Promise<boolean> {
     if (!alsoLinkedIn) return true;
-    const liPages = Array.from(new Set(
-      composePages
-        .map((p): string | null => (/world/i.test(p) ? "world" : /india|12/i.test(p) ? null : "goocampus"))
-        .filter((x): x is string => !!x),
-    ));
+    const liPages = linkedInPages;
     if (!liPages.length) return true;
     try {
       if (scheduleTimeISO) {
@@ -873,7 +893,7 @@ function Scheduler() {
                         </div>
                       </div>
                       {selectedTaskId ? (
-                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={cleanMediaUrls} caption={caption} />
+                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} />
                       ) : (
                         <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400 max-w-sm mx-auto">Select a post on the left to preview it here.</div>
                       )}
@@ -1113,22 +1133,38 @@ function Scheduler() {
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
             <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-gray-100">
-              <input type="checkbox" checked={alsoLinkedIn} onChange={(e) => setAlsoLinkedIn(e.target.checked)} className="w-4 h-4 accent-[#3A57E8]" />
-              <span className="text-sm text-gray-800 inline-flex items-center gap-1.5"><IconBrandLinkedin size={16} className="text-brand" /> Also post to LinkedIn</span>
-              {alsoLinkedIn && (
-                <span className="text-xs text-gray-500 ml-auto">
-                  {composePages.filter((p) => !/india|12/i.test(p)).map((p) => (/world/i.test(p) ? "World" : "GooCampus")).join(" · ") || "no LinkedIn page for selected brand"}
-                </span>
-              )}
+              <input type="checkbox" checked={alsoLinkedIn && linkedInAvailable} disabled={!linkedInAvailable}
+                onChange={(e) => setAlsoLinkedIn(e.target.checked)}
+                className="w-4 h-4 accent-[#3A57E8] disabled:opacity-40" />
+              <span className={`text-sm inline-flex items-center gap-1.5 ${linkedInAvailable ? "text-gray-800" : "text-gray-400"}`}>
+                <IconBrandLinkedin size={16} className={linkedInAvailable ? "text-brand" : "text-gray-300"} /> Also post to LinkedIn
+              </span>
+              <span className="text-xs text-gray-500 ml-auto">
+                {!linkedInAvailable
+                  ? "GooCampus India has no LinkedIn page"
+                  : alsoLinkedIn ? linkedInPages.map((k) => (k === "world" ? "World" : "GooCampus")).join(" · ") : ""}
+              </span>
             </label>
-            {/* A PDF changes where the post can go, so say it here rather than
-                letting the publish fail or silently drop the file. */}
-            {pdfUrls.length > 0 && (
-              <div className="mt-2 text-xs rounded-lg px-3 py-2 bg-brand-light/60 text-[#232D42]">
-                <b>PDF attached</b> — it posts to LinkedIn as a swipeable document carousel.{" "}
-                {linkedInOnly
-                  ? <>Instagram and Facebook can&rsquo;t take a PDF, so this will publish to LinkedIn only.</>
-                  : <>Instagram and Facebook will get the {metaMediaUrls.length === 1 ? "other file" : `other ${metaMediaUrls.length} files`} instead.</>}
+            {/* Where each file actually goes. Two lines, no paragraph — the
+                split is automatic, so it only needs stating, not explaining. */}
+            {cleanMediaUrls.length > 0 && (
+              <div className="mt-2 text-xs space-y-1">
+                <div className="flex gap-2">
+                  <span className="text-gray-500 w-[150px] shrink-0">Instagram + Facebook</span>
+                  <span className={metaMediaUrls.length ? "text-[#232D42]" : "text-gray-400"}>
+                    {metaMediaUrls.length ? `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}` : "nothing to post"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-gray-500 w-[150px] shrink-0">LinkedIn</span>
+                  {pdfUrls.length === 0 ? (
+                    <span className="text-gray-400">{alsoLinkedIn && metaMediaUrls.length ? "first image" : "nothing to post"}</span>
+                  ) : alsoLinkedIn ? (
+                    <span className="text-[#232D42]">{pdfName(pdfUrls[0])}</span>
+                  ) : (
+                    <span className="text-[#C0392B]">{pdfName(pdfUrls[0])} — not being posted, LinkedIn is off</span>
+                  )}
+                </div>
               </div>
             )}
           </Card>
@@ -1137,7 +1173,7 @@ function Scheduler() {
             <CollaboratorField value={collab} onChange={setCollab} />
           </Card>
 
-          <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop a file to upload, or paste a URL (Slack / Drive / direct image / video / PDF). For carousels add multiple (max 10)."}>
+          <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
@@ -1245,7 +1281,7 @@ function Scheduler() {
                 ))}
               </div>
             </div>
-            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={cleanMediaUrls} caption={caption} />
+            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} />
           </div>
         </div>
       </div>
@@ -2219,7 +2255,6 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [pasteVal, setPasteVal] = useState("");
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null); // read in onDrop (state closure would be stale)
@@ -2227,7 +2262,8 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
   const media = mediaUrls.map((u) => u.trim()).filter(Boolean);
   const isVideo = (u: string) => /\.(mp4|mov|webm)(\?|$)/i.test(u);
   const removeAt = (i: number) => { const nc = media.filter((_, j) => j !== i); setMediaUrls(nc.length ? nc : [""]); };
-  const addPasted = () => { const v = pasteVal.trim(); if (!v) return; setMediaUrls([...media, v]); setPasteVal(""); };
+  // Only Meta media counts toward the carousel cap — the PDF goes to LinkedIn.
+  const metaCount = media.filter((u) => !isPdfUrl(u)).length;
   // Drag-to-reorder the carousel: move the dragged thumbnail into the drop slot.
   const reorder = (from: number, to: number) => {
     if (from === to) return;
@@ -2246,7 +2282,8 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
       const filtered = base.length === 1 && !base[0].trim() ? [] : base.filter((u) => u.trim());
       const next = [...filtered];
       for (const file of Array.from(files)) {
-        if (next.length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} media items per post`); break; }
+        // The cap is Meta's carousel limit; a LinkedIn PDF doesn't use a slot.
+        if (!isPdfUrl(file.name) && next.filter((u) => !isPdfUrl(u)).length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} images per post`); break; }
         const fd = new FormData();
         fd.append("file", file);
         const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
@@ -2321,7 +2358,14 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 onDragEnd={locked ? undefined : () => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
                 title={locked ? undefined : "Drag to reorder"}
                 className={`relative group w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
-                {isVideo(url)
+                {/* A PDF has nothing an <img> can render — it used to fade to a
+                    blank tile. Draw it as a labelled document instead. */}
+                {isPdfUrl(url)
+                  ? <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+                      <IconFileTypePdf size={22} stroke={1.6} />
+                      <span className="text-[9px] font-semibold tracking-wide">PDF</span>
+                    </div>
+                  : isVideo(url)
                   ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
                   : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
                 <span className="absolute bottom-0 left-0 text-xs font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
@@ -2331,7 +2375,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 )}
               </div>
             ))}
-            {!locked && media.length < MAX_MEDIA && (
+            {!locked && metaCount < MAX_MEDIA && (
               <label
                 onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -2344,26 +2388,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
               </label>
             )}
           </div>
-          <div className="text-xs text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${media.length}/${MAX_MEDIA} · drag to reorder${media.length < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
-        </div>
-      )}
-
-      {/* Paste a URL to add one more (Slack / Drive / direct link) */}
-      {!locked && media.length < MAX_MEDIA && (
-        <div>
-          <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">— or paste a URL —</div>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={pasteVal}
-              onChange={(e) => setPasteVal(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPasted(); } }}
-              placeholder="https://… (image, video, reel, or Slack/Drive link)"
-              className="flex-1 text-sm rounded-lg border border-gray-200 px-3 py-2"
-            />
-            <button type="button" onClick={addPasted} disabled={!pasteVal.trim()}
-              className="text-xs font-medium bg-brand text-white px-3 rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed">Add</button>
-          </div>
+          <div className="text-xs text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${metaCount}/${MAX_MEDIA} images · drag to reorder${metaCount < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
         </div>
       )}
     </div>
@@ -2777,7 +2802,15 @@ function SocialPreview({ platform, handle, name, images, caption }: {
   // Show the WHOLE creative — natural aspect, never cropped — with carousel controls.
   const media = (placeholderRatio: string) => (
     <div className={`relative overflow-hidden flex items-center justify-center ${image ? "bg-gray-50" : `${placeholderRatio} bg-gray-100 flex-col text-gray-300`}`}>
-      {image
+      {image && isPdfUrl(image)
+        // A PDF can't be previewed as an image — show it as the document card
+        // LinkedIn will render, so the tile isn't just blank.
+        ? <div className="w-full aspect-[4/3] bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-2">
+            <IconFileTypePdf size={44} stroke={1.4} />
+            <div className="text-[12.5px] font-medium px-4 text-center break-all">{pdfName(image)}</div>
+            <div className="text-[11px] text-[#C0392B]/70">Document carousel</div>
+          </div>
+        : image
         ? <img src={image} alt="" className="w-full h-auto max-h-[520px] object-contain block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         : <><div className="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center mb-2.5"><IconPhoto size={24} stroke={1.6} className="text-brand" /></div><div className="text-[12.5px] font-medium text-[#8A92A6]">Add media to preview</div></>}
       {images.length > 1 && (
