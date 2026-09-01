@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useApi } from "@/lib/use-api";
@@ -411,12 +411,38 @@ function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = 
 // scoring, no advice — the rest of the page does that. This section only
 // answers "which ads are switched on".
 function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const SHOWN = 6;
-  const visible = expanded ? ads : ads.slice(0, SHOWN);
+  // Grouped by campaign: 7 campaign rows read at a glance where 26 flat ad rows
+  // do not, and the campaign is the level you actually move budget at.
+  const groups = useMemo(() => {
+    const by = new Map<string, LiveAd[]>();
+    for (const a of ads) {
+      const k = a.campaign_name;
+      if (!by.has(k)) by.set(k, []);
+      by.get(k)!.push(a);
+    }
+    return [...by.entries()]
+      .map(([name, list]) => {
+        const spend = list.reduce((s, x) => s + x.spend, 0);
+        const leads = list.reduce((s, x) => s + x.leads, 0);
+        return {
+          name, ads: [...list].sort((x, y) => y.spend - x.spend),
+          spend, leads, costPerLead: leads > 0 ? spend / leads : 0,
+        };
+      })
+      .sort((a, b) => b.spend - a.spend);
+  }, [ads]);
+
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (name: string) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
+  const allOpen = open.size === groups.length && groups.length > 0;
+
   const spend = ads.reduce((s, a) => s + a.spend, 0);
   const leads = ads.reduce((s, a) => s + a.leads, 0);
-  const campaigns = new Set(ads.map((a) => a.campaign_name)).size;
+  const campaigns = groups.length;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -431,51 +457,74 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
             {ads.length} {ads.length === 1 ? "ad" : "ads"} running across {campaigns} {campaigns === 1 ? "campaign" : "campaigns"}
           </span>
         </div>
-        <div className="text-xs text-gray-500">
-          {fmtINR(spend)} spent · {fmtNum(leads)} leads <span className="text-gray-400">({rangeLabel})</span>
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-gray-500">
+            {fmtINR(spend)} spent · {fmtNum(leads)} leads <span className="text-gray-400">({rangeLabel})</span>
+          </div>
+          {groups.length > 0 && (
+            <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.name)))}
+              className="text-[11.5px] font-medium text-brand hover:underline">
+              {allOpen ? "Collapse all" : "Expand all"}
+            </button>
+          )}
         </div>
       </div>
 
       {ads.length === 0 ? (
         <div className="px-5 py-6 text-sm text-gray-500">Nothing is running at the moment — every ad is paused.</div>
       ) : (
-        <>
-          <div className="divide-y divide-gray-50">
-            {visible.map((a) => (
-              <div key={a.ad_id} className="flex items-center gap-3 px-5 py-2.5">
-                <div className="w-10 h-10 rounded-md bg-gray-50 overflow-hidden flex-shrink-0 border border-gray-100">
-                  {a.thumbnail
-                    // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={a.thumbnail} alt="" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={16} stroke={1.6} /></div>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-medium text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
-                  <div className="text-[11.5px] text-gray-500 truncate" title={a.campaign_name}>{a.campaign_name}</div>
-                </div>
-                <div className="hidden sm:block text-right w-24 flex-shrink-0">
-                  <div className="text-[13px] text-[#232D42] tabular-nums">{fmtINR(a.spend)}</div>
-                  <div className="text-[11px] text-gray-400">spent</div>
-                </div>
-                <div className="text-right w-20 flex-shrink-0">
-                  <div className="text-[13px] text-[#232D42] tabular-nums">{fmtNum(a.leads)}</div>
-                  <div className="text-[11px] text-gray-400">leads</div>
-                </div>
-                <div className="text-right w-24 flex-shrink-0">
-                  {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
-                  <div className="text-[13px] text-[#232D42] tabular-nums">{a.leads > 0 ? fmtINR(a.costPerLead) : a.spend > 0 ? "—" : "not spent yet"}</div>
-                  <div className="text-[11px] text-gray-400">{a.leads > 0 ? "per lead" : a.spend > 0 ? "no leads" : ""}</div>
-                </div>
+        <div className="divide-y divide-gray-100">
+          {groups.map((g) => {
+            const isOpen = open.has(g.name);
+            return (
+              <div key={g.name}>
+                <button type="button" onClick={() => toggle(g.name)}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition">
+                  <IconChevronDown size={15} stroke={2}
+                    className={`text-gray-400 flex-shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-medium text-[#232D42] truncate" title={g.name}>{g.name}</div>
+                    <div className="text-[11.5px] text-gray-500">{g.ads.length} {g.ads.length === 1 ? "ad" : "ads"} live</div>
+                  </div>
+                  <div className="hidden sm:block text-right w-24 flex-shrink-0">
+                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{fmtINR(g.spend)}</div>
+                    <div className="text-[11px] text-gray-400">spent</div>
+                  </div>
+                  <div className="text-right w-20 flex-shrink-0">
+                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{fmtNum(g.leads)}</div>
+                    <div className="text-[11px] text-gray-400">leads</div>
+                  </div>
+                  <div className="text-right w-24 flex-shrink-0">
+                    <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.leads > 0 ? fmtINR(g.costPerLead) : g.spend > 0 ? "—" : "not spent yet"}</div>
+                    <div className="text-[11px] text-gray-400">{g.leads > 0 ? "per lead" : g.spend > 0 ? "no leads" : ""}</div>
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="bg-gray-50/60 divide-y divide-gray-100">
+                    {g.ads.map((a) => (
+                      <div key={a.ad_id} className="flex items-center gap-3 pl-12 pr-5 py-2.5">
+                        <div className="w-9 h-9 rounded-md bg-white overflow-hidden flex-shrink-0 border border-gray-200">
+                          {a.thumbnail
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={a.thumbnail} alt="" className="w-full h-full object-cover" />
+                            : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={15} stroke={1.6} /></div>}
+                        </div>
+                        <div className="min-w-0 flex-1 text-[12.5px] text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
+                        <div className="hidden sm:block text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtINR(a.spend)}</div>
+                        <div className="text-right w-20 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtNum(a.leads)}</div>
+                        {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
+                        <div className="text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">
+                          {a.leads > 0 ? fmtINR(a.costPerLead) : a.spend > 0 ? "—" : "not spent yet"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-          {ads.length > SHOWN && (
-            <button type="button" onClick={() => setExpanded((v) => !v)}
-              className="w-full text-[12.5px] font-medium text-brand hover:bg-gray-50 py-2.5 border-t border-gray-100 transition">
-              {expanded ? "Show fewer" : `Show all ${ads.length} live ads`}
-            </button>
-          )}
-        </>
+            );
+          })}
+        </div>
       )}
     </div>
   );
