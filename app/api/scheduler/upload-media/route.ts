@@ -10,10 +10,16 @@ import { safeError } from "@/lib/errors";
 const BUCKET = "post-media";        // unified pipeline bucket (created Phase 1; public, video-ready)
 const MAX_MB = 300;                 // matches the post-media bucket limit — reels/videos allowed
 const MAX_BYTES = MAX_MB * 1024 * 1024;
+// webp / mov / webm dropped — we don't post those, and offering them invited
+// uploads Meta then rejected. PDF is here for LinkedIn document carousels: a
+// multi-image LinkedIn post reorders the slides, so the deck is exported as one
+// PDF instead. LinkedIn ONLY — Meta cannot accept a PDF (enforced below).
 const ALLOWED_MIME = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif",
-  "video/mp4", "video/quicktime", "video/webm",
+  "image/jpeg", "image/png", "image/gif",
+  "video/mp4",
+  "application/pdf",
 ]);
+const ALLOWED_LABEL = "jpg/png/gif/mp4, or pdf for LinkedIn";
 
 function safeFilename(name: string): string {
   // strip path separators + weird chars, keep ascii letters/digits/dot/dash/underscore
@@ -39,11 +45,18 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "Missing 'file' part" }, { status: 400 });
   if (file.size === 0) return NextResponse.json({ error: "Empty file" }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: `File too large (max ${MAX_MB} MB)` }, { status: 413 });
-  if (!ALLOWED_MIME.has(file.type)) return NextResponse.json({ error: `Unsupported type ${file.type}. Allowed: jpg/png/webp/gif/mp4/mov/webm` }, { status: 415 });
+  if (!ALLOWED_MIME.has(file.type)) return NextResponse.json({ error: `Unsupported type ${file.type}. Allowed: ${ALLOWED_LABEL}` }, { status: 415 });
 
-  // Make sure the bucket exists (idempotent — silently ignores "already exists")
+  // Make sure the bucket exists (idempotent — silently ignores "already exists").
+  // Storage enforces its OWN mime allow-list on top of ALLOWED_MIME, and a bucket
+  // created without one rejects PDFs with a confusing 502 from Supabase rather
+  // than our 415. Keep the two lists in step.
   try {
-    await db.storage.createBucket(BUCKET, { public: true, fileSizeLimit: MAX_BYTES });
+    await db.storage.createBucket(BUCKET, {
+      public: true,
+      fileSizeLimit: MAX_BYTES,
+      allowedMimeTypes: [...ALLOWED_MIME],
+    });
   } catch { /* bucket likely already exists — proceed */ }
 
   // Path: YYYY/MM/<timestamp>-<originalname>

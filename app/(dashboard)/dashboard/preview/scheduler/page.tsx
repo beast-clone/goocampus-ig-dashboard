@@ -66,6 +66,10 @@ type TopPerformer = {
   publishToPage?: string; // which account it belongs to (set when merging across accounts)
 };
 
+// A .pdf in the media list means a LinkedIn document carousel, not an image.
+// Kept as a URL test because that is all the composer holds after upload.
+const isPdfUrl = (u: string) => /\.pdf(\?|#|$)/i.test(u);
+
 const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] = [
   { value: "GooCampus Main",     label: "GooCampus Main",       subtitle: "@goocampus + 2 FB pages" },
   { value: "GooCampus World",    label: "GooCampus World",      subtitle: "@goocampusworld + GooCampus World page" },
@@ -153,7 +157,9 @@ function Scheduler() {
   const [submitting, setSubmitting] = useState(false);
   // Missing-fields popup — client guards and any server 422 both land here.
   const [gate, setGate] = useState<GateBlock | null>(null);
-  const [result, setResult] = useState<{ ok: true; recordId: string } | { ok: false; error: string } | null>(null);
+  // recordId is optional: a LinkedIn-only (PDF) post never touches the Meta queue,
+  // so there is no mh_posts row to point at.
+  const [result, setResult] = useState<{ ok: true; recordId?: string } | { ok: false; error: string } | null>(null);
 
   // Smart features state
   const [timeSuggestions, setTimeSuggestions] = useState<TimeSuggestion[]>([]);
@@ -421,6 +427,16 @@ function Scheduler() {
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
+  // A PDF is a LinkedIn document carousel (a deck posted as separate images gets
+  // reordered by LinkedIn; as one PDF the slides keep their order). Meta has no
+  // equivalent and rejects PDFs, so they are split out and never sent there.
+  const pdfUrls = useMemo(() => cleanMediaUrls.filter(isPdfUrl), [cleanMediaUrls]);
+  const metaMediaUrls = useMemo(() => cleanMediaUrls.filter((u) => !isPdfUrl(u)), [cleanMediaUrls]);
+  // Prefer the PDF for LinkedIn when there is one, else the first image.
+  const linkedInMediaUrl = pdfUrls[0] || metaMediaUrls[0];
+  // PDF and nothing else → there is nothing for Instagram/Facebook to post, so
+  // this becomes a LinkedIn-only post and the Meta queue is skipped entirely.
+  const linkedInOnly = pdfUrls.length > 0 && metaMediaUrls.length === 0;
   // Everything the queue needs, listed in one place. The Schedule/Publish button stays
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
@@ -428,8 +444,11 @@ function Scheduler() {
     !publishToPage && "A page to publish to",
     !caption.trim() && "A caption",
     cleanMediaUrls.length === 0 && "At least one image or video",
+    // A PDF can only go to LinkedIn, so a PDF-only post with the LinkedIn box
+    // unticked has nowhere to publish. Name that rather than failing at Meta.
+    linkedInOnly && !alsoLinkedIn && "“Also post to LinkedIn” — a PDF can only be posted there",
     scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
-  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, scheduleEnabled, scheduleDate, scheduleTime]);
+  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, scheduleEnabled, scheduleDate, scheduleTime]);
   const canSubmit = missingToPublish.length === 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
@@ -479,10 +498,55 @@ function Scheduler() {
     doEnqueue(scheduleTimeISO);
   }
 
+  function resetComposer() {
+    setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
+    setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
+  }
+
+  // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
+  // Sends the PDF when there is one, so the post lands as a document carousel.
+  async function crossPostLinkedIn(scheduleTimeISO?: string): Promise<boolean> {
+    if (!alsoLinkedIn) return true;
+    const liPages = Array.from(new Set(
+      composePages
+        .map((p): string | null => (/world/i.test(p) ? "world" : /india|12/i.test(p) ? null : "goocampus"))
+        .filter((x): x is string => !!x),
+    ));
+    if (!liPages.length) return true;
+    try {
+      if (scheduleTimeISO) {
+        const r = await fetch("/api/scheduler/linkedin", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ pages: liPages, text: caption, imageUrl: linkedInMediaUrl, scheduleTimeISO }),
+        });
+        return r.ok;
+      }
+      const rs = await Promise.all(liPages.map((page) => fetch("/api/scheduler/publish-linkedin", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ page, text: caption, imageUrl: linkedInMediaUrl }),
+      })));
+      return rs.every((r) => r.ok);
+    } catch {
+      return false;   // caller decides how loudly to fail
+    }
+  }
+
   async function doEnqueue(scheduleTimeISO?: string) {
     setSubmitting(true);
     setResult(null);
     try {
+      // PDF-only → nothing for Meta to post. Skip the Meta queue and make
+      // LinkedIn the whole post, so a failure there is reported, not swallowed
+      // the way a best-effort cross-post is.
+      if (linkedInOnly) {
+        const ok = await crossPostLinkedIn(scheduleTimeISO);
+        if (!ok) { setResult({ ok: false, error: "LinkedIn publish failed — the PDF was not posted." }); return; }
+        setResult({ ok: true });
+        resetComposer();
+        loadToSchedule();
+        setTimeout(loadQueue, 800);
+        return;
+      }
       // Supabase-native: write the post into the mh_posts publish queue. Updates the
       // Output-Ready task in place when scheduling one (schedulingTaskId), else inserts.
       const res = await fetch("/api/scheduler/enqueue", {
@@ -496,7 +560,7 @@ function Scheduler() {
           pages: composePages,
           collaborators: collab.split(",").map((s) => s.trim()).filter(Boolean),
           caption,
-          mediaUrls: cleanMediaUrls,
+          mediaUrls: metaMediaUrls,
           scheduleTimeISO,
         }),
       });
@@ -507,31 +571,8 @@ function Scheduler() {
         else setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
         setResult({ ok: true, recordId: d.id });
-        // Cross-post to LinkedIn too (best-effort — Meta is already queued). Scheduled →
-        // the LinkedIn queue + cron; publish-now → the immediate in-app LinkedIn route.
-        if (alsoLinkedIn) {
-          const liPages = Array.from(new Set(
-            composePages
-              .map((p): string | null => (/world/i.test(p) ? "world" : /india|12/i.test(p) ? null : "goocampus"))
-              .filter((x): x is string => !!x),
-          ));
-          if (liPages.length) {
-            try {
-              if (scheduleTimeISO) {
-                await fetch("/api/scheduler/linkedin", {
-                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-                  body: JSON.stringify({ pages: liPages, text: caption, imageUrl: cleanMediaUrls[0], scheduleTimeISO }),
-                });
-              } else {
-                await Promise.all(liPages.map((page) => fetch("/api/scheduler/publish-linkedin", {
-                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-                  body: JSON.stringify({ page, text: caption, imageUrl: cleanMediaUrls[0] }),
-                })));
-              }
-            } catch { /* LinkedIn best-effort; Meta post already committed */ }
-          }
-        }
-        setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false); setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
+        await crossPostLinkedIn(scheduleTimeISO);
+        resetComposer();
         loadToSchedule();               // the scheduled task leaves "To schedule"
         setTimeout(loadQueue, 800);
       }
@@ -1080,13 +1121,23 @@ function Scheduler() {
                 </span>
               )}
             </label>
+            {/* A PDF changes where the post can go, so say it here rather than
+                letting the publish fail or silently drop the file. */}
+            {pdfUrls.length > 0 && (
+              <div className="mt-2 text-xs rounded-lg px-3 py-2 bg-brand-light/60 text-[#232D42]">
+                <b>PDF attached</b> — it posts to LinkedIn as a swipeable document carousel.{" "}
+                {linkedInOnly
+                  ? <>Instagram and Facebook can&rsquo;t take a PDF, so this will publish to LinkedIn only.</>
+                  : <>Instagram and Facebook will get the {metaMediaUrls.length === 1 ? "other file" : `other ${metaMediaUrls.length} files`} instead.</>}
+              </div>
+            )}
           </Card>
 
           <Card title="Collaborator" subtitle="Add a collaborator to your post and they will automatically be invited.">
             <CollaboratorField value={collab} onChange={setCollab} />
           </Card>
 
-          <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop a file to upload, or paste a URL (Slack / Drive / direct image / video). For carousels add multiple (max 10)."}>
+          <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop a file to upload, or paste a URL (Slack / Drive / direct image / video / PDF). For carousels add multiple (max 10)."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
@@ -2231,7 +2282,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
         <input
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+          accept="image/jpeg,image/png,image/gif,video/mp4,application/pdf"
           className="hidden"
           onChange={(e) => { if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files); e.target.value = ""; }}
         />
@@ -2245,7 +2296,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
             <>
               <div className="text-2xl mb-1">📎</div>
               <div className="text-sm font-medium text-gray-700">Drag a file here or click to upload</div>
-              <div className="text-xs text-gray-500 mt-0.5">jpg · png · webp · gif · mp4 · mov · webm · up to 300 MB</div>
+              <div className="text-xs text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 300 MB</div>
             </>
           )}
         </div>
@@ -2288,7 +2339,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files); }}
                 title="Add media"
                 className={`w-16 h-16 flex-shrink-0 rounded-md border border-dashed flex items-center justify-center cursor-pointer transition ${dragOver ? "border-brand bg-brand-light/40 text-brand" : "border-gray-300 text-gray-400 hover:border-brand hover:text-brand"} ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
-                <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files); e.target.value = ""; }} />
+                <input type="file" multiple accept="image/jpeg,image/png,image/gif,video/mp4,application/pdf" className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files); e.target.value = ""; }} />
                 {uploading ? <span className="inline-block w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" /> : <IconPlus size={20} stroke={2} />}
               </label>
             )}

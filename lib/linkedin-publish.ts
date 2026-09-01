@@ -50,6 +50,44 @@ async function uploadImage(token: string, orgUrn: string, imageUrl: string): Pro
   return imageUrn;
 }
 
+export const isPdfUrl = (u?: string | null) => !!u && /\.pdf(\?|#|$)/i.test(u);
+
+// Register + upload a PDF, returning its urn:li:document:... .
+//
+// This is what makes a LinkedIn carousel work. Posting a deck as separate images
+// lets LinkedIn reorder them; posted as ONE document, the slides stay in the
+// order they were exported and the reader swipes through them. Documents use a
+// different endpoint from images and the post body needs a title.
+async function uploadDocument(token: string, orgUrn: string, pdfUrl: string): Promise<string> {
+  const initRes = await fetch(`${REST}/documents?action=initializeUpload`, {
+    method: "POST",
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ initializeUploadRequest: { owner: orgUrn } }),
+  });
+  const init = await initRes.json();
+  if (!initRes.ok) throw new Error(`document init ${initRes.status}: ${JSON.stringify(init).slice(0, 200)}`);
+  const uploadUrl: string = init.value?.uploadUrl;
+  const documentUrn: string = init.value?.document;
+  if (!uploadUrl || !documentUrn) throw new Error("document init returned no uploadUrl/urn");
+
+  const src = await fetch(pdfUrl);
+  if (!src.ok) throw new Error(`could not fetch source PDF (${src.status})`);
+  const bytes = Buffer.from(await src.arrayBuffer());
+
+  const up = await fetch(uploadUrl, { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: bytes });
+  if (!up.ok) throw new Error(`document upload failed (${up.status})`);
+  return documentUrn;
+}
+
+// Title shown above the document carousel. LinkedIn requires a non-empty one;
+// use the post's first line, falling back to the filename.
+function documentTitle(text: string, pdfUrl: string): string {
+  const firstLine = (text || "").split("\n").map((s) => s.trim()).find(Boolean);
+  if (firstLine) return firstLine.slice(0, 100);
+  const name = decodeURIComponent(pdfUrl.split("/").pop() || "").replace(/\.pdf$/i, "");
+  return (name || "Document").slice(0, 100);
+}
+
 // Publish one post to one org page. Returns the new post URN.
 export async function publishToOrg(token: string, orgUrn: string, text: string, imageUrl?: string | null): Promise<string> {
   const body: Record<string, unknown> = {
@@ -61,8 +99,13 @@ export async function publishToOrg(token: string, orgUrn: string, text: string, 
     isReshareDisabledByAuthor: false,
   };
   if (imageUrl) {
-    const imageUrn = await uploadImage(token, orgUrn, imageUrl);
-    body.content = { media: { id: imageUrn } };
+    if (isPdfUrl(imageUrl)) {
+      const documentUrn = await uploadDocument(token, orgUrn, imageUrl);
+      body.content = { media: { id: documentUrn, title: documentTitle(text, imageUrl) } };
+    } else {
+      const imageUrn = await uploadImage(token, orgUrn, imageUrl);
+      body.content = { media: { id: imageUrn } };
+    }
   }
   const r = await fetch(`${REST}/posts`, { method: "POST", headers: jsonHeaders(token), body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`post ${r.status}: ${(await r.text()).slice(0, 250)}`);
