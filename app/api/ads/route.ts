@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, subDays } from "date-fns";
-import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay, fetchCampaignSpendForDay } from "@/lib/meta-ads";
+import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay, fetchCampaignSpendForDay, fetchLiveAds } from "@/lib/meta-ads";
 import { cached } from "@/lib/api-cache";
 import { safeError } from "@/lib/errors";
 
@@ -25,13 +25,15 @@ export async function GET(req: Request) {
     const payload = await cached(`ads:${acct.id}:${from}:${to}`, DAY_MS, async () => {
       // Yesterday = most recent complete day (matches Meta's "daily summary" notification)
       const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
-      const [totals, daily, campaigns, daySummary, activeAds, yesterdayByCampaign] = await Promise.all([
+      const [totals, daily, campaigns, daySummary, activeAds, yesterdayByCampaign, liveAds] = await Promise.all([
         fetchAdsTotals(acct, from, to),
         fetchAdsDaily(acct, from, to),
         fetchCampaigns(acct, from, to),
         fetchDaySummary(acct, yesterday),
         fetchActiveAdsForDay(acct, yesterday),
         fetchCampaignSpendForDay(acct, yesterday),
+        // What is switched on right now, independent of the selected range.
+        fetchLiveAds(acct, from, to),
       ]);
 
       const series = daily.map((d) => ({
@@ -54,6 +56,7 @@ export async function GET(req: Request) {
         daySummary,
         activeAds,
         yesterdayByCampaign,
+        liveAds,
       };
     });
 

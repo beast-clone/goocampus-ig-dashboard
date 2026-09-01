@@ -286,6 +286,64 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
     .sort((a, b) => b.spend - a.spend);
 }
 
+// ---- What is switched on RIGHT NOW ----
+//
+// Everything else on the Ads tab reports a date range, which mixes ads that have
+// since been paused in with ads still running — you cannot tell from those numbers
+// what is actually spending money today. This answers only that question.
+//
+// "Live" = Meta's `effective_status` ACTIVE, not `status`. effective_status rolls
+// the parents in, so an ad set to ACTIVE inside a paused campaign correctly reads
+// as not live. Spend/leads are still the SELECTED RANGE, so a freshly launched ad
+// legitimately shows ₹0 — it is live, it just hasn't spent yet.
+export type LiveAd = {
+  ad_id: string; ad_name: string;
+  campaign_name: string; adset_name: string;
+  thumbnail: string | null;
+  spend: number; reach: number; impressions: number; leads: number; ctr: number;
+  costPerLead: number;
+};
+
+export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: string): Promise<LiveAd[]> {
+  const [cfg, perf] = await Promise.all([
+    gget<{ data: { id: string; name: string; adset?: { name?: string }; campaign?: { name?: string }; creative?: { thumbnail_url?: string } }[] }>(
+      `${acct.id}/ads`, acct.token, {
+        fields: "id,name,adset{name},campaign{name},creative{thumbnail_url}",
+        filtering: JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE"] }]),
+        limit: "200",
+      }),
+    gget<{ data: { ad_id: string; spend?: string; reach?: string; impressions?: string; ctr?: string; actions?: RawAction[] }[] }>(
+      `${acct.id}/insights`, acct.token, {
+        fields: "ad_id,spend,reach,impressions,ctr,actions",
+        time_range: JSON.stringify({ since: from, until: to }),
+        level: "ad",
+        limit: "500",
+      }),
+  ]);
+
+  const perfById = new Map((perf.data || []).map((r) => [r.ad_id, r]));
+  return (cfg.data || [])
+    .map((a) => {
+      const p = perfById.get(a.id);
+      const spend = parseFloat(p?.spend || "0");
+      const leads = extractAction(p?.actions, LEAD_TYPES);
+      return {
+        ad_id: a.id,
+        ad_name: a.name || "(unnamed ad)",
+        campaign_name: a.campaign?.name || "—",
+        adset_name: a.adset?.name || "—",
+        thumbnail: a.creative?.thumbnail_url || null,
+        spend,
+        reach: parseInt(p?.reach || "0", 10),
+        impressions: parseInt(p?.impressions || "0", 10),
+        ctr: parseFloat(p?.ctr || "0"),
+        leads,
+        costPerLead: leads > 0 ? spend / leads : 0,
+      };
+    })
+    .sort((a, b) => b.spend - a.spend);
+}
+
 // ---- Daily snapshot (matches the Meta "daily summary" notification) ----
 export type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
 export type DayAd = { ad_id: string; ad_name: string; spend: number; reach: number; impressions: number; cpm: number; ctr: number; leads: number };

@@ -5,7 +5,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
-import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown } from "@tabler/icons-react";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown, IconPhoto } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 import { fmtDateShort } from "@/lib/date";
 
@@ -103,6 +103,12 @@ type AdsData = {
   daySummary?: DaySummary;
   activeAds?: DayAd[];
   yesterdayByCampaign?: DayCampaignSpend[];  // per-campaign spend for yesterday, feeds the new budget-vs-spend section
+  liveAds?: LiveAd[];                        // switched on RIGHT NOW (Meta effective_status ACTIVE)
+};
+type LiveAd = {
+  ad_id: string; ad_name: string; campaign_name: string; adset_name: string;
+  thumbnail: string | null;
+  spend: number; reach: number; impressions: number; leads: number; ctr: number; costPerLead: number;
 };
 
 function fmtINR(n: number) {
@@ -169,8 +175,15 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
+      {/* WHAT'S LIVE RIGHT NOW — first thing on the page. Everything below is a
+          date range, which mixes since-paused ads in with running ones; this
+          answers "what is spending my money today" on its own. */}
+      {data.liveAds && <LiveAdsSection ads={data.liveAds} rangeLabel={`${fmtDay(range.from)} – ${fmtDay(range.to)}`} />}
+
       {/* AI Ads Analyst — summary on top, opens a full report on click */}
-      <AdsAnalyst range={range} />
+      <div className="mt-4">
+        <AdsAnalyst range={range} />
+      </div>
 
       {/* HEADLINE — Total daily budget vs yesterday's actual spend (with delta chip + sparkline).
           Only ACTIVE campaigns contribute to the budget number since paused campaigns don't burn. */}
@@ -388,6 +401,81 @@ function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = 
             })}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- Live right now ----------------
+// Deliberately plain: a count, then one row per running ad. No deltas, no
+// scoring, no advice — the rest of the page does that. This section only
+// answers "which ads are switched on".
+function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const SHOWN = 6;
+  const visible = expanded ? ads : ads.slice(0, SHOWN);
+  const spend = ads.reduce((s, a) => s + a.spend, 0);
+  const leads = ads.reduce((s, a) => s + a.leads, 0);
+  const campaigns = new Set(ads.map((a) => a.campaign_name)).size;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="flex items-baseline justify-between flex-wrap gap-x-4 gap-y-1 px-5 pt-4 pb-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="relative flex w-2 h-2">
+            <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-70" />
+            <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-500" />
+          </span>
+          <span className="text-base font-semibold text-[#232D42]">Live right now</span>
+          <span className="text-sm text-gray-500">
+            {ads.length} {ads.length === 1 ? "ad" : "ads"} running across {campaigns} {campaigns === 1 ? "campaign" : "campaigns"}
+          </span>
+        </div>
+        <div className="text-xs text-gray-500">
+          {fmtINR(spend)} spent · {fmtNum(leads)} leads <span className="text-gray-400">({rangeLabel})</span>
+        </div>
+      </div>
+
+      {ads.length === 0 ? (
+        <div className="px-5 py-6 text-sm text-gray-500">Nothing is running at the moment — every ad is paused.</div>
+      ) : (
+        <>
+          <div className="divide-y divide-gray-50">
+            {visible.map((a) => (
+              <div key={a.ad_id} className="flex items-center gap-3 px-5 py-2.5">
+                <div className="w-10 h-10 rounded-md bg-gray-50 overflow-hidden flex-shrink-0 border border-gray-100">
+                  {a.thumbnail
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={a.thumbnail} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={16} stroke={1.6} /></div>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
+                  <div className="text-[11.5px] text-gray-500 truncate" title={a.campaign_name}>{a.campaign_name}</div>
+                </div>
+                <div className="hidden sm:block text-right w-24 flex-shrink-0">
+                  <div className="text-[13px] text-[#232D42] tabular-nums">{fmtINR(a.spend)}</div>
+                  <div className="text-[11px] text-gray-400">spent</div>
+                </div>
+                <div className="text-right w-20 flex-shrink-0">
+                  <div className="text-[13px] text-[#232D42] tabular-nums">{fmtNum(a.leads)}</div>
+                  <div className="text-[11px] text-gray-400">leads</div>
+                </div>
+                <div className="text-right w-24 flex-shrink-0">
+                  {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
+                  <div className="text-[13px] text-[#232D42] tabular-nums">{a.leads > 0 ? fmtINR(a.costPerLead) : a.spend > 0 ? "—" : "not spent yet"}</div>
+                  <div className="text-[11px] text-gray-400">{a.leads > 0 ? "per lead" : a.spend > 0 ? "no leads" : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {ads.length > SHOWN && (
+            <button type="button" onClick={() => setExpanded((v) => !v)}
+              className="w-full text-[12.5px] font-medium text-brand hover:bg-gray-50 py-2.5 border-t border-gray-100 transition">
+              {expanded ? "Show fewer" : `Show all ${ads.length} live ads`}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
