@@ -6,7 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
-import { MicButton, useVoiceInput } from "@/components/VoiceInput";
+import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
@@ -2625,15 +2625,19 @@ function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 
 function CaptionField(props: {
   value: string; onChange: (v: string) => void; placeholder?: string; className?: string; minHeight?: number;
 }) {
+  // The shortcut belongs to whichever field you are actually in, so it binds on
+  // focus — otherwise both caption boxes and the palette would fight over ⌘D.
+  const [focused, setFocused] = useState(false);
   const voice = useVoiceInput({
     onFinalText: (text) => props.onChange(props.value ? `${props.value.trimEnd()} ${text}` : text),
+    hotkey: focused,
   });
   return (
-    <div className="relative">
-      <AutoTextarea {...props} placeholder={voice.listening ? "Listening — just speak…" : props.placeholder} />
+    <div className="relative" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
+      <AutoTextarea {...props} placeholder={voice.listening ? `Listening — just speak…` : props.placeholder} />
       {voice.supported && (
         <div className="absolute top-1.5 right-1.5">
-          <MicButton listening={voice.listening} onClick={voice.toggle} size={16} />
+          <MicButton listening={voice.listening} onClick={voice.toggle} size={16} title={`Dictate (${DICTATE_HOTKEY})`} />
         </div>
       )}
       {voice.interim && <div className="px-3 pb-1 text-xs text-[#B4BAC6]">{voice.interim}…</div>}

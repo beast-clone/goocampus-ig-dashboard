@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@tabler/icons-react";
-import { MicButton, useVoiceInput } from "@/components/VoiceInput";
+import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 
 // Global "Ask GooCampus" search — a trigger that sits at the top of the sidebar
 // (so it's always visible) plus a ⌘K / Ctrl-K command palette that opens from any
@@ -40,6 +40,7 @@ export function GlobalSearch() {
   // it had been typed.
   const voice = useVoiceInput({
     onFinalText: (text) => setQ((prev) => (prev ? `${prev.trimEnd()} ${text}` : text)),
+    hotkey: open,   // the palette is modal, so it owns the key while it is up
   });
   useEffect(() => { if (!open) voice.stop(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -104,7 +105,7 @@ export function GlobalSearch() {
                 {/* Words still being heard, shown faint until they settle. */}
                 {voice.interim && <div className="text-[12.5px] text-[#B4BAC6] truncate">{voice.interim}…</div>}
               </div>
-              {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} />}
+              {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} title={`Dictate (${DICTATE_HOTKEY})`} />}
               <kbd className="text-[10px] text-[#A6ACBE] border border-gray-200 rounded px-1.5 py-0.5">Esc</kbd>
             </div>
             {voice.error && (

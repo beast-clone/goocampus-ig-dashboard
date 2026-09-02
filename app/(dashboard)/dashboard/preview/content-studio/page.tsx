@@ -8,7 +8,7 @@ import {
   IconFlame, IconSearch, IconMicroscope, IconWorldSearch, IconTrendingUp,
 } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
-import { MicButton, useVoiceInput } from "@/components/VoiceInput";
+import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PlaybooksLibrary } from "./PlaybooksLibrary";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -221,7 +221,8 @@ function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void
   const [topic, setTopic] = useState("");
   // Dictate the research topic — it is the first thing you do on this tab, and a
   // spoken topic is usually longer and more specific than a typed one.
-  const voice = useVoiceInput({ onFinalText: (t) => setTopic((p) => (p ? `${p.trimEnd()} ${t}` : t)) });
+  const [topicFocused, setTopicFocused] = useState(false);
+  const voice = useVoiceInput({ onFinalText: (t) => setTopic((p) => (p ? `${p.trimEnd()} ${t}` : t)), hotkey: topicFocused });
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -238,14 +239,21 @@ function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void
     <div>
       <SectionLabel icon={<IconMicroscope size={13} className="text-brand" />}>Research your own topic</SectionLabel>
       <div className="bg-white border border-gray-100 rounded-2xl p-4">
+        {/* Says WHY nothing is being heard — a red pulsing mic with no text and no
+            explanation is what sent us hunting for a bug that was in Chrome's
+            device setting, not the code. */}
+        {voice.error && (
+          <div className="mb-2 text-[12px] text-[#C0392B] bg-[#FDECEA] rounded-lg px-3 py-2">{voice.error}</div>
+        )}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 focus-within:border-brand">
             <IconSearch size={16} className="text-gray-400 shrink-0" />
             <input value={topic} onChange={(e) => { setTopic(e.target.value); setConfirming(false); }}
               onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+              onFocus={() => setTopicFocused(true)} onBlur={() => setTopicFocused(false)}
               placeholder={voice.listening ? "Listening — say your topic…" : "e.g. FMGE 2026 pass percentage trends"}
               className="w-full py-2.5 text-[13px] text-[#232D42] outline-none bg-transparent placeholder:text-gray-400" />
-            {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} size={16} />}
+            {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} size={16} title={`Dictate (${DICTATE_HOTKEY})`} />}
           </div>
           <button onClick={ask} disabled={busy || !topic.trim()}
             className="inline-flex items-center justify-center gap-1.5 bg-brand text-white rounded-lg px-4 py-2.5 text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-60 whitespace-nowrap">
@@ -347,8 +355,10 @@ function DetailModal({ it, onClose, onChanged }: { it: Item; onClose: () => void
 
 function DraftCard({ d, it }: { d: Draft; it: Item }) {
   const [text, setText] = useState(d.content);
-  const voice = useVoiceInput({ onFinalText: (t) => setText((p) => (p ? `${p.trimEnd()} ${t}` : t)) });
   const [editing, setEditing] = useState(false);
+  // Shortcut only while this draft is open for editing, so it does not clash
+  // with the other dictatable fields on the page.
+  const voice = useVoiceInput({ onFinalText: (t) => setText((p) => (p ? `${p.trimEnd()} ${t}` : t)), hotkey: editing });
   const [copied, setCopied] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [assignee, setAssignee] = useState("manya");
@@ -397,6 +407,7 @@ function DraftCard({ d, it }: { d: Draft; it: Item }) {
               <div className="absolute top-1 right-1"><MicButton listening={voice.listening} onClick={voice.toggle} size={15} /></div>
             )}
             {voice.interim && <div className="text-[11.5px] text-[#B4BAC6] px-1">{voice.interim}…</div>}
+            {voice.error && <div className="text-[11.5px] text-[#C0392B] px-1">{voice.error}</div>}
           </div>
         )
         : <div className="text-[12.5px] text-gray-700 whitespace-pre-wrap leading-relaxed max-h-52 overflow-y-auto">{text}</div>}
