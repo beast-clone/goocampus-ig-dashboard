@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@tabler/icons-react";
 import { MicButton, useVoiceInput } from "@/components/VoiceInput";
@@ -21,6 +22,9 @@ export function GlobalSearch() {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  // document.body only exists after mount — guard so SSR/hydration match.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Esc closes the palette (opened by clicking the sidebar box).
   useEffect(() => {
@@ -78,7 +82,13 @@ export function GlobalSearch() {
         <span className="text-[12.5px] text-[#8A92A6] flex-1">Ask / search…</span>
       </button>
 
-      {open && (
+      {/* Rendered into <body>, not in place. This component lives inside the
+          sidebar <aside>, which is position:sticky — and sticky always creates a
+          stacking context, so z-[200] only ranked the overlay WITHIN the sidebar.
+          The main column comes later in the DOM and painted straight over the top
+          of the palette, hiding its search row behind the page header. A portal
+          takes it out of the sidebar's stacking context entirely. */}
+      {open && mounted && createPortal((
         <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[1px] flex items-start justify-center pt-[12vh] px-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-[640px] bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
@@ -131,7 +141,7 @@ export function GlobalSearch() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }
