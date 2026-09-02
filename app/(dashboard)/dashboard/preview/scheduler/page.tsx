@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
+import { MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
@@ -817,7 +818,7 @@ function Scheduler() {
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                                <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                                 <div className="text-right text-xs text-gray-400 mt-0.5">{caption.length} / 2200</div>
                               </div>
                               <div className="flex items-center justify-between">
@@ -1187,7 +1188,7 @@ function Scheduler() {
                   placeholder="e.g. NEET PG 2026 cutoff trends — key dates & what changed"
                   className="w-full mt-1 mb-2 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
                 />
-                <AutoTextarea value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
@@ -2615,6 +2616,29 @@ function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 
   return (
     <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
       className={className} style={{ overflow: "hidden", resize: "none", minHeight }} />
+  );
+}
+
+// Caption box with dictation — captions are the longest thing anyone types here,
+// so it is the field where talking actually beats typing. Same behaviour as the
+// search palette: speech appends to what is already written.
+function CaptionField(props: {
+  value: string; onChange: (v: string) => void; placeholder?: string; className?: string; minHeight?: number;
+}) {
+  const voice = useVoiceInput({
+    onFinalText: (text) => props.onChange(props.value ? `${props.value.trimEnd()} ${text}` : text),
+  });
+  return (
+    <div className="relative">
+      <AutoTextarea {...props} placeholder={voice.listening ? "Listening — just speak…" : props.placeholder} />
+      {voice.supported && (
+        <div className="absolute top-1.5 right-1.5">
+          <MicButton listening={voice.listening} onClick={voice.toggle} size={16} />
+        </div>
+      )}
+      {voice.interim && <div className="px-3 pb-1 text-xs text-[#B4BAC6]">{voice.interim}…</div>}
+      {voice.error && <div className="px-3 pb-1 text-xs text-[#C0392B]">{voice.error}</div>}
+    </div>
   );
 }
 
