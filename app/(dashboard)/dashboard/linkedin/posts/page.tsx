@@ -13,7 +13,11 @@ let pdfjsPromise: Promise<PdfjsModule> | null = null;
 function loadPdfjs(): Promise<PdfjsModule> {
   if (!pdfjsPromise) {
     pdfjsPromise = import("pdfjs-dist").then((m) => {
-      m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      // Served from /public (copied by the prebuild step). Referencing it as a URL
+      // instead of `new URL(..., import.meta.url)` keeps webpack from bundling the
+      // worker — its import.meta breaks Terser during `next build`. The V2 page was
+      // fixed this way; this copy was missed, which is what broke the build.
+      m.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       return m;
     });
   }
