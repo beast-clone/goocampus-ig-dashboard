@@ -41,6 +41,11 @@ export function useVoiceInput({ onFinalText, lang = "en-IN" }: { onFinalText: (t
   const [interim, setInterim] = useState("");
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
+  // Whether the USER wants to be dictating. Chrome ends a session on its own
+  // after a few seconds of silence — `continuous` does not prevent it — so the
+  // session ending is not the same as the user being finished. This flag is what
+  // tells the two apart, and drives the auto-restart in onend.
+  const wantRef = useRef(false);
   // Keep the latest callback without restarting recognition on every re-render.
   const onFinalRef = useRef(onFinalText);
   onFinalRef.current = onFinalText;
@@ -48,15 +53,18 @@ export function useVoiceInput({ onFinalText, lang = "en-IN" }: { onFinalText: (t
   useEffect(() => { setSupported(!!getRecognitionCtor()); }, []);
 
   const stop = useCallback(() => {
+    wantRef.current = false;
     recRef.current?.stop();
     setListening(false);
     setInterim("");
   }, []);
 
+  const startRef = useRef<() => void>(() => {});
   const start = useCallback(() => {
     const Ctor = getRecognitionCtor();
     if (!Ctor) return;
     setError(null);
+    wantRef.current = true;
     const rec = new Ctor();
     rec.lang = lang;
     rec.continuous = true;      // don't cut out on a natural pause mid-sentence
@@ -74,25 +82,39 @@ export function useVoiceInput({ onFinalText, lang = "en-IN" }: { onFinalText: (t
       if (finalChunk.trim()) onFinalRef.current(finalChunk.trim());
     };
     rec.onerror = (e) => {
-      // "aborted"/"no-speech" are routine — only surface things worth acting on.
+      // "no-speech" just means a quiet stretch — Chrome raises it and ends the
+      // session, but the user has not finished, so let onend restart instead of
+      // tearing everything down. "aborted" is our own stop().
+      if (e.error === "no-speech") return;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         setError("Microphone blocked. Allow mic access for this site in Chrome.");
       } else if (e.error === "audio-capture") {
-        setError("No microphone found.");
-      } else if (e.error !== "aborted" && e.error !== "no-speech") {
+        setError("No microphone found — check the input device.");
+      } else if (e.error === "network") {
+        setError("Speech service unreachable — check the internet connection.");
+      } else if (e.error !== "aborted") {
         setError("Could not hear you — try again.");
       }
+      wantRef.current = false;          // a real failure: don't loop on it
       setListening(false);
       setInterim("");
     };
-    rec.onend = () => { setListening(false); setInterim(""); };
+    rec.onend = () => {
+      setInterim("");
+      // Silence ended the session but the user never pressed stop — start a new
+      // one so dictation survives pauses. Without this the mic looks live while
+      // Chrome has actually stopped listening, which is exactly how this failed.
+      if (wantRef.current) { setTimeout(() => { if (wantRef.current) startRef.current(); }, 150); return; }
+      setListening(false);
+    };
 
     recRef.current = rec;
     try { rec.start(); setListening(true); } catch { /* already running */ }
   }, [lang]);
+  startRef.current = start;
 
   // Never leave the mic open when the component goes away.
-  useEffect(() => () => { recRef.current?.abort(); }, []);
+  useEffect(() => () => { wantRef.current = false; recRef.current?.abort(); }, []);
 
   return { supported, listening, interim, error, start, stop, toggle: () => (listening ? stop() : start()) };
 }
