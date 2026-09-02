@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@tabler/icons-react";
+import { MicButton, useVoiceInput } from "@/components/VoiceInput";
 
 // Global "Ask GooCampus" search — a trigger that sits at the top of the sidebar
 // (so it's always visible) plus a ⌘K / Ctrl-K command palette that opens from any
@@ -29,6 +30,15 @@ export function GlobalSearch() {
   }, []);
 
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 30); }, [open]);
+
+  // Dictation. Spoken words append to whatever is already typed, so you can mix
+  // the two, and the debounced search below fires off the result exactly as if
+  // it had been typed.
+  const voice = useVoiceInput({
+    onFinalText: (text) => setQ((prev) => (prev ? `${prev.trimEnd()} ${text}` : text)),
+  });
+  useEffect(() => { if (!open) voice.stop(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { if (!open) { setQ(""); setResults(null); } }, [open]);
 
   // Debounced search while the palette is open.
@@ -73,15 +83,23 @@ export function GlobalSearch() {
           <div className="w-full max-w-[640px] bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
               <IconSearch size={18} className="text-gray-400 shrink-0" />
-              <input
-                ref={inputRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search posts, tasks, reports, or a lead's name / phone…"
-                className="flex-1 outline-none text-[14px] text-[#232D42] placeholder:text-[#B4BAC6]"
-              />
+              <div className="flex-1 min-w-0">
+                <input
+                  ref={inputRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={voice.listening ? "Listening — just speak…" : "Search posts, tasks, reports, or a lead's name / phone…"}
+                  className="w-full outline-none text-[14px] text-[#232D42] placeholder:text-[#B4BAC6]"
+                />
+                {/* Words still being heard, shown faint until they settle. */}
+                {voice.interim && <div className="text-[12.5px] text-[#B4BAC6] truncate">{voice.interim}…</div>}
+              </div>
+              {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} />}
               <kbd className="text-[10px] text-[#A6ACBE] border border-gray-200 rounded px-1.5 py-0.5">Esc</kbd>
             </div>
+            {voice.error && (
+              <div className="px-4 py-2 text-[12px] text-[#C0392B] bg-[#FDECEA] border-b border-gray-100">{voice.error}</div>
+            )}
             <div className="max-h-[52vh] overflow-y-auto p-2">
               {!q.trim() && (
                 <div className="px-3 py-4 text-[12.5px] text-[#8A92A6]">
