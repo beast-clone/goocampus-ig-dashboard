@@ -8,6 +8,7 @@ import {
   IconFlame, IconSearch, IconMicroscope, IconWorldSearch, IconTrendingUp,
 } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
+import { MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PlaybooksLibrary } from "./PlaybooksLibrary";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -218,6 +219,9 @@ function TrendingStrip({ onPick }: { onPick: (b: MakeBody) => Promise<void> }) {
 // Deep research is much pricier than a quick post, so we confirm before spending.
 function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void> }) {
   const [topic, setTopic] = useState("");
+  // Dictate the research topic — it is the first thing you do on this tab, and a
+  // spoken topic is usually longer and more specific than a typed one.
+  const voice = useVoiceInput({ onFinalText: (t) => setTopic((p) => (p ? `${p.trimEnd()} ${t}` : t)) });
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -239,8 +243,9 @@ function ResearchBox({ onResearch }: { onResearch: (b: MakeBody) => Promise<void
             <IconSearch size={16} className="text-gray-400 shrink-0" />
             <input value={topic} onChange={(e) => { setTopic(e.target.value); setConfirming(false); }}
               onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
-              placeholder="e.g. FMGE 2026 pass percentage trends"
+              placeholder={voice.listening ? "Listening — say your topic…" : "e.g. FMGE 2026 pass percentage trends"}
               className="w-full py-2.5 text-[13px] text-[#232D42] outline-none bg-transparent placeholder:text-gray-400" />
+            {voice.supported && <MicButton listening={voice.listening} onClick={voice.toggle} size={16} />}
           </div>
           <button onClick={ask} disabled={busy || !topic.trim()}
             className="inline-flex items-center justify-center gap-1.5 bg-brand text-white rounded-lg px-4 py-2.5 text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-60 whitespace-nowrap">
@@ -342,6 +347,7 @@ function DetailModal({ it, onClose, onChanged }: { it: Item; onClose: () => void
 
 function DraftCard({ d, it }: { d: Draft; it: Item }) {
   const [text, setText] = useState(d.content);
+  const voice = useVoiceInput({ onFinalText: (t) => setText((p) => (p ? `${p.trimEnd()} ${t}` : t)) });
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -382,7 +388,17 @@ function DraftCard({ d, it }: { d: Draft; it: Item }) {
         {PLATFORM_ICON[d.platform] || <IconSparkles size={16} className="text-brand" />}{d.label}
       </div>
       {editing
-        ? <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} className="w-full text-[12.5px] text-gray-800 border border-gray-200 rounded-lg p-2 leading-relaxed" />
+        ? (
+          <div className="relative">
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7}
+              className="w-full text-[12.5px] text-gray-800 border border-gray-200 rounded-lg p-2 pr-9 leading-relaxed" />
+            {/* Dictate edits into a generated draft rather than retyping it. */}
+            {voice.supported && (
+              <div className="absolute top-1 right-1"><MicButton listening={voice.listening} onClick={voice.toggle} size={15} /></div>
+            )}
+            {voice.interim && <div className="text-[11.5px] text-[#B4BAC6] px-1">{voice.interim}…</div>}
+          </div>
+        )
         : <div className="text-[12.5px] text-gray-700 whitespace-pre-wrap leading-relaxed max-h-52 overflow-y-auto">{text}</div>}
       <div className="flex items-center gap-2 flex-wrap mt-0.5">
         <button onClick={() => setEditing((v) => !v)} className="text-[11.5px] inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-gray-700 hover:border-gray-300"><IconPencil size={13} /> {editing ? "Done" : "Edit"}</button>
