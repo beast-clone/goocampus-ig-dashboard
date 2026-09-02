@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { publishToPages } from "@/lib/linkedin-publish";
+import { ensureFreshLinkedInToken } from "@/lib/linkedin-refresh";
 
 // Cron worker — publishes due LinkedIn scheduled posts. Fully separate from the Meta
 // (n8n) pipeline. Trigger this on a schedule from your existing cron pinger / n8n:
@@ -17,6 +18,12 @@ async function run(req: Request) {
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
+  // Renew the LinkedIn token before publishing anything. This tick runs every few
+  // minutes anyway, which makes it the natural place to keep the 2-month token
+  // alive — it is a no-op until the token is inside its renewal window. Never let
+  // a renewal problem stop the publish attempt; the publish reports its own error.
+  const tokenState = await ensureFreshLinkedInToken().catch((e) => ({ ok: false as const, error: (e as Error).message }));
+
   // Due = scheduled and time has passed. Bounded batch so a tick can't run away.
   const nowIso = new Date().toISOString();
   const { data: due, error } = await sb
@@ -27,7 +34,7 @@ async function run(req: Request) {
     .order("schedule_time", { ascending: true })
     .limit(10);
   if (error) return NextResponse.json(safeError(new Error(error.message), "query failed"), { status: 502 });
-  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0 });
+  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0, token: tokenState });
 
   let published = 0;
   const outcomes: { id: string; status: string }[] = [];
@@ -54,7 +61,7 @@ async function run(req: Request) {
     outcomes.push({ id: row.id, status: finalStatus });
   }
 
-  return NextResponse.json({ ok: true, processed: due.length, published, outcomes });
+  return NextResponse.json({ ok: true, processed: due.length, published, outcomes, token: tokenState });
 }
 
 export async function POST(req: Request) { return run(req); }

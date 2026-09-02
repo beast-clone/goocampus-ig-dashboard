@@ -11,6 +11,9 @@ import { getSupabase } from "@/lib/supabase";
 // provider key -> env var that holds the default/fallback token.
 const ENV_KEY: Record<string, string> = {
   linkedin: "LINKEDIN_ACCESS_TOKEN",
+  // LinkedIn rotates the refresh token on every renewal, so it has to be stored
+  // too — otherwise the next renewal presents a dead one. Env is the seed value.
+  linkedin_refresh: "LINKEDIN_REFRESH_TOKEN",
   meta: "META_LONG_LIVED_USER_TOKEN",
   // YouTube rotates via its OAuth *refresh* token (access tokens are minted hourly
   // from it). Reconnect pastes a new refresh token; this is the single-channel fallback.
