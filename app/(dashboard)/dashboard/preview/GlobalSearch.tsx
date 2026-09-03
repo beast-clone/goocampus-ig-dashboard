@@ -10,7 +10,16 @@ import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInpu
 // page. Reuses the internal /api/assistant search (posts + reports + CRM leads);
 // no internet. Clicking a result opens it or jumps to its tab.
 
-const SEARCH_HOTKEY = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
+// Ctrl+Space is the headline shortcut — the Spotlight-style one that was asked
+// for. ⌘Space itself is impossible: macOS binds it to Spotlight at the OS level
+// and the keystroke never reaches a browser tab (confirmed against this Mac's
+// com.apple.symbolichotkeys — id 64 Spotlight enabled, while id 60 "select
+// previous input source" (⌃Space) is disabled, which is what frees Ctrl+Space).
+//
+// ⌘K stays wired as well: Ctrl+Space is only free while input-source switching
+// is off, and on a Mac with two keyboard layouts macOS takes it back. ⌘K is never
+// captured by the OS, so there is always a shortcut that works.
+const SEARCH_HOTKEY = "⌃Space";
 
 type Result = {
   id: string; kind: "post" | "report" | "lead"; group: string; title: string; meta: string;
@@ -37,7 +46,12 @@ export function GlobalSearch() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { setOpen(false); return; }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
+      // Ctrl+Space (the Spotlight-alike) or ⌘K (the always-available fallback).
+      // `code` not `key` for Space: with a modifier held some layouts report an
+      // odd key value, but the physical code is stable.
+      const ctrlSpace = e.ctrlKey && !e.metaKey && !e.altKey && e.code === "Space";
+      const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K");
+      if (ctrlSpace || cmdK) {
         e.preventDefault();      // Chrome would otherwise focus the address bar
         setOpen((v) => !v);
       }
