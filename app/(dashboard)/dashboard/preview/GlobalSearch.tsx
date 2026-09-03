@@ -10,6 +10,8 @@ import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInpu
 // page. Reuses the internal /api/assistant search (posts + reports + CRM leads);
 // no internet. Clicking a result opens it or jumps to its tab.
 
+const SEARCH_HOTKEY = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
+
 type Result = {
   id: string; kind: "post" | "report" | "lead"; group: string; title: string; meta: string;
   openHref: string | null; openLabel: string; tabHref: string; tabLabel: string;
@@ -26,9 +28,20 @@ export function GlobalSearch() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Esc closes the palette (opened by clicking the sidebar box).
+  // ⌘K / Ctrl-K opens it from any page, Esc closes. The header comment has
+  // claimed ⌘K since this was written but the handler was never actually here.
+  //
+  // ⌘Space is not an option however much it is the mental model — macOS keeps it
+  // for Spotlight and a web page never receives the event. ⌘K is what Slack,
+  // Linear and Notion use for exactly this, so the muscle memory already exists.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setOpen(false); return; }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();      // Chrome would otherwise focus the address bar
+        setOpen((v) => !v);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -81,6 +94,8 @@ export function GlobalSearch() {
       >
         <IconSearch size={15} className="text-[#8A92A6] shrink-0" />
         <span className="text-[12.5px] text-[#8A92A6] flex-1">Ask / search…</span>
+        {/* Nobody finds a shortcut that is never shown. */}
+        <kbd className="text-[10px] text-[#A6ACBE] border border-gray-200 rounded px-1.5 py-0.5 shrink-0">{SEARCH_HOTKEY}</kbd>
       </button>
 
       {/* Rendered into <body>, not in place. This component lives inside the

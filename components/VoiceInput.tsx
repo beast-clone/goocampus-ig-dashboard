@@ -35,9 +35,12 @@ function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
-// How long the mic can be perfectly silent before we say something is wrong, and
-// what counts as silence. A real room floor registers a few units even when
-// nobody speaks; a dead virtual device reads a flat 0.
+// Auto-stop after this long with nothing transcribed. The onend auto-restart
+// (needed so dictation survives a pause) otherwise keeps the mic open forever —
+// it was still live after five minutes of silence, which is both pointless and
+// the kind of thing nobody wants a microphone doing unattended.
+const INACTIVITY_MS = 120_000;
+
 const SILENCE_GRACE_MS = 5000;
 // Deliberately 0, not a "quiet" threshold. A live microphone always returns some
 // noise floor even in a silent room, so any non-zero reading proves the device is
@@ -109,6 +112,9 @@ export function useVoiceInput({ onFinalText, lang = "en-IN", hotkey = false }: {
   // session ending is not the same as the user being finished. This flag is what
   // tells the two apart, and drives the auto-restart in onend.
   const wantRef = useRef(false);
+  // When a transcript last arrived, for the inactivity cut-off below.
+  const lastHeardRef = useRef(0);
+  const [timedOut, setTimedOut] = useState(false);
   // Keep the latest callback without restarting recognition on every re-render.
   const onFinalRef = useRef(onFinalText);
   onFinalRef.current = onFinalText;
@@ -127,7 +133,9 @@ export function useVoiceInput({ onFinalText, lang = "en-IN", hotkey = false }: {
     const Ctor = getRecognitionCtor();
     if (!Ctor) return;
     setError(null);
+    setTimedOut(false);
     wantRef.current = true;
+    lastHeardRef.current = Date.now();
     const rec = new Ctor();
     rec.lang = lang;
     rec.continuous = true;      // don't cut out on a natural pause mid-sentence
@@ -141,6 +149,9 @@ export function useVoiceInput({ onFinalText, lang = "en-IN", hotkey = false }: {
         if (r.isFinal) finalChunk += r[0].transcript;
         else pending += r[0].transcript;
       }
+      // Any transcript at all — even a half-heard interim — means someone is
+      // still talking, so the inactivity clock restarts.
+      if (pending || finalChunk) lastHeardRef.current = Date.now();
       setInterim(pending);
       if (finalChunk.trim()) onFinalRef.current(finalChunk.trim());
     };
@@ -176,6 +187,18 @@ export function useVoiceInput({ onFinalText, lang = "en-IN", hotkey = false }: {
   }, [lang]);
   startRef.current = start;
 
+  // Close the mic after a stretch with nothing transcribed. The auto-restart on
+  // silence has no end of its own, so without this the mic stays open forever.
+  useEffect(() => {
+    if (!listening) return;
+    const t = setInterval(() => {
+      if (Date.now() - lastHeardRef.current < INACTIVITY_MS) return;
+      stop();
+      setTimedOut(true);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [listening, stop]);
+
   // Never leave the mic open when the component goes away.
   useEffect(() => () => { wantRef.current = false; recRef.current?.abort(); }, []);
 
@@ -198,6 +221,8 @@ export function useVoiceInput({ onFinalText, lang = "en-IN", hotkey = false }: {
   // recogniser's own (vaguer) errors while it is happening.
   const shownError = silentDevice
     ? `“${silentDevice}” isn’t producing any audio. Click the icon left of the address bar → Microphone, and choose a different mic.`
+    : timedOut
+    ? `Mic switched off after ${Math.round(INACTIVITY_MS / 60_000)} minutes with nothing heard. Click it again to carry on.`
     : error;
 
   return {
@@ -218,14 +243,14 @@ export function MicButton({
       title={title || (listening ? "Stop dictating" : "Dictate")}
       aria-label={title || (listening ? "Stop dictating" : "Dictate")}
       className={`relative shrink-0 grid place-items-center rounded-full transition ${
-        listening ? "bg-[#C0392B] text-white" : "text-[#8A92A6] hover:text-brand hover:bg-brand-light/60"
+        listening ? "bg-brand text-white" : "text-[#8A92A6] hover:text-brand hover:bg-brand-light/60"
       }`}
       style={{ width: size + 14, height: size + 14 }}
     >
       {listening && (
         // Pulse so it is obvious the mic is open — an always-on mic with no
         // indicator is the thing people rightly get uneasy about.
-        <span className="absolute inset-0 rounded-full bg-[#C0392B] opacity-40 animate-ping" />
+        <span className="absolute inset-0 rounded-full bg-brand opacity-40 animate-ping" />
       )}
       <span className="relative">
         {listening ? <IconPlayerStopFilled size={size - 4} /> : <IconMicrophone size={size} stroke={1.8} />}
