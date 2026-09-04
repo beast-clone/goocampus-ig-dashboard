@@ -54,22 +54,33 @@ function snippet(s: unknown, n = 90): string {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
-// Search posts/content/tasks in mh_posts across title, caption, content, notes.
+// Search posts/content/tasks in mh_posts across title, caption, content, notes
+// and owner.
 async function searchPosts(terms: string[]): Promise<SearchResult[]> {
   const db = getSupabase();
   if (!db || terms.length === 0) return [];
-  const cols = ["particulars", "caption", "content", "additional_info", "sbu", "type"];
+  // owner_key holds the lowercase first name ("praveen", "manya", …), which is
+  // exactly what keywords() produces, so a teammate's name matches directly and
+  // no name-to-key lookup is needed here. Without it, searching a person found
+  // nothing: only a task's own text was ever indexed, never who it belongs to.
+  const cols = ["particulars", "caption", "content", "additional_info", "sbu", "type", "owner_key"];
   // keywords() already strips terms to [a-z0-9], so the or-filter can't be broken.
   const or = terms.flatMap((t) => cols.map((c) => `${c}.ilike.%${t}%`)).join(",");
   const { data } = await db
     .from("mh_posts")
-    .select("id, particulars, type, status, sbu, caption, content, publishing_date, output_link, instagram_url, facebook_url, linkedin_url, external_link")
+    .select("id, particulars, type, status, sbu, owner_key, caption, content, publishing_date, output_link, instagram_url, facebook_url, linkedin_url, external_link")
     .or(or)
     .order("publishing_date", { ascending: false, nullsFirst: false })
     .limit(20);
   return (data || []).map((p) => {
     const link = postLink(p);
-    const meta = [p.type, p.status, p.sbu, p.publishing_date, snippet(p.caption || p.content)]
+    // Capitalised from the key rather than imported from the my-day route's
+    // OWNER_NAME map — the keys ARE the first names, so this avoids lib/
+    // depending on an app/api/ route just to title-case one word.
+    const owner = typeof p.owner_key === "string" && p.owner_key
+      ? p.owner_key.charAt(0).toUpperCase() + p.owner_key.slice(1)
+      : "";
+    const meta = [p.type, p.status, p.sbu, owner && `owned by ${owner}`, p.publishing_date, snippet(p.caption || p.content)]
       .filter(Boolean).join(" · ");
     return {
       id: `post:${p.id}`,
