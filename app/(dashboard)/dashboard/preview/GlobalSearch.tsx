@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { IconSearch } from "@tabler/icons-react";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 
@@ -26,13 +26,48 @@ type Result = {
   openHref: string | null; openLabel: string; tabHref: string; tabLabel: string;
 };
 
+// Which slice of the dashboard a search is aimed at. "praveen" is a teammate
+// AND a dozen leads called Praveen — without a scope the palette answers a
+// question you did not ask, and the tasks you wanted sit below twelve phone
+// numbers. `kind` already comes back on every result, so this is a filter over
+// what the API returned, not a second request.
+type Scope = "all" | "post" | "lead" | "report";
+const SCOPES: { key: Scope; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "post", label: "Tasks" },
+  { key: "lead", label: "Leads" },
+  { key: "report", label: "Reports" },
+];
+
+// Typed (or dictated) prefixes — "task: praveen". Kept short and spoken-friendly
+// because these fields are dictated as often as typed.
+const PREFIX: Record<string, Scope> = {
+  task: "post", tasks: "post", post: "post", posts: "post", content: "post",
+  lead: "lead", leads: "lead", contact: "lead",
+  report: "report", reports: "report",
+};
+
+// The section you are standing in is the best guess at what you meant. Looking at
+// someone's task board and typing their name should find tasks, not the sales
+// pipeline. Only ever a DEFAULT — the chips still show every count, so nothing
+// is hidden, and one click widens it back out.
+function scopeForPath(path: string): Scope {
+  const p = path.toLowerCase();
+  if (/\/(my-day|briefing|attendance|marketing-hub|content-studio|content-review|scheduler|calendar|radar)(\/|$|\?)/.test(p)) return "post";
+  if (/\/(inbox|leads|sales-ops|organic-sales)(\/|$|\?)/.test(p)) return "lead";
+  if (/\/(ai-reports|reports)(\/|$|\?)/.test(p)) return "report";
+  return "all";
+}
+
 export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scope, setScope] = useState<Scope>("all");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const pathname = usePathname() || "";
   // document.body only exists after mount — guard so SSR/hydration match.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -54,6 +89,16 @@ export function GlobalSearch() {
       if (ctrlSpace || cmdK) {
         e.preventDefault();      // Chrome would otherwise focus the address bar
         setOpen((v) => !v);
+        return;
+      }
+      // ⌘1..⌘4 jump between scopes without leaving the keyboard. Only while the
+      // palette is up, so the digits stay free for the browser's tab switching
+      // everywhere else.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && /^[1-4]$/.test(e.key)) {
+        setOpen((isOpen) => {
+          if (isOpen) { e.preventDefault(); setScope(SCOPES[Number(e.key) - 1].key); }
+          return isOpen;
+        });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -61,6 +106,9 @@ export function GlobalSearch() {
   }, []);
 
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 30); }, [open]);
+  // Re-seed on every open, not just the first — you move between sections and
+  // the guess should follow you rather than stick to wherever you started.
+  useEffect(() => { if (open) setScope(scopeForPath(pathname)); }, [open, pathname]);
 
   // Dictation. Spoken words append to whatever is already typed, so you can mix
   // the two, and the debounced search below fires off the result exactly as if
@@ -73,10 +121,17 @@ export function GlobalSearch() {
 
   useEffect(() => { if (!open) { setQ(""); setResults(null); } }, [open]);
 
+  // A leading "task:" / "lead:" sets the scope and is not itself searched —
+  // otherwise the word would be matched as a keyword and drag in noise.
+  const prefixed = /^\s*([a-z]+)\s*:\s*(.*)$/i.exec(q);
+  const prefixScope = prefixed ? PREFIX[prefixed[1].toLowerCase()] : undefined;
+  const effectiveScope: Scope = prefixScope || scope;
+  const searchText = prefixScope ? prefixed![2] : q;
+
   // Debounced search while the palette is open.
   useEffect(() => {
     if (!open) return;
-    const query = q.trim();
+    const query = searchText.trim();
     if (!query) { setResults(null); setLoading(false); return; }
     setLoading(true);
     const t = setTimeout(async () => {
@@ -90,7 +145,28 @@ export function GlobalSearch() {
       finally { setLoading(false); }
     }, 300);
     return () => clearTimeout(t);
-  }, [q, open]);
+  }, [searchText, open]);
+
+  // Counts are of everything that came back, so a chip can say "Leads 12" even
+  // while you are looking at Tasks — that is the whole point: you can SEE what
+  // you are not looking at, instead of a question box asking you to guess.
+  const counts = {
+    all: results?.length ?? 0,
+    post: results?.filter((r) => r.kind === "post").length ?? 0,
+    lead: results?.filter((r) => r.kind === "lead").length ?? 0,
+    report: results?.filter((r) => r.kind === "report").length ?? 0,
+  };
+  const shown = (results || []).filter((r) => effectiveScope === "all" || r.kind === effectiveScope);
+  // Section headers only in "All" — inside a single scope every row is the same
+  // kind and a header would just be a line of noise repeated once.
+  const grouped: { name: string; items: Result[] }[] = [];
+  if (effectiveScope === "all") {
+    for (const r of shown) {
+      let g = grouped.find((x) => x.name === r.group);
+      if (!g) { g = { name: r.group, items: [] }; grouped.push(g); }
+      g.items.push(r);
+    }
+  }
 
   const go = useCallback((href: string) => {
     setOpen(false);
@@ -140,30 +216,70 @@ export function GlobalSearch() {
             {voice.error && (
               <div className="px-4 py-2 text-[12px] text-[#C0392B] bg-[#FDECEA] border-b border-gray-100">{voice.error}</div>
             )}
+            {/* Scope chips. Shown once something has come back — before that the
+                counts would all read 0 and the row would be four dead buttons. */}
+            {results && results.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-[#FbFbFd]">
+                {SCOPES.map((sc, i) => {
+                  const n = counts[sc.key];
+                  const active = effectiveScope === sc.key;
+                  return (
+                    <button
+                      key={sc.key}
+                      onClick={() => setScope(sc.key)}
+                      className={`text-[11.5px] font-medium px-2.5 py-1 rounded-full border transition ${
+                        active
+                          ? "bg-brand text-white border-brand"
+                          : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"
+                      } ${n === 0 && !active ? "opacity-40" : ""}`}
+                      title={`${sc.label} (⌘${i + 1})`}
+                    >
+                      {sc.label} <span className={active ? "opacity-80" : "text-[#A6ACBE]"}>{n}</span>
+                    </button>
+                  );
+                })}
+                {prefixScope && (
+                  <span className="ml-auto text-[11px] text-[#A6ACBE]">from “{prefixed![1]}:”</span>
+                )}
+              </div>
+            )}
             <div className="max-h-[52vh] overflow-y-auto p-2">
               {!q.trim() && (
                 <div className="px-3 py-4 text-[12.5px] text-[#8A92A6]">
                   Type to search across posts, tasks, reports, and leads — your data only, never the internet.
+                  <div className="mt-1.5 text-[11.5px] text-[#A6ACBE]">
+                    Narrow it with the chips, ⌘1–⌘4, or by starting with “task:” or “lead:”.
+                  </div>
                 </div>
               )}
-              {q.trim() && loading && <div className="px-3 py-4 text-[13px] text-[#8A92A6]">Searching…</div>}
-              {q.trim() && !loading && results && results.length === 0 && (
+              {searchText.trim() && loading && <div className="px-3 py-4 text-[13px] text-[#8A92A6]">Searching…</div>}
+              {searchText.trim() && !loading && results && results.length === 0 && (
                 <div className="px-3 py-4 text-[13px] text-[#8A92A6]">No matches. Try a topic, a report, or a name.</div>
               )}
-              {!loading && results && results.map((r) => (
-                <div key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-[#F7F8FC]">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-[#232D42] truncate">{r.title}</div>
-                    <div className="text-[11.5px] text-[#8A92A6] truncate">{r.meta}</div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {r.openHref && (
-                      <button onClick={() => go(r.openHref!)} className="text-[11.5px] font-medium px-2.5 py-1 rounded-md bg-brand text-white hover:bg-brand-dark whitespace-nowrap">{r.openLabel}</button>
-                    )}
-                    <button onClick={() => go(r.tabHref)} className="text-[11.5px] font-medium px-2.5 py-1 rounded-md border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">{r.tabLabel}</button>
-                  </div>
+              {/* Something matched, but not in the scope being looked at. Say where
+                  it actually is rather than the flat "No matches", which would be
+                  a lie — and let one click go there. */}
+              {!loading && results && results.length > 0 && shown.length === 0 && (
+                <div className="px-3 py-4 text-[13px] text-[#8A92A6]">
+                  No {SCOPES.find((x) => x.key === effectiveScope)?.label.toLowerCase()} match “{searchText.trim()}”.{" "}
+                  {SCOPES.filter((x) => x.key !== "all" && counts[x.key] > 0).map((x) => (
+                    <button key={x.key} onClick={() => setScope(x.key)} className="text-brand font-medium hover:underline mr-2">
+                      {counts[x.key]} in {x.label}
+                    </button>
+                  ))}
                 </div>
-              ))}
+              )}
+              {!loading && results && (effectiveScope === "all"
+                ? grouped.map((g) => (
+                    <div key={g.name}>
+                      <div className="px-3 pt-3 pb-1 text-[10.5px] font-semibold tracking-wide uppercase text-[#A6ACBE]">
+                        {g.name} <span className="font-normal">· {g.items.length}</span>
+                      </div>
+                      {g.items.map((r) => <Row key={r.id} r={r} go={go} />)}
+                    </div>
+                  ))
+                : shown.map((r) => <Row key={r.id} r={r} go={go} />)
+              )}
             </div>
             <div className="px-4 py-2 border-t border-gray-100 bg-[#FbFbFd] text-[11px] text-[#A6ACBE] flex items-center justify-between">
               <span>Ask GooCampus · internal search</span>
@@ -173,5 +289,24 @@ export function GlobalSearch() {
         </div>
       ), document.body)}
     </>
+  );
+}
+
+// One result line. Pulled out of GlobalSearch so the grouped ("All") and the
+// flat (single-scope) renderings cannot drift apart.
+function Row({ r, go }: { r: Result; go: (href: string) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-[#F7F8FC]">
+      <div className="min-w-0">
+        <div className="text-[13px] font-medium text-[#232D42] truncate">{r.title}</div>
+        <div className="text-[11.5px] text-[#8A92A6] truncate">{r.meta}</div>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {r.openHref && (
+          <button onClick={() => go(r.openHref!)} className="text-[11.5px] font-medium px-2.5 py-1 rounded-md bg-brand text-white hover:bg-brand-dark whitespace-nowrap">{r.openLabel}</button>
+        )}
+        <button onClick={() => go(r.tabHref)} className="text-[11.5px] font-medium px-2.5 py-1 rounded-md border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand whitespace-nowrap">{r.tabLabel}</button>
+      </div>
+    </div>
   );
 }

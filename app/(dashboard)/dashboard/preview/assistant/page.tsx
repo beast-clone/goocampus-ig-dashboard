@@ -32,12 +32,21 @@ export default function AssistantPage() {
   );
 }
 
+type Scope = "all" | "post" | "lead" | "report";
+const SCOPES: { key: Scope; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "post", label: "Tasks" },
+  { key: "lead", label: "Leads" },
+  { key: "report", label: "Reports" },
+];
+
 function SearchTool() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");        // the query that produced current results
   const [results, setResults] = useState<Result[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<Scope>("all");
 
   const run = async (q: string) => {
     const query = q.trim();
@@ -59,9 +68,19 @@ function SearchTool() {
     }
   };
 
+  // Counts cover everything returned, so a chip still reads "Leads 12" while you
+  // are filtered to Tasks — you can see what you are excluding.
+  const counts = {
+    all: results?.length ?? 0,
+    post: results?.filter((r) => r.kind === "post").length ?? 0,
+    lead: results?.filter((r) => r.kind === "lead").length ?? 0,
+    report: results?.filter((r) => r.kind === "report").length ?? 0,
+  };
+  const shown = (results || []).filter((r) => scope === "all" || r.kind === scope);
+
   // group results in stable order
   const groups: { name: string; items: Result[] }[] = [];
-  for (const r of results || []) {
+  for (const r of shown) {
     let g = groups.find((x) => x.name === r.group);
     if (!g) { g = { name: r.group, items: [] }; groups.push(g); }
     g.items.push(r);
@@ -120,7 +139,29 @@ function SearchTool() {
             </div>
           ) : (
             <>
-              <div className="text-[12px] text-[#8A92A6] mb-3">{results.length} result{results.length === 1 ? "" : "s"} for “{query}”</div>
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                {SCOPES.map((sc) => {
+                  const n = counts[sc.key];
+                  const active = scope === sc.key;
+                  return (
+                    <button
+                      key={sc.key}
+                      onClick={() => setScope(sc.key)}
+                      className={`text-[12px] font-medium px-3 py-1 rounded-full border transition ${
+                        active ? "bg-brand text-white border-brand" : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"
+                      } ${n === 0 && !active ? "opacity-40" : ""}`}
+                    >
+                      {sc.label} <span className={active ? "opacity-80" : "text-[#A6ACBE]"}>{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[12px] text-[#8A92A6] mb-3">
+                {shown.length} result{shown.length === 1 ? "" : "s"} for “{query}”
+                {scope !== "all" && counts.all !== shown.length && (
+                  <> · <button onClick={() => setScope("all")} className="text-brand font-medium hover:underline">show all {counts.all}</button></>
+                )}
+              </div>
               {groups.map((g) => (
                 <div key={g.name} className="mb-6">
                   <div className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold mb-2">{g.name}</div>
