@@ -65,6 +65,12 @@ export function GlobalSearch() {
   const [results, setResults] = useState<Result[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [scope, setScope] = useState<Scope>("all");
+  // A failed search is NOT an empty search. Keeping them in one state was the
+  // bug: a dead dev server, a 403 from the section guard and a genuine zero-hit
+  // query all rendered the same "No matches", so a broken search looked like a
+  // truthful answer. This is what makes them tell apart.
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname() || "";
@@ -119,7 +125,7 @@ export function GlobalSearch() {
   });
   useEffect(() => { if (!open) voice.stop(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (!open) { setQ(""); setResults(null); } }, [open]);
+  useEffect(() => { if (!open) { setQ(""); setResults(null); setSearchError(null); } }, [open]);
 
   // A leading "task:" / "lead:" sets the scope and is not itself searched —
   // otherwise the word would be matched as a keyword and drag in noise.
@@ -134,18 +140,30 @@ export function GlobalSearch() {
     const query = searchText.trim();
     if (!query) { setResults(null); setLoading(false); return; }
     setLoading(true);
+    setSearchError(null);
     const t = setTimeout(async () => {
       try {
         const r = await fetch("/api/assistant", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }),
         });
-        const d = await r.json();
+        // A non-OK response carries { error }, never { results } — so without this
+        // check `d.results || []` quietly turned every 403/500/502 into "no
+        // matches" too. The server's own message is the useful one (the section
+        // guard says you lack access; the route says what actually broke).
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || `Search failed (HTTP ${r.status})`);
         setResults((d.results || []) as Result[]);
-      } catch { setResults([]); }
+      } catch (e) {
+        // fetch() rejects only on a genuinely unreachable server, which reads
+        // better as that than as the raw "Failed to fetch".
+        const msg = (e as Error).message;
+        setSearchError(/fetch/i.test(msg) ? "Could not reach the server — is it still running?" : msg);
+        setResults(null);
+      }
       finally { setLoading(false); }
     }, 300);
     return () => clearTimeout(t);
-  }, [searchText, open]);
+  }, [searchText, open, retry]);
 
   // Counts are of everything that came back, so a chip can say "Leads 12" even
   // while you are looking at Tasks — that is the whole point: you can SEE what
@@ -253,6 +271,21 @@ export function GlobalSearch() {
                 </div>
               )}
               {searchText.trim() && loading && <div className="px-3 py-4 text-[13px] text-[#8A92A6]">Searching…</div>}
+              {/* Deliberately red and deliberately NOT the "No matches" wording:
+                  the whole point is that a broken search must not read as an
+                  answer. Retry re-runs the same query rather than making you
+                  retype (or re-dictate) it. */}
+              {!loading && searchError && (
+                <div className="mx-1 my-2 px-3 py-2.5 rounded-lg bg-[#FDECEA] border border-[#F5C6C0]">
+                  <div className="text-[12.5px] text-[#C0392B]">{searchError}</div>
+                  <button
+                    onClick={() => setRetry((n) => n + 1)}
+                    className="mt-1.5 text-[11.5px] font-medium px-2.5 py-1 rounded-md border border-[#E9A79E] text-[#C0392B] hover:bg-white"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
               {searchText.trim() && !loading && results && results.length === 0 && (
                 <div className="px-3 py-4 text-[13px] text-[#8A92A6]">No matches. Try a topic, a report, or a name.</div>
               )}
