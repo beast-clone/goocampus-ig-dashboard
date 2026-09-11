@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from "react";
 import {
   IconUsersGroup, IconShieldLock, IconKey, IconMail, IconChevronDown,
-  IconCheck, IconUserPlus, IconInfoCircle, IconLayoutGrid, IconAdjustmentsHorizontal,
+  IconCheck, IconUserPlus, IconInfoCircle,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CAPABILITIES, PRESETS, GRANTABLE_SECTIONS, ROLE_PRESETS, type Capability, type Section } from "@/lib/permissions";
@@ -296,7 +296,7 @@ function TeamManager() {
                               open ? "bg-brand text-white border-brand" : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"
                             }`}
                           >
-                            {secCount} tab{secCount === 1 ? "" : "s"} · {capCount} fn{capCount === 1 ? "" : "s"}
+                            {secCount} page{secCount === 1 ? "" : "s"} · {capCount} action{capCount === 1 ? "" : "s"}
                             <IconChevronDown size={13} stroke={2} className={`transition-transform ${open ? "rotate-180" : ""}`} />
                           </button>
                         )}
@@ -458,7 +458,65 @@ function TeamManager() {
 
 /* ── per-person access editor ──────────────────────────────────────────────── */
 
-// Tab access (which pages they open) + function toggles.
+// Two plain lists, one row per thing, switch always in the same place.
+//
+// This was a 3-column grid of fourteen identical checkbox cards headed "TAB
+// ACCESS" and "FUNCTIONS". Nothing said where to begin, on and off differed
+// only by a faint tint, and "fns" is not a word. Someone opening this for the
+// first time could not tell what they were looking at, which is dangerous for
+// the one screen that decides who sees customer data.
+
+// Sections worth a second thought before granting. The tab list alone doesn't
+// convey that "Sales" means real people's phone numbers.
+const SENSITIVE: Record<string, string> = {
+  sales: "Customer names and phone numbers",
+  ads: "Ad spend and budgets",
+};
+
+function SettingRow({ title, detail, warn, on, disabled, onChange }: {
+  title: string; detail: string; warn?: string; on: boolean; disabled: boolean; onChange: (n: boolean) => void;
+}) {
+  return (
+    <label className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${on ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className={`text-[13px] ${on ? "font-medium text-[#232D42]" : "text-[#4A5468]"}`}>{title}</span>
+          {warn && (
+            <span className="text-[10px] font-medium text-[#B7791F] bg-[#FDF6E7] rounded-full px-2 py-[2px] whitespace-nowrap">{warn}</span>
+          )}
+        </span>
+        <span className="block text-[11.5px] leading-snug text-[#8A92A6] mt-[2px]">{detail}</span>
+      </span>
+      <span className={`text-[11px] font-medium w-7 text-right shrink-0 ${on ? "text-brand" : "text-[#C9CDD8]"}`}>
+        {on ? "On" : "Off"}
+      </span>
+      <Toggle checked={on} disabled={disabled} label={title} onChange={onChange} />
+    </label>
+  );
+}
+
+function PermGroup({ title, count, total, hint, presetLabel, presets, children }: {
+  title: string; count: number; total: number; hint: string;
+  presetLabel: string; presets: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h3 className="text-[13.5px] font-medium text-[#232D42]">{title}</h3>
+          <span className="text-[12px] text-[#8A92A6]">{count} of {total}</span>
+        </div>
+        <p className="text-[11.5px] text-[#8A92A6] mt-[2px]">{hint}</p>
+        <div className="flex items-center gap-2 flex-wrap mt-2.5">
+          <span className="text-[11.5px] text-[#8A92A6]">{presetLabel}</span>
+          {presets}
+        </div>
+      </div>
+      <div className="border-t border-gray-100 divide-y divide-gray-50">{children}</div>
+    </div>
+  );
+}
+
 function PermPanel({ m, busy, onSet, onSetSections }: { m: Member; busy: boolean; onSet: (perms: Record<string, boolean>) => void; onSetSections: (secs: Record<string, boolean>) => void }) {
   const perms = m.permissions || {};
   const secs = m.sections || {};
@@ -467,7 +525,10 @@ function PermPanel({ m, busy, onSet, onSetSections }: { m: Member; busy: boolean
   const setSec = (sec: Section, on: boolean) => { const next = { ...secs }; if (on) next[sec] = true; else delete next[sec]; onSetSections(next); };
   const applyRole = (list: Section[]) => { const next: Record<string, boolean> = {}; list.forEach((s) => { next[s] = true; }); onSetSections(next); };
 
-  const preset = (label: string, onClick: () => void) => (
+  const secOn = GRANTABLE_SECTIONS.filter((s) => secs[s.key] === true).length;
+  const capOn = CAPABILITIES.filter((c) => perms[c.key] === true).length;
+
+  const chip = (label: string, onClick: () => void) => (
     <button key={label} disabled={busy} onClick={onClick}
       className="text-[11.5px] font-medium bg-white text-[#4A5468] border border-gray-200 px-2.5 py-1 rounded-lg hover:border-brand hover:text-brand disabled:opacity-50">
       {label}
@@ -475,68 +536,58 @@ function PermPanel({ m, busy, onSet, onSetSections }: { m: Member; busy: boolean
   );
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl divide-y divide-gray-100">
-      {/* Which sections of the dashboard they can open. Each card now names the
-          tabs it unlocks — that mapping used to hide in a title tooltip, so
-          granting "Sales" gave no hint it meant lead names and phone numbers. */}
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <IconLayoutGrid size={15} stroke={1.8} className="text-[#8A92A6]" />
-          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#8A92A6] mr-1">Tab access — which pages they see</span>
-          {ROLE_PRESETS.map((r) => preset(r.label, () => applyRole(r.sections)))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {GRANTABLE_SECTIONS.map((s) => {
-            const on = secs[s.key] === true;
-            return (
-              <label key={s.key}
-                className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border transition-colors ${
-                  on ? "border-brand/40 bg-brand-light/40" : "border-gray-100 bg-[#FCFCFE] hover:border-gray-200"
-                }`}>
-                <input type="checkbox" checked={on} disabled={busy}
-                  onChange={(e) => setSec(s.key, e.target.checked)}
-                  className="mt-[2px] w-[15px] h-[15px] accent-[#3A57E8] shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-[12.5px] font-medium text-[#232D42]">{s.label}</span>
-                  <span className="block text-[10.5px] leading-snug text-[#8A92A6]">{s.tabs}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+    // Capped, not full-bleed. Stretched to the table width there was ~1000px of
+    // dead space between each label and its switch, so the eye lost the row on
+    // the way across and you could flip the wrong person's access.
+    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden max-w-[820px]">
+      <PermGroup
+        title={`Pages ${m.first} can open`}
+        count={secOn} total={GRANTABLE_SECTIONS.length}
+        hint={secOn === 0
+          ? `${m.first} currently sees nothing but the sign-in screen.`
+          : `Turning one off hides those tabs from the sidebar completely.`}
+        presetLabel="Start from a role:"
+        presets={ROLE_PRESETS.map((r) => chip(r.label, () => applyRole(r.sections)))}
+      >
+        {GRANTABLE_SECTIONS.map((s) => (
+          <SettingRow
+            key={s.key}
+            title={s.label}
+            detail={s.tabs}
+            warn={SENSITIVE[s.key]}
+            on={secs[s.key] === true}
+            disabled={busy}
+            onChange={(next) => setSec(s.key, next)}
+          />
+        ))}
+      </PermGroup>
+
+      <div className="border-t border-gray-100">
+        <PermGroup
+          title={`What ${m.first} can change`}
+          count={capOn} total={CAPABILITIES.length}
+          hint={capOn === 0
+            ? `${m.first} can look at those pages but not alter anything on them.`
+            : `These apply inside the pages above — turning a page off also removes what's below.`}
+          presetLabel="Start from a preset:"
+          presets={PRESETS.map((p) => chip(p.label, () => applyPreset(p.caps)))}
+        >
+          {CAPABILITIES.map((c) => (
+            <SettingRow
+              key={c.key}
+              title={c.label}
+              detail={c.desc}
+              on={perms[c.key] === true}
+              disabled={busy}
+              onChange={(next) => setCap(c.key, next)}
+            />
+          ))}
+        </PermGroup>
       </div>
 
-      {/* What they can do inside those pages. */}
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <IconAdjustmentsHorizontal size={15} stroke={1.8} className="text-[#8A92A6]" />
-          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#8A92A6] mr-1">Functions — what they can do</span>
-          {PRESETS.map((p) => preset(p.label, () => applyPreset(p.caps)))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {CAPABILITIES.map((c) => {
-            const on = perms[c.key] === true;
-            return (
-              <label key={c.key}
-                className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border transition-colors ${
-                  on ? "border-brand/40 bg-brand-light/40" : "border-gray-100 bg-[#FCFCFE] hover:border-gray-200"
-                }`}>
-                <input type="checkbox" checked={on} disabled={busy}
-                  onChange={(e) => setCap(c.key, e.target.checked)}
-                  className="mt-[2px] w-[15px] h-[15px] accent-[#3A57E8] shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-[12.5px] font-medium text-[#232D42]">{c.label}</span>
-                  <span className="block text-[10.5px] leading-snug text-[#8A92A6]">{c.desc}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      <p className="flex items-center gap-1.5 px-4 py-2.5 text-[11px] text-[#A6ACBE]">
+      <p className="flex items-center gap-1.5 px-4 py-2.5 bg-[#FCFCFE] border-t border-gray-100 text-[11px] text-[#A6ACBE]">
         <IconShieldLock size={13} stroke={1.8} className="shrink-0" />
-        System tabs (Integrations, Diagnostics, Tools, Team) are admin-only and can&apos;t be granted here.
+        Integrations, Diagnostics, Tools and Team are admin-only — they can&apos;t be given to anyone here.
       </p>
     </div>
   );
