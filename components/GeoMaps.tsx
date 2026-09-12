@@ -196,6 +196,90 @@ export function CountriesWorldMap({ entries }: { entries: { label: string; value
   );
 }
 
+// India STATE outlines only (clean state boundaries, no district lines; includes
+// Telangana). state name in `name`. Bundled via jsdelivr like WORLD_TOPO above.
+const INDIA_STATES_TOPO = "https://cdn.jsdelivr.net/gh/Anujarya300/bubble_maps@master/data/geography-data/india.topo.json";
+
+function stateNameOf(props: Record<string, unknown>): string {
+  return String(props?.name || props?.NAME_1 || props?.st_nm || props?.ST_NM || "");
+}
+// Fold the few naming variants between our CRM values and the map file.
+const STATE_ALIAS: Record<string, string> = {
+  nctofdelhi: "delhi", // map labels Delhi as "NCT of Delhi"
+};
+function normState(s: string): string {
+  const k = (s || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z]/g, "");
+  return STATE_ALIAS[k] || k;
+}
+
+// India choropleth — each state shaded by its share of leads, tonal brand indigo
+// (light → deep). Hover a state for its exact count. Used by the Sales Hub Geography.
+export function IndiaStatesMap({ entries }: { entries: { name: string; count: number }[] }) {
+  const [hover, setHover] = useState<HoverInfo>(null);
+  const total = entries.reduce((s, e) => s + e.count, 0) || 1;
+  const byState = new Map<string, { name: string; count: number; share: number }>();
+  for (const e of entries) byState.set(normState(e.name), { name: e.name, count: e.count, share: (e.count / total) * 100 });
+  const max = Math.max(...entries.map((e) => e.count), 1);
+
+  function fillFor(v: number): string {
+    if (!v) return "#F3F5FB";
+    const r = v / max;
+    if (r > 0.75) return "#2138B0";
+    if (r > 0.45) return "#3A57E8";
+    if (r > 0.25) return "#5A72EC";
+    if (r > 0.10) return "#8496F2";
+    return "#C6D0FA";
+  }
+
+  function onMouseMoveWrap(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as SVGElement | null;
+    const key = target?.getAttribute("data-state");
+    const raw = target?.getAttribute("data-raw") || "";
+    const wrap = e.currentTarget.getBoundingClientRect();
+    if (key == null) { setHover(null); return; }
+    const info = byState.get(key);
+    setHover({
+      title: info?.name || raw || "—",
+      sub: info ? `${info.share.toFixed(1)}% · ${info.count.toLocaleString("en-IN")} leads` : "0 leads",
+      x: e.clientX - wrap.left,
+      y: e.clientY - wrap.top,
+    });
+  }
+
+  return (
+    <div className="geo-map-wrap relative w-full h-full" onMouseMove={onMouseMoveWrap} onMouseLeave={() => setHover(null)}>
+      <ComposableMap projection="geoMercator" projectionConfig={{ scale: 1000, center: [82.5, 22.5] }} style={{ width: "100%", height: "100%" }}>
+        <Geographies geography={INDIA_STATES_TOPO}>
+          {({ geographies }) =>
+            geographies.map((geo) => {
+              const raw = stateNameOf(geo.properties as Record<string, unknown>);
+              const key = normState(raw);
+              const v = byState.get(key)?.count || 0;
+              return (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill={fillFor(v)}
+                  stroke="#ffffff"
+                  strokeWidth={0.5}
+                  data-state={key}
+                  data-raw={raw}
+                  style={{
+                    default: { outline: "none", cursor: "pointer" },
+                    hover: { outline: "none", fill: v > 0 ? "#1a2f9e" : "#E4E9F7" },
+                    pressed: { outline: "none" },
+                  }}
+                />
+              );
+            })
+          }
+        </Geographies>
+      </ComposableMap>
+      <MapTooltip hover={hover} />
+    </div>
+  );
+}
+
 // Cities map — same world topojson zoomed to South Asia, base countries are
 // neutral so the cyan follower dots pop. Each dot is fully interactive.
 export function CitiesRegionMap({ entries }: { entries: { label: string; value: number }[] }) {

@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconAlertTriangle, IconTrendingUp, IconTrophy } from "@tabler/icons-react";
+import { IndiaStatesMap } from "@/components/GeoMaps";
 
 type Counsellor = {
   name: string;
@@ -179,21 +180,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const { data, isLoading, refresh } = useApi<SalesOpsData>(`/api/leads-crm?${qs}`);
   const [drillCounsellor, setDrillCounsellor] = useState<string | null>(null);
 
-  const inflowChart = useMemo(() => {
-    if (!data) return null;
-    const days = data.inflowByDay;
-    if (days.length === 0) return null;
-    const max = Math.max(...days.map((d) => d.count), 1);
-    const peak = days.reduce((a, b) => (b.count > a.count ? b : a), days[0]);
-    const w = 400;
-    const h = 80;
-    const step = days.length > 1 ? w / (days.length - 1) : 0;
-    const points = days.map((d, i) => `${i * step},${h - (d.count / max) * (h - 10)}`).join(" ");
-    return { points, peak, count: days.length };
-  }, [data]);
-
   const totalInterest = useMemo(() => data?.byInterest.reduce((s, i) => s + i.count, 0) || 0, [data]);
-  const totalStatus = useMemo(() => data?.byStatus.reduce((s, i) => s + i.count, 0) || 0, [data]);
   const maxSource = useMemo(() => data?.bySource.reduce((m, s) => Math.max(m, s.count), 1) || 1, [data]);
   const assignedToTeam = useMemo(() => (data?.counsellors || []).filter((c) => c.name !== "Unassigned").reduce((s, c) => s + c.assigned, 0), [data]);
   // Inclusive day count for the selected range — "21 Jul → 20 Aug" is 31 days, not 30.
@@ -222,7 +209,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const maxRoiConv = useMemo(() => Math.max(1, ...sourceRoi.map((r) => r.conv)), [sourceRoi]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div className="text-base text-gray-500">
           {data ? (
@@ -246,91 +233,145 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
 
-      {/* Leads by source — full-width banner */}
-      <Card>
-        <div className="flex items-baseline justify-between mb-4">
-          <div className="text-base font-medium text-[#232D42]">Leads by source</div>
-          <div className="text-sm text-gray-500">{data ? `${fmtInt(data.totals.leads)} in this window` : ""}</div>
-        </div>
-        <div className="space-y-3 text-sm">
-          {data?.bySource.map((s, i) => (
-            <div key={s.name} className="grid grid-cols-[200px_1fr_auto] items-center gap-3">
-              <span className="text-[#3B4457] truncate">{s.name}</span>
-              <span className="h-[10px] rounded-full bg-[#F3F5FA] overflow-hidden">
-                <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)] }} />
-              </span>
-              <span className="text-right tabular-nums font-medium min-w-[72px]">
-                {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
-              </span>
+      {/* ══ 1. Revenue & conversion — the money view, top priority ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        {/* Conversion & revenue by source */}
+        <Card>
+          <div className="flex items-baseline justify-between mb-1">
+            <div className="text-base font-medium text-[#232D42]">Conversion &amp; revenue by source</div>
+            <div className="text-sm text-gray-500">which channel turns leads into money</div>
+          </div>
+          <div className="text-sm text-gray-500 mb-4">Leads created in-window vs closings paid in-window (Revenue Tracker source) — directional channel ROI, independent of the status field.</div>
+          {data && sourceRoi.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 text-left border-b border-gray-100">
+                  <th className="py-2.5 font-normal">Source</th>
+                  <th className="py-2.5 font-normal text-right">Leads</th>
+                  <th className="py-2.5 font-normal text-right">Closings</th>
+                  <th className="py-2.5 font-normal text-right">Conv %</th>
+                  <th className="py-2.5 font-normal w-[200px]">Rate</th>
+                  <th className="py-2.5 font-normal text-right">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sourceRoi.map((r) => (
+                  <tr key={r.name} className="border-b border-gray-50">
+                    <td className="py-2.5">{r.name}</td>
+                    <td className="py-2.5 text-right tabular-nums">{fmtInt(r.leads)}</td>
+                    <td className="py-2.5 text-right tabular-nums">{fmtInt(r.closings)}</td>
+                    <td className="py-2.5 text-right tabular-nums font-medium">{r.conv > 0 ? `${r.conv.toFixed(1)}%` : "—"}</td>
+                    <td className="py-2.5">
+                      <span className="block h-2 rounded-full bg-[#F3F5FA] overflow-hidden">
+                        <span className="block h-full rounded-full bg-brand" style={{ width: `${(r.conv / maxRoiConv) * 100}%` }} />
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums">{r.revenue > 0 ? fmtInr(r.revenue) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "No revenue attributed in this window"}</div>
+          )}
+        </Card>
+        {/* Revenue trend (month-wise, follows range) */}
+        {data && data.revenueTrend.length > 0 && (
+          <Card>
+            <div className="flex items-baseline justify-between mb-1">
+              <div className="text-base font-medium text-[#232D42]">Revenue trend</div>
+              <div className="text-sm text-gray-500">Month-wise · follows the selected range</div>
             </div>
-          ))}
-          {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
-        </div>
-        <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">The date range (top-right) re-scopes every card on this page.</div>
-      </Card>
+            <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts closed per month. Recent months often show closings before their ₹ amount is entered — revenue trails by a month or two.</div>
+            <RevenueTrendChart data={data.revenueTrend} />
+          </Card>
+        )}
+      </div>
 
-      {/* Speed to lead — full width, under Leads by source */}
-      <Card>
-        <div className="flex items-baseline justify-between mb-4">
-          <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
-          <div className="text-sm text-gray-500">the biggest leak</div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 items-start">
-          <div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-                <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
-                <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
-              </div>
-              <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-                <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
-                <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
-              </div>
+      {/* ══ 2. Speed to lead + Awaiting activity — the leak view ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <Card>
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
+            <div className="text-sm text-gray-500">the biggest leak</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
             </div>
-            {data && (() => {
-              const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
-              return (
-              <div className="mb-3">
-                <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
-                  <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
-                  <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
-                </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-1.5">
-                  <span>24h SLA target</span>
-                  <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
-                </div>
-              </div>
-              );
-            })()}
-            <div className="rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
-              <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
-              <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
-              <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
-              <div className="mt-1"><b>SLA</b> = <i>Service Level Agreement</i> — your promise/target for how fast you respond. <b>“24h SLA target”</b> = the goal is to first-contact every new lead within 24 hours. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
+            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
+              <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
+              <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
             </div>
           </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2">Oldest untouched</div>
-            <div className="space-y-2">
-              {(data?.awaiting || []).slice(0, 4).map((a, i) => (
-                <a key={`${a.name}-${i}`} href={a.link} target="_blank" rel="noreferrer"
-                  title="Open this lead in Airtable"
-                  className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2 hover:border-brand hover:bg-[#FAFBFF] transition-colors">
-                  <div className="min-w-0">
-                    <div className="text-[13px] truncate text-[#232D42]">{a.name}</div>
-                    <div className="text-[11px] text-gray-500 truncate">{counsellorLabel(a.counsellor)} · {a.source}</div>
-                  </div>
-                  <div className="text-[12px] font-bold text-[#C0392B] whitespace-nowrap flex items-center gap-1">{a.daysUntouched}d <span className="text-gray-300 font-normal">↗</span></div>
-                </a>
-              ))}
+          {data && (() => {
+            const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
+            return (
+            <div className="mb-3">
+              <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
+                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
+                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
+                <span>24h SLA target</span>
+                <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
+              </div>
             </div>
-            <div className="text-xs text-gray-400 mt-3">Oldest-untouched from the live Days Untouched field.</div>
+            );
+          })()}
+          <div className="rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
+            <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
+            <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
+            <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
+            <div className="mt-1"><b>SLA</b> = <i>Service Level Agreement</i> — your promise/target for how fast you respond. <b>“24h SLA target”</b> = the goal is to first-contact every new lead within 24 hours. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
           </div>
-        </div>
-      </Card>
+        </Card>
+        {/* Awaiting activity */}
+        <Card>
+          <div className="flex justify-between items-baseline">
+            <div className="text-base font-medium text-[#232D42]">Awaiting activity</div>
+            <div className="text-sm text-gray-500">Days Untouched formula</div>
+          </div>
+          <div className="text-sm text-gray-500 mb-4">
+            Leads with no CRM activity in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total
+          </div>
+          {(data?.awaiting.length ?? 0) > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 text-left">
+                  <th className="py-2.5 font-normal">Lead</th>
+                  <th className="py-2.5 font-normal">Counsellor</th>
+                  <th className="py-2.5 font-normal">Source</th>
+                  <th className="py-2.5 font-normal text-right">Days idle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data!.awaiting.slice(0, 6).map((a, i) => (
+                  <tr key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
+                    className="border-t border-gray-100 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
+                    <td className="py-2.5 text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></td>
+                    <td className="py-2.5">{a.counsellor}</td>
+                    <td className="py-2.5">{a.source}</td>
+                    <td className="py-2.5 text-right">{a.daysUntouched}</td>
+                  </tr>
+                ))}
+                {data && data.awaitingTotal > 6 && (
+                  <tr className="border-t border-gray-100 text-gray-500 italic">
+                    <td className="py-2.5">+{fmtInt(data.awaitingTotal - 6)} more idle leads…</td>
+                    <td /><td /><td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "Nothing awaiting activity in this range"}</div>
+          )}
+        </Card>
+      </div>
 
-      {/* Per-lead first-contact tracking — every lead in range, with contacted + time-to-first-contact */}
-      <LeadsFirstContact range={range} />
+      {/* ══ 3. Per-lead first-contact tracking — compact, paginated, with counsellor + date filters ══ */}
+      <LeadsFirstContact />
 
       {/* Assigned to counsellors — table (click a row → drill-down) */}
       <Card>
@@ -402,128 +443,44 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
       </Card>
 
-      {/* Conversion & revenue by source */}
-      <Card>
-        <div className="flex items-baseline justify-between mb-1">
-          <div className="text-base font-medium text-[#232D42]">Conversion &amp; revenue by source</div>
-          <div className="text-sm text-gray-500">which channel turns leads into money</div>
-        </div>
-        <div className="text-sm text-gray-500 mb-4">Leads created in-window vs closings paid in-window (Revenue Tracker source) — directional channel ROI, independent of the status field.</div>
-        {data && sourceRoi.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left border-b border-gray-100">
-                <th className="py-2.5 font-normal">Source</th>
-                <th className="py-2.5 font-normal text-right">Leads</th>
-                <th className="py-2.5 font-normal text-right">Closings</th>
-                <th className="py-2.5 font-normal text-right">Conv %</th>
-                <th className="py-2.5 font-normal w-[200px]">Rate</th>
-                <th className="py-2.5 font-normal text-right">Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sourceRoi.map((r) => (
-                <tr key={r.name} className="border-b border-gray-50">
-                  <td className="py-2.5">{r.name}</td>
-                  <td className="py-2.5 text-right tabular-nums">{fmtInt(r.leads)}</td>
-                  <td className="py-2.5 text-right tabular-nums">{fmtInt(r.closings)}</td>
-                  <td className="py-2.5 text-right tabular-nums font-medium">{r.conv > 0 ? `${r.conv.toFixed(1)}%` : "—"}</td>
-                  <td className="py-2.5">
-                    <span className="block h-2 rounded-full bg-[#F3F5FA] overflow-hidden">
-                      <span className="block h-full rounded-full bg-brand" style={{ width: `${(r.conv / maxRoiConv) * 100}%` }} />
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums">{r.revenue > 0 ? fmtInr(r.revenue) : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "No revenue attributed in this window"}</div>
-        )}
-      </Card>
-
-      {/* Status snapshot — full-width detail */}
-      <Card>
-        <div className="flex items-baseline justify-between mb-3">
-          <div className="text-base font-medium text-[#232D42]">Status snapshot</div>
-          <div className="text-sm text-gray-500">directional only</div>
-        </div>
-        <div className="flex gap-2.5 items-start bg-[#FEF3E2] border border-[#F3E2C4] rounded-lg px-3.5 py-3 text-[12.5px] text-[#7a5a1a] mb-4">
-          <span>⚠</span>
-          <span>Sales rarely update status — junk leads sit as “New”, and some “New” leads have actually converted. Treat this as <b>directional</b>; real conversions come from <b>Conversion &amp; revenue by source</b> above.</span>
-        </div>
-        {data && data.byStatus.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left border-b border-gray-100">
-                <th className="py-2.5 font-normal">Status</th>
-                <th className="py-2.5 font-normal text-right">Leads</th>
-                <th className="py-2.5 font-normal text-right">% of pipeline</th>
-                <th className="py-2.5 font-normal w-[320px]">Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.byStatus.map((s) => {
-                const c = stChip(s.name);
-                const pct = totalStatus ? (s.count / totalStatus) * 100 : 0;
-                return (
-                  <tr key={s.name} className="border-b border-gray-50">
-                    <td className="py-2.5"><span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: c.bg, color: c.fg }}>{s.name}</span></td>
-                    <td className="py-2.5 text-right tabular-nums font-medium">{fmtInt(s.count)}</td>
-                    <td className="py-2.5 text-right tabular-nums text-gray-500">{pct.toFixed(1)}%</td>
-                    <td className="py-2.5">
-                      <span className="block h-2 rounded-full bg-[#F3F5FA] overflow-hidden">
-                        <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: c.fg }} />
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "—"}</div>
-        )}
-      </Card>
-
-      {/* Lead inflow + Interest mix */}
-      <div className="grid grid-cols-5 gap-5 items-start">
-        <Card className="col-span-3">
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Lead inflow — daily</div>
-            <div className="text-sm text-gray-500">{data ? `${data.range.days} days` : ""}</div>
+      {/* ══ 5. Lead intake — Leads by source + Lead inflow side by side ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <Card>
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="text-base font-medium text-[#232D42]">Leads by source</div>
+            <div className="text-sm text-gray-500">{data ? `${fmtInt(data.totals.leads)} in this window` : ""}</div>
           </div>
-          {inflowChart ? (
-            <>
-              <div className="flex items-baseline gap-6 mb-3">
-                <div>
-                  <div className="text-2xl font-medium text-[#232D42]">{fmtInt(Math.round((data?.totals.leads || 0) / (data?.range.days || 1)))}</div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Avg / day</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-medium text-[#232D42]">{fmtInt(inflowChart.peak.count)}</div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Peak · {inflowChart.peak.date}</div>
-                </div>
+          <div className="space-y-3 text-sm">
+            {data?.bySource.map((s, i) => (
+              <div key={s.name} className="grid grid-cols-[130px_1fr_auto] items-center gap-3">
+                <span className="text-[#3B4457] truncate">{s.name}</span>
+                <span className="h-[10px] rounded-full bg-[#F3F5FA] overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)] }} />
+                </span>
+                <span className="text-right tabular-nums font-medium min-w-[66px]">
+                  {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
+                </span>
               </div>
-              <svg viewBox="0 0 400 90" preserveAspectRatio="none" className="w-full h-28">
-                <polyline points={inflowChart.points} fill="none" stroke="#3A57E8" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                <polyline points={`${inflowChart.points} 400,90 0,90`} fill="#3A57E8" fillOpacity="0.08" stroke="none" />
-              </svg>
-              <div className="flex justify-between text-sm text-gray-500 mt-2"><span>{range.from}</span><span>{range.to}</span></div>
-            </>
-          ) : (
-            <div className="text-sm text-gray-400 py-10">{isLoading ? "Loading…" : "No leads in this range"}</div>
-          )}
+            ))}
+            {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
+          </div>
         </Card>
-        <Card className="col-span-2">
+        <LeadInflow />
+      </div>
+
+      {/* ══ 6. Status snapshot + Interest mix side by side (equal height) ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+        {/* Status snapshot — own date window (self-fetching) */}
+        <StatusSnapshot />
+        {/* Interest mix */}
+        <Card className="h-full">
           <div className="text-base font-medium text-[#232D42]">Interest mix</div>
           <div className="text-sm text-gray-500 mb-4">Primary Interest</div>
           <TableList rows={data?.byInterest || []} total={totalInterest} loading={isLoading} />
         </Card>
       </div>
 
-      {/* Campaign attribution */}
+      {/* ══ 8. Campaign attribution ══ */}
       <Card>
         <div className="text-base font-medium text-[#232D42]">Campaign attribution</div>
         <div className="text-sm text-gray-500 mb-4">Campaign Name → leads and downstream revenue</div>
@@ -553,306 +510,33 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         )}
       </Card>
 
-      {/* Awaiting activity */}
-      <Card>
-        <div className="flex justify-between items-baseline">
-          <div className="text-base font-medium text-[#232D42]">Awaiting activity</div>
-          <div className="text-sm text-gray-500">Days Untouched formula</div>
-        </div>
-        <div className="text-sm text-gray-500 mb-4">
-          Leads with no CRM activity in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total
-        </div>
-        {(data?.awaiting.length ?? 0) > 0 ? (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left">
-                <th className="py-2.5 font-normal">Lead</th>
-                <th className="py-2.5 font-normal">Counsellor</th>
-                <th className="py-2.5 font-normal">Source</th>
-                <th className="py-2.5 font-normal text-right">Days idle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data!.awaiting.map((a, i) => (
-                <tr key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
-                  className="border-t border-gray-100 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
-                  <td className="py-2.5 text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></td>
-                  <td className="py-2.5">{a.counsellor}</td>
-                  <td className="py-2.5">{a.source}</td>
-                  <td className="py-2.5 text-right">{a.daysUntouched}</td>
-                </tr>
-              ))}
-              {data && data.awaitingTotal > data.awaiting.length && (
-                <tr className="border-t border-gray-100 text-gray-500 italic">
-                  <td className="py-2.5">+{fmtInt(data.awaitingTotal - data.awaiting.length)} more…</td>
-                  <td /><td /><td />
-                </tr>
-              )}
-            </tbody>
-          </table>
-        ) : (
-          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "Nothing awaiting activity in this range"}</div>
-        )}
-      </Card>
-
-      {/* ── Section: Revenue trend (month-wise, follows range) ── */}
-      {data && data.revenueTrend.length > 0 && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Revenue trend</div>
-            <div className="text-sm text-gray-500">Month-wise · follows the selected range</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts closed per month. Recent months often show closings before their ₹ amount is entered — revenue trails by a month or two.</div>
-          <RevenueTrendChart data={data.revenueTrend} />
-        </Card>
-      )}
-
-      {/* ── Section: Call activity ── */}
-      {data && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Call activity</div>
-            <div className="text-sm text-gray-500">Performance Metrics table</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">Inbound + outbound call counts and durations logged in this range.</div>
-          {data.callActivity.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-left">
-                  <th className="py-2.5 font-normal">Counsellor</th>
-                  <th className="py-2.5 font-normal text-right">Inbound</th>
-                  <th className="py-2.5 font-normal text-right">Outbound</th>
-                  <th className="py-2.5 font-normal text-right">Connected</th>
-                  <th className="py-2.5 font-normal text-right">Call time</th>
-                  <th className="py-2.5 font-normal text-right">Working time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.callActivity.map((c) => (
-                  <tr key={c.name} className="border-t border-gray-100">
-                    <td className="py-2.5">{c.name}</td>
-                    <td className="py-2.5 text-right">{fmtInt(c.inboundCalls)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(c.outboundCalls)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(c.connectedCalls)}</td>
-                    <td className="py-2.5 text-right">{fmtMins(c.totalCallMins)}</td>
-                    <td className="py-2.5 text-right">{fmtMins(c.workingMins)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="text-sm text-gray-400">No call activity logged in this range</div>
-          )}
-        </Card>
-      )}
-
-      {/* ── Section: Meetings ── */}
-      {data && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Meetings</div>
-            <div className="text-sm text-gray-500">Sales System v2.0 table</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">Counsellor meetings held, ratings, and what&apos;s coming up.</div>
-          {data.meetings.totalMeetings > 0 ? (
-            <>
-              <div className="grid grid-cols-3 gap-5 mb-6">
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Meetings held</div>
-                  <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.meetings.totalMeetings)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Avg lead rating</div>
-                  <div className="text-3xl font-medium text-[#232D42] mt-1">
-                    {data.meetings.avgRating != null ? `${data.meetings.avgRating}/5` : "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Upcoming</div>
-                  <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.meetings.upcoming.length)}</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <div className="text-sm font-medium mb-2">Per counsellor</div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-gray-500 text-left">
-                        <th className="py-2 font-normal">Counsellor</th>
-                        <th className="py-2 font-normal text-right">Meetings</th>
-                        <th className="py-2 font-normal text-right">Avg rating</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.meetings.perCounsellor.map((m) => (
-                        <tr key={m.name} className="border-t border-gray-100">
-                          <td className="py-2">{m.name}</td>
-                          <td className="py-2 text-right">{fmtInt(m.meetings)}</td>
-                          <td className="py-2 text-right">{m.avgRating != null ? `${m.avgRating}/5` : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div>
-                  <div className="text-sm font-medium mb-2">Upcoming meetings</div>
-                  {data.meetings.upcoming.length > 0 ? (
-                    <div className="text-sm space-y-2">
-                      {data.meetings.upcoming.slice(0, 6).map((m, i) => (
-                        <div key={i} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0">
-                          <div>
-                            <div>{m.name || "—"}</div>
-                            <div className="text-xs text-gray-500">{m.counsellor || "—"}</div>
-                          </div>
-                          <div className="text-gray-500 text-right">
-                            {fmtDateTime(m.when)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400">Nothing scheduled ahead</div>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="text-sm text-gray-400">No meetings logged in this range</div>
-          )}
-        </Card>
-      )}
-
-      {/* ── Section: Attendance × Distribution ── */}
-      {data && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Attendance × Distribution</div>
-            <div className="text-sm text-gray-500">Attendance + Lead Distribution tables</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">Days available crossed with leads allocated. Context for why a counsellor&apos;s volume is what it is.</div>
-          {data.attendance.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-left">
-                  <th className="py-2.5 font-normal">Counsellor</th>
-                  <th className="py-2.5 font-normal text-right">Present</th>
-                  <th className="py-2.5 font-normal text-right">Absent</th>
-                  <th className="py-2.5 font-normal text-right">Leave</th>
-                  <th className="py-2.5 font-normal text-right">Leads allocated</th>
-                  <th className="py-2.5 font-normal text-right">DM leads</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.attendance.map((a) => (
-                  <tr key={a.name} className="border-t border-gray-100">
-                    <td className="py-2.5">{a.name}</td>
-                    <td className="py-2.5 text-right">{fmtInt(a.daysPresent)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(a.daysAbsent)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(a.daysLeave)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(a.leadsAllocated)}</td>
-                    <td className="py-2.5 text-right">{fmtInt(a.dmLeadsAllocated)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="text-sm text-gray-400">No attendance or distribution rows in this range</div>
-          )}
-        </Card>
-      )}
-
-      {/* ── Section: Re-enquiries ── */}
-      {data && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Re-enquiries</div>
-            <div className="text-sm text-gray-500">Repeat inquirers — warm signal</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">Leads that came back a second time.</div>
-          <div className="grid grid-cols-2 gap-5 mb-4">
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Total re-enquiries in range</div>
-              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.reEnquiries.total)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">With re-enquiry timestamp</div>
-              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.reEnquiries.withinRange)}</div>
-            </div>
-          </div>
-          {data.reEnquiries.recent.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-left">
-                  <th className="py-2.5 font-normal">Lead</th>
-                  <th className="py-2.5 font-normal">Counsellor</th>
-                  <th className="py-2.5 font-normal">Last re-enquiry</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.reEnquiries.recent.map((r, i) => (
-                  <tr key={i} className="border-t border-gray-100">
-                    <td className="py-2.5">{r.name || "—"}</td>
-                    <td className="py-2.5">{r.counsellor}</td>
-                    <td className="py-2.5 text-gray-500">
-                      {fmtDateShort(r.lastReEnquiryAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="text-sm text-gray-400">No re-enquiries logged in this range</div>
-          )}
-        </Card>
-      )}
-
-      {/* ── Section: Walk-in enquiries ── */}
-      {data && (
-        <Card>
-          <div className="flex items-baseline justify-between mb-1">
-            <div className="text-base font-medium text-[#232D42]">Walk-in enquiries</div>
-            <div className="text-sm text-gray-500">Office Enquiries table</div>
-          </div>
-          <div className="text-sm text-gray-500 mb-5">In-person funnel — separate from digital DM leads.</div>
-          <div className="grid grid-cols-3 gap-5 mb-6">
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Walk-ins in range</div>
-              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.total)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Countries of interest</div>
-              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.byCountry.length)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Specialties mentioned</div>
-              <div className="text-3xl font-medium text-[#232D42] mt-1">{fmtInt(data.walkIns.byInterest.length)}</div>
-            </div>
-          </div>
-          {data.walkIns.total > 0 && (
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <div className="text-sm font-medium mb-2">Top target countries</div>
-                <TableList rows={data.walkIns.byCountry} total={data.walkIns.total} loading={false} />
-              </div>
-              <div>
-                <div className="text-sm font-medium mb-2">Top specialties</div>
-                <TableList rows={data.walkIns.byInterest} total={data.walkIns.total} loading={false} />
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* ── Section: Geography ── */}
+      {/* ══ 9. Geography — India state map ══ */}
       {data && data.geography.length > 0 && (
         <Card>
           <div className="flex items-baseline justify-between mb-1">
             <div className="text-base font-medium text-[#232D42]">Geography</div>
-            <div className="text-sm text-gray-500">Location field on CRM</div>
+            <div className="text-sm text-gray-500">Leads by Indian state</div>
           </div>
-          <div className="text-sm text-gray-500 mb-5">Where leads are physically located.</div>
-          <TableList rows={data.geography} total={data.totals.leads} loading={false} />
+          <div className="text-sm text-gray-500 mb-4">Where leads are physically located — hover a state for its exact count.</div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 items-center">
+            <div className="h-[360px]"><IndiaStatesMap entries={data.geography} /></div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-3">Top states</div>
+              {data.geography.slice(0, 10).map((g) => {
+                const max = data.geography[0]?.count || 1;
+                const pct = data.totals.leads ? Math.round((g.count / data.totals.leads) * 100) : 0;
+                return (
+                  <div key={g.name} className="mb-2.5">
+                    <div className="flex justify-between text-[12.5px] mb-1">
+                      <span className="text-[#3B4457] truncate">{g.name}</span>
+                      <span className="tabular-nums font-medium text-[#232D42]">{fmtInt(g.count)} <span className="text-gray-400 font-normal">{pct}%</span></span>
+                    </div>
+                    <span className="block h-[7px] rounded-full bg-[#F3F5FA] overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${(g.count / max) * 100}%` }} /></span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </Card>
       )}
 
@@ -1023,95 +707,342 @@ type FCLead = {
   contacted: boolean; firstContactHrs: number | null; counsellor: string;
 };
 
-// Standalone Sales Hub table: every lead in the range with its first-contact signal.
-function LeadsFirstContact({ range }: { range: { from: string; to: string } }) {
+const initials = (n: string) => (n || "?").split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Sales Hub leads table — a compact, paginated (10/page) first-contact tracker with
+// its own date window + counsellor filter. This is the "pull back a counsellor's
+// leads by date" tool: pick a counsellor + range, see interest/status, export.
+const PER_PAGE = 10;
+function LeadsFirstContact() {
+  const [days, setDays] = useState<7 | 30 | 60 | 90 | "custom">(30);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [leads, setLeads] = useState<FCLead[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "contacted" | "not">("all");
+  const [statusF, setStatusF] = useState<"all" | "contacted" | "not">("all");
+  const [counsellorF, setCounsellorF] = useState<string>("all");
+  const [page, setPage] = useState(0);
+
+  const win = useMemo(() => {
+    if (days === "custom") return customFrom && customTo ? { from: customFrom, to: customTo } : null;
+    const to = new Date();
+    const from = new Date(to.getTime() - (days - 1) * 86_400_000);
+    return { from: ymdLocal(from), to: ymdLocal(to) };
+  }, [days, customFrom, customTo]);
 
   useEffect(() => {
+    if (!win) return;
     let cancelled = false;
-    setLeads(null); setErr(null);
-    const qs = new URLSearchParams({ name: "all", from: range.from, to: range.to }).toString();
+    setLeads(null); setErr(null); setPage(0);
+    const qs = new URLSearchParams({ name: "all", from: win.from, to: win.to }).toString();
     fetch(`/api/leads-crm/counsellor?${qs}`)
       .then((r) => r.json())
       .then((j) => { if (!cancelled) { if (j.error) setErr(j.error); else setLeads(j.leads as FCLead[]); } })
       .catch((e) => { if (!cancelled) setErr(String(e)); });
     return () => { cancelled = true; };
-  }, [range.from, range.to]);
+  }, [win?.from, win?.to]);
 
-  const stats = useMemo(() => {
-    if (!leads) return { total: 0, contacted: 0, pct: 0 };
-    const contacted = leads.filter((l) => l.contacted).length;
-    return { total: leads.length, contacted, pct: leads.length ? Math.round((contacted / leads.length) * 100) : 0 };
+  // Reset to page 1 whenever a filter changes.
+  useEffect(() => { setPage(0); }, [q, statusF, counsellorF]);
+
+  const counsellorOpts = useMemo(() => {
+    if (!leads) return [] as { name: string; n: number }[];
+    const m = new Map<string, number>();
+    for (const l of leads) { const c = l.counsellor || "Unassigned"; m.set(c, (m.get(c) || 0) + 1); }
+    return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
   }, [leads]);
 
-  const visible = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!leads) return [];
     const needle = q.trim().toLowerCase();
     let out = leads;
-    if (filter === "contacted") out = out.filter((l) => l.contacted);
-    else if (filter === "not") out = out.filter((l) => !l.contacted);
+    if (counsellorF !== "all") out = out.filter((l) => (l.counsellor || "Unassigned") === counsellorF);
+    if (statusF === "contacted") out = out.filter((l) => l.contacted);
+    else if (statusF === "not") out = out.filter((l) => !l.contacted);
     if (needle) out = out.filter((l) => (l.name || "").toLowerCase().includes(needle) || (l.mobile || "").includes(needle) || (l.source || "").toLowerCase().includes(needle));
     return out;
-  }, [leads, q, filter]);
+  }, [leads, q, statusF, counsellorF]);
 
-  const CAP = 200;
-  const shown = visible.slice(0, CAP);
+  const contactedN = useMemo(() => filtered.filter((l) => l.contacted).length, [filtered]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const cur = Math.min(page, pageCount - 1);
+  const shown = filtered.slice(cur * PER_PAGE, cur * PER_PAGE + PER_PAGE);
+
+  // Windowed page numbers (max 5 around the current page).
+  const pageNums = useMemo(() => {
+    const nums: number[] = [];
+    const start = Math.max(0, Math.min(cur - 2, pageCount - 5));
+    const end = Math.min(pageCount, Math.max(cur + 3, 5));
+    for (let i = Math.max(0, start); i < end; i++) nums.push(i);
+    return nums;
+  }, [cur, pageCount]);
+
+  function exportCsv() {
+    const header = ["Name", "Assigned to", "Source", "Status", "Created", "Contacted", "Time to first contact (hrs)"];
+    const rows = filtered.map((l) => [l.name, l.counsellor, l.source, l.status, (l.createdAt || "").slice(0, 10), l.contacted ? "Yes" : "No", l.firstContactHrs == null ? "" : String(l.firstContactHrs)]);
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    navigator.clipboard?.writeText(csv);
+  }
+
+  const RANGES: (7 | 30 | 60 | 90 | "custom")[] = [7, 30, 60, 90, "custom"];
 
   return (
     <Card>
       <div className="flex items-baseline justify-between mb-1 flex-wrap gap-2">
         <div className="text-base font-medium text-[#232D42]">Leads · first-contact tracking</div>
-        {leads && <div className="text-sm text-gray-500">{stats.contacted} of {stats.total} contacted · {stats.pct}%</div>}
+        {leads && <div className="text-sm text-gray-500">{contactedN} of {filtered.length} contacted · {filtered.length ? Math.round((contactedN / filtered.length) * 100) : 0}%</div>}
       </div>
       <div className="text-[12.5px] text-gray-500 mb-4">Contacted = status left &ldquo;New&rdquo;, a note was added, or a call was attempted — whichever came first. Time colour-coded by SLA (green &lt;24h · amber 24–48h · red &gt;48h). <span className="text-gray-400">Approximate for now.</span></div>
 
-      {leads && (
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {(["all", "contacted", "not"] as const).map((k) => (
-            <button key={k} onClick={() => setFilter(k)} className={`text-xs font-semibold rounded-full px-3 py-1.5 border ${filter === k ? "bg-brand text-white border-brand" : "bg-white text-[#3B4457] border-gray-200 hover:bg-gray-50"}`}>
-              {k === "all" ? "All" : k === "contacted" ? "Contacted" : "Not yet"}
+      {/* Filter row: counsellor · date range · status · search · export */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <select value={counsellorF} onChange={(e) => setCounsellorF(e.target.value)} className="text-[12.5px] border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 bg-white focus:outline-none focus:border-brand">
+          <option value="all">All counsellors</option>
+          {counsellorOpts.map((c) => <option key={c.name} value={c.name}>{c.name} ({c.n})</option>)}
+        </select>
+        <span className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+          {RANGES.map((r) => (
+            <button key={String(r)} onClick={() => setDays(r)} className={`text-xs font-semibold px-3 py-1.5 border-r border-gray-100 last:border-r-0 ${days === r ? "bg-brand text-white" : "bg-white text-[#5b6472] hover:bg-gray-50"}`}>
+              {r === "custom" ? "Custom" : `${r}d`}
             </button>
           ))}
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, source…" className="ml-auto text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-64 max-w-full focus:outline-none focus:border-brand" />
-        </div>
-      )}
+        </span>
+        {days === "custom" && (
+          <span className="inline-flex items-center gap-1">
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5" />
+            <span className="text-gray-400 text-xs">→</span>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5" />
+          </span>
+        )}
+        {(["all", "contacted", "not"] as const).map((k) => (
+          <button key={k} onClick={() => setStatusF(k)} className={`text-xs font-semibold rounded-full px-3 py-1.5 border ${statusF === k ? "bg-brand text-white border-brand" : "bg-white text-[#3B4457] border-gray-200 hover:bg-gray-50"}`}>
+            {k === "all" ? "All" : k === "contacted" ? "Contacted" : "Not yet"}
+          </button>
+        ))}
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, source…" className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-56 max-w-full focus:outline-none focus:border-brand" />
+        <button onClick={exportCsv} disabled={!leads || filtered.length === 0} className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[#3B4457] hover:border-brand disabled:opacity-50">⬇ Export</button>
+      </div>
 
       {err && <div className="text-sm text-red-600 py-6">{err}</div>}
       {!leads && !err && <div className="text-sm text-gray-400 py-6">Loading leads…</div>}
+      {days === "custom" && !win && <div className="text-sm text-gray-400 py-6">Pick a start and end date.</div>}
       {leads && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left border-b border-gray-100">
-                <th className="py-2.5 font-normal min-w-[150px]">Lead</th>
-                <th className="py-2.5 font-normal">Source</th>
-                <th className="py-2.5 font-normal">Status</th>
-                <th className="py-2.5 font-normal">Created</th>
-                <th className="py-2.5 font-normal">Contacted</th>
-                <th className="py-2.5 font-normal text-right">Time to 1st contact</th>
-                <th className="py-2.5 font-normal"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((l) => (
-                <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2.5 font-medium text-[#232D42]">{l.name || "—"}</td>
-                  <td className="py-2.5 text-gray-600">{l.source || "—"}</td>
-                  <td className="py-2.5">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
-                  <td className="py-2.5 text-gray-500">{l.createdAt ? l.createdAt.slice(0, 10) : "—"}</td>
-                  <td className="py-2.5"><ContactedCell contacted={l.contacted} /></td>
-                  <td className="py-2.5 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
-                  <td className="py-2.5 text-right">{l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="text-brand hover:underline text-xs">Open ↗</a>}</td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 text-left border-b border-gray-100">
+                  <th className="py-2.5 font-normal min-w-[150px]">Lead</th>
+                  <th className="py-2.5 font-normal">Assigned to</th>
+                  <th className="py-2.5 font-normal">Source</th>
+                  <th className="py-2.5 font-normal">Status</th>
+                  <th className="py-2.5 font-normal">Created</th>
+                  <th className="py-2.5 font-normal">Contacted</th>
+                  <th className="py-2.5 font-normal text-right">Time to 1st contact</th>
+                  <th className="py-2.5 font-normal"></th>
                 </tr>
-              ))}
-              {shown.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-gray-400">No leads match</td></tr>}
-            </tbody>
-          </table>
-          {visible.length > CAP && <div className="text-xs text-gray-400 mt-3">Showing first {CAP} of {visible.length} — refine with search or the filter above.</div>}
-        </div>
+              </thead>
+              <tbody>
+                {shown.map((l) => (
+                  <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2.5 font-medium text-[#232D42]">{l.name || "—"}</td>
+                    <td className="py-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-gray-700">
+                        <span className="w-5 h-5 rounded-full bg-brand-light text-brand grid place-items-center text-[9px] font-bold">{initials(l.counsellor)}</span>
+                        {l.counsellor || "Unassigned"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-gray-600">{l.source || "—"}</td>
+                    <td className="py-2.5">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
+                    <td className="py-2.5 text-gray-500">{l.createdAt ? l.createdAt.slice(0, 10) : "—"}</td>
+                    <td className="py-2.5"><ContactedCell contacted={l.contacted} /></td>
+                    <td className="py-2.5 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
+                    <td className="py-2.5 text-right">{l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="text-brand hover:underline text-xs">Open ↗</a>}</td>
+                  </tr>
+                ))}
+                {shown.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-gray-400">No leads match</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between flex-wrap gap-3 mt-4">
+              <div className="text-xs text-gray-500">Showing {cur * PER_PAGE + 1}–{Math.min(filtered.length, cur * PER_PAGE + PER_PAGE)} of {filtered.length}</div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-brand disabled:opacity-40 disabled:hover:border-gray-200">‹</button>
+                {pageNums[0] > 0 && <span className="px-1 text-gray-400 text-xs">…</span>}
+                {pageNums.map((n) => (
+                  <button key={n} onClick={() => setPage(n)} className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs font-semibold ${n === cur ? "bg-brand text-white border-brand" : "bg-white text-[#3B4457] border-gray-200 hover:border-brand"}`}>{n + 1}</button>
+                ))}
+                {pageNums[pageNums.length - 1] < pageCount - 1 && <span className="px-1 text-gray-400 text-xs">…</span>}
+                <button onClick={() => setPage(Math.min(pageCount - 1, cur + 1))} disabled={cur >= pageCount - 1} className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-brand disabled:opacity-40 disabled:hover:border-gray-200">›</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ── Per-section date window (its own filter, independent of the page range) ──
+type WinDays = 7 | 30 | 60 | 90 | "custom";
+function RangeButtons({ value, onChange }: { value: WinDays; onChange: (d: WinDays) => void }) {
+  const R: WinDays[] = [7, 30, 60, 90, "custom"];
+  return (
+    <span className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+      {R.map((r) => (
+        <button key={String(r)} onClick={() => onChange(r)} className={`text-xs font-semibold px-3 py-1.5 border-r border-gray-100 last:border-r-0 ${value === r ? "bg-brand text-white" : "bg-white text-[#5b6472] hover:bg-gray-50"}`}>
+          {r === "custom" ? "Custom" : `${r}d`}
+        </button>
+      ))}
+    </span>
+  );
+}
+function CustomDates({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5" />
+      <span className="text-gray-400 text-xs">→</span>
+      <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5" />
+    </span>
+  );
+}
+// Fetch all leads (read-only) for a rolling/custom window — reused by the status
+// snapshot and inflow sections so each can have its own date filter. The name=all
+// fetch is cached per {window}, so sections sharing a window share the read.
+function useWindowLeads(days: WinDays, customFrom: string, customTo: string) {
+  const [leads, setLeads] = useState<FCLead[] | null>(null);
+  const win = useMemo(() => {
+    if (days === "custom") return customFrom && customTo ? { from: customFrom, to: customTo } : null;
+    const to = new Date();
+    const from = new Date(to.getTime() - (days - 1) * 86_400_000);
+    return { from: ymdLocal(from), to: ymdLocal(to) };
+  }, [days, customFrom, customTo]);
+  useEffect(() => {
+    if (!win) { setLeads(null); return; }
+    let cancelled = false;
+    setLeads(null);
+    fetch(`/api/leads-crm/counsellor?name=all&from=${win.from}&to=${win.to}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setLeads((j.leads || []) as FCLead[]); })
+      .catch(() => { if (!cancelled) setLeads([]); });
+    return () => { cancelled = true; };
+  }, [win?.from, win?.to]);
+  return { leads, win };
+}
+
+function StatusSnapshot() {
+  const [days, setDays] = useState<WinDays>(30);
+  const [cf, setCf] = useState(""); const [ct, setCt] = useState("");
+  const { leads } = useWindowLeads(days, cf, ct);
+  const rows = useMemo(() => {
+    if (!leads) return null;
+    const m = new Map<string, number>();
+    for (const l of leads) { const s = l.status || "—"; m.set(s, (m.get(s) || 0) + 1); }
+    return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [leads]);
+  const total = rows ? rows.reduce((s, r) => s + r.count, 0) : 0;
+  const max = rows && rows[0] ? rows[0].count : 1;
+  // Only the top 7 statuses matter; the long tail of 1–2 count statuses becomes "Other".
+  const TOP = 7;
+  const display = useMemo(() => {
+    if (!rows) return [];
+    if (rows.length <= TOP + 1) return rows;
+    const head = rows.slice(0, TOP);
+    const tail = rows.slice(TOP);
+    return [...head, { name: "Other", count: tail.reduce((s, r) => s + r.count, 0) }];
+  }, [rows]);
+  return (
+    <Card className="h-full">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div><div className="text-base font-medium text-[#232D42]">Status snapshot</div><div className="text-sm text-gray-500">where every lead sits{rows ? ` · ${fmtInt(total)} leads` : ""}</div></div>
+        <div className="flex items-center gap-2"><RangeButtons value={days} onChange={setDays} />{days === "custom" && <CustomDates from={cf} to={ct} setFrom={setCf} setTo={setCt} />}</div>
+      </div>
+      {!rows ? <div className="text-sm text-gray-400 py-6">Loading…</div> :
+        rows.length === 0 ? <div className="text-sm text-gray-400 py-6">No leads in this window.</div> : (
+          <div className="space-y-2">
+            {display.map((r, i) => { const shade = SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)]; const pct = total ? (r.count / total) * 100 : 0; return (
+              <div key={r.name} className="grid grid-cols-[150px_1fr_92px] items-center gap-3 text-[12.5px]">
+                <span className="text-[#3B4457] truncate">{r.name}</span>
+                <span className="h-[10px] rounded-full bg-[#F3F5FA] overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${(r.count / max) * 100}%`, background: shade }} /></span>
+                <span className="text-right tabular-nums"><b className="font-medium text-[#232D42]">{fmtInt(r.count)}</b> <span className="text-gray-400">{pct.toFixed(1)}%</span></span>
+              </div>
+            ); })}
+          </div>
+        )}
+    </Card>
+  );
+}
+
+function LeadInflow() {
+  const [days, setDays] = useState<WinDays>(30);
+  const [cf, setCf] = useState(""); const [ct, setCt] = useState("");
+  const [hi, setHi] = useState<number | null>(null);
+  const { leads, win } = useWindowLeads(days, cf, ct);
+  const chart = useMemo(() => {
+    if (!leads || !win) return null;
+    const m = new Map<string, number>();
+    for (const l of leads) { const d = (l.createdAt || "").slice(0, 10); if (d) m.set(d, (m.get(d) || 0) + 1); }
+    const series: { date: string; count: number }[] = [];
+    const start = new Date(win.from + "T00:00:00"), end = new Date(win.to + "T00:00:00");
+    for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) series.push({ date: ymdLocal(new Date(t)), count: m.get(ymdLocal(new Date(t))) || 0 });
+    if (!series.length) return null;
+    const max = Math.max(1, ...series.map((d) => d.count));
+    const total = series.reduce((s, d) => s + d.count, 0);
+    const W = 400, H = 90;
+    const coords = series.map((d, i) => ({ x: (i / Math.max(1, series.length - 1)) * W, y: H - (d.count / max) * H, date: d.date, count: d.count }));
+    const points = coords.map((c) => `${c.x},${c.y}`).join(" ");
+    const peakI = coords.reduce((bi, c, i, arr) => (c.count > arr[bi].count ? i : bi), 0);
+    return { points, coords, peakI, peak: series[peakI], total, avg: Math.round(total / series.length), n: series.length, W, H, from: win.from, to: win.to };
+  }, [leads, win]);
+  const dayLabel = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return (
+    <Card className="h-full">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div><div className="text-base font-medium text-[#232D42]">Lead inflow — daily</div><div className="text-sm text-gray-500">new leads created per day · hover any day for its count</div></div>
+        <div className="flex items-center gap-2"><RangeButtons value={days} onChange={setDays} />{days === "custom" && <CustomDates from={cf} to={ct} setFrom={setCf} setTo={setCt} />}</div>
+      </div>
+      {!chart ? <div className="text-sm text-gray-400 py-10">{days === "custom" ? "Pick a start and end date." : "Loading…"}</div> : (
+        <>
+          <div className="flex items-baseline gap-6 mb-3">
+            <div><div className="text-2xl font-medium text-[#232D42]">{fmtInt(chart.avg)}</div><div className="text-xs text-gray-500 uppercase tracking-wide">Avg / day</div></div>
+            <div><div className="text-2xl font-medium text-[#232D42]">{fmtInt(chart.peak.count)}</div><div className="text-xs text-gray-500 uppercase tracking-wide">Peak · {dayLabel(chart.peak.date)}</div></div>
+          </div>
+          <div
+            className="relative h-28 select-none"
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const frac = (e.clientX - rect.left) / rect.width;
+              setHi(Math.max(0, Math.min(chart.n - 1, Math.round(frac * (chart.n - 1)))));
+            }}
+            onMouseLeave={() => setHi(null)}
+          >
+            <svg viewBox={`0 0 ${chart.W} ${chart.H}`} preserveAspectRatio="none" className="block w-full h-28">
+              <polyline points={chart.points} fill="none" stroke="#3A57E8" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              <polyline points={`${chart.points} ${chart.W},${chart.H} 0,${chart.H}`} fill="#3A57E8" fillOpacity="0.08" stroke="none" />
+            </svg>
+            {/* peak marker (always on) */}
+            <span className="absolute w-2 h-2 rounded-full bg-brand ring-2 ring-white -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ left: `${(chart.coords[chart.peakI].x / chart.W) * 100}%`, top: `${(chart.coords[chart.peakI].y / chart.H) * 112}px` }} />
+            {/* hover guide + dot + tooltip */}
+            {hi != null && chart.coords[hi] && (
+              <>
+                <span className="absolute top-0 bottom-0 w-px bg-brand/25 pointer-events-none" style={{ left: `${(chart.coords[hi].x / chart.W) * 100}%` }} />
+                <span className="absolute w-2.5 h-2.5 rounded-full bg-white border-[1.5px] border-brand -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ left: `${(chart.coords[hi].x / chart.W) * 100}%`, top: `${(chart.coords[hi].y / chart.H) * 112}px` }} />
+                <span className="absolute -translate-x-1/2 -translate-y-full pointer-events-none z-10 whitespace-nowrap rounded-md bg-[#232D42] px-2 py-1 text-[11px] leading-none text-white shadow"
+                  style={{ left: `${(chart.coords[hi].x / chart.W) * 100}%`, top: `${(chart.coords[hi].y / chart.H) * 112 - 6}px` }}>
+                  {dayLabel(chart.coords[hi].date)} · <b>{fmtInt(chart.coords[hi].count)}</b> {chart.coords[hi].count === 1 ? "lead" : "leads"}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="flex justify-between text-sm text-gray-500 mt-2"><span>{dayLabel(chart.from)}</span><span>{chart.total} total · {dayLabel(chart.to)}</span></div>
+        </>
       )}
     </Card>
   );
@@ -1163,7 +1094,7 @@ function KpiTile({ label, value, hint, tone, icon: Icon }: { label: string; valu
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white rounded-xl border border-gray-100 p-6 ${className}`}>{children}</div>;
+  return <div className={`bg-white rounded-xl border border-gray-100 p-5 ${className}`}>{children}</div>;
 }
 
 function RevenueTrendChart({ data }: { data: { month: string; revenue: number; contracts: number }[] }) {
