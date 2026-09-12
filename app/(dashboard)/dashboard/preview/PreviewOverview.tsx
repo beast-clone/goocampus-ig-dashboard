@@ -147,7 +147,7 @@ const PLATFORMS = [
 type PlatformKey = (typeof PLATFORMS)[number]["key"];
 type RangeKey = "7d" | "30d" | "60d" | "1y" | "custom";
 
-export function PreviewOverview() {
+export function PreviewOverview({ person = "" }: { person?: string }) {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
   const [brandOpen, setBrandOpen] = useState(false);
   const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
@@ -429,7 +429,7 @@ export function PreviewOverview() {
 
           {platform !== "instagram" ? (
             <>
-              <PlatformHero platform={platform} accountId={accountId} range={range} rangeLabel={rangeLabel} />
+              <PlatformHero platform={platform} accountId={accountId} range={range} rangeLabel={rangeLabel} person={person} />
               <div className="preview-scope">
                 <Card>
                   <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>{PLATFORMS.find((p) => p.key === platform)?.label} overview</div>
@@ -442,7 +442,7 @@ export function PreviewOverview() {
           ) : (
             <>
               {/* Hero — narrative fold */}
-              <HeroBanner eyebrow={`${currentAccount.handle} · ${rangeLabel}`}>
+              <HeroBanner eyebrow={`${currentAccount.handle} · ${rangeLabel}`} person={person}>
                 {t ? (insStored
                   ? <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period, reaching <b>{fmt(t.reach)}</b> — from your saved history.</>
                   : <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period{d ? <> — reach is <b>{d.reach >= 0 ? "up" : "down"} {Math.abs(d.reach).toFixed(1)}%</b> and engagement <b>{d.engagement >= 0 ? "up" : "down"} {Math.abs(d.engagement).toFixed(1)}%</b>. Solid month.</> : "."}</>
@@ -584,7 +584,7 @@ export function PreviewOverview() {
                   Which format wins owns the taller right column. 40/60 split, top-aligned. */}
               <div style={{ display: "grid", gridTemplateColumns: "2fr 3fr", gap: 16, alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-                  <PostMix mix={postMix} cardStyle={{ minWidth: 0 }} />
+                  <PostMix mix={postMix} loading={rangePosts === null} cardStyle={{ minWidth: 0 }} />
                   {/* Hashtags reused from the shared component (post mix, format card &
                       reposts hidden here — drawn Themed / on the right instead). */}
                   <div className="preview-scope">
@@ -621,14 +621,20 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 // The blue gradient greeting banner — shared by every platform tab.
-function HeroBanner({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
+// `person` is the signed-in teammate's full name (e.g. "Maheen Ejaz"); we greet
+// them by name, falling back to the brand only if no name is available.
+function HeroBanner({ eyebrow, person = "", children }: { eyebrow: string; person?: string; children: React.ReactNode }) {
   return (
     <section style={{ position: "relative", overflow: "hidden", borderRadius: 16, padding: "30px 34px", background: `linear-gradient(120deg, ${C.primary} 0%, ${C.primaryDark} 55%, ${C.navy} 100%)`, color: "#fff", boxShadow: "0 18px 40px rgba(58,87,232,0.28)" }}>
       <div style={{ position: "absolute", right: -40, top: -60, width: 260, height: 260, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
       <div style={{ position: "absolute", right: 90, bottom: -90, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
       <div style={{ position: "relative" }}>
         <div style={{ fontSize: 13, opacity: 0.85, fontWeight: 500 }}>{eyebrow}</div>
-        <h1 style={{ fontSize: 32, fontWeight: 500, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, GooCampus 👋</h1>
+        {/* suppressHydrationWarning: greeting() is time-based, so the server (UTC)
+            and the browser (local time) can differ near an hour boundary. The name
+            is deterministic; only the greeting word may differ, and it self-corrects
+            on the first client re-render. */}
+        <h1 suppressHydrationWarning style={{ fontSize: 32, fontWeight: 500, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, {person || "GooCampus"} 👋</h1>
         <p style={{ fontSize: 15, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
       </div>
     </section>
@@ -637,7 +643,7 @@ function HeroBanner({ eyebrow, children }: { eyebrow: string; children: React.Re
 
 // Same banner for Facebook / LinkedIn / YouTube, with that platform's real
 // headline metrics (fetched the same way the panel below it fetches).
-function PlatformHero({ platform, accountId, range, rangeLabel }: { platform: PlatformKey; accountId: string; range: { from: string; to: string }; rangeLabel: string }) {
+function PlatformHero({ platform, accountId, range, rangeLabel, person = "" }: { platform: PlatformKey; accountId: string; range: { from: string; to: string }; rangeLabel: string; person?: string }) {
   const label = platform === "facebook" ? "Facebook" : platform === "linkedin" ? "LinkedIn" : "YouTube";
   const connected = platform === "facebook" ? true : platform === "linkedin" ? !!LI_PAGE[accountId] : !!YT_CHANNEL[accountId];
   const url = useMemo(() => {
@@ -673,7 +679,7 @@ function PlatformHero({ platform, accountId, range, rangeLabel }: { platform: Pl
     sub = <>You have <b>{fmt(s.followers || 0)}</b> followers (<b>+{s.followerGain || 0}</b> this period) with a <b>{s.engagementRate || 0}%</b> engagement rate across <b>{s.posts || 0}</b> posts.</>;
   }
 
-  return <HeroBanner eyebrow={`GooCampus on ${label} · ${rangeLabel}`}>{sub}</HeroBanner>;
+  return <HeroBanner eyebrow={`GooCampus on ${label} · ${rangeLabel}`} person={person}>{sub}</HeroBanner>;
 }
 
 // "Old winners worth reposting" — Themed card grid (same data as the real
@@ -731,10 +737,12 @@ function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
 }
 
 // Post mix — Themed donut with the new palette + a plain-English read.
-function PostMix({ mix, cardStyle }: { mix: { total: number; entries: { type: string; count: number; pct: number }[] }; cardStyle?: React.CSSProperties }) {
+// `loading` is true while the range posts are still in flight (rangePosts === null);
+// we show a neutral skeleton instead of a hard "0 Posts", which reads as broken data.
+function PostMix({ mix, loading, cardStyle }: { mix: { total: number; entries: { type: string; count: number; pct: number }[] }; loading?: boolean; cardStyle?: React.CSSProperties }) {
   const stops: string[] = []; let from = 0;
   for (const e of mix.entries) { const c = fmtMeta(e.type).color; const to = from + (e.pct / 100) * 360; stops.push(`${c} ${from.toFixed(1)}deg ${to.toFixed(1)}deg`); from = to; }
-  const gradient = stops.length ? `conic-gradient(${stops.join(", ")})` : `conic-gradient(${C.line} 0deg 360deg)`;
+  const gradient = loading || !stops.length ? `conic-gradient(${C.line} 0deg 360deg)` : `conic-gradient(${stops.join(", ")})`;
   return (
     <Card style={cardStyle}>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Post mix</div>
@@ -743,11 +751,17 @@ function PostMix({ mix, cardStyle }: { mix: { total: number; entries: { type: st
         <div style={{ position: "relative", width: 132, height: 132, flexShrink: 0 }}>
           <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: gradient }} />
           <div style={{ position: "absolute", inset: 15, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center", textAlign: "center" }}>
-            <div><div style={{ fontSize: 25, fontWeight: 600, color: C.heading }}>{mix.total}</div><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
+            <div><div style={{ fontSize: 25, fontWeight: 600, color: loading ? C.muted : C.heading }}>{loading ? "…" : mix.total}</div><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 13 }}>
-          {mix.entries.map((e) => { const m = fmtMeta(e.type); return (
+          {loading ? [0, 1, 2].map((i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr 40px", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 11, height: 11, borderRadius: 3, background: "#EEF1FB" }} />
+              <div style={{ height: 6, background: "#EEF1FB", borderRadius: 99 }} />
+              <span />
+            </div>
+          )) : mix.entries.map((e) => { const m = fmtMeta(e.type); return (
             <div key={e.type} style={{ display: "grid", gridTemplateColumns: "16px 1fr 40px", alignItems: "center", gap: 10 }}>
               <span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} />
               <div>

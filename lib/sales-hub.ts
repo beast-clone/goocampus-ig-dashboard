@@ -207,6 +207,20 @@ export async function createTransferRequest(input: TransferRequestInput): Promis
   return { id: json.id, requestId: typeof reqNo === "number" ? reqNo : undefined };
 }
 
+// Refresh window for the read-only Sales Hub snapshots.
+//
+// The team works ~09:00–21:00 IST and only checks the dashboard during (and a bit
+// around) those hours, so there is no reason to re-hit Airtable overnight. We
+// refresh from 06:00 IST (so the data is current before the first person arrives)
+// through midnight, and go quiet 00:00–06:00 IST. This is purely a read gate —
+// the dashboard always serves the last stored snapshot, so a late-night viewer
+// still sees data; we just don't spend an Airtable read to refresh it.
+export function inActiveRefreshWindow(now: Date = new Date()): boolean {
+  const istMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes() + 330) % 1440; // UTC+5:30
+  const istHour = Math.floor(istMinutes / 60);
+  return istHour >= 6; // 06:00–23:59 IST → refresh · 00:00–05:59 IST → paused
+}
+
 // Days since anyone last edited a lead.
 //
 // DO NOT read the CRM's "Days Untouched" formula directly. It returns

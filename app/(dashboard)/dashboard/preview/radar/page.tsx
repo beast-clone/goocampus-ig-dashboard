@@ -79,6 +79,10 @@ function Radar() {
   // Real brand mentions (Google News search for the brand) — powers the pulse
   // row's brand tile and the Brand-watch card.
   const [brand, setBrand] = useState<MentionResult | null>(null);
+  // Separate loading flag so the pulse tile shows a skeleton (not a hard "0
+  // mentions") while the brand search is in flight; brand === null alone can't
+  // tell "still loading" apart from "loaded, no data / errored".
+  const [brandLoading, setBrandLoading] = useState(true);
 
   const loadTrends = useCallback(async (force = false) => {
     if (force) setTrendsRefreshing(true);
@@ -95,7 +99,8 @@ function Radar() {
     fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setBrand(d as MentionResult); })
-      .catch(() => { /* brand watch is best-effort */ });
+      .catch(() => { /* brand watch is best-effort */ })
+      .finally(() => setBrandLoading(false));
   }, []);
 
   const load = useCallback(async () => {
@@ -179,7 +184,7 @@ function Radar() {
       )}
 
       {/* Pulse row — at-a-glance stats from real signals (brand mentions first, on top) */}
-      <PulseRow brand={brand} trends={trends} items={items} />
+      <PulseRow brand={brand} brandLoading={brandLoading} trends={trends} items={items} />
 
       {/* Keyword & brand search — "what's the internet saying about X" (below the pulse) */}
       <div id="sec-mentions" className="scroll-mt-24"><KeywordIntel /></div>
@@ -565,7 +570,7 @@ function avatarColor(seed: string): string {
 }
 
 // Pulse row — four at-a-glance stat tiles built from real signals.
-function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trends: TrendsResp | null; items: FeedItem[] }) {
+function PulseRow({ brand, brandLoading, trends, items }: { brand: MentionResult | null; brandLoading?: boolean; trends: TrendsResp | null; items: FeedItem[] }) {
   const risingCount = trends ? trends.ideas.reduce((s, g) => s + g.ideas.length, 0) : 0;
   const breakoutCount = trends?.breakouts.length ?? 0;
   const c = brand?.counts;
@@ -580,6 +585,13 @@ function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trend
           <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
           <span className="text-[11.5px] text-gray-500 font-medium">Brand mentions · 30d</span>
         </div>
+        {brandLoading && !brand ? (
+          <>
+            <div className="h-6 w-20 bg-gray-100 rounded animate-pulse" />
+            <div className="h-1.5 rounded-full bg-gray-100" />
+            <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
+          </>
+        ) : (<>
         <div className="text-2xl font-semibold text-[#232D42] leading-none">{total}<span className="text-xs font-medium text-gray-400"> {total === 1 ? "mention" : "mentions"}</span></div>
         {total > 0 ? (
           <>
@@ -593,6 +605,7 @@ function PulseRow({ brand, trends, items }: { brand: MentionResult | null; trend
         ) : (
           <div className="text-[11px] text-gray-400">Connect Reddit / Reviews to widen brand coverage</div>
         )}
+        </>)}
       </div>
       {/* rising */}
       <PulseTile icon={<IconTrendingUp size={15} stroke={1.8} />} tint="#1aa053" bg="rgba(26,160,83,.1)"

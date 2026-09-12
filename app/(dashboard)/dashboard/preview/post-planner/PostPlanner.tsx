@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
+import { BrandLoader } from "@/components/BrandLoader";
 
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
@@ -250,7 +251,24 @@ export function Planner() {
         </div>
       </div>
 
-      {loading && !data && <div className="animate-pulse space-y-3"><div className="h-16 bg-gray-100 rounded-2xl" /><div className="h-72 bg-gray-100 rounded-2xl" /></div>}
+      {loading && !data && (
+        <div className="space-y-3">
+          {/* Honest, reassuring feedback — building the plan ranks all "ready" posts
+              and pulls history across accounts, which can take ~30–40s cold. Say so
+              instead of showing a bare skeleton that reads as frozen. */}
+          <div className="flex items-start gap-3.5 bg-brand-light border border-brand/20 rounded-2xl px-5 py-4">
+            <BrandLoader size={30} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="text-[14px] font-medium text-[#232D42]">Building your AI plan…</div>
+              <div className="text-[12.5px] text-[#8A92A6] mt-0.5 leading-relaxed">
+                Ranking your ready posts by what&rsquo;s working right now and laying them onto the calendar.
+                First run can take up to <b className="text-[#232D42] font-medium">~40 seconds</b> — it&rsquo;s cached after, so re-opening is quick.
+              </div>
+            </div>
+          </div>
+          <div className="animate-pulse space-y-3"><div className="h-16 bg-gray-100 rounded-2xl" /><div className="h-72 bg-gray-100 rounded-2xl" /></div>
+        </div>
+      )}
       {err && !data && <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">Couldn&rsquo;t build the plan — {err}</div>}
 
       {data && (

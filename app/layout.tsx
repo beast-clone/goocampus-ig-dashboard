@@ -9,8 +9,8 @@ import { CommentMode } from "@/components/CommentMode";
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "GooCampus Instagram Dashboard",
-  description: "Internal analytics dashboard for GooCampus Instagram accounts.",
+  title: "GooCampus Marketing OS",
+  description: "Internal marketing operations & analytics for GooCampus — across Instagram, Facebook, LinkedIn, YouTube, Ads, SEO and web.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

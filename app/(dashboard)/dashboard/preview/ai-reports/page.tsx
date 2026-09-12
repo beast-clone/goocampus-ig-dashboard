@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { BrandLoader } from "@/components/BrandLoader";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { ReportView, PERIOD_META, type ReportPayload, type Period } from "./ReportView";
 
@@ -73,14 +74,27 @@ function AIReports({ accountId }: { accountId: string }) {
     <div className="max-w-[1200px] mx-auto">
       {/* Auto-load skeleton — shown while the monthly report is being prepared on open. */}
       {!report && loading && (
-        <div className="animate-pulse">
-          <div className="h-28 bg-gray-100 rounded-2xl mb-6" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-            {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
+        <div>
+          {/* Reassuring, honest loading feedback — a live report pulls a lot of data
+              and can take ~30s on a cold load, so tell the user that up front rather
+              than showing a bare skeleton that reads as "frozen". */}
+          <div className="flex items-start gap-3.5 bg-brand-light border border-brand/20 rounded-2xl px-5 py-4 mb-6">
+            <BrandLoader size={30} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="text-[14px] font-medium text-[#232D42]">Preparing your {loading} report…</div>
+              <div className="text-[12.5px] text-[#8A92A6] mt-0.5 leading-relaxed">
+                Pulling @{accountId}&rsquo;s insights, posts, audience &amp; followers and writing it up.
+                First run can take up to <b className="text-[#232D42] font-medium">~30 seconds</b> — it&rsquo;s cached for 12 hours after, so re-opening is instant.
+              </div>
+            </div>
           </div>
-          <div className="h-48 bg-gray-100 rounded-2xl mb-4" />
-          <div className="h-64 bg-gray-100 rounded-2xl" />
-          <div className="text-center text-[13px] text-gray-500 mt-6">Preparing your {loading} report…</div>
+          <div className="animate-pulse">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+              {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
+            </div>
+            <div className="h-48 bg-gray-100 rounded-2xl mb-4" />
+            <div className="h-64 bg-gray-100 rounded-2xl" />
+          </div>
         </div>
       )}
 
@@ -92,7 +106,7 @@ function AIReports({ accountId }: { accountId: string }) {
             <h1 className="text-base font-medium mt-1 !text-white">Generate a live performance report</h1>
             <p className="text-[13px] opacity-90 mt-2 max-w-2xl leading-relaxed">
               Pulls your @{accountId} insights, posts, audience and follower data — synthesizes into a
-              structured report. Runs in ~10 seconds. Cached 12h so re-opening is instant.
+              structured report. First run takes up to ~30 seconds; cached 12h so re-opening is instant.
             </p>
           </div>
 

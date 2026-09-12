@@ -5,6 +5,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconAlertTriangle, IconTrendingUp, IconTrophy } from "@tabler/icons-react";
 
 type Counsellor = {
   name: string;
@@ -111,7 +112,10 @@ function fmtHrs(n: number | null): string {
   return `${n.toFixed(1)} hrs`;
 }
 
-const COLORS = ["#3A57E8", "#5DCAA5", "#EF9F27", "#B4B2A9", "#D4537E", "#7F77DD"];
+// "Leads by source" — a tonal ramp of the brand indigo (dark → light) instead of
+// clashing hues, so the chart reads calm and on-brand (Hope UI). bySource is sorted
+// largest-first, so index 0 (the biggest source) gets the darkest shade.
+const SOURCE_SHADES = ["#2138B0", "#3A57E8", "#5A72EC", "#8496F2", "#A6B4F6", "#C6D0FA", "#DCE2FB"];
 
 // Maheen isn't a counsellor — it's the holding pool where leads park as New / Re-Enquiry
 // for the assignment automation. Relabel it everywhere in the UI.
@@ -233,13 +237,13 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {/* KPI strip */}
       <div className="grid grid-cols-7 gap-5">
-        <KpiTile label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
-        <KpiTile label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
-        <KpiTile label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
-        <KpiTile label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first edit · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
-        <KpiTile label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
-        <KpiTile label="Time to convert" value={data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"} hint={data ? `${fmtInt(data.totals.convertCount)} converted · from Revenue Tracker` : "created → paid"} />
-        <KpiTile label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} />
+        <KpiTile icon={IconUsers} label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
+        <KpiTile icon={IconChartLine} label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
+        <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
+        <KpiTile icon={IconClock} label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first contact · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
+        <KpiTile icon={IconAlertTriangle} label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
+        <KpiTile icon={IconTrendingUp} label="Time to convert" value={data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"} hint={data ? `${fmtInt(data.totals.convertCount)} converted · from Revenue Tracker` : "created → paid"} />
+        <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
 
       {/* Leads by source — full-width banner */}
@@ -253,7 +257,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <div key={s.name} className="grid grid-cols-[200px_1fr_auto] items-center gap-3">
               <span className="text-[#3B4457] truncate">{s.name}</span>
               <span className="h-[10px] rounded-full bg-[#F3F5FA] overflow-hidden">
-                <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: COLORS[i % COLORS.length] }} />
+                <span className="block h-full rounded-full" style={{ width: `${(s.count / maxSource) * 100}%`, background: SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)] }} />
               </span>
               <span className="text-right tabular-nums font-medium min-w-[72px]">
                 {fmtInt(s.count)}<span className="text-gray-400 font-normal ml-1.5">{data.totals.leads ? Math.round((s.count / data.totals.leads) * 100) : 0}%</span>
@@ -324,6 +328,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           </div>
         </div>
       </Card>
+
+      {/* Per-lead first-contact tracking — every lead in range, with contacted + time-to-first-contact */}
+      <LeadsFirstContact range={range} />
 
       {/* Assigned to counsellors — table (click a row → drill-down) */}
       <Card>
@@ -866,6 +873,7 @@ type DrillLead = {
   id: string; name: string; mobile: string; source: string; status: string;
   interest: string; campaign: string; createdAt: string; lastActivityAt: string;
   daysUntouched: number; linkToRecord: string;
+  contacted: boolean; firstContactHrs: number | null;
 };
 
 function CounsellorDrilldownModal({ name, range, onClose }: { name: string; range: { from: string; to: string }; onClose: () => void }) {
@@ -972,6 +980,8 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
                   <th className="px-6 py-3 font-normal">Status</th>
                   <th className="px-6 py-3 font-normal">Interest</th>
                   <th className="px-6 py-3 font-normal">Created</th>
+                  <th className="px-6 py-3 font-normal">Contacted</th>
+                  <th className="px-6 py-3 font-normal text-right">Time to 1st contact</th>
                   <th className="px-6 py-3 font-normal text-right">Days idle</th>
                   <th className="px-6 py-3 font-normal"></th>
                 </tr>
@@ -985,6 +995,8 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
                     <td className="px-6 py-3">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
                     <td className="px-6 py-3 text-gray-600">{l.interest || "—"}</td>
                     <td className="px-6 py-3 text-gray-500">{l.createdAt.slice(0, 10)}</td>
+                    <td className="px-6 py-3"><ContactedCell contacted={l.contacted} /></td>
+                    <td className="px-6 py-3 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
                     <td className={`px-6 py-3 text-right ${l.daysUntouched > 7 ? "text-amber-600" : ""}`}>{l.daysUntouched}</td>
                     <td className="px-6 py-3">
                       {l.linkToRecord && (
@@ -994,7 +1006,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
                   </tr>
                 ))}
                 {visible.length === 0 && (
-                  <tr><td colSpan={8} className="px-6 py-10 text-center text-base text-gray-400">No leads match</td></tr>
+                  <tr><td colSpan={10} className="px-6 py-10 text-center text-base text-gray-400">No leads match</td></tr>
                 )}
               </tbody>
             </table>
@@ -1005,12 +1017,146 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
   );
 }
 
-function KpiTile({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: "crit" | "warn" }) {
-  const valueColor = tone === "crit" ? "text-[#C0392B]" : tone === "warn" ? "text-[#B7791F]" : "text-[#232D42]";
+type FCLead = {
+  id: string; name: string; mobile: string; source: string; status: string;
+  createdAt: string; daysUntouched: number; linkToRecord: string;
+  contacted: boolean; firstContactHrs: number | null; counsellor: string;
+};
+
+// Standalone Sales Hub table: every lead in the range with its first-contact signal.
+function LeadsFirstContact({ range }: { range: { from: string; to: string } }) {
+  const [leads, setLeads] = useState<FCLead[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "contacted" | "not">("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLeads(null); setErr(null);
+    const qs = new URLSearchParams({ name: "all", from: range.from, to: range.to }).toString();
+    fetch(`/api/leads-crm/counsellor?${qs}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) { if (j.error) setErr(j.error); else setLeads(j.leads as FCLead[]); } })
+      .catch((e) => { if (!cancelled) setErr(String(e)); });
+    return () => { cancelled = true; };
+  }, [range.from, range.to]);
+
+  const stats = useMemo(() => {
+    if (!leads) return { total: 0, contacted: 0, pct: 0 };
+    const contacted = leads.filter((l) => l.contacted).length;
+    return { total: leads.length, contacted, pct: leads.length ? Math.round((contacted / leads.length) * 100) : 0 };
+  }, [leads]);
+
+  const visible = useMemo(() => {
+    if (!leads) return [];
+    const needle = q.trim().toLowerCase();
+    let out = leads;
+    if (filter === "contacted") out = out.filter((l) => l.contacted);
+    else if (filter === "not") out = out.filter((l) => !l.contacted);
+    if (needle) out = out.filter((l) => (l.name || "").toLowerCase().includes(needle) || (l.mobile || "").includes(needle) || (l.source || "").toLowerCase().includes(needle));
+    return out;
+  }, [leads, q, filter]);
+
+  const CAP = 200;
+  const shown = visible.slice(0, CAP);
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6">
+    <Card>
+      <div className="flex items-baseline justify-between mb-1 flex-wrap gap-2">
+        <div className="text-base font-medium text-[#232D42]">Leads · first-contact tracking</div>
+        {leads && <div className="text-sm text-gray-500">{stats.contacted} of {stats.total} contacted · {stats.pct}%</div>}
+      </div>
+      <div className="text-[12.5px] text-gray-500 mb-4">Contacted = status left &ldquo;New&rdquo;, a note was added, or a call was attempted — whichever came first. Time colour-coded by SLA (green &lt;24h · amber 24–48h · red &gt;48h). <span className="text-gray-400">Approximate for now.</span></div>
+
+      {leads && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {(["all", "contacted", "not"] as const).map((k) => (
+            <button key={k} onClick={() => setFilter(k)} className={`text-xs font-semibold rounded-full px-3 py-1.5 border ${filter === k ? "bg-brand text-white border-brand" : "bg-white text-[#3B4457] border-gray-200 hover:bg-gray-50"}`}>
+              {k === "all" ? "All" : k === "contacted" ? "Contacted" : "Not yet"}
+            </button>
+          ))}
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, source…" className="ml-auto text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-64 max-w-full focus:outline-none focus:border-brand" />
+        </div>
+      )}
+
+      {err && <div className="text-sm text-red-600 py-6">{err}</div>}
+      {!leads && !err && <div className="text-sm text-gray-400 py-6">Loading leads…</div>}
+      {leads && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-500 text-left border-b border-gray-100">
+                <th className="py-2.5 font-normal min-w-[150px]">Lead</th>
+                <th className="py-2.5 font-normal">Source</th>
+                <th className="py-2.5 font-normal">Status</th>
+                <th className="py-2.5 font-normal">Created</th>
+                <th className="py-2.5 font-normal">Contacted</th>
+                <th className="py-2.5 font-normal text-right">Time to 1st contact</th>
+                <th className="py-2.5 font-normal"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((l) => (
+                <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2.5 font-medium text-[#232D42]">{l.name || "—"}</td>
+                  <td className="py-2.5 text-gray-600">{l.source || "—"}</td>
+                  <td className="py-2.5">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
+                  <td className="py-2.5 text-gray-500">{l.createdAt ? l.createdAt.slice(0, 10) : "—"}</td>
+                  <td className="py-2.5"><ContactedCell contacted={l.contacted} /></td>
+                  <td className="py-2.5 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
+                  <td className="py-2.5 text-right">{l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="text-brand hover:underline text-xs">Open ↗</a>}</td>
+                </tr>
+              ))}
+              {shown.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-gray-400">No leads match</td></tr>}
+            </tbody>
+          </table>
+          {visible.length > CAP && <div className="text-xs text-gray-400 mt-3">Showing first {CAP} of {visible.length} — refine with search or the filter above.</div>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// First-contact SLA colour for a "time to first contact" value (hours):
+// green <24h · amber 24–48h · red >48h · grey when not yet contacted.
+function ttcColor(hrs: number | null): string {
+  if (hrs == null) return "#8A92A6";
+  if (hrs < 24) return "#1AA053";
+  if (hrs <= 48) return "#D9861B";
+  return "#E5484D";
+}
+function fmtTtc(hrs: number | null): string {
+  if (hrs == null) return "—";
+  if (hrs < 1) return `${Math.max(1, Math.round(hrs * 60))}m`;
+  if (hrs < 24) { const h = Math.floor(hrs); const m = Math.round((hrs - h) * 60); return m ? `${h}h ${m}m` : `${h}h`; }
+  const d = Math.floor(hrs / 24); const h = Math.round(hrs % 24); return h ? `${d}d ${h}h` : `${d}d`;
+}
+function ContactedCell({ contacted }: { contacted: boolean }) {
+  return contacted ? (
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#137A3E]"><span className="w-[7px] h-[7px] rounded-full" style={{ background: "#1AA053" }} />Contacted</span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-gray-400"><span className="w-[7px] h-[7px] rounded-full" style={{ background: "#C6CBD6" }} />Not yet</span>
+  );
+}
+function TtcCell({ hrs }: { hrs: number | null }) {
+  return <span className="tabular-nums font-semibold" style={{ color: ttcColor(hrs) }}>{fmtTtc(hrs)}</span>;
+}
+
+function KpiTile({ label, value, hint, tone, icon: Icon }: { label: string; value: string; hint: string; tone?: "crit" | "warn" | "good"; icon?: typeof IconUsers }) {
+  const chip = tone === "crit" ? { fg: "#E5484D", bg: "rgba(229,72,77,0.12)" }
+    : tone === "warn" ? { fg: "#D9861B", bg: "rgba(217,134,27,0.13)" }
+    : tone === "good" ? { fg: "#1AA053", bg: "rgba(26,160,83,0.12)" }
+    : { fg: "#3A57E8", bg: "rgba(58,87,232,0.12)" };
+  const valueColor = tone === "crit" ? "text-[#C0392B]" : tone === "warn" ? "text-[#B7791F]" : tone === "good" ? "text-[#0F6B36]" : "text-[#232D42]";
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      {Icon && (
+        <span className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-[9px] mb-3" style={{ background: chip.bg }}>
+          <Icon size={18} stroke={1.8} style={{ color: chip.fg }} />
+        </span>
+      )}
       <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      <div className={`text-3xl font-medium mt-2 ${valueColor}`}>{value}</div>
+      <div className={`text-3xl font-medium mt-1.5 ${valueColor}`}>{value}</div>
       <div className="text-sm text-gray-500 mt-1.5">{hint}</div>
     </div>
   );

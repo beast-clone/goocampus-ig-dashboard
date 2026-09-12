@@ -17,6 +17,7 @@ import {
   DISTRIBUTION_TABLE,
   OFFICE_TABLE,
   idleDays,
+  inActiveRefreshWindow,
 } from "@/lib/sales-hub";
 
 // GET /api/leads-crm?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -120,7 +121,9 @@ type Payload = {
 
 type Cached = { at: number; payload: Payload };
 const CACHE = new Map<string, Cached>();
-const TTL_MS = 24 * 60 * 60 * 1000; // once/day — Airtable is heavy; sales data refreshed daily
+// Refresh at most every 2h during working hours (see inActiveRefreshWindow); the
+// snapshot is served as-is overnight, so the effective cadence is ~2h, 06:00–24:00 IST.
+const TTL_MS = 2 * 60 * 60 * 1000;
 
 const CRM_FIELDS = [
   "Full Name",
@@ -192,7 +195,12 @@ export async function GET(req: Request) {
   const cacheKey = `v2|${from}|${to}`;
   const now = Date.now();
   const cached = CACHE.get(cacheKey);
-  if (!force && cached && now - cached.at < TTL_MS) {
+  const fresh = cached && now - cached.at < TTL_MS;
+  // Serve the stored snapshot without touching Airtable when it's still fresh, OR
+  // when we're in the overnight pause window (00:00–06:00 IST) and already have a
+  // snapshot — so no Airtable reads happen outside working hours. A manual force=1
+  // (the "Refresh now" button) always refetches regardless of the hour.
+  if (!force && cached && (fresh || !inActiveRefreshWindow())) {
     return NextResponse.json({ ...cached.payload, cached: true, cachedAt: new Date(cached.at).toISOString() });
   }
 

@@ -54,6 +54,7 @@ export async function GET(req: Request) {
   targets.push(`/api/ads/breakdowns?from=${from}&to=${to}`);
   targets.push(`/api/leads?accountId=goocampus&from=${from}&to=${to}`);
   targets.push(`/api/leads-crm?from=${from}&to=${to}`);
+  targets.push(`/api/leads-crm/counsellor?name=all&from=${from}&to=${to}`); // Sales Hub per-lead first-contact table
   targets.push(`/api/youtube`);
   targets.push(`/api/youtube/uploads`);
   targets.push(`/api/ai-report?accountId=goocampus&period=monthly`);

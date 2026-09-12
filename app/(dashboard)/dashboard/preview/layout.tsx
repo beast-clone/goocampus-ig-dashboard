@@ -1,5 +1,6 @@
 import { PreviewSidebar } from "./PreviewSidebar";
 import { SHELL_CSS } from "./PreviewShell";
+import { NavProgress } from "./NavProgress";
 
 // Every Version-2 page shares this chrome — the theme root, the flex shell and the
 // sidebar. It lives in the layout so React keeps it mounted across navigation:
@@ -13,6 +14,7 @@ export default function PreviewLayout({ children }: { children: React.ReactNode 
   return (
     <div className="preview-root">
       <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
+      <NavProgress />
       <div className="hshell">
         <PreviewSidebar />
         {children}

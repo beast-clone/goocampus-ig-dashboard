@@ -4,7 +4,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
@@ -1423,21 +1423,31 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
 }
 
 function StatusCounter({ label, count, color, active, onClick }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose"; active?: boolean; onClick?: () => void }) {
-  // dashboard stat card: clean white card, a small colour-coded dot, big number.
-  // Clickable — acts as a filter chip for the list below; the active one gets a ring.
-  const dot: Record<string, string> = { amber: "#F59E0B", violet: "#3A57E8", blue: "#3A57E8", green: "#1AA053", rose: "#E11D48" };
-  const ring: Record<string, string> = { amber: "ring-amber-400", violet: "ring-[#3A57E8]", blue: "ring-blue-500", green: "ring-emerald-500", rose: "ring-rose-500" };
+  // Polished KPI tile (matches the Sales Hub KPI row): an icon chip tinted to the
+  // status colour, a big number, and a one-line hint. Still a filter button — the
+  // active one gets a soft tinted background + coloured border so it reads as selected.
+  const META: Record<string, { fg: string; chipBg: string; activeBg: string; hint: string; Icon: typeof IconClock }> = {
+    amber:  { fg: "#D9861B", chipBg: "rgba(226,154,46,0.12)",  activeBg: "rgba(226,154,46,0.06)",  hint: "Waiting for a time slot", Icon: IconClock },
+    violet: { fg: "#3A57E8", chipBg: "rgba(58,87,232,0.12)",   activeBg: "rgba(58,87,232,0.06)",   hint: "Queued to publish",       Icon: IconCalendarEvent },
+    blue:   { fg: "#3A57E8", chipBg: "rgba(58,87,232,0.12)",   activeBg: "rgba(58,87,232,0.06)",   hint: "Queued to publish",       Icon: IconCalendarEvent },
+    green:  { fg: "#1AA053", chipBg: "rgba(26,160,83,0.12)",   activeBg: "rgba(26,160,83,0.06)",   hint: "Live in the last 7 days", Icon: IconSend },
+    rose:   { fg: "#E5484D", chipBg: "rgba(229,72,77,0.12)",   activeBg: "rgba(229,72,77,0.06)",   hint: "Need a retry",            Icon: IconAlertTriangle },
+  };
+  const m = META[color];
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-left bg-white rounded-lg border px-5 py-4 transition ${active ? `border-transparent ring-2 ${ring[color]}` : "border-gray-100 hover:border-gray-200"}`}
+      aria-pressed={active}
+      className={`text-left rounded-xl border px-4 py-3.5 transition ${active ? "" : "bg-white border-gray-100 hover:border-gray-200"}`}
+      style={active ? { background: m.activeBg, borderColor: m.fg } : undefined}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-2 h-2 rounded-full" style={{ background: dot[color] }} />
-        <span className={`text-xs uppercase tracking-wide font-medium ${active ? "text-gray-600" : "text-gray-400"}`}>{label}</span>
-      </div>
-      <div className="text-[26px] font-semibold text-gray-900 tabular-nums leading-none">{count}</div>
+      <span className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-[9px] mb-3" style={{ background: m.chipBg }}>
+        <m.Icon size={18} stroke={1.8} style={{ color: m.fg }} />
+      </span>
+      <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[#8A92A6]">{label}</div>
+      <div className="text-[30px] font-semibold text-[#232D42] tabular-nums leading-[1.05] mt-0.5">{count}</div>
+      <div className="text-[11.5px] text-[#9AA1B1] mt-1">{m.hint}</div>
     </button>
   );
 }
