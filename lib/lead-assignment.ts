@@ -19,6 +19,8 @@ import {
   CRM_TABLE,
   COUNSELLORS_TABLE,
   PRIMARY_INTERESTS_TABLE,
+  LEAD_DISTRIBUTION_BASE,
+  DISTRIBUTION_MASTERSHEET,
   idleDays,
 } from "./sales-hub";
 import { getSupabase } from "./supabase";
@@ -259,6 +261,78 @@ async function getSbuMap(): Promise<Map<string, string>> {
     }
     return m;
   } catch { return new Map(); }
+}
+
+// ── Assignment log (the Telegram source of truth) ──────────────────────────
+//
+// The Lead Distribution "Mastersheet" is written by the n8n round-robin workflow
+// the instant a lead is handed to a counsellor, and its 11:59 PM IST job reads
+// exactly this table to build each counsellor's Telegram daily summary. Counting
+// from here (keyed on the real "Assigned Time") makes the Per-day tab match that
+// Telegram to the lead, instead of approximating with the CRM's Created Date.
+
+export type AssignmentRow = { key: string; label: string; dow: string; total: number; by: Record<string, number> };
+export type AssignmentBoard = {
+  range: { from: string; to: string };
+  bucket: Bucket;
+  counsellors: string[];        // columns, busiest first
+  rows: AssignmentRow[];        // newest bucket first
+  totals: { total: number; by: Record<string, number> };
+  byInterest: { counsellor: string; interest: string; n: number }[];
+  source: "assignment-log";
+};
+
+const MON_ABBR: Record<string, string> = {
+  Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+  Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+};
+
+// "09 Jul 2026, 02:32 PM" → "2026-07-09". Already IST (n8n writes it in
+// Asia/Kolkata), so no timezone maths — just reshape the string.
+function assignedTimeToDay(s: string): string | null {
+  const m = /^\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/.exec(String(s || ""));
+  if (!m) return null;
+  const mon = MON_ABBR[m[2][0].toUpperCase() + m[2].slice(1, 3).toLowerCase()];
+  if (!mon) return null;
+  return `${m[3]}-${mon}-${m[1].padStart(2, "0")}`;
+}
+
+export async function getAssignmentLog(from: string, to: string, bucket: Bucket): Promise<AssignmentBoard> {
+  const rows = await airtableList<Record<string, unknown>>(DISTRIBUTION_MASTERSHEET, {
+    baseId: LEAD_DISTRIBUTION_BASE,
+    fields: ["Counsellor", "Primary Interest", "Assigned Time"],
+    pageSize: 100,
+    maxRecords: 50_000,
+  });
+
+  const rowMap = new Map<string, AssignmentRow>();
+  const totalsBy: Record<string, number> = {};
+  const interestMap = new Map<string, number>(); // `${counsellor}${interest}` → n
+  let total = 0;
+
+  for (const rec of rows) {
+    const day = assignedTimeToDay(pickName(rec.fields["Assigned Time"]));
+    if (!day || day < from || day > to) continue;
+    const counsellor = pickName(rec.fields["Counsellor"]) || UNASSIGNED;
+    const interest = pickName(rec.fields["Primary Interest"]) || "— not set —";
+    const b = bucketOf(day, bucket);
+    let row = rowMap.get(b.key);
+    if (!row) { row = { key: b.key, label: b.label, dow: b.dow, total: 0, by: {} }; rowMap.set(b.key, row); }
+    row.total++;
+    row.by[counsellor] = (row.by[counsellor] || 0) + 1;
+    totalsBy[counsellor] = (totalsBy[counsellor] || 0) + 1;
+    const ik = `${counsellor}|::|${interest}`;
+    interestMap.set(ik, (interestMap.get(ik) || 0) + 1);
+    total++;
+  }
+
+  const rowsOut = [...rowMap.values()].sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+  const counsellors = Object.keys(totalsBy).sort((a, b) => (totalsBy[b] - totalsBy[a]) || a.localeCompare(b));
+  const byInterest = [...interestMap.entries()]
+    .map(([k, n]) => { const [counsellor, interest] = k.split("|::|"); return { counsellor, interest, n }; })
+    .sort((a, b) => b.n - a.n);
+
+  return { range: { from, to }, bucket, counsellors, rows: rowsOut, totals: { total, by: totalsBy }, byInterest, source: "assignment-log" };
 }
 
 export async function getLeadBoard(from: string, to: string, bucket: Bucket): Promise<LeadBoard> {

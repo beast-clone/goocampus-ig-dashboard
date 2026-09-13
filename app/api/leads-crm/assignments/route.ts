@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { requireSection } from "@/lib/api-guard";
-import { getLeadBoard, type Bucket, type LeadBoard } from "@/lib/lead-assignment";
+import { getLeadBoard, getAssignmentLog, type Bucket, type LeadBoard, type AssignmentBoard } from "@/lib/lead-assignment";
+
+type BoardPayload = LeadBoard & { assignments: AssignmentBoard };
 
 // GET /api/leads-crm/assignments?from=YYYY-MM-DD&to=YYYY-MM-DD&bucket=day|week|month
 //
@@ -11,7 +13,7 @@ import { getLeadBoard, type Bucket, type LeadBoard } from "@/lib/lead-assignment
 // Cached 15 min per {from|to|bucket} — this pages through the whole CRM range and
 // the numbers only move when new leads land.
 
-const CACHE = new Map<string, { at: number; payload: LeadBoard }>();
+const CACHE = new Map<string, { at: number; payload: BoardPayload }>();
 const TTL_MS = 15 * 60 * 1000;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,7 +44,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ ...hit.payload, cached: true });
     }
 
-    const payload = await getLeadBoard(from, to, bucket);
+    // The board (from the CRM, keyed on Created Date) and the assignment log (from
+    // the Lead Distribution base, keyed on the real Assigned Time — the same source
+    // as the 11:59 PM Telegram summary) are read together so the Per-day counts can
+    // match the Telegram to the lead. If the log read fails, the page still renders
+    // from the CRM board.
+    const [board, assignments] = await Promise.all([
+      getLeadBoard(from, to, bucket),
+      getAssignmentLog(from, to, bucket).catch(() => null),
+    ]);
+    const payload: BoardPayload = {
+      ...board,
+      assignments: assignments ?? { range: { from, to }, bucket, counsellors: [], rows: [], totals: { total: 0, by: {} }, byInterest: [], source: "assignment-log" },
+    };
     CACHE.set(key, { at: Date.now(), payload });
     return NextResponse.json(payload);
   } catch (err) {

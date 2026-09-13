@@ -7,7 +7,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { PreviewSelect } from "../PreviewSelect";
 import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
-  IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow,
+  IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow, IconBrandTelegram,
 } from "@tabler/icons-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 
@@ -56,6 +56,16 @@ type HolderRow = {
   byStatus: { key: string; n: number }[]; byInterest: { key: string; n: number }[];
 };
 type RosterEntry = { name: string; userId: string; email: string; label: string; inRoster: boolean };
+type AssignmentRow = { key: string; label: string; dow: string; total: number; by: Record<string, number> };
+type AssignmentBoard = {
+  range: { from: string; to: string };
+  bucket: "day" | "week" | "month";
+  counsellors: string[];
+  rows: AssignmentRow[];
+  totals: { total: number; by: Record<string, number> };
+  byInterest: { counsellor: string; interest: string; n: number }[];
+  source: "assignment-log";
+};
 type Board = {
   range: { from: string; to: string };
   bucket: "day" | "week" | "month";
@@ -70,6 +80,9 @@ type Board = {
   holders: HolderRow[];
   alerts: { newOver2: number; poolStuck: number; poolStuck15: number };
   roles: Record<string, Role>;
+  // The Telegram source of truth — per-day-per-counsellor counts from the Lead
+  // Distribution log (real Assigned Time). Empty if that read failed.
+  assignments: AssignmentBoard;
 };
 
 const fmtInt = (n: number) => n.toLocaleString("en-IN");
@@ -286,49 +299,102 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         </>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm text-gray-500">
-              <span><b className="text-[#232D42] font-semibold">{fmtInt(data.totals.total)}</b> worked by counsellors</span>
-              {data.counsellors.map((c) => (
-                <span key={c}>{c.split(" ")[0]} <b className="text-[#232D42] font-medium">{fmtInt(data.totals.by[c] || 0)}</b></span>
-              ))}
-            </div>
-            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-              {(["day", "week", "month"] as const).map((b) => (
-                <button key={b} onClick={() => setBucket(b)}
-                  className={`text-xs px-3 py-1.5 capitalize ${bucket === b ? "bg-brand text-white" : "text-[#4A5468] hover:bg-gray-50"}`}>{b}</button>
-              ))}
-            </div>
-          </div>
-          {data.rows[0] && (() => {
-            const r = data.rows[0];
-            const tmax = Math.max(1, ...data.counsellors.map((c) => r.by[c] || 0));
+          {(() => {
+            // Counts come from the assignment log (real Assigned Time = the Telegram
+            // source) when available; otherwise fall back to the CRM board so the
+            // page still works if that read failed.
+            const fromLog = data.assignments.counsellors.length > 0;
+            const src = fromLog ? data.assignments : data;
+            const r = data.rows[0]; // CRM "today" row — carries label/dow/cold + drill-down target
+            const asgToday = fromLog ? data.assignments.rows.find((x) => x.key === r?.key) : null;
+            const cnts: Record<string, number> = asgToday ? asgToday.by : (r?.by ?? {});
+            const totalCnt = asgToday ? asgToday.total : (r?.total ?? 0);
+            const tmax = Math.max(1, ...src.counsellors.map((c) => cnts[c] || 0));
             return (
-              <button onClick={() => setOpenDay(r)}
-                className="w-full text-left rounded-2xl border border-gray-100 bg-[#FAFBFF] px-7 py-6 hover:border-brand hover:bg-white transition-colors flex flex-col md:flex-row md:items-center gap-x-10 gap-y-5">
-                <div className="md:w-[220px] flex-shrink-0">
-                  <div className="text-[13px] font-medium text-[#232D42] flex items-center gap-2 flex-wrap">
-                    <span>{r.dow && <span className="text-gray-400 font-normal mr-1.5">{r.dow}</span>}{r.label}</span>
-                    <span className="text-[10px] text-brand bg-brand-light rounded-full px-1.5 py-0.5">Today</span>
-                    {r.cold > 0 && <span className="text-[10px] text-[#B7791F] bg-amber-50 rounded-full px-1.5 py-0.5">{r.cold} cold</span>}
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-1.5">
+                  <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm text-gray-500">
+                    <span><b className="text-[#232D42] font-semibold">{fmtInt(src.totals.total)}</b> {fromLog ? "assigned to counsellors" : "worked by counsellors"}</span>
+                    {src.counsellors.map((c) => (
+                      <span key={c}>{c.split(" ")[0]} <b className="text-[#232D42] font-medium">{fmtInt(src.totals.by[c] || 0)}</b></span>
+                    ))}
                   </div>
-                  <div className="flex items-baseline gap-2 mt-2.5">
-                    <span className="text-[46px] leading-none font-semibold text-[#232D42] tabular-nums">{r.total}</span>
-                    <span className="text-[13px] text-gray-400">lead{r.total === 1 ? "" : "s"}</span>
+                  <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                    {(["day", "week", "month"] as const).map((b) => (
+                      <button key={b} onClick={() => setBucket(b)}
+                        className={`text-xs px-3 py-1.5 capitalize ${bucket === b ? "bg-brand text-white" : "text-[#4A5468] hover:bg-gray-50"}`}>{b}</button>
+                    ))}
                   </div>
                 </div>
-                <div className="flex-1 w-full grid gap-x-10 gap-y-3.5 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-                  {data.counsellors.map((c) => (
-                    <div key={c} className="flex items-center gap-3">
-                      <span className="text-[12.5px] text-gray-500 w-[72px] flex-shrink-0 truncate">{c.split(" ")[0]}</span>
-                      <span className="flex-1 h-[9px] rounded-full bg-gray-100 overflow-hidden">
-                        <span className="block h-full rounded-full bg-brand" style={{ width: `${((r.by[c] || 0) / tmax) * 100}%` }} />
-                      </span>
-                      <span className="text-[13.5px] tabular-nums w-[34px] text-right flex-shrink-0 font-medium text-[#232D42]">{r.by[c] || dash}</span>
+                {fromLog ? (
+                  <div className="text-[11.5px] text-gray-400 mb-4 -mt-0.5 flex items-center gap-1.5">
+                    <IconBrandTelegram size={13} className="text-brand" /> Same source as your 11:59 PM Telegram summary — the assignment log, keyed on when each lead was actually handed over.
+                  </div>
+                ) : <div className="mb-4" />}
+                {r && (
+                  <button onClick={() => setOpenDay(r)}
+                    className="w-full text-left rounded-2xl border border-gray-100 bg-[#FAFBFF] px-7 py-6 hover:border-brand hover:bg-white transition-colors flex flex-col md:flex-row md:items-center gap-x-10 gap-y-5">
+                    <div className="md:w-[220px] flex-shrink-0">
+                      <div className="text-[13px] font-medium text-[#232D42] flex items-center gap-2 flex-wrap">
+                        <span>{r.dow && <span className="text-gray-400 font-normal mr-1.5">{r.dow}</span>}{r.label}</span>
+                        <span className="text-[10px] text-brand bg-brand-light rounded-full px-1.5 py-0.5">Today</span>
+                        {r.cold > 0 && <span className="text-[10px] text-[#B7791F] bg-amber-50 rounded-full px-1.5 py-0.5">{r.cold} cold</span>}
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2.5">
+                        <span className="text-[46px] leading-none font-semibold text-[#232D42] tabular-nums">{totalCnt}</span>
+                        <span className="text-[13px] text-gray-400">{fromLog ? "assigned" : `lead${totalCnt === 1 ? "" : "s"}`}</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </button>
+                    <div className="flex-1 w-full grid gap-x-10 gap-y-3.5 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                      {src.counsellors.map((c) => (
+                        <div key={c} className="flex items-center gap-3">
+                          <span className="text-[12.5px] text-gray-500 w-[72px] flex-shrink-0 truncate">{c.split(" ")[0]}</span>
+                          <span className="flex-1 h-[9px] rounded-full bg-gray-100 overflow-hidden">
+                            <span className="block h-full rounded-full bg-brand" style={{ width: `${((cnts[c] || 0) / tmax) * 100}%` }} />
+                          </span>
+                          <span className="text-[13.5px] tabular-nums w-[34px] text-right flex-shrink-0 font-medium text-[#232D42]">{cnts[c] || dash}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                )}
+                {fromLog && (
+                  <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-6">
+                    <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+                      <div className="text-[15px] font-medium text-[#232D42]">Manager roll-up</div>
+                      <div className="text-xs text-gray-400 flex items-center gap-1.5">
+                        <IconBrandTelegram size={13} className="text-brand" /> same breakdown as your daily Telegram · {data.assignments.range.from} → {data.assignments.range.to}
+                      </div>
+                    </div>
+                    <div className="text-[12.5px] text-gray-500 mb-4">Leads assigned per counsellor in this window, split by primary interest.</div>
+                    <div className="space-y-3">
+                      {src.counsellors.map((c) => {
+                        const ints = data.assignments.byInterest.filter((x) => x.counsellor === c).sort((a, b) => b.n - a.n);
+                        return (
+                          <div key={c} className="flex flex-col md:flex-row md:items-start gap-2 md:gap-4 border-b border-gray-50 pb-3 last:border-b-0 last:pb-0">
+                            <div className="md:w-[220px] flex-shrink-0 flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-full bg-brand-light text-[#2138B0] text-xs font-semibold flex items-center justify-center flex-shrink-0">{c.slice(0, 1).toUpperCase()}</span>
+                              <span className="font-medium text-[#232D42] text-[13.5px]">{c}</span>
+                              <span className="text-[13.5px] tabular-nums font-semibold text-[#232D42] ml-auto">{fmtInt(src.totals.by[c] || 0)}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                              {ints.length ? ints.map((x) => (
+                                <span key={x.interest} className="text-[11.5px] bg-[#F3F5FA] text-[#3B4457] rounded-full px-2.5 py-1">
+                                  {x.interest} <b className="font-semibold text-[#232D42]">{x.n}</b>
+                                </span>
+                              )) : <span className="text-[12px] text-gray-400">—</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                      <span className="text-[12.5px] text-gray-500">Total assigned this window</span>
+                      <span className="text-[15px] font-semibold text-[#232D42] tabular-nums">{fmtInt(src.totals.total)}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
           {chart.rows.length > 0 && (

@@ -37,6 +37,13 @@ export const TRANSFER_TABLE = "tblNbJfDXKE4iNrrM";           // Transfer Ownersh
 export const COUNSELLORS_TABLE = "tblhSMVy2sDbEOPqp";        // Counsellors roster (name ↔ Airtable user)
 export const OPEN_CLAIMED_TABLE = "tblZ1eoeV0HbL5VXh";       // Open & Claimed Leads (claim trail)
 
+// A SEPARATE base — the round-robin assignment log that feeds the 11:59 PM IST
+// Telegram daily summary. "Assigned Time" here is the real moment a lead was
+// handed to a counsellor (the CRM has no such timestamp), so per-day-per-counsellor
+// counts read from here match the Telegram to the lead. Read-only, like everything.
+export const LEAD_DISTRIBUTION_BASE = "appeQ7NIq57AQA6Hc";
+export const DISTRIBUTION_MASTERSHEET = "tblz8iHKuE0fvuDOO"; // Lead Distribution → Mastersheet
+
 // Transfer Ownership field ids. Written by id, not name, so a rename in Airtable
 // can't silently start dropping the payload on the floor.
 export const TRANSFER_FIELDS = {
@@ -67,6 +74,7 @@ export async function airtableList<T = Record<string, unknown>>(
     pageSize?: number;
     maxRecords?: number;
     sort?: Array<{ field: string; direction?: "asc" | "desc" }>;
+    baseId?: string; // defaults to SALES_HUB_BASE; set to read another base (e.g. the Lead Distribution log)
   } = {},
 ): Promise<Array<{ id: string; fields: T }>> {
   const out: Array<{ id: string; fields: T }> = [];
@@ -90,7 +98,7 @@ export async function airtableList<T = Record<string, unknown>>(
     });
     if (offset) qs.set("offset", offset);
 
-    const r = await fetchWithTimeout(`https://api.airtable.com/v0/${SALES_HUB_BASE}/${tableId}?${qs}`, {
+    const r = await fetchWithTimeout(`https://api.airtable.com/v0/${params.baseId ?? SALES_HUB_BASE}/${tableId}?${qs}`, {
       headers: { Authorization: `Bearer ${token()}` },
       cache: "no-store",
     });
