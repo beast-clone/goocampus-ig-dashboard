@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { REPORT_HISTORY, type HistoryTable } from "@/lib/report-history";
 import { type ManualFields } from "@/lib/report-manual";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -17,12 +17,33 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
   const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [manual, setManual] = useState<ManualFields | null>(null);
+  const manualRef = useRef<ManualFields | null>(null);
+  const [notesSave, setNotesSave] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => { manualRef.current = manual; }, [manual]);
   useEffect(() => {
     fetch(`/api/reports/manual?month=${monthKey}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((j) => setManual(j.fields as ManualFields))
       .catch(() => setManual({ achievements: "", focusedSbus: "", amcEbook: "", newsletter: "", futureProspects: "", actionNotes: "" }));
   }, [monthKey]);
+  const updateField = (field: keyof ManualFields, value: string) =>
+    setManual((m) => ({ ...(m ?? { achievements: "", focusedSbus: "", amcEbook: "", newsletter: "", futureProspects: "", actionNotes: "" }), [field]: value }));
+  // Save the WHOLE current notes object, and serialise saves in a promise chain so
+  // two quick blurs can't race a read-modify-write and drop a field.
+  const saveNotes = () => {
+    setNotesSave("saving");
+    saveChain.current = saveChain.current
+      .catch(() => {})
+      .then(async () => {
+        const r = await fetch("/api/reports/manual", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ month: monthKey, patch: manualRef.current ?? {} }),
+        });
+        setNotesSave(r.ok ? "saved" : "error");
+      })
+      .catch(() => setNotesSave("error"));
+  };
 
   // Snapshot: freeze this month's assembled live numbers so the month is preserved
   // once the platform APIs can't re-fetch it. Save on demand + auto-save on view.
@@ -78,11 +99,11 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
         </div>
       </header>
 
-      <ManualEditable title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." monthKey={monthKey} field="achievements" initial={manual?.achievements ?? ""} loaded={manual != null} />
-      <ManualEditable title="Focused SBUs" hint="Focused SBUs + webinar / live-session write-ups (registrations, attendees)." monthKey={monthKey} field="focusedSbus" initial={manual?.focusedSbus ?? ""} loaded={manual != null} />
+      <ManualEditable title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." value={manual?.achievements ?? ""} onChange={(v) => updateField("achievements", v)} onBlur={saveNotes} loaded={manual != null} state={notesSave} />
+      <ManualEditable title="Focused SBUs" hint="Focused SBUs + webinar / live-session write-ups (registrations, attendees)." value={manual?.focusedSbus ?? ""} onChange={(v) => updateField("focusedSbus", v)} onBlur={saveNotes} loaded={manual != null} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <ManualEditable title="AMC E-Book" hint="Total sales so far + note." monthKey={monthKey} field="amcEbook" initial={manual?.amcEbook ?? ""} loaded={manual != null} />
-        <ManualEditable title="Newsletter" hint="Total subscribers + note." monthKey={monthKey} field="newsletter" initial={manual?.newsletter ?? ""} loaded={manual != null} />
+        <ManualEditable title="AMC E-Book" hint="Total sales so far + note." value={manual?.amcEbook ?? ""} onChange={(v) => updateField("amcEbook", v)} onBlur={saveNotes} loaded={manual != null} />
+        <ManualEditable title="Newsletter" hint="Total subscribers + note." value={manual?.newsletter ?? ""} onChange={(v) => updateField("newsletter", v)} onBlur={saveNotes} loaded={manual != null} />
       </div>
 
       <Section title="Total Organic Leads" note="Organic leads by source, month over month (paid ads excluded).">
@@ -119,8 +140,8 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
           buildRow={(j, short) => [`${short} · live`, fmtNum(j.followers), fmtNum(j.impressions), String(j.reactions), String(j.posts), String(j.comments)]} />
       </Section>
 
-      <ManualEditable title="Future Prospects" hint="Strategy bullets for the coming month." monthKey={monthKey} field="futureProspects" initial={manual?.futureProspects ?? ""} loaded={manual != null} />
-      <ManualEditable title="Post-Meeting Action Notes" hint="Actions agreed in the review meeting." monthKey={monthKey} field="actionNotes" initial={manual?.actionNotes ?? ""} loaded={manual != null} />
+      <ManualEditable title="Future Prospects" hint="Strategy bullets for the coming month." value={manual?.futureProspects ?? ""} onChange={(v) => updateField("futureProspects", v)} onBlur={saveNotes} loaded={manual != null} />
+      <ManualEditable title="Post-Meeting Action Notes" hint="Actions agreed in the review meeting." value={manual?.actionNotes ?? ""} onChange={(v) => updateField("actionNotes", v)} onBlur={saveNotes} loaded={manual != null} />
 
       <footer className="pt-5 border-t border-gray-100 text-[11px] text-gray-400 italic">
         Historical months imported once from the team&rsquo;s Notion report; the latest month and the live/chart sections fill from the dashboard&rsquo;s own data (being wired up).
@@ -399,42 +420,27 @@ function MonthlyTable({ t }: { t: HistoryTable }) {
   );
 }
 
-// Editable narrative section, saved per month (auto-saves on blur). While the saved
-// value loads, the textarea is disabled to avoid clobbering it with an empty string.
-function ManualEditable({ title, hint, monthKey, field, initial, loaded }: {
-  title: string; hint: string; monthKey: string; field: keyof ManualFields; initial: string; loaded: boolean;
+// Editable narrative section — fully controlled by the parent, which owns all six
+// fields and saves the whole object on blur (serialised), so overlapping saves can't
+// drop a field. Disabled until the saved values have loaded.
+function ManualEditable({ title, hint, value, onChange, onBlur, loaded, state }: {
+  title: string; hint: string; value: string; onChange: (v: string) => void; onBlur: () => void; loaded: boolean;
+  state?: "idle" | "saving" | "saved" | "error";
 }) {
-  const [val, setVal] = useState(initial);
-  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  // Adopt the saved value once it arrives (only when the box is untouched/empty).
-  useEffect(() => { setVal(initial); }, [initial]);
-
-  const save = async () => {
-    if (val === initial) return;
-    setState("saving");
-    try {
-      const r = await fetch("/api/reports/manual", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: monthKey, patch: { [field]: val } }),
-      });
-      setState(r.ok ? "saved" : "error");
-    } catch { setState("error"); }
-  };
-
-  const rows = Math.min(12, Math.max(3, val.split("\n").length + 1));
+  const rows = Math.min(12, Math.max(3, (value || "").split("\n").length + 1));
   return (
     <section className="rounded-xl border border-gray-200 bg-white px-4 py-3.5">
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">✍️ {title}</span>
         {state === "saving" && <span className="text-[10px] text-gray-400">saving…</span>}
-        {state === "saved" && <span className="text-[10px] text-emerald-600">✓ saved</span>}
+        {state === "saved" && <span className="text-[10px] text-emerald-600">✓ notes saved</span>}
         {state === "error" && <span className="text-[10px] text-rose-600">save failed — retry</span>}
       </div>
       <textarea
-        value={val}
+        value={value}
         disabled={!loaded}
-        onChange={(e) => { setVal(e.target.value); setState("idle"); }}
-        onBlur={save}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         rows={rows}
         placeholder={loaded ? hint : "Loading…"}
         className="w-full text-[13px] text-[#232D42] border border-gray-200 rounded-lg px-3 py-2 leading-relaxed resize-y focus:outline-none focus:border-brand disabled:bg-gray-50 disabled:text-gray-400"

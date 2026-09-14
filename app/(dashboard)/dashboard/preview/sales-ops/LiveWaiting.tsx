@@ -2,16 +2,34 @@
 import { useEffect, useState } from "react";
 import { IconClock } from "@tabler/icons-react";
 
+// ONE shared 1-second ticker for every LiveWaiting on the page, instead of one
+// setInterval per instance (a table can render 200+). One interval updates a shared
+// `now` and notifies all subscribers; it stops when the last instance unmounts.
+let sharedNow = Date.now();
+const subscribers = new Set<() => void>();
+let ticker: ReturnType<typeof setInterval> | null = null;
+function subscribeToTick(cb: () => void): () => void {
+  subscribers.add(cb);
+  if (!ticker) {
+    ticker = setInterval(() => { sharedNow = Date.now(); subscribers.forEach((f) => f()); }, 1000);
+  }
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0 && ticker) { clearInterval(ticker); ticker = null; }
+  };
+}
+function useSharedNow(): number {
+  const [, force] = useState(0);
+  useEffect(() => subscribeToTick(() => force((n) => n + 1)), []);
+  return sharedNow;
+}
+
 // A red stopwatch that ticks every second: "HH:MM:SS" (or "Nd HH:MM:SS" past a day),
 // counting how long a lead has been waiting — for first contact, or to be assigned.
 // Shared by the first-contact tracker and the Unassigned-leads tab.
 export function LiveWaiting({ createdAt }: { createdAt: string }) {
   const start = Date.parse(createdAt);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useSharedNow();
   if (Number.isNaN(start)) return <span className="text-gray-400">—</span>;
   const totalSec = Math.max(0, Math.floor((now - start) / 1000));
   let s = totalSec;
