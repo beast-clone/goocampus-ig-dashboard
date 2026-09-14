@@ -30,7 +30,12 @@ const elapsedMin = (startAt: string) => Math.max(0, Math.round((Date.now() - new
 const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ""}`.trim() : `${m}m`);
 const fmtDue = (d: string) => { if (!d) return ""; const dt = new Date(d + "T00:00:00"); return isNaN(dt.getTime()) ? d : dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }); };
 const fmtFull = (d?: string | null) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+const fmtWeekday = (d?: string | null) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { weekday: "short" }) : "");
 const nameCap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "—");
+const avatarFor = (key?: string): { av: string; color: string } => {
+  const p = ROSTER.find((x) => x.key === (key || "").toLowerCase());
+  return p ? { av: p.av, color: p.color } : { av: (key || "?").charAt(0).toUpperCase(), color: "#8A92A6" };
+};
 
 function runLong(t: MyDayTask, today: string): { over: number; stuck: boolean } | null {
   if (!t.detail.startAt || t.status !== IN_PROGRESS) return null;
@@ -202,20 +207,38 @@ export function TeamCommand() {
           <div className="tc-appr-empty"><div className="tc-appr-check">✓</div>No approvals needed right now.</div>
         ) : (
           <div className="tc-appr-list">
-            {approvals.map((r) => (
+            {approvals.map((r) => {
+              const req = avatarFor(r.requestedBy), own = avatarFor(r.owner);
+              return (
               <div key={r.postId} className="tc-appr-card">
-                <div className="tc-appr-main">
-                  <div className="tc-appr-title"><a href={`/dashboard/preview/marketing-hub?open=${r.postId}`}>{r.title}</a>{r.type && <span className="tc-appr-type">{r.type}</span>}</div>
-                  <div className="tc-appr-move"><IconCalendarDue size={13} stroke={1.9} /> <b>{fmtFull(r.from)}</b> <span className="arw">→</span> <b className="to">{fmtFull(r.to)}</b></div>
-                  <div className="tc-appr-meta">Assigned to <b>{nameCap(r.owner)}</b> · Requested by <b>{nameCap(r.requestedBy)}</b>{r.createdAt ? <> · Created {fmtFull(r.createdAt)}{r.creator ? <> by <b>{nameCap(r.creator)}</b></> : null}</> : null}</div>
-                  <div className="tc-appr-reason"><b>Reason:</b> {r.reason?.trim() ? r.reason : <span className="muted">not given</span>}</div>
+                <div className="tc-appr-top">
+                  <div className="tc-appr-ico"><IconCalendarDue size={18} stroke={1.8} /></div>
+                  <div className="tc-appr-hd">
+                    <a className="tc-appr-title" href={`/dashboard/preview/marketing-hub?open=${r.postId}`}>{r.title}</a>
+                    <div className="tc-appr-sub">{r.type || "Task"}{r.createdAt ? ` · created ${fmtFull(r.createdAt)}` : ""}</div>
+                  </div>
+                  <span className="tc-appr-flag">Awaiting you</span>
                 </div>
-                <div className="tc-appr-actions">
+
+                <div className="tc-appr-dates">
+                  <div className="tc-dchip old"><span className="lbl">Currently</span><span className="val">{fmtFull(r.from)}</span><span className="wd">{fmtWeekday(r.from)}</span></div>
+                  <div className="tc-dchip-arw"><IconArrowRight size={17} stroke={2} /></div>
+                  <div className="tc-dchip new"><span className="lbl">Move to</span><span className="val">{fmtFull(r.to)}</span><span className="wd">{fmtWeekday(r.to)}</span></div>
+                </div>
+
+                <div className="tc-appr-people">
+                  <div className="tc-ppl"><span className="tc-ppl-av" style={{ background: req.color }}>{req.av}</span><div className="tc-ppl-t"><span className="r">Requested by</span><span className="n">{nameCap(r.requestedBy)}</span></div></div>
+                  <div className="tc-ppl"><span className="tc-ppl-av" style={{ background: own.color }}>{own.av}</span><div className="tc-ppl-t"><span className="r">Assigned to</span><span className="n">{nameCap(r.owner)}</span></div></div>
+                </div>
+
+                <div className="tc-appr-reason"><span className="rl">Reason</span>{r.reason?.trim() ? r.reason : <span className="muted">not given</span>}</div>
+
+                <div className="tc-appr-foot">
                   <button className="tc-btn ghost" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "reject")}>Reject</button>
-                  <button className="tc-btn primary" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "approve")}>Approve</button>
+                  <button className="tc-btn primary" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "approve")}>{apprBusy === r.postId + "approve" ? "Approving…" : "Approve"}</button>
                 </div>
               </div>
-            ))}
+            ); })}
           </div>
         )
       ) : (
@@ -348,24 +371,46 @@ const CSS = `
 .tcmd .tc-tab-n{background:#E24B4A;color:#fff;font-size:.62rem;font-weight:700;border-radius:99px;min-width:17px;height:17px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center}
 .tcmd .tc-appr-empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:44px;text-align:center;color:var(--soft);font-size:.9rem;margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
 .tcmd .tc-appr-check{width:40px;height:40px;border-radius:50%;background:#E4F6EC;color:#127A43;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700}
-.tcmd .tc-appr-list{display:flex;flex-direction:column;gap:12px;margin-top:16px;max-width:860px}
-.tcmd .tc-appr-card{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:14px;padding:15px 17px}
-.tcmd .tc-appr-main{flex:1;min-width:240px}
-.tcmd .tc-appr-title{font-size:.92rem;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.tcmd .tc-appr-title a{color:var(--ink);text-decoration:none;border-bottom:1px dashed #B9C2E0}
-.tcmd .tc-appr-title a:hover{color:var(--brand)}
-.tcmd .tc-appr-type{font-size:.68rem;background:#F3F5FA;color:#3B4457;border-radius:99px;padding:1px 8px;font-weight:500}
-.tcmd .tc-appr-move{font-size:.83rem;color:var(--ink);margin-top:6px;display:flex;align-items:center;gap:5px}
-.tcmd .tc-appr-move svg{color:var(--brand)}.tcmd .tc-appr-move .to{color:var(--brand)}.tcmd .tc-appr-move .arw{color:var(--soft)}
-.tcmd .tc-appr-meta{font-size:.75rem;color:var(--soft);margin-top:5px;line-height:1.5}
-.tcmd .tc-appr-meta b{color:#3B4457;font-weight:600}
-.tcmd .tc-appr-reason{font-size:.79rem;color:#3B4457;margin-top:7px;background:#FAFBFF;border:1px solid #EEF1FD;border-radius:8px;padding:7px 10px}
+.tcmd .tc-appr-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;margin-top:16px;max-width:1120px}
+.tcmd .tc-appr-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px 14px;display:flex;flex-direction:column}
+/* header */
+.tcmd .tc-appr-top{display:flex;align-items:flex-start;gap:11px}
+.tcmd .tc-appr-ico{width:34px;height:34px;border-radius:10px;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tcmd .tc-appr-hd{flex:1;min-width:0}
+.tcmd .tc-appr-title{font-size:.95rem;font-weight:600;color:var(--ink);text-decoration:none;display:inline-block}
+.tcmd .tc-appr-title:hover{color:var(--brand)}
+.tcmd .tc-appr-sub{font-size:.72rem;color:var(--soft);margin-top:1px}
+.tcmd .tc-appr-flag{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9A5B10;background:#FBEEDD;border-radius:99px;padding:3px 9px;flex-shrink:0;white-space:nowrap}
+/* date change strip */
+.tcmd .tc-appr-dates{display:flex;align-items:stretch;gap:0;margin-top:13px;background:var(--canvas);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tcmd .tc-dchip{flex:1;padding:9px 13px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.tcmd .tc-dchip .lbl{font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);font-weight:700}
+.tcmd .tc-dchip .val{font-size:.9rem;font-weight:600;color:var(--ink);white-space:nowrap}
+.tcmd .tc-dchip .wd{font-size:.66rem;color:var(--soft)}
+.tcmd .tc-dchip.old .val{color:var(--soft)}
+.tcmd .tc-dchip.new{background:#EEF1FE}
+.tcmd .tc-dchip.new .val{color:var(--brand-ink)}
+.tcmd .tc-dchip.new .lbl{color:var(--brand)}
+.tcmd .tc-dchip-arw{display:flex;align-items:center;justify-content:center;padding:0 3px;color:var(--brand);background:linear-gradient(90deg,var(--canvas),#EEF1FE)}
+/* people */
+.tcmd .tc-appr-people{display:flex;gap:20px;margin-top:12px;flex-wrap:wrap}
+.tcmd .tc-ppl{display:flex;align-items:center;gap:8px}
+.tcmd .tc-ppl-av{width:26px;height:26px;border-radius:50%;color:#fff;font-size:.66rem;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tcmd .tc-ppl-t{display:flex;flex-direction:column;line-height:1.25}
+.tcmd .tc-ppl-t .r{font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;color:var(--soft);font-weight:600}
+.tcmd .tc-ppl-t .n{font-size:.8rem;font-weight:600;color:var(--ink)}
+/* reason */
+.tcmd .tc-appr-reason{margin-top:13px;background:#FAFBFF;border:1px solid #EEF1FD;border-left:3px solid #C7D0F5;border-radius:0 10px 10px 0;padding:9px 12px;font-size:.8rem;color:#3B4457;line-height:1.5}
+.tcmd .tc-appr-reason .rl{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand);font-weight:700;margin-bottom:3px}
 .tcmd .tc-appr-reason .muted{color:var(--soft)}
-.tcmd .tc-appr-actions{display:flex;gap:8px;flex-shrink:0}
-.tcmd .tc-btn{border-radius:8px;padding:8px 16px;font-size:.79rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit}
-.tcmd .tc-btn.primary{background:var(--brand);color:#fff}.tcmd .tc-btn.primary:hover{background:var(--brand-ink)}
-.tcmd .tc-btn.ghost{background:#fff;color:#C0392B;border-color:#F0D0CE}.tcmd .tc-btn.ghost:hover{background:#FDF3F2}
-.tcmd .tc-btn:disabled{opacity:.55;cursor:default}
+/* footer actions */
+.tcmd .tc-appr-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.tcmd .tc-btn{border-radius:9px;padding:8px 18px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:all .12s}
+.tcmd .tc-btn.primary{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(58,87,232,.22)}
+.tcmd .tc-btn.primary:hover{background:var(--brand-ink)}
+.tcmd .tc-btn.ghost{background:#fff;color:#647089;border-color:var(--line)}
+.tcmd .tc-btn.ghost:hover{color:#C0392B;border-color:#F0D0CE;background:#FDF6F5}
+.tcmd .tc-btn:disabled{opacity:.6;cursor:default;box-shadow:none}
 .tcmd .tc-layout{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-top:16px;align-items:start}
 .tcmd .tc-rail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px}
 .tcmd .tc-rail-h{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--soft);font-weight:700;padding:8px 10px 6px}
