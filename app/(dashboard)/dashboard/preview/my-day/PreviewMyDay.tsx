@@ -1571,7 +1571,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     let restored = false;
     // Record login server-side for the admin Attendance board (first login of the day
     // wins — the server ignores later posts, so re-posting a restored time is safe).
+    // ONLY when the person is opening THEIR OWN day — an admin previewing a teammate
+    // (viewerIsAdmin, switcher) must never stamp that teammate as "logged in", or the
+    // Team Command / Attendance boards fill with phantom logins the person never made.
     const recordLogin = (min: number, at: string) => {
+      if (viewerIsAdmin) return;
       fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action: "login", min, at }) }).catch(() => {});
     };
     try {
@@ -2256,6 +2260,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   // Record this person's login / logout server-side so the admin Attendance board
   // can show them. Best-effort — never blocks the UI.
   const postAttendance = (action: "login" | "logout", min: number, at: string, rolled?: { title: string; reason: string }[]) => {
+    if (viewerIsAdmin) return; // an admin previewing a teammate must not write their attendance
     fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action, min, at, rolled }) }).catch(() => {});
   };
   const logBackIn = () => {
