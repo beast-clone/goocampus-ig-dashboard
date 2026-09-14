@@ -9,7 +9,7 @@ export default function Page() {
     <PreviewDashboardShell active="ai-reports" title="Monthly Report — full format" subtitle="The team's monthly report layout. History imported; live sections being wired up." hideAccountPicker hideRange compact>
       {() => (
         <div className="max-w-[1200px] mx-auto">
-          <MonthlyReportView monthLabel="May 2026" />
+          <MonthlyReportView />
         </div>
       )}
     </PreviewDashboardShell>

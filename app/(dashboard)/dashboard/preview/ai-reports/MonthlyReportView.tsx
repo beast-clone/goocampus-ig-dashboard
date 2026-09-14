@@ -7,14 +7,19 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 // Phase 1: render the imported month-over-month history tables in the template's
 // section order. Live current-month data, the CRM lead grids, and the editable
 // manual sections come in later phases (marked as placeholders below).
-export function MonthlyReportView({ monthLabel = "May 2026" }: { monthLabel?: string }) {
+export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
   const H = REPORT_HISTORY;
+  // The report is for the CURRENT month, live (month-to-date). Window = 1st → today.
+  const now = new Date();
+  const label = monthLabel ?? now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   return (
     <article className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 md:p-8 space-y-9">
       <header className="border-b border-gray-100 pb-5">
         <div className="text-[11px] uppercase tracking-widest text-brand font-semibold mb-1">Monthly performance</div>
-        <h1 className="text-xl font-semibold text-[#232D42] tracking-tight">{monthLabel} Monthly Report</h1>
-        <div className="text-[12.5px] text-gray-500 mt-1">GooCampus · all channels</div>
+        <h1 className="text-xl font-semibold text-[#232D42] tracking-tight">{label} Monthly Report</h1>
+        <div className="text-[12.5px] text-gray-500 mt-1">GooCampus · all channels · this month to date</div>
       </header>
 
       <Manual title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." />
@@ -28,7 +33,7 @@ export function MonthlyReportView({ monthLabel = "May 2026" }: { monthLabel?: st
         <MonthlyTable t={H.organicLeads} />
       </Section>
 
-      <LeadGrids />
+      <LeadGrids from={from} to={to} />
 
       <PlatformHeader name="Instagram" />
       <Section title="Instagram — monthly" note="Followers · reach · content interactions · DMs · leads · posts · reels · stories. Latest month bold.">
@@ -73,16 +78,16 @@ type LeadStatusResp = {
   bySbu: { sbu: string; total: number; counts: Record<string, number> }[];
 };
 
-// Lead Status + Total Lead Status (SBU) — live from the CRM (last 30 days).
-function LeadGrids() {
+// Lead Status + Total Lead Status (SBU) — live from the CRM for the report window.
+function LeadGrids({ from, to }: { from: string; to: string }) {
   const [d, setD] = useState<LeadStatusResp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/api/reports/lead-status", { cache: "no-store" })
+    fetch(`/api/reports/lead-status?from=${from}&to=${to}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j) => setD(j as LeadStatusResp))
       .catch((e) => setErr(e instanceof Error ? e.message : "failed"));
-  }, []);
+  }, [from, to]);
 
   if (err) return <Placeholder title="Lead Status" note={`Couldn't load — ${err}`} />;
   if (!d) return <div className="border border-gray-200 rounded-xl"><LoadingBlock className="!py-8" size={24} label="Loading lead status…" /></div>;
