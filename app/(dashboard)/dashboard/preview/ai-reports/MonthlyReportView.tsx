@@ -1,5 +1,7 @@
 "use client";
+import { useEffect, useState } from "react";
 import { REPORT_HISTORY, type HistoryTable } from "@/lib/report-history";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 // Full monthly report in the team's Notion format (see docs/MONTHLY_REPORT_SPEC.md).
 // Phase 1: render the imported month-over-month history tables in the template's
@@ -26,10 +28,7 @@ export function MonthlyReportView({ monthLabel = "May 2026" }: { monthLabel?: st
         <MonthlyTable t={H.organicLeads} />
       </Section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Placeholder title="Lead Status" note="Chart from the CRM — coming next." />
-        <Placeholder title="Total Lead Status (SBU)" note="Status × SBU from the CRM — coming next." />
-      </div>
+      <LeadGrids />
 
       <PlatformHeader name="Instagram" />
       <Section title="Instagram — monthly" note="Followers · reach · content interactions · DMs · leads · posts · reels · stories. Latest month bold.">
@@ -63,6 +62,79 @@ export function MonthlyReportView({ monthLabel = "May 2026" }: { monthLabel?: st
         Historical months imported once from the team&rsquo;s Notion report; the latest month and the live/chart sections fill from the dashboard&rsquo;s own data (being wired up).
       </footer>
     </article>
+  );
+}
+
+type LeadStatusResp = {
+  window: { from: string; to: string };
+  total: number;
+  byStatus: { status: string; count: number }[];
+  statuses: string[];
+  bySbu: { sbu: string; total: number; counts: Record<string, number> }[];
+};
+
+// Lead Status + Total Lead Status (SBU) — live from the CRM (last 30 days).
+function LeadGrids() {
+  const [d, setD] = useState<LeadStatusResp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/reports/lead-status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((j) => setD(j as LeadStatusResp))
+      .catch((e) => setErr(e instanceof Error ? e.message : "failed"));
+  }, []);
+
+  if (err) return <Placeholder title="Lead Status" note={`Couldn't load — ${err}`} />;
+  if (!d) return <div className="border border-gray-200 rounded-xl"><LoadingBlock className="!py-8" size={24} label="Loading lead status…" /></div>;
+
+  const maxStatus = Math.max(1, ...d.byStatus.map((s) => s.count));
+  // Keep the SBU matrix readable: the top 7 statuses as columns, rest folded into "Other".
+  const cols = d.statuses.slice(0, 7);
+  const otherCols = d.statuses.slice(7);
+  const otherOf = (counts: Record<string, number>) => otherCols.reduce((n, s) => n + (counts[s] || 0), 0);
+
+  return (
+    <div className="space-y-6">
+      <Section title="Lead Status" note={`Leads created ${d.window.from} → ${d.window.to}, by status · ${d.total} total.`}>
+        <div className="border border-gray-200 rounded-xl p-4 space-y-2.5">
+          {d.byStatus.map((s) => {
+            const pct = d.total ? Math.round((s.count / d.total) * 100) : 0;
+            return (
+              <div key={s.status} className="grid grid-cols-[170px_1fr_64px] items-center gap-3 text-[12.5px]">
+                <span className="text-[#3B4457] truncate" title={s.status}>{s.status}</span>
+                <span className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${(s.count / maxStatus) * 100}%` }} /></span>
+                <span className="text-right tabular-nums"><b className="font-medium text-[#232D42]">{s.count}</b> <span className="text-gray-400">{pct}%</span></span>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title="Total Lead Status (SBU)" note="Leads by SBU (rows) × status (columns).">
+        <div className="border border-gray-200 rounded-xl overflow-x-auto">
+          <table className="w-full text-[12px] whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-[11px] uppercase tracking-wide sticky left-0 bg-gray-50">SBU</th>
+                {cols.map((s) => <th key={s} className="px-3 py-2 text-right font-semibold text-[11px] uppercase tracking-wide">{s}</th>)}
+                {otherCols.length > 0 && <th className="px-3 py-2 text-right font-semibold text-[11px] uppercase tracking-wide">Other</th>}
+                <th className="px-3 py-2 text-right font-semibold text-[11px] uppercase tracking-wide">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.bySbu.map((r) => (
+                <tr key={r.sbu} className="border-t border-gray-100">
+                  <td className="px-3 py-2 text-left font-medium text-[#232D42] sticky left-0 bg-white">{r.sbu}</td>
+                  {cols.map((s) => <td key={s} className="px-3 py-2 text-right tabular-nums text-gray-600">{r.counts[s] || 0}</td>)}
+                  {otherCols.length > 0 && <td className="px-3 py-2 text-right tabular-nums text-gray-600">{otherOf(r.counts)}</td>}
+                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-[#232D42]">{r.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+    </div>
   );
 }
 

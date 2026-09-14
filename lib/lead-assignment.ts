@@ -248,7 +248,7 @@ function bucketOf(day: string, bucket: Bucket): { key: string; label: string; do
 // Primary Interest → SBU (Study Abroad / UK / USA / India UG / …) from the
 // DB: Primary Interests table. Cheap (~24 rows); best-effort — an interest that
 // isn't mapped falls back to "Other".
-async function getSbuMap(): Promise<Map<string, string>> {
+export async function getSbuMap(): Promise<Map<string, string>> {
   try {
     const rows = await airtableList<Record<string, unknown>>(PRIMARY_INTERESTS_TABLE, {
       fields: ["Particulars", "SBU"], pageSize: 100, maxRecords: 200,
