@@ -115,7 +115,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -174,7 +174,16 @@ export async function PATCH(req: Request) {
       const newDate = (clean.publishing_date as string | null) ?? null;
       const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);
       if (day(oldDate) !== day(newDate)) {
-        await requestDateChange(sb, { postId: body.id, title: String(preRow.particulars || "a task"), from: oldDate, to: newDate, requestedBy: gateActor || (preRow.owner_key as string) || "someone" });
+        const reason = typeof (body as { reason?: string }).reason === "string" ? (body as { reason?: string }).reason : undefined;
+        await requestDateChange(sb, {
+          postId: body.id,
+          title: String(preRow.particulars || "a task"),
+          type: (preRow.type as string) || undefined,
+          owner: (preRow.owner_key as string) || undefined,
+          createdAt: (preRow.created_at as string) || undefined,
+          from: oldDate, to: newDate, reason,
+          requestedBy: gateActor || (preRow.owner_key as string) || "someone",
+        });
         pendingApproval = { from: oldDate, to: newDate };
         delete clean.publishing_date;
         delete clean.due_date;

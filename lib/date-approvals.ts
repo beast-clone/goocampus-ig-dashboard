@@ -19,9 +19,14 @@ const APPROVER_EMAIL = process.env.APPROVER_EMAIL || "info@goocampus.in";
 export type DateChangeRequest = {
   postId: string;
   title: string;
-  from: string | null;   // old publishing_date
-  to: string | null;     // requested publishing_date
-  requestedBy: string;   // owner key
+  type?: string;          // content type (Reel / Carousel / …)
+  owner?: string;         // assignee (owner_key)
+  createdAt?: string;     // when the task was created
+  creator?: string;       // who created it (best-effort, from the activity log)
+  from: string | null;    // old publishing_date
+  to: string | null;      // requested publishing_date
+  reason?: string;        // why they want it moved (from the requester)
+  requestedBy: string;    // who is asking for the change
   requestedAt: string;
   status: "pending" | "approved" | "rejected";
   resolvedBy?: string;
@@ -29,27 +34,45 @@ export type DateChangeRequest = {
 };
 
 const KEY = (postId: string) => `datechg:${postId}`;
-const nameOf = (k: string) => MH_NAME[k] || k.charAt(0).toUpperCase() + k.slice(1);
-const fmt = (d: string | null) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+const nameOf = (k: string) => (k ? (MH_NAME[k] || k.charAt(0).toUpperCase() + k.slice(1)) : "Someone");
+const fmt = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+const fmtDT = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 // Raise (or replace) the pending request for a post + notify the approver.
-export async function requestDateChange(sb: SB, r: { postId: string; title: string; from: string | null; to: string | null; requestedBy: string }): Promise<DateChangeRequest> {
-  const payload: DateChangeRequest = { ...r, requestedAt: new Date().toISOString(), status: "pending" };
+export async function requestDateChange(sb: SB, r: { postId: string; title: string; type?: string; owner?: string; createdAt?: string; from: string | null; to: string | null; reason?: string; requestedBy: string }): Promise<DateChangeRequest> {
+  // Best-effort "who created it": the earliest actor in the task's activity log.
+  let creator: string | undefined;
+  try {
+    const { data } = await sb.from("mh_activity").select("actor_key").eq("post_id", r.postId).order("created_at", { ascending: true }).limit(1);
+    creator = (data?.[0]?.actor_key as string) || undefined;
+  } catch { /* leave undefined */ }
+
+  const payload: DateChangeRequest = { ...r, creator, requestedAt: new Date().toISOString(), status: "pending" };
   await sb.from("discover_cache").upsert(
     { cache_key: KEY(r.postId), source: "mh_date_change_request", last_fetched: new Date().toISOString(), payload },
     { onConflict: "cache_key" },
   );
 
   const who = nameOf(r.requestedBy);
-  const line = `📅 ${who} asked to move “${r.title}” publish date from ${fmt(r.from)} → ${fmt(r.to)}. Needs your approval, Maheen.`;
+  const reason = r.reason?.trim() || "—";
+  const meta = `Type: ${r.type || "—"} · Assigned to: ${nameOf(r.owner || "")} · Created: ${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}`;
 
   // 1) team chat
-  await postTeamMessage(sb, r.requestedBy, line);
-  // 1b) Slack (#creative_marketing)
-  await postSlack(`📅 *${who}* asked to move *“${r.title}”* publish date from *${fmt(r.from)}* → *${fmt(r.to)}*.\nApprove or reject it in *Marketing OS → My Day → Publish-date approvals*.`);
+  await postTeamMessage(sb, r.requestedBy, `📅 ${who} asked to move “${r.title}” from ${fmt(r.from)} → ${fmt(r.to)} — reason: ${reason}. Needs your approval, Maheen.`);
+  // 1b) Slack (#creative_marketing) — full, clearly-laid-out card
+  await postSlack(
+    `📅 *Publish-date change — needs your approval*\n` +
+    `*Task:* ${r.title}   _(${r.type || "—"})_\n` +
+    `*Assigned to:* ${nameOf(r.owner || "")}\n` +
+    `*Created:* ${fmtDT(r.createdAt)}${creator ? ` by *${nameOf(creator)}*` : ""}\n` +
+    `*Move publish date:* ${fmt(r.from)} → *${fmt(r.to)}*\n` +
+    `*Requested by:* ${who}\n` +
+    `*Reason:* ${reason}\n` +
+    `➡️ Approve or reject it in *Marketing OS → My Day → Publish-date approvals*.`,
+  );
   // 2) My Day bell — an mh_activity event the notifications route surfaces to Maheen
   try {
-    await sb.from("mh_activity").insert({ post_id: r.postId, actor_key: r.requestedBy, action: "date_change_requested", from_value: fmt(r.from), to_value: fmt(r.to) });
+    await sb.from("mh_activity").insert({ post_id: r.postId, actor_key: r.requestedBy, action: "date_change_requested", from_value: fmt(r.from), to_value: fmt(r.to), detail: reason });
   } catch { /* activity is best-effort */ }
   // 3) email
   if (hasEmail()) {
@@ -57,8 +80,16 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
       await sendMail({
         to: APPROVER_EMAIL,
         subject: `Approve publish-date change — “${r.title}”`,
-        text: `${who} requested to move the publish date of “${r.title}” from ${fmt(r.from)} to ${fmt(r.to)}.\n\nApprove or reject it in the Marketing OS (My Day → Publish-date approvals).`,
-        html: `<p><b>${who}</b> requested to move the publish date of “<b>${r.title}</b>” from <b>${fmt(r.from)}</b> to <b>${fmt(r.to)}</b>.</p><p>Approve or reject it in the Marketing OS → <i>My Day → Publish-date approvals</i>.</p>`,
+        text: `${who} requested to move the publish date of “${r.title}”.\n\nTask: ${r.title} (${r.type || "—"})\nAssigned to: ${nameOf(r.owner || "")}\nCreated: ${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}\nMove date: ${fmt(r.from)} -> ${fmt(r.to)}\nRequested by: ${who}\nReason: ${reason}\n\nApprove or reject it in Marketing OS (My Day -> Publish-date approvals).`,
+        html: `<p><b>${who}</b> requested to move a publish date — needs your approval.</p>`
+          + `<table cellpadding="4" style="font-size:14px;border-collapse:collapse">`
+          + `<tr><td><b>Task</b></td><td>${r.title} <i>(${r.type || "—"})</i></td></tr>`
+          + `<tr><td><b>Assigned to</b></td><td>${nameOf(r.owner || "")}</td></tr>`
+          + `<tr><td><b>Created</b></td><td>${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}</td></tr>`
+          + `<tr><td><b>Move date</b></td><td>${fmt(r.from)} → <b>${fmt(r.to)}</b></td></tr>`
+          + `<tr><td><b>Requested by</b></td><td>${who}</td></tr>`
+          + `<tr><td><b>Reason</b></td><td>${reason}</td></tr>`
+          + `</table><p>Approve or reject it in <i>Marketing OS → My Day → Publish-date approvals</i>.</p>`,
       });
     } catch { /* email is best-effort */ }
   }
