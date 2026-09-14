@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { safeError } from "@/lib/errors";
 import net from "node:net";
 import { lookup } from "node:dns/promises";
+
+// jsdom + readability are loaded lazily inside GET (not at module top level):
+// jsdom 29 pulls html-encoding-sniffer 6 → the ESM-only @exodus/bytes, which
+// Next's CJS require-hook can't load during build-time page-data collection.
+// Deferring the import keeps the build passing; they load in the Node runtime.
+type JSDOMInstance = { window: { document: Document } };
+type JSDOMCtor = new (html: string, opts?: { url?: string }) => JSDOMInstance;
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // In-dashboard reader. Fetches the article HTML directly, runs Mozilla
 // Readability (the same engine Firefox Reader View uses) to strip nav / ads /
@@ -61,7 +69,7 @@ async function assertPublicUrl(urlStr: string): Promise<void> {
 //  - remove executable / embedding elements (svg/math can carry handlers too)
 //  - drop every on* attribute
 //  - neutralise javascript:/vbscript: URLs on link/src attributes
-function sanitizeArticleHtml(rawHtml: string): string {
+function sanitizeArticleHtml(JSDOM: JSDOMCtor, rawHtml: string): string {
   const frag = new JSDOM(`<!doctype html><body>${rawHtml}</body>`);
   const d = frag.window.document;
   d.querySelectorAll("script,noscript,style,iframe,object,embed,form,base,link,meta,template,svg,math").forEach((el: Element) => el.remove());
@@ -99,6 +107,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "url query param must be a valid http(s) URL" }, { status: 400 });
   }
   try { await assertPublicUrl(target); } catch { return NextResponse.json({ error: "That URL isn't allowed." }, { status: 400 }); }
+
+  // Loaded here (not at module top) — see note by the imports.
+  const { JSDOM } = (await import("jsdom")) as unknown as { JSDOM: JSDOMCtor };
+  const { Readability } = await import("@mozilla/readability");
 
   try {
     const resolved = await resolveRedirect(target);
@@ -151,7 +163,7 @@ export async function GET(req: Request) {
     const article = new Readability(doc, { charThreshold: 200 }).parse();
 
     if (article && article.content && (article.textContent?.length ?? 0) > 200) {
-      const content = sanitizeArticleHtml(
+      const content = sanitizeArticleHtml(JSDOM,
         article.content.length > MAX_CONTENT_LEN
           ? article.content.slice(0, MAX_CONTENT_LEN) + "<p><em>…(truncated)</em></p>"
           : article.content,
@@ -170,7 +182,7 @@ export async function GET(req: Request) {
     // Fallback: use the OG description as a mini-article. Better than nothing —
     // most publishers pack their lede paragraph into og:description.
     if (metaDescription) {
-      const fallbackHtml = sanitizeArticleHtml(`${metaImage ? `<img src="${metaImage}" alt="" />` : ""}<p>${metaDescription}</p><p><em>This publisher renders the full article via JavaScript, so only the summary is available inline. Use "Open on the site" below for the full text.</em></p>`);
+      const fallbackHtml = sanitizeArticleHtml(JSDOM, `${metaImage ? `<img src="${metaImage}" alt="" />` : ""}<p>${metaDescription}</p><p><em>This publisher renders the full article via JavaScript, so only the summary is available inline. Use "Open on the site" below for the full text.</em></p>`);
       return NextResponse.json({
         title: metaTitle,
         byline: null,

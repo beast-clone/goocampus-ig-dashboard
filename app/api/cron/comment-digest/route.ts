@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 
 const TO = process.env.COMMENT_DIGEST_TO || "info@goocampus.in";
 const APP_URL = process.env.APP_URL || "https://goocampus-ig-dashboard.netlify.app";
+// Comment paths are stored without the app's basePath (usePathname strips it), so
+// prefix it here or the "open this page" links 404 on the deployed /gc-dashboard site.
+const BASE_PATH = process.env.BASE_PATH ?? "/gc-dashboard";
 
 // Start of today in IST (UTC+5:30), as a UTC ISO string.
 function istMidnightIso(): string {
@@ -41,7 +44,7 @@ export async function GET(req: Request) {
     const sections: string[] = [];
     const textLines: string[] = [`${comments.length} comment(s) left on the dashboard today (${dateLabel}):`, ""];
     for (const [path, list] of byPath) {
-      const url = `${APP_URL}${path}`;
+      const url = `${APP_URL}${BASE_PATH}${path}`;
       sections.push(`<div style="margin:18px 0 6px"><a href="${esc(url)}" style="color:#3A57E8;text-decoration:none;font-weight:600;font-size:14px">${esc(path)}</a></div>`);
       textLines.push(`${path}  (${url})`);
       for (const c of list) {
