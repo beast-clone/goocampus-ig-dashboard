@@ -7,7 +7,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { PreviewSelect } from "../PreviewSelect";
 import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
-  IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow, IconBrandTelegram,
+  IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow, IconBrandTelegram, IconSearch,
 } from "@tabler/icons-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 
@@ -199,8 +199,14 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
   for (const [id, on] of Object.entries(optimistic)) { if (on) starred.add(id); else starred.delete(id); }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6">
-      <div className={`flex flex-wrap items-baseline justify-between gap-3 ${only ? "mb-3" : "mb-4"}`}>
+    <div className={`relative bg-white rounded-xl border border-gray-100 ${tab === "tracker" ? "px-6 pt-4 pb-6" : "p-6"}`}>
+      {/* While a new range is loading, dim + spin so the switch never feels stuck. */}
+      {isLoading && (
+        <div className="absolute inset-0 z-20 rounded-xl bg-white/70 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-gray-500"><IconRefresh size={18} className="animate-spin" /> Updating…</div>
+        </div>
+      )}
+      <div className={`flex flex-wrap items-baseline justify-between gap-3 ${tab === "tracker" ? "mb-2" : only ? "mb-3" : "mb-4"}`}>
         <div>
           {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
           {tab !== "roles" && tab !== "tracker" && (
@@ -831,6 +837,18 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
 }) {
   // Tracking only. Moving a lead lives on the Transfer page.
   const noop = () => {};
+  // Find-a-lead-to-track search — filters this period's leads by name / interest /
+  // source / counsellor, 10 a page, each pinnable with the star.
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
+  const PER = 10;
+  const query = q.trim().toLowerCase();
+  const matches = query
+    ? data.allLeads.filter((l) => `${l.name} ${l.interest} ${l.source} ${l.counsellor}`.toLowerCase().includes(query))
+    : [];
+  const mPages = Math.max(1, Math.ceil(matches.length / PER));
+  const mp = Math.min(page, mPages - 1);
+  const mSlice = matches.slice(mp * PER, mp * PER + PER);
   const pinned = data.allLeads.filter((l) => starred.has(l.id));
   const flagged = data.allLeads
     .filter((l) => !starred.has(l.id) && (l.flaggedNew || l.flaggedPool))
@@ -858,6 +876,33 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
         Flagged automatically <span className="text-gray-400 font-normal">· {fmtInt(flagged.length)}</span>
       </div>
       <LeadTable leads={flagged} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} showWhy allowReassign={false} />
+
+      {/* Find any lead and pin it — search this period by name or primary interest. */}
+      <div className="text-sm font-medium text-[#232D42] mt-7 mb-1">Find a lead to track</div>
+      <div className="text-[12.5px] text-gray-500 mb-3">Don&apos;t know the name? Search by primary interest (or source/counsellor), then click the ☆ star to pin it above.</div>
+      <div className="relative mb-3 max-w-md">
+        <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search by name, primary interest, source or counsellor…"
+          className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand" />
+      </div>
+      {query ? (
+        matches.length ? (
+          <>
+            <LeadTable leads={mSlice} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} allowReassign={false} />
+            {mPages > 1 && (
+              <div className="flex items-center justify-between mt-3 text-[12.5px] text-gray-500">
+                <span>Showing {mp * PER + 1}–{Math.min((mp + 1) * PER, matches.length)} of {fmtInt(matches.length)}</span>
+                <div className="flex items-center gap-1">
+                  <button disabled={mp === 0} onClick={() => setPage(mp - 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">‹ Prev</button>
+                  <span className="px-1">Page {mp + 1} / {mPages}</span>
+                  <button disabled={mp >= mPages - 1} onClick={() => setPage(mp + 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">Next ›</button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">No leads match &ldquo;{q}&rdquo; in this period. Try another word, or widen the date range at the top.</div>
+      ) : null}
+
       <Foot>
         Every lead&apos;s history is recorded nightly regardless — pinning only decides what shows up here.
         Flagged = assigned but still “New” after 2 days, or sitting in the pool more than 2 days.
