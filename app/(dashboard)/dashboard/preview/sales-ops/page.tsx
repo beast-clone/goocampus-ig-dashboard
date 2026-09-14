@@ -1127,6 +1127,9 @@ function RevenueTrendChart({ data }: { data: { month: string; revenue: number; c
   );
 }
 
+// A small line/area trend graph for one metric. Line + soft area fill + a dot and
+// value label per month. SVG holds the line/area (stretched to full width); the dots
+// and labels are HTML overlaid by percentage so they stay crisp and readable.
 function MiniTrend({ title, unit, data, value, color, fmt }: {
   title: string;
   unit: string;
@@ -1135,26 +1138,38 @@ function MiniTrend({ title, unit, data, value, color, fmt }: {
   color: string;
   fmt: (v: number) => string;
 }) {
-  const max = Math.max(...data.map(value), 1);
+  const n = data.length;
+  const vals = data.map(value);
+  const max = Math.max(...vals, 1);
+  const x = (i: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100);
+  const y = (v: number) => 100 - (v / max) * 74; // leave ~26% headroom at the top for labels
+  const pts = data.map((d, i) => ({ month: d.month, v: vals[i], px: x(i), py: y(vals[i]) }));
+  const line = pts.map((p) => `${p.px},${p.py}`).join(" ");
+  const area = `0,100 ${line} 100,100`;
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2.5">
+      <div className="flex items-baseline justify-between mb-3">
         <div className="text-[13px] font-medium text-[#232D42]">{title}</div>
         <div className="text-[11px] text-gray-400">{unit}</div>
       </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
-        {data.map((d) => {
-          const v = value(d);
-          return (
-            <div key={d.month} className="flex flex-col items-center">
-              <div className="w-full h-24 flex items-end justify-center">
-                <div className="w-9 rounded-t" style={{ height: `${(v / max) * 100}%`, background: color, minHeight: v > 0 ? "4px" : 0 }} title={fmt(v)} />
-              </div>
-              <div className="text-[13px] font-medium text-[#232D42] mt-1.5">{fmt(v)}</div>
-              <div className="text-[11px] text-gray-500">{fmtMonth(d.month)}</div>
-            </div>
-          );
-        })}
+      <div className="relative w-full" style={{ height: 104 }}>
+        {n > 1 && (
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+            <polygon points={area} fill={color} opacity={0.08} />
+            <polyline points={line} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
+        )}
+        {pts.map((p) => (
+          <div key={p.month}>
+            <span className="absolute block h-2 w-2 rounded-full ring-2 ring-white" style={{ left: `${p.px}%`, top: `${p.py}%`, background: color, transform: "translate(-50%,-50%)" }} title={fmt(p.v)} />
+            <span className="absolute whitespace-nowrap text-[11px] font-medium text-[#232D42]" style={{ left: `${p.px}%`, top: `${p.py}%`, transform: "translate(-50%,-190%)" }}>{fmt(p.v)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="grid mt-1.5" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
+        {pts.map((p, i) => (
+          <div key={p.month} className={`text-[11px] text-gray-500 ${n <= 1 ? "text-center" : i === 0 ? "text-left" : i === n - 1 ? "text-right" : "text-center"}`}>{fmtMonth(p.month)}</div>
+        ))}
       </div>
     </div>
   );
