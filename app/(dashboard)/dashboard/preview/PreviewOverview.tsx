@@ -5,7 +5,7 @@ import {
   IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
-  IconBrandYoutube, IconClock, IconChartBar, IconTrophy,
+  IconBrandYoutube, IconChartBar, IconTrophy,
   IconChevronDown, IconCheck,
 } from "@tabler/icons-react";
 import { PreviewDatePicker } from "./PreviewDatePicker";
@@ -13,7 +13,6 @@ import HubNotificationBell from "@/components/HubNotificationBell";
 import { HeaderProfile } from "@/components/HeaderProfile";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
-import { AudienceOnlineHeatmap } from "@/components/AudienceOnlineHeatmap";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
@@ -571,7 +570,6 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                     inside the card at the bottom (levels the two columns). */}
                 <FormatWins rows={formatRows} cardStyle={{ minWidth: 0 }} footer={<YourRead mix={postMix} />} />
               </div>
-              <HowToRead />
 
               {/* Posting cadence */}
               <SectionHeader icon={IconCalendarEvent} title="Posting cadence" sub="How often you post, by week" />
@@ -579,11 +577,6 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <PostingCadenceBar accountId={accountId} range={range} smartCadence />
               </div>
 
-              {/* Best times to post */}
-              <SectionHeader icon={IconClock} title="Best times to post next" sub="When your audience is most active" />
-              <div className="preview-scope" style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "8px 12px" }}>
-                <AudienceOnlineHeatmap accountId={accountId} />
-              </div>
             </>
           )}
         </div>
@@ -754,35 +747,6 @@ function FormatWins({ rows, cardStyle, footer }: { rows: { type: string; count: 
         ); })}
       </div>
       {footer && <div style={{ marginTop: 12 }}>{footer}</div>}
-    </Card>
-  );
-}
-
-// How to read — 3 visual step cards instead of a wall of text.
-function HowToRead() {
-  const steps = [
-    { n: 1, icon: IconChartBar, title: "Set the base", range: "90 days / 1 year", color: C.primary, body: <>Look at what won <b>most consistently</b> — make that <b>~50–60%</b> of every month&rsquo;s plan. Your reliable format.</> },
-    { n: 2, icon: IconChartLine, title: "Check momentum", range: "30 days", color: C.teal, body: <>A different format winning this month? Bump its share <b>+10–15%</b> — something is shifting.</> },
-    { n: 3, icon: IconClock, title: "Tune this week", range: "7 days", color: "#6E48F8", body: <>A 7-day spike? Add <b>one or two extras</b> to test next week — don&rsquo;t flip your whole strategy on it.</> },
-  ];
-  return (
-    <Card>
-      <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>How to read this — planning your week vs your month</div>
-      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>The longer the range, the more trustworthy the signal.</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 14 }}>
-        {steps.map((s) => (
-          <div key={s.n} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: 16, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 12, right: 16, fontSize: 46, fontWeight: 600, color: `${s.color}26`, lineHeight: 1, pointerEvents: "none" }}>{s.n}</div>
-            <span style={{ position: "relative", width: 40, height: 40, borderRadius: 11, background: `${s.color}18`, color: s.color, display: "grid", placeItems: "center", marginBottom: 12 }}><s.icon size={21} stroke={1.9} /></span>
-            <div style={{ fontSize: 14.5, fontWeight: 600, color: C.heading }}>{s.title}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{s.range}</div>
-            <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, position: "relative" }}>{s.body}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 14, fontSize: 12.5, color: C.heading, background: C.bg, borderRadius: 10, padding: "10px 14px", lineHeight: 1.5 }}>
-        <b>Rule of thumb:</b> a 7-day spike is worth <b>a test</b> — a 90-day lead is worth <b>a strategy</b>.
-      </div>
     </Card>
   );
 }
