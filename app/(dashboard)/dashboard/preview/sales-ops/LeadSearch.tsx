@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSearch, IconUserShare, IconExternalLink, IconX, IconLoader2, IconUsersGroup } from "@tabler/icons-react";
+import { LiveWaiting } from "./LiveWaiting";
 
 // Sales Hub → Search leads. Find any lead across the whole CRM by name / phone /
 // email (Airtable filters server-side), narrow by counsellor / status, open a lead
@@ -12,7 +13,7 @@ type Roster = { name: string; userId: string; label: string };
 type Lead = {
   id: string; name: string; counsellor: { id: string; name: string } | null;
   status: string; interest: string; source: string; location: string;
-  phone: string; email: string; created: string; assigned: string; idleDays: number; link: string;
+  phone: string; email: string; created: string; createdIso: string; assigned: string; idleDays: number; link: string;
 };
 
 // poolMode = the "Unassigned leads" tab: lock the list to the New-Leads pool
@@ -131,7 +132,7 @@ export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
                 <th className="font-medium px-3 py-2.5">Interest</th>
                 <th className="font-medium px-3 py-2.5">Created</th>
                 <th className="font-medium px-3 py-2.5">Assigned</th>
-                <th className="font-medium px-3 py-2.5">Idle</th>
+                <th className="font-medium px-3 py-2.5">{poolMode ? "Waiting" : "Idle"}</th>
                 <th className="font-medium px-3 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
@@ -153,7 +154,7 @@ export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
                   <td className="px-3 py-2.5 text-[#3B4457]">{l.interest || "—"}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{l.created || "—"}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{l.assigned ? <span className="text-[#3B4457]">{l.assigned}</span> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-3 py-2.5"><span className={l.idleDays > 7 ? "text-red-600 font-medium" : "text-gray-500"}>{l.idleDays}d</span></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{poolMode ? <LiveWaiting createdAt={l.createdIso} /> : <span className={l.idleDays > 7 ? "text-red-600 font-medium" : "text-gray-500"}>{l.idleDays}d</span>}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-2">
                       <a href={l.link} target="_blank" rel="noopener noreferrer" title="Open in Airtable" className="text-gray-400 hover:text-brand"><IconExternalLink size={16} stroke={1.8} /></a>
@@ -300,7 +301,7 @@ function LeadDetailModal({ id, onClose, onReassign }: { id: string; onClose: () 
               {d ? <>With <b className="text-[#3B4457]">{d.counsellor?.name || "Unassigned"}</b> · <span className={d.idleDays > 7 ? "text-red-600 font-medium" : ""}>idle {d.idleDays}d</span></> : " "}
             </div>
           </div>
-          {d && <button onClick={() => onReassign({ id: d.id, name: d.name, counsellor: d.counsellor, status: "", interest: "", source: "", location: "", phone: "", email: "", created: "", assigned: "", idleDays: d.idleDays, link: d.link })}
+          {d && <button onClick={() => onReassign({ id: d.id, name: d.name, counsellor: d.counsellor, status: "", interest: "", source: "", location: "", phone: "", email: "", created: "", createdIso: "", assigned: "", idleDays: d.idleDays, link: d.link })}
             className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brand border border-[#E9ECFB] rounded-lg px-2.5 py-1.5 hover:bg-brand-light flex-shrink-0"><IconUserShare size={14} stroke={1.8} /> Reassign</button>}
           <a href={d?.link || "#"} target="_blank" rel="noopener noreferrer" title="Open in Airtable" className="text-gray-400 hover:text-brand mt-1 flex-shrink-0"><IconExternalLink size={17} stroke={1.8} /></a>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>

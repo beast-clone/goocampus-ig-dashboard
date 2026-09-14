@@ -4,6 +4,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
+import { LiveWaiting } from "./LiveWaiting";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconTrophy } from "@tabler/icons-react";
@@ -1137,29 +1138,6 @@ function TtcCell({ hrs, contacted, createdAt }: { hrs: number | null; contacted?
     return <LiveWaiting createdAt={createdAt} />;
   }
   return <span className="tabular-nums font-semibold" style={{ color: ttcColor(hrs) }}>{fmtTtc(hrs)}</span>;
-}
-
-// A red stopwatch that ticks every second: "HH:MM:SS" (or "Nd HH:MM:SS" past a day),
-// counting the time a lead has been waiting for its first contact.
-function LiveWaiting({ createdAt }: { createdAt: string }) {
-  const start = Date.parse(createdAt);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  if (Number.isNaN(start)) return <span className="text-gray-400">—</span>;
-  let s = Math.max(0, Math.floor((now - start) / 1000));
-  const d = Math.floor(s / 86_400); s -= d * 86_400;
-  const h = Math.floor(s / 3_600); s -= h * 3_600;
-  const m = Math.floor(s / 60); s -= m * 60;
-  const p = (n: number) => String(n).padStart(2, "0");
-  const clock = `${p(h)}:${p(m)}:${p(s)}`;
-  return (
-    <span className="inline-flex items-center gap-1 tabular-nums font-semibold text-[#C0392B]" title="Waiting for first contact — live, since the lead arrived">
-      <IconClock size={13} stroke={2} /> {d > 0 ? `${d}d ${clock}` : clock}
-    </span>
-  );
 }
 
 function KpiTile({ label, value, hint, tone, icon: Icon, onClick }: { label: string; value: string; hint: string; tone?: "crit" | "warn" | "good"; icon?: typeof IconUsers; onClick?: () => void }) {

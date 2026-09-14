@@ -71,6 +71,7 @@ export async function GET(req: Request) {
         phone: pickName(r.fields["Mobile Number"]),
         email: pickName(r.fields["Email"]),
         created: fmtDay(pickName(r.fields["Created Date"])),
+        createdIso: pickName(r.fields["Created Date"]), // raw timestamp for the live waiting clock
         assigned: "" as string, // filled from the distribution log below
         idleDays: idleDays(r.fields),
         link: `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${r.id}`,
