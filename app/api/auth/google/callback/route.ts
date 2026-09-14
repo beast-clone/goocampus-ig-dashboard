@@ -17,7 +17,9 @@ function back(origin: string, reason: string) {
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const origin = url.origin;
+  // Must match the origin used in /start (and the URI registered in Google), so pin it
+  // to APP_URL — req.url is the deploy-permalink host on Netlify, which wouldn't match.
+  const origin = (process.env.APP_URL || url.origin).replace(/\/$/, "");
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 

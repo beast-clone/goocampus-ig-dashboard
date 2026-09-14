@@ -7,7 +7,10 @@ import { randomBytes } from "crypto";
 // flag instead of erroring — so the button is safe to show in a demo.
 
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
+  // Use the configured public origin, not req.url — on Netlify the function sees the
+  // immutable deploy-permalink host, which would make redirect_uri not match the one
+  // registered in Google (redirect_uri_mismatch). APP_URL is the stable prod origin.
+  const origin = (process.env.APP_URL || new URL(req.url).origin).replace(/\/$/, "");
   const clientId = process.env.GOOGLE_LOGIN_CLIENT_ID;
 
   if (!clientId) {
