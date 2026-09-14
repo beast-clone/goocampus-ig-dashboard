@@ -186,6 +186,11 @@ export function CommentMode() {
     }
     const c: Comment = { id: newId(), path: pathname || "/", x: draft.x, y: draft.y, text, author, ts: Date.now() };
     persist([...all, c]);
+    // Also log it server-side (best-effort) so it lands in the daily digest email.
+    fetch("/api/comments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: c.id, path: c.path, text: c.text, author: c.author, ts: c.ts }),
+    }).catch(() => {});
     setDraft(null);
     setDraftText("");
   };
