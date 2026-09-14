@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { REPORT_HISTORY, type HistoryTable } from "@/lib/report-history";
+import { type ManualFields } from "@/lib/report-manual";
 import { LoadingBlock } from "@/components/LoadingBlock";
 
 // Full monthly report in the team's Notion format (see docs/MONTHLY_REPORT_SPEC.md).
@@ -14,6 +15,14 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
   const label = monthLabel ?? now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [manual, setManual] = useState<ManualFields | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/manual?month=${monthKey}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j) => setManual(j.fields as ManualFields))
+      .catch(() => setManual({ achievements: "", focusedSbus: "", amcEbook: "", newsletter: "", futureProspects: "", actionNotes: "" }));
+  }, [monthKey]);
   return (
     <article className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 md:p-8 space-y-9">
       <header className="border-b border-gray-100 pb-5">
@@ -22,11 +31,11 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
         <div className="text-[12.5px] text-gray-500 mt-1">GooCampus · all channels · this month to date</div>
       </header>
 
-      <Manual title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." />
-      <Manual title="Focused SBUs" hint="Focused SBUs + webinar / live-session write-ups (registrations, attendees)." />
+      <ManualEditable title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." monthKey={monthKey} field="achievements" initial={manual?.achievements ?? ""} loaded={manual != null} />
+      <ManualEditable title="Focused SBUs" hint="Focused SBUs + webinar / live-session write-ups (registrations, attendees)." monthKey={monthKey} field="focusedSbus" initial={manual?.focusedSbus ?? ""} loaded={manual != null} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Manual title="AMC E-Book" hint="Total sales so far + note." />
-        <Manual title="Newsletter" hint="Total subscribers + note." />
+        <ManualEditable title="AMC E-Book" hint="Total sales so far + note." monthKey={monthKey} field="amcEbook" initial={manual?.amcEbook ?? ""} loaded={manual != null} />
+        <ManualEditable title="Newsletter" hint="Total subscribers + note." monthKey={monthKey} field="newsletter" initial={manual?.newsletter ?? ""} loaded={manual != null} />
       </div>
 
       <Section title="Total Organic Leads" note="Organic leads by source, month over month (paid ads excluded).">
@@ -63,8 +72,8 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
           buildRow={(j, short) => [`${short} · live`, fmtNum(j.followers), fmtNum(j.impressions), String(j.reactions), String(j.posts), String(j.comments)]} />
       </Section>
 
-      <Manual title="Future Prospects" hint="Strategy bullets for the coming month." />
-      <Manual title="Post-Meeting Action Notes" hint="Actions agreed in the review meeting." />
+      <ManualEditable title="Future Prospects" hint="Strategy bullets for the coming month." monthKey={monthKey} field="futureProspects" initial={manual?.futureProspects ?? ""} loaded={manual != null} />
+      <ManualEditable title="Post-Meeting Action Notes" hint="Actions agreed in the review meeting." monthKey={monthKey} field="actionNotes" initial={manual?.actionNotes ?? ""} loaded={manual != null} />
 
       <footer className="pt-5 border-t border-gray-100 text-[11px] text-gray-400 italic">
         Historical months imported once from the team&rsquo;s Notion report; the latest month and the live/chart sections fill from the dashboard&rsquo;s own data (being wired up).
@@ -343,16 +352,46 @@ function MonthlyTable({ t }: { t: HistoryTable }) {
   );
 }
 
-// Editable narrative section — placeholder for now (phase 4 makes it an input saved
-// with the report). Rendered as a dashed "to fill" card so the layout is complete.
-function Manual({ title, hint }: { title: string; hint: string }) {
+// Editable narrative section, saved per month (auto-saves on blur). While the saved
+// value loads, the textarea is disabled to avoid clobbering it with an empty string.
+function ManualEditable({ title, hint, monthKey, field, initial, loaded }: {
+  title: string; hint: string; monthKey: string; field: keyof ManualFields; initial: string; loaded: boolean;
+}) {
+  const [val, setVal] = useState(initial);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Adopt the saved value once it arrives (only when the box is untouched/empty).
+  useEffect(() => { setVal(initial); }, [initial]);
+
+  const save = async () => {
+    if (val === initial) return;
+    setState("saving");
+    try {
+      const r = await fetch("/api/reports/manual", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: monthKey, patch: { [field]: val } }),
+      });
+      setState(r.ok ? "saved" : "error");
+    } catch { setState("error"); }
+  };
+
+  const rows = Math.min(12, Math.max(3, val.split("\n").length + 1));
   return (
-    <section className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 px-4 py-3.5">
-      <div className="flex items-center gap-2">
+    <section className="rounded-xl border border-gray-200 bg-white px-4 py-3.5">
+      <div className="flex items-center gap-2 mb-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">✍️ {title}</span>
-        <span className="text-[10px] font-medium text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">editable · you fill this</span>
+        {state === "saving" && <span className="text-[10px] text-gray-400">saving…</span>}
+        {state === "saved" && <span className="text-[10px] text-emerald-600">✓ saved</span>}
+        {state === "error" && <span className="text-[10px] text-rose-600">save failed — retry</span>}
       </div>
-      <div className="text-[12px] text-gray-500 mt-1.5 leading-relaxed">{hint}</div>
+      <textarea
+        value={val}
+        disabled={!loaded}
+        onChange={(e) => { setVal(e.target.value); setState("idle"); }}
+        onBlur={save}
+        rows={rows}
+        placeholder={loaded ? hint : "Loading…"}
+        className="w-full text-[13px] text-[#232D42] border border-gray-200 rounded-lg px-3 py-2 leading-relaxed resize-y focus:outline-none focus:border-brand disabled:bg-gray-50 disabled:text-gray-400"
+      />
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { MonthlyReportView } from "../MonthlyReportView";
 // docs/MONTHLY_REPORT_SPEC.md). Phase 1: the imported month-over-month tables.
 export default function Page() {
   return (
-    <PreviewDashboardShell active="ai-reports" title="Monthly Report — full format" subtitle="The team's monthly report layout. History imported; live sections being wired up." hideAccountPicker hideRange compact>
+    <PreviewDashboardShell active="ai-reports" title="Monthly Report — full format" subtitle="Live data + imported history, in the team's monthly-report layout. Fill the ✍️ sections — they save per month." hideAccountPicker hideRange compact>
       {() => (
         <div className="max-w-[1200px] mx-auto">
           <MonthlyReportView />
