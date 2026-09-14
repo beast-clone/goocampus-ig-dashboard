@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/instagram";
 import { snapshotPostsForMonth, snapshotAllAccountsPostsForMonth, currentMonth } from "@/lib/post-history";
+import { snapshotAudienceForMonth, snapshotAllAccountsAudienceForMonth } from "@/lib/audience-history";
 
 // Freeze one month of post performance per account into Supabase, so past months
 // stay stable + instant on the Overview (see lib/post-history.ts).
@@ -28,24 +29,35 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
   const accountId = url.searchParams.get("accountId");
+  const only = url.searchParams.get("only"); // "audience" | "posts" | null (both)
+  const doPosts = only !== "audience";
+  const doAudience = only !== "posts";
   const t0 = Date.now();
 
   try {
     if (accountId) {
       const acc = getAccount(accountId);
       if (!acc) return NextResponse.json({ error: `Unknown account ${accountId}` }, { status: 400 });
-      const r = await snapshotPostsForMonth(acc, month);
-      return NextResponse.json({ month, results: [{ accountId, ...r }], latencyMs: Date.now() - t0 });
+      const [posts, audience] = await Promise.all([
+        doPosts ? snapshotPostsForMonth(acc, month) : Promise.resolve(null),
+        doAudience ? snapshotAudienceForMonth(acc, month) : Promise.resolve(null),
+      ]);
+      return NextResponse.json({ month, results: [{ accountId, posts, audience }], latencyMs: Date.now() - t0 });
     }
-    const results = await snapshotAllAccountsPostsForMonth(month);
-    const postsWritten = results.filter((r) => r.ok).reduce((s, r) => s + (r.count || 0), 0);
+    const [postResults, audResults] = await Promise.all([
+      doPosts ? snapshotAllAccountsPostsForMonth(month) : Promise.resolve([]),
+      doAudience ? snapshotAllAccountsAudienceForMonth(month) : Promise.resolve([]),
+    ]);
+    const postsWritten = postResults.filter((r) => r.ok).reduce((s, r) => s + (r.count || 0), 0);
     return NextResponse.json({
       month,
-      accountsOk: results.filter((r) => r.ok).length,
-      accountsFailed: results.filter((r) => !r.ok).length,
+      accountsOk: postResults.filter((r) => r.ok).length,
+      accountsFailed: postResults.filter((r) => !r.ok).length,
       postsWritten,
+      audienceOk: audResults.filter((r) => r.ok).length,
       latencyMs: Date.now() - t0,
-      results,
+      results: postResults,
+      audience: audResults,
     });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });

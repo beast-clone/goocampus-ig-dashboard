@@ -51,7 +51,7 @@ type Insights = {
   meta?: { engagementBasis?: "measured" | "estimated" };
 };
 type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number };
-type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[] };
+type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[]; stored?: boolean; month?: string };
 type Tip = { metric: "followers" | "reach" | "engagement" | "profileVisits"; detail: string; action: string };
 
 // Null-safe: a missing metric must not crash the whole Overview (the landing page).
@@ -219,7 +219,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
       : `/api/insights?accountId=${accountId}&from=${from}&to=${insTo}`;
     fetch(insUrl).then((r) => r.ok ? r.json() : null).then((i) => { if (alive && i) { setIns(i as Insights); setInsStored(!!i.stored); } }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
     fetch(`/api/posts?accountId=${accountId}&from=${from}&to=${to}&limit=10&insights=true`).then((r) => r.ok ? r.json() : { posts: [] }).then((p) => { if (alive) setPosts((p?.posts || []) as Post[]); }).catch(() => {});
-    fetch(`/api/audience?accountId=${accountId}`).then((r) => r.ok ? r.json() : null).then((a) => { if (alive && a) setAud(a as Audience); }).catch(() => {});
+    fetch(`/api/audience?accountId=${accountId}&from=${from}&to=${to}`).then((r) => r.ok ? r.json() : null).then((a) => { if (alive && a) setAud(a as Audience); }).catch(() => {});
     fetch(`/api/overview-tips?accountId=${accountId}&from=${from}&to=${insTo}`).then((r) => r.ok ? r.json() : null).then((tp) => { if (alive) setTips((tp?.tips || []) as Tip[]); }).catch(() => {});
     return () => { alive = false; };
   }, [range, accountId]);
@@ -231,35 +231,6 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     return m;
   }, [tips]);
 
-
-  // "Old winners worth refreshing" — the 6 months BEFORE the current range, one
-  // best post per calendar month. Fetched WITHOUT insights (insights=false) so a
-  // 6-month window stays fast — we rank by engagement (likes + comments), which the
-  // media list carries directly, instead of the slow per-post reach insight.
-  const [oldWinners, setOldWinners] = useState<Post[] | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const fromDate = new Date(range.from);
-    const oldTo = new Date(fromDate.getTime() - 1 * 86_400_000).toISOString().slice(0, 10);
-    const oldFrom = new Date(fromDate.getTime() - 183 * 86_400_000).toISOString().slice(0, 10);
-    const qs = new URLSearchParams({ accountId, from: oldFrom, to: oldTo, limit: "500", insights: "false" }).toString();
-    setOldWinners(null);
-    fetch(`/api/posts?${qs}`).then((r) => r.ok ? r.json() : { posts: [] }).then((d) => { if (alive) setOldWinners((d.posts || []) as Post[]); }).catch(() => { if (alive) setOldWinners([]); });
-    return () => { alive = false; };
-  }, [range, accountId]);
-  // One card per month: the highest-engagement post in each calendar month, newest month first.
-  const reposts = useMemo(() => {
-    if (!oldWinners) return [];
-    const eng = (p: Post) => (p.likes || 0) + (p.comments || 0);
-    const byMonth = new Map<string, Post>();
-    for (const p of oldWinners) {
-      const d = new Date(p.timestamp);
-      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const cur = byMonth.get(mk);
-      if (!cur || eng(p) > eng(cur)) byMonth.set(mk, p);
-    }
-    return [...byMonth.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([, p]) => p).slice(0, 6);
-  }, [oldWinners]);
 
   // Full-range posts (limit 200) → custom Post-mix + Which-format-wins
   // (same source/logic as the real Overview's OverviewExtras).
@@ -491,7 +462,11 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
                 <Card>
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Who you reached</div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Audience split</div>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
+                    {aud?.stored
+                      ? <>Audience captured for {aud.month ? new Date(aud.month + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "this month"}</>
+                      : "Audience split · current"}
+                  </div>
                   <GenderDonut gender={aud?.gender || []} />
                   <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 9 }}>
                     {(aud?.countries || []).slice(0, 4).map((c, i) => {
@@ -542,8 +517,6 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 </div>
               </Card>
 
-              {/* Old winners worth reposting — moved here, directly below Top performing */}
-              <OldWinners posts={reposts} loading={oldWinners === null} />
 
               {/* Latest posts — now below Top performing */}
               <Card>
@@ -682,59 +655,6 @@ function PlatformHero({ platform, accountId, range, rangeLabel, person = "" }: {
   return <HeroBanner eyebrow={`GooCampus on ${label} · ${rangeLabel}`} person={person}>{sub}</HeroBanner>;
 }
 
-// "Old winners worth reposting" — Themed card grid (same data as the real
-// Overview's repost block), placed directly under Top performing posts.
-function OldWinners({ posts, loading }: { posts: Post[]; loading: boolean }) {
-  return (
-    <Card>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Old winners worth refreshing</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>The best post from each of the last 6 months (by engagement). Click <b>Schedule</b> to queue it again with its original caption &amp; creative — fact-check first, medical rules change.</div>
-      </div>
-      {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
-          {[0, 1, 2, 3].map((i) => <div key={i} style={{ height: 300, background: C.bg, borderRadius: 12 }} />)}
-        </div>
-      ) : posts.length === 0 ? (
-        <div style={{ fontSize: 13, color: C.muted, fontStyle: "italic" }}>No older posts to draw from yet.</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
-          {posts.map((p) => {
-            const chip = typeChip(p.type);
-            const title = (p.caption || "").split("\n")[0].slice(0, 80) || "(no caption)";
-            // Carry the SAME post into the composer: original caption + its media
-            // (all carousel slides), so scheduling it again never asks for a re-upload.
-            const slides = (p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : (p.mediaUrl ? [p.mediaUrl] : [])).filter(Boolean);
-            const dp = new URLSearchParams({ title, brief: (p.caption || "").slice(0, 2000) });
-            slides.forEach((u) => dp.append("media", u));
-            const draft = dp.toString();
-            return (
-              <div key={p.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, display: "flex", flexDirection: "column" }}>
-                <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
-                  {p.mediaUrl ? <img src={p.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                  <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
-                </div>
-                <div style={{ padding: "11px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: C.primary, marginBottom: 3 }}>{new Date(p.timestamp).toLocaleDateString("en-IN", { month: "long", year: "numeric" })} · top</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{fmtDateShort(p.timestamp)}</div>
-                  <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.35, height: 50, overflow: "hidden", marginBottom: 8 }}>{title}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11.5, color: C.muted, fontVariantNumeric: "tabular-nums", marginBottom: 10 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(p.likes || 0)}</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconMessageCircle size={13} /> {kfmt(p.comments || 0)}</span>
-                  </div>
-                  <Link href={`/dashboard/preview/scheduler?draft=${encodeURIComponent(draft)}`}
-                    style={{ marginTop: "auto", display: "block", textAlign: "center", fontSize: 12, fontWeight: 600, background: C.primary, color: "#fff", padding: "9px 12px", borderRadius: 9, textDecoration: "none" }}>
-                    Schedule
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 // Post mix — Themed donut with the new palette + a plain-English read.
 // `loading` is true while the range posts are still in flight (rangePosts === null);
