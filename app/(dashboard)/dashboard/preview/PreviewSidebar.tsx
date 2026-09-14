@@ -34,6 +34,8 @@ const HUB = "/dashboard/preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 // Admin-only cockpit — rendered right under Overview when the viewer is an admin.
 const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
+// Admin-only — publish-date changes waiting for approval, with a live count badge.
+const APPROVALS: Leaf = { label: "Approvals", href: `${HUB}/approvals`, icon: IconCalendarStats };
 
 const GROUPS: Group[] = [
   { label: "Content", sec: "content", items: [
@@ -150,6 +152,22 @@ export function PreviewSidebar() {
   );
   const canOverview = !me || canAccessSection(me, "overview");
 
+  // Live count of publish-date changes waiting for the admin to approve — drives the
+  // notification badge on the Approvals tab. Admin-only; polls so a new request shows
+  // up without a reload.
+  const [apprCount, setApprCount] = useState(0);
+  useEffect(() => {
+    if (!me?.isAdmin) return;
+    let alive = true;
+    const tick = () => fetch("/api/marketing-hub/date-change", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { requests: [] }))
+      .then((d) => { if (alive) setApprCount((d.requests || []).length); })
+      .catch(() => {});
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [me?.isAdmin]);
+
   // The sidebar lives in the route layout, so it stays mounted across navigation
   // and its scroll position simply never changes — nothing to save or restore.
   //
@@ -201,11 +219,12 @@ export function PreviewSidebar() {
   // That reflow was the jump; scroll position was never the whole story.
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
 
-  const LeafRow = ({ leaf, indent }: { leaf: Leaf; indent?: boolean }) => {
+  const LeafRow = ({ leaf, indent, badge }: { leaf: Leaf; indent?: boolean; badge?: number }) => {
     const Icon = leaf.icon;
     return (
       <Link href={leaf.href} prefetch className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
         <Icon size={indent ? 15 : 16} stroke={1.8} /> <span>{leaf.label}</span>
+        {badge ? <span className="hnavbadge">{badge}</span> : null}
       </Link>
     );
   };
@@ -249,6 +268,7 @@ export function PreviewSidebar() {
       <GlobalSearch />
       {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} />}
+      {me?.isAdmin && <LeafRow leaf={APPROVALS} badge={apprCount} />}
       {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}
@@ -278,6 +298,9 @@ const SIDEBAR_CSS = `
 .hsidebar .hnavitem.active svg{color:#fff}
 .hsidebar .hnavitem.semi{color:var(--sb-brand-ink)}
 .hsidebar .hnavitem.semi svg{color:var(--sb-brand)}
+.hsidebar .hnavitem>span:first-of-type{flex:1}
+.hsidebar .hnavbadge{background:#E24B4A;color:#fff;font-size:.6rem;font-weight:700;border-radius:99px;min-width:17px;height:17px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.hsidebar .hnavitem.active .hnavbadge{background:#fff;color:var(--sb-brand)}
 .hsidebar .hnavitem.child{font-size:.79rem;padding:6px 10px}
 .hsidebar .hnavitem.child.active{background:var(--sb-brand-soft);color:var(--sb-brand-ink);box-shadow:none;font-weight:600}
 .hsidebar .hnavitem.child.active svg{color:var(--sb-brand)}
