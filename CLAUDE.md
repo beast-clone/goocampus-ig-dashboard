@@ -1,5 +1,9 @@
 # GooCampus Marketing OS — project instructions
 
+## MANDATORY: follow the Karpathy guidelines on every change
+
+The **`karpathy-guidelines`** skill (`.claude/skills/karpathy-guidelines/SKILL.md`, MIT) is **always in force** for this project — every time you write, review, or refactor code here, apply it (you don't need to be asked): **(1) Think before coding** — state assumptions, surface tradeoffs, ask when unclear; **(2) Simplicity first** — the minimum code that solves the ask, nothing speculative; **(3) Surgical changes** — touch only what the request needs, match existing style, don't refactor what isn't broken; **(4) Goal-driven** — define a verifiable success check and loop until it passes. When in doubt, prefer the simpler, smaller change.
+
 ## MANDATORY: use the dashboard theme for everything
 
 This dashboard is built on the **the dashboard theme** design system — treat it as the brand book. **Every** new tab, page, panel, modal, or component you build MUST use these tokens and patterns. Never ship a generic/default-Tailwind look. If a design isn't clearly on-brand and sectioned, it's wrong — redo it.
