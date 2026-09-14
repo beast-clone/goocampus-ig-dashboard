@@ -234,6 +234,22 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
 
+      {/* Provenance note — so anyone on the team can self-answer "what's the source of this data?" */}
+      <details className="group rounded-xl border border-gray-100 bg-white px-4 py-2.5">
+        <summary className="flex items-center gap-2 cursor-pointer list-none select-none text-[13px] font-medium text-[#8A92A6]">
+          <span className="text-brand">ⓘ</span> Where this data comes from
+          <span className="ml-auto text-[11px] text-gray-400 group-open:hidden">show</span>
+          <span className="ml-auto text-[11px] text-gray-400 hidden group-open:inline">hide</span>
+        </summary>
+        <div className="mt-3 space-y-2 text-[12px] leading-relaxed text-[#3B4457]">
+          <div><b>Source:</b> the Airtable <b>Sales Hub CRM</b> — the main Leads table. The dashboard only <b>reads</b> it; it never edits Airtable.</div>
+          <div><b>No Airtable view is used.</b> We read the table directly and filter by <b>Created Date</b> for the range you pick above — so renaming, re-filtering, or deleting any grid view in Airtable does not change these numbers.</div>
+          <div><b>Time to first contact &amp; Untouched leads</b> come from each lead&rsquo;s <b>Created Date</b> and <b>Actual Last Modified</b> timestamps. &ldquo;First contact&rdquo; / &ldquo;touched&rdquo; means the record was <b>updated in the CRM</b> — a stand-in for follow-up. A call that isn&rsquo;t logged in Airtable won&rsquo;t show here.</div>
+          <div><b>Closings, Revenue &amp; Time to convert</b> come from the <b>Contracts</b> table (by Generated Date) and the <b>Revenue Tracker</b> (by Payment Date), matched back to leads by email / phone.</div>
+          <div className="text-[#8A92A6]">Refreshes about every 2 hours through the day — or hit <b>Refresh now</b> for the latest.</div>
+        </div>
+      </details>
+
       {/* ══ 1. Revenue & conversion — the money view, top priority ══ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
         {/* Conversion & revenue by source */}
