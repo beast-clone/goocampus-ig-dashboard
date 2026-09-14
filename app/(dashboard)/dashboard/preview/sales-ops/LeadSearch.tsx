@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSearch, IconUserShare, IconExternalLink, IconX, IconLoader2 } from "@tabler/icons-react";
+import { IconSearch, IconUserShare, IconExternalLink, IconX, IconLoader2, IconUsersGroup } from "@tabler/icons-react";
 
 // Sales Hub → Search leads. Find any lead across the whole CRM by name / phone /
-// email (Airtable filters server-side), narrow by counsellor / status, and reassign
-// straight from a result row (reuses the Transfer request flow — a Pending row that
-// n8n applies; nothing edits the CRM lead directly).
+// email (Airtable filters server-side), narrow by counsellor / status, open a lead
+// to see everything the CRM holds on it, and reassign — one lead or a whole
+// selection at once. Reassign reuses the Transfer request flow (a Pending row n8n
+// applies); nothing edits the CRM lead directly, so the detail view is read-only.
 
 type Roster = { name: string; userId: string; label: string };
 type Lead = {
@@ -24,6 +25,9 @@ export function LeadSearch() {
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reassign, setReassign] = useState<Lead | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
   const seq = useRef(0);
 
   const run = useCallback(async () => {
@@ -35,17 +39,23 @@ export function LeadSearch() {
       if (counsellor) p.set("counsellor", counsellor);
       if (status.trim()) p.set("status", status.trim());
       const d = await fetch(`/api/leads-crm/search?${p.toString()}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))));
-      if (mine !== seq.current) return; // a newer search superseded this one
+      if (mine !== seq.current) return;
       setLeads((d.leads || []) as Lead[]);
       setTruncated(!!d.truncated);
+      setSelected(new Set());
       if ((d.roster || []).length) setRoster(d.roster as Roster[]);
     } catch (e) {
       if (mine === seq.current) { setError(e instanceof Error ? e.message : "Search failed"); setLeads([]); }
     } finally { if (mine === seq.current) setLoading(false); }
   }, [q, counsellor, status]);
 
-  // Debounced live search — first load (empty query) shows the most recent leads.
   useEffect(() => { const t = setTimeout(run, 350); return () => clearTimeout(t); }, [run]);
+
+  const list = leads || [];
+  const allSelected = list.length > 0 && list.every((l) => selected.has(l.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(list.map((l) => l.id)));
+  const toggleOne = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const selectedLeads = useMemo(() => list.filter((l) => selected.has(l.id)), [list, selected]);
 
   return (
     <div className="space-y-4">
@@ -59,12 +69,21 @@ export function LeadSearch() {
         </div>
         <select value={counsellor} onChange={(e) => setCounsellor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#232D42] bg-white min-w-[150px]">
           <option value="">All counsellors</option>
-          {roster.map((r) => <option key={r.userId} value={r.name}>{r.label || r.name}</option>)}
+          {roster.map((r) => <option key={r.userId} value={r.name}>{r.name}</option>)}
         </select>
         <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status contains…"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-[150px] focus:outline-none focus:border-brand" />
         {loading && <IconLoader2 size={18} className="animate-spin text-brand" />}
       </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="bg-brand-light border border-[#D7DEFB] rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <span className="text-[13px] font-medium text-[#2138B0]">{selected.size} lead{selected.size === 1 ? "" : "s"} selected</span>
+          <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-brand rounded-lg px-3.5 py-1.5 hover:bg-brand-dark"><IconUsersGroup size={15} stroke={1.8} /> Reassign selected</button>
+          <button onClick={() => setSelected(new Set())} className="text-[13px] text-[#2138B0] hover:underline ml-auto">Clear</button>
+        </div>
+      )}
 
       {/* Results */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
@@ -72,14 +91,15 @@ export function LeadSearch() {
           <div className="text-[13px] text-gray-500">
             {error ? <span className="text-red-600">{error}</span>
               : leads == null ? "Searching…"
-              : `${leads.length} lead${leads.length === 1 ? "" : "s"}${truncated ? "+" : ""}${truncated ? " — narrow the search to see the rest" : ""}`}
+              : `${list.length} lead${list.length === 1 ? "" : "s"}${truncated ? "+ — narrow the search to see the rest" : ""}`}
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: 820 }}>
+          <table className="w-full text-sm" style={{ minWidth: 880 }}>
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                <th className="font-medium px-4 py-2.5">Lead</th>
+                <th className="font-medium px-4 py-2.5 w-9"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#3A57E8] cursor-pointer" /></th>
+                <th className="font-medium px-1 py-2.5">Lead</th>
                 <th className="font-medium px-3 py-2.5">Counsellor</th>
                 <th className="font-medium px-3 py-2.5">Status</th>
                 <th className="font-medium px-3 py-2.5">Interest</th>
@@ -89,14 +109,17 @@ export function LeadSearch() {
               </tr>
             </thead>
             <tbody>
-              {leads && leads.length === 0 && !loading && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No leads match. Try a different name, number or filter.</td></tr>
+              {leads && list.length === 0 && !loading && (
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No leads match. Try a different name, number or filter.</td></tr>
               )}
-              {(leads || []).map((l) => (
-                <tr key={l.id} className="border-b border-gray-50 hover:bg-[#F6F7FB]">
-                  <td className="px-4 py-2.5">
-                    <div className="font-medium text-[#232D42]">{l.name}</div>
-                    <div className="text-[12px] text-gray-400">{[l.phone, l.email].filter(Boolean).join(" · ") || "—"}</div>
+              {list.map((l) => (
+                <tr key={l.id} className={`border-b border-gray-50 hover:bg-[#F6F7FB] ${selected.has(l.id) ? "bg-brand-light/40" : ""}`}>
+                  <td className="px-4 py-2.5"><input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleOne(l.id)} className="accent-[#3A57E8] cursor-pointer" /></td>
+                  <td className="px-1 py-2.5">
+                    <button onClick={() => setDetailId(l.id)} className="text-left group">
+                      <div className="font-medium text-[#232D42] group-hover:text-brand">{l.name}</div>
+                      <div className="text-[12px] text-gray-400">{[l.phone, l.email].filter(Boolean).join(" · ") || "—"}</div>
+                    </button>
                   </td>
                   <td className="px-3 py-2.5 text-[#3B4457]">{l.counsellor?.name || <span className="text-gray-400">Unassigned</span>}</td>
                   <td className="px-3 py-2.5"><span className="text-[12px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{l.status || "—"}</span></td>
@@ -117,10 +140,13 @@ export function LeadSearch() {
       </div>
 
       {reassign && <ReassignModal lead={reassign} roster={roster} onClose={() => setReassign(null)} onDone={() => { setReassign(null); run(); }} />}
+      {bulkOpen && <BulkReassignModal leads={selectedLeads} roster={roster} onClose={() => setBulkOpen(false)} onDone={() => { setBulkOpen(false); run(); }} />}
+      {detailId && <LeadDetailModal id={detailId} onClose={() => setDetailId(null)} onReassign={(l) => { setDetailId(null); setReassign(l); }} />}
     </div>
   );
 }
 
+// ── Single-lead reassign ───────────────────────────────────────────────────────
 function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: Roster[]; onClose: () => void; onDone: () => void }) {
   const [to, setTo] = useState("");
   const [notes, setNotes] = useState("");
@@ -148,36 +174,156 @@ function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: 
   };
 
   return (
+    <ModalShell onClose={onClose} icon={<IconUserShare size={18} stroke={1.8} />} title="Reassign lead"
+      sub={<>{lead.name} · currently with <b className="text-[#3B4457]">{lead.counsellor?.name || "Unassigned"}</b></>}>
+      {ok ? <Ok msg={ok} /> : (
+        <>
+          <Label>Reassign to</Label>
+          <select value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">Pick a counsellor…</option>
+            {targets.map((r) => <option key={r.userId} value={r.userId}>{r.name}</option>)}
+          </select>
+          <Label className="mt-3">Reason</Label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why is this moving? — goes into the transfer note."
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
+          <Hint />
+          {err && <div className="text-[12.5px] text-red-600 mt-2">{err}</div>}
+          <Actions onClose={onClose} onSubmit={submit} busy={busy} label="Reassign" />
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// ── Batch reassign ─────────────────────────────────────────────────────────────
+function BulkReassignModal({ leads, roster, onClose, onDone }: { leads: Lead[]; roster: Roster[]; onClose: () => void; onDone: () => void }) {
+  const [to, setTo] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  const submit = async () => {
+    setErr(null);
+    if (!to) { setErr("Pick a counsellor to reassign them to."); return; }
+    if (!notes.trim()) { setErr("Add a reason — it goes into the transfer note."); return; }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/leads-crm/transfer", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds: leads.map((l) => l.id), toUserId: to, notes: notes.trim() }),
+      });
+      const j = await res.json();
+      if (!res.ok && !j?.requested) { setErr((j?.missing ? j.missing.join(", ") : j?.error) || "Could not raise the transfers."); return; }
+      setOk(j?.message || `${leads.length} transfer requests raised.`);
+      setTimeout(onDone, 1600);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not raise the transfers."); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose} icon={<IconUsersGroup size={18} stroke={1.8} />} title={`Reassign ${leads.length} leads`}
+      sub={<>Handing over {leads.length} selected lead{leads.length === 1 ? "" : "s"} at once</>}>
+      {ok ? <Ok msg={ok} /> : (
+        <>
+          <div className="mt-1 max-h-24 overflow-y-auto rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-2 text-[12px] text-[#3B4457] leading-relaxed">
+            {leads.slice(0, 8).map((l) => l.name).join(", ")}{leads.length > 8 ? ` +${leads.length - 8} more` : ""}
+          </div>
+          <Label className="mt-3">Reassign all to</Label>
+          <select value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">Pick a counsellor…</option>
+            {roster.map((r) => <option key={r.userId} value={r.userId}>{r.name}</option>)}
+          </select>
+          <Label className="mt-3">Reason</Label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why are these moving? — goes into each transfer note."
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
+          <Hint />
+          {err && <div className="text-[12.5px] text-red-600 mt-2">{err}</div>}
+          <Actions onClose={onClose} onSubmit={submit} busy={busy} label={`Reassign ${leads.length}`} />
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// ── Lead detail (everything the CRM holds, read-only) ──────────────────────────
+type Detail = { id: string; name: string; counsellor: { id: string; name: string } | null; idleDays: number; link: string; groups: { title: string; rows: { label: string; value: string }[] }[] };
+function LeadDetailModal({ id, onClose, onReassign }: { id: string; onClose: () => void; onReassign: (l: Lead) => void }) {
+  const [d, setD] = useState<Detail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/leads-crm/lead?id=${id}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("could not load the lead"))))
+      .then((j) => { if (alive) setD(j as Detail); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "could not load the lead"); });
+    return () => { alive = false; };
+  }, [id]);
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 px-4" onClick={onClose}>
+      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white rounded-2xl border border-gray-100" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[17px] font-semibold text-[#232D42]">{d?.name || "Loading…"}</div>
+            <div className="text-[13px] text-[#8A92A6] mt-0.5">
+              {d ? <>With <b className="text-[#3B4457]">{d.counsellor?.name || "Unassigned"}</b> · <span className={d.idleDays > 7 ? "text-red-600 font-medium" : ""}>idle {d.idleDays}d</span></> : " "}
+            </div>
+          </div>
+          {d && <button onClick={() => onReassign({ id: d.id, name: d.name, counsellor: d.counsellor, status: "", interest: "", source: "", location: "", phone: "", email: "", created: "", idleDays: d.idleDays, link: d.link })}
+            className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brand border border-[#E9ECFB] rounded-lg px-2.5 py-1.5 hover:bg-brand-light flex-shrink-0"><IconUserShare size={14} stroke={1.8} /> Reassign</button>}
+          <a href={d?.link || "#"} target="_blank" rel="noopener noreferrer" title="Open in Airtable" className="text-gray-400 hover:text-brand mt-1 flex-shrink-0"><IconExternalLink size={17} stroke={1.8} /></a>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
+        </div>
+        <div className="p-5">
+          {err ? <div className="text-[13px] text-red-600">{err}</div>
+            : !d ? <div className="text-[13px] text-gray-400 py-8 text-center">Loading the lead…</div>
+            : (
+              <div className="space-y-5">
+                {d.groups.map((g) => (
+                  <div key={g.title}>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">{g.title}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                      {g.rows.map((r) => (
+                        <div key={r.label} className="flex gap-3 text-[13px] border-b border-gray-50 pb-1.5">
+                          <span className="text-[#8A92A6] w-40 flex-shrink-0">{r.label}</span>
+                          <span className="text-[#232D42] min-w-0 break-words">{r.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="text-[11.5px] text-[#8A92A6] pt-1">Lead data is read-only here — edits are made in Airtable / the CRM.</div>
+              </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Small shared modal bits ────────────────────────────────────────────────────
+function ModalShell({ icon, title, sub, children, onClose }: { icon: React.ReactNode; title: string; sub: React.ReactNode; children: React.ReactNode; onClose: () => void }) {
+  return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 px-4" onClick={onClose}>
       <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconUserShare size={18} stroke={1.8} /></div>
-          <div className="min-w-0">
-            <div className="text-[15px] font-semibold text-[#232D42]">Reassign lead</div>
-            <div className="text-[13px] text-[#8A92A6] mt-0.5 truncate">{lead.name} · currently with <b className="text-[#3B4457]">{lead.counsellor?.name || "Unassigned"}</b></div>
-          </div>
+          <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0">{icon}</div>
+          <div className="min-w-0"><div className="text-[15px] font-semibold text-[#232D42]">{title}</div><div className="text-[13px] text-[#8A92A6] mt-0.5 truncate">{sub}</div></div>
         </div>
-        {ok ? (
-          <div className="mt-4 text-[13px] text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2.5">{ok}</div>
-        ) : (
-          <>
-            <label className="block text-[12.5px] font-medium text-[#232D42] mt-4 mb-1">Reassign to</label>
-            <select value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="">Pick a counsellor…</option>
-              {targets.map((r) => <option key={r.userId} value={r.userId}>{r.label || r.name}</option>)}
-            </select>
-            <label className="block text-[12.5px] font-medium text-[#232D42] mt-3 mb-1">Reason</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why is this moving? — goes into the transfer note."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
-            <div className="text-[11.5px] text-[#8A92A6] mt-2">This raises a transfer request — the lead moves once it&apos;s confirmed in Airtable / n8n, not instantly.</div>
-            {err && <div className="text-[12.5px] text-red-600 mt-2">{err}</div>}
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={onClose} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-[#232D42] border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={submit} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-60">{busy ? "Requesting…" : "Reassign"}</button>
-            </div>
-          </>
-        )}
+        {children}
       </div>
+    </div>
+  );
+}
+const Label = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => <label className={`block text-[12.5px] font-medium text-[#232D42] mb-1 ${className}`}>{children}</label>;
+const Hint = () => <div className="text-[11.5px] text-[#8A92A6] mt-2">This raises a transfer request — the lead moves once it&apos;s confirmed in Airtable / n8n, not instantly.</div>;
+const Ok = ({ msg }: { msg: string }) => <div className="mt-4 text-[13px] text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2.5">{msg}</div>;
+function Actions({ onClose, onSubmit, busy, label }: { onClose: () => void; onSubmit: () => void; busy: boolean; label: string }) {
+  return (
+    <div className="flex justify-end gap-2 mt-4">
+      <button onClick={onClose} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-[#232D42] border border-gray-200 hover:bg-gray-50">Cancel</button>
+      <button onClick={onSubmit} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-60">{busy ? "Requesting…" : label}</button>
     </div>
   );
 }

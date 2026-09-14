@@ -124,6 +124,26 @@ export async function airtableList<T = Record<string, unknown>>(
   return out;
 }
 
+// Fetch ONE record by id (read-only). Used by the lead-detail view.
+export async function airtableGetRecord<T = Record<string, unknown>>(
+  tableId: string,
+  recordId: string,
+  baseId: string = SALES_HUB_BASE,
+): Promise<{ id: string; fields: T } | null> {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(recordId)) throw new Error("recordId must be an Airtable record id");
+  const r = await fetchWithTimeout(`https://api.airtable.com/v0/${baseId}/${tableId}/${recordId}`, {
+    headers: { Authorization: `Bearer ${token()}` },
+    cache: "no-store",
+  });
+  recordApiCall("Airtable", r.ok, r.status);
+  if (r.status === 404) return null;
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Airtable ${r.status}: ${text.slice(0, 200)}`);
+  }
+  return (await r.json()) as { id: string; fields: T };
+}
+
 // Airtable date filter — compares the Created Date field's YYYY-MM-DD string
 // against the range. Safer than IS_AFTER/IS_BEFORE (which have timezone gotchas)
 // and works with the createdTime field type.
