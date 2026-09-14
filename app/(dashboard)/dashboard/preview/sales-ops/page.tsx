@@ -170,7 +170,7 @@ function mixSegments(byStatus: Record<string, number>): { color: string; pct: nu
 
 export default function SalesOpsPage() {
   return (
-    <PreviewDashboardShell active="sales" title="Sales Hub" subtitle="Your whole CRM — total leads, counsellor activity, contracts and revenue in the selected range." hideAccountPicker>
+    <PreviewDashboardShell active="sales" title="Sales Hub" subtitle="Your whole CRM — total leads, counsellor activity, contracts and revenue in the selected range." hideAccountPicker hidePdf>
       {({ range }) => <Inner range={range} />}
     </PreviewDashboardShell>
   );
