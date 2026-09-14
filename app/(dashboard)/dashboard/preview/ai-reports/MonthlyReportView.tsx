@@ -30,7 +30,7 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
       </div>
 
       <Section title="Total Organic Leads" note="Organic leads by source, month over month (paid ads excluded).">
-        <MonthlyTable t={H.organicLeads} />
+        <OrganicLeadsTable base={H.organicLeads} from="2026-06-01" to={to} />
       </Section>
 
       <LeadGrids from={from} to={to} />
@@ -67,6 +67,32 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
         Historical months imported once from the team&rsquo;s Notion report; the latest month and the live/chart sections fill from the dashboard&rsquo;s own data (being wired up).
       </footer>
     </article>
+  );
+}
+
+// Total Organic Leads: imported history (through May 2026) + CRM-estimate months
+// appended from June 2026 onward (paid ads excluded). Latest month bold.
+function OrganicLeadsTable({ base, from, to }: { base: HistoryTable; from: string; to: string }) {
+  const [extra, setExtra] = useState<string[][]>([]);
+  const [est, setEst] = useState(false);
+  useEffect(() => {
+    fetch(`/api/reports/organic-leads?from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j: { rows: { month: string; igfb: number; dmBookings: number; ytEnquiries: number; website: number; inboundCall: number; total: number }[] }) => {
+        const rows = (j.rows || []).map((r) => [
+          `${new Date(r.month + "-01").toLocaleDateString("en-US", { month: "short", year: "numeric" })} · est`,
+          String(r.igfb), String(r.dmBookings), String(r.ytEnquiries), String(r.website), String(r.inboundCall), String(r.total),
+        ]);
+        setExtra(rows);
+        setEst(rows.length > 0);
+      })
+      .catch(() => {});
+  }, [from, to]);
+  return (
+    <>
+      <MonthlyTable t={{ heading: base.heading, header: base.header, rows: [...base.rows, ...extra] }} />
+      {est && <div className="text-[11px] text-gray-400 mt-1.5">Months marked <b>· est</b> (Jun 2026 →) are a <b>CRM estimate</b> from Lead Source — can differ from the curated figure. Earlier months imported from the Notion report.</div>}
+    </>
   );
 }
 
