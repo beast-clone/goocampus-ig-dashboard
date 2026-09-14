@@ -31,6 +31,7 @@ export type DateChangeRequest = {
   status: "pending" | "approved" | "rejected";
   resolvedBy?: string;
   resolvedAt?: string;
+  resolvedNote?: string;   // the approver's note/reason on approve or reject
 };
 
 const KEY = (postId: string) => `datechg:${postId}`;
@@ -116,23 +117,32 @@ export async function getDateChange(sb: SB, postId: string): Promise<DateChangeR
   return (data?.payload as DateChangeRequest) ?? null;
 }
 
-// Approve → write the date; reject → discard. Either way notify the requester.
-export async function resolveDateChange(sb: SB, opts: { postId: string; action: "approve" | "reject"; approverKey: string }): Promise<{ ok: boolean; error?: string; request?: DateChangeRequest }> {
+// Approve → write the date; reject → discard. Either way notify the requester —
+// and carry the approver's own note/reason (instructions on approve, why on reject)
+// through team chat, Slack, the bell (mh_activity) and the stored record.
+export async function resolveDateChange(sb: SB, opts: { postId: string; action: "approve" | "reject"; approverKey: string; note?: string }): Promise<{ ok: boolean; error?: string; request?: DateChangeRequest }> {
   const req = await getDateChange(sb, opts.postId);
   if (!req || req.status !== "pending") return { ok: false, error: "No pending date-change request for this task." };
+
+  const who = nameOf(opts.approverKey);
+  const note = opts.note?.trim() || "";
+  const noteLine = note ? ` — note from ${who}: “${note}”` : "";
+  const noteSlack = note ? `\n*Note from ${who}:* ${note}` : "";
 
   if (opts.action === "approve") {
     const { error } = await sb.from("mh_posts").update({ publishing_date: req.to, due_date: req.to }).eq("id", opts.postId);
     if (error) return { ok: false, error: error.message };
-    await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "rescheduled", from_value: fmt(req.from), to_value: fmt(req.to) });
-    await postTeamMessage(sb, opts.approverKey, `✅ ${nameOf(opts.approverKey)} approved the publish-date change on “${req.title}” → ${fmt(req.to)}.`);
-    await postSlack(`✅ *${nameOf(opts.approverKey)}* approved the publish-date change on *“${req.title}”* → *${fmt(req.to)}*.`);
+    await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "rescheduled", from_value: fmt(req.from), to_value: fmt(req.to), detail: note || undefined });
+    await postTeamMessage(sb, opts.approverKey, `✅ ${who} approved the publish-date change on “${req.title}” → ${fmt(req.to)}${noteLine}.`);
+    await postSlack(`✅ *${who}* approved the publish-date change on *“${req.title}”* → *${fmt(req.to)}*.${noteSlack}`);
   } else {
-    await postTeamMessage(sb, opts.approverKey, `⛔ ${nameOf(opts.approverKey)} kept “${req.title}” on ${fmt(req.from)} — publish-date change declined.`);
-    await postSlack(`⛔ *${nameOf(opts.approverKey)}* kept *“${req.title}”* on *${fmt(req.from)}* — publish-date change declined.`);
+    // A rejection now leaves an audit event too, so the requester is told why.
+    await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "date_change_rejected", from_value: fmt(req.from), to_value: fmt(req.to), detail: note || undefined });
+    await postTeamMessage(sb, opts.approverKey, `⛔ ${who} declined the publish-date change on “${req.title}” — it stays on ${fmt(req.from)}${noteLine || " — no reason given"}.`);
+    await postSlack(`⛔ *${who}* declined the publish-date change on *“${req.title}”* — stays on *${fmt(req.from)}*.${noteSlack || "\n*Note:* (no reason given)"}`);
   }
 
-  const resolved: DateChangeRequest = { ...req, status: opts.action === "approve" ? "approved" : "rejected", resolvedBy: opts.approverKey, resolvedAt: new Date().toISOString() };
+  const resolved: DateChangeRequest = { ...req, status: opts.action === "approve" ? "approved" : "rejected", resolvedBy: opts.approverKey, resolvedAt: new Date().toISOString(), resolvedNote: note || undefined };
   await sb.from("discover_cache").upsert(
     { cache_key: KEY(opts.postId), source: "mh_date_change_request", last_fetched: new Date().toISOString(), payload: resolved },
     { onConflict: "cache_key" },

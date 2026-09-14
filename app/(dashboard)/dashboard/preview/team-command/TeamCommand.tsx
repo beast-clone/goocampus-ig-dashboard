@@ -117,6 +117,7 @@ export function TeamCommand() {
   const [view, setView] = useState<"team" | "approvals">("team");
   const [approvals, setApprovals] = useState<DateReq[]>([]);
   const [apprBusy, setApprBusy] = useState<string | null>(null);
+  const [apprNotes, setApprNotes] = useState<Record<string, string>>({}); // approver's note per request
   useEffect(() => { setDateStr(new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })); }, []);
 
   const load = useCallback(async () => {
@@ -135,11 +136,14 @@ export function TeamCommand() {
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
   // Approve → the new publish date is written to the task; reject → the old date stays.
+  // The optional note (a reason on reject, or an instruction on approve) rides along
+  // and is sent to the team on both paths.
   const resolveApproval = async (postId: string, action: "approve" | "reject") => {
     setApprBusy(postId + action);
     try {
-      await fetch("/api/marketing-hub/date-change", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, action, actor: "maheen" }) });
+      await fetch("/api/marketing-hub/date-change", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, action, actor: "maheen", note: apprNotes[postId] || "" }) });
       setApprovals((a) => a.filter((r) => r.postId !== postId));
+      setApprNotes((n) => { const c = { ...n }; delete c[postId]; return c; });
       load();
     } finally { setApprBusy(null); }
   };
@@ -233,8 +237,13 @@ export function TeamCommand() {
 
                 <div className="tc-appr-reason"><span className="rl">Reason</span>{r.reason?.trim() ? r.reason : <span className="muted">not given</span>}</div>
 
+                <div className="tc-appr-note">
+                  <label>Your note <span className="opt">— reason if rejecting, or an instruction (optional)</span></label>
+                  <textarea rows={2} value={apprNotes[r.postId] || ""} onChange={(e) => setApprNotes((n) => ({ ...n, [r.postId]: e.target.value }))} placeholder="e.g. Fine, but sync the caption with the new date · or: Keep 20th — the campaign can't slip." />
+                </div>
+
                 <div className="tc-appr-foot">
-                  <button className="tc-btn ghost" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "reject")}>Reject</button>
+                  <button className="tc-btn ghost" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "reject")}>{apprBusy === r.postId + "reject" ? "Rejecting…" : "Reject"}</button>
                   <button className="tc-btn primary" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "approve")}>{apprBusy === r.postId + "approve" ? "Approving…" : "Approve"}</button>
                 </div>
               </div>
@@ -403,8 +412,15 @@ const CSS = `
 .tcmd .tc-appr-reason{margin-top:13px;background:#FAFBFF;border:1px solid #EEF1FD;border-left:3px solid #C7D0F5;border-radius:0 10px 10px 0;padding:9px 12px;font-size:.8rem;color:#3B4457;line-height:1.5}
 .tcmd .tc-appr-reason .rl{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--brand);font-weight:700;margin-bottom:3px}
 .tcmd .tc-appr-reason .muted{color:var(--soft)}
+/* approver note */
+.tcmd .tc-appr-note{margin-top:12px}
+.tcmd .tc-appr-note label{display:block;font-size:.7rem;font-weight:600;color:#3B4457;margin-bottom:5px}
+.tcmd .tc-appr-note .opt{font-weight:400;color:var(--soft)}
+.tcmd .tc-appr-note textarea{width:100%;resize:vertical;min-height:38px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:.79rem;color:var(--ink);background:#fff}
+.tcmd .tc-appr-note textarea:focus{outline:none;border-color:var(--brand)}
+.tcmd .tc-appr-note textarea::placeholder{color:#AEB6C6}
 /* footer actions */
-.tcmd .tc-appr-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.tcmd .tc-appr-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}
 .tcmd .tc-btn{border-radius:9px;padding:8px 18px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:all .12s}
 .tcmd .tc-btn.primary{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(58,87,232,.22)}
 .tcmd .tc-btn.primary:hover{background:var(--brand-ink)}

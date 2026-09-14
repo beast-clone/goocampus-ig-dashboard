@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const denied = await requireSection("content");
   if (denied) return denied;
   try {
-    const body = (await req.json()) as { postId?: string; action?: "approve" | "reject"; actor?: string };
+    const body = (await req.json()) as { postId?: string; action?: "approve" | "reject"; actor?: string; note?: string };
     const approver = (body.actor || getSessionUserId() || "").toLowerCase();
     if (approver !== APPROVER_KEY) {
       return NextResponse.json({ error: "Only Maheen can approve or reject publish-date changes." }, { status: 403 });
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const r = await resolveDateChange(sb, { postId: body.postId, action: body.action, approverKey: approver });
+    const r = await resolveDateChange(sb, { postId: body.postId, action: body.action, approverKey: approver, note: typeof body.note === "string" ? body.note : undefined });
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
     bustMarketingHubCache();
     return NextResponse.json({ ok: true, request: r.request });
