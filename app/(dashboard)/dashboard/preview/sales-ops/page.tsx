@@ -6,7 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
-import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconAlertTriangle, IconTrendingUp, IconTrophy } from "@tabler/icons-react";
+import { IconUsers, IconChartLine, IconUserCheck, IconTrophy } from "@tabler/icons-react";
 import { IndiaStatesMap } from "@/components/GeoMaps";
 
 type Counsellor = {
@@ -223,14 +223,13 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <LiveIndicator loading={isLoading} onRefresh={refresh} />
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-7 gap-5">
+      {/* KPI strip — headline numbers only. Time-to-first-contact, Untouched and
+          Time-to-convert live in their own detailed cards below, so we don't repeat
+          them here. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <KpiTile icon={IconUsers} label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
         <KpiTile icon={IconChartLine} label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
         <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
-        <KpiTile icon={IconClock} label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first contact · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
-        <KpiTile icon={IconAlertTriangle} label="Untouched leads" value={data ? fmtInt(data.awaitingTotal) : "—"} hint={data && data.totals.leads ? `${Math.round((data.awaitingTotal / data.totals.leads) * 100)}% · idle >7 days` : "no CRM activity >7d"} tone={data && data.awaitingTotal > 0 ? "crit" : undefined} />
-        <KpiTile icon={IconTrendingUp} label="Time to convert" value={data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"} hint={data ? `${fmtInt(data.totals.convertCount)} converted · from Revenue Tracker` : "created → paid"} />
         <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
 
