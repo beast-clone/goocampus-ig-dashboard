@@ -200,3 +200,20 @@ export async function recordOutbound(opts: { account: string; sender_id: string;
   await upsertThread(thread);
   return thread;
 }
+
+// Count inbound DMs (direction "in") in a date range — powers the Overview's DM
+// stat. Reads the per-message dm_msg rows written by /api/dm/mirror. Real numbers
+// only once every inbound DM is being mirrored in (see /api/dm/mirror); ~0 until
+// that pipe is live, and past months can't be backfilled.
+export async function countInboundDMs(account: string | undefined, from: string, to: string): Promise<number> {
+  const db = getSupabase();
+  if (!db) return 0;
+  let q = db.from("discover_cache").select("cache_key", { count: "exact", head: true })
+    .eq("source", "dm_msg")
+    .eq("payload->>direction", "in")
+    .gte("payload->>at", `${from}T00:00:00`)
+    .lte("payload->>at", `${to}T23:59:59`);
+  if (account) q = q.eq("payload->>account", account);
+  const { count } = await q;
+  return count || 0;
+}

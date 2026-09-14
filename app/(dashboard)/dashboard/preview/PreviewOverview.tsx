@@ -202,6 +202,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   const [aud, setAud] = useState<Audience | null>(null);
   const [tips, setTips] = useState<Tip[]>([]);
   const [stories, setStories] = useState<StoryRow[] | null>(null);
+  const [dmCount, setDmCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -225,6 +226,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     // Stories: Meta drops them after 24h, so read our snapshots for the range.
     setStories(null);
     fetch(`/api/stories/historical?accountId=${accountId}&from=${from}&to=${to}&limit=500`).then((r) => r.ok ? r.json() : { stories: [] }).then((s) => { if (alive) setStories((s?.stories || []) as StoryRow[]); }).catch(() => { if (alive) setStories([]); });
+    // Inbound DMs in range (from the mirror). Real numbers once the DM pipe is live.
+    setDmCount(null);
+    fetch(`/api/dm/count?account=${accountId}&from=${from}&to=${to}`).then((r) => r.ok ? r.json() : null).then((d) => { if (alive) setDmCount(typeof d?.count === "number" ? d.count : 0); }).catch(() => { if (alive) setDmCount(0); });
     return () => { alive = false; };
   }, [range, accountId]);
   const storyStats = useMemo(() => {
@@ -602,6 +606,19 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               </div>
               {stories !== null && storyStats.count === 0 && (
                 <div style={{ fontSize: 12, color: C.muted, marginTop: -6 }}>No story snapshots for this range yet.</div>
+              )}
+
+              {/* Direct messages — inbound DMs mirrored into the dashboard */}
+              <SectionHeader icon={IconMessageCircle} title="Direct messages" sub="Inbound DMs recorded in this range" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+                <Card>
+                  <span style={{ width: 38, height: 38, borderRadius: 10, background: "#3A57E818", color: C.primary, display: "grid", placeItems: "center", marginBottom: 10 }}><IconMessageCircle size={20} stroke={1.9} /></span>
+                  <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{dmCount === null ? "—" : fmt(dmCount)}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>DMs received</div>
+                </Card>
+              </div>
+              {dmCount !== null && dmCount === 0 && (
+                <div style={{ fontSize: 12, color: C.muted, marginTop: -6 }}>DM mirroring isn&apos;t live yet — this fills in once inbound DMs are forwarded to the dashboard (past months can&apos;t be backfilled).</div>
               )}
 
               {/* Performance — post mix / engagement rate / hashtags / format / reposts */}
