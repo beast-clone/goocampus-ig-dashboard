@@ -59,7 +59,7 @@ type SalesOpsData = {
   counsellors: Counsellor[];
   revenueBySource: { name: string; closings: number; revenue: number }[];
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
-  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; link: string }[];
+  awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; created: string; link: string }[];
   awaitingTotal: number;
   callActivity: CallStat[];
   meetings: MeetingSummary;
@@ -360,13 +360,14 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <div className="text-sm text-gray-500">Never worked</div>
           </div>
           <div className="text-sm text-gray-500 mb-4">
-            Leads with <b className="font-medium text-[#3B4457]">no CRM update AND no call attempt</b> in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total
+            Leads with <b className="font-medium text-[#3B4457]">no CRM update AND no call attempt</b> in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total. <span className="text-gray-400">&ldquo;Days idle&rdquo; = from the arrival date to today.</span>
           </div>
           {(data?.awaiting.length ?? 0) > 0 ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-500 text-left">
                   <th className="py-2.5 font-normal">Lead</th>
+                  <th className="py-2.5 font-normal">Arrived</th>
                   <th className="py-2.5 font-normal">Counsellor</th>
                   <th className="py-2.5 font-normal">Source</th>
                   <th className="py-2.5 font-normal text-right">Days idle</th>
@@ -377,15 +378,15 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                   <tr key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
                     className="border-t border-gray-100 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
                     <td className="py-2.5 text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></td>
+                    <td className="py-2.5 whitespace-nowrap text-[#3B4457]">{a.created ? fmtDateShort(a.created) : "—"}</td>
                     <td className="py-2.5">{a.counsellor}</td>
                     <td className="py-2.5">{a.source}</td>
-                    <td className="py-2.5 text-right">{a.daysUntouched}</td>
+                    <td className="py-2.5 text-right tabular-nums">{a.daysUntouched}d</td>
                   </tr>
                 ))}
                 {data && data.awaitingTotal > 6 && (
                   <tr className="border-t border-gray-100 text-gray-500 italic">
-                    <td className="py-2.5">+{fmtInt(data.awaitingTotal - 6)} more idle leads…</td>
-                    <td /><td /><td />
+                    <td className="py-2.5" colSpan={5}>+{fmtInt(data.awaitingTotal - 6)} more idle leads…</td>
                   </tr>
                 )}
               </tbody>
