@@ -5,7 +5,7 @@ import {
   IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
-  IconBrandYoutube, IconChartBar, IconTrophy,
+  IconBrandYoutube, IconChartBar, IconTrophy, IconBookmark, IconShare3,
   IconChevronDown, IconCheck,
 } from "@tabler/icons-react";
 import { PreviewDatePicker } from "./PreviewDatePicker";
@@ -49,7 +49,7 @@ type Insights = {
   // old reach-derived guess; drives whether the cards still say EST.
   meta?: { engagementBasis?: "measured" | "estimated" };
 };
-type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number };
+type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number; saves?: number; shares?: number };
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[]; stored?: boolean; month?: string };
 type Tip = { metric: "followers" | "reach" | "engagement" | "profileVisits"; detail: string; action: string };
 
@@ -275,6 +275,12 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   // come from stored snapshots: reach + follower growth are real; engagement is
   // summed from that month's posts; profile visits weren't recorded before today.
   const postEngagement = useMemo(() => (rangePosts || []).reduce((s, p) => s + (p.totalInteractions || ((p.likes || 0) + (p.comments || 0))), 0), [rangePosts]);
+  // Likes / comments / saves / shares split for the range (Instagram only) —
+  // summed from the per-post insights we already fetched.
+  const engBreakdown = useMemo(() => (rangePosts || []).reduce(
+    (a, p) => ({ likes: a.likes + (p.likes || 0), comments: a.comments + (p.comments || 0), saves: a.saves + (p.saves || 0), shares: a.shares + (p.shares || 0) }),
+    { likes: 0, comments: 0, saves: 0, shares: 0 },
+  ), [rangePosts]);
   const engVal = insStored ? postEngagement : (t?.engagement ?? 0);
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
   // Engagement + profile views are real now (Meta's total_interactions and
@@ -552,6 +558,23 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               </Card>
 
               {/* ══ Sections carried over from the real Overview so NOTHING is removed ══ */}
+
+              {/* Engagement breakdown — likes / comments / saves / shares (Instagram) */}
+              <SectionHeader icon={IconHeart} title="Engagement breakdown" sub="Likes, comments, saves & shares in this range" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
+                {[
+                  { label: "Likes", value: engBreakdown.likes, icon: IconHeart, color: "#EC4899" },
+                  { label: "Comments", value: engBreakdown.comments, icon: IconMessageCircle, color: C.primary },
+                  { label: "Saves", value: engBreakdown.saves, icon: IconBookmark, color: C.teal },
+                  { label: "Shares", value: engBreakdown.shares, icon: IconShare3, color: "#6E48F8" },
+                ].map((m) => (
+                  <Card key={m.label}>
+                    <span style={{ width: 38, height: 38, borderRadius: 10, background: `${m.color}18`, color: m.color, display: "grid", placeItems: "center", marginBottom: 10 }}><m.icon size={20} stroke={1.9} /></span>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{rangePosts === null ? "—" : fmt(m.value)}</div>
+                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{m.label}</div>
+                  </Card>
+                ))}
+              </div>
 
               {/* Performance — post mix / engagement rate / hashtags / format / reposts */}
               <SectionHeader icon={IconChartBar} title="Performance" sub="Post mix, formats & hashtags" />
