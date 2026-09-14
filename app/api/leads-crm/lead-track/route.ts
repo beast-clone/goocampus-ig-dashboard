@@ -6,6 +6,8 @@ import {
   CRM_TABLE, SALES_SYSTEM_TABLE, TRANSFER_TABLE, CONTRACT_TABLE,
 } from "@/lib/sales-hub";
 import { pickUser } from "@/lib/lead-assignment";
+import { getSupabase } from "@/lib/supabase";
+import { getLeadTrack, firstContactAt } from "@/lib/lead-status-track";
 
 // GET /api/leads-crm/lead-track?id=recXXXXXXXXXXXXXX
 //
@@ -27,7 +29,7 @@ const REC_ID = /^rec[A-Za-z0-9]{14}$/;
 
 type Event = {
   at: string;             // ISO timestamp
-  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched";
+  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched" | "stage";
   title: string;
   detail?: string;
   who?: string;
@@ -143,6 +145,25 @@ export async function GET(req: Request) {
       push({ at: touched, kind: "touched", title: "Record last edited", who: modifiedBy });
     }
 
+    // Recorded stage changes (our nightly snapshot — the sequence Airtable can't give).
+    // Present only for changes since the tracker started; older leads may have none yet.
+    let firstContact: string | null = null;
+    let timeToContactDays: number | null = null;
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        const track = await getLeadTrack(sb, id);
+        if (track?.events?.length) {
+          for (const e of track.events) push({ at: e.at, kind: "stage", title: `Stage → ${e.to}`, detail: `from ${e.from}` });
+          firstContact = firstContactAt(track.events);
+          if (firstContact && created) {
+            const days = Math.round((new Date(firstContact).getTime() - new Date(created).getTime()) / 86_400_000);
+            if (Number.isFinite(days) && days >= 0) timeToContactDays = days;
+          }
+        }
+      }
+    } catch { /* tracking is best-effort — never break the history */ }
+
     events.sort((a, b) => (a.at < b.at ? 1 : -1)); // newest first
 
     return NextResponse.json({
@@ -162,6 +183,9 @@ export async function GET(req: Request) {
         lastModifiedBy: modifiedBy || "",
         daysUntouched: idleDays(f),
         callAttempts: pickNumber(f["Call Attempts"]),
+        firstContactAt: firstContact,          // when it first left the "New"/pool stage (recorded), else null
+        timeToContactDays,                     // days from arrival to first contact, else null
+
         expectedRevenue: pickNumber(f["Expected Revenue"]),
         expectedClosure: pickName(f["Expected Closure Date"]),
         scheduledCallback: callback,

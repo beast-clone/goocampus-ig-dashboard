@@ -984,7 +984,7 @@ function RolesTab({ data, onSaved }: { data: Board; onSaved: () => void }) {
 
 type TrackEvent = {
   at: string;
-  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched";
+  kind: "arrived" | "assigned" | "reenquiry" | "meeting" | "contract" | "callback" | "closed" | "touched" | "stage";
   title: string; detail?: string; who?: string; rating?: number | null;
 };
 type TrackPayload = {
@@ -996,7 +996,7 @@ type TrackPayload = {
 // One colour per kind of thing that happened, so the timeline reads at a glance.
 const EVENT_DOT: Record<TrackEvent["kind"], string> = {
   arrived: "#8A92A6", assigned: "#3A57E8", reenquiry: "#B7791F", meeting: "#1F7256",
-  contract: "#7C3AED", callback: "#0EA5E9", closed: "#C0392B", touched: "#C7D2F7",
+  contract: "#7C3AED", callback: "#0EA5E9", closed: "#C0392B", touched: "#C7D2F7", stage: "#E0791F",
 };
 
 function Stars({ n }: { n: number }) {
@@ -1052,7 +1052,9 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
                   <Mini label="Stage now" value={String(l.status)} />
                   <Mini label="Idle" value={`${l.daysUntouched}d`} tone={Number(l.daysUntouched) > 7 ? "warn" : undefined} />
                   <Mini label="Call attempts" value={String(l.callAttempts ?? 0)} />
-                  <Mini label="Arrived" value={String(l.createdAt || "").slice(0, 10) || "—"} />
+                  {l.firstContactAt
+                    ? <Mini label="First contacted" value={`${String(l.firstContactAt).slice(0, 10)}${typeof l.timeToContactDays === "number" ? ` · ${l.timeToContactDays}d` : ""}`} />
+                    : <Mini label="Arrived" value={String(l.createdAt || "").slice(0, 10) || "—"} />}
                 </div>
 
                 <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-3">
