@@ -47,17 +47,20 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
 
       <PlatformHeader name="YouTube" />
       <Section title="YouTube — monthly" note="Subscribers · views · videos · shorts · leads.">
-        <MonthlyTable t={H.youtube} />
+        <PlatformLiveTable base={H.youtube} platform="youtube" from={from} to={to}
+          buildRow={(j, short) => [`${short} · live`, fmtNum(j.subscribers), fmtCompact(j.views), String(j.video), String(j.shorts), String(j.leads)]} />
       </Section>
 
       <PlatformHeader name="Facebook" />
       <Section title="Facebook — monthly" note="Views · posts · reels · content interactions · followers.">
         <MonthlyTable t={H.facebook} />
+        <div className="text-[11px] text-gray-400 mt-1.5">No live current-month row yet — the stored Facebook token lacks <b>read_insights</b>, so live Page metrics aren&rsquo;t available. Re-scope the token to enable it. History imported from the Notion report.</div>
       </Section>
 
       <PlatformHeader name="LinkedIn" />
       <Section title="LinkedIn — monthly" note="Followers · impressions · reactions · posts · comments.">
-        <MonthlyTable t={H.linkedin} />
+        <PlatformLiveTable base={H.linkedin} platform="linkedin" from={from} to={to}
+          buildRow={(j, short) => [`${short} · live`, fmtNum(j.followers), fmtNum(j.impressions), String(j.reactions), String(j.posts), String(j.comments)]} />
       </Section>
 
       <Manual title="Future Prospects" hint="Strategy bullets for the coming month." />
@@ -92,6 +95,35 @@ function OrganicLeadsTable({ base, from, to }: { base: HistoryTable; from: strin
     <>
       <MonthlyTable t={{ heading: base.heading, header: base.header, rows: [...base.rows, ...extra] }} />
       {est && <div className="text-[11px] text-gray-400 mt-1.5">Months marked <b>· est</b> (Jun 2026 →) are a <b>CRM estimate</b> from Lead Source — can differ from the curated figure. Earlier months imported from the Notion report.</div>}
+    </>
+  );
+}
+
+const fmtNum = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-IN"));
+
+// Generic platform table: imported history + a LIVE current-month row built from
+// /api/reports/platform-month (only appended when the platform returns real data).
+function PlatformLiveTable({ base, platform, from, to, buildRow }: {
+  base: HistoryTable; platform: string; from: string; to: string;
+  buildRow: (j: Record<string, number>, short: string) => string[];
+}) {
+  const [row, setRow] = useState<string[] | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/platform-month?platform=${platform}&from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j) => {
+        if (!j.available) return;
+        const short = new Date(to + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        setRow(buildRow(j, short));
+      })
+      .catch(() => {});
+    // buildRow only formats the response; capturing the first ref is fine and avoids a refetch loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform, from, to]);
+  return (
+    <>
+      <MonthlyTable t={{ heading: base.heading, header: base.header, rows: row ? [...base.rows, row] : base.rows }} />
+      {row && <div className="text-[11px] text-gray-400 mt-1.5">The <b>· live</b> row is this month to date — real data. Leads (where shown) are a CRM estimate.</div>}
     </>
   );
 }
