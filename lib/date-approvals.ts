@@ -9,6 +9,7 @@
 import { getSupabase } from "@/lib/supabase";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { sendMail, hasEmail } from "@/lib/email";
+import { postSlack } from "@/lib/slack";
 
 type SB = NonNullable<ReturnType<typeof getSupabase>>;
 
@@ -44,6 +45,8 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
 
   // 1) team chat
   await postTeamMessage(sb, r.requestedBy, line);
+  // 1b) Slack (#creative_marketing)
+  await postSlack(`📅 *${who}* asked to move *“${r.title}”* publish date from *${fmt(r.from)}* → *${fmt(r.to)}*.\nApprove or reject it in *Marketing OS → My Day → Publish-date approvals*.`);
   // 2) My Day bell — an mh_activity event the notifications route surfaces to Maheen
   try {
     await sb.from("mh_activity").insert({ post_id: r.postId, actor_key: r.requestedBy, action: "date_change_requested", from_value: fmt(r.from), to_value: fmt(r.to) });
@@ -88,8 +91,10 @@ export async function resolveDateChange(sb: SB, opts: { postId: string; action: 
     if (error) return { ok: false, error: error.message };
     await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "rescheduled", from_value: fmt(req.from), to_value: fmt(req.to) });
     await postTeamMessage(sb, opts.approverKey, `✅ ${nameOf(opts.approverKey)} approved the publish-date change on “${req.title}” → ${fmt(req.to)}.`);
+    await postSlack(`✅ *${nameOf(opts.approverKey)}* approved the publish-date change on *“${req.title}”* → *${fmt(req.to)}*.`);
   } else {
     await postTeamMessage(sb, opts.approverKey, `⛔ ${nameOf(opts.approverKey)} kept “${req.title}” on ${fmt(req.from)} — publish-date change declined.`);
+    await postSlack(`⛔ *${nameOf(opts.approverKey)}* kept *“${req.title}”* on *${fmt(req.from)}* — publish-date change declined.`);
   }
 
   const resolved: DateChangeRequest = { ...req, status: opts.action === "approve" ? "approved" : "rejected", resolvedBy: opts.approverKey, resolvedAt: new Date().toISOString() };
