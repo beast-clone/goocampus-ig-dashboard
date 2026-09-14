@@ -154,7 +154,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       breakBy === "sbu" ? (l.sbu || "Other")
       : breakBy === "counsellor" ? (l.counsellor || "Unassigned")
       : breakBy === "source" ? (l.source || "—")
-      : (l.interest || "— not set —");
+      : (l.interest || "No primary interest");
     const tally = new Map<string, number>();
     for (const l of chartSrc.allLeads) { const k = fieldOf(l); tally.set(k, (tally.get(k) || 0) + 1); }
     const top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]);
