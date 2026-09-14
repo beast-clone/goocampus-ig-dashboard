@@ -282,6 +282,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   // profile_views), so drop the EST badge — unless that call fell back to the
   // old reach-derived estimate.
   const engEst = !insStored && ins?.meta?.engagementBasis !== "measured";
+  // Past (stored) ranges are a specific month — label the post sections with it so
+  // "Latest" reads as that month's, not the current one.
+  const pastMonthLabel = insStored ? new Date(range.from + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
   const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string; est?: boolean }[] = t ? [
     { key: "followers", label: "Followers", value: fmt(t.followers), delta: insStored ? null : (d?.followers ?? 0), badge: insStored ? "saved" : undefined },
     { key: "reach", label: "Reach", value: fmt(t.reach), delta: insStored ? null : (d?.reach ?? 0), badge: insStored ? "saved" : undefined },
@@ -487,7 +490,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <Card>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                   <IconTrophy size={18} color={C.primary} />
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>Top performing posts</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{pastMonthLabel ? `${pastMonthLabel} · top performing posts` : "Top performing posts"}</div>
                   <span style={{ marginLeft: "auto", fontSize: 12.5, color: C.muted }}>ranked by reach</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
@@ -521,7 +524,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               {/* Latest posts — now below Top performing */}
               <Card>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>Latest posts</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{pastMonthLabel ? `${pastMonthLabel} posts` : "Latest posts"}</div>
                   <Link href="/dashboard/preview/posts" style={{ fontSize: 12.5, color: C.primary, fontWeight: 600, textDecoration: "none" }}>View all →</Link>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
