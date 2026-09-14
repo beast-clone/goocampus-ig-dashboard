@@ -6,10 +6,14 @@ import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
-import { DateChangeApprovals } from "@/components/DateChangeApprovals";
 import { SBU_OPTIONS } from "@/lib/sbus";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
+
+// Date/name formatting for the publish-date approvals portal.
+const apprDate = (d?: string | null) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+const apprDateTime = (d?: string | null) => (d ? new Date(String(d)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+const nameCap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "—");
 function NavItem({ icon: Icon, label, active, href }: { icon: React.ComponentType<{ size?: number; stroke?: number }>; label: string; active?: boolean; href?: string }) {
   const inner = <><Icon size={16} stroke={1.8} /> <span>{label}</span></>;
   const cls = `navitem ${active ? "active" : ""}`;
@@ -1667,6 +1671,30 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     return [];
   }, [tasks, claimPool, person, isEditor, me.name]);
   const [pipeOpen, setPipeOpen] = useState(false);
+
+  // ── Publish-date approvals — Maheen's own portal ────────────────────────────
+  // A non-admin's publish-date change is held for Maheen's sign-off. She reviews
+  // them here, in her own place — a header "Approvals" button + a strip under the
+  // greeting — never buried in one person's My Day. State lives here so the badge,
+  // strip and modal all read the same list.
+  type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string };
+  const [approvals, setApprovals] = useState<DateReq[]>([]);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const loadApprovals = useCallback(() => {
+    if (!viewerIsAdmin) return;
+    fetch("/api/marketing-hub/date-change").then((r) => (r.ok ? r.json() : { requests: [] })).then((d) => setApprovals((d.requests || []) as DateReq[])).catch(() => { /* keep last */ });
+  }, [viewerIsAdmin]);
+  useEffect(() => { loadApprovals(); }, [loadApprovals]);
+  const resolveApproval = async (postId: string, action: "approve" | "reject") => {
+    setApprovalBusy(postId + action);
+    try {
+      await fetch("/api/marketing-hub/date-change", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, action, actor: "maheen" }) });
+      setApprovals((a) => a.filter((r) => r.postId !== postId));
+      load(); // the approved date is now on the task — refresh My Day
+    } finally { setApprovalBusy(null); }
+  };
+
   // MY DAY = only the SELECTED person's own tasks. A task's Owner (whoever it's
   // assigned to / claimed it) must match the person being viewed — so e.g. a
   // Carousel owned by Praveen never shows up under an editor. Then keep only the
@@ -2406,9 +2434,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       {/* click-away layer for the top popovers */}
       {panel && <div className="backdrop" onClick={() => setPanel(null)} />}
 
-      {/* Publish-date changes awaiting Maheen's approval (admin-only, self-hides) */}
-      <DateChangeApprovals enabled={viewerIsAdmin} />
-
       {/* Logged-out screen (demo): End day / Log out lands here. "Log back in"
           re-anchors the plan to the new login time. No real session change. */}
       {loggedOut && (
@@ -2538,6 +2563,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             {/* Day control + Pipeline live HERE, aligned with the stats (user order
                 2026-07-19) — the bell/reminders/chat icons stay up top. */}
             <div className="dayctl">
+              {/* Approvals — admin/Maheen only. Always here (not tied to the person
+                  being viewed) so publish-date sign-offs have one steady home. */}
+              {viewerIsAdmin && (
+                <button className={`teamcapbtn ${approvalsOpen ? "on" : ""}`} onClick={() => { loadApprovals(); setApprovalsOpen(true); }} title="Publish-date changes waiting for your approval">
+                  <IconCalendarEvent size={15} stroke={1.8} /> Approvals{approvals.length > 0 && <span className="teamcap-n">{approvals.length}</span>}
+                </button>
+              )}
               {/* Role button lives here now (the day control moved up to the top bar):
                   Manya → Team capacity; editors → Claim pool. */}
               {person === "manya" && (
@@ -2572,6 +2604,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             </div>
           </div>
         </div>
+
+        {/* APPROVALS STRIP — admin only, appears under the welcome only when a
+            publish-date change is waiting. One line; opens Maheen's Approvals portal. */}
+        {viewerIsAdmin && approvals.length > 0 && (
+          <button className="apprstrip" onClick={() => setApprovalsOpen(true)}>
+            <span className="apprstrip-l">
+              <IconCalendarEvent size={16} stroke={1.8} />
+              <span><b>{approvals.length} publish-date change{approvals.length > 1 ? "s" : ""}</b> waiting for your approval</span>
+            </span>
+            <span className="apprstrip-cta">Review <IconArrowsExchange size={14} stroke={1.8} /></span>
+          </button>
+        )}
 
         {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}
         {person === "manya" && pipeline === "waiting" && (
@@ -2964,6 +3008,40 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         </div>
       )}
 
+      {/* APPROVALS — publish-date changes waiting for Maheen (her own portal) */}
+      {approvalsOpen && viewerIsAdmin && (
+        <div className="modal" onClick={() => setApprovalsOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setApprovalsOpen(false)} title="Close">✕</button>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Approvals · publish-date changes</div>
+            <div className="d-title" style={{ marginBottom: "1rem" }}>Waiting for your approval</div>
+            {approvals.length ? (
+              <div className="claim-list">
+                {approvals.map((r) => (
+                  <div key={r.postId} className="appr-card">
+                    <div className="appr-head">
+                      <a className="appr-title" href={`/dashboard/marketing-hub?open=${r.postId}`} title="Open this task">{r.title}</a>
+                      {r.type && <span className="appr-type">{r.type}</span>}
+                    </div>
+                    <div className="appr-move"><IconCalendarEvent size={14} stroke={1.8} /> <b>{apprDate(r.from)}</b> <span className="arw">→</span> <b className="to">{apprDate(r.to)}</b></div>
+                    <div className="appr-meta">
+                      Assigned to <b>{nameCap(r.owner)}</b> · Requested by <b>{nameCap(r.requestedBy)}</b><br />
+                      Created {apprDateTime(r.createdAt)}{r.creator ? <> by <b>{nameCap(r.creator)}</b></> : null}
+                    </div>
+                    <div className="appr-reason"><b>Reason:</b> {r.reason?.trim() ? r.reason : <span className="muted">not given</span>}</div>
+                    <div className="appr-actions">
+                      <button className="btn sm" disabled={!!approvalBusy} onClick={() => resolveApproval(r.postId, "reject")}>Reject</button>
+                      <button className="btn primary sm" disabled={!!approvalBusy} onClick={() => resolveApproval(r.postId, "approve")}>Approve</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="empty" style={{ padding: "2.4rem 0" }}>Nothing to approve right now ✓</div>}
+            <div className="nt-assign" style={{ marginTop: "1rem" }}><span className="status-dot" style={{ background: "#3A57E8" }} /><span>Only you can approve a publish-date change. Approve and the new date goes live on the task; reject and it stays put — either way the team is told.</span></div>
+          </div>
+        </div>
+      )}
+
       {/* PIPELINE — tasks queued for me, waiting for MY accept (persistent history) */}
       {pipeOpen && person !== "manya" && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
@@ -3306,6 +3384,26 @@ const CSS = `
 .hmd .claim-card{display:flex;align-items:center;gap:.7rem;border:1px solid var(--line);border-radius:11px;padding:.7rem .85rem}
 .hmd .claim-card:hover{border-color:#D9DEEA;background:var(--panel-2)}
 .hmd .claim-card .btn{margin-left:auto;flex-shrink:0}
+.hmd .apprstrip{width:100%;margin-top:1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;border:1px solid #E9ECFB;border-left:3px solid var(--brand);background:#fff;border-radius:12px;padding:.7rem .95rem;cursor:pointer;transition:all .12s;text-align:left}
+.hmd .apprstrip:hover{background:#FAFBFF;border-color:#D9DEEA}
+.hmd .apprstrip-l{display:flex;align-items:center;gap:.55rem;color:#232D42;font-size:.82rem}
+.hmd .apprstrip-l b{font-weight:600}
+.hmd .apprstrip-l svg{color:var(--brand);flex-shrink:0}
+.hmd .apprstrip-cta{display:inline-flex;align-items:center;gap:.3rem;color:var(--brand);font-weight:600;font-size:.78rem;flex-shrink:0}
+.hmd .appr-card{display:flex;flex-direction:column;gap:.4rem;border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem}
+.hmd .appr-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.hmd .appr-title{font-size:.9rem;font-weight:600;color:#232D42;text-decoration:none;border-bottom:1px dashed #B9C2E0}
+.hmd .appr-title:hover{color:var(--brand)}
+.hmd .appr-type{font-size:.68rem;background:var(--panel-2);color:#3B4457;border-radius:99px;padding:1px 8px;font-weight:500}
+.hmd .appr-move{font-size:.82rem;color:#232D42;display:flex;align-items:center;gap:.35rem}
+.hmd .appr-move svg{color:var(--brand)}
+.hmd .appr-move .to{color:var(--brand)}
+.hmd .appr-move .arw{color:#8A92A6}
+.hmd .appr-meta{font-size:.74rem;color:#8A92A6;line-height:1.55}
+.hmd .appr-meta b{color:#3B4457;font-weight:600}
+.hmd .appr-reason{font-size:.78rem;color:#3B4457;background:#FAFBFF;border:1px solid #EEF1FD;border-radius:8px;padding:.4rem .6rem}
+.hmd .appr-reason .muted{color:#8A92A6}
+.hmd .appr-actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.15rem}
 .hmd .status-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
 .hmd .status-caret{position:absolute;right:.65rem;top:50%;width:0;height:0;margin-top:-2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;pointer-events:none}
 .hmd .status-dd{position:relative;display:inline-block}
