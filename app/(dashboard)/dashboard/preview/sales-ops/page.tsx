@@ -1131,13 +1131,35 @@ function ContactedCell({ contacted }: { contacted: boolean }) {
 }
 function TtcCell({ hrs, contacted, createdAt }: { hrs: number | null; contacted?: boolean; createdAt?: string }) {
   // Contacted → the actual time to first contact, colour-coded by SLA. Not contacted
-  // yet → a red "waiting Xd" (how long it's been sitting since it arrived), so the
-  // overdue leads stand out instead of showing a blank "—".
+  // yet → a LIVE red stopwatch counting up since the lead arrived, so the overdue
+  // leads visibly tick instead of showing a blank "—".
   if (!contacted && hrs == null && createdAt) {
-    const days = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 86_400_000));
-    return <span className="inline-flex items-center gap-1 tabular-nums font-semibold text-[#C0392B]" title="Not contacted yet — days since the lead arrived"><IconClock size={13} stroke={2} /> waiting {days}d</span>;
+    return <LiveWaiting createdAt={createdAt} />;
   }
   return <span className="tabular-nums font-semibold" style={{ color: ttcColor(hrs) }}>{fmtTtc(hrs)}</span>;
+}
+
+// A red stopwatch that ticks every second: "HH:MM:SS" (or "Nd HH:MM:SS" past a day),
+// counting the time a lead has been waiting for its first contact.
+function LiveWaiting({ createdAt }: { createdAt: string }) {
+  const start = Date.parse(createdAt);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (Number.isNaN(start)) return <span className="text-gray-400">—</span>;
+  let s = Math.max(0, Math.floor((now - start) / 1000));
+  const d = Math.floor(s / 86_400); s -= d * 86_400;
+  const h = Math.floor(s / 3_600); s -= h * 3_600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  const p = (n: number) => String(n).padStart(2, "0");
+  const clock = `${p(h)}:${p(m)}:${p(s)}`;
+  return (
+    <span className="inline-flex items-center gap-1 tabular-nums font-semibold text-[#C0392B]" title="Waiting for first contact — live, since the lead arrived">
+      <IconClock size={13} stroke={2} /> {d > 0 ? `${d}d ${clock}` : clock}
+    </span>
+  );
 }
 
 function KpiTile({ label, value, hint, tone, icon: Icon, onClick }: { label: string; value: string; hint: string; tone?: "crit" | "warn" | "good"; icon?: typeof IconUsers; onClick?: () => void }) {
