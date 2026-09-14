@@ -23,12 +23,59 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
       .then((j) => setManual(j.fields as ManualFields))
       .catch(() => setManual({ achievements: "", focusedSbus: "", amcEbook: "", newsletter: "", futureProspects: "", actionNotes: "" }));
   }, [monthKey]);
+
+  // Snapshot: freeze this month's assembled live numbers so the month is preserved
+  // once the platform APIs can't re-fetch it. Save on demand + auto-save on view.
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/snapshot?month=${monthKey}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.savedAt) setSavedAt(j.savedAt); })
+      .catch(() => {});
+  }, [monthKey]);
+  const saveMonth = async () => {
+    setSaveState("saving");
+    try {
+      const q = `from=${from}&to=${to}`;
+      const j = (u: string) => fetch(u, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const [leadStatus, organic, instagram, youtube, linkedin, topPosts, man] = await Promise.all([
+        j(`/api/reports/lead-status?${q}`),
+        j(`/api/reports/organic-leads?from=2026-06-01&to=${to}`),
+        j(`/api/reports/instagram-month?${q}`),
+        j(`/api/reports/platform-month?platform=youtube&${q}`),
+        j(`/api/reports/platform-month?platform=linkedin&${q}`),
+        j(`/api/reports/instagram-top?${q}`),
+        j(`/api/reports/manual?month=${monthKey}`),
+      ]);
+      const payload = { label, window: { from, to }, leadStatus, organic, instagram, youtube, linkedin, topPosts, manual: (man as { fields?: unknown } | null)?.fields ?? null };
+      const r = await fetch("/api/reports/snapshot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: monthKey, payload }) });
+      if (r.ok) { const res = await r.json(); setSavedAt(res.savedAt); setSaveState("saved"); } else setSaveState("error");
+    } catch { setSaveState("error"); }
+  };
+  // Auto-save once a few seconds after the data has settled, so a viewed month is
+  // always captured before it rolls over (belt-and-braces alongside a monthly cron).
+  useEffect(() => {
+    const t = setTimeout(() => { saveMonth(); }, 6000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthKey]);
+
   return (
     <article className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 md:p-8 space-y-9">
-      <header className="border-b border-gray-100 pb-5">
-        <div className="text-[11px] uppercase tracking-widest text-brand font-semibold mb-1">Monthly performance</div>
-        <h1 className="text-xl font-semibold text-[#232D42] tracking-tight">{label} Monthly Report</h1>
-        <div className="text-[12.5px] text-gray-500 mt-1">GooCampus · all channels · this month to date</div>
+      <header className="border-b border-gray-100 pb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold mb-1">Monthly performance</div>
+          <h1 className="text-xl font-semibold text-[#232D42] tracking-tight">{label} Monthly Report</h1>
+          <div className="text-[12.5px] text-gray-500 mt-1">GooCampus · all channels · this month to date</div>
+        </div>
+        <div className="flex items-center gap-2.5">
+          {savedAt && <span className="text-[11px] text-gray-400">saved {new Date(savedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
+          <button onClick={saveMonth} disabled={saveState === "saving"} title="Freeze this month's numbers so it's preserved after the month ends"
+            className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-brand/40 text-brand bg-brand-light hover:bg-brand hover:text-white transition disabled:opacity-50">
+            {saveState === "saving" ? "Saving…" : saveState === "saved" ? "✓ Saved" : saveState === "error" ? "Retry save" : "Save this month"}
+          </button>
+        </div>
       </header>
 
       <ManualEditable title="Achievements" hint="Leads converted this month + all-time highs + strategy notes." monthKey={monthKey} field="achievements" initial={manual?.achievements ?? ""} loaded={manual != null} />
