@@ -5,6 +5,7 @@ import { fmtDateTime } from "@/lib/date";
 import { isClosedStatus } from "@/lib/lead-status";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { PreviewSelect } from "../PreviewSelect";
+import { BrandLoader } from "@/components/BrandLoader";
 import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
   IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow, IconBrandTelegram, IconSearch,
@@ -213,10 +214,12 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
 
   return (
     <div className={`relative bg-white rounded-xl border border-gray-100 ${tab === "tracker" ? "px-6 pt-4 pb-6" : "p-6"}`}>
-      {/* While a new range is loading, dim + spin so the switch never feels stuck. */}
+      {/* While a new range is loading, dim + show the app's default BrandLoader so
+          the switch never feels stuck AND looks the same as loading everywhere else. */}
       {isLoading && (
-        <div className="absolute inset-0 z-20 rounded-xl bg-white/70 flex items-center justify-center">
-          <div className="flex items-center gap-2 text-sm text-gray-500"><IconRefresh size={18} className="animate-spin" /> Updating…</div>
+        <div className="absolute inset-0 z-20 rounded-xl bg-white/75 flex flex-col items-center justify-center gap-3">
+          <BrandLoader size={40} />
+          <div className="text-[13px] text-[#8A92A6] font-medium">Loading…</div>
         </div>
       )}
       {/* On the tracker this row would be empty (title/subtitle are hidden), so we

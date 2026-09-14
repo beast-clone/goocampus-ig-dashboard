@@ -390,7 +390,7 @@ export async function getLeadBoard(from: string, to: string, bucket: Bucket): Pr
     const lead: BoardLead = {
       id: rec.id,
       name: pickName(f["Full Name"]) || "(no name)",
-      source: pickName(f["Lead Source (n8n)"]) || "—",
+      source: pickName(f["Lead Source (n8n)"]) || "No source",
       interest,
       sbu: sbuMap.get(interest) || "Other",
       counsellor: user?.name || "",
