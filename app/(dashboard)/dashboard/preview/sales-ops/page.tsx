@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconAlertTriangle, IconTrendingUp, IconTrophy } from "@tabler/icons-react";
@@ -272,7 +273,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               </tbody>
             </table>
           ) : (
-            <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "No revenue attributed in this window"}</div>
+            isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">No revenue attributed in this window</div>
           )}
         </Card>
         {/* Revenue trend (month-wise, follows range) */}
@@ -365,7 +366,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               </tbody>
             </table>
           ) : (
-            <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "Nothing awaiting activity in this range"}</div>
+            isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">Nothing awaiting activity in this range</div>
           )}
         </Card>
       </div>
@@ -434,7 +435,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </tbody>
           </table>
         ) : (
-          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "—"}</div>
+          isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">—</div>
         )}
         <div className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
           <span className="font-medium text-[#3B4457]">New Leads (Maheen)</span> is the holding pool — leads park here as New / Re-Enquiry for the assignment automation, not a real counsellor.
@@ -462,7 +463,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                 </span>
               </div>
             ))}
-            {!data && <div className="text-gray-400">{isLoading ? "Loading…" : "—"}</div>}
+            {!data && (isLoading ? <LoadingBlock className="!py-4" size={24} /> : <div className="text-gray-400">—</div>)}
           </div>
         </Card>
         <LeadInflow />
@@ -506,7 +507,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </tbody>
           </table>
         ) : (
-          <div className="text-sm text-gray-400">{isLoading ? "Loading…" : "No campaigns tagged in this range"}</div>
+          isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">No campaigns tagged in this range</div>
         )}
       </Card>
 
@@ -653,7 +654,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
 
         <div className="flex-1 overflow-auto">
           {err && <div className="p-8 text-base text-red-600">{err}</div>}
-          {!leads && !err && <div className="p-8 text-base text-gray-400">Loading…</div>}
+          {!leads && !err && <LoadingBlock />}
           {leads && (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white border-b border-gray-100">
@@ -962,7 +963,7 @@ function StatusSnapshot() {
         <div><div className="text-base font-medium text-[#232D42]">Status snapshot</div><div className="text-sm text-gray-500">where every lead sits{rows ? ` · ${fmtInt(total)} leads` : ""}</div></div>
         <div className="flex items-center gap-2"><RangeButtons value={days} onChange={setDays} />{days === "custom" && <CustomDates from={cf} to={ct} setFrom={setCf} setTo={setCt} />}</div>
       </div>
-      {!rows ? <div className="text-sm text-gray-400 py-6">Loading…</div> :
+      {!rows ? <LoadingBlock className="!py-6" size={24} /> :
         rows.length === 0 ? <div className="text-sm text-gray-400 py-6">No leads in this window.</div> : (
           <div className="space-y-2">
             {display.map((r, i) => { const shade = SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)]; const pct = total ? (r.count / total) * 100 : 0; return (
@@ -1006,7 +1007,7 @@ function LeadInflow() {
         <div><div className="text-base font-medium text-[#232D42]">Lead inflow — daily</div><div className="text-sm text-gray-500">new leads created per day · hover any day for its count</div></div>
         <div className="flex items-center gap-2"><RangeButtons value={days} onChange={setDays} />{days === "custom" && <CustomDates from={cf} to={ct} setFrom={setCf} setTo={setCt} />}</div>
       </div>
-      {!chart ? <div className="text-sm text-gray-400 py-10">{days === "custom" ? "Pick a start and end date." : "Loading…"}</div> : (
+      {!chart ? (days === "custom" ? <div className="text-sm text-gray-400 py-10">Pick a start and end date.</div> : <LoadingBlock className="!py-10" size={24} />) : (
         <>
           <div className="flex items-baseline gap-6 mb-3">
             <div><div className="text-2xl font-medium text-[#232D42]">{fmtInt(chart.avg)}</div><div className="text-xs text-gray-500 uppercase tracking-wide">Avg / day</div></div>
@@ -1126,7 +1127,7 @@ function RevenueTrendChart({ data }: { data: { month: string; revenue: number; c
 }
 
 function TableList({ rows, total, loading }: { rows: { name: string; count: number }[]; total: number; loading: boolean }) {
-  if (rows.length === 0) return <div className="text-sm text-gray-400">{loading ? "Loading…" : "—"}</div>;
+  if (rows.length === 0) return loading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">—</div>;
   return (
     <div className="text-sm">
       {rows.slice(0, 8).map((r) => (

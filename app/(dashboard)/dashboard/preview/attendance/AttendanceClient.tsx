@@ -3,6 +3,7 @@ import { nowMinutesIST } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { IconLogin, IconLogout, IconClock, IconChevronRight, IconRefresh, IconLock, IconCalendar } from "@tabler/icons-react";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 type DayRow = { key: string; name: string; role: string; loginMin: number | null; loginAt: string | null; logoutMin: number | null; logoutAt: string | null; rolled: { title: string; reason: string }[]; doneToday: number; pending: number; tasks: { title: string; status: string; type: string; note: string; publishingDate: string }[] };
 type AggRow = { key: string; name: string; role: string; daysPresent: number; workedMin: number; doneCount: number; lastLoginAt: string | null };
@@ -111,7 +112,7 @@ function DayTable({ rows, expanded, setExpanded }: { rows: DayRow[] | null; expa
         <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_0.8fr_0.9fr_1.1fr] items-center gap-x-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-400 font-semibold">
           <span>Person</span><span>In</span><span>Out</span><span>Worked</span><span className="text-center">Done</span><span className="text-center">Pending</span><span>Status</span>
         </div>
-        {rows == null ? <div className="px-4 py-8 text-center text-[13px] text-gray-400">Loading…</div>
+        {rows == null ? <LoadingBlock />
          : rows.length === 0 ? <div className="px-4 py-8 text-center text-[13px] text-gray-400">No attendance recorded for this day.</div>
          : rows.map((r) => {
           const st = statusOf(r), worked = workedNet(r.loginMin, r.logoutMin), av = AV[r.key] || { bg: "#EEF1F5", fg: "#46505F" };
@@ -192,7 +193,7 @@ function AggTable({ rows, view }: { rows: AggRow[] | null; view: "week" | "month
         <div className="grid grid-cols-[minmax(0,2fr)_1fr_1.2fr_1fr_1fr] items-center gap-x-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-400 font-semibold">
           <span>Person</span><span className="text-center">Days present</span><span>Total worked</span><span className="text-center">Tasks done</span><span>Last login</span>
         </div>
-        {rows == null ? <div className="px-4 py-8 text-center text-[13px] text-gray-400">Loading…</div>
+        {rows == null ? <LoadingBlock />
          : rows.map((r) => {
           const av = AV[r.key] || { bg: "#EEF1F5", fg: "#46505F" };
           return (

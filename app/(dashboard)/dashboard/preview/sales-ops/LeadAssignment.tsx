@@ -6,6 +6,7 @@ import { isClosedStatus } from "@/lib/lead-status";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { PreviewSelect } from "../PreviewSelect";
 import { BrandLoader } from "@/components/BrandLoader";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import {
   IconRefresh, IconArrowsExchange, IconTimeline, IconChevronLeft, IconCircleCheck,
   IconAlertTriangle, IconStarFilled, IconStar, IconHourglassLow, IconBrandTelegram, IconSearch,
@@ -352,7 +353,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         ))}
       </div>
 
-      {isLoading && !data && <div className="py-10 text-center text-gray-400 text-sm">Loading…</div>}
+      {isLoading && !data && <LoadingBlock />}
 
       {/* ── PER DAY ─────────────────────────────────────────────── */}
       {tab === "day" && data && (openDay ? (
@@ -1261,7 +1262,7 @@ function LeadTracker({ lead, onClose, onReassign, pinned, onPin, allowReassign =
 
         <div className="max-h-[72vh] overflow-y-auto">
           {error && <div className="m-6 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">Couldn&apos;t load — {(error as Error).message}</div>}
-          {isLoading && !data && <div className="p-6 text-sm text-gray-400">Loading…</div>}
+          {isLoading && !data && <LoadingBlock className="!py-6" size={24} />}
 
           {data && l && (
             <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr]">

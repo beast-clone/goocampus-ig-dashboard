@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
 import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
@@ -2678,7 +2679,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
         </thead>
         <tbody>
           {rows.length === 0 && (
-            <tr><td colSpan={cols.length} className="px-4 py-10 text-center text-gray-400">{loading ? "Loading…" : "No entries match"}</td></tr>
+            <tr><td colSpan={cols.length} className="px-4 py-10 text-center text-gray-400">{loading ? <LoadingBlock className="!py-0" /> : "No entries match"}</td></tr>
           )}
           {groupField
             ? groups.map((g) => {
@@ -3303,7 +3304,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </PortalMenu>
                 </div>
               }>
-                {loadingDetail ? <div className="text-sm text-gray-400">Loading…</div>
+                {loadingDetail ? <LoadingBlock className="!py-6" size={28} />
                   : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
                   : (
                     <div className="space-y-4">

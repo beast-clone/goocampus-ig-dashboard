@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 type CompetitorAd = {
   ad_archive_id: string;
@@ -239,7 +240,7 @@ function Competitors() {
         );
       })()}
 
-      {loading && <div className="text-sm text-gray-500">Loading… (live scrapes take 10-30s, cache hits are instant)</div>}
+      {loading && <LoadingBlock label="Loading… live scrapes take 10-30s, cache hits are instant" />}
 
       {ads && ads.length === 0 && !loading && (
         <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-6 text-center">No ads found. Try a different query or country.</div>

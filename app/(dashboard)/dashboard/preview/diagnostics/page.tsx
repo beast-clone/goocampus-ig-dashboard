@@ -6,6 +6,7 @@ import {
   IconDatabase, IconX, IconHistory, IconServer, IconPlugConnected, IconKey, IconTrash,
 } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 type SysAction = { type: "reconnect" | "add-key" | "clear-cache"; label: string; provider?: string };
 type SystemResult = { key: string; name: string; category: string; status: "ok" | "warn" | "error"; detail: string; expiresAt: number | null; latencyMs: number | null; repair?: { action: string; result: string; note: string }; action?: SysAction };
@@ -82,7 +83,7 @@ function DiagnosticsBody() {
     return ls.length ? Math.round(ls.reduce((a, b) => a + b, 0) / ls.length) : null;
   }, [report]);
 
-  if (loading) return <div className="text-sm text-gray-500 py-10 text-center"><span className="inline-block w-5 h-5 border-2 border-gray-200 border-t-brand rounded-full animate-spin align-middle mr-2" />Loading last diagnostics…</div>;
+  if (loading) return <LoadingBlock label="Loading last diagnostics…" />;
 
   return (
     <div className="relative">

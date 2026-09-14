@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClock, IconChecks, IconLayoutList, IconExternalLink, IconCalendarDue } from "@tabler/icons-react";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 // Team Command — the admin's cockpit. A master–detail report: pick a person on the
 // left rail, see their full day on the right — attendance, workload, and their whole
@@ -325,7 +326,7 @@ export function TeamCommand() {
           {/* Task list — clickable */}
           <div className="tc-tasks-h"><IconLayoutList size={15} stroke={1.8} /> Tasks <span className="tc-count">{cur.tasks.length}</span></div>
           {cur.tasks.length === 0 ? (
-            <div className="tc-empty">{loading ? "Loading…" : "No open tasks right now ✓"}</div>
+            loading ? <LoadingBlock className="!py-4" size={22} /> : <div className="tc-empty">No open tasks right now ✓</div>
           ) : (
             <div className="tc-tasklist">
               {cur.tasks.map((t) => {

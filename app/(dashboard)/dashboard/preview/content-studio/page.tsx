@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { PlaybooksLibrary } from "./PlaybooksLibrary";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -320,7 +321,7 @@ function DetailModal({ it, onClose, onChanged }: { it: Item; onClose: () => void
 
         <div className="p-5 space-y-4">
           {it.status === "failed" && <div className="text-[13px] text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-3">Generation failed{it.error ? `: ${it.error}` : "."}</div>}
-          {it.status === "generating" && <div className="flex items-center gap-2 text-[13px] text-gray-400 py-6 justify-center"><IconCircleDashed size={16} className="animate-spin" /> Writing your drafts…</div>}
+          {it.status === "generating" && <LoadingBlock className="!py-6" size={24} label="Writing your drafts…" />}
 
           {it.factcheck && (
             <div className="border border-gray-100 rounded-xl p-3 bg-gray-50/70 text-[12.5px] text-gray-600">

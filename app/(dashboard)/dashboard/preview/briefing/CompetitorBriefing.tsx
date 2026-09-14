@@ -6,6 +6,7 @@ import {
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
   IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText, IconSparkles,
 } from "@tabler/icons-react";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 // ── data shapes (mirror lib/instagram.ts CompetitorSnapshot / CompetitorMedia) ──
 type Media = {
@@ -544,7 +545,7 @@ function PageReader({ url, title, onClose }: { url: string; title?: string; onCl
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
-            <div className="text-center py-12"><div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-[12px] text-gray-500 mt-3">Loading the page inside the dashboard…</div></div>
+            <LoadingBlock className="!py-12" label="Loading the page inside the dashboard…" />
           ) : pdfUrl ? (
             <iframe title="PDF preview" src={`/api/radar/pdf?url=${encodeURIComponent(pdfUrl)}`} className="w-full h-[74vh] rounded-lg border border-gray-100" />
           ) : html ? (
