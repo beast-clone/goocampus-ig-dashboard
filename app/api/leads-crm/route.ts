@@ -19,6 +19,7 @@ import {
   idleDays,
   inActiveRefreshWindow,
 } from "@/lib/sales-hub";
+import { getAssignmentLog } from "@/lib/lead-assignment";
 
 // GET /api/leads-crm?from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -86,6 +87,7 @@ type Payload = {
     convertCount: number;                // how many of this range's leads have converted
     contracts: number;
     revenue: number;
+    assignedToCounsellors: number | null; // real distributed count from the Lead Distribution log
   };
   inflowByDay: { date: string; count: number }[];
   bySource: { name: string; count: number }[];
@@ -215,7 +217,7 @@ export async function GET(req: Request) {
   const t0 = Date.now();
   try {
     // Fetch everything in parallel. Each is date-scoped so no full-table scans.
-    const [leads, contracts, revenue, perf, meetings, attendance, distribution, walkIns] =
+    const [leads, contracts, revenue, perf, meetings, attendance, distribution, walkIns, assignmentBoard] =
       await Promise.all([
         airtableList<Record<string, unknown>>(CRM_TABLE, {
           filterByFormula: dateRangeFormula("Created Date", from, to),
@@ -265,6 +267,9 @@ export async function GET(req: Request) {
           pageSize: 100,
           maxRecords: 5_000,
         }),
+        // Real "distributed to counsellors" count from the Lead Distribution log
+        // (same source as the 11:59 PM Telegram). Best-effort — never fail the route on it.
+        getAssignmentLog(from, to, "day").catch(() => null),
       ]);
 
     // -------------- Core aggregations (unchanged) --------------
@@ -661,6 +666,7 @@ export async function GET(req: Request) {
         convertCount,
         contracts: contractsTotal,
         revenue: revenueTotal,
+        assignedToCounsellors: assignmentBoard ? assignmentBoard.totals.total : null,
       },
       inflowByDay,
       bySource,

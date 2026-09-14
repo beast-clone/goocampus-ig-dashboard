@@ -51,6 +51,7 @@ type SalesOpsData = {
     convertCount: number;
     contracts: number;
     revenue: number;
+    assignedToCounsellors: number | null;
   };
   inflowByDay: { date: string; count: number }[];
   bySource: { name: string; count: number }[];
@@ -229,7 +230,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
         <KpiTile icon={IconUsers} label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
         <KpiTile icon={IconChartLine} label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
-        <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round((assignedToTeam / data.totals.leads) * 100)}% · incl. New-Leads pool` : "across counsellors"} />
+        <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(data.totals.assignedToCounsellors ?? assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round(((data.totals.assignedToCounsellors ?? assignedToTeam) / data.totals.leads) * 100)}% of leads · from distribution log` : "distributed to counsellors"} />
         <KpiTile icon={IconClock} label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first contact · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
         <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
