@@ -13,6 +13,7 @@ import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClo
 
 type AttRow = { key: string; name: string; role: string; loginAt: string | null; logoutAt: string | null; doneToday: number };
 type MyDayTask = { id: string; title: string; status: string; due: string; detail: { typeLine: string; owner: string; priority: string; brand: string; startAt: string; endAt: string; duration?: number } };
+type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string };
 
 const ROSTER = [
   { key: "manya", name: "Manya", role: "Content writer", color: "#E0791F", av: "M" },
@@ -28,6 +29,8 @@ const plannedFor = (t: MyDayTask) => (t.detail.duration && t.detail.duration > 0
 const elapsedMin = (startAt: string) => Math.max(0, Math.round((Date.now() - new Date(startAt).getTime()) / 60000));
 const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ""}`.trim() : `${m}m`);
 const fmtDue = (d: string) => { if (!d) return ""; const dt = new Date(d + "T00:00:00"); return isNaN(dt.getTime()) ? d : dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }); };
+const fmtFull = (d?: string | null) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
+const nameCap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "—");
 
 function runLong(t: MyDayTask, today: string): { over: number; stuck: boolean } | null {
   if (!t.detail.startAt || t.status !== IN_PROGRESS) return null;
@@ -106,20 +109,35 @@ export function TeamCommand() {
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState("manya");
   const [dateStr, setDateStr] = useState("");
+  const [approvals, setApprovals] = useState<DateReq[]>([]);
+  const [apprBusy, setApprBusy] = useState<string | null>(null);
   useEffect(() => { setDateStr(new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })); }, []);
 
   const load = useCallback(async () => {
     try {
-      const [a, m] = await Promise.all([
+      const [a, m, ap] = await Promise.all([
         fetch("/api/my-day/attendance?view=day", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { rows: [] })),
         fetch("/api/my-day", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { tasks: [] })),
+        fetch("/api/marketing-hub/date-change", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { requests: [] })),
       ]);
       setAtt((a.rows || []) as AttRow[]);
       setTasks((m.tasks || []) as MyDayTask[]);
+      setApprovals((ap.requests || []) as DateReq[]);
       setFetchedAt(new Date());
     } catch { /* keep last */ } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+
+  // Approve → the new publish date is written to the task; reject → the old date stays.
+  // Always submitted as the approver "maheen" (Team Command is admin-only).
+  const resolveApproval = async (postId: string, action: "approve" | "reject") => {
+    setApprBusy(postId + action);
+    try {
+      await fetch("/api/marketing-hub/date-change", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, action, actor: "maheen" }) });
+      setApprovals((a) => a.filter((r) => r.postId !== postId));
+      load(); // reschedule reflects on the task/plan
+    } finally { setApprBusy(null); }
+  };
 
   const today = todayYMD();
   const people = useMemo(() => ROSTER.map((p) => {
@@ -169,6 +187,29 @@ export function TeamCommand() {
           <button className="tc-refresh" onClick={load} title="Refresh"><IconRefresh size={16} stroke={1.8} className={loading ? "spin" : ""} /></button>
         </div>
       </div>
+
+      {/* APPROVALS — publish-date changes waiting for Maheen (admin's home) */}
+      {approvals.length > 0 && (
+        <div className="tc-appr">
+          <div className="tc-appr-h"><IconCalendarDue size={16} stroke={1.8} /> Publish-date changes to approve <span className="tc-appr-n">{approvals.length}</span></div>
+          <div className="tc-appr-list">
+            {approvals.map((r) => (
+              <div key={r.postId} className="tc-appr-card">
+                <div className="tc-appr-main">
+                  <div className="tc-appr-title"><a href={`/dashboard/preview/marketing-hub?open=${r.postId}`}>{r.title}</a>{r.type && <span className="tc-appr-type">{r.type}</span>}</div>
+                  <div className="tc-appr-move"><IconCalendarDue size={13} stroke={1.9} /> <b>{fmtFull(r.from)}</b> <span className="arw">→</span> <b className="to">{fmtFull(r.to)}</b></div>
+                  <div className="tc-appr-meta">Assigned to <b>{nameCap(r.owner)}</b> · Requested by <b>{nameCap(r.requestedBy)}</b>{r.createdAt ? <> · Created {fmtFull(r.createdAt)}{r.creator ? <> by <b>{nameCap(r.creator)}</b></> : null}</> : null}</div>
+                  <div className="tc-appr-reason"><b>Reason:</b> {r.reason?.trim() ? r.reason : <span className="muted">not given</span>}</div>
+                </div>
+                <div className="tc-appr-actions">
+                  <button className="tc-btn ghost" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "reject")}>Reject</button>
+                  <button className="tc-btn primary" disabled={!!apprBusy} onClick={() => resolveApproval(r.postId, "approve")}>Approve</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* MASTER–DETAIL */}
       <div className="tc-layout">
@@ -291,6 +332,32 @@ const CSS = `
 .tcmd .tc-refresh:hover{color:var(--brand);border-color:var(--brand-soft)}
 .tcmd .spin{animation:tcspin 1s linear infinite}@keyframes tcspin{to{transform:rotate(360deg)}}
 
+.tcmd .tc-appr{background:var(--panel);border:1px solid #E9ECFB;border-left:3px solid var(--brand);border-radius:14px;padding:14px 16px;margin-top:14px}
+.tcmd .tc-appr-h{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--ink)}
+.tcmd .tc-appr-h svg{color:var(--brand)}
+.tcmd .tc-appr-n{background:var(--brand-soft);color:var(--brand-ink);border-radius:99px;padding:1px 9px;font-size:.74rem;font-weight:600}
+.tcmd .tc-appr-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.tcmd .tc-appr-card{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;border-top:1px solid #F3F5FA;padding-top:10px}
+.tcmd .tc-appr-card:first-child{border-top:none;padding-top:0}
+.tcmd .tc-appr-main{flex:1;min-width:240px}
+.tcmd .tc-appr-title{font-size:.9rem;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tcmd .tc-appr-title a{color:var(--ink);text-decoration:none;border-bottom:1px dashed #B9C2E0}
+.tcmd .tc-appr-title a:hover{color:var(--brand)}
+.tcmd .tc-appr-type{font-size:.68rem;background:#F3F5FA;color:#3B4457;border-radius:99px;padding:1px 8px;font-weight:500}
+.tcmd .tc-appr-move{font-size:.82rem;color:var(--ink);margin-top:5px;display:flex;align-items:center;gap:5px}
+.tcmd .tc-appr-move svg{color:var(--brand)}
+.tcmd .tc-appr-move .to{color:var(--brand)}.tcmd .tc-appr-move .arw{color:var(--soft)}
+.tcmd .tc-appr-meta{font-size:.74rem;color:var(--soft);margin-top:4px;line-height:1.5}
+.tcmd .tc-appr-meta b{color:#3B4457;font-weight:600}
+.tcmd .tc-appr-reason{font-size:.78rem;color:#3B4457;margin-top:6px;background:#FAFBFF;border:1px solid #EEF1FD;border-radius:8px;padding:6px 9px}
+.tcmd .tc-appr-reason .muted{color:var(--soft)}
+.tcmd .tc-appr-actions{display:flex;gap:8px;flex-shrink:0}
+.tcmd .tc-btn{border-radius:8px;padding:7px 14px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit}
+.tcmd .tc-btn.primary{background:var(--brand);color:#fff}
+.tcmd .tc-btn.primary:hover{background:var(--brand-ink)}
+.tcmd .tc-btn.ghost{background:#fff;color:#C0392B;border-color:#F0D0CE}
+.tcmd .tc-btn.ghost:hover{background:#FDF3F2}
+.tcmd .tc-btn:disabled{opacity:.55;cursor:default}
 .tcmd .tc-layout{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-top:16px;align-items:start}
 .tcmd .tc-rail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px}
 .tcmd .tc-rail-h{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--soft);font-weight:700;padding:8px 10px 6px}
