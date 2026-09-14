@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { fmtDateTime } from "@/lib/date";
 import { isClosedStatus } from "@/lib/lead-status";
@@ -117,6 +117,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
   const [openDay, setOpenDay] = useState<BoardRow | null>(null);
   const [track, setTrack] = useState<BoardLead | null>(null);
   const [reassign, setReassign] = useState<BoardLead | null>(null);
+  const [drill, setDrill] = useState<"new" | "notcalled" | "waiting" | null>(null);
 
   const qs = new URLSearchParams({ from: range.from, to: range.to, bucket }).toString();
   const { data, isLoading, error, refresh } = useApi<Board>(`/api/leads-crm/assignments?${qs}`);
@@ -220,23 +221,23 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         <div className="mb-5">
           <div className="text-[13px] text-gray-500 mb-3">Here&apos;s how your leads are doing right now. The two coloured cards are the ones that need someone to act.</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-4">
+            <button onClick={() => setDrill("new")} className="text-left rounded-xl border border-gray-100 bg-[#F6F7FB] p-4 hover:border-gray-300 transition">
               <div className="text-[1.6rem] font-semibold text-[#232D42] leading-none">{fmtInt(data.generated)}</div>
               <div className="text-[13px] font-medium text-[#232D42] mt-2">New leads came in</div>
-              <div className="text-[12px] text-gray-500 mt-0.5">During the period you&apos;ve selected above.</div>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-[12px] text-gray-500 mt-0.5">During the period you&apos;ve selected above. <span className="text-brand">See where from →</span></div>
+            </button>
+            <button onClick={() => setDrill("notcalled")} className="text-left rounded-xl border border-amber-200 bg-amber-50 p-4 hover:border-amber-300 transition">
               <div className="text-[1.6rem] font-semibold text-[#9A5B10] leading-none">{fmtInt(data.alerts.newOver2)}</div>
               <div className="text-[13px] font-medium text-[#8A5B12] mt-2">Nobody has called these yet</div>
-              <div className="text-[12px] text-[#9A6B2E] mt-0.5">A counsellor has them, but they&apos;re still marked &ldquo;New&rdquo; 2+ days on. Give these a call.</div>
-            </div>
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="text-[12px] text-[#9A6B2E] mt-0.5">A counsellor has them, still marked &ldquo;New&rdquo; 2+ days on. <span className="text-[#8A5B12] font-medium underline">See the list →</span></div>
+            </button>
+            <button onClick={() => setDrill("waiting")} className="text-left rounded-xl border border-red-200 bg-red-50 p-4 hover:border-red-300 transition">
               <div className="text-[1.6rem] font-semibold text-[#B0203A] leading-none">{fmtInt(data.alerts.poolStuck)}</div>
               <div className="text-[13px] font-medium text-[#8E2C21] mt-2">Waiting to be assigned</div>
-              <div className="text-[12px] text-[#A24236] mt-0.5">No counsellor has picked these up in over 2 days. Assign them to someone.</div>
-            </div>
+              <div className="text-[12px] text-[#A24236] mt-0.5">No counsellor has picked these up in over 2 days. <span className="text-[#8E2C21] font-medium underline">See the list →</span></div>
+            </button>
           </div>
-          <div className="text-[12px] text-gray-400 mt-3">The list below shows exactly these leads, so you can open, chase, or reassign them.</div>
+          <div className="text-[12px] text-gray-400 mt-3">Click any card above for the detail — or use the list below to open, chase, or reassign these leads.</div>
         </div>
       )}
 
@@ -598,6 +599,10 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         <ReassignModal lead={reassign} roster={data?.roster || []} roles={data?.roles || {}}
           onClose={() => setReassign(null)} onDone={() => { setReassign(null); refresh(); }} />
       )}
+      {drill && data && (
+        <TrackerDrill kind={drill} data={data} onClose={() => setDrill(null)}
+          onOpenLead={(l) => { setTrack(l); setDrill(null); }} />
+      )}
     </div>
   );
 }
@@ -638,6 +643,105 @@ function Split({ title, rows, total, critKey }: { title: string; rows: { key: st
         ))}
       </div>
     </div>
+  );
+}
+
+// Drill-down when a summary card on the tracker is clicked. "new" = where the leads
+// came from (by interest + source); "notcalled" / "waiting" = the actual list, 10 a
+// page with next/prev. Rows open the lead's full History. All from data.allLeads.
+function DrillShell({ title, sub, onClose, children }: { title: string; sub: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-6 overflow-y-auto preview-scope" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100">
+          <div className="min-w-0">
+            <div className="text-lg font-medium text-[#232D42]">{title}</div>
+            <div className="text-[13px] text-gray-500 mt-0.5">{sub}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function TrackerDrill({ kind, data, onClose, onOpenLead }: {
+  kind: "new" | "notcalled" | "waiting"; data: Board; onClose: () => void; onOpenLead: (l: BoardLead) => void;
+}) {
+  const [page, setPage] = useState(0);
+  const PER = 10;
+
+  if (kind === "new") {
+    const group = (key: (l: BoardLead) => string): [string, number][] => {
+      const m = new Map<string, number>();
+      for (const l of data.allLeads) { const k = key(l) || "—"; m.set(k, (m.get(k) || 0) + 1); }
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    const total = data.allLeads.length || 1;
+    const Bars = ({ heading, rows }: { heading: string; rows: [string, number][] }) => (
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2.5">{heading}</div>
+        <div className="flex flex-col gap-1.5">
+          {rows.slice(0, 12).map(([label, n]) => (
+            <div key={label} className="flex items-center gap-2 text-[13px]">
+              <div className="w-44 truncate text-[#3B4457]" title={label}>{label}</div>
+              <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden"><div className="h-full bg-brand rounded-full" style={{ width: `${Math.round((n / total) * 100)}%` }} /></div>
+              <div className="w-20 text-right tabular-nums text-[#232D42] font-medium">{fmtInt(n)} <span className="text-gray-400 font-normal">· {Math.round((n / total) * 100)}%</span></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+    return (
+      <DrillShell title="New leads — where they came from" sub={`${fmtInt(data.generated)} new leads in the selected period`} onClose={onClose}>
+        <div className="flex flex-col gap-6 p-6">
+          <Bars heading="By primary interest" rows={group((l) => l.interest)} />
+          <Bars heading="By lead source" rows={group((l) => l.source)} />
+        </div>
+      </DrillShell>
+    );
+  }
+
+  const list = data.allLeads.filter((l) => (kind === "notcalled" ? l.flaggedNew : l.flaggedPool));
+  const pages = Math.max(1, Math.ceil(list.length / PER));
+  const p = Math.min(page, pages - 1);
+  const slice = list.slice(p * PER, p * PER + PER);
+  const title = kind === "notcalled" ? "Nobody has called these yet" : "Waiting to be assigned";
+  const sub = kind === "notcalled"
+    ? `${fmtInt(list.length)} leads a counsellor hasn't started — still "New" 2+ days on`
+    : `${fmtInt(list.length)} leads with no counsellor, sitting in the holding pool 2+ days`;
+
+  return (
+    <DrillShell title={title} sub={sub} onClose={onClose}>
+      <div className="p-6">
+        <div className="border border-gray-100 rounded-xl overflow-hidden">
+          {slice.map((l) => (
+            <button key={l.id} onClick={() => onOpenLead(l)} className="w-full text-left flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50">
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium text-[#232D42] truncate">{l.name}</div>
+                <div className="text-[11px] text-gray-400 truncate">{l.interest} · {l.source}</div>
+              </div>
+              {kind === "notcalled"
+                ? <div className="text-[12px] text-gray-500 whitespace-nowrap">{l.counsellor || "—"} · <span className="text-[#C0392B]">{l.daysUntouched}d untouched</span></div>
+                : <div className="text-[12px] text-gray-500 whitespace-nowrap">In pool · <span className="text-[#B0203A]">{l.ageDays}d waiting</span></div>}
+            </button>
+          ))}
+          {slice.length === 0 && <div className="px-4 py-8 text-center text-gray-400 text-sm">None right now ✓</div>}
+        </div>
+        {pages > 1 && (
+          <div className="flex items-center justify-between mt-3 text-[12.5px] text-gray-500">
+            <span>Showing {p * PER + 1}–{Math.min((p + 1) * PER, list.length)} of {fmtInt(list.length)}</span>
+            <div className="flex items-center gap-1">
+              <button disabled={p === 0} onClick={() => setPage(p - 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">‹ Prev</button>
+              <span className="px-1">Page {p + 1} / {pages}</span>
+              <button disabled={p >= pages - 1} onClick={() => setPage(p + 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">Next ›</button>
+            </div>
+          </div>
+        )}
+        {kind === "waiting" && <div className="text-[12px] text-gray-400 mt-3.5">These have no counsellor yet — the round-robin hasn&apos;t handed them out (e.g. they came in outside working hours, or the interest has no active counsellor). Assign them from the Transfer tab, or open one for its details.</div>}
+      </div>
+    </DrillShell>
   );
 }
 
