@@ -202,7 +202,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
       <div className={`flex flex-wrap items-baseline justify-between gap-3 ${only ? "mb-3" : "mb-4"}`}>
         <div>
           {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
-          {tab !== "roles" && (
+          {tab !== "roles" && tab !== "tracker" && (
             <div className="text-sm text-gray-500">
               {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
             </div>
@@ -213,6 +213,32 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
           <IconRefresh size={13} /> Refresh
         </button>
       </div>
+
+      {/* Plain-English health check — the tracker is where non-technical users land,
+          so spell out what each number means and what to do, not the internal rules. */}
+      {tab === "tracker" && data && (
+        <div className="mb-5">
+          <div className="text-[13px] text-gray-500 mb-3">Here&apos;s how your leads are doing right now. The two coloured cards are the ones that need someone to act.</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-4">
+              <div className="text-[1.6rem] font-semibold text-[#232D42] leading-none">{fmtInt(data.generated)}</div>
+              <div className="text-[13px] font-medium text-[#232D42] mt-2">New leads came in</div>
+              <div className="text-[12px] text-gray-500 mt-0.5">During the period you&apos;ve selected above.</div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-[1.6rem] font-semibold text-[#9A5B10] leading-none">{fmtInt(data.alerts.newOver2)}</div>
+              <div className="text-[13px] font-medium text-[#8A5B12] mt-2">Nobody has called these yet</div>
+              <div className="text-[12px] text-[#9A6B2E] mt-0.5">A counsellor has them, but they&apos;re still marked &ldquo;New&rdquo; 2+ days on. Give these a call.</div>
+            </div>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="text-[1.6rem] font-semibold text-[#B0203A] leading-none">{fmtInt(data.alerts.poolStuck)}</div>
+              <div className="text-[13px] font-medium text-[#8E2C21] mt-2">Waiting to be assigned</div>
+              <div className="text-[12px] text-[#A24236] mt-0.5">No counsellor has picked these up in over 2 days. Assign them to someone.</div>
+            </div>
+          </div>
+          <div className="text-[12px] text-gray-400 mt-3">The list below shows exactly these leads, so you can open, chase, or reassign them.</div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -231,7 +257,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
 
       {/* The two rules the team asked for. Full banners on the hub page; on a
           sub-page they collapse to one line so the data starts near the top. */}
-      {only && tab !== "roles" && data && (data.alerts.newOver2 > 0 || data.alerts.poolStuck > 0) && (
+      {only && tab !== "roles" && tab !== "tracker" && data && (data.alerts.newOver2 > 0 || data.alerts.poolStuck > 0) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[12.5px]">
           {data.alerts.newOver2 > 0 && (
             <a href="/dashboard/preview/sales-ops/tracker" className="inline-flex items-center gap-1.5 text-[#C0392B] hover:underline">
