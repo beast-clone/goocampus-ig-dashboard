@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { createPortal } from "react-dom";
@@ -234,6 +234,110 @@ export function MarketingHubPage() {
   );
 }
 
+// ── Publish-date approval (requester side) ─────────────────────────────────────
+// Moving a task's PUBLISH DATE is the one edit that needs Maheen's sign-off. When
+// a non-admin (e.g. Manya) changes it, we pop a modal for the reason and send the
+// change for approval instead of applying it; the new date only lands once Maheen
+// approves it (in My Day → Publish-date approvals). Maheen's own edits apply at
+// once. Both the Master-sheet cell and the calendar drag route through this so the
+// popup + confirmation behave identically wherever the date is touched.
+type ApprovalOutcome = "applied" | "pending" | "cancelled" | "error";
+type PublishApprovalCtx = {
+  ready: boolean;
+  isAdmin: boolean;
+  // Change a task's publish date with the approval gate. `to` = new yyyy-mm-dd (or
+  // null to clear). Returns what happened so the caller can refresh or revert.
+  changePublishDate: (args: { id: string; title: string; from: string | null; to: string | null }) => Promise<ApprovalOutcome>;
+};
+const PublishApprovalContext = createContext<PublishApprovalCtx | null>(null);
+const dayOf = (d: string | null) => (d ? String(d).slice(0, 10) : null);
+
+function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
+  const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean }>({ ready: false, isAdmin: false });
+  // The open reason-modal, with the promise resolver that changePublishDate awaits.
+  const [ask, setAsk] = useState<null | { id: string; title: string; from: string | null; to: string | null; resolve: (reason: string | null) => void }>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin })).catch(() => setViewer({ ready: true, isAdmin: false }));
+  }, []);
+
+  const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
+    if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
+    // Admin edits apply immediately — no approval, no popup.
+    if (viewer.isAdmin) {
+      const r = await saveField(a.id, { publishing_date: a.to });
+      return r.ok ? "applied" : "error";
+    }
+    // Non-admin → collect a reason, then send for approval.
+    const reasonText = await new Promise<string | null>((resolve) => { setReason(""); setAsk({ ...a, resolve }); });
+    if (reasonText === null) return "cancelled";
+    const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText });
+    if (!r.ok) return "error";
+    if (r.pendingApproval) { setToast(`Sent to Maheen for approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once she approves.`); return "pending"; }
+    return "applied";
+  }, [viewer.isAdmin]);
+
+  const submit = async () => {
+    if (!ask) return;
+    setBusy(true);
+    const resolve = ask.resolve;
+    setAsk(null); setBusy(false);
+    resolve(reason.trim()); // empty string is allowed — reason is encouraged, not required
+  };
+  const cancel = () => { if (!ask) return; const resolve = ask.resolve; setAsk(null); resolve(null); };
+
+  return (
+    <PublishApprovalContext.Provider value={{ ready: viewer.ready, isAdmin: viewer.isAdmin, changePublishDate }}>
+      {children}
+      {ask && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 px-4" onClick={cancel}>
+          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconCalendarEvent size={18} stroke={1.8} /></div>
+              <div className="min-w-0">
+                <div className="text-[15px] font-semibold text-[#232D42]">Change needs Maheen’s approval</div>
+                <div className="text-[13px] text-[#8A92A6] mt-0.5">You’re moving the publish date. Maheen approves it before it goes live.</div>
+              </div>
+            </div>
+            <div className="mt-4 rounded-xl bg-[#F6F7FB] border border-gray-100 px-3 py-2.5">
+              <div className="text-[13px] font-medium text-[#232D42] truncate">{ask.title}</div>
+              <div className="text-[13px] text-[#232D42] mt-1">📅 <b>{ask.from ? fmtDateShort(ask.from) : "unset"}</b> <IconArrowRight size={13} className="inline -mt-0.5 text-gray-400" /> <b className="text-brand">{ask.to ? fmtDateShort(ask.to) : "unset"}</b></div>
+            </div>
+            <label className="block text-[12.5px] font-medium text-[#232D42] mt-4 mb-1">Reason for the change</label>
+            <textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
+              placeholder="e.g. Client moved the campaign launch to mid-October…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={cancel} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-[#232D42] border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={submit} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-60">Send for approval</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[96] flex items-start gap-3 bg-white border border-[#E9ECFB] border-l-[3px] border-l-brand rounded-xl shadow-lg px-4 py-3 max-w-md">
+          <IconCheck size={16} className="text-brand mt-0.5 flex-shrink-0" />
+          <span className="text-[13px] text-[#232D42]">{toast}</span>
+          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-700 text-lg leading-none ml-1">×</button>
+        </div>
+      )}
+    </PublishApprovalContext.Provider>
+  );
+}
+
+function usePublishApproval(): PublishApprovalCtx {
+  const ctx = useContext(PublishApprovalContext);
+  // Fallback keeps the components usable outside the provider (e.g. isolated tests):
+  // no gate, edits apply straight through.
+  return ctx ?? { ready: true, isAdmin: true, changePublishDate: async ({ id, from, to }) => {
+    if (dayOf(from) === dayOf(to)) return "applied";
+    const r = await saveField(id, { publishing_date: to }); return r.ok ? "applied" : "error";
+  } };
+}
+
 function Inner({ range, setRange }: { range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
   // Deep-link: /dashboard/marketing-hub?open=<mh_posts.id> opens that task.
   const openParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("open") || "" : "";
@@ -306,6 +410,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   }, [data?.openId]);
 
   return (
+    <PublishApprovalProvider>
     <div className="space-y-6">
       {/* Top bar: entries count · global search · live. Workload + Master drive their
           own filtering (person cards / views rail), so they hide the count + search. */}
@@ -362,6 +467,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         </div>
       )}
     </div>
+    </PublishApprovalProvider>
   );
 }
 
@@ -1221,6 +1327,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   // A refused drop used to leave the card sitting on the old day with no word about
   // why; surface the reason instead.
   const [failure, setFailure] = useState<SaveFailure | null>(null);
+  const { changePublishDate } = usePublishApproval();
   const dropOn = async (e: React.DragEvent, dayKey: string) => {
     e.preventDefault();
     setDragOver(null);
@@ -1228,9 +1335,12 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     if (!id) return;
     const row = rows.find((r) => r.id === id);
     if (row && row.publishingDate?.slice(0, 10) === dayKey) return; // no-op: same day
-    const r = await saveField(id, { publishing_date: dayKey });
-    if (r.ok) { onSaved(); return; }
-    setFailure(failureFrom(r, row?.particulars || "This task"));
+    // Non-admins get the reason popup → the drop is sent for Maheen's approval (the
+    // card stays put until she approves); admins apply it immediately.
+    const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to: dayKey });
+    if (outcome === "applied" || outcome === "pending") { onSaved(); return; }
+    if (outcome === "cancelled") return;
+    setFailure({ kind: "error", message: "couldn't move that task — try again." });
   };
 
   // Filter by active brand first, then bucket by yyyy-mm-dd.
@@ -1530,16 +1640,20 @@ function PlatformIcons({ platforms }: { platforms: string[] }) {
 // 422 { missing } and the caller has to be able to show it. This used to swallow
 // the body, so setting a row to "Content - Approved" without a brief just snapped
 // the dropdown back with no explanation at all.
-type SaveResult = { ok: true } | { ok: false; status: number; body: unknown; error: string };
+type PendingApproval = { from: string | null; to: string | null };
+type SaveResult = { ok: true; pendingApproval?: PendingApproval } | { ok: false; status: number; body: unknown; error: string };
 
-async function saveField(id: string, fields: Record<string, unknown>): Promise<SaveResult> {
+async function saveField(id: string, fields: Record<string, unknown>, opts?: { reason?: string }): Promise<SaveResult> {
   try {
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, fields }),
+      body: JSON.stringify({ id, fields, ...(opts?.reason !== undefined ? { reason: opts.reason } : {}) }),
     });
-    if (res.ok) return { ok: true };
+    if (res.ok) {
+      const okBody = await res.json().catch(() => ({}));
+      return { ok: true, pendingApproval: (okBody as { pendingApproval?: PendingApproval }).pendingApproval };
+    }
     const body = await res.json().catch(() => ({}));
     const error = (body as { error?: string }).error || `HTTP ${res.status}`;
     return { ok: false, status: res.status, body, error };
@@ -2459,6 +2573,15 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     if (r.ok) { onSaved(); return; }
     setFailure(failureFrom(r, rows.find((x) => x.id === id)?.particulars || "This task"));
   };
+  // Publish date is the gated field — route it through the approval flow (reason
+  // popup for non-admins), never the plain `save`.
+  const { changePublishDate } = usePublishApproval();
+  const changeDate = async (id: string, to: string | null) => {
+    const row = rows.find((x) => x.id === id);
+    const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to });
+    if (outcome === "applied" || outcome === "pending") onSaved();
+    else if (outcome === "error") setFailure({ kind: "error", message: "couldn't change the publish date — try again." });
+  };
   const saveCustom = async (id: string, key: string, value: unknown) => {
     const res = await fetch("/api/marketing-hub/set-custom", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: id, key, value }) });
     if (res.ok) onSaved();
@@ -2493,7 +2616,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>{statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
       case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">Unassigned</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
       case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
-      case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { publishing_date: e.target.value || null }); done(); }} />)} />;
+      case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { done(); await changeDate(r.id, e.target.value || null); }} />)} />;
       case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDateShort(r.dueDate) : "—"}</span>;
       case "platforms": return <PlatformIcons platforms={r.platforms} />;
       case "attachments": return r.attachments.length ? <span className="inline-flex items-center gap-0.5 text-gray-400"><IconPaperclip size={13} />{r.attachments.length}</span> : <span className="text-gray-300">—</span>;
