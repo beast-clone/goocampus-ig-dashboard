@@ -53,6 +53,52 @@ function orderTasks(list: MyDayTask[], today: string): MyDayTask[] {
   return [...list].sort((a, b) => rank(a) - rank(b) || (a.due || "9999").localeCompare(b.due || "9999"));
 }
 
+// ── Today's plan timeline ──────────────────────────────────────────────────────
+// Lay a person's pending work into the 9 AM–6 PM day (minutes from 9 AM) around the
+// pinned 1–2 PM lunch — the same model as the Marketing Hub Workload timeline. Work
+// past 6 PM "spills over" to another day. Mirrors buildDayPlan (MarketingHub.tsx).
+const SPAN = 540, DAY_END = 540, LUNCH_AT = 240, LUNCH_DUR = 60; // 9AM–6PM · lunch 1–2PM
+const TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5"];
+type Blk = { kind: "task" | "lunch" | "free"; label: string; dur: number; start: number; type?: string };
+function typeColor(type?: string): string {
+  const t = (type || "").toLowerCase();
+  if (/thumbnail|poster|design|graphic/.test(t)) return "#E0791F";
+  if (/carousel/.test(t)) return "#2F6DE0";
+  if (/reel|short|story|video|youtube|long-form/.test(t)) return "#7C5CE6";
+  return "#3A57E8";
+}
+function buildPlan(tasks: MyDayTask[]): { blocks: Blk[]; overflow: number; freeMin: number } {
+  const queue = [...tasks].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const blocks: Blk[] = [];
+  const LUNCH_END = LUNCH_AT + LUNCH_DUR;
+  let cur = 0, lunchDone = false, overflow = 0;
+  const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_DUR, start: LUNCH_AT }); cur = LUNCH_END; lunchDone = true; };
+  for (const t of queue) {
+    if (cur >= DAY_END) { overflow++; continue; }
+    let remaining = plannedFor(t);
+    const label = t.title, type = t.detail.typeLine;
+    if (!lunchDone && cur >= LUNCH_AT && cur < LUNCH_END) pushLunch();
+    if (!lunchDone && cur < LUNCH_AT) {
+      const before = Math.min(remaining, LUNCH_AT - cur);
+      if (before > 0) { blocks.push({ kind: "task", label, dur: before, start: cur, type }); cur += before; remaining -= before; }
+      if (remaining > 0) pushLunch();
+    }
+    if (remaining > 0) {
+      if (cur >= DAY_END) { overflow++; continue; }
+      const fit = Math.min(remaining, DAY_END - cur);
+      blocks.push({ kind: "task", label, dur: fit, start: cur, type }); cur += fit;
+      if (fit < remaining) overflow++;
+    }
+  }
+  if (!lunchDone) {
+    if (cur < LUNCH_AT) { blocks.push({ kind: "free", label: "Free", dur: LUNCH_AT - cur, start: cur }); cur = LUNCH_AT; }
+    pushLunch();
+  }
+  if (cur < DAY_END) blocks.push({ kind: "free", label: "Free", dur: DAY_END - cur, start: cur });
+  const freeMin = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);
+  return { blocks, overflow, freeMin };
+}
+
 export function TeamCommand() {
   const [att, setAtt] = useState<AttRow[] | null>(null);
   const [tasks, setTasks] = useState<MyDayTask[] | null>(null);
@@ -101,6 +147,9 @@ export function TeamCommand() {
 
   const cur = people.find((p) => p.key === sel) || people[0];
   const attLabel = (p: typeof cur) => (p.present ? `In since ${p.loginAt}` : p.absent ? "Not in yet today" : `Left at ${p.logoutAt}`);
+  const plan = useMemo(() => buildPlan(cur.tasks), [cur]);
+  const nowM = new Date().getHours() * 60 + new Date().getMinutes() - 9 * 60; // minutes since 9 AM
+  const nowPct = nowM >= 0 && nowM <= SPAN ? (nowM / SPAN) * 100 : null;
 
   return (
     <main className="tcmd">
@@ -174,6 +223,22 @@ export function TeamCommand() {
                   : <span className="tc-ok">{fmtDur(elapsedMin(cur.current!.detail.startAt))} in · on track</span>}
               </>
             ); })() : <span className="tc-idle"><IconClock size={13} stroke={1.9} /> {cur.present ? "No task in progress right now" : cur.absent ? "Not in yet today" : "Day ended"}</span>}
+          </div>
+
+          {/* Today's plan — how their pending work fills the 9–6 day */}
+          <div className="tc-plan-h">
+            <span><IconCalendarDue size={14} stroke={1.8} /> Today&apos;s plan</span>
+            <span className="tc-plan-sum">{fmtDur(cur.plannedMin)} of 8h{plan.overflow > 0 ? ` · ${plan.overflow} spill over` : plan.freeMin > 0 ? ` · ${fmtDur(plan.freeMin)} free` : " · full"}</span>
+          </div>
+          <div className="tc-ticks">{TICKS.map((t, i) => <span key={i}>{t}</span>)}</div>
+          <div className="tc-track">
+            {plan.blocks.map((b, i) => {
+              const style = { left: `${(b.start / SPAN) * 100}%`, width: `${(b.dur / SPAN) * 100}%` };
+              if (b.kind === "lunch") return <div key={i} className="tc-blk lunch" style={style} title="Lunch · 1–2 PM" />;
+              if (b.kind === "free") return <div key={i} className="tc-blk free" style={style} title={`Free · ${fmtDur(b.dur)}`} />;
+              return <div key={i} className="tc-blk task" style={{ ...style, background: typeColor(b.type) }} title={`${b.label} · ${b.type} · ${fmtDur(b.dur)}`}><span>{b.label}</span></div>;
+            })}
+            {nowPct != null && <div className="tc-nowline" style={{ left: `${nowPct}%` }} />}
           </div>
 
           {/* Task list — clickable */}
@@ -275,6 +340,19 @@ const CSS = `
 .tcmd .tc-ok{font-size:.75rem;color:#127A43;margin-left:auto}
 .tcmd .tc-idle{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--soft)}
 
+.tcmd .tc-plan-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0 7px}
+.tcmd .tc-plan-h>span:first-child{display:inline-flex;align-items:center;gap:7px;font-size:.82rem;font-weight:600;color:var(--ink)}
+.tcmd .tc-plan-h svg{color:var(--soft)}
+.tcmd .tc-plan-sum{font-size:.74rem;color:var(--soft);font-weight:500}
+.tcmd .tc-ticks{display:flex;font-family:ui-monospace,Menlo,monospace;font-size:.62rem;color:#B4BAC7;margin-bottom:4px;padding:0 1px}
+.tcmd .tc-ticks span{flex:1;text-align:left}
+.tcmd .tc-track{position:relative;height:76px;border:1px solid #E4E7EF;border-radius:11px;overflow:hidden;background:#F7F8FC}
+.tcmd .tc-blk{position:absolute;top:0;bottom:0;border-right:1px solid rgba(255,255,255,.35)}
+.tcmd .tc-blk.task{display:flex;align-items:center;padding:0 7px;min-width:0}
+.tcmd .tc-blk.task span{font-size:.7rem;font-weight:500;color:#fff;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcmd .tc-blk.lunch{background:repeating-linear-gradient(45deg,#EAEDF5,#EAEDF5 5px,#DFE3EE 5px,#DFE3EE 10px)}
+.tcmd .tc-blk.free{background:repeating-linear-gradient(45deg,#F1F3F8,#F1F3F8 5px,#E7EAF2 5px,#E7EAF2 10px)}
+.tcmd .tc-nowline{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:5}
 .tcmd .tc-tasks-h{display:flex;align-items:center;gap:7px;font-size:.82rem;font-weight:600;color:var(--ink);margin:18px 0 9px}
 .tcmd .tc-tasks-h svg{color:var(--soft)}
 .tcmd .tc-count{background:var(--canvas);color:var(--soft);border-radius:99px;padding:1px 8px;font-size:.72rem;font-weight:600}
