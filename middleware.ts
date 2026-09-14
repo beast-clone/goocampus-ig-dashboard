@@ -56,6 +56,20 @@ async function verifyCookie(value: string | undefined, secret: string): Promise<
   return safeEqualHex(sig, expected);
 }
 
+// Admin flag lives in the signed token as `<userId>:a:<token>` (same as
+// getSessionIsAdmin). Only read after verifyCookie has validated the signature.
+function isAdminCookie(value: string | undefined): boolean {
+  if (!value) return false;
+  const idx = value.lastIndexOf(".");
+  if (idx < 0) return false;
+  const parts = value.slice(0, idx).split(":");
+  return parts.length === 3 && parts[1] === "a";
+}
+
+// Where an authed user lands after login / off the retired /me: admins get their
+// cockpit, everyone else the Overview.
+const homeFor = (admin: boolean) => (admin ? "/dashboard/preview/team-command" : "/dashboard/preview");
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method.toUpperCase();
@@ -86,7 +100,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.json({ error: "Server not configured (SESSION_SECRET missing)" }, { status: 500 });
   }
 
-  const isAuthed = await verifyCookie(req.cookies.get("gc_session")?.value, secret);
+  const sessionValue = req.cookies.get("gc_session")?.value;
+  const isAuthed = await verifyCookie(sessionValue, secret);
+  const isAdmin = isAuthed && isAdminCookie(sessionValue);
 
   // /api/login and /api/logout always allowed
   if (PUBLIC_API_ROUTES.has(pathname)) {
@@ -115,7 +131,7 @@ export async function middleware(req: NextRequest) {
   // parked member world at /me is retired — send any authed hit there into V2.
   if (isAuthed && (pathname === "/me" || pathname.startsWith("/me/"))) {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard/preview";
+    url.pathname = homeFor(isAdmin);
     return NextResponse.redirect(url);
   }
 
@@ -132,7 +148,7 @@ export async function middleware(req: NextRequest) {
 
   if (isAuthed && pathname === "/login") {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard/preview";
+    url.pathname = homeFor(isAdmin);
     return NextResponse.redirect(url);
   }
 

@@ -12,12 +12,15 @@ import { getUserById } from "@/lib/users";
 // the owner) keep the switcher to view any teammate's day.
 export const dynamic = "force-dynamic";
 
-export default function PreviewMyDayPage() {
+export default function PreviewMyDayPage({ searchParams }: { searchParams?: { person?: string } }) {
   const uid = getSessionUserId();
   const admin = getSessionIsAdmin();
   const user = getUserById(uid);
   // A producer opens their own day (locked). An admin has no producer day of
-  // their own, so they land on a default producer view + get the switcher.
-  const initialPerson = user && !admin ? user.id : undefined;
+  // their own, so they land on a default producer view + get the switcher — and
+  // may deep-link a specific person via ?person= (e.g. from Team Command's
+  // "View their day"). Producers can never override who they are.
+  const wanted = admin && typeof searchParams?.person === "string" ? searchParams.person.toLowerCase().trim() : undefined;
+  const initialPerson = wanted || (user && !admin ? user.id : undefined);
   return <PreviewMyDay initialPerson={initialPerson} isAdmin={admin} />;
 }
