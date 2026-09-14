@@ -206,26 +206,35 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
           <div className="flex items-center gap-2 text-sm text-gray-500"><IconRefresh size={18} className="animate-spin" /> Updating…</div>
         </div>
       )}
-      <div className={`flex flex-wrap items-baseline justify-between gap-3 ${tab === "tracker" ? "mb-2" : only ? "mb-3" : "mb-4"}`}>
-        <div>
-          {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
-          {tab !== "roles" && tab !== "tracker" && (
-            <div className="text-sm text-gray-500">
-              {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
-            </div>
-          )}
+      {/* On the tracker this row would be empty (title/subtitle are hidden), so we
+          skip it and move Refresh next to the summary intro below — no wasted gap. */}
+      {tab !== "tracker" && (
+        <div className={`flex flex-wrap items-baseline justify-between gap-3 ${only ? "mb-3" : "mb-4"}`}>
+          <div>
+            {!only && <div className="text-base font-medium text-[#232D42]">Leads</div>}
+            {tab !== "roles" && (
+              <div className="text-sm text-gray-500">
+                {data ? `${fmtInt(data.generated)} leads generated in this window` : "Loading…"}
+              </div>
+            )}
+          </div>
+          <button onClick={() => refresh()} title="Refresh"
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[#4A5468] hover:border-gray-300 inline-flex items-center gap-1">
+            <IconRefresh size={13} /> Refresh
+          </button>
         </div>
-        <button onClick={() => refresh()} title="Refresh"
-          className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[#4A5468] hover:border-gray-300 inline-flex items-center gap-1">
-          <IconRefresh size={13} /> Refresh
-        </button>
-      </div>
+      )}
 
       {/* Plain-English health check — the tracker is where non-technical users land,
           so spell out what each number means and what to do, not the internal rules. */}
       {tab === "tracker" && data && (
         <div className="mb-5">
-          <div className="text-[13px] text-gray-500 mb-3">Here&apos;s how your leads are doing right now. The two coloured cards are the ones that need someone to act.</div>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="text-[13px] text-gray-500">Here&apos;s how your leads are doing right now. The two coloured cards are the ones that need someone to act.</div>
+            <button onClick={() => refresh()} title="Refresh" className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[#4A5468] hover:border-gray-300 inline-flex items-center gap-1 flex-shrink-0">
+              <IconRefresh size={13} /> Refresh
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button onClick={() => setDrill("new")} className="text-left rounded-xl border border-gray-100 bg-[#F6F7FB] p-4 hover:border-gray-300 transition">
               <div className="text-[1.6rem] font-semibold text-[#232D42] leading-none">{fmtInt(data.generated)}</div>
@@ -862,6 +871,34 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
           <span>Pinning won&apos;t stick yet — run <b>supabase/lead-roles-and-tracking.sql</b> in the Supabase SQL editor once. Everything else on this tab works.</span>
         </div>
       )}
+      {/* Find a lead to watch — search this period, then star it into Pinned below. */}
+      <div className="text-sm font-medium text-[#232D42] mb-1">Find a lead to track</div>
+      <div className="text-[12.5px] text-gray-500 mb-3">Don&apos;t know the name? Search by primary interest (or name/source/counsellor), then click the ☆ star to pin it to your list below.</div>
+      <div className="relative mb-4 max-w-md">
+        <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search by name, primary interest, source or counsellor…"
+          className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand" />
+      </div>
+      {query && (
+        <div className="mb-6">
+          {matches.length ? (
+            <>
+              <LeadTable leads={mSlice} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} allowReassign={false} />
+              {mPages > 1 && (
+                <div className="flex items-center justify-between mt-3 text-[12.5px] text-gray-500">
+                  <span>Showing {mp * PER + 1}–{Math.min((mp + 1) * PER, matches.length)} of {fmtInt(matches.length)}</span>
+                  <div className="flex items-center gap-1">
+                    <button disabled={mp === 0} onClick={() => setPage(mp - 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">‹ Prev</button>
+                    <span className="px-1">Page {mp + 1} / {mPages}</span>
+                    <button disabled={mp >= mPages - 1} onClick={() => setPage(mp + 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">Next ›</button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">No leads match &ldquo;{q}&rdquo; in this period. Try another word, or widen the date range at the top.</div>}
+        </div>
+      )}
+
       <div className="text-sm font-medium text-[#232D42] mb-3">
         Pinned <span className="text-gray-400 font-normal">· {fmtInt(pinned.length)}</span>
       </div>
@@ -876,32 +913,6 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
         Flagged automatically <span className="text-gray-400 font-normal">· {fmtInt(flagged.length)}</span>
       </div>
       <LeadTable leads={flagged} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} showWhy allowReassign={false} />
-
-      {/* Find any lead and pin it — search this period by name or primary interest. */}
-      <div className="text-sm font-medium text-[#232D42] mt-7 mb-1">Find a lead to track</div>
-      <div className="text-[12.5px] text-gray-500 mb-3">Don&apos;t know the name? Search by primary interest (or source/counsellor), then click the ☆ star to pin it above.</div>
-      <div className="relative mb-3 max-w-md">
-        <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search by name, primary interest, source or counsellor…"
-          className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand" />
-      </div>
-      {query ? (
-        matches.length ? (
-          <>
-            <LeadTable leads={mSlice} starred={starred} onStar={onStar} onTrack={onTrack} onReassign={noop} allowReassign={false} />
-            {mPages > 1 && (
-              <div className="flex items-center justify-between mt-3 text-[12.5px] text-gray-500">
-                <span>Showing {mp * PER + 1}–{Math.min((mp + 1) * PER, matches.length)} of {fmtInt(matches.length)}</span>
-                <div className="flex items-center gap-1">
-                  <button disabled={mp === 0} onClick={() => setPage(mp - 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">‹ Prev</button>
-                  <span className="px-1">Page {mp + 1} / {mPages}</span>
-                  <button disabled={mp >= mPages - 1} onClick={() => setPage(mp + 1)} className="px-2.5 py-1 rounded-lg border border-gray-200 disabled:opacity-40 hover:border-gray-300">Next ›</button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">No leads match &ldquo;{q}&rdquo; in this period. Try another word, or widen the date range at the top.</div>
-      ) : null}
 
       <Foot>
         Every lead&apos;s history is recorded nightly regardless — pinning only decides what shows up here.
