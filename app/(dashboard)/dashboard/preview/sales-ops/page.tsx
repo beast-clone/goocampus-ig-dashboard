@@ -740,7 +740,7 @@ function CounsellorDrilldownModal({ name, range, onClose }: { name: string; rang
                     <td className="px-6 py-3 text-gray-600">{l.interest || "—"}</td>
                     <td className="px-6 py-3 text-gray-500">{l.createdAt.slice(0, 10)}</td>
                     <td className="px-6 py-3"><ContactedCell contacted={l.contacted} /></td>
-                    <td className="px-6 py-3 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
+                    <td className="px-6 py-3 text-right"><TtcCell hrs={l.firstContactHrs} contacted={l.contacted} createdAt={l.createdAt} /></td>
                     <td className={`px-6 py-3 text-right ${l.daysUntouched > 7 ? "text-amber-600" : ""}`}>{l.daysUntouched}</td>
                     <td className="px-6 py-3">
                       {l.linkToRecord && (
@@ -918,7 +918,7 @@ function LeadsFirstContact() {
                     <td className="py-2.5">{l.status ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: stChip(l.status).bg, color: stChip(l.status).fg }}>{l.status}</span> : "—"}</td>
                     <td className="py-2.5 text-gray-500">{l.createdAt ? l.createdAt.slice(0, 10) : "—"}</td>
                     <td className="py-2.5"><ContactedCell contacted={l.contacted} /></td>
-                    <td className="py-2.5 text-right"><TtcCell hrs={l.firstContactHrs} /></td>
+                    <td className="py-2.5 text-right"><TtcCell hrs={l.firstContactHrs} contacted={l.contacted} createdAt={l.createdAt} /></td>
                     <td className="py-2.5 text-right">{l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="text-brand hover:underline text-xs">Open ↗</a>}</td>
                   </tr>
                 ))}
@@ -1129,7 +1129,14 @@ function ContactedCell({ contacted }: { contacted: boolean }) {
     <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-gray-400"><span className="w-[7px] h-[7px] rounded-full" style={{ background: "#C6CBD6" }} />Not yet</span>
   );
 }
-function TtcCell({ hrs }: { hrs: number | null }) {
+function TtcCell({ hrs, contacted, createdAt }: { hrs: number | null; contacted?: boolean; createdAt?: string }) {
+  // Contacted → the actual time to first contact, colour-coded by SLA. Not contacted
+  // yet → a red "waiting Xd" (how long it's been sitting since it arrived), so the
+  // overdue leads stand out instead of showing a blank "—".
+  if (!contacted && hrs == null && createdAt) {
+    const days = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 86_400_000));
+    return <span className="inline-flex items-center gap-1 tabular-nums font-semibold text-[#C0392B]" title="Not contacted yet — days since the lead arrived"><IconClock size={13} stroke={2} /> waiting {days}d</span>;
+  }
   return <span className="tabular-nums font-semibold" style={{ color: ttcColor(hrs) }}>{fmtTtc(hrs)}</span>;
 }
 
