@@ -5,6 +5,7 @@ import {
   IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt, IconBulb,
 } from "@tabler/icons-react";
 import { PLAYBOOK_GUIDES } from "@/lib/playbook-guides";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
 
@@ -77,7 +78,7 @@ export function PlaybooksLibrary() {
       </div>
 
       {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t load — {error}</div>}
-      {!skills && !error && <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl animate-pulse" />)}</div>}
+      {!skills && !error && <LoadingBlock className="!py-10" />}
 
       {byCat.map(({ cat, items }) => (
         <div key={cat} className="mb-7">

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { LoadingBlock } from "@/components/LoadingBlock";
 
 type Integration = {
   key: string;
@@ -89,14 +90,7 @@ function Integrations() {
   }, [load]);
 
   if (loading && !data) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-16 bg-gray-100 rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-36 bg-gray-100 rounded-2xl" />)}
-        </div>
-      </div>
-    );
+    return <LoadingBlock className="!py-16" />;
   }
   if (!data) {
     return <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">Couldn&rsquo;t load status — {err}</div>;

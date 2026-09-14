@@ -77,7 +77,7 @@ export function CompetitorBriefing() {
     <div className="preview-scope space-y-6">
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={18} />} accent="#3A57E8">
-        {isLoading ? <RowSkeleton n={3} /> : (
+        {isLoading ? <RowSkeleton /> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {competitors.map((c) => (
               <div key={c.username} className="bg-white border border-gray-100 rounded-xl p-4">
@@ -105,7 +105,7 @@ export function CompetitorBriefing() {
 
       {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
       <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={18} />} accent="#6E48F8">
-        {isLoading ? <CardSkeleton n={10} /> : igLatest.length === 0 ? (
+        {isLoading ? <CardSkeleton /> : igLatest.length === 0 ? (
           <Empty>No competitor Instagram posts loaded yet.</Empty>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
@@ -116,7 +116,7 @@ export function CompetitorBriefing() {
 
       {/* YouTube — live competitor uploads (public data) */}
       <Section title="YouTube — latest competitor uploads" badge="Live" right="newest first · click to play here" icon={<IconBrandYoutube size={18} />} accent="#079AA2">
-        {ytLoading ? <CardSkeleton n={5} /> : ytVideos.length === 0 ? (
+        {ytLoading ? <CardSkeleton /> : ytVideos.length === 0 ? (
           <Empty>No competitor YouTube uploads loaded. Add channels in competitor-youtube.json.</Empty>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -127,7 +127,7 @@ export function CompetitorBriefing() {
 
       {/* Top competitor content — same card style as the latest-posts grid */}
       <Section title="Top competitor content" badge="Instagram" right="most engagement · recent · click to open here" icon={<IconStar size={18} />} accent="#0EA5E9">
-        {isLoading ? <CardSkeleton n={10} /> : topByReach.length === 0 ? (
+        {isLoading ? <CardSkeleton /> : topByReach.length === 0 ? (
           <Empty>No competitor content loaded yet.</Empty>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
@@ -425,7 +425,7 @@ function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
         </div>
         <div className="overflow-y-auto px-5 py-4">
           {loading ? (
-            <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />)}</div>
+            <LoadingBlock className="!py-8" size={24} />
           ) : rep?.error || !rep?.organic?.length ? (
             <div className="text-center py-10 text-[13px] text-gray-500">{rep?.error || "No results to show."}<div className="mt-2"><a href={googleUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">Open in Google ↗</a></div></div>
           ) : (
@@ -592,7 +592,7 @@ function MentionsSection({ names }: { names: string[] }) {
     return () => { cancelled = true; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!mentions) return <div className="animate-pulse h-24 bg-gray-100 rounded-xl" />;
+  if (!mentions) return <LoadingBlock className="!py-6" size={22} />;
   if (mentions.length === 0) return <div className="text-[13px] text-gray-400 py-4 text-center">No recent mentions found for these competitors.</div>;
 
   const dot = (s: Mention["sentiment"]) => s === "positive" ? "bg-emerald-500" : s === "negative" ? "bg-rose-500" : "bg-gray-300";
@@ -658,5 +658,5 @@ function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center text-[13px] text-gray-400">{children}</div>;
 }
-function RowSkeleton({ n }: { n: number }) { return <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">{Array.from({ length: n }).map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}</div>; }
-function CardSkeleton({ n }: { n: number }) { return <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">{Array.from({ length: n }).map((_, i) => <div key={i} className="aspect-[3/4] bg-gray-100 rounded-xl animate-pulse" />)}</div>; }
+function RowSkeleton() { return <LoadingBlock className="!py-8" size={26} />; }
+function CardSkeleton() { return <LoadingBlock className="!py-10" size={26} />; }

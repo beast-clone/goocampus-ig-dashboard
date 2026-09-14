@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import {
   IconSearch, IconReportAnalytics, IconPhoto, IconExternalLink, IconArrowRight, IconLock, IconUser,
 } from "@tabler/icons-react";
@@ -126,7 +127,7 @@ function SearchTool() {
         </div>
       )}
 
-      {loading && <div className="mt-6 animate-pulse h-24 bg-gray-100 rounded-2xl" />}
+      {loading && <LoadingBlock className="mt-6" />}
       {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t search — {error}</div>}
 
       {/* Results */}
