@@ -37,7 +37,7 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
 
       <PlatformHeader name="Instagram" />
       <Section title="Instagram — monthly" note="Followers · reach · content interactions · DMs · leads · posts · reels · stories. Latest month bold.">
-        <MonthlyTable t={H.instagram} />
+        <InstagramTable base={H.instagram} from={from} to={to} />
       </Section>
       <Section title="Likes · Comments · Saves · Shares" note="Month-over-month totals.">
         <MonthlyTable t={H.engagement} />
@@ -92,6 +92,37 @@ function OrganicLeadsTable({ base, from, to }: { base: HistoryTable; from: strin
     <>
       <MonthlyTable t={{ heading: base.heading, header: base.header, rows: [...base.rows, ...extra] }} />
       {est && <div className="text-[11px] text-gray-400 mt-1.5">Months marked <b>· est</b> (Jun 2026 →) are a <b>CRM estimate</b> from Lead Source — can differ from the curated figure. Earlier months imported from the Notion report.</div>}
+    </>
+  );
+}
+
+// L/K compact notation to match the imported Notion values (e.g. "9.91L", "40.1K").
+function fmtCompact(n: number | null): string {
+  if (n == null) return "—";
+  if (n >= 100_000) return `${(n / 100_000).toFixed(2).replace(/\.?0+$/, "")}L`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(n);
+}
+
+// Instagram monthly table: imported history + the current month's LIVE row from
+// Meta (followers/reach/content interactions/posts/reels/stories; leads = CRM
+// IG/Fb estimate; DM not available from the API).
+function InstagramTable({ base, from, to }: { base: HistoryTable; from: string; to: string }) {
+  const [row, setRow] = useState<string[] | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/instagram-month?from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j: { available: boolean; followers: number | null; reach: number | null; contentInteractions: number | null; post: number; reel: number; story: number; leads: number }) => {
+        if (!j.available) return;
+        const short = new Date(to + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        setRow([`${short} · live`, j.followers != null ? j.followers.toLocaleString("en-IN") : "—", fmtCompact(j.reach), fmtCompact(j.contentInteractions), "—", String(j.leads), String(j.post), String(j.reel), String(j.story)]);
+      })
+      .catch(() => {});
+  }, [from, to]);
+  return (
+    <>
+      <MonthlyTable t={{ heading: base.heading, header: base.header, rows: row ? [...base.rows, row] : base.rows }} />
+      {row && <div className="text-[11px] text-gray-400 mt-1.5">The <b>· live</b> row is this month to date from Meta — followers, reach, content interactions, posts &amp; reels are real. <b>Leads</b> = CRM IG/Fb estimate; <b>DM</b> and <b>Story</b> counts aren&rsquo;t exposed by the API (shown as — / 0).</div>}
     </>
   );
 }
