@@ -2,7 +2,6 @@
 // Usage: POST /api/dm/mirror  with header x-cron-secret OR ?secret=
 // Body: { account, sender_id, username?, direction: "in"|"out", text, source?: "user"|"ai"|"human", message_id?, at? }
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
 import { recordInbound, recordOutbound } from "@/lib/dm";
 
 function authorized(req: Request) {
@@ -12,9 +11,9 @@ function authorized(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const __denied = await requireSection("sales");
-  if (__denied) return __denied;
-
+  // Server-to-server webhook (n8n) — authed by CRON_SECRET only. It has no user
+  // session, so a requireSection() gate here would (wrongly) 401 every call, which
+  // is what was silently blocking DM mirroring.
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json() as {
