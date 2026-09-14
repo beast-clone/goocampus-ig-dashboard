@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       .from("mh_activity")
       .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")
       // All edits now log as status_changed / owner_changed / claim (app-attributed).
-      .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested"])
+      .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested", "date_change_requested"])
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(160);
@@ -81,7 +81,11 @@ export async function GET(req: Request) {
       let target: string[] = [];
       let n: Omit<Notif, "id"> | null = null;
 
-      if (e.action === "claim") {
+      if (e.action === "date_change_requested") {
+        // Publish-date change awaiting Maheen's approval.
+        target = ["maheen"];
+        n = { kind: "message", emoji: "📅", title: "Publish-date change to approve", sub: `${nameOf(e.actor_key)} wants “${short}” moved ${e.from_value} → ${e.to_value}. Approve in My Day.`, postId: e.post_id };
+      } else if (e.action === "claim") {
         const sib = e.actor_key ? siblingOf(e.actor_key.toLowerCase()) : null;
         if (sib) {
           target = [sib];

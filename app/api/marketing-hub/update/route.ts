@@ -6,6 +6,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
+import { requestDateChange, APPROVER_KEY } from "@/lib/date-approvals";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -162,6 +163,28 @@ export async function PATCH(req: Request) {
       if (missing.length) return NextResponse.json({ error: "Not ready to publish yet — some required fields are missing.", missing, gate: "publish" }, { status: 422 });
     }
 
+    // ── Publish-date approval gate ──────────────────────────────────────────
+    // A non-approver moving ONLY the publish date needs Maheen's sign-off. Hold the
+    // date (and its mirrored due_date) out of this write and raise a request; any
+    // other field in the same patch still saves.
+    const gateActor = ((typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor! : getSessionUserId()) || "").toLowerCase();
+    let pendingApproval: { from: string | null; to: string | null } | null = null;
+    if ("publishing_date" in clean && gateActor !== APPROVER_KEY) {
+      const oldDate = (preRow.publishing_date as string | null) ?? null;
+      const newDate = (clean.publishing_date as string | null) ?? null;
+      const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);
+      if (day(oldDate) !== day(newDate)) {
+        await requestDateChange(sb, { postId: body.id, title: String(preRow.particulars || "a task"), from: oldDate, to: newDate, requestedBy: gateActor || (preRow.owner_key as string) || "someone" });
+        pendingApproval = { from: oldDate, to: newDate };
+        delete clean.publishing_date;
+        delete clean.due_date;
+      }
+    }
+    // Date-only change with nothing else to save → stop here; the date is pending.
+    if (pendingApproval && Object.keys(clean).length === 0) {
+      return NextResponse.json({ id: body.id, pendingApproval, message: "Publish-date change sent to Maheen for approval." });
+    }
+
     const { data, error } = await sb
       .from("mh_posts")
       .update(clean)
@@ -279,7 +302,7 @@ export async function PATCH(req: Request) {
       }
     }
 
-    return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at });
+    return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at, pendingApproval });
   } catch (err) {
     return NextResponse.json(safeError(err, "Task update failed"), { status: 502 });
   }

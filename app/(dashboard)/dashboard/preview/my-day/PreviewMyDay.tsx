@@ -6,6 +6,7 @@ import { MemberHub } from "./MemberHub";
 import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { DateChangeApprovals } from "@/components/DateChangeApprovals";
 import { SBU_OPTIONS } from "@/lib/sbus";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
@@ -2404,6 +2405,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
 
       {/* click-away layer for the top popovers */}
       {panel && <div className="backdrop" onClick={() => setPanel(null)} />}
+
+      {/* Publish-date changes awaiting Maheen's approval (admin-only, self-hides) */}
+      <DateChangeApprovals enabled={viewerIsAdmin} />
 
       {/* Logged-out screen (demo): End day / Log out lands here. "Log back in"
           re-anchors the plan to the new login time. No real session change. */}
