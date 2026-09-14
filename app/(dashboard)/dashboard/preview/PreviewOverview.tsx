@@ -51,6 +51,7 @@ type Insights = {
 };
 type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number; saves?: number; shares?: number };
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[]; stored?: boolean; month?: string };
+type StoryRow = { id?: string; reach?: number; views?: number; replies?: number; timestamp?: string };
 type Tip = { metric: "followers" | "reach" | "engagement" | "profileVisits"; detail: string; action: string };
 
 // Null-safe: a missing metric must not crash the whole Overview (the landing page).
@@ -200,6 +201,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [aud, setAud] = useState<Audience | null>(null);
   const [tips, setTips] = useState<Tip[]>([]);
+  const [stories, setStories] = useState<StoryRow[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -220,8 +222,15 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     fetch(`/api/posts?accountId=${accountId}&from=${from}&to=${to}&limit=10&insights=true`).then((r) => r.ok ? r.json() : { posts: [] }).then((p) => { if (alive) setPosts((p?.posts || []) as Post[]); }).catch(() => {});
     fetch(`/api/audience?accountId=${accountId}&from=${from}&to=${to}`).then((r) => r.ok ? r.json() : null).then((a) => { if (alive && a) setAud(a as Audience); }).catch(() => {});
     fetch(`/api/overview-tips?accountId=${accountId}&from=${from}&to=${insTo}`).then((r) => r.ok ? r.json() : null).then((tp) => { if (alive) setTips((tp?.tips || []) as Tip[]); }).catch(() => {});
+    // Stories: Meta drops them after 24h, so read our snapshots for the range.
+    setStories(null);
+    fetch(`/api/stories/historical?accountId=${accountId}&from=${from}&to=${to}&limit=500`).then((r) => r.ok ? r.json() : { stories: [] }).then((s) => { if (alive) setStories((s?.stories || []) as StoryRow[]); }).catch(() => { if (alive) setStories([]); });
     return () => { alive = false; };
   }, [range, accountId]);
+  const storyStats = useMemo(() => {
+    const src = stories || [];
+    return { count: src.length, reach: src.reduce((s, x) => s + (x.reach || 0), 0), replies: src.reduce((s, x) => s + (x.replies || 0), 0) };
+  }, [stories]);
 
   const t = ins?.totals, d = ins?.deltas;
   const tipBy = useMemo(() => {
@@ -575,6 +584,25 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   </Card>
                 ))}
               </div>
+
+              {/* Stories — from our snapshots (Meta drops live stories after 24h) */}
+              <SectionHeader icon={IconEye} title="Stories" sub="Stories posted in this range, and how they did" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+                {[
+                  { label: "Stories posted", value: storyStats.count, icon: IconBrandInstagram, color: C.primary },
+                  { label: "Total reach", value: storyStats.reach, icon: IconEye, color: C.teal },
+                  { label: "Replies", value: storyStats.replies, icon: IconMessageCircle, color: "#EC4899" },
+                ].map((m) => (
+                  <Card key={m.label}>
+                    <span style={{ width: 38, height: 38, borderRadius: 10, background: `${m.color}18`, color: m.color, display: "grid", placeItems: "center", marginBottom: 10 }}><m.icon size={20} stroke={1.9} /></span>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{stories === null ? "—" : fmt(m.value)}</div>
+                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{m.label}</div>
+                  </Card>
+                ))}
+              </div>
+              {stories !== null && storyStats.count === 0 && (
+                <div style={{ fontSize: 12, color: C.muted, marginTop: -6 }}>No story snapshots for this range yet.</div>
+              )}
 
               {/* Performance — post mix / engagement rate / hashtags / format / reposts */}
               <SectionHeader icon={IconChartBar} title="Performance" sub="Post mix, formats & hashtags" />

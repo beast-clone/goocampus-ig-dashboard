@@ -17,18 +17,25 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "30", 10) || 30, 100);
+  const from = url.searchParams.get("from") || undefined; // YYYY-MM-DD, inclusive
+  const to = url.searchParams.get("to") || undefined;     // YYYY-MM-DD, inclusive
+  // With an explicit range we want every story in it (a busy month can top 90), so
+  // lift the cap to 500; the default browse view keeps its small limit.
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "30", 10) || 30, (from && to) ? 500 : 100);
 
   const db = getSupabase();
   if (!db) return NextResponse.json({ stories: [], note: "Supabase not configured" });
 
   try {
-    const { data, error } = await db
+    let q = db
       .from("story_snapshots")
       .select("story_id, caption, permalink, posted_at, stored_image_url, media_type, reach, views, replies, follows, profile_visits, navigation, captured_at")
       .eq("account_id", accountId)
       .order("posted_at", { ascending: false })
       .limit(limit);
+    if (from) q = q.gte("posted_at", `${from}T00:00:00`);
+    if (to) q = q.lte("posted_at", `${to}T23:59:59`);
+    const { data, error } = await q;
 
     if (error) {
       // Very common on first-ever call: table doesn't exist yet. Surface a helpful hint.

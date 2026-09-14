@@ -410,6 +410,21 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     .map(([group, v]) => ({ group, male: Math.round(v.male * 10) / 10, female: Math.round(v.female * 10) / 10 }))
     .sort((a, b) => parseInt(a.group) - parseInt(b.group));
 
+  // Videos vs Shorts PUBLISHED in this range (from the uploads library, classified
+  // by duration) — matches the monthly report's Video / Shorts counts, unlike
+  // topVideos which is only the 25 best-performing in range.
+  let postedVideos = 0, postedShorts = 0;
+  try {
+    const uploads = await fetchChannelUploads(channelKey);
+    const fromTs = new Date(from + "T00:00:00Z").getTime();
+    const toTs = new Date(to + "T23:59:59Z").getTime();
+    for (const u of uploads) {
+      const ts = new Date(u.publishedAt).getTime();
+      if (Number.isNaN(ts) || ts < fromTs || ts > toTs) continue;
+      if (u.isShort) postedShorts++; else postedVideos++;
+    }
+  } catch { /* leave zero if the uploads read fails */ }
+
   return {
     channel: { id: ch.id, name: ch.name, handle: ch.handle, channelId: ch.channelId },
     source: "live" as const,
@@ -422,6 +437,8 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
       avgViewDurationSec,
       avgViewPercentage,
       videos: topVideos.length,
+      postedVideos,
+      postedShorts,
     },
     subscriberViews: { subscribed: subscribedViews, nonSubscribed: nonSubscribedViews },
     viewsOverTime,

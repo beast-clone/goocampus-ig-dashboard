@@ -451,7 +451,7 @@ type YtVideo = { id: string; title: string; thumbnail: string; views: number; wa
 type YtResp = {
   source: "demo" | "live";
   channel: { name: string; handle: string };
-  summary: { subscribers: number; subscriberGain: number; views: number; watchHours: number; avgViewDurationSec: number };
+  summary: { subscribers: number; subscriberGain: number; views: number; watchHours: number; avgViewDurationSec: number; postedVideos?: number; postedShorts?: number };
   viewsOverTime: { date: string; views: number; watchHours: number }[];
   topVideos: YtVideo[];
   traffic: {
@@ -498,6 +498,8 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
         <Stat label="Views" value={fmt(data.summary.views)} sub="in range" />
         <Stat label="Watch time" value={`${fmt(Math.round(data.summary.watchHours))} h`} sub="hours watched" />
         <Stat label="Avg view duration" value={`${mins}:${String(secs).padStart(2, "0")}`} sub="min:sec" />
+        <Stat label="Videos" value={data.summary.postedVideos != null ? fmt(data.summary.postedVideos) : "—"} sub="long-form, published in range" />
+        <Stat label="Shorts" value={data.summary.postedShorts != null ? fmt(data.summary.postedShorts) : "—"} sub="published in range" />
       </div>
 
       {data.viewsOverTime?.length > 1 && (
