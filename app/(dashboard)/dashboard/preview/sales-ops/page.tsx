@@ -62,6 +62,8 @@ type SalesOpsData = {
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
   awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; created: string; link: string }[];
   awaitingTotal: number;
+  poolLeads: { name: string; counsellor: string; source: string; status: string; created: string; link: string }[];
+  poolTotal: number;
   callActivity: CallStat[];
   meetings: MeetingSummary;
   attendance: AttendanceRow[];
@@ -181,6 +183,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
   const { data, isLoading, refresh } = useApi<SalesOpsData>(`/api/leads-crm?${qs}`);
   const [drillCounsellor, setDrillCounsellor] = useState<string | null>(null);
+  const [poolOpen, setPoolOpen] = useState(false);
 
   const totalInterest = useMemo(() => data?.byInterest.reduce((s, i) => s + i.count, 0) || 0, [data]);
   const maxSource = useMemo(() => data?.bySource.reduce((m, s) => Math.max(m, s.count), 1) || 1, [data]);
@@ -230,7 +233,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
         <KpiTile icon={IconUsers} label="Leads generated" value={data ? fmtInt(data.totals.leads) : "—"} hint="Created in the selected window" />
         <KpiTile icon={IconChartLine} label="Avg leads / day" value={data ? fmtInt(avgLeadsPerDay) : "—"} hint={`${rangeDayCount} days in this window`} />
-        <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(data.totals.assignedToCounsellors ?? assignedToTeam) : "—"} hint={data && data.totals.leads ? `${Math.round(((data.totals.assignedToCounsellors ?? assignedToTeam) / data.totals.leads) * 100)}% of leads · from distribution log` : "distributed to counsellors"} />
+        <KpiTile icon={IconUserCheck} label="Assigned to team" value={data ? fmtInt(data.totals.assignedToCounsellors ?? assignedToTeam) : "—"} hint={data ? `distributed · ${fmtInt(data.poolTotal)} still in the pool →` : "distributed to counsellors"} onClick={data ? () => setPoolOpen(true) : undefined} />
         <KpiTile icon={IconClock} label="Time to first contact" value={data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"} hint="created → first contact · target <24h" tone={data && ((data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) ?? 0) > 48 ? "warn" : undefined} />
         <KpiTile icon={IconTrophy} label="Closings" value={data ? fmtInt(data.totals.contracts) : "—"} hint={data && data.totals.revenue > 0 ? `${fmtInr(data.totals.revenue)} booked` : "₹ from Revenue Tracker"} tone="good" />
       </div>
@@ -562,6 +565,49 @@ function Inner({ range }: { range: { from: string; to: string } }) {
 
       {drillCounsellor && (
         <CounsellorDrilldownModal name={drillCounsellor} range={range} onClose={() => setDrillCounsellor(null)} />
+      )}
+
+      {poolOpen && data && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={() => setPoolOpen(false)}>
+          <div className="bg-white rounded-2xl border border-gray-100 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-medium text-[#232D42]">Not assigned yet — in the New-Leads pool</div>
+                <div className="text-[13px] text-gray-500 mt-0.5"><b className="text-[#C0392B] font-medium">{fmtInt(data.poolTotal)}</b> leads parked, waiting to be given to a counsellor · {fmtDateShort(data.range.from)} – {fmtDateShort(data.range.to)}</div>
+              </div>
+              <button onClick={() => setPoolOpen(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto">
+              {data.poolLeads.length === 0 ? (
+                <div className="px-6 py-10 text-center text-sm text-gray-400">Nothing in the pool for this range ✓</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white border-b border-gray-100">
+                    <tr className="text-gray-500 text-left">
+                      <th className="px-6 py-2.5 font-normal">Lead</th>
+                      <th className="px-6 py-2.5 font-normal">Arrived</th>
+                      <th className="px-6 py-2.5 font-normal">Source</th>
+                      <th className="px-6 py-2.5 font-normal">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.poolLeads.map((p, i) => (
+                      <tr key={`${p.name}-${i}`} onClick={() => window.open(p.link, "_blank", "noreferrer")} className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
+                        <td className="px-6 py-2.5 text-[#232D42]">{p.name} <span className="text-gray-300">↗</span></td>
+                        <td className="px-6 py-2.5 whitespace-nowrap text-[#3B4457]">{p.created ? fmtDateShort(p.created) : "—"}</td>
+                        <td className="px-6 py-2.5">{p.source}</td>
+                        <td className="px-6 py-2.5 text-gray-500">{p.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 text-[12px] text-gray-500">
+              Showing up to 50. These sit under <b>Maheen Ejaz (New Leads pool)</b> until the round-robin or a counsellor picks them up.
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1087,14 +1133,14 @@ function TtcCell({ hrs }: { hrs: number | null }) {
   return <span className="tabular-nums font-semibold" style={{ color: ttcColor(hrs) }}>{fmtTtc(hrs)}</span>;
 }
 
-function KpiTile({ label, value, hint, tone, icon: Icon }: { label: string; value: string; hint: string; tone?: "crit" | "warn" | "good"; icon?: typeof IconUsers }) {
+function KpiTile({ label, value, hint, tone, icon: Icon, onClick }: { label: string; value: string; hint: string; tone?: "crit" | "warn" | "good"; icon?: typeof IconUsers; onClick?: () => void }) {
   const chip = tone === "crit" ? { fg: "#E5484D", bg: "rgba(229,72,77,0.12)" }
     : tone === "warn" ? { fg: "#D9861B", bg: "rgba(217,134,27,0.13)" }
     : tone === "good" ? { fg: "#1AA053", bg: "rgba(26,160,83,0.12)" }
     : { fg: "#3A57E8", bg: "rgba(58,87,232,0.12)" };
   const valueColor = tone === "crit" ? "text-[#C0392B]" : tone === "warn" ? "text-[#B7791F]" : tone === "good" ? "text-[#0F6B36]" : "text-[#232D42]";
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
+    <div onClick={onClick} className={`bg-white rounded-xl border border-gray-100 p-5 ${onClick ? "cursor-pointer hover:border-brand transition-colors" : ""}`}>
       {Icon && (
         <span className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-[9px] mb-3" style={{ background: chip.bg }}>
           <Icon size={18} stroke={1.8} style={{ color: chip.fg }} />

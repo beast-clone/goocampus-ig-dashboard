@@ -19,7 +19,7 @@ import {
   idleDays,
   inActiveRefreshWindow,
 } from "@/lib/sales-hub";
-import { getAssignmentLog } from "@/lib/lead-assignment";
+import { getAssignmentLog, getRoles } from "@/lib/lead-assignment";
 
 // GET /api/leads-crm?from=YYYY-MM-DD&to=YYYY-MM-DD
 //
@@ -98,6 +98,8 @@ type Payload = {
   campaigns: { name: string; leads: number; contracts: number; revenue: number }[];
   awaiting: { name: string; counsellor: string; source: string; daysUntouched: number; created: string; link: string }[];
   awaitingTotal: number;
+  poolLeads: { name: string; counsellor: string; source: string; status: string; created: string; link: string }[];
+  poolTotal: number;
   // New sections
   callActivity: CallStat[];
   meetings: MeetingSummary;
@@ -291,6 +293,11 @@ export async function GET(req: Request) {
     const reEnquiriesWithin: { name: string; counsellor: string; lastReEnquiryAt: string }[] = [];
     let reEnquiryTotal = 0;
 
+    // Leads still parked in the New-Leads pool (counsellor role = "pool", e.g. Maheen)
+    // or with no counsellor at all — i.e. NOT yet assigned to a working counsellor.
+    const roles = await getRoles().catch(() => ({} as Record<string, string>));
+    const poolRaw: { name: string; counsellor: string; source: string; status: string; created: string; link: string }[] = [];
+
     for (const rec of leads) {
       const f = rec.fields;
       const createdIso = pickName(f["Created Date"]);
@@ -363,6 +370,12 @@ export async function GET(req: Request) {
 
       if (isUntouched && fullName) {
         awaitingRaw.push({ name: fullName, counsellor, source, daysUntouched: Math.round(daysUntouched), created: createdIso || "", link: `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${rec.id}` });
+      }
+
+      // Not-assigned = parked in the pool (role "pool") or no counsellor set.
+      const cRole = roles[counsellor] || (counsellor === "Unassigned" ? "pool" : "inactive");
+      if ((cRole === "pool" || counsellor === "Unassigned") && fullName) {
+        poolRaw.push({ name: fullName, counsellor, source, status, created: createdIso || "", link: `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${rec.id}` });
       }
 
       if (isReEnquiry) {
@@ -649,6 +662,7 @@ export async function GET(req: Request) {
     const geography = [...locationMap.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 15);
     const campaigns = topN([...campaignMap.values()], 10, (c) => c.leads);
     const awaiting = [...awaitingRaw].sort((a, b) => b.daysUntouched - a.daysUntouched).slice(0, 20);
+    const poolLeads = [...poolRaw].sort((a, b) => (a.created < b.created ? 1 : -1)).slice(0, 50);
 
     reEnquiriesWithin.sort((a, b) => (a.lastReEnquiryAt < b.lastReEnquiryAt ? 1 : -1));
 
@@ -679,6 +693,8 @@ export async function GET(req: Request) {
       campaigns,
       awaiting,
       awaitingTotal: awaitingRaw.length,
+      poolLeads,
+      poolTotal: poolRaw.length,
       callActivity: [...callMap.values()].sort((a, b) => b.inboundCalls + b.outboundCalls - (a.inboundCalls + a.outboundCalls)),
       meetings: meetingsSummary,
       attendance: attendanceRows,
