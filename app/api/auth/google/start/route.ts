@@ -6,6 +6,14 @@ import { randomBytes } from "crypto";
 // login client isn't configured yet, it bounces back to /login with a friendly
 // flag instead of erroring — so the button is safe to show in a demo.
 
+// MUST be dynamic: without this Next statically prerenders this route, freezing a
+// single OAuth `state` + Set-Cookie into a year-long CDN cache. Cache hits then
+// strip the fresh cookie, so the callback's state check fails ("failed") for anyone
+// whose browser doesn't already hold that exact cookie. Force a fresh render (new
+// state + fresh cookie) on every request, and never cache it.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: Request) {
   // Use the configured public origin, not req.url — on Netlify the function sees the
   // immutable deploy-permalink host, which would make redirect_uri not match the one
@@ -39,5 +47,6 @@ export async function GET(req: Request) {
     path: "/",
     maxAge: 600,
   });
+  res.headers.set("Cache-Control", "no-store, max-age=0"); // never let a CDN cache the state/cookie
   return res;
 }

@@ -9,6 +9,9 @@ import { rosterByEmail } from "@/lib/team-db";
 // normal gc_session and sends them into the app. Any failure bounces to /login
 // with a reason flag (never a raw error).
 
+// Never cache — this reads the state cookie + query code and sets the session.
+export const dynamic = "force-dynamic";
+
 function back(origin: string, reason: string) {
   const u = new URL("/login", origin);
   u.searchParams.set("google", reason);
