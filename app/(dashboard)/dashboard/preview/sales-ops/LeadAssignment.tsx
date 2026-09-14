@@ -1,5 +1,5 @@
 "use client";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { fmtDateTime } from "@/lib/date";
 import { isClosedStatus } from "@/lib/lead-status";
@@ -118,10 +118,23 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
   const [track, setTrack] = useState<BoardLead | null>(null);
   const [reassign, setReassign] = useState<BoardLead | null>(null);
   const [drill, setDrill] = useState<"new" | "notcalled" | "waiting" | null>(null);
+  // "Track from" cutoff — ignore leads created before this day on the tracker, so the
+  // stale backlog (weeks-old leads nobody will touch) doesn't clutter the flags.
+  // Persisted, so it sticks once the team sets it live. "" = off (count everything).
+  const [since, setSince] = useState<string>("");
+  useEffect(() => { try { const v = localStorage.getItem("leadtracker-since"); if (v) setSince(v); } catch { /* private mode */ } }, []);
+  useEffect(() => { try { if (since) localStorage.setItem("leadtracker-since", since); else localStorage.removeItem("leadtracker-since"); } catch { /* private mode */ } }, [since]);
+  const todayIso = useMemo(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()), []);
 
   const qs = new URLSearchParams({ from: range.from, to: range.to, bucket }).toString();
   const { data, isLoading, error, refresh } = useApi<Board>(`/api/leads-crm/assignments?${qs}`);
   const { data: tracked, refresh: refreshTracked } = useApi<{ ids: string[]; persisted: boolean }>("/api/leads-crm/tracked");
+
+  // Card numbers respect the "track from" cutoff (recomputed from allLeads) when set.
+  const trackLeads = useMemo(() => (since && data ? data.allLeads.filter((l) => l.date >= since) : (data?.allLeads ?? [])), [data, since]);
+  const genCount = since && data ? trackLeads.length : (data?.generated ?? 0);
+  const notCalled = since && data ? trackLeads.filter((l) => l.flaggedNew).length : (data?.alerts.newOver2 ?? 0);
+  const waiting = since && data ? trackLeads.filter((l) => l.flaggedPool).length : (data?.alerts.poolStuck ?? 0);
 
   const dayLeads = useMemo(
     () => (openDay ? (data?.leads || []).filter((l) => l.day === openDay.key) : []),
@@ -237,22 +250,35 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button onClick={() => setDrill("new")} className="text-left rounded-xl border border-gray-100 bg-[#F6F7FB] p-4 hover:border-gray-300 transition">
-              <div className="text-[1.6rem] font-semibold text-[#232D42] leading-none">{fmtInt(data.generated)}</div>
+              <div className="text-[1.6rem] font-semibold text-[#232D42] leading-none">{fmtInt(genCount)}</div>
               <div className="text-[13px] font-medium text-[#232D42] mt-2">New leads came in</div>
               <div className="text-[12px] text-gray-500 mt-0.5">During the period you&apos;ve selected above. <span className="text-brand">See where from →</span></div>
             </button>
             <button onClick={() => setDrill("notcalled")} className="text-left rounded-xl border border-amber-200 bg-amber-50 p-4 hover:border-amber-300 transition">
-              <div className="text-[1.6rem] font-semibold text-[#9A5B10] leading-none">{fmtInt(data.alerts.newOver2)}</div>
+              <div className="text-[1.6rem] font-semibold text-[#9A5B10] leading-none">{fmtInt(notCalled)}</div>
               <div className="text-[13px] font-medium text-[#8A5B12] mt-2">Nobody has called these yet</div>
               <div className="text-[12px] text-[#9A6B2E] mt-0.5">A counsellor has them, still marked &ldquo;New&rdquo; 2+ days on. <span className="text-[#8A5B12] font-medium underline">See the list →</span></div>
             </button>
             <button onClick={() => setDrill("waiting")} className="text-left rounded-xl border border-red-200 bg-red-50 p-4 hover:border-red-300 transition">
-              <div className="text-[1.6rem] font-semibold text-[#B0203A] leading-none">{fmtInt(data.alerts.poolStuck)}</div>
+              <div className="text-[1.6rem] font-semibold text-[#B0203A] leading-none">{fmtInt(waiting)}</div>
               <div className="text-[13px] font-medium text-[#8E2C21] mt-2">Waiting to be assigned</div>
               <div className="text-[12px] text-[#A24236] mt-0.5">No counsellor has picked these up in over 2 days. <span className="text-[#8E2C21] font-medium underline">See the list →</span></div>
             </button>
           </div>
           <div className="text-[12px] text-gray-400 mt-3">Click any card above for the detail — or use the list below to open, chase, or reassign these leads.</div>
+
+          {/* Reset / start-from-a-day: ignore the old backlog nobody will touch. */}
+          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
+            <span className="text-gray-500">Only track leads from</span>
+            <input type="date" value={since} max={todayIso} onChange={(e) => setSince(e.target.value)}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-[12.5px] text-[#232D42]" />
+            <span className="text-gray-400">onwards.</span>
+            {since !== todayIso && <button onClick={() => setSince(todayIso)} className="text-brand font-medium hover:underline">Start fresh from today</button>}
+            {since && <button onClick={() => setSince("")} className="text-gray-500 hover:underline">Show all</button>}
+            {since
+              ? <span className="text-[#8A5B12] bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">Hiding leads older than {since}</span>
+              : <span className="text-gray-400">Set this when you go live so the old backlog stops showing here.</span>}
+          </div>
         </div>
       )}
 
@@ -594,7 +620,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
 
       {/* ── TRACKER ─────────────────────────────────────────────── */}
       {tab === "tracker" && data && (
-        <TrackerTab data={data} starred={starred} persisted={tracked?.persisted !== false}
+        <TrackerTab data={data} since={since} starred={starred} persisted={tracked?.persisted !== false}
           onStar={toggleStar} onTrack={setTrack} />
       )}
 
@@ -615,7 +641,7 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
           onClose={() => setReassign(null)} onDone={() => { setReassign(null); refresh(); }} />
       )}
       {drill && data && (
-        <TrackerDrill kind={drill} data={data} onClose={() => setDrill(null)}
+        <TrackerDrill kind={drill} leads={trackLeads} generated={genCount} onClose={() => setDrill(null)}
           onOpenLead={(l) => { setTrack(l); setDrill(null); }} />
       )}
     </div>
@@ -681,8 +707,8 @@ function DrillShell({ title, sub, onClose, children }: { title: string; sub: str
   );
 }
 
-function TrackerDrill({ kind, data, onClose, onOpenLead }: {
-  kind: "new" | "notcalled" | "waiting"; data: Board; onClose: () => void; onOpenLead: (l: BoardLead) => void;
+function TrackerDrill({ kind, leads, generated, onClose, onOpenLead }: {
+  kind: "new" | "notcalled" | "waiting"; leads: BoardLead[]; generated: number; onClose: () => void; onOpenLead: (l: BoardLead) => void;
 }) {
   const [page, setPage] = useState(0);
   const PER = 10;
@@ -690,10 +716,10 @@ function TrackerDrill({ kind, data, onClose, onOpenLead }: {
   if (kind === "new") {
     const group = (key: (l: BoardLead) => string): [string, number][] => {
       const m = new Map<string, number>();
-      for (const l of data.allLeads) { const k = key(l) || "—"; m.set(k, (m.get(k) || 0) + 1); }
+      for (const l of leads) { const k = key(l) || "—"; m.set(k, (m.get(k) || 0) + 1); }
       return [...m.entries()].sort((a, b) => b[1] - a[1]);
     };
-    const total = data.allLeads.length || 1;
+    const total = leads.length || 1;
     const Bars = ({ heading, rows }: { heading: string; rows: [string, number][] }) => (
       <div>
         <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium mb-2.5">{heading}</div>
@@ -709,7 +735,7 @@ function TrackerDrill({ kind, data, onClose, onOpenLead }: {
       </div>
     );
     return (
-      <DrillShell title="New leads — where they came from" sub={`${fmtInt(data.generated)} new leads in the selected period`} onClose={onClose}>
+      <DrillShell title="New leads — where they came from" sub={`${fmtInt(generated)} new leads in the selected period`} onClose={onClose}>
         <div className="flex flex-col gap-6 p-6">
           <Bars heading="By primary interest" rows={group((l) => l.interest)} />
           <Bars heading="By lead source" rows={group((l) => l.source)} />
@@ -718,7 +744,7 @@ function TrackerDrill({ kind, data, onClose, onOpenLead }: {
     );
   }
 
-  const list = data.allLeads.filter((l) => (kind === "notcalled" ? l.flaggedNew : l.flaggedPool));
+  const list = leads.filter((l) => (kind === "notcalled" ? l.flaggedNew : l.flaggedPool));
   const pages = Math.max(1, Math.ceil(list.length / PER));
   const p = Math.min(page, pages - 1);
   const slice = list.slice(p * PER, p * PER + PER);
@@ -840,12 +866,15 @@ function LeadTable({ leads, starred, onStar, onTrack, onReassign, showWhy, allow
 
 /* ── tracker tab ───────────────────────────────────────────────── */
 
-function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
-  data: Board; starred: Set<string>; persisted: boolean;
+function TrackerTab({ data, since, starred, persisted, onStar, onTrack }: {
+  data: Board; since?: string; starred: Set<string>; persisted: boolean;
   onStar: (l: BoardLead, on: boolean) => void; onTrack: (l: BoardLead) => void;
 }) {
   // Tracking only. Moving a lead lives on the Transfer page.
   const noop = () => {};
+  // The "track from" cutoff hides the pre-cutoff backlog from the flags + search
+  // (but never from Pinned — those are the user's own picks).
+  const inRange = (l: BoardLead) => !since || l.date >= since;
   // Find-a-lead-to-track search — filters this period's leads by name / interest /
   // source / counsellor, 10 a page, each pinnable with the star.
   const [q, setQ] = useState("");
@@ -853,14 +882,14 @@ function TrackerTab({ data, starred, persisted, onStar, onTrack }: {
   const PER = 10;
   const query = q.trim().toLowerCase();
   const matches = query
-    ? data.allLeads.filter((l) => `${l.name} ${l.interest} ${l.source} ${l.counsellor}`.toLowerCase().includes(query))
+    ? data.allLeads.filter((l) => inRange(l) && `${l.name} ${l.interest} ${l.source} ${l.counsellor}`.toLowerCase().includes(query))
     : [];
   const mPages = Math.max(1, Math.ceil(matches.length / PER));
   const mp = Math.min(page, mPages - 1);
   const mSlice = matches.slice(mp * PER, mp * PER + PER);
   const pinned = data.allLeads.filter((l) => starred.has(l.id));
   const flagged = data.allLeads
-    .filter((l) => !starred.has(l.id) && (l.flaggedNew || l.flaggedPool))
+    .filter((l) => !starred.has(l.id) && (l.flaggedNew || l.flaggedPool) && inRange(l))
     .sort((a, b) => (b.flaggedNew ? b.daysUntouched : b.ageDays) - (a.flaggedNew ? a.daysUntouched : a.ageDays));
 
   return (
