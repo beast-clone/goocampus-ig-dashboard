@@ -12,13 +12,15 @@ type Roster = { name: string; userId: string; label: string };
 type Lead = {
   id: string; name: string; counsellor: { id: string; name: string } | null;
   status: string; interest: string; source: string; location: string;
-  phone: string; email: string; created: string; idleDays: number; link: string;
+  phone: string; email: string; created: string; assigned: string; idleDays: number; link: string;
 };
 
 export function LeadSearch() {
   const [q, setQ] = useState("");
   const [counsellor, setCounsellor] = useState("");
   const [status, setStatus] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [roster, setRoster] = useState<Roster[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,6 +40,8 @@ export function LeadSearch() {
       if (q.trim()) p.set("q", q.trim());
       if (counsellor) p.set("counsellor", counsellor);
       if (status.trim()) p.set("status", status.trim());
+      if (from) p.set("from", from);
+      if (to) p.set("to", to);
       const d = await fetch(`/api/leads-crm/search?${p.toString()}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))));
       if (mine !== seq.current) return;
       setLeads((d.leads || []) as Lead[]);
@@ -47,7 +51,7 @@ export function LeadSearch() {
     } catch (e) {
       if (mine === seq.current) { setError(e instanceof Error ? e.message : "Search failed"); setLeads([]); }
     } finally { if (mine === seq.current) setLoading(false); }
-  }, [q, counsellor, status]);
+  }, [q, counsellor, status, from, to]);
 
   useEffect(() => { const t = setTimeout(run, 350); return () => clearTimeout(t); }, [run]);
 
@@ -73,6 +77,15 @@ export function LeadSearch() {
         </select>
         <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status contains…"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-[150px] focus:outline-none focus:border-brand" />
+        <div className="flex items-center gap-1.5 text-[12px] text-gray-500">
+          <span className="text-gray-400">Created</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} title="Created from"
+            className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-[#232D42] focus:outline-none focus:border-brand" />
+          <span className="text-gray-400">→</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} title="Created to"
+            className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-[#232D42] focus:outline-none focus:border-brand" />
+          {(from || to) && <button onClick={() => { setFrom(""); setTo(""); }} className="text-gray-400 hover:text-gray-600" title="Clear dates"><IconX size={14} /></button>}
+        </div>
         {loading && <IconLoader2 size={18} className="animate-spin text-brand" />}
       </div>
 
@@ -95,7 +108,7 @@ export function LeadSearch() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: 880 }}>
+          <table className="w-full text-sm" style={{ minWidth: 1000 }}>
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
                 <th className="font-medium px-4 py-2.5 w-9"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#3A57E8] cursor-pointer" /></th>
@@ -103,14 +116,15 @@ export function LeadSearch() {
                 <th className="font-medium px-3 py-2.5">Counsellor</th>
                 <th className="font-medium px-3 py-2.5">Status</th>
                 <th className="font-medium px-3 py-2.5">Interest</th>
-                <th className="font-medium px-3 py-2.5">Source</th>
+                <th className="font-medium px-3 py-2.5">Created</th>
+                <th className="font-medium px-3 py-2.5">Assigned</th>
                 <th className="font-medium px-3 py-2.5">Idle</th>
                 <th className="font-medium px-3 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {leads && list.length === 0 && !loading && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No leads match. Try a different name, number or filter.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">No leads match. Try a different name, number or filter.</td></tr>
               )}
               {list.map((l) => (
                 <tr key={l.id} className={`border-b border-gray-50 hover:bg-[#F6F7FB] ${selected.has(l.id) ? "bg-brand-light/40" : ""}`}>
@@ -124,7 +138,8 @@ export function LeadSearch() {
                   <td className="px-3 py-2.5 text-[#3B4457]">{l.counsellor?.name || <span className="text-gray-400">Unassigned</span>}</td>
                   <td className="px-3 py-2.5"><span className="text-[12px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{l.status || "—"}</span></td>
                   <td className="px-3 py-2.5 text-[#3B4457]">{l.interest || "—"}</td>
-                  <td className="px-3 py-2.5 text-gray-500">{l.source || "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{l.created || "—"}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{l.assigned ? <span className="text-[#3B4457]">{l.assigned}</span> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5"><span className={l.idleDays > 7 ? "text-red-600 font-medium" : "text-gray-500"}>{l.idleDays}d</span></td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-2">
@@ -270,7 +285,7 @@ function LeadDetailModal({ id, onClose, onReassign }: { id: string; onClose: () 
               {d ? <>With <b className="text-[#3B4457]">{d.counsellor?.name || "Unassigned"}</b> · <span className={d.idleDays > 7 ? "text-red-600 font-medium" : ""}>idle {d.idleDays}d</span></> : " "}
             </div>
           </div>
-          {d && <button onClick={() => onReassign({ id: d.id, name: d.name, counsellor: d.counsellor, status: "", interest: "", source: "", location: "", phone: "", email: "", created: "", idleDays: d.idleDays, link: d.link })}
+          {d && <button onClick={() => onReassign({ id: d.id, name: d.name, counsellor: d.counsellor, status: "", interest: "", source: "", location: "", phone: "", email: "", created: "", assigned: "", idleDays: d.idleDays, link: d.link })}
             className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brand border border-[#E9ECFB] rounded-lg px-2.5 py-1.5 hover:bg-brand-light flex-shrink-0"><IconUserShare size={14} stroke={1.8} /> Reassign</button>}
           <a href={d?.link || "#"} target="_blank" rel="noopener noreferrer" title="Open in Airtable" className="text-gray-400 hover:text-brand mt-1 flex-shrink-0"><IconExternalLink size={17} stroke={1.8} /></a>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none flex-shrink-0">×</button>
