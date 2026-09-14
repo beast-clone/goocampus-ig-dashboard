@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { todayIST, daysAgoIST } from "@/lib/date";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
-import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import { PreviewSelect } from "./PreviewSelect";
@@ -35,14 +34,13 @@ function rangeLabel(r: Range): string {
 }
 
 export function PreviewDashboardShell({
-  active, title, subtitle, hideAccountPicker, hideRange, hidePdf, compact, children,
+  active, title, subtitle, hideAccountPicker, hideRange, compact, children,
 }: {
   active: PreviewTab;
   title: string;
   subtitle?: string;
   hideAccountPicker?: boolean;
   hideRange?: boolean;   // hide the top date bar (page drives the range itself via setRange)
-  hidePdf?: boolean;     // keep the date bar but drop the "Export Dashboard" (PDF) button
   // Slimmer hero for drill-down pages. A full-height band is right for a landing
   // page you arrive at; on a sub-page you clicked into deliberately it just pushes
   // the thing you came to read below the fold.
@@ -130,7 +128,6 @@ export function PreviewDashboardShell({
               ))}
               <TokenExpiryBadge />
               {!hideRange && <DateRangePicker value={range} onChange={setRange} />}
-              {!hideRange && !hidePdf && <PdfExportButton accountId={profile ?? accountId} range={range} />}
             </div>
           </div>
         )}

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { format, subDays, parseISO } from "date-fns";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
-import { PdfExportButton } from "@/components/PdfExportButton";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import { useProfile } from "@/lib/profile";
@@ -118,7 +117,6 @@ export function DashboardShell({
             ))}
             <TokenExpiryBadge />
             <DateRangePicker value={range} onChange={setRange} />
-            <PdfExportButton accountId={profile ?? (compareAll ? "all" : accountId)} range={range} />
           </div>
         </div>
         {children({ accountId: profile ?? (compareAll ? "all" : accountId), compareAll: profile ? false : compareAll, range })}
