@@ -135,6 +135,7 @@ const CRM_FIELDS = [
   "Primary Interest (n8n)",
   "Campaign Name",
   "Days Untouched",
+  "Call Attempts",       // for the tightened "Untouched" rule (no edit AND never called)
   "Re-Enquiry",
   "Last Re-Enquiry",
   "Location (n8n)",
@@ -289,6 +290,11 @@ export async function GET(req: Request) {
       const campaign = pickName(f["Campaign Name"]);
       const location = pickName(f["Location (n8n)"]);
       const daysUntouched = idleDays(f);
+      const callAttempts = pickNumber(f["Call Attempts"]);
+      // "Untouched" = no CRM edit in 7+ days AND no call ever logged (Call Attempts = 0).
+      // The CRM stores only a call *count* per lead (no last-call date), so we can't do
+      // "no call in the last 7 days" — a lead that was ever dialled is treated as worked.
+      const isUntouched = daysUntouched > 7 && callAttempts === 0;
       const fullName = pickName(f["Full Name"]);
       const isReEnquiry = f["Re-Enquiry"] === true;
       const lastReEnquiryAt = pickName(f["Last Re-Enquiry"]);
@@ -318,7 +324,7 @@ export async function GET(req: Request) {
       }
       c.assigned += 1;
       c.byStatus[status] = (c.byStatus[status] || 0) + 1;
-      if (daysUntouched > 7) c.untouched += 1;
+      if (isUntouched) c.untouched += 1;
 
       if (createdIso && modifiedIso) {
         const diffMs = new Date(modifiedIso).getTime() - new Date(createdIso).getTime();
@@ -341,7 +347,7 @@ export async function GET(req: Request) {
         cam.leads += 1;
       }
 
-      if (daysUntouched > 7 && fullName) {
+      if (isUntouched && fullName) {
         awaitingRaw.push({ name: fullName, counsellor, source, daysUntouched: Math.round(daysUntouched), link: `https://airtable.com/${SALES_HUB_BASE}/${CRM_TABLE}/${rec.id}` });
       }
 

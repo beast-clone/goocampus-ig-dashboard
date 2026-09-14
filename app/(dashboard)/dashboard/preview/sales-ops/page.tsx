@@ -244,7 +244,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <div className="mt-3 space-y-2 text-[12px] leading-relaxed text-[#3B4457]">
           <div><b>Source:</b> the Airtable <b>Sales Hub CRM</b> — the main Leads table. The dashboard only <b>reads</b> it; it never edits Airtable.</div>
           <div><b>No Airtable view is used.</b> We read the table directly and filter by <b>Created Date</b> for the range you pick above — so renaming, re-filtering, or deleting any grid view in Airtable does not change these numbers.</div>
-          <div><b>Time to first contact &amp; Untouched leads</b> come from each lead&rsquo;s <b>Created Date</b> and <b>Actual Last Modified</b> timestamps. &ldquo;First contact&rdquo; / &ldquo;touched&rdquo; means the record was <b>updated in the CRM</b> — a stand-in for follow-up. A call that isn&rsquo;t logged in Airtable won&rsquo;t show here.</div>
+          <div><b>Time to first contact</b> uses each lead&rsquo;s <b>Created Date</b> → first time its record was edited (a stand-in for first follow-up).</div>
+          <div><b>Awaiting activity / Untouched</b> = no CRM update in 7+ days <b>and</b> no call ever logged (<b>Call Attempts = 0</b>). The CRM keeps only a call count, not a last-call date, so this means &ldquo;never called,&rdquo; not &ldquo;not called in 7 days.&rdquo;</div>
           <div><b>Closings, Revenue &amp; Time to convert</b> come from the <b>Contracts</b> table (by Generated Date) and the <b>Revenue Tracker</b> (by Payment Date), matched back to leads by email / phone.</div>
           <div className="text-[#8A92A6]">Refreshes about every 2 hours through the day — or hit <b>Refresh now</b> for the latest.</div>
         </div>
@@ -348,10 +349,10 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <Card>
           <div className="flex justify-between items-baseline">
             <div className="text-base font-medium text-[#232D42]">Awaiting activity</div>
-            <div className="text-sm text-gray-500">Days Untouched formula</div>
+            <div className="text-sm text-gray-500">Never worked</div>
           </div>
           <div className="text-sm text-gray-500 mb-4">
-            Leads with no CRM activity in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total
+            Leads with <b className="font-medium text-[#3B4457]">no CRM update AND no call attempt</b> in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total
           </div>
           {(data?.awaiting.length ?? 0) > 0 ? (
             <table className="w-full text-sm">
