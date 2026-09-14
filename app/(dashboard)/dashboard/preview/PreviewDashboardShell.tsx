@@ -23,14 +23,15 @@ function rangeLabel(r: Range): string {
   const days = rangeDays(r);
   const today = todayIST();
   const isToToday = r.to === today;
-  if (isToToday && days === 7) return "Last 7 days";
-  if (isToToday && days === 30) return "Last 30 days";
-  if (isToToday && days === 90) return "Last 90 days";
-  if (isToToday && days === 180) return "Last 6 months";
-  if (isToToday && days === 365) return "Last 1 year";
-  const fromStr = format(parseISO(r.from), "d MMM");
-  const toStr = format(parseISO(r.to), "d MMM yyyy");
-  return `${fromStr} – ${toStr} (${days} days)`;
+  // Always spell out the actual dates the range covers, so "Last 30 days" is never
+  // ambiguous about which dates it means.
+  const span = `${format(parseISO(r.from), "d MMM")} – ${format(parseISO(r.to), "d MMM yyyy")}`;
+  if (isToToday && days === 7) return `Last 7 days · ${span}`;
+  if (isToToday && days === 30) return `Last 30 days · ${span}`;
+  if (isToToday && days === 90) return `Last 90 days · ${span}`;
+  if (isToToday && days === 180) return `Last 6 months · ${span}`;
+  if (isToToday && days === 365) return `Last 1 year · ${span}`;
+  return `${span} (${days} days)`;
 }
 
 export function PreviewDashboardShell({
