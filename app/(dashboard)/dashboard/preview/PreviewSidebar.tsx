@@ -33,9 +33,8 @@ const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 const HUB = "/dashboard/preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 // Admin-only cockpit — rendered right under Overview when the viewer is an admin.
+// Carries the approvals notification badge (approvals live inside this page).
 const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
-// Admin-only — publish-date changes waiting for approval, with a live count badge.
-const APPROVALS: Leaf = { label: "Approvals", href: `${HUB}/approvals`, icon: IconCalendarStats };
 
 const GROUPS: Group[] = [
   { label: "Content", sec: "content", items: [
@@ -267,8 +266,7 @@ export function PreviewSidebar() {
       </div>
       <GlobalSearch />
       {canOverview && <LeafRow leaf={OVERVIEW} />}
-      {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} />}
-      {me?.isAdmin && <LeafRow leaf={APPROVALS} badge={apprCount} />}
+      {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}
