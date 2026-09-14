@@ -42,8 +42,8 @@ export function MonthlyReportView({ monthLabel }: { monthLabel?: string }) {
       <Section title="Likes · Comments · Saves · Shares" note="Month-over-month totals.">
         <MonthlyTable t={H.engagement} />
       </Section>
-      <Placeholder title="Best-performing content · Instagram" note="Top posts with thumbnails — from live data, coming next." />
-      <Placeholder title="Instagram Performance Summary" note="Key insight + growth summary (MoM %) — from live data, coming next." />
+      <InstagramTopContent from={from} to={to} />
+      <InstagramSummary from={from} to={to} />
 
       <PlatformHeader name="YouTube" />
       <Section title="YouTube — monthly" note="Subscribers · views · videos · shorts · leads.">
@@ -100,6 +100,66 @@ function OrganicLeadsTable({ base, from, to }: { base: HistoryTable; from: strin
 }
 
 const fmtNum = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-IN"));
+
+// Best-performing Instagram content this month — thumbnails ranked by engagement.
+function InstagramTopContent({ from, to }: { from: string; to: string }) {
+  const [d, setD] = useState<{ posts: { permalink: string; thumb: string; type: string; likes: number; comments: number }[] } | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/instagram-top?from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j) => setD(j))
+      .catch(() => setD({ posts: [] }));
+  }, [from, to]);
+  return (
+    <Section title="Best-performing content · Instagram" note="This month's top posts, ranked by likes + comments.">
+      {!d ? <div className="border border-gray-200 rounded-xl"><LoadingBlock className="!py-8" size={24} label="Loading top posts…" /></div>
+        : d.posts.length === 0 ? <div className="text-sm text-gray-400">No Instagram posts in this window yet.</div>
+        : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {d.posts.map((p, i) => (
+              <a key={i} href={p.permalink} target="_blank" rel="noreferrer" className="group block">
+                <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden border border-gray-100">
+                  {p.thumb ? <img src={p.thumb} alt="" className="w-full h-full object-cover transition group-hover:scale-105" /> : <div className="w-full h-full grid place-items-center text-2xl text-gray-300">▢</div>}
+                </div>
+                <div className="text-[10.5px] text-gray-500 mt-1 flex items-center justify-between"><span>{p.type}</span><span className="tabular-nums">♥{fmtNum(p.likes)} · {fmtNum(p.comments)}</span></div>
+              </a>
+            ))}
+          </div>
+        )}
+    </Section>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return <div className="border border-gray-200 rounded-xl p-3"><div className="text-[22px] font-semibold tabular-nums text-[#232D42] leading-none">{value}</div><div className="text-[11px] uppercase tracking-wide text-gray-500 mt-1">{label}</div></div>;
+}
+
+// Instagram Performance Summary — this month's headline numbers (live). MoM growth %
+// fills once the previous month is snapshotted (the report saves each month, phase 3).
+function InstagramSummary({ from, to }: { from: string; to: string }) {
+  const [d, setD] = useState<{ available: boolean; followers: number | null; reach: number | null; contentInteractions: number | null; leads: number } | null>(null);
+  useEffect(() => {
+    fetch(`/api/reports/instagram-month?from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((j) => setD(j))
+      .catch(() => {});
+  }, [from, to]);
+  return (
+    <Section title="Instagram Performance Summary" note="This month to date (live).">
+      {!d ? <div className="border border-gray-200 rounded-xl"><LoadingBlock className="!py-8" size={24} /></div> : (
+        <div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <MiniStat label="Followers" value={fmtNum(d.followers)} />
+            <MiniStat label="Reach" value={fmtCompact(d.reach)} />
+            <MiniStat label="Content interactions" value={fmtCompact(d.contentInteractions)} />
+            <MiniStat label="Leads · IG/Fb est" value={String(d.leads ?? 0)} />
+          </div>
+          <div className="text-[11px] text-gray-400 mt-2">Month-over-month growth % fills in once the previous month is snapshotted — the report saves each month going forward.</div>
+        </div>
+      )}
+    </Section>
+  );
+}
 
 // Generic platform table: imported history + a LIVE current-month row built from
 // /api/reports/platform-month (only appended when the platform returns real data).
