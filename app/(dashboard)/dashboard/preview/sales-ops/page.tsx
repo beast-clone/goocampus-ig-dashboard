@@ -300,7 +300,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <div className="text-base font-medium text-[#232D42]">Revenue trend</div>
               <div className="text-sm text-gray-500">Month-wise · follows the selected range</div>
             </div>
-            <div className="text-sm text-gray-500 mb-5">Payments booked (Revenue Tracker) alongside contracts closed per month. Recent months often show closings before their ₹ amount is entered — revenue trails by a month or two.</div>
+            <div className="text-sm text-gray-500 mb-5">Two views, month by month — money received (Revenue Tracker) and deals closed. Recent months often show closings before their ₹ amount is entered, so revenue trails by a month or two.</div>
             <RevenueTrendChart data={data.revenueTrend} />
           </Card>
         )}
@@ -1115,29 +1115,46 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   return <div className={`bg-white rounded-xl border border-gray-100 p-5 ${className}`}>{children}</div>;
 }
 
+// Two separate single-metric charts — rupees and a count of contracts are different
+// units, so mixing them on one axis was misleading. Each has its own scale + label.
 function RevenueTrendChart({ data }: { data: { month: string; revenue: number; contracts: number }[] }) {
-  const maxRev = Math.max(...data.map((d) => d.revenue), 1);
-  const maxCon = Math.max(...data.map((d) => d.contracts), 1);
+  return (
+    <div className="space-y-5">
+      <MiniTrend title="Revenue booked" unit="₹ received per month" data={data} value={(d) => d.revenue} color="#3A57E8" fmt={(v) => fmtInr(v)} />
+      <div className="border-t border-gray-100" />
+      <MiniTrend title="Contracts generated" unit="deals closed per month" data={data} value={(d) => d.contracts} color="#5DCAA5" fmt={(v) => `${fmtInt(v)}`} />
+    </div>
+  );
+}
+
+function MiniTrend({ title, unit, data, value, color, fmt }: {
+  title: string;
+  unit: string;
+  data: { month: string; revenue: number; contracts: number }[];
+  value: (d: { month: string; revenue: number; contracts: number }) => number;
+  color: string;
+  fmt: (v: number) => string;
+}) {
+  const max = Math.max(...data.map(value), 1);
   return (
     <div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
-        {data.map((d) => (
-          <div key={d.month} className="flex flex-col items-center">
-            <div className="text-xs text-gray-500 mb-1">{fmtMonth(d.month)}</div>
-            <div className="w-full flex flex-col items-center gap-1">
-              <div className="w-full h-40 flex items-end justify-center gap-1">
-                <div className="w-8 rounded-t" style={{ height: `${(d.revenue / maxRev) * 100}%`, background: "#3A57E8", minHeight: d.revenue > 0 ? "4px" : 0 }} title={`₹${d.revenue.toLocaleString("en-IN")}`}></div>
-                <div className="w-8 rounded-t" style={{ height: `${(d.contracts / maxCon) * 100}%`, background: "#5DCAA5", minHeight: d.contracts > 0 ? "4px" : 0 }} title={`${d.contracts} contracts`}></div>
-              </div>
-              <div className="text-sm font-medium">{fmtInr(d.revenue)}</div>
-              <div className="text-xs text-gray-500">{d.contracts} contracts</div>
-            </div>
-          </div>
-        ))}
+      <div className="flex items-baseline justify-between mb-2.5">
+        <div className="text-[13px] font-medium text-[#232D42]">{title}</div>
+        <div className="text-[11px] text-gray-400">{unit}</div>
       </div>
-      <div className="flex justify-center gap-6 mt-4 text-xs text-gray-500">
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ background: "#3A57E8" }}></span>Revenue booked</div>
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ background: "#5DCAA5" }}></span>Contracts generated</div>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
+        {data.map((d) => {
+          const v = value(d);
+          return (
+            <div key={d.month} className="flex flex-col items-center">
+              <div className="w-full h-24 flex items-end justify-center">
+                <div className="w-9 rounded-t" style={{ height: `${(v / max) * 100}%`, background: color, minHeight: v > 0 ? "4px" : 0 }} title={fmt(v)} />
+              </div>
+              <div className="text-[13px] font-medium text-[#232D42] mt-1.5">{fmt(v)}</div>
+              <div className="text-[11px] text-gray-500">{fmtMonth(d.month)}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
