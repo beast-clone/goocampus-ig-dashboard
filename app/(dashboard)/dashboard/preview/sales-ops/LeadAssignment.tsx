@@ -353,8 +353,6 @@ export function LeadAssignment({ range, only }: { range: { from: string; to: str
         ))}
       </div>
 
-      {isLoading && !data && <LoadingBlock />}
-
       {/* ── PER DAY ─────────────────────────────────────────────── */}
       {tab === "day" && data && (openDay ? (
         <>
