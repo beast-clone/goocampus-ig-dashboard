@@ -1,0 +1,17 @@
+"use client";
+import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { MonthlyReportView } from "../MonthlyReportView";
+
+// Full monthly report in the team's Notion format (work in progress — see
+// docs/MONTHLY_REPORT_SPEC.md). Phase 1: the imported month-over-month tables.
+export default function Page() {
+  return (
+    <PreviewDashboardShell active="ai-reports" title="Monthly Report — full format" subtitle="The team's monthly report layout. History imported; live sections being wired up." hideAccountPicker hideRange compact>
+      {() => (
+        <div className="max-w-[1200px] mx-auto">
+          <MonthlyReportView monthLabel="May 2026" />
+        </div>
+      )}
+    </PreviewDashboardShell>
+  );
+}
