@@ -3,6 +3,37 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-09-14 — GO LIVE: first production deploy of the reskin + Google login
+
+Took the dashboard live for the team to test. See `docs/HANDOFF_2026-09-14.md` for the full state.
+
+- **First production deploy of `feat/dashboard-reskin`** (main was ~3 months stale). Netlify's
+  **git auto-deploy is broken** (repo clone fails, "Host key verification failed"), so deploys now
+  go out via the Netlify CLI: `netlify deploy --prod --build` (bypasses GitHub). Fast-forwarded
+  `main` to the feature branch and pushed too, for the record.
+- **Env sync:** copied the ~27 vars that were in `.env.local` but missing from Netlify (Airtable,
+  LinkedIn, YouTube, GA4/Clarity/Bing, IG, Slack). Set `BASE_PATH=""` so the app serves at the
+  netlify.app root (not `/gc-dashboard`) for the testing phase.
+- **Build fix:** `next build` was failing collecting `/api/radar/article` — jsdom 29 →
+  html-encoding-sniffer 6 → ESM-only `@exodus/bytes`, which Next's CJS require-hook can't load at
+  page-data collection. Lazy-import jsdom + `@mozilla/readability` inside the handler.
+- **Sign in with Google — enabled.** Reuses the existing YouTube OAuth client ("GC YT Token",
+  project `gc-dashboard-analytics`); added the prod redirect URI; `GOOGLE_LOGIN_CLIENT_ID/SECRET`
+  on Netlify = the `YOUTUBE_CLIENT_*` values. Two bugs fixed along the way: (1) auth routes pinned
+  their origin to `APP_URL` (Netlify's function sees the deploy-permalink host → `redirect_uri_mismatch`);
+  (2) **`/api/auth/google/start` was being statically cached by Netlify (~1yr TTL)**, freezing one
+  OAuth `state` + stripping the fresh cookie → intermittent "Google sign-in didn't complete".
+  Forced both auth routes `dynamic = "force-dynamic"` + `no-store`.
+- **Logout fix:** the logout buttons post a plain HTML form, so users landed on raw `{"ok":true}`.
+  `/api/logout` now 303-redirects to `/login` and clears the cookie (fixes header + sidebar logout).
+- **Comment → daily email digest** (built the day before, shipped here): the Comment widget logs
+  each note server-side (`discover_cache`, source `dash_comment`); `/api/cron/comment-digest`
+  emails ONE summary at ~9 PM IST (n8n job created inactive). Needs `GMAIL_USER` +
+  `GMAIL_APP_PASSWORD` on Netlify to actually send.
+- **Team logins:** all 5 `ind_users` given a shared testing password (hashed in `password_hash`;
+  set 2026-09-14 — ask the admin for the value); they can also use Google. Admin = Maheen
+  (info@goocampus.in).
+
 ## 2026-07-22 (pt 13b) — Post Planner: show the AI's reschedule (was → now + why)
 
 - On the AI planner detail panel, each moved post now shows a **"↪ Rescheduled by AI"** block:
