@@ -235,7 +235,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {/* ══ 1. Revenue & conversion — the money view, top priority ══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
         {/* Conversion & revenue by source */}
         <Card>
           <div className="flex items-baseline justify-between mb-1">
@@ -290,7 +290,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {/* ══ 2. Speed to lead + Awaiting activity — the leak view ══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
         <Card>
           <div className="flex items-baseline justify-between mb-4">
             <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
@@ -445,7 +445,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </Card>
 
       {/* ══ 5. Lead intake — Leads by source + Lead inflow side by side ══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
         <Card>
           <div className="flex items-baseline justify-between mb-4">
             <div className="text-base font-medium text-[#232D42]">Leads by source</div>
