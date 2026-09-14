@@ -311,39 +311,47 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         <Card>
           <div className="flex items-baseline justify-between mb-4">
             <div className="text-base font-medium text-[#232D42]">Speed to lead</div>
-            <div className="text-sm text-gray-500">the biggest leak</div>
+            <div className="text-sm text-gray-500">two different clocks</div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#C0392B] tabular-nums">{data ? fmtHrs(data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">to first contact</div>
-            </div>
-            <div className="bg-[#F3F5FA] rounded-xl p-3.5">
-              <div className="text-2xl font-medium text-[#232D42] tabular-nums">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}</div>
-              <div className="text-xs text-gray-500 mt-0.5">to convert{data && data.totals.convertCount ? ` · ${fmtInt(data.totals.convertCount)} won` : ""}</div>
-            </div>
-          </div>
-          {data && (() => {
-            const fc = data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs;
+          {(() => {
+            const fc = data ? (data.totals.firstContactAvgHrs ?? data.totals.firstActivityAvgHrs) : null;
+            const greenPct = Math.min(100, (24 / Math.max(24, fc || 24)) * 100);
+            const ratio = fc ? fc / 24 : null;
             return (
-            <div className="mb-3">
-              <div className="h-2.5 rounded-full bg-[#F3F5FA] overflow-hidden flex">
-                <span className="h-full bg-[#0F9D58]" style={{ width: `${Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
-                <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - Math.min(100, (24 / Math.max(24, fc || 24)) * 100)}%` }} />
-              </div>
-              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
-                <span>24h SLA target</span>
-                <span>avg is {fc ? `${(fc / 24).toFixed(1)}× ${fc > 24 ? "over" : "of"} target` : "—"}</span>
-              </div>
-            </div>
+              <>
+                {/* Clock 1 — how fast we RESPOND to a new lead */}
+                <div className="rounded-xl bg-[#F3F5FA] p-4 mb-3">
+                  <div className="flex items-baseline justify-between">
+                    <div className="text-[13px] font-medium text-[#232D42]">1 · Time to first contact</div>
+                    <div className="text-[11px] text-gray-400">how fast we respond</div>
+                  </div>
+                  <div className="text-2xl font-medium text-[#C0392B] tabular-nums mt-1">{data ? fmtHrs(fc) : "—"}</div>
+                  <div className="text-[12px] text-gray-500 mt-1 leading-relaxed">From when a lead <b>arrives</b> → the counsellor&rsquo;s <b>first call or note</b>. Goal: within 24 hours.</div>
+                  {data && (
+                    <div className="mt-3">
+                      <div className="h-2 rounded-full bg-white overflow-hidden flex">
+                        <span className="h-full bg-[#0F9D58]" style={{ width: `${greenPct}%` }} />
+                        <span className="h-full bg-[#FBE4EC]" style={{ width: `${100 - greenPct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[11px] text-gray-500 mt-1.5">
+                        <span>24-hour goal</span>
+                        <span>{ratio ? `${ratio.toFixed(1)}× the goal — ${ratio > 1 ? "slower ✗" : "faster ✓"}` : "—"}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Clock 2 — how long until they PAY */}
+                <div className="rounded-xl bg-[#F3F5FA] p-4">
+                  <div className="flex items-baseline justify-between">
+                    <div className="text-[13px] font-medium text-[#232D42]">2 · Time to convert</div>
+                    <div className="text-[11px] text-gray-400">how long until they pay</div>
+                  </div>
+                  <div className="text-2xl font-medium text-[#232D42] tabular-nums mt-1">{data && data.totals.convertAvgDays != null ? `${data.totals.convertAvgDays}d` : "—"}{data && data.totals.convertCount ? <span className="text-sm font-normal text-gray-400"> · {fmtInt(data.totals.convertCount)} paid</span> : null}</div>
+                  <div className="text-[12px] text-gray-500 mt-1 leading-relaxed">From when a lead <b>arrives</b> → <b>payment received</b> (matched in the Revenue Tracker). This is your full sales cycle, not response time.</div>
+                </div>
+              </>
             );
           })()}
-          <div className="rounded-lg bg-brand-light border border-brand/20 px-3 py-2 text-[11px] leading-relaxed text-[#3B4457]">
-            <div className="font-semibold text-brand mb-1">ⓘ How to read this</div>
-            <div><b>To first contact</b> — avg time before someone first touches a new lead (first call, status change, or note).</div>
-            <div><b>To convert</b> — avg time from lead created → paid (matched in the Revenue Tracker).</div>
-            <div className="mt-1"><b>SLA</b> = <i>Service Level Agreement</i> — your promise/target for how fast you respond. <b>“24h SLA target”</b> = the goal is to first-contact every new lead within 24 hours. <b>“0.7× of target”</b> means your average (~17h) is 0.7 of the 24h goal — <b>under 1× is faster than the goal ✓</b>, over 1× is slower ✗.</div>
-          </div>
         </Card>
         {/* Awaiting activity */}
         <Card>
