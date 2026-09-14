@@ -91,6 +91,7 @@ const GROUPS: Group[] = [
     // Sales Hub is a folder, not a page with tabs inside it: the six views were
     // in-page tabs and read as a second, competing navigation next to the sidebar.
     { key: "sales-hub", label: "Sales Hub", icon: IconReportMoney, href: `${HUB}/sales-ops`, children: [
+      { label: "Search leads",  href: `${HUB}/sales-ops/search`,      icon: IconSearch },
       { label: "Per day",       href: `${HUB}/sales-ops/per-day`,     icon: IconCalendarStats },
       { label: "By interest",   href: `${HUB}/sales-ops/interests`,   icon: IconChartPie },
       { label: "Counsellors",   href: `${HUB}/sales-ops/counsellors`, icon: IconUsers },
