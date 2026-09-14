@@ -1018,7 +1018,9 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
     setHover(Math.max(0, Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))));
   };
   const hx = hover != null ? xPct(hover) : 0;
-  const hy = hover != null ? ((PT + (1 - (pts[hover][metric] || 0) / max) * (H - PT - PB)) / H) * 100 : 0;
+  // pts[hover] can be undefined for a beat when the data reloads (range/metric
+  // switch) before setHover(null) fires — guard it, same as the crosshair below.
+  const hy = hover != null && pts[hover] ? ((PT + (1 - (pts[hover][metric] || 0) / max) * (H - PT - PB)) / H) * 100 : 0;
 
   const AXIS_W = 46;
 
