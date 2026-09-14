@@ -50,7 +50,7 @@ export function DateChangeApprovals({ enabled }: { enabled: boolean }) {
           <div key={r.postId} style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap", borderTop: "1px solid #F3F5FA", paddingTop: 10 }}>
             <div style={{ flex: 1, minWidth: 240 }}>
               <div style={{ fontSize: 13.5, color: "#232D42", fontWeight: 600 }}>
-                {r.title}
+                <a href={`/dashboard/marketing-hub?open=${r.postId}`} title="Open this task" style={{ color: "#232D42", textDecoration: "none", borderBottom: "1px dashed #B9C2E0" }}>{r.title}</a>
                 {r.type ? <span style={{ marginLeft: 8, fontSize: 11, background: "#F3F5FA", color: "#3B4457", borderRadius: 99, padding: "1px 8px", fontWeight: 500 }}>{r.type}</span> : null}
               </div>
               <div style={{ fontSize: 12.5, color: "#232D42", marginTop: 5 }}>

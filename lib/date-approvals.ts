@@ -34,6 +34,10 @@ export type DateChangeRequest = {
 };
 
 const KEY = (postId: string) => `datechg:${postId}`;
+// Deep link straight to the task's detail modal (?open=<id>) on the live site.
+// Netlify injects `URL` = the site's primary URL in prod; APP_URL overrides it.
+const APP_URL = (process.env.APP_URL || process.env.URL || "https://analytics.goocampus.in").replace(/\/+$/, "");
+const taskLink = (postId: string) => `${APP_URL}/dashboard/marketing-hub?open=${postId}`;
 const nameOf = (k: string) => (k ? (MH_NAME[k] || k.charAt(0).toUpperCase() + k.slice(1)) : "Someone");
 const fmt = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
 const fmtDT = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
@@ -55,20 +59,20 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
 
   const who = nameOf(r.requestedBy);
   const reason = r.reason?.trim() || "—";
-  const meta = `Type: ${r.type || "—"} · Assigned to: ${nameOf(r.owner || "")} · Created: ${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}`;
+  const link = taskLink(r.postId);
 
   // 1) team chat
-  await postTeamMessage(sb, r.requestedBy, `📅 ${who} asked to move “${r.title}” from ${fmt(r.from)} → ${fmt(r.to)} — reason: ${reason}. Needs your approval, Maheen.`);
+  await postTeamMessage(sb, r.requestedBy, `📅 ${who} asked to move “${r.title}” from ${fmt(r.from)} → ${fmt(r.to)} — reason: ${reason}. Needs your approval, Maheen. Open the task: ${link}`);
   // 1b) Slack (#creative_marketing) — full, clearly-laid-out card
   await postSlack(
     `📅 *Publish-date change — needs your approval*\n` +
-    `*Task:* ${r.title}   _(${r.type || "—"})_\n` +
+    `*Task:* <${link}|${r.title}>   _(${r.type || "—"})_\n` +
     `*Assigned to:* ${nameOf(r.owner || "")}\n` +
     `*Created:* ${fmtDT(r.createdAt)}${creator ? ` by *${nameOf(creator)}*` : ""}\n` +
     `*Move publish date:* ${fmt(r.from)} → *${fmt(r.to)}*\n` +
     `*Requested by:* ${who}\n` +
     `*Reason:* ${reason}\n` +
-    `➡️ Approve or reject it in *Marketing OS → My Day → Publish-date approvals*.`,
+    `➡️ <${link}|Open the task> — then approve or reject it in *My Day → Publish-date approvals*.`,
   );
   // 2) My Day bell — an mh_activity event the notifications route surfaces to Maheen
   try {
@@ -80,16 +84,16 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
       await sendMail({
         to: APPROVER_EMAIL,
         subject: `Approve publish-date change — “${r.title}”`,
-        text: `${who} requested to move the publish date of “${r.title}”.\n\nTask: ${r.title} (${r.type || "—"})\nAssigned to: ${nameOf(r.owner || "")}\nCreated: ${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}\nMove date: ${fmt(r.from)} -> ${fmt(r.to)}\nRequested by: ${who}\nReason: ${reason}\n\nApprove or reject it in Marketing OS (My Day -> Publish-date approvals).`,
+        text: `${who} requested to move the publish date of “${r.title}”.\n\nTask: ${r.title} (${r.type || "—"})\nAssigned to: ${nameOf(r.owner || "")}\nCreated: ${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}\nMove date: ${fmt(r.from)} -> ${fmt(r.to)}\nRequested by: ${who}\nReason: ${reason}\n\nOpen the task: ${link}\nThen approve or reject it in Marketing OS (My Day -> Publish-date approvals).`,
         html: `<p><b>${who}</b> requested to move a publish date — needs your approval.</p>`
           + `<table cellpadding="4" style="font-size:14px;border-collapse:collapse">`
-          + `<tr><td><b>Task</b></td><td>${r.title} <i>(${r.type || "—"})</i></td></tr>`
+          + `<tr><td><b>Task</b></td><td><a href="${link}">${r.title}</a> <i>(${r.type || "—"})</i></td></tr>`
           + `<tr><td><b>Assigned to</b></td><td>${nameOf(r.owner || "")}</td></tr>`
           + `<tr><td><b>Created</b></td><td>${fmtDT(r.createdAt)}${creator ? ` by ${nameOf(creator)}` : ""}</td></tr>`
           + `<tr><td><b>Move date</b></td><td>${fmt(r.from)} → <b>${fmt(r.to)}</b></td></tr>`
           + `<tr><td><b>Requested by</b></td><td>${who}</td></tr>`
           + `<tr><td><b>Reason</b></td><td>${reason}</td></tr>`
-          + `</table><p>Approve or reject it in <i>Marketing OS → My Day → Publish-date approvals</i>.</p>`,
+          + `</table><p><a href="${link}"><b>Open the task ↗</b></a> — then approve or reject it in <i>My Day → Publish-date approvals</i>.</p>`,
       });
     } catch { /* email is best-effort */ }
   }
