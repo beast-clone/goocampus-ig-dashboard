@@ -353,46 +353,32 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             );
           })()}
         </Card>
-        {/* Awaiting activity */}
+        {/* Awaiting activity — a simple "who to chase" card, not a full table */}
         <Card>
           <div className="flex justify-between items-baseline">
             <div className="text-base font-medium text-[#232D42]">Awaiting activity</div>
-            <div className="text-sm text-gray-500">Never worked</div>
+            <div className="text-sm text-gray-500">not contacted yet</div>
           </div>
-          <div className="text-sm text-gray-500 mb-4">
-            Leads with <b className="font-medium text-[#3B4457]">no CRM update AND no call attempt</b> in over 7 days · {data ? fmtInt(data.awaitingTotal) : "—"} total. <span className="text-gray-400">&ldquo;Days idle&rdquo; = from the arrival date to today.</span>
+          <div className="mt-3 flex items-end gap-3">
+            <div className="text-4xl font-medium text-[#C0392B] tabular-nums leading-none">{data ? fmtInt(data.awaitingTotal) : "—"}</div>
+            <div className="text-[13px] text-gray-500 pb-0.5">leads never contacted{data ? <> · <b className="font-medium text-[#3B4457]">{fmtDateShort(data.range.from)} – {fmtDateShort(data.range.to)}</b></> : ""}</div>
+          </div>
+          <div className="text-[12px] text-gray-500 mt-2 leading-relaxed">
+            No CRM update and no call for 7+ days. <span className="text-gray-400">Excludes leads you&rsquo;ve already closed off — junk, not interested, closed lost, cold, unreachable, not eligible.</span>
           </div>
           {(data?.awaiting.length ?? 0) > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-left">
-                  <th className="py-2.5 font-normal">Lead</th>
-                  <th className="py-2.5 font-normal">Arrived</th>
-                  <th className="py-2.5 font-normal">Counsellor</th>
-                  <th className="py-2.5 font-normal">Source</th>
-                  <th className="py-2.5 font-normal text-right">Days idle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data!.awaiting.slice(0, 6).map((a, i) => (
-                  <tr key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
-                    className="border-t border-gray-100 cursor-pointer hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
-                    <td className="py-2.5 text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></td>
-                    <td className="py-2.5 whitespace-nowrap text-[#3B4457]">{a.created ? fmtDateShort(a.created) : "—"}</td>
-                    <td className="py-2.5">{a.counsellor}</td>
-                    <td className="py-2.5">{a.source}</td>
-                    <td className="py-2.5 text-right tabular-nums">{a.daysUntouched}d</td>
-                  </tr>
-                ))}
-                {data && data.awaitingTotal > 6 && (
-                  <tr className="border-t border-gray-100 text-gray-500 italic">
-                    <td className="py-2.5" colSpan={5}>+{fmtInt(data.awaitingTotal - 6)} more idle leads…</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <div className="mt-4 border-t border-gray-100">
+              {data!.awaiting.slice(0, 5).map((a, i) => (
+                <button key={`${a.name}-${i}`} onClick={() => window.open(a.link, "_blank", "noreferrer")}
+                  className="w-full flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left hover:bg-[#FAFBFF]" title="Open this lead in Airtable">
+                  <span className="min-w-0 truncate text-[13px] text-[#232D42]">{a.name} <span className="text-gray-300">↗</span></span>
+                  <span className="shrink-0 text-[12px] text-gray-500 whitespace-nowrap">{a.created ? fmtDateShort(a.created) : "—"} · <span className="tabular-nums">{a.daysUntouched}d idle</span></span>
+                </button>
+              ))}
+              <a href="/dashboard/preview/sales-ops/tracker" className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-medium text-brand hover:underline">See all {data ? fmtInt(data.awaitingTotal) : ""} in the Leads tracker →</a>
+            </div>
           ) : (
-            isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">Nothing awaiting activity in this range</div>
+            isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400 mt-4">Nothing awaiting activity in this range ✓</div>
           )}
         </Card>
       </div>

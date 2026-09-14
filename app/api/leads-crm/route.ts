@@ -172,6 +172,13 @@ const OFFICE_FIELDS = [
   "What's your current MBBS status?",
 ];
 
+// Statuses the team has deliberately stopped working — a lead here is not "awaiting
+// contact", it's dispositioned. Excluded from the Untouched / Awaiting-activity count.
+// (lowercased for a case-insensitive match against the CRM's Lead Status)
+const DEAD_STATUSES = new Set([
+  "junk lead", "not interested", "cold", "not eligible", "closed lost", "unreachable",
+]);
+
 function bumpMap(map: Map<string, number>, key: string, by = 1) {
   if (!key) return;
   map.set(key, (map.get(key) || 0) + by);
@@ -291,10 +298,12 @@ export async function GET(req: Request) {
       const location = pickName(f["Location (n8n)"]);
       const daysUntouched = idleDays(f);
       const callAttempts = pickNumber(f["Call Attempts"]);
-      // "Untouched" = no CRM edit in 7+ days AND no call ever logged (Call Attempts = 0).
+      // "Untouched" = no CRM edit in 7+ days AND no call ever logged (Call Attempts = 0),
+      // AND the lead is not in a dead/closed status the team deliberately stops working
+      // (junk, not interested, cold, etc.) — counting those as "not contacted" is wrong.
       // The CRM stores only a call *count* per lead (no last-call date), so we can't do
       // "no call in the last 7 days" — a lead that was ever dialled is treated as worked.
-      const isUntouched = daysUntouched > 7 && callAttempts === 0;
+      const isUntouched = daysUntouched > 7 && callAttempts === 0 && !DEAD_STATUSES.has(status.toLowerCase().trim());
       const fullName = pickName(f["Full Name"]);
       const isReEnquiry = f["Re-Enquiry"] === true;
       const lastReEnquiryAt = pickName(f["Last Re-Enquiry"]);
