@@ -96,6 +96,7 @@ const GROUPS: Group[] = [
       { label: "By interest",   href: `${HUB}/sales-ops/interests`,   icon: IconChartPie },
       { label: "Counsellors",   href: `${HUB}/sales-ops/counsellors`, icon: IconUsers },
       { label: "Leads tracker", href: `${HUB}/sales-ops/tracker`,     icon: IconTimeline },
+      { label: "Unassigned leads", href: `${HUB}/sales-ops/unassigned`, icon: IconInbox },
       { label: "Transfer",      href: `${HUB}/sales-ops/transfer`,    icon: IconArrowsExchange },
       { label: "Roles",         href: `${HUB}/sales-ops/roles`,       icon: IconIdBadge2 },
     ] },

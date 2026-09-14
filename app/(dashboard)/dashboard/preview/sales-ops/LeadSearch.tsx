@@ -15,9 +15,11 @@ type Lead = {
   phone: string; email: string; created: string; assigned: string; idleDays: number; link: string;
 };
 
-export function LeadSearch() {
+// poolMode = the "Unassigned leads" tab: lock the list to the New-Leads pool
+// (counsellor = Maheen) and auto-load so an assigner can pick & assign directly.
+export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
   const [q, setQ] = useState("");
-  const [counsellor, setCounsellor] = useState("");
+  const [counsellor, setCounsellor] = useState(poolMode ? "Maheen Ejaz" : "");
   const [status, setStatus] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -42,6 +44,7 @@ export function LeadSearch() {
       if (status.trim()) p.set("status", status.trim());
       if (from) p.set("from", from);
       if (to) p.set("to", to);
+      if (poolMode) p.set("limit", "200");
       const d = await fetch(`/api/leads-crm/search?${p.toString()}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))));
       if (mine !== seq.current) return;
       setLeads((d.leads || []) as Lead[]);
@@ -51,7 +54,7 @@ export function LeadSearch() {
     } catch (e) {
       if (mine === seq.current) { setError(e instanceof Error ? e.message : "Search failed"); setLeads([]); }
     } finally { if (mine === seq.current) setLoading(false); }
-  }, [q, counsellor, status, from, to]);
+  }, [q, counsellor, status, from, to, poolMode]);
 
   useEffect(() => { const t = setTimeout(run, 350); return () => clearTimeout(t); }, [run]);
 
@@ -63,18 +66,28 @@ export function LeadSearch() {
 
   return (
     <div className="space-y-4">
+      {poolMode && (
+        <div className="rounded-xl bg-brand-light border border-brand/20 px-4 py-3">
+          <div className="text-[14px] font-medium text-[#232D42]">Unassigned leads — pick and assign directly</div>
+          <div className="text-[12.5px] text-[#3B4457] mt-0.5">Leads parked in the <b>New-Leads pool</b> (not yet with a working counsellor). Tick the ones you want, choose a counsellor, and assign — no need to open each one in Airtable. <span className="text-gray-500">Tip: tick “Confirm now” so they move within ~20 minutes.</span></div>
+        </div>
+      )}
       {/* Search + filters */}
       <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[240px]">
           <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search any lead — name, phone or email…" autoFocus
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={poolMode ? "Search within the pool — name, phone or email…" : "Search any lead — name, phone or email…"} autoFocus
             className="w-full border border-gray-200 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:border-brand" />
           {q && <button onClick={() => setQ("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><IconX size={15} /></button>}
         </div>
-        <select value={counsellor} onChange={(e) => setCounsellor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#232D42] bg-white min-w-[150px]">
-          <option value="">All counsellors</option>
-          {roster.map((r) => <option key={r.userId} value={r.name}>{r.name}</option>)}
-        </select>
+        {poolMode ? (
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#2138B0] bg-brand-light border border-[#D7DEFB] rounded-lg px-3 py-2">New-Leads pool</span>
+        ) : (
+          <select value={counsellor} onChange={(e) => setCounsellor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#232D42] bg-white min-w-[150px]">
+            <option value="">All counsellors</option>
+            {roster.map((r) => <option key={r.userId} value={r.name}>{r.name}</option>)}
+          </select>
+        )}
         <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status contains…"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-[150px] focus:outline-none focus:border-brand" />
         <div className="flex items-center gap-1.5 text-[12px] text-gray-500">
@@ -93,7 +106,7 @@ export function LeadSearch() {
       {selected.size > 0 && (
         <div className="bg-brand-light border border-[#D7DEFB] rounded-xl px-4 py-2.5 flex items-center gap-3">
           <span className="text-[13px] font-medium text-[#2138B0]">{selected.size} lead{selected.size === 1 ? "" : "s"} selected</span>
-          <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-brand rounded-lg px-3.5 py-1.5 hover:bg-brand-dark"><IconUsersGroup size={15} stroke={1.8} /> Reassign selected</button>
+          <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-brand rounded-lg px-3.5 py-1.5 hover:bg-brand-dark"><IconUsersGroup size={15} stroke={1.8} /> {poolMode ? "Assign selected" : "Reassign selected"}</button>
           <button onClick={() => setSelected(new Set())} className="text-[13px] text-[#2138B0] hover:underline ml-auto">Clear</button>
         </div>
       )}
