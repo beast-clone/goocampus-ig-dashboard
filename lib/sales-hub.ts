@@ -11,9 +11,12 @@
 // Everything here is GET except `createTransferRequest()`, which appends a row
 // to the Transfer Ownership table and nothing else. That exception was approved
 // explicitly (2026-08-19) for the Sales Hub reassignment UI. It is safe because
-// it CREATES a request row rather than editing a lead: Status stays "Pending"
-// and Confirm Transfer stays unticked, so no lead actually moves until a human
-// ticks the box in Airtable and the base's own automation runs.
+// it only ever writes to the Transfer Ownership REQUEST table — never the CRM
+// lead itself: it CREATES a Pending request row. Confirm Transfer defaults to
+// unticked (parked for review); the caller may set `confirm: true` to tick it
+// from the dashboard (user request 2026-09-14) instead of opening Airtable.
+// Either way the actual CRM owner change is done by the base's own automation
+// ("Transfer Ownership on CRM", every 20 min) — this file never moves a lead.
 //
 // The old rule still stands for everything else: no PATCH or DELETE, and no
 // writes at all to CRM / Revenue / Contract. The base holds 30k rows with no
@@ -194,6 +197,10 @@ export type TransferRequestInput = {
   fromUserId?: string;       // usr… current counsellor (blank when unassigned)
   toUserId: string;          // usr… the counsellor picking it up
   notes: string;             // why — shown in Airtable and in the request list
+  confirm?: boolean;         // tick "Confirm Transfer" now → the 20-min automation
+                             // moves the lead without a manual tick in Airtable.
+                             // Default false = parked for review. Still only writes
+                             // this request row — the CRM move is the automation's.
 };
 
 export type TransferRequestResult = { id: string; requestId?: number };
@@ -214,7 +221,10 @@ export async function createTransferRequest(input: TransferRequestInput): Promis
     [TRANSFER_FIELDS.lead]: [input.leadRecordId],
     [TRANSFER_FIELDS.newOwner]: { id: input.toUserId },
     [TRANSFER_FIELDS.notes]: input.notes.slice(0, 500),
-    [TRANSFER_FIELDS.confirm]: false,   // never true from here — that's the human's step
+    // Confirm from the dashboard when the caller ticks it (default false = parked
+    // for a manual review tick in Airtable). Even confirmed, this only marks the
+    // request row — the "Transfer Ownership on CRM" automation does the actual move.
+    [TRANSFER_FIELDS.confirm]: !!input.confirm,
     [TRANSFER_FIELDS.status]: "Pending",
   };
   if (input.fromUserId) fields[TRANSFER_FIELDS.originalCounsellor] = { id: input.fromUserId };

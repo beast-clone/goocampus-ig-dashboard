@@ -165,6 +165,7 @@ export function LeadSearch() {
 function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: Roster[]; onClose: () => void; onDone: () => void }) {
   const [to, setTo] = useState("");
   const [notes, setNotes] = useState("");
+  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -178,7 +179,7 @@ function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: 
     try {
       const res = await fetch("/api/leads-crm/transfer", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.id, fromUserId: lead.counsellor?.id, toUserId: to, notes: notes.trim(), leadName: lead.name }),
+        body: JSON.stringify({ leadId: lead.id, fromUserId: lead.counsellor?.id, toUserId: to, notes: notes.trim(), leadName: lead.name, confirm }),
       });
       const j = await res.json();
       if (!res.ok) { setErr((j?.missing ? j.missing.join(", ") : j?.error) || "Could not raise the transfer."); return; }
@@ -201,9 +202,9 @@ function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: 
           <Label className="mt-3">Reason</Label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why is this moving? — goes into the transfer note."
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
-          <Hint />
+          <ConfirmToggle checked={confirm} onChange={setConfirm} />
           {err && <div className="text-[12.5px] text-red-600 mt-2">{err}</div>}
-          <Actions onClose={onClose} onSubmit={submit} busy={busy} label="Reassign" />
+          <Actions onClose={onClose} onSubmit={submit} busy={busy} label={confirm ? "Reassign & confirm" : "Reassign"} />
         </>
       )}
     </ModalShell>
@@ -214,6 +215,7 @@ function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: 
 function BulkReassignModal({ leads, roster, onClose, onDone }: { leads: Lead[]; roster: Roster[]; onClose: () => void; onDone: () => void }) {
   const [to, setTo] = useState("");
   const [notes, setNotes] = useState("");
+  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -226,7 +228,7 @@ function BulkReassignModal({ leads, roster, onClose, onDone }: { leads: Lead[]; 
     try {
       const res = await fetch("/api/leads-crm/transfer", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds: leads.map((l) => l.id), toUserId: to, notes: notes.trim() }),
+        body: JSON.stringify({ leadIds: leads.map((l) => l.id), toUserId: to, notes: notes.trim(), confirm }),
       });
       const j = await res.json();
       if (!res.ok && !j?.requested) { setErr((j?.missing ? j.missing.join(", ") : j?.error) || "Could not raise the transfers."); return; }
@@ -252,9 +254,9 @@ function BulkReassignModal({ leads, roster, onClose, onDone }: { leads: Lead[]; 
           <Label className="mt-3">Reason</Label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why are these moving? — goes into each transfer note."
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
-          <Hint />
+          <ConfirmToggle checked={confirm} onChange={setConfirm} plural />
           {err && <div className="text-[12.5px] text-red-600 mt-2">{err}</div>}
-          <Actions onClose={onClose} onSubmit={submit} busy={busy} label={`Reassign ${leads.length}`} />
+          <Actions onClose={onClose} onSubmit={submit} busy={busy} label={confirm ? `Reassign & confirm ${leads.length}` : `Reassign ${leads.length}`} />
         </>
       )}
     </ModalShell>
@@ -332,7 +334,20 @@ function ModalShell({ icon, title, sub, children, onClose }: { icon: React.React
   );
 }
 const Label = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => <label className={`block text-[12.5px] font-medium text-[#232D42] mb-1 ${className}`}>{children}</label>;
-const Hint = () => <div className="text-[11.5px] text-[#8A92A6] mt-2">This raises a transfer request — the lead moves once it&apos;s confirmed in Airtable / n8n, not instantly.</div>;
+// Confirm now → sets Confirm Transfer on the request so the 20-min automation moves
+// the lead(s) without anyone opening Airtable. Unticked = parked for a manual review.
+function ConfirmToggle({ checked, onChange, plural = false }: { checked: boolean; onChange: (v: boolean) => void; plural?: boolean }) {
+  const it = plural ? "leads move" : "lead moves";
+  return (
+    <label className="flex items-start gap-2 mt-3 cursor-pointer select-none rounded-lg border border-gray-100 bg-[#F6F7FB] px-3 py-2.5">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="accent-[#3A57E8] mt-0.5 cursor-pointer" />
+      <span className="text-[12px] leading-snug">
+        <b className="text-[#232D42]">Confirm now</b> <span className="text-[#3B4457]">— the {it} within ~20 min automatically.</span>
+        <span className="block text-[#8A92A6] mt-0.5">{checked ? "Confirmed: goes straight to the transfer queue." : "Unticked: filed as a request; someone ticks Confirm in Airtable to move it."}</span>
+      </span>
+    </label>
+  );
+}
 const Ok = ({ msg }: { msg: string }) => <div className="mt-4 text-[13px] text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2.5">{msg}</div>;
 function Actions({ onClose, onSubmit, busy, label }: { onClose: () => void; onSubmit: () => void; busy: boolean; label: string }) {
   return (

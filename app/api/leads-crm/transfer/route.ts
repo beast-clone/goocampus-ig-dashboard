@@ -53,8 +53,9 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as {
-      leadId?: string; leadIds?: string[]; toUserId?: string; fromUserId?: string; notes?: string; leadName?: string;
+      leadId?: string; leadIds?: string[]; toUserId?: string; fromUserId?: string; notes?: string; leadName?: string; confirm?: boolean;
     };
+    const confirm = body.confirm === true;
 
     // Bulk path — the Transfer tab hands over a whole selection at once. Each lead
     // still becomes its own Pending row, so a partial failure leaves the rest valid
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
       const actorBulk = getSessionUserId();
       const noteBulk = actorBulk ? `${body.notes!.trim()} — raised by ${actorBulk} via dashboard` : body.notes!.trim();
       const results = await Promise.allSettled(ids.map((id) =>
-        createTransferRequest({ leadRecordId: id, toUserId: body.toUserId!, fromUserId: body.fromUserId || undefined, notes: noteBulk })));
+        createTransferRequest({ leadRecordId: id, toUserId: body.toUserId!, fromUserId: body.fromUserId || undefined, notes: noteBulk, confirm })));
 
       const ok = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected");
@@ -87,7 +88,10 @@ export async function POST(req: Request) {
         failed: failed.length,
         firstError: failed.length ? String((failed[0] as PromiseRejectedResult).reason).slice(0, 200) : null,
         pending: true,
-        message: `${ok} transfer request${ok === 1 ? "" : "s"} raised. They move once the Airtable/n8n step runs.`,
+        confirmed: confirm,
+        message: confirm
+          ? `${ok} transfer${ok === 1 ? "" : "s"} confirmed — the leads move within ~20 minutes.`
+          : `${ok} transfer request${ok === 1 ? "" : "s"} raised. Tick Confirm in Airtable (or confirm from here) to move them.`,
       }, { status: failed.length && !ok ? 502 : 200 });
     }
 
@@ -117,6 +121,7 @@ export async function POST(req: Request) {
       toUserId: body.toUserId!,
       fromUserId: body.fromUserId || undefined,
       notes,
+      confirm,
     });
 
     return NextResponse.json({
@@ -124,7 +129,10 @@ export async function POST(req: Request) {
       id: result.id,
       requestId: result.requestId ?? null,
       pending: true,
-      message: "Transfer requested. It moves once someone ticks Confirm Transfer in Airtable.",
+      confirmed: confirm,
+      message: confirm
+        ? "Transfer confirmed — the lead moves within ~20 minutes."
+        : "Transfer requested. Tick Confirm in Airtable (or confirm from here) to move it.",
     });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not raise the transfer request"), { status: 502 });
