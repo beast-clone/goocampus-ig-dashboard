@@ -246,8 +246,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
                   the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[80px] px-3"], ["Captured", "w-[100px] px-3"], ["Name", "px-3"],
-                ["Phone", "w-[144px] px-3"], ["Status", "w-[184px] px-3"], ["Notes", "w-[300px] px-3"], ["WhatsApp", "w-[96px] pl-3 pr-5"],
+                ["Lead ID", "w-[80px] px-3"], ["Captured", "w-[100px] px-3"], ["Name", "w-[260px] px-3"],
+                ["Phone", "w-[144px] px-3"], ["Status", "w-[184px] px-3"], ["Notes", "px-3"], ["WhatsApp", "w-[96px] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
@@ -300,7 +300,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         rows={1}
                         placeholder="Add a note…"
                         onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
-                        className="w-full resize-y px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] leading-snug text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
+                        className="w-full resize-y px-2.5 py-1.5 rounded-lg bg-white text-[12.5px] leading-snug text-[#232D42] border border-gray-200 hover:border-gray-300 focus:border-brand focus:outline-none placeholder:text-[#C9CDD8]"
                       />
                     ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt>}
                   </td>
