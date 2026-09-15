@@ -342,6 +342,11 @@ export type LiveAd = {
   destination: string | null;
   offPixel: boolean;          // leaves Meta AND lands somewhere the pixel isn't
   thumbnail: string | null;
+  // The day this ad actually began delivering: the LATER of when the ad was
+  // created and when its ad set's flight opened. Taking either alone misreports
+  // it — MTE Vadodara's ad set opened 25 Aug but that ad was only built on 1 Sep,
+  // so it cannot have run for the week in between.
+  startedAt: string | null;
   spend: number; reach: number; impressions: number; leads: number; clicks: number; ctr: number;
   costPerLead: number; costPerClick: number;
 };
@@ -364,9 +369,9 @@ function destinationHost(spec: StorySpec | undefined): string | null {
 
 export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: string): Promise<LiveAd[]> {
   const [cfg, perf] = await Promise.all([
-    gget<{ data: { id: string; name: string; adset?: { name?: string; end_time?: string }; campaign?: { name?: string; objective?: string }; creative?: { thumbnail_url?: string; object_story_spec?: StorySpec } }[] }>(
+    gget<{ data: { id: string; name: string; created_time?: string; adset?: { name?: string; start_time?: string; end_time?: string }; campaign?: { name?: string; objective?: string }; creative?: { thumbnail_url?: string; object_story_spec?: StorySpec } }[] }>(
       `${acct.id}/ads`, acct.token, {
-        fields: "id,name,adset{name,end_time},campaign{name,objective},creative{thumbnail_url,object_story_spec}",
+        fields: "id,name,created_time,adset{name,start_time,end_time},campaign{name,objective},creative{thumbnail_url,object_story_spec}",
         filtering: JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE"] }]),
         limit: "200",
       }),
@@ -386,6 +391,13 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
   // ever while delivering nothing. A boosted Instagram post whose run ended on
   // 2026-07-09 was still listed as live months later on ₹0 spend. Meta itself
   // offers no "finished" status, so the end date is what has to be checked.
+  const day = (v?: string) => (v ? v.slice(0, 10) : "");
+  const startOf = (a: { created_time?: string; adset?: { start_time?: string } }) => {
+    const made = day(a.created_time);
+    const flight = day(a.adset?.start_time);
+    const later = made > flight ? made : flight;     // ISO dates compare as strings
+    return later || null;
+  };
   const now = Date.now();
   const ended = (a: { adset?: { end_time?: string } }) => {
     const end = a.adset?.end_time;
@@ -410,6 +422,7 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
         destination,
         offPixel: !!destination && !PIXEL_TRACKED_DOMAINS.includes(destination),
         thumbnail: a.creative?.thumbnail_url || null,
+        startedAt: startOf(a),
         spend,
         reach: parseInt(p?.reach || "0", 10),
         impressions: parseInt(p?.impressions || "0", 10),

@@ -112,9 +112,23 @@ type LiveAd = {
   ad_id: string; ad_name: string; campaign_name: string; adset_name: string;
   objective: string | null; destination: string | null; offPixel: boolean;
   thumbnail: string | null;
+  startedAt: string | null;          // YYYY-MM-DD the ad began delivering
   spend: number; reach: number; impressions: number; leads: number; clicks: number; ctr: number;
   costPerLead: number; costPerClick: number;
 };
+
+// "12 Aug · 34d" — the date answers when, the age answers how long, and how long
+// is usually the actual question when you are looking at a list of running ads.
+function startedLabel(iso: string | null): { date: string; age: string } | null {
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return null;
+  const days = Math.max(0, Math.round((Date.now() - d.getTime()) / 86_400_000));
+  return {
+    date: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    age: days === 0 ? "today" : days === 1 ? "1d" : `${days}d`,
+  };
+}
 
 // Which number actually judges a campaign depends on what it was set up to do.
 // Printing "0 leads" against a clicks campaign reads as failure when leads were
@@ -472,8 +486,13 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
         // reports 0 because Meta never sees the signup — flag it as unmeasured
         // rather than letting it read as a dead campaign.
         const untracked = goal === "leads" && leads === 0 && list.some((x) => x.offPixel);
+        // Earliest of its running ads — when this campaign last started putting
+        // something in front of people, which is not the same as when the
+        // campaign object was created.
+        const starts = list.map((x) => x.startedAt).filter((x): x is string => !!x).sort();
         return {
           name, ads: [...list].sort((x, y) => y.spend - x.spend),
+          startedAt: starts[0] || null,
           spend, leads, clicks, goal, count, untracked,
           destination: list.find((x) => x.destination)?.destination || null,
           costPer: count > 0 ? spend / count : 0,
@@ -553,6 +572,10 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                       {g.ads.length} {g.ads.length === 1 ? "ad" : "ads"} live
                       <span className="text-gray-300"> · </span>
                       {g.goal === "clicks" ? "optimised for clicks" : "optimised for leads"}
+                      {(() => {
+                        const st = startedLabel(g.startedAt);
+                        return st ? <><span className="text-gray-300"> · </span>running {st.age} (since {st.date})</> : null;
+                      })()}
                       {g.destination && <><span className="text-gray-300"> · </span>{g.destination}</>}
                     </div>
                   </div>
@@ -590,6 +613,15 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                             : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={15} stroke={1.6} /></div>}
                         </div>
                         <div className="min-w-0 flex-1 text-[12.5px] text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
+                        {(() => {
+                          const st = startedLabel(a.startedAt);
+                          return (
+                            <div className="hidden md:block w-28 flex-shrink-0 text-[11.5px] text-[#8A92A6] tabular-nums"
+                              title={a.startedAt ? `Started ${a.startedAt}` : "Start date unavailable"}>
+                              {st ? <>{st.date} <span className="text-[#C9CDD8]">· {st.age}</span></> : "—"}
+                            </div>
+                          );
+                        })()}
                         <div className="hidden sm:block text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtINR(a.spend)}</div>
                         {(() => {
                           // Same goal as its campaign, so the columns line up.
