@@ -170,7 +170,7 @@ function Ads({ range }: { range: { from: string; to: string } }) {
     }
   }, [data, isLoading]);
 
-  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
+  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />;
 
   if (loading && !data) return <>{live}<div className="text-sm text-gray-500">Loading ads data…</div></>;
   if (error) return <>{live}<div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg">Error: {error.message}</div></>;
