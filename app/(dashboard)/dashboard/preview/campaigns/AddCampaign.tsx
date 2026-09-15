@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { IconTable, IconX, IconAlertTriangle, IconCheck, IconPlus } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { ColumnChooser, type ColumnPrefs } from "./ColumnChooser";
 
 type Tab = { title: string; rows: number; columns: number };
 type Dup = { value: string; count: number };
@@ -51,6 +52,7 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
   const [map, setMap] = useState<Partial<Record<FieldKey, string>>>({});
   const [newCol, setNewCol] = useState("");
   const [addingCol, setAddingCol] = useState(false);
+  const [colPrefs, setColPrefs] = useState<ColumnPrefs>({ order: [], hidden: [] });
 
   const post = async (body: unknown) => {
     const r = await fetch("/api/campaigns/sheet", {
@@ -120,6 +122,7 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
           statusColumn: map.status || null,
           notesColumn: map.notes || null,
           communityColumn: map.community || null,
+          columnPrefs: colPrefs,
         }),
       });
       const d = await r.json();
@@ -256,7 +259,20 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
                     </div>
                   ))}
                 </div>
-                <div className="px-3 pb-3 flex items-center gap-2">
+                {/* The rest of the sheet rides along read-only. Decide here which of
+                    them are worth a column, rather than importing a dozen and
+                    finding out later. */}
+                {cols.headers.filter((h) => !isMapped(h, map, keyColumn)).length > 0 && (
+                  <div className="px-3 pb-1">
+                    <div className="text-[11px] font-medium text-[#8A92A6] mb-1.5">
+                      Everything else in the sheet — shown beside the lead, read-only
+                    </div>
+                    <ColumnChooser all={cols.headers.filter((h) => !isMapped(h, map, keyColumn))}
+                      prefs={colPrefs} onChange={setColPrefs} />
+                  </div>
+                )}
+
+                <div className="px-3 pb-3 pt-3 flex items-center gap-2">
                   <input value={newCol} onChange={(e) => setNewCol(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && newCol.trim()) { e.preventDefault(); addColumn(); } }}
                     placeholder="Missing one? Name it — e.g. Notes"
@@ -305,4 +321,13 @@ function guessMap(headers: string[]): Partial<Record<FieldKey, string>> {
 function autoAssign(header: string, current: Partial<Record<FieldKey, string>>) {
   const f = FIELDS.find((f) => f.re.test(header) && !current[f.key]);
   return f ? { [f.key]: header } : {};
+}
+
+/** A header already spoken for by the mapping (or the key) isn't an "other" column. */
+function isMapped(header: string, map: Partial<Record<FieldKey, string>>, keyColumn: string) {
+  if (header === keyColumn) return true;
+  // Last Name is already part of the name shown in the list, so it is not a
+  // spare column — the lead table joins it on.
+  if (/^last\s*name$/i.test(header)) return true;
+  return Object.values(map).includes(header);
 }

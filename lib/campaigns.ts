@@ -53,6 +53,8 @@ export type CampaignConfig = {
    * it from the list without touching the rows that still hold it.
    */
   hiddenStatuses?: string[];
+  /** Which of the sheet's other columns to show beside the lead, and in what order. */
+  columnPrefs?: { order: string[]; hidden: string[] } | null;
   createdAt: string;
   createdBy: string | null;
 };

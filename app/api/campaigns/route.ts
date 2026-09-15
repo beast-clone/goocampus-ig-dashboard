@@ -81,6 +81,12 @@ export async function POST(req: Request) {
       statusColumn: b.statusColumn ?? null,
       notesColumn: b.notesColumn ?? null,
       communityColumn: b.communityColumn ?? null,
+      columnPrefs: b.columnPrefs && typeof b.columnPrefs === "object"
+        ? {
+            order: Array.isArray(b.columnPrefs.order) ? b.columnPrefs.order.map(String) : [],
+            hidden: Array.isArray(b.columnPrefs.hidden) ? b.columnPrefs.hidden.map(String) : [],
+          }
+        : null,
       // Statuses hidden from the dropdown — the sheet column keeps them.
       hiddenStatuses: Array.isArray(b.hiddenStatuses)
         ? b.hiddenStatuses.map((v) => String(v)).filter(Boolean).slice(0, 100)

@@ -1,15 +1,16 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch } from "@tabler/icons-react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconColumns } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
+import { ColumnChooser, applyPrefs, type ColumnPrefs } from "./ColumnChooser";
 
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; community: string | null; communityValue: string; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; columnMap?: Record<string, string>; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; columnMap?: Record<string, string>; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null; columnPrefs?: ColumnPrefs | null };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -45,6 +46,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Opens on the leads nobody has touched yet. A caller coming back the next day
   // should not have to scroll past 150 finished rows to find the next call.
   const [todoOnly, setTodoOnly] = useState(true);
+  const [choosingCols, setChoosingCols] = useState(false);
 
   const load = useCallback(() => {
     setData(null);
@@ -239,7 +241,18 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // was being dropped because it wasn't one of the six the dashboard writes to.
   const usedCols = new Set([campaign.keyColumn, nameCol, firstName, lastName, phoneCol, timeCol,
     writable.status, writable.notes, writable.community].filter(Boolean) as string[]);
-  const extraCols = headers.filter((h) => !usedCols.has(h));
+  const allExtras = headers.filter((h) => !usedCols.has(h));
+  const prefs: ColumnPrefs = campaign.columnPrefs || { order: [], hidden: [] };
+  const extraCols = applyPrefs(allExtras, prefs);
+
+  const saveColumnPrefs = async (next: ColumnPrefs) => {
+    if (!data) return;
+    setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, columnPrefs: next } }));
+    await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, columnPrefs: next }),
+    });
+  };
 
   const untouched = (l: Lead) => !writable.status || !(l.fields[writable.status] || "").trim();
   const todoCount = leads.filter(untouched).length;
@@ -275,6 +288,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           </span>
           <a href={`https://docs.google.com/spreadsheets/d/${campaign.spreadsheetId}/edit`} target="_blank" rel="noopener noreferrer"
             className="text-[#A6ACBE] hover:text-brand" title="Open the sheet"><IconExternalLink size={15} stroke={1.8} /></a>
+          <button onClick={() => setChoosingCols(true)} title="Choose which of the sheet's columns to show, and in what order"
+            className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
+            <IconColumns size={13} stroke={1.8} /> Columns
+          </button>
           <button onClick={load} title="Re-reads the sheet now. It also re-reads on its own every 2 minutes, so leads added to the sheet turn up here without anyone pressing this."
             className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
             <IconRefresh size={13} stroke={1.8} /> Sync
@@ -362,6 +379,28 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           </button>
         )}
       </div>
+
+      {choosingCols && (
+        <Overlay onClose={() => setChoosingCols(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+            className="mt-[10vh] w-full max-w-[480px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <header className="px-5 py-4 bg-brand-light border-b border-gray-100">
+              <h3 className="text-[15px] font-medium text-[#232D42]">The sheet&rsquo;s other columns</h3>
+              <p className="mt-1 text-[12.5px] text-[#4A5468]">
+                Hide the ones you never look at, and move the one that matters to the front.
+                Nothing is removed from the sheet.
+              </p>
+            </header>
+            <div className="px-5 py-4 max-h-[50vh] overflow-auto">
+              <ColumnChooser all={allExtras} prefs={prefs} onChange={saveColumnPrefs} />
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setChoosingCols(false)}
+                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark">Done</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
 
       {picking && (
         <ColumnPicker
