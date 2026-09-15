@@ -158,9 +158,14 @@ function Radar() {
       {/* Header */}
       <div className="flex items-baseline gap-3 mb-4 flex-wrap">
         <div>
+          {/* The four tiles that used to sit below counted the things directly
+              beneath them — "Brand mentions 10" above the list of 10. One line
+              instead, and Breakouts is gone until there actually is one. */}
           <div className="text-xs text-gray-500">
-            {alerts.filter((a) => a.active).length} active alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} ·{" "}
-            {items.length} headline{items.length === 1 ? "" : "s"} in the last pull
+            <b className="font-semibold text-[#232D42] tabular-nums">{items.length}</b> headline{items.length === 1 ? "" : "s"}
+            {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
+            {trends ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0))}</b> rising search{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0)) === 1 ? "" : "es"}</> : null}
+            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} active
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -187,15 +192,6 @@ function Radar() {
           <button onClick={() => setBanner(null)} className="text-brand/70 hover:text-brand text-sm">×</button>
         </div>
       )}
-
-      {/* Pulse row — at-a-glance stats from real signals (brand mentions first, on top) */}
-      <PulseRow brand={brand} brandLoading={brandLoading} trends={trends} items={items} />
-
-      {/* Keyword & brand search — "what's the internet saying about X" (below the pulse) */}
-      <div id="sec-mentions" className="scroll-mt-24"><KeywordIntel /></div>
-
-      {/* Hero strip — breakouts if any, else the top rising searches */}
-      <div id="sec-rising" className="scroll-mt-24"><BreakoutStrip trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} /></div>
 
       {/* Empty state (no topics tracked yet) */}
       {!loading && alerts.length === 0 && (
@@ -242,10 +238,15 @@ function Radar() {
             )}
           </section>
 
-          {/* RIGHT — rising searches + your-SEO (Brand watch moved up top) */}
+          {/* RIGHT — what people search for, then what they say about us. Both
+              were full-width bands further down the page before, which is what
+              made the layout change shape halfway through. */}
           <aside className="flex flex-col gap-4">
-            <RisingSidebar trends={trends} />
+            <div id="sec-rising" className="scroll-mt-24">
+              <SearchDemand trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} />
+            </div>
             <SeoLanes />
+            <div id="sec-mentions" className="scroll-mt-24"><KeywordIntel /></div>
           </aside>
         </div>
       )}
@@ -574,158 +575,70 @@ function avatarColor(seed: string): string {
   return AV_COLORS[h % AV_COLORS.length];
 }
 
-// Pulse row — four at-a-glance stat tiles built from real signals.
-function PulseRow({ brand, brandLoading, trends, items }: { brand: MentionResult | null; brandLoading?: boolean; trends: TrendsResp | null; items: FeedItem[] }) {
-  const risingCount = trends ? trends.ideas.reduce((s, g) => s + g.ideas.length, 0) : 0;
-  const breakoutCount = trends?.breakouts.length ?? 0;
-  const c = brand?.counts;
-  const total = c?.total ?? 0;
-  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-  const jump = (id: string) => () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-4">
-      {/* brand mentions + sentiment bar → jumps to the mentions list */}
-      <div role="button" tabIndex={0} onClick={jump("sec-mentions")} className="bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5 cursor-pointer hover:border-brand/40 transition">
-        <div className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand"><IconShieldCheck size={15} stroke={1.8} /></span>
-          <span className="text-[11.5px] text-gray-500 font-medium">Brand mentions · 30d</span>
-        </div>
-        {brandLoading && !brand ? (
-          <>
-            <div className="h-6 w-20 bg-gray-100 rounded animate-pulse" />
-            <div className="h-1.5 rounded-full bg-gray-100" />
-            <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
-          </>
-        ) : (<>
-        <div className="text-2xl font-semibold text-[#232D42] leading-none">{total}<span className="text-xs font-medium text-gray-400"> {total === 1 ? "mention" : "mentions"}</span></div>
-        {total > 0 ? (
-          <>
-            <div className="h-1.5 rounded-full flex overflow-hidden bg-gray-100">
-              <span style={{ width: `${pct(c!.positive)}%`, background: "#1aa053" }} />
-              <span style={{ width: `${pct(c!.neutral)}%`, background: "#8A92A6" }} />
-              <span style={{ width: `${pct(c!.negative)}%`, background: "#c03221" }} />
-            </div>
-            <div className="text-[11px] text-gray-500"><b className="text-[#1aa053]">{c!.positive} pos</b> · {c!.neutral} neu · <b className="text-[#c03221]">{c!.negative} neg</b></div>
-          </>
-        ) : (
-          <div className="text-[11px] text-gray-400">Connect Reddit / Reviews to widen brand coverage</div>
-        )}
-        </>)}
-      </div>
-      {/* rising */}
-      <PulseTile icon={<IconTrendingUp size={15} stroke={1.8} />} tint="#1aa053" bg="rgba(26,160,83,.1)"
-        label="Rising searches" value={risingCount} meta="around your tracked topics" onClick={jump("sec-rising")} />
-      {/* headlines */}
-      <PulseTile icon={<IconNews size={15} stroke={1.8} />} tint="#3a57e8" bg="rgba(58,87,232,.1)"
-        label="Headlines today" value={items.length} meta="from your tracked topics" onClick={jump("sec-headlines")} />
-      {/* breakouts */}
-      <PulseTile icon={<IconFlame size={15} stroke={1.8} />} tint="#f16a1b" bg="rgba(241,106,27,.1)"
-        label="Breakouts" value={breakoutCount} meta="national spikes in your niche" onClick={jump("sec-rising")} />
-    </div>
-  );
-}
-function PulseTile({ icon, tint, bg, label, value, meta, onClick }: { icon: React.ReactNode; tint: string; bg: string; label: string; value: number; meta: string; onClick?: () => void }) {
-  return (
-    <div role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} className={`bg-white rounded-lg border border-gray-100 p-4 flex flex-col gap-2.5${onClick ? " cursor-pointer hover:border-brand/40 transition" : ""}`}>
-      <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: tint, background: bg }}>{icon}</span>
-        <span className="text-[11.5px] text-gray-500 font-medium">{label}</span>
-      </div>
-      <div className="text-2xl font-semibold text-[#232D42] leading-none">{value}</div>
-      <div className="text-[11px] text-gray-400">{meta}</div>
-    </div>
-  );
-}
-
-
-// Hero strip — real Google Trends breakouts when they exist, otherwise the top
-// rising searches, so the strip is never empty and never fabricated.
-function BreakoutStrip({ trends, refreshing, onRefresh }: {
+// The one place rising searches appear.
+//
+// They used to be on the page twice: a four-card "hero strip" mid-page and a
+// chip cloud in the right rail — the same Google Trends data, under the same
+// name, in two shapes, a scroll apart. That duplication was the single most
+// confusing thing on the tab. Breakouts, which the strip showed when they
+// existed, are folded in at the top here instead of getting their own band.
+function SearchDemand({ trends, refreshing, onRefresh }: {
   trends: TrendsResp | null; refreshing: boolean; onRefresh: () => void;
 }) {
-  if (!trends) return null;
-  const hasBreak = trends.breakouts.length > 0;
-  const rising = trends.ideas.flatMap((g) => g.ideas.map((q) => ({ q, seed: g.seed }))).slice(0, 4);
-  if (!hasBreak && rising.length === 0) return null;
+  const breakouts = trends?.breakouts || [];
+  const rising = (trends?.ideas || []).flatMap((g) => g.ideas.map((q) => ({ q, seed: g.seed })));
+  const total = breakouts.length + rising.length;
 
   return (
-    <div className="mb-4">
-      <div className="flex items-center gap-2 mb-2 px-1">
-        {hasBreak ? (
-          <><span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#f16a1b]"><IconFlame size={14} stroke={1.8} /> Breakout this week</span>
-            <span className="text-[11px] text-gray-400">national search breakouts in your niche</span></>
-        ) : (
-          <><span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#1aa053]"><IconTrendingUp size={14} stroke={1.8} /> Rising searches</span>
-            <span className="text-[11px] text-gray-400">what people are searching around your topics — tap to draft</span></>
-        )}
-        <span className="ml-auto text-[10px] text-gray-400">Free · Google Trends + Suggest · {trends.geos.join("/")}</span>
-        <button onClick={onRefresh} disabled={refreshing}
-          className="inline-flex items-center text-brand hover:text-brand-dark disabled:opacity-50" title="Refresh trends">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
+        <span className="w-7 h-7 rounded-lg grid place-items-center bg-brand-light text-brand">
+          <IconTrendingUp size={16} stroke={1.8} />
+        </span>
+        <h3 className="text-sm font-medium text-[#232D42]">People are searching</h3>
+        {total > 0 && <span className="text-[12px] text-[#8A92A6] tabular-nums">{total}</span>}
+        <button onClick={onRefresh} disabled={refreshing} title="Refresh trends"
+          className="ml-auto text-brand hover:text-brand-dark disabled:opacity-50">
           <IconRefresh size={14} stroke={1.8} className={refreshing ? "animate-spin" : ""} />
         </button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {hasBreak
-          ? trends.breakouts.slice(0, 4).map((b) => (
-            <div key={`${b.geo}-${b.title}`} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-brand/30 transition flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#f16a1b] bg-[#f16a1b]/10 px-2 py-0.5 rounded-full"><IconFlame size={12} stroke={2} /> {b.traffic}</span>
-                <span className="text-[10px] text-gray-500">{b.geo}</span>
-              </div>
-              <div className="text-sm font-medium text-gray-900 capitalize leading-snug">{b.title}</div>
-              {b.articles[0] && <div className="text-[11px] text-gray-500 line-clamp-2">{b.articles[0].title}</div>}
+
+      {!trends ? (
+        <div className="px-4 py-3 text-[12px] text-[#8A92A6]">Loading rising searches…</div>
+      ) : total === 0 ? (
+        <div className="px-4 py-3 text-[12px] text-[#8A92A6]">Nothing rising around your topics right now.</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {breakouts.slice(0, 3).map((b) => (
+            <div key={`${b.geo}-${b.title}`} className="flex items-center gap-2.5 px-4 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium text-[#232D42] capitalize truncate" title={b.title}>{b.title}</span>
+                <span className="block text-[11px] text-[#8A92A6]">{b.geo} · {b.traffic}</span>
+              </span>
+              <span className="text-[10px] font-medium text-[#f16a1b] bg-[#f16a1b]/10 rounded-full px-2 py-0.5 inline-flex items-center gap-1 shrink-0">
+                <IconFlame size={11} stroke={2} /> Breakout
+              </span>
               <Link href={draftFromQuery(b.title, `Trending breakout: ${b.title}\nRegion: ${b.geo}`)}
-                className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"><IconPencil size={13} stroke={1.8} /> Turn into post</Link>
-            </div>
-          ))
-          : rising.map((r) => (
-            <div key={r.q} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-brand/30 transition flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1aa053] bg-[#1aa053]/10 px-2 py-0.5 rounded-full"><IconTrendingUp size={12} stroke={2} /> Rising</span>
-                <span className="text-[10px] text-gray-500 truncate">{r.seed}</span>
-              </div>
-              <div className="text-sm font-medium text-gray-900 leading-snug capitalize">{r.q}</div>
-              <Link href={draftFromQuery(r.q, `Trending search idea: ${r.q}\nSource: Google Suggest (rising around "${r.seed}")`)}
-                className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"><IconPencil size={13} stroke={1.8} /> Turn into post</Link>
+                className="text-[11.5px] font-medium text-brand hover:underline shrink-0">Draft</Link>
             </div>
           ))}
-      </div>
-    </div>
-  );
-}
-
-// Sidebar: real rising searches grouped by the topics you track.
-function RisingSidebar({ trends }: { trends: TrendsResp | null }) {
-  const groups = trends?.ideas || [];
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
-        <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#6f42c1", background: "rgba(111,66,193,.12)" }}><IconTrendingUp size={16} stroke={1.8} /></span>
-        <h3 className="text-sm font-medium text-[#232D42]">Rising searches</h3>
-        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">Google Trends</span>
-      </div>
-      <div className="p-3">
-        {groups.length === 0 ? (
-          <div className="text-xs text-gray-500 px-1 py-2">Loading rising searches…</div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {groups.map((g) => (
-              <div key={g.seed}>
-                <div className="text-[11px] font-medium text-gray-500 mb-1.5">{g.seed}</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {g.ideas.slice(0, 6).map((q) => (
-                    <Link key={q}
-                      href={draftFromQuery(q, `Trending search idea: ${q}\nSource: Google Suggest (rising around "${g.seed}")`)}
-                      className="text-[11px] bg-gray-50 hover:bg-brand-light text-gray-700 hover:text-brand border border-gray-100 hover:border-brand/30 px-2 py-1 rounded-full transition">
-                      {q}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+          {rising.slice(0, 8).map((r) => (
+            <div key={`${r.seed}-${r.q}`} className="flex items-center gap-2.5 px-4 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] text-[#232D42] truncate" title={r.q}>{r.q}</span>
+                <span className="block text-[11px] text-[#A6ACBE] truncate">around {r.seed}</span>
+              </span>
+              <Link href={draftFromQuery(r.q, `Trending search idea: ${r.q}\nSource: Google Suggest (rising around "${r.seed}")`)}
+                className="text-[11.5px] font-medium text-brand hover:underline shrink-0">Draft</Link>
+            </div>
+          ))}
+        </div>
+      )}
+      {trends && (
+        <div className="px-4 py-2 border-t border-gray-100 bg-[#FCFCFE] text-[10.5px] text-[#A6ACBE]">
+          Free · Google Trends + Suggest · {trends.geos.join("/")}
+        </div>
+      )}
     </div>
   );
 }
