@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { IconSearch, IconUserShare, IconExternalLink, IconX, IconLoader2, IconUsersGroup } from "@tabler/icons-react";
 import { LiveWaiting } from "./LiveWaiting";
 
@@ -157,6 +158,7 @@ export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
                   <td className="px-3 py-2.5 whitespace-nowrap">{poolMode ? <LiveWaiting createdAt={l.createdIso} /> : <span className={l.idleDays > 7 ? "text-red-600 font-medium" : "text-gray-500"}>{l.idleDays}d</span>}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-2">
+                      <WhatsAppSend phone={l.phone} name={l.name} compact />
                       <a href={l.link} target="_blank" rel="noopener noreferrer" title="Open in Airtable" className="text-gray-400 hover:text-brand"><IconExternalLink size={16} stroke={1.8} /></a>
                       <button onClick={() => setReassign(l)} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brand border border-[#E9ECFB] rounded-lg px-2.5 py-1.5 hover:bg-brand-light"><IconUserShare size={14} stroke={1.8} /> Reassign</button>
                     </div>
