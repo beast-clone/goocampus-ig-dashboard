@@ -74,6 +74,7 @@ function Radar() {
   const [banner, setBanner] = useState<string | null>(null);
   // In-app reader — set to an item when the user clicks a headline.
   const [readerItem, setReaderItem] = useState<FeedItem | null>(null);
+  const [showAllNews, setShowAllNews] = useState(false);
   // Free trend signals (Google Trends RSS breakouts + autocomplete ideas).
   const [trends, setTrends] = useState<TrendsResp | null>(null);
   const [trendsRefreshing, setTrendsRefreshing] = useState(false);
@@ -126,6 +127,18 @@ function Radar() {
   }, [activeInterest]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Flagged stories first — a closing deadline is worth more than something
+  // published an hour ago — then newest within each tier. Collapsed to the first
+  // few because 31 headlines is a wall; the count on the button says what is
+  // hidden rather than making you guess.
+  const newsOrdered = useMemo(
+    () => [...items].sort((a, b) =>
+      rankOf(a) - rankOf(b) ||
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()),
+    [items],
+  );
+  const newsShown = showAllNews ? newsOrdered : newsOrdered.slice(0, NEWS_PREVIEW);
 
   async function refreshAll() {
     setRefreshing(true);
@@ -228,11 +241,21 @@ function Radar() {
                 </button>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
-                {items.map((it) => (
-                  <FeedRow key={it.id} item={it} onRead={() => setReaderItem(it)} />
-                ))}
-              </ul>
+              <>
+                <ul className="divide-y divide-gray-100">
+                  {newsShown.map((it) => (
+                    <FeedRow key={it.id} item={it} onRead={() => setReaderItem(it)} />
+                  ))}
+                </ul>
+                {items.length > NEWS_PREVIEW && (
+                  <button onClick={() => setShowAllNews((v) => !v)}
+                    className="w-full text-left px-5 py-2.5 border-t border-gray-100 bg-[#FCFCFE] text-[12.5px] font-medium text-brand hover:bg-brand-light/40">
+                    {showAllNews
+                      ? "Show fewer"
+                      : `Show all ${items.length} headlines — ${items.length - NEWS_PREVIEW} more`}
+                  </button>
+                )}
+              </>
             )}
           </section>
 
@@ -284,6 +307,57 @@ function sbuFor(interest: string): string {
   if (i.includes("australia")) return "Australia-PGCP";
   if (i.includes("neet")) return "NEET PG";
   return "General Content";
+}
+
+// Which headlines to put first, and why.
+//
+// Deliberately a fixed rule, not a model: it costs nothing, gives the same
+// answer twice, and — because each flag carries the word that triggered it —
+// you can see why a story was raised and tell me the rule is wrong. A ranking
+// you cannot interrogate is worse than no ranking on a page people act from.
+//
+// A deadline beats freshness: "correction window closes today" matters more than
+// something published an hour ago, because missing it costs the audience
+// something real.
+const NEWS_PREVIEW = 6;
+
+const DEADLINE_WORDS = [
+  "today", "tomorrow", "last chance", "last date", "deadline", "closes", "closing",
+  "ends", "ending", "extended", "final call", "window opens", "opens today",
+  "released", "out now", "declared", "starts today",
+];
+
+type Flag = { label: string; why: string; tone: "urgent" | "new" | "watch" };
+
+function flagFor(item: FeedItem, sentiment: "positive" | "negative" | "neutral"): Flag | null {
+  // Title only, not the snippet. Matching body text flagged six stories out of
+  // six — "released" and "ending" turned up mid-paragraph in articles with no
+  // deadline at all — and a badge on everything highlights nothing. A headline
+  // is written to signal urgency; body prose is not.
+  const hay = item.title.toLowerCase();
+  const hit = DEADLINE_WORDS.find((w) => hay.includes(w));
+  if (hit) return { label: "Time-sensitive", why: `mentions “${hit}”`, tone: "urgent" };
+
+  const ageH = (Date.now() - new Date(item.publishedAt).getTime()) / 3_600_000;
+  if (ageH <= 24) return { label: "New today", why: "published in the last 24 hours", tone: "new" };
+
+  // Something negative about this industry is worth seeing early even when it is
+  // not urgent — it tends to be what people ask about.
+  if (sentiment === "negative") return { label: "Negative", why: "negative coverage in your field", tone: "watch" };
+  return null;
+}
+
+const FLAG_STYLE: Record<Flag["tone"], string> = {
+  urgent: "bg-[#FDECEA] text-[#C0392B]",
+  new: "bg-[#E8F6F0] text-[#2F9E6F]",
+  watch: "bg-[#FDF6E7] text-[#B7791F]",
+};
+
+// Flagged first, most urgent first, then newest. Within a tier, recency decides.
+const TIER: Record<string, number> = { urgent: 0, new: 1, watch: 2 };
+function rankOf(item: FeedItem): number {
+  const f = flagFor(item, sentimentOf(`${item.title} ${item.snippet || ""}`));
+  return f ? TIER[f.tone] : 3;
 }
 
 // Raises a real task on the board from a headline, and then points at it.
@@ -421,6 +495,7 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
 
   const src = item.source || item.alertName || "?";
   const sentiment = sentimentOf(`${item.title} ${item.snippet || ""}`);
+  const flag = flagFor(item, sentiment);
 
   return (
     <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
@@ -429,7 +504,15 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
         {src.replace(/^www\./, "").charAt(0).toUpperCase()}
       </span>
       <button type="button" onClick={onRead} className="flex-1 min-w-0 text-left group flex flex-col gap-1">
-        <div className="text-sm font-medium text-[#232D42] group-hover:text-brand leading-snug">{item.title}</div>
+        <div className="text-sm font-medium text-[#232D42] group-hover:text-brand leading-snug">
+          {flag && (
+            <span title={`Flagged because it ${flag.why}`}
+              className={`inline-block align-[2px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full ${FLAG_STYLE[flag.tone]}`}>
+              {flag.label}
+            </span>
+          )}
+          {item.title}
+        </div>
         <div className="flex items-center gap-2 text-[11.5px] text-[#8A92A6] flex-wrap">
           <span className="font-medium text-[#4A5468]">{src}</span>
           <span className="opacity-50">·</span>
