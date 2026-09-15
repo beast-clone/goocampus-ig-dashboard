@@ -34,6 +34,13 @@ export type CampaignConfig = {
   statusColumn?: string | null;
   /** Which column free-text notes are written to. */
   notesColumn?: string | null;
+  /**
+   * Named links offered when composing a WhatsApp message — the community invite,
+   * a brochure, whatever this event needs. Campaign-wide, because the community
+   * link is the same for every lead; the choice of whether to include it is made
+   * per send, by the person sending.
+   */
+  links?: { name: string; url: string }[];
   createdAt: string;
   createdBy: string | null;
 };

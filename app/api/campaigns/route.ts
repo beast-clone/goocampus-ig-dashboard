@@ -80,6 +80,14 @@ export async function POST(req: Request) {
       columnMap: b.columnMap && typeof b.columnMap === "object" ? b.columnMap : {},
       statusColumn: b.statusColumn ?? null,
       notesColumn: b.notesColumn ?? null,
+      // Named links offered when composing a WhatsApp message. http(s) only —
+      // these end up in a message a person sends to a real lead.
+      links: Array.isArray(b.links)
+        ? b.links
+            .map((l) => ({ name: String(l?.name || "").trim().slice(0, 60) || "Link", url: String(l?.url || "").trim() }))
+            .filter((l) => /^https?:\/\//i.test(l.url))
+            .slice(0, 10)
+        : [],
       createdAt: new Date().toISOString(),
       createdBy: getSessionUserId(),
     };

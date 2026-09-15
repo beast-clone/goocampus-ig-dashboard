@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { IconBrandWhatsapp, IconChevronDown, IconAlertTriangle } from "@tabler/icons-react";
+import { IconBrandWhatsapp, IconChevronDown, IconAlertTriangle, IconPlus, IconArrowLeft, IconLink } from "@tabler/icons-react";
 
 // One-click WhatsApp for a lead.
 //
@@ -70,35 +70,60 @@ function normalise(raw: string): { e164: string; suspect: string | null } {
   return { e164, suspect: null };
 }
 
+export type WaLink = { name: string; url: string };
+
 export function WhatsAppSend({
-  phone, name, messages = DEFAULT_MESSAGES, compact,
+  phone, name, messages = DEFAULT_MESSAGES, compact, links, onAddLink,
 }: {
   phone: string;
   name: string;
   messages?: WaMessage[];
   compact?: boolean;
+  /** Named links this campaign can attach — the community invite, a brochure. */
+  links?: WaLink[];
+  /** Saves a new named link on the campaign. Omit it and the link step is skipped. */
+  onAddLink?: (link: WaLink) => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
+  // Which message was chosen, if we are on the "include a link?" step.
+  const [chosen, setChosen] = useState<WaMessage | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState<WaLink>({ name: "Community link", url: "" });
+  const [saving, setSaving] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const { e164, suspect } = normalise(phone);
 
   // Click-away and Escape, so a menu left open on one row doesn't follow you.
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const close = () => { setOpen(false); setChosen(null); setAdding(false); };
+    const onDown = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const send = (m: WaMessage) => {
-    const text = m.body({ name });
+  // The link is appended rather than woven in: a WhatsApp link preview needs the
+  // URL on its own line, and a message whose last line is the link is the one
+  // people actually tap.
+  const compose = (m: WaMessage, link?: WaLink) => {
+    const body = m.body({ name });
+    if (!link) return body;
+    return body ? `${body}\n\n${link.name}: ${link.url}` : link.url;
+  };
+
+  const send = (m: WaMessage, link?: WaLink) => {
+    const text = compose(m, link);
     // web.whatsapp.com on a desktop, the app on a phone — WhatsApp decides.
     const url = `https://wa.me/${e164}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
     window.open(url, "_blank", "noopener");
-    setOpen(false);
+    setOpen(false); setChosen(null); setAdding(false);
   };
+
+  // Only ask about links where links are a thing. Used without onAddLink (the
+  // explainer panel on the campaigns list) it stays a one-click menu.
+  const linkStep = Boolean(onAddLink);
 
   if (!e164) {
     return (
@@ -112,14 +137,17 @@ export function WhatsAppSend({
     <div ref={wrap} className="relative inline-block">
       <button
         type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 rounded-lg border whitespace-nowrap transition-colors ${
-          compact ? "px-2 py-1 text-[11.5px]" : "px-3 py-1.5 text-[12.5px]"
+        aria-label="WhatsApp" title={suspect ? "WhatsApp — check this number first" : "WhatsApp"}
+        className={`inline-flex items-center gap-1 rounded-lg border whitespace-nowrap transition-colors ${
+          compact ? "px-1.5 py-1" : "px-3 py-1.5 text-[12.5px] gap-1.5"
         } ${suspect
           ? "border-[#F0DFB8] bg-[#FDF6E7] text-[#B7791F] hover:border-[#B7791F]"
           : "border-gray-200 text-[#4A5468] hover:border-[#25D366] hover:text-[#128C4A]"}`}
       >
-        <IconBrandWhatsapp size={14} stroke={1.8} className={suspect ? "" : "text-[#25D366]"} />
-        WhatsApp
+        <IconBrandWhatsapp size={compact ? 15 : 14} stroke={1.8} className={suspect ? "" : "text-[#25D366]"} />
+        {/* In the lead table the column header already says WhatsApp, so the word
+            on 172 buttons is width spent twice. */}
+        {!compact && "WhatsApp"}
         <IconChevronDown size={12} stroke={2} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -139,13 +167,85 @@ export function WhatsAppSend({
             </div>
           )}
 
-          {messages.map((m) => (
-            <button key={m.key} onClick={() => send(m)}
+          {!chosen && messages.map((m) => (
+            <button key={m.key} onClick={() => (linkStep ? setChosen(m) : send(m))}
               className="block w-full text-left px-3.5 py-2.5 border-b border-gray-50 last:border-b-0 hover:bg-brand-light">
               <div className="text-[13px] font-medium text-[#232D42]">{m.label}</div>
               <div className="text-[11.5px] text-[#8A92A6] mt-0.5 leading-snug">{m.hint}</div>
             </button>
           ))}
+
+          {/* Step two. The community invite is the same link for everyone, but
+              whether this particular lead gets it is a judgement someone makes at
+              the moment of sending — so it is asked here, not set once. */}
+          {chosen && (
+            <>
+              <button onClick={() => { setChosen(null); setAdding(false); }}
+                className="flex items-center gap-1.5 w-full px-3.5 py-2 text-[11.5px] text-[#8A92A6] hover:text-brand border-b border-gray-50">
+                <IconArrowLeft size={13} stroke={2} /> {chosen.label}
+              </button>
+
+              {compose(chosen) && (
+                <div className="px-3.5 py-2.5 border-b border-gray-50 text-[11.5px] leading-snug text-[#4A5468] whitespace-pre-wrap max-h-24 overflow-auto">
+                  {compose(chosen)}
+                </div>
+              )}
+
+              <div className="px-3.5 pt-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#A6ACBE]">
+                Add a link to it?
+              </div>
+
+              {(links || []).map((l) => (
+                <button key={l.name + l.url} onClick={() => send(chosen, l)}
+                  className="flex items-start gap-2 w-full text-left px-3.5 py-2 hover:bg-brand-light">
+                  <IconLink size={14} stroke={1.9} className="text-[#8A92A6] shrink-0 mt-[2px]" />
+                  <span className="min-w-0">
+                    <span className="block text-[12.5px] font-medium text-[#232D42]">{l.name}</span>
+                    <span className="block text-[11px] text-[#A6ACBE] truncate">{l.url}</span>
+                  </span>
+                </button>
+              ))}
+
+              <button onClick={() => send(chosen)}
+                className="block w-full text-left px-3.5 py-2 text-[12.5px] text-[#4A5468] hover:bg-brand-light">
+                No link — just the message
+              </button>
+
+              {adding ? (
+                <form className="px-3.5 py-2.5 border-t border-gray-100 bg-[#FCFCFE] flex flex-col gap-1.5"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const url = draft.url.trim(), nm = draft.name.trim() || "Link";
+                    if (!url) return;
+                    setSaving(true);
+                    await onAddLink?.({ name: nm, url });
+                    setSaving(false); setAdding(false); setDraft({ name: "Community link", url: "" });
+                  }}>
+                  <input autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                    placeholder="What to call it — e.g. Community link"
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] text-[#232D42] focus:border-brand focus:outline-none" />
+                  <input value={draft.url} onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+                    placeholder="Paste the link"
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] text-[#232D42] focus:border-brand focus:outline-none" />
+                  <div className="flex items-center gap-2">
+                    <button type="submit" disabled={!draft.url.trim() || saving}
+                      className="text-[12px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 disabled:opacity-40">
+                      {saving ? "Saving…" : "Save the link"}
+                    </button>
+                    <button type="button" onClick={() => setAdding(false)} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+                  </div>
+                  <span className="text-[10.5px] text-[#A6ACBE] leading-snug">
+                    Saved on this campaign, so it is here for every lead — you still choose per send.
+                  </span>
+                </form>
+              ) : (
+                <button onClick={() => setAdding(true)}
+                  className="flex items-center gap-1.5 w-full px-3.5 py-2 text-[12px] text-brand hover:bg-brand-light border-t border-gray-100">
+                  <IconPlus size={13} stroke={2} /> Add a link
+                </button>
+              )}
+            </>
+          )}
 
           <div className="px-3.5 py-2 bg-[#FCFCFE] border-t border-gray-100 text-[10.5px] text-[#A6ACBE] leading-snug">
             Nothing sends until you press send in WhatsApp. A link can&apos;t attach a file — the

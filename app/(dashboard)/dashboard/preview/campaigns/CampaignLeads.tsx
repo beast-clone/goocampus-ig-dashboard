@@ -8,7 +8,7 @@ import { WhatsAppSend } from "@/components/WhatsAppSend";
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[] };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -108,6 +108,21 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     if (!r.ok || d.error) { setFailed(d.error || "Couldn't add that column"); return; }
     setPicking(null);
     load();
+  };
+
+  // A named link (the community invite, a brochure) saved on the campaign so it
+  // is offered on every lead. Nothing sends by itself — it only pre-fills.
+  const addLink = async (link: { name: string; url: string }) => {
+    if (!data) return;
+    setFailed(null);
+    const links = [...(data.campaign.links || []).filter((l) => l.name !== link.name), link];
+    const r = await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, links }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) { setFailed(d.error || "Couldn't save that link"); return; }
+    setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, links } }));
   };
 
   // Send the ticked leads to the Sales Hub CRM. One or a hundred — same path,
@@ -219,7 +234,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       <div className="overflow-x-auto">
         {/* table-fixed, or the browser sizes columns by their content and the
               widths below are ignored — which is why Captured sat in a sea of space. */}
-          <table className="w-full min-w-[1080px] table-fixed">
+          <table className="w-full min-w-[980px] table-fixed">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="pl-5 pr-3 py-2.5 w-[46px]">
@@ -231,8 +246,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
                   the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[104px] px-3"], ["Name", "w-[210px] px-3"],
-                ["Phone", "w-[148px] px-3"], ["Status", "w-[196px] px-3"], ["Notes", "px-3"], ["WhatsApp", "w-[140px] pl-3 pr-5"],
+                ["Lead ID", "w-[80px] px-3"], ["Captured", "w-[100px] px-3"], ["Name", "px-3"],
+                ["Phone", "w-[144px] px-3"], ["Status", "w-[184px] px-3"], ["Notes", "w-[300px] px-3"], ["WhatsApp", "w-[96px] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
@@ -274,6 +289,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         onChange={(v) => write(l, writable.status!, v)}
                         placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
                         options={writable.options.map((op) => ({ value: op, label: op }))}
+                        addOption={{ label: "Add a status", onAdd: (v) => write(l, writable.status!, v) }}
                       />
                     ) : <PickPrompt onClick={() => setPicking("status")}>Choose a Status column</PickPrompt>}
                   </td>
@@ -281,14 +297,17 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                     {writable.notes ? (
                       <textarea
                         defaultValue={l.fields[writable.notes] || ""}
-                        rows={2}
+                        rows={1}
                         placeholder="Add a note…"
                         onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
                         className="w-full resize-y px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] leading-snug text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
                       />
                     ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt>}
                   </td>
-                  <td className="pl-3 pr-5 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
+                  <td className="pl-3 pr-5 py-3">
+                    <WhatsAppSend phone={phone} name={fullName(l)} compact
+                      links={campaign.links || []} onAddLink={addLink} />
+                  </td>
                 </tr>
               );
             })}

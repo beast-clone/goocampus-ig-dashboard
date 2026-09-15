@@ -1,18 +1,26 @@
 "use client";
 import { useState } from "react";
-import { IconChevronDown, IconCheck } from "@tabler/icons-react";
+import { IconChevronDown, IconCheck, IconPlus } from "@tabler/icons-react";
 
 // Themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function PreviewSelect({ value, onChange, options, placeholder, disabled, className }: {
+export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, addOption }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; img?: string }[];
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Optional "add your own" row at the foot of the menu. The campaign lead list
+   * needs it: its choices are whatever values already exist in the sheet column,
+   * so a status nobody has used yet can otherwise never be set a first time.
+   */
+  addOption?: { label: string; onAdd: (value: string) => void };
 }) {
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const current = options.find((o) => o.value === value);
   // Optional per-option avatar (e.g. real Instagram profile pictures in the
   // account picker). 20px round thumbnail; absent img just renders text-only.
@@ -29,7 +37,7 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
   const isPlaceholder = !current && !!placeholder;
   return (
     <div className="relative">
-      <button type="button" onClick={() => !disabled && setOpen((o) => !o)} disabled={disabled}
+      <button type="button" onClick={() => { if (!disabled) { setOpen((o) => !o); setShowAdd(false); setAdding(""); } }} disabled={disabled}
         className={`flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-gray-800 ${
           disabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-300"} ${className || ""}`}>
         <Avatar src={current?.img} />
@@ -51,6 +59,29 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
                 {o.value === value && <IconCheck size={14} stroke={2.5} className="text-brand flex-shrink-0" />}
               </button>
             ))}
+            {addOption && (
+              showAdd ? (
+                <form className="flex items-center gap-1 p-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const v = adding.trim();
+                    if (!v) return;
+                    addOption.onAdd(v);
+                    setAdding(""); setShowAdd(false); setOpen(false);
+                  }}>
+                  <input autoFocus value={adding} onChange={(e) => setAdding(e.target.value)}
+                    placeholder="Type it, then Enter"
+                    className="flex-1 min-w-0 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-800 focus:border-brand focus:outline-none" />
+                  <button type="submit" disabled={!adding.trim()}
+                    className="rounded-lg bg-brand text-white px-2 py-1 text-xs disabled:opacity-40">Add</button>
+                </form>
+              ) : (
+                <button type="button" onClick={() => setShowAdd(true)}
+                  className="w-full flex items-center gap-2 text-left rounded-lg px-3 py-1.5 text-xs text-brand hover:bg-brand-light/50 border-t border-gray-100 mt-1 pt-2">
+                  <IconPlus size={13} stroke={2} /> {addOption.label}
+                </button>
+              )
+            )}
           </div>
         </>
       )}
