@@ -244,7 +244,7 @@ function Radar() {
               <>
                 <ul className="divide-y divide-gray-100">
                   {newsShown.map((it) => (
-                    <FeedRow key={it.id} item={it} onRead={() => setReaderItem(it)} />
+                    <FeedRow key={it.id} item={it} onRead={() => setReaderItem(it)} showTopic={activeInterest === "all"} />
                   ))}
                 </ul>
                 {items.length > NEWS_PREVIEW && (
@@ -428,7 +428,7 @@ function rankOf(item: FeedItem): number {
 // the reader used to run the old "generate a draft and walk you to Content
 // Studio" path, which meant the same headline did two different things
 // depending on where you clicked it.
-function MakeTaskButton({ item }: { item: FeedItem }) {
+function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
@@ -474,8 +474,17 @@ function MakeTaskButton({ item }: { item: FeedItem }) {
 
   return (
     <>
+      {/* In the list this is one of six and must not compete with the headlines,
+          so it carries no border and stays muted until you reach for it. It is
+          still always visible — hiding an action until hover strands anyone on a
+          touchscreen or a keyboard. In the reader it is the primary action and
+          keeps its outline. */}
       <button type="button" onClick={() => setPicking(true)} disabled={busy}
-        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
+        className={`shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium px-3 py-1.5 rounded-lg whitespace-nowrap disabled:opacity-60 transition-colors ${
+          quiet
+            ? "text-[#A6ACBE] hover:text-brand hover:bg-brand-light"
+            : "text-brand border border-gray-100 hover:bg-brand-light hover:border-brand/30"
+        }`}>
         <IconSparkles size={13} stroke={1.8} /> {busy ? "Creating…" : "Make content"}
       </button>
 
@@ -542,7 +551,7 @@ function MakeTaskButton({ item }: { item: FeedItem }) {
   );
 }
 
-function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
+function FeedRow({ item, onRead, showTopic }: { item: FeedItem; onRead: () => void; showTopic: boolean }) {
   const router = useRouter();
   const [making, setMaking] = useState(false);
   const relative = useMemo(() => {
@@ -575,19 +584,31 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
           )}
           {item.title}
         </div>
+        {/* Source and age always; the other two only when they carry information.
+            "Neutral" was on roughly twenty of thirty-one rows — it is the default
+            and says nothing — and the topic repeated on every row, entirely so
+            once you had filtered to that topic. */}
         <div className="flex items-center gap-2 text-[11.5px] text-[#8A92A6] flex-wrap">
           <span className="font-medium text-[#4A5468]">{src}</span>
           <span className="opacity-50">·</span>
           <span>{relative}</span>
-          <span className="opacity-50">·</span>
-          <span className="inline-flex items-center gap-1.5" style={{ color: SENT_COLOR[sentiment] }}>
-            <span className="w-[7px] h-[7px] rounded-full" style={{ background: SENT_COLOR[sentiment] }} />{SENT_LABEL[sentiment]}
-          </span>
-          <span className="opacity-50">·</span>
-          <span>{item.primaryInterest}</span>
+          {sentiment !== "neutral" && (
+            <>
+              <span className="opacity-50">·</span>
+              <span className="inline-flex items-center gap-1.5" style={{ color: SENT_COLOR[sentiment] }}>
+                <span className="w-[7px] h-[7px] rounded-full" style={{ background: SENT_COLOR[sentiment] }} />{SENT_LABEL[sentiment]}
+              </span>
+            </>
+          )}
+          {showTopic && (
+            <>
+              <span className="opacity-50">·</span>
+              <span>{item.primaryInterest}</span>
+            </>
+          )}
         </div>
       </button>
-      <MakeTaskButton item={item} />
+      <MakeTaskButton item={item} quiet />
     </li>
   );
 }
