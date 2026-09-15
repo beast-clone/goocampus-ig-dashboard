@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle } from "@tabler/icons-react";
+import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { AddCampaign } from "./AddCampaign";
@@ -28,6 +28,19 @@ function Campaigns() {
   const [data, setData] = useState<Resp | null>(null);
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  // Removing a campaign forgets which sheet it pointed at. The sheet, and every
+  // lead in it, is untouched — which is why this needs a sentence rather than a
+  // scary dialog.
+  const remove = async (c: Campaign) => {
+    if (!window.confirm(`Remove “${c.name}” from the dashboard?\n\nThe Google Sheet and its leads are not touched — only the link to it is forgotten.`)) return;
+    setRemoving(c.id);
+    try {
+      await fetch(`/api/campaigns?id=${encodeURIComponent(c.id)}`, { method: "DELETE", credentials: "same-origin" });
+      setData(null); setReload((n) => n + 1);
+    } finally { setRemoving(null); }
+  };
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -73,7 +86,7 @@ function Campaigns() {
         ) : (
           <ul className="divide-y divide-gray-50">
             {data.campaigns.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className="flex items-center">
                 <button onClick={() => setOpenId(c.id)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-[#FCFCFE] transition">
                 <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center shrink-0">
                   <IconTable size={16} stroke={1.8} />
@@ -84,6 +97,11 @@ function Campaigns() {
                     Sheet tab <span className="font-mono">{c.tab}</span> · read live, nothing stored here
                   </span>
                 </span>
+                </button>
+                <button onClick={() => remove(c)} disabled={removing === c.id}
+                  title="Remove this campaign from the dashboard"
+                  className="shrink-0 mr-4 text-[#C9CDD8] hover:text-[#C0392B] rounded-lg p-1.5 hover:bg-[#FDECEA] disabled:opacity-40">
+                  <IconTrash size={15} stroke={1.8} />
                 </button>
               </li>
             ))}

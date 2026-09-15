@@ -22,15 +22,27 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const [data, setData] = useState<Data | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setData(null);
     fetch(`/api/campaigns/leads?id=${encodeURIComponent(id)}`, { credentials: "same-origin" })
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => { setData(d); setSyncedAt(Date.now()); })
       .catch(() => setData({ campaign: { id, name: "", spreadsheetId: "", tab: "", keyColumn: "" }, headers: [], leads: [], writable: { status: null, notes: null, options: [] }, error: "Couldn't reach the sheet." }));
   }, [id]);
   useEffect(load, [load]);
+
+  // Re-read the sheet every two minutes so someone editing the spreadsheet
+  // directly shows up here without anyone pressing anything. Writes already go
+  // straight out, so this is only the inbound half.
+  //
+  // Paused while the tab is in the background: a list nobody is looking at does
+  // not need polling, and it would burn the Sheets quota all afternoon.
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === "visible") load(); }, 120_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   if (!data) return <Shell onBack={onBack}><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Reading the sheet…</div></Shell>;
 
@@ -46,10 +58,19 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   }
 
   const { campaign, headers, leads, writable } = data;
-  const nameCol = pick(headers, /name/i);
+  // Fixed column order, whatever the sheet calls things: id, when it came in,
+  // who it is, how to reach them, then the two editable fields. Used for DISPLAY
+  // only — nothing is written on the strength of a guessed column.
+  const firstName = pick(headers, /^first\s*name$/i);
+  const lastName = pick(headers, /^last\s*name$/i);
+  const nameCol = firstName || pick(headers, /name/i);
   const phoneCol = pick(headers, /phone|mobile|contact|whats/i);
-  const extraCols = headers.filter((h) =>
-    h !== nameCol && h !== phoneCol && h !== writable.status && h !== writable.notes).slice(0, 2);
+  const timeCol = pick(headers, /capture|created|timestamp|date|time/i);
+  const fullName = (l: Lead) => {
+    const a = (firstName && l.fields[firstName]) || (nameCol && l.fields[nameCol]) || "";
+    const b = (lastName && l.fields[lastName]) || "";
+    return [a, b].filter(Boolean).join(" ").trim() || "—";
+  };
 
   // Which column the dropdown edits is a setting on the campaign, saved so it
   // holds next time. Nothing in the sheet is touched by choosing it.
@@ -91,13 +112,15 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       meta={
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-[#8A92A6]">
-            {leads.length} lead{leads.length === 1 ? "" : "s"} · tab {campaign.tab}
-            {writable.status && <> · editing <b className="font-medium text-[#4A5468]">{writable.status}</b></>}
+            {leads.length} lead{leads.length === 1 ? "" : "s"} from the <b className="font-medium text-[#4A5468]">{campaign.tab}</b> tab
+            {writable.status && <> · Status saves into <b className="font-medium text-[#4A5468]">{writable.status}</b></>}
+            {syncedAt && <> · synced {new Date(syncedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</>}
           </span>
           <a href={`https://docs.google.com/spreadsheets/d/${campaign.spreadsheetId}/edit`} target="_blank" rel="noopener noreferrer"
             className="text-[#A6ACBE] hover:text-brand" title="Open the sheet"><IconExternalLink size={15} stroke={1.8} /></a>
-          <button onClick={load} className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
-            <IconRefresh size={13} stroke={1.8} /> Reload
+          <button onClick={load} title="Re-read the sheet now"
+            className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
+            <IconRefresh size={13} stroke={1.8} /> Sync
           </button>
         </div>
       }
@@ -138,50 +161,52 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         <table className="w-full min-w-[820px]">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
-              {["Lead", ...extraCols, writable.status || "Status", writable.notes || "Notes", "WhatsApp"].map((h, i) => (
-                <th key={h} className={`px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${i === 0 ? "text-left" : "text-left"}`}>{h}</th>
+              {["Lead ID", "Captured", "Lead", "Phone", "Status", "Notes", "WhatsApp"].map((h) => (
+                <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {leads.map((l) => {
-              const name = (nameCol && l.fields[nameCol]) || "—";
               const phone = (phoneCol && l.fields[phoneCol]) || "";
               return (
-                <tr key={l.rowKey || l.sheetRow} className="border-b border-gray-50 last:border-0 hover:bg-[#FCFCFE]">
-                  <td className="px-4 py-2.5">
-                    <div className="text-[13px] font-medium text-[#232D42]">{name}</div>
-                    <div className="text-[11.5px] text-[#8A92A6] tabular-nums">{phone || <span className="text-[#C9CDD8]">no number</span>}</div>
+                <tr key={l.rowKey || l.sheetRow} className="border-b border-gray-50 last:border-0 hover:bg-[#FCFCFE] align-top">
+                  {/* Only here so a row can be traced back to its line in the sheet. */}
+                  <td className="px-4 py-3 text-[11px] text-[#C9CDD8] font-mono whitespace-nowrap" title={l.rowKey}>
+                    {l.rowKey ? l.rowKey.replace(/^l:/, "").slice(-6) : "—"}
                   </td>
-                  {extraCols.map((c) => (
-                    <td key={c} className="px-4 py-2.5 text-[12.5px] text-[#4A5468] max-w-[180px] truncate" title={l.fields[c]}>{l.fields[c] || "—"}</td>
-                  ))}
-                  <td className="px-4 py-2.5 w-[170px]">
+                  <td className="px-4 py-3 text-[12px] text-[#8A92A6] whitespace-nowrap">{(timeCol && l.fields[timeCol]) || "—"}</td>
+                  <td className="px-4 py-3 text-[13px] font-medium text-[#232D42]">{fullName(l)}</td>
+                  <td className="px-4 py-3 text-[12.5px] text-[#4A5468] tabular-nums whitespace-nowrap">
+                    {phone || <span className="text-[#C9CDD8]">no number</span>}
+                  </td>
+                  <td className="px-4 py-3 w-[180px]">
                     {writable.status ? (
                       <PreviewSelect
                         value={l.fields[writable.status] || ""}
                         onChange={(v) => write(l, writable.status!, v)}
                         placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
-                        options={writable.options.map((o) => ({ value: o, label: o }))}
+                        options={writable.options.map((op) => ({ value: op, label: op }))}
                       />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">—</span>}
+                    ) : <span className="text-[12px] text-[#C9CDD8]">pick a column above</span>}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3 min-w-[240px]">
                     {writable.notes ? (
-                      <input
+                      <textarea
                         defaultValue={l.fields[writable.notes] || ""}
+                        rows={2}
                         placeholder="Add a note…"
                         onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
-                        className="w-full min-w-0 px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
+                        className="w-full resize-y px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] leading-snug text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
                       />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">—</span>}
+                    ) : <span className="text-[12px] text-[#C9CDD8]">pick a column above</span>}
                   </td>
-                  <td className="px-4 py-2.5"><WhatsAppSend phone={phone} name={name} compact /></td>
+                  <td className="px-4 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
                 </tr>
               );
             })}
             {leads.length === 0 && (
-              <tr><td colSpan={5 + extraCols.length} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
+              <tr><td colSpan={7} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
             )}
           </tbody>
         </table>
