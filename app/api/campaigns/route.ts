@@ -108,7 +108,11 @@ export async function POST(req: Request) {
       // these end up in a message a person sends to a real lead.
       links: Array.isArray(b.links)
         ? b.links
-            .map((l) => ({ name: String(l?.name || "").trim().slice(0, 60) || "Link", url: String(l?.url || "").trim() }))
+            .map((l) => ({
+              name: String(l?.name || "").trim().slice(0, 60) || "Link",
+              url: String(l?.url || "").trim(),
+              line: String(l?.line || "").trim().slice(0, 140),
+            }))
             .filter((l) => /^https?:\/\//i.test(l.url))
             .slice(0, 10)
         : [],

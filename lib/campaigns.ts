@@ -45,7 +45,7 @@ export type CampaignConfig = {
    * link is the same for every lead; the choice of whether to include it is made
    * per send, by the person sending.
    */
-  links?: { name: string; url: string }[];
+  links?: { name: string; url: string; line?: string }[];
   /**
    * Status values to keep OUT of the dropdown. The choices are whatever is already
    * in the sheet column, and a hand-filled column collects typos and strays —

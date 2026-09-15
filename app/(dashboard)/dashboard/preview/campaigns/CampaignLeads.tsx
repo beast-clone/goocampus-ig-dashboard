@@ -139,7 +139,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
 
   // A named link (the community invite, a brochure) saved on the campaign so it
   // is offered on every lead. Nothing sends by itself — it only pre-fills.
-  const addLink = async (link: { name: string; url: string }) => {
+  const addLink = async (link: { name: string; url: string; line?: string }) => {
     if (!data) return;
     setFailed(null);
     const links = [...(data.campaign.links || []).filter((l) => l.name !== link.name), link];
@@ -338,7 +338,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt> },
     { key: "#whatsapp", label: "WhatsApp", width: 130, cell: (l) => (
       <WhatsAppSend phone={(phoneCol && l.fields[phoneCol]) || ""} name={fullName(l)} compact
-        links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
+        links={waLinks} onAddLink={addLink} onRemoveLink={removeLink} />
     ) },
     // The sheet's own answers, read-only: they are not ours to edit.
     ...allExtras.map((h) => ({
@@ -407,6 +407,15 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const communities: Community[] = campaign.communities?.length
     ? campaign.communities
     : [{ name: "NEET PG community" }];
+
+  // A community with an invite link is a link you would want to send, so it shows
+  // up in the WhatsApp menu without being typed in twice.
+  const waLinks = [
+    ...(campaign.links || []),
+    ...communities
+      .filter((c) => c.link && !(campaign.links || []).some((l) => l.url === c.link))
+      .map((c) => ({ name: c.name, url: c.link!, line: `Join our ${c.name} here:` })),
+  ];
 
   const addToCommunity = async (l: Lead, c: Community) => {
     if (!writable.community) { setPicking("community"); return; }

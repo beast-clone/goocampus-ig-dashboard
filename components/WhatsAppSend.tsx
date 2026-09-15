@@ -70,7 +70,16 @@ function normalise(raw: string): { e164: string; suspect: string | null } {
   return { e164, suspect: null };
 }
 
-export type WaLink = { name: string; url: string };
+export type WaLink = {
+  name: string;
+  url: string;
+  /**
+   * The line that goes in front of the URL. A bare link under a message reads as
+   * a link; "Join our NEET PG community here:" reads as an invitation, and the
+   * difference is whether anyone taps it.
+   */
+  line?: string;
+};
 
 export function WhatsAppSend({
   phone, name, messages = DEFAULT_MESSAGES, compact, links, onAddLink, onRemoveLink,
@@ -93,7 +102,7 @@ export function WhatsAppSend({
   // including the community invite is a per-lead decision, not a setting.
   const [ticked, setTicked] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<WaLink>({ name: "Community link", url: "" });
+  const [draft, setDraft] = useState<WaLink>({ name: "Community link", url: "", line: "" });
   const [saving, setSaving] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const { e164, suspect } = normalise(phone);
@@ -114,7 +123,7 @@ export function WhatsAppSend({
   // people actually tap.
   const compose = (m: WaMessage, chosenLinks: WaLink[] = []) => {
     const body = m.body({ name });
-    const tail = chosenLinks.map((l) => `${l.name}: ${l.url}`).join("\n");
+    const tail = chosenLinks.map((l) => `${l.line?.trim() || `${l.name}:`} ${l.url}`).join("\n");
     if (!tail) return body;
     return body ? `${body}\n\n${tail}` : tail;
   };
@@ -215,7 +224,7 @@ export function WhatsAppSend({
                       <span className="block text-[12.5px] font-medium text-[#232D42] flex items-center gap-1">
                         <IconLink size={12} stroke={1.9} className="text-[#A6ACBE]" />{l.name}
                       </span>
-                      <span className="block text-[11px] text-[#A6ACBE] truncate">{l.url}</span>
+                      <span className="block text-[11px] text-[#A6ACBE] truncate">{l.line?.trim() || `${l.name}:`} {l.url}</span>
                     </span>
                   </label>
                   {onRemoveLink && (
@@ -235,14 +244,17 @@ export function WhatsAppSend({
                     const url = draft.url.trim(), nm = draft.name.trim() || "Link";
                     if (!url) return;
                     setSaving(true);
-                    await onAddLink?.({ name: nm, url });
-                    setSaving(false); setAdding(false); setDraft({ name: "Community link", url: "" });
+                    await onAddLink?.({ name: nm, url, line: draft.line?.trim() || `Join our ${nm} here:` });
+                    setSaving(false); setAdding(false); setDraft({ name: "Community link", url: "", line: "" });
                   }}>
                   <input autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                     placeholder="What to call it — e.g. Community link"
                     className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] text-[#232D42] focus:border-brand focus:outline-none" />
                   <input value={draft.url} onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
                     placeholder="Paste the link"
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] text-[#232D42] focus:border-brand focus:outline-none" />
+                  <input value={draft.line || ""} onChange={(e) => setDraft((d) => ({ ...d, line: e.target.value }))}
+                    placeholder={`What to say — e.g. Join our ${draft.name.trim() || "community"} here:`}
                     className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] text-[#232D42] focus:border-brand focus:outline-none" />
                   <div className="flex items-center gap-2">
                     <button type="submit" disabled={!draft.url.trim() || saving}
