@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle, IconTrash } from "@tabler/icons-react";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { AddCampaign } from "./AddCampaign";
@@ -32,9 +33,11 @@ function Campaigns() {
 
   // Removing a campaign forgets which sheet it pointed at. The sheet, and every
   // lead in it, is untouched — which is why this needs a sentence rather than a
-  // scary dialog.
+  // scary dialog. Asked in our own dialog: window.confirm renders the browser's
+  // grey OS box, which belongs to Chrome, not to this dashboard.
+  const [confirming, setConfirming] = useState<Campaign | null>(null);
   const remove = async (c: Campaign) => {
-    if (!window.confirm(`Remove “${c.name}” from the dashboard?\n\nThe Google Sheet and its leads are not touched — only the link to it is forgotten.`)) return;
+    setConfirming(null);
     setRemoving(c.id);
     try {
       await fetch(`/api/campaigns?id=${encodeURIComponent(c.id)}`, { method: "DELETE", credentials: "same-origin" });
@@ -98,7 +101,7 @@ function Campaigns() {
                   </span>
                 </span>
                 </button>
-                <button onClick={() => remove(c)} disabled={removing === c.id}
+                <button onClick={() => setConfirming(c)} disabled={removing === c.id}
                   title="Remove this campaign from the dashboard"
                   className="shrink-0 mr-4 text-[#C9CDD8] hover:text-[#C0392B] rounded-lg p-1.5 hover:bg-[#FDECEA] disabled:opacity-40">
                   <IconTrash size={15} stroke={1.8} />
@@ -116,6 +119,30 @@ function Campaigns() {
           onClose={() => setAdding(false)}
           onSaved={() => { setAdding(false); setData(null); setReload((n) => n + 1); }}
         />
+      )}
+
+      {confirming && (
+        <Overlay onClose={() => setConfirming(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+            className="mt-[16vh] w-full max-w-[440px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-[15px] font-medium text-[#232D42]">Remove this campaign?</h3>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#4A5468]">
+                <b className="font-medium">{confirming.name}</b> disappears from this tab. The Google Sheet and
+                every lead in it stay exactly as they are — only the link to it is forgotten, and you can add it
+                back with the same sheet.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-5 py-3.5">
+              <button onClick={() => remove(confirming)}
+                className="text-[13px] font-medium bg-[#C0392B] text-white rounded-lg px-4 py-2 hover:bg-[#9E2D21]">
+                Remove it
+              </button>
+              <button onClick={() => setConfirming(null)}
+                className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">Cancel</button>
+            </div>
+          </div>
+        </Overlay>
       )}
     </div>
   );

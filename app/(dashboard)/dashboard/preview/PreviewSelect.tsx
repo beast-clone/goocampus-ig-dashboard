@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import { IconChevronDown, IconCheck, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 
 // Themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, addOption }: {
+export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, addOption, onRemoveOption }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; img?: string }[];
@@ -17,6 +17,8 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
    * so a status nobody has used yet can otherwise never be set a first time.
    */
   addOption?: { label: string; onAdd: (value: string) => void };
+  /** Optional per-option remove (an × on hover). Used to prune a sheet's stray statuses. */
+  onRemoveOption?: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState("");
@@ -52,12 +54,21 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
           <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
             className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto">
             {options.map((o) => (
-              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full flex items-center gap-2 text-left rounded-lg px-3 py-1.5 text-xs ${o.value === value ? "bg-brand-light/50 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-50"}`}>
-                <Avatar src={o.img} />
-                <span className="flex-1">{o.label}</span>
-                {o.value === value && <IconCheck size={14} stroke={2.5} className="text-brand flex-shrink-0" />}
-              </button>
+              <div key={o.value} className={`group flex items-center rounded-lg ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
+                <button type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                  className={`flex-1 min-w-0 flex items-center gap-2 text-left px-3 py-1.5 text-xs ${o.value === value ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                  <Avatar src={o.img} />
+                  <span className="flex-1 truncate">{o.label}</span>
+                  {o.value === value && <IconCheck size={14} stroke={2.5} className="text-brand flex-shrink-0" />}
+                </button>
+                {onRemoveOption && (
+                  <button type="button" title={`Remove “${o.label}” from this list`}
+                    onClick={(e) => { e.stopPropagation(); onRemoveOption(o.value); }}
+                    className="shrink-0 mr-1 p-1 rounded-md text-transparent group-hover:text-[#C9CDD8] hover:!text-[#C0392B] hover:bg-[#FDECEA]">
+                    <IconX size={12} stroke={2.2} />
+                  </button>
+                )}
+              </div>
             ))}
             {addOption && (
               showAdd ? (

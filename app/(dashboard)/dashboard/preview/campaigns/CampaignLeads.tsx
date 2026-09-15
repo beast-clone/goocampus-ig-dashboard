@@ -8,7 +8,7 @@ import { WhatsAppSend } from "@/components/WhatsAppSend";
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[] };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[] };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -130,6 +130,45 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, links } }));
   };
 
+  // Take a value out of the dropdown. The sheet is not touched — a row that still
+  // holds "cofirmed" keeps it until someone changes that row. Hiding a choice and
+  // rewriting 172 cells are different things, and only one of them is reversible.
+  const hideStatus = async (value: string) => {
+    if (!data) return;
+    setFailed(null);
+    const hiddenStatuses = [...new Set([...(data.campaign.hiddenStatuses || []), value])];
+    const r = await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, hiddenStatuses }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) { setFailed(d.error || "Couldn't hide that status"); return; }
+    setData((prev) => prev && ({
+      ...prev,
+      campaign: { ...prev.campaign, hiddenStatuses },
+      writable: { ...prev.writable, options: prev.writable.options.filter((o) => o !== value) },
+    }));
+  };
+
+  const removeLink = async (name: string) => {
+    if (!data) return;
+    const links = (data.campaign.links || []).filter((l) => l.name !== name);
+    setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, links } }));
+    await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, links }),
+    });
+  };
+
+  const restoreStatuses = async () => {
+    if (!data) return;
+    await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, hiddenStatuses: [] }),
+    });
+    load();
+  };
+
   // Send the ticked leads to the Sales Hub CRM. One or a hundred — same path,
   // because doing a hundred one at a time is how people give up on a tool.
   const sendToCrm = async () => {
@@ -222,6 +261,13 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
             ? `Status choices come from what's already in ${writable.status} — ${writable.options.length} of them.`
             : "Until a column is set, nothing can be written back."}
         </span>
+        {/* Hiding a status with no way back would be a trap, so the way back lives
+            here rather than nowhere. */}
+        {(campaign.hiddenStatuses || []).length > 0 && (
+          <button onClick={restoreStatuses} className="text-[11.5px] text-brand hover:text-brand-dark underline decoration-dotted">
+            {campaign.hiddenStatuses!.length} hidden — show them again
+          </button>
+        )}
       </div>
 
       {picking && (
@@ -299,6 +345,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
                         options={writable.options.map((op) => ({ value: op, label: op }))}
                         addOption={{ label: "Add a status", onAdd: (v) => write(l, writable.status!, v) }}
+                        onRemoveOption={hideStatus}
                       />
                     ) : <PickPrompt onClick={() => setPicking("status")}>Choose a Status column</PickPrompt>}
                   </td>
@@ -315,7 +362,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   </td>
                   <td className="pl-3 pr-5 py-3">
                     <WhatsAppSend phone={phone} name={fullName(l)} compact
-                      links={campaign.links || []} onAddLink={addLink} />
+                      links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
                   </td>
                 </tr>
               );

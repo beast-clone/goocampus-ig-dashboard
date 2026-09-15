@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { IconBrandWhatsapp, IconChevronDown, IconAlertTriangle, IconPlus, IconArrowLeft, IconLink } from "@tabler/icons-react";
+import { IconBrandWhatsapp, IconChevronDown, IconAlertTriangle, IconPlus, IconArrowLeft, IconLink, IconX } from "@tabler/icons-react";
 
 // One-click WhatsApp for a lead.
 //
@@ -73,7 +73,7 @@ function normalise(raw: string): { e164: string; suspect: string | null } {
 export type WaLink = { name: string; url: string };
 
 export function WhatsAppSend({
-  phone, name, messages = DEFAULT_MESSAGES, compact, links, onAddLink,
+  phone, name, messages = DEFAULT_MESSAGES, compact, links, onAddLink, onRemoveLink,
 }: {
   phone: string;
   name: string;
@@ -83,10 +83,15 @@ export function WhatsAppSend({
   links?: WaLink[];
   /** Saves a new named link on the campaign. Omit it and the link step is skipped. */
   onAddLink?: (link: WaLink) => Promise<void> | void;
+  /** Forgets a saved link by name. */
+  onRemoveLink?: (name: string) => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
   // Which message was chosen, if we are on the "include a link?" step.
   const [chosen, setChosen] = useState<WaMessage | null>(null);
+  // Which saved links are ticked for THIS send. Reset every time the menu closes:
+  // including the community invite is a per-lead decision, not a setting.
+  const [ticked, setTicked] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<WaLink>({ name: "Community link", url: "" });
   const [saving, setSaving] = useState(false);
@@ -96,7 +101,7 @@ export function WhatsAppSend({
   // Click-away and Escape, so a menu left open on one row doesn't follow you.
   useEffect(() => {
     if (!open) return;
-    const close = () => { setOpen(false); setChosen(null); setAdding(false); };
+    const close = () => { setOpen(false); setChosen(null); setAdding(false); setTicked([]); };
     const onDown = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("mousedown", onDown);
@@ -107,18 +112,21 @@ export function WhatsAppSend({
   // The link is appended rather than woven in: a WhatsApp link preview needs the
   // URL on its own line, and a message whose last line is the link is the one
   // people actually tap.
-  const compose = (m: WaMessage, link?: WaLink) => {
+  const compose = (m: WaMessage, chosenLinks: WaLink[] = []) => {
     const body = m.body({ name });
-    if (!link) return body;
-    return body ? `${body}\n\n${link.name}: ${link.url}` : link.url;
+    const tail = chosenLinks.map((l) => `${l.name}: ${l.url}`).join("\n");
+    if (!tail) return body;
+    return body ? `${body}\n\n${tail}` : tail;
   };
 
-  const send = (m: WaMessage, link?: WaLink) => {
-    const text = compose(m, link);
+  const pickedLinks = (links || []).filter((l) => ticked.includes(l.name));
+
+  const send = (m: WaMessage, chosenLinks: WaLink[] = []) => {
+    const text = compose(m, chosenLinks);
     // web.whatsapp.com on a desktop, the app on a phone — WhatsApp decides.
     const url = `https://wa.me/${e164}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
     window.open(url, "_blank", "noopener");
-    setOpen(false); setChosen(null); setAdding(false);
+    setOpen(false); setChosen(null); setAdding(false); setTicked([]);
   };
 
   // Only ask about links where links are a thing. Used without onAddLink (the
@@ -183,31 +191,42 @@ export function WhatsAppSend({
                 <IconArrowLeft size={13} stroke={2} /> {chosen.label}
               </button>
 
-              {compose(chosen) && (
-                <div className="px-3.5 py-2.5 border-b border-gray-50 text-[11.5px] leading-snug text-[#4A5468] whitespace-pre-wrap max-h-24 overflow-auto">
-                  {compose(chosen)}
+              {/* The message as it will actually arrive, links and all — so nobody
+                  has to guess what pressing the button will put in the chat. */}
+              {compose(chosen, pickedLinks) && (
+                <div className="px-3.5 py-2.5 border-b border-gray-50 text-[11.5px] leading-snug text-[#4A5468] whitespace-pre-wrap break-words max-h-32 overflow-auto">
+                  {compose(chosen, pickedLinks)}
                 </div>
               )}
 
-              <div className="px-3.5 pt-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#A6ACBE]">
-                Add a link to it?
-              </div>
+              {(links || []).length > 0 && (
+                <div className="px-3.5 pt-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#A6ACBE]">
+                  Tick a link to add it
+                </div>
+              )}
 
               {(links || []).map((l) => (
-                <button key={l.name + l.url} onClick={() => send(chosen, l)}
-                  className="flex items-start gap-2 w-full text-left px-3.5 py-2 hover:bg-brand-light">
-                  <IconLink size={14} stroke={1.9} className="text-[#8A92A6] shrink-0 mt-[2px]" />
-                  <span className="min-w-0">
-                    <span className="block text-[12.5px] font-medium text-[#232D42]">{l.name}</span>
-                    <span className="block text-[11px] text-[#A6ACBE] truncate">{l.url}</span>
-                  </span>
-                </button>
+                <div key={l.name + l.url} className="group flex items-start gap-2 px-3.5 py-1.5 hover:bg-[#FCFCFE]">
+                  <label className="flex items-start gap-2 min-w-0 flex-1 cursor-pointer">
+                    <input type="checkbox" checked={ticked.includes(l.name)}
+                      onChange={(e) => setTicked((t) => e.target.checked ? [...t, l.name] : t.filter((n) => n !== l.name))}
+                      className="mt-[3px] w-[13px] h-[13px] accent-[#3A57E8] shrink-0 cursor-pointer" />
+                    <span className="min-w-0">
+                      <span className="block text-[12.5px] font-medium text-[#232D42] flex items-center gap-1">
+                        <IconLink size={12} stroke={1.9} className="text-[#A6ACBE]" />{l.name}
+                      </span>
+                      <span className="block text-[11px] text-[#A6ACBE] truncate">{l.url}</span>
+                    </span>
+                  </label>
+                  {onRemoveLink && (
+                    <button onClick={() => { setTicked((t) => t.filter((n) => n !== l.name)); onRemoveLink(l.name); }}
+                      title={`Forget “${l.name}”`}
+                      className="shrink-0 mt-[2px] p-1 rounded-md text-transparent group-hover:text-[#C9CDD8] hover:!text-[#C0392B] hover:bg-[#FDECEA]">
+                      <IconX size={12} stroke={2.2} />
+                    </button>
+                  )}
+                </div>
               ))}
-
-              <button onClick={() => send(chosen)}
-                className="block w-full text-left px-3.5 py-2 text-[12.5px] text-[#4A5468] hover:bg-brand-light">
-                No link — just the message
-              </button>
 
               {adding ? (
                 <form className="px-3.5 py-2.5 border-t border-gray-100 bg-[#FCFCFE] flex flex-col gap-1.5"
@@ -238,10 +257,20 @@ export function WhatsAppSend({
                 </form>
               ) : (
                 <button onClick={() => setAdding(true)}
-                  className="flex items-center gap-1.5 w-full px-3.5 py-2 text-[12px] text-brand hover:bg-brand-light border-t border-gray-100">
+                  className="flex items-center gap-1.5 w-full px-3.5 py-2 text-[12px] text-brand hover:bg-brand-light">
                   <IconPlus size={13} stroke={2} /> Add a link
                 </button>
               )}
+
+              {/* The actual send. Previously you sent by clicking a link in the
+                  list, which is not a thing anyone would guess. */}
+              <div className="px-3.5 py-3 border-t border-gray-100 bg-[#FCFCFE]">
+                <button onClick={() => send(chosen, pickedLinks)}
+                  className="w-full inline-flex items-center justify-center gap-2 text-[13px] font-medium bg-[#25D366] text-white rounded-lg px-3 py-2 hover:bg-[#1FB457]">
+                  <IconBrandWhatsapp size={16} stroke={1.9} />
+                  Open WhatsApp{pickedLinks.length ? ` with ${pickedLinks.length} link${pickedLinks.length > 1 ? "s" : ""}` : ""}
+                </button>
+              </div>
             </>
           )}
 

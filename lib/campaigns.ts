@@ -41,6 +41,13 @@ export type CampaignConfig = {
    * per send, by the person sending.
    */
   links?: { name: string; url: string }[];
+  /**
+   * Status values to keep OUT of the dropdown. The choices are whatever is already
+   * in the sheet column, and a hand-filled column collects typos and strays —
+   * "cofirmed", "decisioin pending", somebody's phone number. Hiding one removes
+   * it from the list without touching the rows that still hold it.
+   */
+  hiddenStatuses?: string[];
   createdAt: string;
   createdBy: string | null;
 };

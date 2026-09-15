@@ -61,7 +61,9 @@ export async function GET(req: Request) {
       writable: {
         status: statusCol,
         notes: notesCol,
-        options: statusCol ? optionsIn(rows, statusCol) : [],
+        options: statusCol
+          ? optionsIn(rows, statusCol).filter((o) => !(campaign.hiddenStatuses || []).includes(o))
+          : [],
       },
     });
   } catch (err) {

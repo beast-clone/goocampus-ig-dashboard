@@ -80,6 +80,10 @@ export async function POST(req: Request) {
       columnMap: b.columnMap && typeof b.columnMap === "object" ? b.columnMap : {},
       statusColumn: b.statusColumn ?? null,
       notesColumn: b.notesColumn ?? null,
+      // Statuses hidden from the dropdown — the sheet column keeps them.
+      hiddenStatuses: Array.isArray(b.hiddenStatuses)
+        ? b.hiddenStatuses.map((v) => String(v)).filter(Boolean).slice(0, 100)
+        : [],
       // Named links offered when composing a WhatsApp message. http(s) only —
       // these end up in a message a person sends to a real lead.
       links: Array.isArray(b.links)
