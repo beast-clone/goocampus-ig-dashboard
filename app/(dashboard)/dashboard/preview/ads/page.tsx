@@ -152,6 +152,8 @@ function Ads({ range }: { range: { from: string; to: string } }) {
   const loading = isLoading;
   const fetchData = () => { setForceAt(Date.now()); refresh(); };
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  // Which campaign the analyst panel is focused on (null = whole account).
+  const [focusCampaign, setFocusCampaign] = useState<string | null>(null);
 
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -197,14 +199,26 @@ function Ads({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
-      {/* WHAT'S LIVE RIGHT NOW — first thing on the page. Everything below is a
-          date range, which mixes since-paused ads in with running ones; this
-          answers "what is spending my money today" on its own. */}
-      {data.liveAds && <LiveAdsSection ads={data.liveAds} rangeLabel={`${fmtDay(range.from)} – ${fmtDay(range.to)}`} />}
-
-      {/* AI Ads Analyst — summary on top, opens a full report on click */}
-      <div className="mt-4">
-        <AdsAnalyst range={range} />
+      {/* WHAT'S LIVE RIGHT NOW, and the analyst reading it, side by side.
+          Full-width the two stacked to over 1,100px apart, so the advice about a
+          campaign sat a scroll away from the campaign itself. Beside each other,
+          picking a row re-points the analyst at that campaign — which is the
+          question people actually have ("is THIS one worth the money?"), not the
+          account average. Splits only at xl (1280px): at the lg breakpoint the left column was narrow
+          enough to truncate campaign names to "Ope…" and wrap each row over five
+          lines, which is worse than stacking. */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 items-start">
+        {data.liveAds && (
+          <LiveAdsSection
+            ads={data.liveAds}
+            rangeLabel={`${fmtDay(range.from)} – ${fmtDay(range.to)}`}
+            selected={focusCampaign}
+            onSelect={setFocusCampaign}
+          />
+        )}
+        <div className="xl:sticky xl:top-4">
+          <AdsAnalyst range={range} campaign={focusCampaign} onClear={() => setFocusCampaign(null)} />
+        </div>
       </div>
 
       {/* HEADLINE — Total daily budget vs yesterday's actual spend (with delta chip + sparkline).
@@ -432,7 +446,12 @@ function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = 
 // Deliberately plain: a count, then one row per running ad. No deltas, no
 // scoring, no advice — the rest of the page does that. This section only
 // answers "which ads are switched on".
-function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string }) {
+function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
+  ads: LiveAd[]; rangeLabel: string;
+  // Which campaign the analyst panel beside this list is describing.
+  selected?: string | null;
+  onSelect?: (name: string | null) => void;
+}) {
   // Grouped by campaign: 7 campaign rows read at a glance where 26 flat ad rows
   // do not, and the campaign is the level you actually move budget at.
   const groups = useMemo(() => {
@@ -513,10 +532,21 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
             const isOpen = open.has(g.name);
             return (
               <div key={g.name}>
-                <button type="button" onClick={() => toggle(g.name)}
-                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition">
-                  <IconChevronDown size={15} stroke={2}
-                    className={`text-gray-400 flex-shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                {/* The row selects the campaign for the analyst panel; the chevron
+                    alone expands its ads. Two jobs, so they get separate hit areas
+                    rather than one control that guesses which you meant. */}
+                <button type="button"
+                  onClick={() => onSelect?.(selected === g.name ? null : g.name)}
+                  aria-pressed={selected === g.name}
+                  className={`w-full flex items-center gap-3 px-5 py-3 text-left transition ${
+                    selected === g.name ? "bg-brand-light" : "hover:bg-gray-50"
+                  }`}>
+                  <span role="button" tabIndex={-1} aria-label={isOpen ? "Hide ads" : "Show ads"}
+                    onClick={(e) => { e.stopPropagation(); toggle(g.name); }}
+                    className="flex-shrink-0 -m-1 p-1 rounded hover:bg-gray-200/70">
+                    <IconChevronDown size={15} stroke={2}
+                      className={`text-gray-400 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-medium text-[#232D42] truncate" title={g.name}>{g.name}</div>
                     <div className="text-[11.5px] text-gray-500">
@@ -591,11 +621,16 @@ function LiveAdsSection({ ads, rangeLabel }: { ads: LiveAd[]; rangeLabel: string
 // ---------------- AI Ads Analyst ----------------
 type Diag = { key: string; label: string; status: "good" | "warn" | "crit"; evidence: string; fix: string; campaigns: string[] };
 type AnalystData = {
-  totals: { spend: number; campaigns: number; leads: number; avgCPL: number; days: number };
-  best: { name: string; cpl: number } | null;
-  worst: { name: string; cpl: number } | null;
+  // Absent on the single-campaign payload, which carries `stats` instead.
+  totals?: { spend: number; campaigns: number; leads: number; avgCPL: number; days: number };
+  best?: { name: string; cpl: number } | null;
+  worst?: { name: string; cpl: number } | null;
   diagnostics: Diag[];
-  table: { name: string; spend: number; leads: number; cpl: number; vsAvg: number | null; frequency: number; ctr: number }[];
+  table?: { name: string; spend: number; leads: number; cpl: number; vsAvg: number | null; frequency: number; ctr: number }[];
+  // Single-campaign mode.
+  campaign?: string;
+  notRunning?: boolean;
+  stats?: { spend: number; leads: number; cpl: number; vsAvgPct: number | null; liveAvgCPL: number; frequency: number; ctr: number; cpm: number };
   summary: { verdict: string; recommendations: { title: string; detail: string }[] };
   // How many campaigns the advice actually covers, and how many were skipped for
   // being switched off — so the header can say so instead of implying it read all.
@@ -638,12 +673,26 @@ function RecBadge({ n }: { n: number }) {
   return <span className="shrink-0 w-5 h-5 rounded-md bg-brand-light text-brand text-[11px] font-bold flex items-center justify-center mt-px">{n}</span>;
 }
 
-function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
-  const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
+function AdsAnalyst({ range, campaign, onClear }: {
+  range: { from: string; to: string };
+  // When set, the panel describes this one campaign instead of the account.
+  campaign?: string | null;
+  onClear?: () => void;
+}) {
+  const qs = new URLSearchParams({ from: range.from, to: range.to, ...(campaign ? { campaign } : {}) }).toString();
   const { data } = useApi<AnalystData>(`/api/ads/analyst?${qs}`);
   const [open, setOpen] = useState(false);
   const [openDiag, setOpenDiag] = useState<string | null>(null);
   const [openRec, setOpenRec] = useState<number | null>(0);
+  // Selecting a campaign refetches; without this the whole panel vanished for a
+  // second and the layout jumped.
+  if (!data && campaign) {
+    return (
+      <div className="rounded-2xl border-[1.5px] border-brand overflow-hidden h-full" style={{ background: "linear-gradient(180deg,#E9ECFB,#ffffff)" }}>
+        <div className="px-5 py-4 text-[12.5px] text-[#8A92A6]">Reading “{campaign}”…</div>
+      </div>
+    );
+  }
   if (!data || data.error || !data.summary) return null;
 
   return (
@@ -653,18 +702,50 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
           <div className="flex items-center gap-3 mb-3">
             <span className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center shrink-0"><IconSparkles size={18} stroke={1.8} /></span>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-[#232D42]">AI Ads Analyst</div>
+              <div className="text-sm font-semibold text-[#232D42] truncate">
+                {data.campaign || "AI Ads Analyst"}
+              </div>
               {/* "updated daily" was wrong on both counts — the analyst caches for 6 hours,
                   and it only ever covers campaigns that are still switched on. Say both,
                   since the whole complaint was advice about an already-stopped campaign. */}
-              <div className="text-[11px] text-brand-ink">
-                {data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"}
-                {typeof data.liveCount === "number" ? ` · ${data.liveCount} running campaign${data.liveCount === 1 ? "" : "s"}` : ""}
-                {data.stoppedCount ? ` · ${data.stoppedCount} stopped one${data.stoppedCount === 1 ? "" : "s"} ignored` : ""}
+              <div className="text-[11px] text-brand-ink truncate">
+                {data.campaign
+                  ? <>This campaign only · {data.aiUsed ? "Perplexity" : "computed"} from your live ad data</>
+                  : <>
+                      {data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"}
+                      {typeof data.liveCount === "number" ? ` · ${data.liveCount} running campaign${data.liveCount === 1 ? "" : "s"}` : ""}
+                      {data.stoppedCount ? ` · ${data.stoppedCount} stopped one${data.stoppedCount === 1 ? "" : "s"} ignored` : ""}
+                    </>}
               </div>
             </div>
-            <button onClick={() => setOpen(true)} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">View full report →</button>
+            {data.campaign
+              ? <button onClick={() => onClear?.()} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">← All campaigns</button>
+              : <button onClick={() => setOpen(true)} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">View full report →</button>}
           </div>
+
+          {data.stats && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {[
+                { l: "spent", v: fmtINR(data.stats.spend) },
+                { l: "leads", v: fmtNum(data.stats.leads) },
+                { l: "per lead", v: fmtINR(data.stats.cpl) },
+              ].map((x) => (
+                <div key={x.l} className="bg-white border border-gray-100 rounded-lg px-3 py-2">
+                  <div className="text-[15px] font-semibold text-[#232D42] tabular-nums">{x.v}</div>
+                  <div className="text-[10.5px] text-[#8A92A6]">{x.l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* How this campaign sits against the others still running — the only
+              comparison that tells you whether its cost is actually a problem. */}
+          {data.stats && data.stats.vsAvgPct !== null && (
+            <div className={`text-[11.5px] mb-3 ${data.stats.vsAvgPct > 0 ? "text-[#C0392B]" : "text-[#2F9E6F]"}`}>
+              {data.stats.vsAvgPct > 0
+                ? `${data.stats.vsAvgPct}% more expensive per lead than the ${fmtINR(data.stats.liveAvgCPL)} average across everything running.`
+                : `${Math.abs(data.stats.vsAvgPct)}% cheaper per lead than the ${fmtINR(data.stats.liveAvgCPL)} average across everything running.`}
+            </div>
+          )}
 
           <div className="text-[13px] text-[#232D42] bg-white border border-gray-100 rounded-lg px-3 py-2.5 mb-3 leading-relaxed">{md(data.summary.verdict)}</div>
 
@@ -716,7 +797,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
           <div>
             <div className="text-base font-semibold flex items-center gap-2"><IconSparkles size={18} stroke={1.8} className="text-brand" /> AI Ads Analyst — full report</div>
-            <div className="text-xs text-gray-500 mt-0.5">{range.from} → {range.to} · {data.totals.campaigns} campaigns · {fmtINR(data.totals.spend)} · {data.aiUsed ? "AI narrative on deterministic diagnostics" : "deterministic diagnostics"}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{range.from} → {range.to}{data.totals ? ` · ${data.totals.campaigns} campaigns · ${fmtINR(data.totals.spend)}` : ""} · {data.aiUsed ? "AI narrative on deterministic diagnostics" : "deterministic diagnostics"}</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
@@ -747,7 +828,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
                   <th className="py-2.5 px-3 font-semibold text-[10.5px] uppercase tracking-[0.05em] text-right">Freq</th>
                 </tr></thead>
                 <tbody>
-                  {data.table.map((r) => (
+                  {(data.table || []).map((r) => (
                     <tr key={r.name} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors">
                       <td className="py-2.5 px-3 max-w-[280px] truncate" title={r.name}>{r.name}</td>
                       <td className="py-2.5 px-3 text-right tabular-nums">{fmtINR(r.spend)}</td>

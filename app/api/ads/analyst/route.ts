@@ -42,9 +42,12 @@ export async function GET(req: Request) {
     const from = url.searchParams.get("from") || "";
     const to = url.searchParams.get("to") || "";
     const force = url.searchParams.get("force") === "1";
+    // Optional: narrow the whole analysis to one campaign, for the panel beside
+    // the live list. Empty means the account-wide view, exactly as before.
+    const campaignFilter = (url.searchParams.get("campaign") || "").trim();
     if (!from || !to) return NextResponse.json({ error: "from and to required" }, { status: 400 });
 
-    const key = `${from}|${to}`;
+    const key = `${from}|${to}|${campaignFilter}`;
     const hit = CACHE.get(key);
     if (!force && hit && Date.now() - hit.at < TTL) return NextResponse.json({ ...(hit.payload as object), cached: true });
 
@@ -147,6 +150,57 @@ export async function GET(req: Request) {
 
     if (!diagnostics.length)
       diagnostics.push({ key: "ok", label: "All clear", status: "good", evidence: `No fatigue, cost-per-lead, pacing, click-through or CPM issues among the ${live.length} campaign${live.length === 1 ? "" : "s"} still running.`, fix: "", campaigns: [] });
+
+    // ---------- One campaign, for the panel beside the live list ----------
+    // Reuses the diagnostics already computed above rather than a second set of
+    // thresholds, so the flags on a campaign always agree with the flags on the
+    // account. Only campaigns that are still running can be selected.
+    if (campaignFilter) {
+      const c = live.find((x) => x.campaign_name === campaignFilter);
+      if (!c) {
+        const payload = { window: { from, to }, generatedAt: new Date().toISOString(), campaign: campaignFilter,
+          notRunning: true, diagnostics: [], aiUsed: false, cached: false,
+          summary: { verdict: `“${campaignFilter}” isn’t running right now, so there’s nothing to change on it today.`, recommendations: [] } };
+        CACHE.set(key, { at: Date.now(), payload });
+        return NextResponse.json(payload);
+      }
+      const mine = diagnostics.filter((d) => d.campaigns.includes(c.campaign_name));
+      const vsAvg = avgCPL_live > 0 && c.costPerLead > 0 ? Math.round(((c.costPerLead - avgCPL_live) / avgCPL_live) * 100) : null;
+      const stats = {
+        spend: Math.round(c.spend), leads: c.leads, cpl: Math.round(c.costPerLead),
+        vsAvgPct: vsAvg, liveAvgCPL: Math.round(avgCPL_live),
+        frequency: +c.frequency.toFixed(1), ctr: +c.ctr.toFixed(2), cpm: Math.round(c.cpm),
+      };
+
+      let fsum: { verdict: string; recommendations: { title: string; detail: string }[] } | null = null;
+      let fAi = false;
+      if (hasAI()) {
+        fsum = await askPerplexityJSON<{ verdict: string; recommendations: { title: string; detail: string }[] }>(
+          `You are explaining ONE Meta ads campaign to someone who has never run ads. Use ONLY the facts given — never invent a number. Everyday words, no jargon without a plain explanation. Return JSON with:
+- "verdict": 1–2 plain sentences on how this ONE campaign is doing and whether it is good or bad value compared with the other running campaigns.
+- "recommendations": 2 or 3 items, each {"title": the action in max 8 plain words, "detail": 1–2 sentences saying why (what the number means) and what to do}. Every item must be about THIS campaign only.`,
+          `Campaign: ${c.campaign_name}\nFacts: ${JSON.stringify(stats)}\nProblems flagged: ${JSON.stringify(mine.map((d) => ({ label: d.label, evidence: d.evidence })))}`,
+          { model: "sonar", timeoutMs: 20_000 },
+        ).catch(() => null);
+        if (fsum?.verdict && Array.isArray(fsum.recommendations) && fsum.recommendations.filter((r) => r?.title && r?.detail).length >= 2) {
+          fsum.recommendations = fsum.recommendations.filter((r) => r?.title && r?.detail).slice(0, 3);
+          fAi = true;
+        } else fsum = null;
+      }
+      if (!fsum) {
+        const recs = mine.slice(0, 3).map((d) => ({ title: d.label, detail: `${d.fix} (${d.evidence})` }));
+        if (!recs.length) recs.push({ title: "Nothing to fix here", detail: `This campaign isn’t tripping any of the checks — it costs ${inr(c.costPerLead)} per lead against a live average of ${inr(avgCPL_live)}.` });
+        fsum = {
+          verdict: `${c.campaign_name} spent ${inr(c.spend)} and brought in ${num(c.leads)} leads — about ${inr(c.costPerLead)} each, against a ${inr(avgCPL_live)} average across everything still running.`,
+          recommendations: recs,
+        };
+      }
+
+      const payload = { window: { from, to }, generatedAt: new Date().toISOString(), campaign: c.campaign_name,
+        stats, diagnostics: mine, summary: fsum, aiUsed: fAi, cached: false };
+      CACHE.set(key, { at: Date.now(), payload });
+      return NextResponse.json(payload);
+    }
 
     // ---------- Per-campaign efficiency table (for the full report) ----------
     const table = campaigns
