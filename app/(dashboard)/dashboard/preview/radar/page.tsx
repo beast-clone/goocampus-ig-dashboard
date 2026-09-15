@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { TEAM_USERS } from "@/lib/users";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch } from "@tabler/icons-react";
+import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -291,7 +292,7 @@ function sbuFor(interest: string): string {
 // the reader used to run the old "generate a draft and walk you to Content
 // Studio" path, which meant the same headline did two different things
 // depending on where you clicked it.
-function MakeTaskButton({ item, up }: { item: FeedItem; up?: boolean }) {
+function MakeTaskButton({ item }: { item: FeedItem }) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
@@ -336,42 +337,72 @@ function MakeTaskButton({ item, up }: { item: FeedItem; up?: boolean }) {
   }
 
   return (
-    <div className="shrink-0 self-center relative">
-      <button type="button" onClick={() => setPicking((v) => !v)} disabled={busy} aria-expanded={picking}
-        className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
+    <>
+      <button type="button" onClick={() => setPicking(true)} disabled={busy}
+        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
         <IconSparkles size={13} stroke={1.8} /> {busy ? "Creating…" : "Make content"}
       </button>
 
+      {/* Centred dialog rather than a menu hanging off the button: anchored to a
+          row it sat in a corner, and inside the article reader it had to flip
+          upward to stay on screen at all. Native <select> is replaced by the
+          shared PreviewSelect — a browser's own dropdown is an OS menu and can
+          never carry the dashboard's styling. */}
       {picking && (
-        <div className={`absolute right-0 z-30 w-[260px] bg-white border border-gray-200 rounded-xl p-3 flex flex-col gap-2.5 ${up ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
-          <label className="block">
-            <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Who writes it</span>
-            <select value={owner} onChange={(e) => setOwner(e.target.value)}
-              className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
-              {TEAM_USERS.map((u) => <option key={u.id} value={u.id}>{u.name} — {u.role}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Which brand</span>
-            <select value={sbu} onChange={(e) => setSbu(e.target.value)}
-              className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
-              {SBU_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-          </label>
-          {failed && <div className="text-[11.5px] text-[#C0392B]">{failed}</div>}
-          <div className="flex items-center gap-2">
-            <button onClick={createTask} disabled={busy}
-              className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
-              {busy ? "Creating…" : "Create task"}
-            </button>
-            <button onClick={() => setPicking(false)} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+        <Overlay onClose={() => setPicking(false)}
+          className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4">
+          <div onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[420px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
+              <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center shrink-0">
+                <IconSparkles size={15} stroke={1.8} />
+              </span>
+              <h3 className="text-[14px] font-medium text-[#232D42]">Make content from this</h3>
+              <button onClick={() => setPicking(false)} aria-label="Close"
+                className="ml-auto text-[#A6ACBE] hover:text-[#232D42] rounded-lg p-1 hover:bg-[#F6F7FB]">
+                <IconX size={16} stroke={2} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 flex flex-col gap-4">
+              <p className="text-[12.5px] leading-relaxed text-[#8A92A6]">
+                <span className="text-[#232D42] font-medium">{item.title}</span>
+              </p>
+
+              <label className="block">
+                <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Who writes it</span>
+                <PreviewSelect value={owner} onChange={setOwner}
+                  options={TEAM_USERS.map((u) => ({ value: u.id, label: `${u.name} — ${u.role}` }))} />
+              </label>
+
+              <label className="block">
+                <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Which brand</span>
+                <PreviewSelect value={sbu} onChange={setSbu}
+                  options={SBU_OPTIONS.map((x) => ({ value: x, label: x }))} />
+              </label>
+
+              {failed && (
+                <div className="rounded-lg bg-[#FDECEA] border border-[#F5C6C0] px-3 py-2 text-[12px] text-[#C0392B]">{failed}</div>
+              )}
+
+              <p className="text-[11.5px] leading-relaxed text-[#A6ACBE]">
+                Lands on their board as <b className="font-medium text-[#8A92A6]">Content&nbsp;-&nbsp;Pending</b>,
+                with this headline and its link already in the brief.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 px-5 py-3.5 border-t border-gray-100">
+              <button onClick={createTask} disabled={busy}
+                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
+                {busy ? "Creating…" : "Create task"}
+              </button>
+              <button onClick={() => setPicking(false)}
+                className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">Cancel</button>
+            </div>
           </div>
-          <p className="text-[10.5px] text-[#A6ACBE] leading-snug">
-            Lands on their board as <b className="font-medium text-[#8A92A6]">Content&nbsp;-&nbsp;Pending</b>, with this headline and its link in the brief.
-          </p>
-        </div>
+        </Overlay>
       )}
-    </div>
+    </>
   );
 }
 
@@ -1261,7 +1292,7 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           {/* The same control as the feed row. This used to be a link that
               generated a draft and navigated away, so one headline behaved two
               different ways depending on where you clicked it. */}
-          <MakeTaskButton item={item} up />
+          <MakeTaskButton item={item} />
           <a
             href={finalUrl}
             target="_blank"
