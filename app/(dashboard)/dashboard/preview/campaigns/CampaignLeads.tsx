@@ -42,6 +42,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const [q, setQ] = useState("");
   const [filterCol, setFilterCol] = useState("");
   const [filterVal, setFilterVal] = useState("");
+  // Opens on the leads nobody has touched yet. A caller coming back the next day
+  // should not have to scroll past 150 finished rows to find the next call.
+  const [todoOnly, setTodoOnly] = useState(true);
 
   const load = useCallback(() => {
     setData(null);
@@ -231,8 +234,19 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     return [...seen.entries()].sort((a, b) => b[1] - a[1]);
   };
 
+  // Every other column in the sheet, carried through read-only. "What is your
+  // domicile state?" is exactly the kind of answer someone needs mid-call, and it
+  // was being dropped because it wasn't one of the six the dashboard writes to.
+  const usedCols = new Set([campaign.keyColumn, nameCol, firstName, lastName, phoneCol, timeCol,
+    writable.status, writable.notes, writable.community].filter(Boolean) as string[]);
+  const extraCols = headers.filter((h) => !usedCols.has(h));
+
+  const untouched = (l: Lead) => !writable.status || !(l.fields[writable.status] || "").trim();
+  const todoCount = leads.filter(untouched).length;
+
   const needle = q.trim().toLowerCase();
   const shown = leads.filter((l) => {
+    if (todoOnly && !untouched(l)) return false;
     if (filterCol && filterVal) {
       const v = (l.fields[filterCol] || "").trim();
       if (filterVal === "\u0000blank" ? v !== "" : v !== filterVal) return false;
@@ -261,7 +275,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           </span>
           <a href={`https://docs.google.com/spreadsheets/d/${campaign.spreadsheetId}/edit`} target="_blank" rel="noopener noreferrer"
             className="text-[#A6ACBE] hover:text-brand" title="Open the sheet"><IconExternalLink size={15} stroke={1.8} /></a>
-          <button onClick={load} title="Re-read the sheet now"
+          <button onClick={load} title="Re-reads the sheet now. It also re-reads on its own every 2 minutes, so leads added to the sheet turn up here without anyone pressing this."
             className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
             <IconRefresh size={13} stroke={1.8} /> Sync
           </button>
@@ -287,6 +301,20 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               { value: "\u0000blank", label: "(blank)" },
               ...valuesIn(filterCol).map(([v, n]) => ({ value: v, label: `${v} (${n})` })),
             ]} />
+        )}
+        {/* Not hidden: the counts are on the buttons, so it is obvious both that a
+            subset is showing and how to see the rest. */}
+        {writable.status && (
+          <span className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            <button onClick={() => setTodoOnly(true)}
+              className={`px-2.5 py-1.5 text-[12px] ${todoOnly ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+              Not contacted ({todoCount})
+            </button>
+            <button onClick={() => setTodoOnly(false)}
+              className={`px-2.5 py-1.5 text-[12px] border-l border-gray-200 ${!todoOnly ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+              All ({leads.length})
+            </button>
+          </span>
         )}
         {(q || filterVal) && (
           <button onClick={() => { setQ(""); setFilterCol(""); setFilterVal(""); }}
@@ -354,7 +382,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               share the leftover width between all eight columns instead of dumping
               it on whichever one was left unsized, which is what produced first a
               hole after the name and then a notes box run out to the edge. */}
-          <table className="w-full min-w-[980px] table-fixed">
+          <table className="w-full table-fixed" style={{ minWidth: 1236 + extraCols.length * 170 }}>
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="pl-5 pr-3 py-2.5 w-[3%]">
@@ -367,14 +395,17 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   onChange={(e) => setPicked(e.target.checked ? new Set(shownKeys) : new Set())}
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
-              {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
-                  the card's edge — every other column has air on both sides. */}
-              {([
-                ["Lead ID", "w-[6%] px-3"], ["Captured", "w-[7%] px-3"], ["Name", "w-[18%] px-3"],
-                ["Phone", "w-[12%] px-3"], ["Status", "w-[15%] px-3"], ["Notes", "w-[21%] px-3"],
-                ["Community", "w-[8%] px-3"], ["WhatsApp", "w-[10%] pl-3 pr-5"],
-              ] as const).map(([h, w]) => (
-                <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
+              {/* Fixed pixel widths now that the sheet's own columns come along too:
+                  with a dozen columns the table is wider than the card and scrolls,
+                  so there is no leftover width left to land badly anywhere. */}
+              {[
+                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[110px] px-3"], ["Name", "w-[200px] px-3"],
+                ["Phone", "w-[150px] px-3"], ["Status", "w-[190px] px-3"], ["Notes", "w-[250px] px-3"],
+                ["Community", "w-[120px] px-3"], ["WhatsApp", "w-[130px] px-3"],
+                ...extraCols.map((h) => [h, "w-[170px] px-3"] as [string, string]),
+              ].map(([h, w], i, arr) => (
+                <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] truncate ${w} ${i === arr.length - 1 ? "!pr-5" : ""}`}
+                  title={h}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -412,7 +443,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         className="w-full justify-between overflow-hidden"
                         value={l.fields[writable.status] || ""}
                         onChange={(v) => write(l, writable.status!, v)}
-                        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
+                        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Not contacted"}
                         options={writable.options.map((op) => ({ value: op, label: op }))}
                         addOption={{ label: "Add a status", onAdd: (v) => write(l, writable.status!, v) }}
                         onRemoveOption={hideStatus}
@@ -449,16 +480,24 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                       </label>
                     ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt>}
                   </td>
-                  <td className="pl-3 pr-5 py-3">
+                  <td className="px-3 py-3">
                     <WhatsAppSend phone={phone} name={fullName(l)} compact
                       links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
                   </td>
+                  {/* Read-only: these are the sheet's own answers, not ours to edit. */}
+                  {extraCols.map((h, i) => (
+                    <td key={h} className={`px-3 py-3 text-[12px] text-[#4A5468] truncate ${i === extraCols.length - 1 ? "pr-5" : ""}`}
+                      title={l.fields[h] || ""}>
+                      {l.fields[h] || <span className="text-[#C9CDD8]">—</span>}
+                    </td>
+                  ))}
                 </tr>
               );
             })}
             {shown.length === 0 && (
-              <tr><td colSpan={9} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
-                {leads.length === 0 ? "That tab has no rows yet." : "No lead matches that filter."}
+              <tr><td colSpan={9 + extraCols.length} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
+                {leads.length === 0 ? "That tab has no rows yet."
+                  : todoOnly ? "Everyone has a status — switch to All to see them." : "No lead matches that filter."}
               </td></tr>
             )}
           </tbody>

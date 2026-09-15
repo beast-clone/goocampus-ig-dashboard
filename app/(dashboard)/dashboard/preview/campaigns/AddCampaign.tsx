@@ -187,8 +187,13 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
 
               <label className="block">
                 <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Which tab holds the leads</span>
+                {/* Just the names. Google reports a tab's GRID size here — 999, 1102 —
+                    which is how many rows the sheet has room for, not how many leads
+                    are in it. Showing that next to a tab called "Meta Ads" reads as a
+                    lead count and is wrong by a factor of six. The real count appears
+                    once a tab is chosen, from the rows themselves. */}
                 <PreviewSelect value={tab} onChange={(t) => pickTab(t)} placeholder="Choose a tab…"
-                  options={sheet.tabs.map((t) => ({ value: t.title, label: `${t.title} — ${t.rows} rows` }))} />
+                  options={sheet.tabs.map((t) => ({ value: t.title, label: t.title }))} />
               </label>
             </>
           )}
