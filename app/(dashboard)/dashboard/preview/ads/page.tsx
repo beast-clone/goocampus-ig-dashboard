@@ -612,16 +612,8 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                             ? <img src={a.thumbnail} alt="" className="w-full h-full object-cover" />
                             : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={15} stroke={1.6} /></div>}
                         </div>
-                        <div className="min-w-0 flex-1 text-[12.5px] text-[#232D42] truncate" title={a.ad_name}>{a.ad_name}</div>
-                        {(() => {
-                          const st = startedLabel(a.startedAt);
-                          return (
-                            <div className="hidden md:block w-28 flex-shrink-0 text-[11.5px] text-[#8A92A6] tabular-nums"
-                              title={a.startedAt ? `Started ${a.startedAt}` : "Start date unavailable"}>
-                              {st ? <>{st.date} <span className="text-[#C9CDD8]">· {st.age}</span></> : "—"}
-                            </div>
-                          );
-                        })()}
+                        <div className="min-w-0 flex-1 text-[12.5px] text-[#232D42] truncate"
+                          title={a.startedAt ? `${a.ad_name}\nStarted ${a.startedAt}` : a.ad_name}>{a.ad_name}</div>
                         <div className="hidden sm:block text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{fmtINR(a.spend)}</div>
                         {(() => {
                           // Same goal as its campaign, so the columns line up.
