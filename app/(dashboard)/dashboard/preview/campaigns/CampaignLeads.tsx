@@ -233,8 +233,12 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
 
       <div className="overflow-x-auto">
         {/* table-fixed, or the browser sizes columns by their content and the
-              widths below are ignored — which is why Captured sat in a sea of space. */}
-          <table className="w-full min-w-[980px] table-fixed">
+              widths below are ignored — which is why Captured sat in a sea of space.
+              Capped and centred, because a full-width table on a wide screen has to
+              dump its slack into some column, and whichever one gets it looks broken:
+              a name column with a hole after it, or a notes box stretched to the edge.
+              Sized columns with margin either side is the honest answer. */}
+          <table className="w-full min-w-[980px] max-w-[1280px] mx-auto table-fixed">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="pl-5 pr-3 py-2.5 w-[46px]">
@@ -246,8 +250,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
                   the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[90px] px-3"], ["Captured", "w-[110px] px-3"], ["Name", "w-[300px] px-3"],
-                ["Phone", "w-[150px] px-3"], ["Status", "w-[200px] px-3"], ["Notes", "px-3"], ["WhatsApp", "w-[132px] pl-3 pr-5"],
+                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[104px] px-3"], ["Name", "px-3"],
+                ["Phone", "w-[150px] px-3"], ["Status", "w-[196px] px-3"], ["Notes", "w-[300px] px-3"], ["WhatsApp", "w-[132px] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
