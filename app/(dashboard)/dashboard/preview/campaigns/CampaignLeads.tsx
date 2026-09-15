@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus } from "@tabler/icons-react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
@@ -26,6 +27,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pushing, setPushing] = useState(false);
   const [pushed, setPushed] = useState<string | null>(null);
+  // Which field's column is being chosen, if any. Opened from the settings row at
+  // the top OR from the cell itself — a person who wants to type a note looks at
+  // the note, not at a settings bar two hundred rows above it.
+  const [picking, setPicking] = useState<"status" | "notes" | null>(null);
 
   const load = useCallback(() => {
     setData(null);
@@ -86,6 +91,22 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     });
     const d = await r.json();
     if (!r.ok || d.error) { setFailed(d.error || "Couldn't save that choice"); return; }
+    setPicking(null);
+    load();
+  };
+
+  // Make a brand-new column in the sheet and point the field at it. Needed
+  // because a sheet filled in at an event has no Notes column, and the only
+  // columns on offer are ones already holding someone's answers.
+  const createColumn = async (use: "status" | "notes", name: string) => {
+    setFailed(null);
+    const r = await fetch("/api/campaigns/column", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ id, use, name }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) { setFailed(d.error || "Couldn't add that column"); return; }
+    setPicking(null);
     load();
   };
 
@@ -172,45 +193,48 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       {/* Which columns are editable is a choice, asked once. Guessing it from the
           data picked a yes/no survey question over the real status column, so it
           is not guessed at all. */}
-      <div className="flex items-center gap-4 flex-wrap px-5 py-3 border-b border-gray-100 bg-[#FCFCFE]">
-        <label className="flex items-center gap-2">
-          <span className="text-[11.5px] text-[#8A92A6] whitespace-nowrap">Status column</span>
-          <span className="w-[210px]">
-            <PreviewSelect value={writable.status || ""} onChange={(v) => setColumn("statusColumn", v)}
-              placeholder="Not set — pick one" options={headers.map((h) => ({ value: h, label: h }))} />
-          </span>
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-[11.5px] text-[#8A92A6] whitespace-nowrap">Notes column</span>
-          <span className="w-[210px]">
-            <PreviewSelect value={writable.notes || ""} onChange={(v) => setColumn("notesColumn", v)}
-              placeholder="Not set — pick one" options={headers.map((h) => ({ value: h, label: h }))} />
-          </span>
-        </label>
+      <div className="flex items-center gap-2.5 flex-wrap px-5 py-3 border-b border-gray-100 bg-[#FCFCFE]">
+        <span className="text-[11.5px] text-[#8A92A6] whitespace-nowrap">Saves into this sheet&rsquo;s columns:</span>
+        <SettingChip label="Status" column={writable.status} onClick={() => setPicking("status")} />
+        <SettingChip label="Notes" column={writable.notes} onClick={() => setPicking("notes")} />
         <span className="text-[11.5px] text-[#A6ACBE]">
           {writable.status
-            ? `Choices come from what's already in ${writable.status} — ${writable.options.length} of them.`
-            : "Until one is set, nothing can be written back."}
+            ? `Status choices come from what's already in ${writable.status} — ${writable.options.length} of them.`
+            : "Until a column is set, nothing can be written back."}
         </span>
       </div>
+
+      {picking && (
+        <ColumnPicker
+          what={picking}
+          headers={headers}
+          current={picking === "status" ? writable.status : writable.notes}
+          onPick={(h) => setColumn(picking === "status" ? "statusColumn" : "notesColumn", h)}
+          onCreate={(name) => createColumn(picking, name)}
+          onClose={() => setPicking(null)}
+          error={failed}
+        />
+      )}
 
       <div className="overflow-x-auto">
         {/* table-fixed, or the browser sizes columns by their content and the
               widths below are ignored — which is why Captured sat in a sea of space. */}
-          <table className="w-full min-w-[1020px] table-fixed">
+          <table className="w-full min-w-[1080px] table-fixed">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
-              <th className="px-3 py-2.5 w-[34px]">
+              <th className="pl-5 pr-3 py-2.5 w-[46px]">
                 <input type="checkbox" aria-label="Select all"
                   checked={picked.size > 0 && picked.size === leads.filter((l) => l.rowKey).length}
                   onChange={(e) => setPicked(e.target.checked ? new Set(leads.map((l) => l.rowKey).filter(Boolean)) : new Set())}
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
+              {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
+                  the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[86px]"], ["Captured", "w-[104px]"], ["Name", "w-[210px]"],
-                ["Phone", "w-[148px]"], ["Status", "w-[196px]"], ["Notes", ""], ["WhatsApp", "w-[128px]"],
+                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[104px] px-3"], ["Name", "w-[210px] px-3"],
+                ["Phone", "w-[148px] px-3"], ["Status", "w-[196px] px-3"], ["Notes", "px-3"], ["WhatsApp", "w-[140px] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
-                <th key={h} className={`px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
+                <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -219,7 +243,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               const phone = (phoneCol && l.fields[phoneCol]) || "";
               return (
                 <tr key={l.rowKey || l.sheetRow} className={`border-b border-gray-50 last:border-0 align-top ${picked.has(l.rowKey) ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
-                  <td className="px-3 py-3">
+                  <td className="pl-5 pr-3 py-3">
                     <input type="checkbox" aria-label={`Select ${fullName(l)}`}
                       checked={picked.has(l.rowKey)} disabled={!l.rowKey}
                       onChange={(e) => setPicked((prev) => {
@@ -251,9 +275,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
                         options={writable.options.map((op) => ({ value: op, label: op }))}
                       />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">choose a Status column above</span>}
+                    ) : <PickPrompt onClick={() => setPicking("status")}>Choose a Status column</PickPrompt>}
                   </td>
-                  <td className="px-3 py-3 min-w-[280px]">
+                  <td className="px-3 py-3">
                     {writable.notes ? (
                       <textarea
                         defaultValue={l.fields[writable.notes] || ""}
@@ -262,9 +286,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
                         className="w-full resize-y px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] leading-snug text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
                       />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">choose a Notes column above</span>}
+                    ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt>}
                   </td>
-                  <td className="px-3 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
+                  <td className="pl-3 pr-5 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
                 </tr>
               );
             })}
@@ -275,6 +299,114 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         </table>
       </div>
     </Shell>
+  );
+}
+
+/** The current column for a field, in the settings row. Click to change it. */
+function SettingChip({ label, column, onClick }: { label: string; column: string | null; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className={`inline-flex items-center gap-1.5 text-[12px] rounded-lg border px-2.5 py-1 ${
+        column ? "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"
+               : "border-[#F0C36D] bg-[#FFF8E8] text-[#8A6D1F] hover:border-[#D9A93F]"}`}>
+      <span className="font-medium">{label}</span>
+      <span className="text-[#A6ACBE]">→</span>
+      <span className="max-w-[200px] truncate">{column || "not set — pick a column"}</span>
+    </button>
+  );
+}
+
+/** What an unset cell shows: the fix, not a note telling you to go find it. */
+function PickPrompt({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-[12px] text-[#8A92A6] rounded-lg border border-dashed border-gray-200 px-2.5 py-1.5 hover:border-brand hover:text-brand">
+      <IconPlus size={13} stroke={2} /> {children}
+    </button>
+  );
+}
+
+/**
+ * Chooses which of the sheet's columns a field writes to — or makes a new one.
+ *
+ * The "add a column" half is not a convenience. A sheet filled in at an event has
+ * no Notes column, so every column on offer already holds somebody's answers, and
+ * pointing Notes at one of them destroys data the moment anyone types. Adding a
+ * column at the end is the only option that writes nothing over.
+ */
+function ColumnPicker({ what, headers, current, onPick, onCreate, onClose, error }: {
+  what: "status" | "notes";
+  headers: string[];
+  current: string | null;
+  onPick: (h: string) => void;
+  onCreate: (name: string) => void;
+  onClose: () => void;
+  /** Shown inside the dialog: the page's own banner is behind it and unreadable. */
+  error: string | null;
+}) {
+  const [name, setName] = useState(what === "notes" ? "Notes" : "Status");
+  const [saving, setSaving] = useState(false);
+  const exists = headers.some((h) => h.toLowerCase() === name.trim().toLowerCase());
+
+  return (
+    <Overlay onClose={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+        className="mt-[12vh] w-full max-w-[520px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <header className="px-5 py-4 bg-brand-light border-b border-gray-100">
+          <h3 className="text-[15px] font-medium text-[#232D42]">
+            {what === "notes" ? "Where should notes be saved?" : "Which column holds the status?"}
+          </h3>
+          <p className="mt-1 text-[12.5px] text-[#4A5468]">
+            {what === "notes"
+              ? "Notes are typed here and written straight into this column of your sheet. Pick an empty one, or add a new column."
+              : "The dropdown on each row edits this column, and its choices are whatever values are already in it."}
+          </p>
+        </header>
+
+        <div className="px-5 py-4 max-h-[42vh] overflow-auto">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A6ACBE] mb-2">Columns already in the sheet</p>
+          <div className="flex flex-col gap-1">
+            {headers.map((h) => (
+              <button key={h} onClick={() => onPick(h)}
+                className={`flex items-center gap-2 text-left rounded-lg px-3 py-2 text-[12.5px] ${
+                  h === current ? "bg-brand-light/60 font-medium text-[#232D42]" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                <span className="flex-1 truncate">{h}</span>
+                {h === current && <IconCheck size={14} stroke={2.5} className="text-brand shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 bg-[#FCFCFE]">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A6ACBE] mb-2">Or add a new column</p>
+          <div className="flex items-center gap-2">
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] text-[#232D42] focus:border-brand focus:outline-none" />
+            <button disabled={!name.trim() || exists || saving}
+              onClick={async () => { setSaving(true); await onCreate(name.trim()); setSaving(false); }}
+              className="inline-flex items-center gap-1.5 text-[12.5px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed">
+              <IconPlus size={14} stroke={2} /> {saving ? "Adding…" : "Add to the sheet"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] text-[#A6ACBE]">
+            {exists
+              ? `Your sheet already has a “${name.trim()}” column — pick it from the list above.`
+              : "It goes in as a new, empty column at the end of the tab. Nothing already in the sheet is touched."}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mx-5 my-3 flex items-start gap-2 rounded-lg bg-[#FDECEA] border border-[#F5C6C0] px-3 py-2.5">
+            <IconAlertTriangle size={15} stroke={1.9} className="text-[#C0392B] shrink-0 mt-[1px]" />
+            <span className="text-[12.5px] text-[#C0392B]">{error}</span>
+          </div>
+        )}
+
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="text-[12.5px] text-[#8A92A6] hover:text-[#232D42] px-3 py-1.5">Cancel</button>
+        </div>
+      </div>
+    </Overlay>
   );
 }
 
