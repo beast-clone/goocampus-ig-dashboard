@@ -28,10 +28,12 @@ export function orderedAll(all: string[], prefs?: ColumnPrefs | null): string[] 
   return [...known, ...all.filter((h) => !known.includes(h))];
 }
 
-export function ColumnChooser({ all, prefs, onChange }: {
+export function ColumnChooser({ all, prefs, onChange, reorder = true }: {
   all: string[];
   prefs: ColumnPrefs;
   onChange: (next: ColumnPrefs) => void;
+  /** Arrows for ordering. Off at setup: order is set by dragging the real headers. */
+  reorder?: boolean;
 }) {
   const rows = orderedAll(all, prefs);
   const hidden = new Set(prefs.hidden || []);
@@ -59,6 +61,7 @@ export function ColumnChooser({ all, prefs, onChange }: {
         return (
           <div key={h} className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 ${off ? "border-gray-100 bg-[#FCFCFE]" : "border-gray-200"}`}>
             <span className={`flex-1 min-w-0 truncate text-[12px] ${off ? "text-[#C9CDD8] line-through" : "text-[#232D42]"}`} title={h}>{h}</span>
+            {reorder && (<>
             <button type="button" onClick={() => move(h, 0)} disabled={i === 0} title="Move to the front"
               className="p-1 rounded-md text-[#A6ACBE] hover:text-brand hover:bg-brand-light disabled:opacity-25 disabled:hover:bg-transparent">
               <IconArrowBarUp size={13} stroke={1.9} />
@@ -71,6 +74,7 @@ export function ColumnChooser({ all, prefs, onChange }: {
               className="p-1 rounded-md text-[#A6ACBE] hover:text-brand hover:bg-brand-light disabled:opacity-25 disabled:hover:bg-transparent">
               <IconArrowDown size={13} stroke={1.9} />
             </button>
+            </>)}
             {/* Hidden, not deleted. The sheet keeps the column and everything in it;
                 this only decides what the table bothers to show. */}
             <button type="button" onClick={() => toggle(h)} title={off ? "Show this column" : "Hide this column"}

@@ -265,10 +265,11 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
                 {cols.headers.filter((h) => !isMapped(h, map, keyColumn)).length > 0 && (
                   <div className="px-3 pb-1">
                     <div className="text-[11px] font-medium text-[#8A92A6] mb-1.5">
-                      Everything else in the sheet — shown beside the lead, read-only
+                      Everything else in the sheet — shown beside the lead, read-only.
+                      Untick what you never want to see; drag the headers to reorder once it opens.
                     </div>
                     <ColumnChooser all={cols.headers.filter((h) => !isMapped(h, map, keyColumn))}
-                      prefs={colPrefs} onChange={setColPrefs} />
+                      prefs={colPrefs} onChange={setColPrefs} reorder={false} />
                   </div>
                 )}
 

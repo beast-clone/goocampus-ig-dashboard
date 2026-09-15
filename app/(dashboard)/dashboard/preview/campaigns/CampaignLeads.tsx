@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconColumns } from "@tabler/icons-react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconGripVertical, IconX } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
-import { ColumnChooser, applyPrefs, type ColumnPrefs } from "./ColumnChooser";
+import { type ColumnPrefs } from "./ColumnChooser";
+
+type Col = { key: string; label: string; width: number; cell: (l: Lead) => React.ReactNode };
 
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; community: string | null; communityValue: string; options: string[] };
@@ -46,7 +48,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Opens on the leads nobody has touched yet. A caller coming back the next day
   // should not have to scroll past 150 finished rows to find the next call.
   const [todoOnly, setTodoOnly] = useState(true);
-  const [choosingCols, setChoosingCols] = useState(false);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setData(null);
@@ -243,7 +246,6 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     writable.status, writable.notes, writable.community].filter(Boolean) as string[]);
   const allExtras = headers.filter((h) => !usedCols.has(h));
   const prefs: ColumnPrefs = campaign.columnPrefs || { order: [], hidden: [] };
-  const extraCols = applyPrefs(allExtras, prefs);
 
   const saveColumnPrefs = async (next: ColumnPrefs) => {
     if (!data) return;
@@ -272,6 +274,103 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const shownKeys = shown.map((l) => l.rowKey).filter(Boolean);
   const allShownPicked = shownKeys.length > 0 && shownKeys.every((k) => picked.has(k));
 
+  // Every column the table can show. Core ones keep a "#" key so a sheet header
+  // called "Name" can never collide with ours.
+  const baseCols: Col[] = [
+    { key: "#leadid", label: "Lead ID", width: 86, cell: (l) => (
+      // Only here so a row can be traced back to its line in the sheet. Truncated
+      // for width; a write always matches on the whole value, never on these six.
+      <span className="block text-[11px] text-[#C9CDD8] font-mono truncate" title={`Sheet ${campaign.keyColumn}: ${l.rowKey}`}>
+        …{l.rowKey ? l.rowKey.slice(-6) : "—"}
+      </span>
+    ) },
+    { key: "#captured", label: "Captured", width: 110, cell: (l) => (
+      <span className="block text-[11.5px] text-[#8A92A6] truncate">{(timeCol && l.fields[timeCol]) || "—"}</span>
+    ) },
+    { key: "#name", label: "Name", width: 200, cell: (l) => (
+      <span className="block text-[13px] font-medium text-[#232D42] truncate" title={fullName(l)}>{fullName(l)}</span>
+    ) },
+    { key: "#phone", label: "Phone", width: 150, cell: (l) => (
+      <span className="block text-[12.5px] text-[#4A5468] tabular-nums truncate">
+        {tidyPhone((phoneCol && l.fields[phoneCol]) || "") || <span className="text-[#C9CDD8]">no number</span>}
+      </span>
+    ) },
+    { key: "#status", label: "Status", width: 190, cell: (l) => writable.status ? (
+      // Fixed width so "ATC" and "Will not be attending" are the same size —
+      // ragged boxes down a column read as broken.
+      <PreviewSelect
+        className="w-full justify-between overflow-hidden"
+        value={l.fields[writable.status] || ""}
+        onChange={(v) => write(l, writable.status!, v)}
+        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Not contacted"}
+        options={writable.options.map((op) => ({ value: op, label: op }))}
+        addOption={{ label: "Add a status", onAdd: (v) => write(l, writable.status!, v) }}
+        onRemoveOption={hideStatus}
+      />
+    ) : <PickPrompt onClick={() => setPicking("status")}>Choose a Status column</PickPrompt> },
+    { key: "#notes", label: "Notes", width: 250, cell: (l) => writable.notes ? (
+      <textarea
+        defaultValue={l.fields[writable.notes] || ""}
+        rows={1}
+        placeholder="Add a note…"
+        onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
+        className="w-full resize-y px-2.5 py-1.5 rounded-lg bg-white text-[12.5px] leading-snug text-[#232D42] border border-gray-200 hover:border-gray-300 focus:border-brand focus:outline-none placeholder:text-[#C9CDD8]"
+      />
+    ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt> },
+    { key: "#community", label: "Community", width: 130, cell: (l) => writable.community ? (
+      // A tick, because "did we send the invite" is a yes/no. It writes the word
+      // this column already uses, so the sheet keeps reading the way whoever
+      // filled it in expects.
+      <label className="inline-flex items-center gap-2 cursor-pointer"
+        title={l.fields[writable.community] ? `Sheet says “${l.fields[writable.community]}”` : "Not sent yet"}>
+        <input type="checkbox"
+          checked={Boolean((l.fields[writable.community] || "").trim())}
+          disabled={busy === `${l.rowKey}:${writable.community}`}
+          onChange={(e) => write(l, writable.community!, e.target.checked ? writable.communityValue : "")}
+          className="w-[15px] h-[15px] accent-[#3A57E8] cursor-pointer disabled:opacity-40" />
+        <span className="text-[11.5px] text-[#8A92A6] truncate">
+          {busy === `${l.rowKey}:${writable.community}` ? "Saving…"
+            : (l.fields[writable.community] || "").trim() || "Not sent"}
+        </span>
+      </label>
+    ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt> },
+    { key: "#whatsapp", label: "WhatsApp", width: 130, cell: (l) => (
+      <WhatsAppSend phone={(phoneCol && l.fields[phoneCol]) || ""} name={fullName(l)} compact
+        links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
+    ) },
+    // The sheet's own answers, read-only: they are not ours to edit.
+    ...allExtras.map((h) => ({
+      key: h, label: h, width: 170,
+      cell: (l: Lead) => (
+        <span className="block text-[12px] text-[#4A5468] truncate" title={l.fields[h] || ""}>
+          {l.fields[h] || <span className="text-[#C9CDD8]">—</span>}
+        </span>
+      ),
+    })),
+  ];
+
+  const allKeys = baseCols.map((c) => c.key);
+  const orderedKeys = [...(prefs.order || []).filter((k) => allKeys.includes(k)),
+    ...allKeys.filter((k) => !(prefs.order || []).includes(k))];
+  const hiddenKeys = new Set(prefs.hidden || []);
+  const cols = orderedKeys.filter((k) => !hiddenKeys.has(k)).map((k) => baseCols.find((c) => c.key === k)!);
+  const hiddenCols = baseCols.filter((c) => hiddenKeys.has(c.key));
+
+  // Dropping a column onto another puts it in that one's place. The saved order
+  // keeps hidden columns in it, so unhiding one returns it where it was.
+  const dropOn = (targetKey: string) => {
+    if (!dragKey || dragKey === targetKey) { setDragKey(null); setOverKey(null); return; }
+    const next = orderedKeys.filter((k) => k !== dragKey);
+    next.splice(next.indexOf(targetKey), 0, dragKey);
+    setDragKey(null); setOverKey(null);
+    saveColumnPrefs({ order: next, hidden: [...hiddenKeys] });
+  };
+
+  const hideColumn = (key: string) =>
+    saveColumnPrefs({ order: orderedKeys, hidden: [...new Set([...hiddenKeys, key])] });
+  const showColumn = (key: string) =>
+    saveColumnPrefs({ order: orderedKeys, hidden: [...hiddenKeys].filter((k) => k !== key) });
+
   return (
     <Shell
       onBack={onBack}
@@ -288,10 +387,6 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           </span>
           <a href={`https://docs.google.com/spreadsheets/d/${campaign.spreadsheetId}/edit`} target="_blank" rel="noopener noreferrer"
             className="text-[#A6ACBE] hover:text-brand" title="Open the sheet"><IconExternalLink size={15} stroke={1.8} /></a>
-          <button onClick={() => setChoosingCols(true)} title="Choose which of the sheet's columns to show, and in what order"
-            className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
-            <IconColumns size={13} stroke={1.8} /> Columns
-          </button>
           <button onClick={load} title="Re-reads the sheet now. It also re-reads on its own every 2 minutes, so leads added to the sheet turn up here without anyone pressing this."
             className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
             <IconRefresh size={13} stroke={1.8} /> Sync
@@ -373,34 +468,23 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         </span>
         {/* Hiding a status with no way back would be a trap, so the way back lives
             here rather than nowhere. */}
+        {hiddenCols.length > 0 && (
+          <span className="flex items-center gap-1.5 flex-wrap text-[11.5px] text-[#A6ACBE]">
+            Hidden:
+            {hiddenCols.map((c) => (
+              <button key={c.key} onClick={() => showColumn(c.key)} title="Show this column again"
+                className="inline-flex items-center gap-1 rounded-md border border-dashed border-gray-200 px-1.5 py-0.5 text-[11px] text-[#8A92A6] hover:border-brand hover:text-brand">
+                <IconPlus size={10} stroke={2.2} /> {c.label}
+              </button>
+            ))}
+          </span>
+        )}
         {(campaign.hiddenStatuses || []).length > 0 && (
           <button onClick={restoreStatuses} className="text-[11.5px] text-brand hover:text-brand-dark underline decoration-dotted">
             {campaign.hiddenStatuses!.length} hidden — show them again
           </button>
         )}
       </div>
-
-      {choosingCols && (
-        <Overlay onClose={() => setChoosingCols(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
-            className="mt-[10vh] w-full max-w-[480px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <header className="px-5 py-4 bg-brand-light border-b border-gray-100">
-              <h3 className="text-[15px] font-medium text-[#232D42]">The sheet&rsquo;s other columns</h3>
-              <p className="mt-1 text-[12.5px] text-[#4A5468]">
-                Hide the ones you never look at, and move the one that matters to the front.
-                Nothing is removed from the sheet.
-              </p>
-            </header>
-            <div className="px-5 py-4 max-h-[50vh] overflow-auto">
-              <ColumnChooser all={allExtras} prefs={prefs} onChange={saveColumnPrefs} />
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
-              <button onClick={() => setChoosingCols(false)}
-                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark">Done</button>
-            </div>
-          </div>
-        </Overlay>
-      )}
 
       {picking && (
         <ColumnPicker
@@ -414,17 +498,15 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         />
       )}
 
+      {/* One descriptor per column, then ordered by the campaign's saved list.
+          Rendering the cells from the same list is what makes drag-reordering
+          possible at all — before this the header and the row were two hand-kept
+          sequences that only agreed by luck. */}
       <div className="overflow-x-auto">
-        {/* Full width, with every column a PERCENTAGE of it.
-              table-fixed is what makes the widths bind at all — without it the
-              browser sizes columns by content and ignores them. Percentages then
-              share the leftover width between all eight columns instead of dumping
-              it on whichever one was left unsized, which is what produced first a
-              hole after the name and then a notes box run out to the edge. */}
-          <table className="w-full table-fixed" style={{ minWidth: 1236 + extraCols.length * 170 }}>
+        <table className="w-full table-fixed" style={{ minWidth: 46 + cols.reduce((n, c) => n + c.width, 0) }}>
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
-              <th className="pl-5 pr-3 py-2.5 w-[3%]">
+              <th className="pl-5 pr-3 py-2.5 w-[46px]">
                 {/* Selects what is on screen, not what is hidden behind a filter —
                     a tick that quietly picks 173 leads when 6 are showing is how
                     the wrong people end up in the CRM. */}
@@ -434,107 +516,52 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   onChange={(e) => setPicked(e.target.checked ? new Set(shownKeys) : new Set())}
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
-              {/* Fixed pixel widths now that the sheet's own columns come along too:
-                  with a dozen columns the table is wider than the card and scrolls,
-                  so there is no leftover width left to land badly anywhere. */}
-              {[
-                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[110px] px-3"], ["Name", "w-[200px] px-3"],
-                ["Phone", "w-[150px] px-3"], ["Status", "w-[190px] px-3"], ["Notes", "w-[250px] px-3"],
-                ["Community", "w-[120px] px-3"], ["WhatsApp", "w-[130px] px-3"],
-                ...extraCols.map((h) => [h, "w-[170px] px-3"] as [string, string]),
-              ].map(([h, w], i, arr) => (
-                <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] truncate ${w} ${i === arr.length - 1 ? "!pr-5" : ""}`}
-                  title={h}>{h}</th>
+              {cols.map((c, i) => (
+                <th key={c.key} style={{ width: c.width }}
+                  draggable
+                  onDragStart={(e) => { setDragKey(c.key); e.dataTransfer.effectAllowed = "move"; }}
+                  onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                  onDragOver={(e) => { e.preventDefault(); if (dragKey && dragKey !== c.key) setOverKey(c.key); }}
+                  onDragLeave={() => setOverKey((k) => (k === c.key ? null : k))}
+                  onDrop={(e) => { e.preventDefault(); dropOn(c.key); }}
+                  title={`${c.label} — drag to move it`}
+                  className={`group py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] cursor-grab active:cursor-grabbing select-none
+                    ${i === cols.length - 1 ? "pl-3 pr-5" : "px-3"}
+                    ${dragKey === c.key ? "opacity-40" : ""}
+                    ${overKey === c.key ? "bg-brand-light" : ""}`}>
+                  <span className="flex items-center gap-1 min-w-0">
+                    <IconGripVertical size={12} stroke={1.8} className="shrink-0 text-transparent group-hover:text-[#C9CDD8]" />
+                    <span className="truncate">{c.label}</span>
+                    {/* Hidden, not deleted — the sheet keeps the column. */}
+                    <button onClick={() => hideColumn(c.key)} title={`Hide ${c.label}`}
+                      className="shrink-0 ml-auto p-0.5 rounded text-transparent group-hover:text-[#C9CDD8] hover:!text-[#C0392B]">
+                      <IconX size={11} stroke={2.4} />
+                    </button>
+                  </span>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {shown.map((l) => {
-              const phone = (phoneCol && l.fields[phoneCol]) || "";
-              return (
-                <tr key={l.rowKey || l.sheetRow} className={`border-b border-gray-50 last:border-0 align-top ${picked.has(l.rowKey) ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
-                  <td className="pl-5 pr-3 py-3">
-                    <input type="checkbox" aria-label={`Select ${fullName(l)}`}
-                      checked={picked.has(l.rowKey)} disabled={!l.rowKey}
-                      onChange={(e) => setPicked((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(l.rowKey); else next.delete(l.rowKey);
-                        return next;
-                      })}
-                      className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer disabled:opacity-30" />
-                  </td>
-                  {/* Only here so a row can be traced back to its line in the sheet. */}
-                  {/* Truncated for width only — the full value is on hover, and a
-                      write always matches on the whole thing, never on these six. */}
-                  <td className="px-3 py-3 text-[11px] text-[#C9CDD8] font-mono truncate" title={`Sheet ${campaign.keyColumn}: ${l.rowKey}`}>
-                    …{l.rowKey ? l.rowKey.slice(-6) : "—"}
-                  </td>
-                  <td className="px-3 py-3 text-[11.5px] text-[#8A92A6] truncate">{(timeCol && l.fields[timeCol]) || "—"}</td>
-                  <td className="px-3 py-3 text-[13px] font-medium text-[#232D42] truncate" title={fullName(l)}>{fullName(l)}</td>
-                  <td className="px-3 py-3 text-[12.5px] text-[#4A5468] tabular-nums truncate">
-                    {tidyPhone(phone) || <span className="text-[#C9CDD8]">no number</span>}
-                  </td>
-                  <td className="px-3 py-3">
-                    {/* Fixed width so "ATC" and "Will not be attending" are the same
-                        size — ragged boxes down a column read as broken. */}
-                    {writable.status ? (
-                      <PreviewSelect
-                        className="w-full justify-between overflow-hidden"
-                        value={l.fields[writable.status] || ""}
-                        onChange={(v) => write(l, writable.status!, v)}
-                        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Not contacted"}
-                        options={writable.options.map((op) => ({ value: op, label: op }))}
-                        addOption={{ label: "Add a status", onAdd: (v) => write(l, writable.status!, v) }}
-                        onRemoveOption={hideStatus}
-                      />
-                    ) : <PickPrompt onClick={() => setPicking("status")}>Choose a Status column</PickPrompt>}
-                  </td>
-                  <td className="px-3 py-3">
-                    {writable.notes ? (
-                      <textarea
-                        defaultValue={l.fields[writable.notes] || ""}
-                        rows={1}
-                        placeholder="Add a note…"
-                        onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
-                        className="w-full resize-y px-2.5 py-1.5 rounded-lg bg-white text-[12.5px] leading-snug text-[#232D42] border border-gray-200 hover:border-gray-300 focus:border-brand focus:outline-none placeholder:text-[#C9CDD8]"
-                      />
-                    ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt>}
-                  </td>
-                  {/* A tick, because "did we send the invite" is a yes/no. It writes
-                      the word this column already uses, so the sheet keeps reading
-                      the way whoever filled it in expects. */}
-                  <td className="px-3 py-3">
-                    {writable.community ? (
-                      <label className="inline-flex items-center gap-2 cursor-pointer"
-                        title={l.fields[writable.community] ? `Sheet says “${l.fields[writable.community]}”` : "Not sent yet"}>
-                        <input type="checkbox"
-                          checked={Boolean((l.fields[writable.community] || "").trim())}
-                          disabled={busy === `${l.rowKey}:${writable.community}`}
-                          onChange={(e) => write(l, writable.community!, e.target.checked ? writable.communityValue : "")}
-                          className="w-[15px] h-[15px] accent-[#3A57E8] cursor-pointer disabled:opacity-40" />
-                        <span className="text-[11.5px] text-[#8A92A6] truncate">
-                          {busy === `${l.rowKey}:${writable.community}` ? "Saving…"
-                            : (l.fields[writable.community] || "").trim() || "Not sent"}
-                        </span>
-                      </label>
-                    ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt>}
-                  </td>
-                  <td className="px-3 py-3">
-                    <WhatsAppSend phone={phone} name={fullName(l)} compact
-                      links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
-                  </td>
-                  {/* Read-only: these are the sheet's own answers, not ours to edit. */}
-                  {extraCols.map((h, i) => (
-                    <td key={h} className={`px-3 py-3 text-[12px] text-[#4A5468] truncate ${i === extraCols.length - 1 ? "pr-5" : ""}`}
-                      title={l.fields[h] || ""}>
-                      {l.fields[h] || <span className="text-[#C9CDD8]">—</span>}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
+            {shown.map((l) => (
+              <tr key={l.rowKey || l.sheetRow} className={`border-b border-gray-50 last:border-0 align-top ${picked.has(l.rowKey) ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
+                <td className="pl-5 pr-3 py-3">
+                  <input type="checkbox" aria-label={`Select ${fullName(l)}`}
+                    checked={picked.has(l.rowKey)} disabled={!l.rowKey}
+                    onChange={(e) => setPicked((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(l.rowKey); else next.delete(l.rowKey);
+                      return next;
+                    })}
+                    className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer disabled:opacity-30" />
+                </td>
+                {cols.map((c, i) => (
+                  <td key={c.key} className={`py-3 ${i === cols.length - 1 ? "pl-3 pr-5" : "px-3"}`}>{c.cell(l)}</td>
+                ))}
+              </tr>
+            ))}
             {shown.length === 0 && (
-              <tr><td colSpan={9 + extraCols.length} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
+              <tr><td colSpan={1 + cols.length} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
                 {leads.length === 0 ? "That tab has no rows yet."
                   : todoOnly ? "Everyone has a status — switch to All to see them." : "No lead matches that filter."}
               </td></tr>
