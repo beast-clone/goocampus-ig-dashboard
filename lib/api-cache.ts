@@ -31,3 +31,51 @@ export function clearCache(prefix?: string): number {
   for (const k of store.keys()) if (k.startsWith(prefix)) { store.delete(k); n++; }
   return n;
 }
+
+// ---------------------------------------------------------------------------
+// Shared cache (Supabase `discover_cache`)
+//
+// The Map above is per-process. On Netlify every serverless instance keeps its
+// own copy and a cold start throws it away, so a "24 hour" TTL never actually
+// meant 24 hours — two visitors on two instances each triggered their own fetch,
+// and the true refresh rate was unpredictable and far higher than intended.
+// Anything whose TTL is a real promise (rate-limited upstreams, paid APIs) needs
+// one copy every instance can see.
+//
+// Falls back to the in-memory path when Supabase isn't configured, so local dev
+// and the tests keep working unchanged.
+import { getSupabase } from "@/lib/supabase";
+
+export type Fetched<T> = { data: T; fetchedAt: string; fromCache: boolean };
+
+export async function cachedShared<T>(
+  key: string, ttlMs: number, fn: () => Promise<T>, opts?: { force?: boolean },
+): Promise<Fetched<T>> {
+  const db = getSupabase();
+  if (!db) {
+    const data = await cached(key, ttlMs, fn);
+    return { data, fetchedAt: new Date().toISOString(), fromCache: false };
+  }
+
+  if (!opts?.force) {
+    const { data: row } = await db
+      .from("discover_cache")
+      .select("payload, last_fetched")
+      .eq("cache_key", key)
+      .maybeSingle();
+    const at = row?.last_fetched ? new Date(row.last_fetched as string).getTime() : 0;
+    if (row?.payload && Number.isFinite(at) && Date.now() - at < ttlMs) {
+      return { data: row.payload as T, fetchedAt: new Date(at).toISOString(), fromCache: true };
+    }
+  }
+
+  const data = await fn();
+  const fetchedAt = new Date().toISOString();
+  // A write failure must not fail the request — worst case the next caller
+  // refetches, which is exactly the old behaviour.
+  await db
+    .from("discover_cache")
+    .upsert({ cache_key: key, source: "api-cache", last_fetched: fetchedAt, payload: data }, { onConflict: "cache_key" })
+    .then(undefined, () => undefined);
+  return { data, fetchedAt, fromCache: false };
+}

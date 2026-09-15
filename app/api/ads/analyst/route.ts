@@ -54,29 +54,61 @@ export async function GET(req: Request) {
     if (campaigns.length === 0) return NextResponse.json({ error: "No spend in this window" }, { status: 200 });
 
     const days = Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1);
+    // Window totals stay honest: money spent by a campaign that has since been
+    // switched off was still really spent, and belongs in "you spent X".
     const spend = campaigns.reduce((s, c) => s + c.spend, 0);
     const leads = campaigns.reduce((s, c) => s + c.leads, 0);
     const avgCPL = leads > 0 ? spend / leads : 0;
-    const avgCPM = campaigns.reduce((s, c) => s + c.cpm, 0) / campaigns.length;
-    const withLeads = campaigns.filter((c) => c.leads > 0);
+
+    // ...but every piece of ADVICE below is restricted to campaigns still switched
+    // on. A stopped campaign cannot be fixed, paused or rebudgeted — there is
+    // nothing left to act on — so flagging it is pure noise. This is exactly what
+    // made the analyst lead with "Fix Gulf DHA Prometric": it spent inside the
+    // window, was the most expensive thing in it, and had already been turned off.
+    // Benchmarks are computed over the live set too, so "1.5x the average" compares
+    // a running campaign against the other running campaigns, not against history.
+    const live = campaigns.filter((c) => c.status === "ACTIVE");
+    const stoppedCount = campaigns.length - live.length;
+    const liveSpend = live.reduce((s, c) => s + c.spend, 0);
+    const liveLeads = live.reduce((s, c) => s + c.leads, 0);
+    const avgCPL_live = liveLeads > 0 ? liveSpend / liveLeads : 0;
+    const avgCPM = live.length ? live.reduce((s, c) => s + c.cpm, 0) / live.length : 0;
+    const withLeads = live.filter((c) => c.leads > 0);
+
+    // Nothing running: say so plainly instead of falling through to "All clear",
+    // which would read as "your ads are healthy" when in fact none are on.
+    if (live.length === 0) {
+      const payload = {
+        window: { from, to }, generatedAt: new Date().toISOString(),
+        totals: { spend: Math.round(spend), campaigns: campaigns.length, leads, avgCPL: Math.round(avgCPL), days },
+        stoppedCount, liveCount: 0, best: null, worst: null,
+        diagnostics: [{ key: "none", label: "Nothing running", status: "warn" as const,
+          evidence: `All ${campaigns.length} campaigns that spent in this window are now switched off.`,
+          fix: "Switch a campaign back on, or create a new one, before there is anything to advise on.", campaigns: [] }],
+        table: [], aiUsed: false, cached: false,
+        summary: { verdict: `${inr(spend)} was spent in this window and brought in ${num(leads)} leads, but no campaign is running right now — so there is nothing to change today.`, recommendations: [] },
+      };
+      CACHE.set(key, { at: Date.now(), payload });
+      return NextResponse.json(payload);
+    }
     const best = withLeads.slice().sort((a, b) => a.costPerLead - b.costPerLead)[0] || null;
     const worst = withLeads.slice().sort((a, b) => b.costPerLead - a.costPerLead)[0] || null;
 
     // ---------- Deterministic diagnostics (each a fixed threshold on real data) ----------
     const diagnostics: Diag[] = [];
-    const fatigued = campaigns.filter((c) => c.frequency > 3.5);
+    const fatigued = live.filter((c) => c.frequency > 3.5);
     if (fatigued.length)
       diagnostics.push({ key: "fatigue", label: "Ad fatigue", status: fatigued.some((c) => c.frequency > 5) ? "crit" : "warn",
         evidence: fatigued.map((c) => `${c.campaign_name} (freq ${c.frequency.toFixed(1)})`).join("; "),
         fix: "Change the picture or video, or show it to new people — they’re seeing it too often.", campaigns: fatigued.map((c) => c.campaign_name) });
 
-    const pricey = withLeads.filter((c) => avgCPL > 0 && c.costPerLead > avgCPL * 1.5);
+    const pricey = withLeads.filter((c) => avgCPL_live > 0 && c.costPerLead > avgCPL_live * 1.5);
     if (pricey.length)
       diagnostics.push({ key: "cpl", label: "High cost per lead", status: "crit",
-        evidence: pricey.map((c) => `${c.campaign_name} ${inr(c.costPerLead)} vs avg ${inr(avgCPL)}`).join("; "),
+        evidence: pricey.map((c) => `${c.campaign_name} ${inr(c.costPerLead)} vs live avg ${inr(avgCPL_live)}`).join("; "),
         fix: "Move budget to your cheaper campaigns, or narrow who these ads target.", campaigns: pricey.map((c) => c.campaign_name) });
 
-    const learning = campaigns.filter((c) => c.status === "ACTIVE" && c.leads > 0 && c.leads < 50);
+    const learning = live.filter((c) => c.leads > 0 && c.leads < 50);
     if (learning.length)
       diagnostics.push({ key: "learning", label: "Learning phase", status: "warn",
         evidence: learning.map((c) => `${c.campaign_name} (${c.leads}/50 conversions)`).join("; "),
@@ -93,28 +125,28 @@ export async function GET(req: Request) {
       return Math.max(1, Math.round((new Date(to).getTime() - new Date(begin).getTime()) / 86_400_000) + 1);
     };
     const perDay = (c: (typeof campaigns)[number]) => (liveDays(c) > 0 ? c.spend / liveDays(c) : 0);
-    const underPacing = campaigns.filter(
-      (c) => c.status === "ACTIVE" && c.daily_budget > 0 && liveDays(c) > 0 && perDay(c) < c.daily_budget * 0.75,
+    const underPacing = live.filter(
+      (c) => c.daily_budget > 0 && liveDays(c) > 0 && perDay(c) < c.daily_budget * 0.75,
     );
     if (underPacing.length)
       diagnostics.push({ key: "pacing", label: "Budget under-pacing", status: "warn",
         evidence: underPacing.map((c) => `${c.campaign_name} avg ${inr(perDay(c))}/day of ${inr(c.daily_budget)} over ${liveDays(c)} live day${liveDays(c) === 1 ? "" : "s"}`).join("; "),
         fix: "Raise the bid or widen the audience so it spends its full budget and reaches more people.", campaigns: underPacing.map((c) => c.campaign_name) });
 
-    const lowCtr = campaigns.filter((c) => c.ctr > 0 && c.ctr < 1.0);
+    const lowCtr = live.filter((c) => c.ctr > 0 && c.ctr < 1.0);
     if (lowCtr.length)
       diagnostics.push({ key: "ctr", label: "Low click-through", status: "warn",
         evidence: lowCtr.map((c) => `${c.campaign_name} CTR ${c.ctr.toFixed(2)}%`).join("; "),
         fix: "Test a stronger picture or opening line so more people click.", campaigns: lowCtr.map((c) => c.campaign_name) });
 
-    const cpmOut = campaigns.filter((c) => avgCPM > 0 && c.cpm > avgCPM * 1.5);
+    const cpmOut = live.filter((c) => avgCPM > 0 && c.cpm > avgCPM * 1.5);
     if (cpmOut.length)
       diagnostics.push({ key: "cpm", label: "High CPM", status: "warn",
         evidence: cpmOut.map((c) => `${c.campaign_name} CPM ${inr(c.cpm)} vs avg ${inr(avgCPM)}`).join("; "),
         fix: "Check whether two ads are chasing the same people, or try a slightly different audience.", campaigns: cpmOut.map((c) => c.campaign_name) });
 
     if (!diagnostics.length)
-      diagnostics.push({ key: "ok", label: "All clear", status: "good", evidence: "No fatigue, CPL, pacing, CTR or CPM issues tripped.", fix: "", campaigns: [] });
+      diagnostics.push({ key: "ok", label: "All clear", status: "good", evidence: `No fatigue, cost-per-lead, pacing, click-through or CPM issues among the ${live.length} campaign${live.length === 1 ? "" : "s"} still running.`, fix: "", campaigns: [] });
 
     // ---------- Per-campaign efficiency table (for the full report) ----------
     const table = campaigns
@@ -135,6 +167,9 @@ export async function GET(req: Request) {
     if (hasAI()) {
       const facts = {
         spend: totals.spend, campaigns: totals.campaigns, leads, avgCPL: totals.avgCPL,
+        stillRunning: live.length, alreadyStopped: stoppedCount,
+        spendOfRunningOnes: Math.round(liveSpend), leadsFromRunningOnes: liveLeads,
+        avgCPLOfRunningOnes: Math.round(avgCPL_live),
         best: best && { name: best.campaign_name, cpl: Math.round(best.costPerLead) },
         worst: worst && { name: worst.campaign_name, cpl: Math.round(worst.costPerLead) },
         diagnostics: diagnostics.map((d) => ({ label: d.label, status: d.status, evidence: d.evidence })),
@@ -142,7 +177,7 @@ export async function GET(req: Request) {
       summary = await askPerplexityJSON<{ verdict: string; recommendations: Rec[] }>(
         `You are explaining Meta (Facebook/Instagram) ads to someone who has NEVER run ads and doesn't know any jargon. Use ONLY the facts given — never invent numbers. Write for a total beginner: no acronyms without a plain explanation, everyday words, friendly and clear. Return a JSON object with:
 - "verdict": 1–2 plain sentences: how much was spent, how many leads (people who shared contact details) that got, roughly the cost per lead in rupees, and the single biggest thing to fix — explained simply.
-- "recommendations": exactly 3 items, each an object with "title" (the action in max 8 plain words, naming the real campaign) and "detail" (1–2 sentences explaining WHY in beginner words — what the number means — and WHAT to do). No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
+- "recommendations": exactly 3 items, each an object with "title" (the action in max 8 plain words, naming the real campaign). EVERY recommendation must be about a campaign that is still running — the facts only list those. Never suggest changing, pausing or rebuilding something already switched off. and "detail" (1–2 sentences explaining WHY in beginner words — what the number means — and WHAT to do). No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
         `Facts: ${JSON.stringify(facts)}`,
         { model: "sonar", timeoutMs: 20_000 },
       ).catch(() => null);
@@ -165,12 +200,13 @@ export async function GET(req: Request) {
       while (recs.length < 3) recs.push({ title: `Start with the red flags below`,
         detail: `The coloured flags under this summary are ranked by cost. The red ones are losing you the most money — fix those first.` });
       summary = {
-        verdict: `You spent ${inr(spend)} across ${totals.campaigns} ad campaigns and got ${num(leads)} leads — that's about ${inr(avgCPL)} to get one person's contact details. The main thing to fix: ${PLAIN_ISSUE[topIssue.key] || topIssue.label.toLowerCase()}.`,
+        verdict: `You spent ${inr(spend)} across ${totals.campaigns} ad campaigns and got ${num(leads)} leads — that's about ${inr(avgCPL)} to get one person's contact details.${stoppedCount > 0 ? ` ${stoppedCount} of those ${stoppedCount === 1 ? "has" : "have"} since been switched off, so the advice below covers only the ${live.length} still running.` : ""} The main thing to fix: ${PLAIN_ISSUE[topIssue.key] || topIssue.label.toLowerCase()}.`,
         recommendations: recs.slice(0, 3),
       };
     }
 
     const payload = { window: { from, to }, generatedAt: new Date().toISOString(), totals,
+      liveCount: live.length, stoppedCount,
       best: best && { name: best.campaign_name, cpl: Math.round(best.costPerLead) },
       worst: worst && { name: worst.campaign_name, cpl: Math.round(worst.costPerLead) },
       diagnostics, table, summary, aiUsed, cached: false };

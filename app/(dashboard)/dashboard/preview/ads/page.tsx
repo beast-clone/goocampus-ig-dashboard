@@ -104,6 +104,9 @@ type AdsData = {
   activeAds?: DayAd[];
   yesterdayByCampaign?: DayCampaignSpend[];  // per-campaign spend for yesterday, feeds the new budget-vs-spend section
   liveAds?: LiveAd[];                        // switched on RIGHT NOW (Meta effective_status ACTIVE)
+  // When the SERVER last called Meta — not when this browser got the response.
+  fetchedAt?: string;
+  fromCache?: boolean;
 };
 type LiveAd = {
   ad_id: string; ad_name: string; campaign_name: string; adset_name: string;
@@ -142,9 +145,12 @@ export default function AdsPage() {
 
 function Ads({ range }: { range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
-  const { data, error, isLoading, refresh } = useApi<AdsData>(`/api/ads?${qs}`);
+  const [forceAt, setForceAt] = useState(0);
+  // `force` bypasses the shared 2-hour cache, so Refresh re-asks Meta rather than
+  // handing back the same cached payload and looking like it did nothing.
+  const { data, error, isLoading, refresh } = useApi<AdsData>(`/api/ads?${qs}${forceAt ? `&force=1&t=${forceAt}` : ""}`);
   const loading = isLoading;
-  const fetchData = () => refresh();
+  const fetchData = () => { setForceAt(Date.now()); refresh(); };
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -152,7 +158,14 @@ function Ads({ range }: { range: { from: string; to: string } }) {
   const fetchStartRef = useRef<number>(0);
   useEffect(() => { if (isLoading) fetchStartRef.current = Date.now(); }, [isLoading]);
   useEffect(() => {
-    if (data && !isLoading) { setFetchedAt(Date.now()); setLatencyMs(Date.now() - fetchStartRef.current); }
+    if (data && !isLoading) {
+      // Use the server's timestamp when it sends one. Stamping Date.now() here
+      // made a two-hour-old cached payload report itself as "just now", which is
+      // the opposite of what this indicator exists to tell you.
+      const served = data.fetchedAt ? new Date(data.fetchedAt).getTime() : NaN;
+      setFetchedAt(Number.isFinite(served) ? served : Date.now());
+      setLatencyMs(Date.now() - fetchStartRef.current);
+    }
   }, [data, isLoading]);
 
   const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
@@ -584,6 +597,10 @@ type AnalystData = {
   diagnostics: Diag[];
   table: { name: string; spend: number; leads: number; cpl: number; vsAvg: number | null; frequency: number; ctr: number }[];
   summary: { verdict: string; recommendations: { title: string; detail: string }[] };
+  // How many campaigns the advice actually covers, and how many were skipped for
+  // being switched off — so the header can say so instead of implying it read all.
+  liveCount?: number;
+  stoppedCount?: number;
   aiUsed: boolean;
   error?: string;
 };
@@ -637,7 +654,14 @@ function AdsAnalyst({ range }: { range: { from: string; to: string } }) {
             <span className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center shrink-0"><IconSparkles size={18} stroke={1.8} /></span>
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[#232D42]">AI Ads Analyst</div>
-              <div className="text-[11px] text-brand-ink">{data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"} · updated daily</div>
+              {/* "updated daily" was wrong on both counts — the analyst caches for 6 hours,
+                  and it only ever covers campaigns that are still switched on. Say both,
+                  since the whole complaint was advice about an already-stopped campaign. */}
+              <div className="text-[11px] text-brand-ink">
+                {data.aiUsed ? "Perplexity · grounded on your live ad data" : "Computed from your live ad data"}
+                {typeof data.liveCount === "number" ? ` · ${data.liveCount} running campaign${data.liveCount === 1 ? "" : "s"}` : ""}
+                {data.stoppedCount ? ` · ${data.stoppedCount} stopped one${data.stoppedCount === 1 ? "" : "s"} ignored` : ""}
+              </div>
             </div>
             <button onClick={() => setOpen(true)} className="ml-auto text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light shrink-0">View full report →</button>
           </div>

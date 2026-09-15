@@ -333,9 +333,9 @@ function destinationHost(spec: StorySpec | undefined): string | null {
 
 export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: string): Promise<LiveAd[]> {
   const [cfg, perf] = await Promise.all([
-    gget<{ data: { id: string; name: string; adset?: { name?: string }; campaign?: { name?: string; objective?: string }; creative?: { thumbnail_url?: string; object_story_spec?: StorySpec } }[] }>(
+    gget<{ data: { id: string; name: string; adset?: { name?: string; end_time?: string }; campaign?: { name?: string; objective?: string }; creative?: { thumbnail_url?: string; object_story_spec?: StorySpec } }[] }>(
       `${acct.id}/ads`, acct.token, {
-        fields: "id,name,adset{name},campaign{name,objective},creative{thumbnail_url,object_story_spec}",
+        fields: "id,name,adset{name,end_time},campaign{name,objective},creative{thumbnail_url,object_story_spec}",
         filtering: JSON.stringify([{ field: "effective_status", operator: "IN", value: ["ACTIVE"] }]),
         limit: "200",
       }),
@@ -349,7 +349,21 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
   ]);
 
   const perfById = new Map((perf.data || []).map((r) => [r.ad_id, r]));
+  // effective_status ACTIVE is necessary but NOT sufficient. When an ad set has a
+  // scheduled end date and that date has passed, Meta leaves everything ACTIVE —
+  // nobody paused it, the flight simply ran out — and the ad reports ACTIVE for
+  // ever while delivering nothing. A boosted Instagram post whose run ended on
+  // 2026-07-09 was still listed as live months later on ₹0 spend. Meta itself
+  // offers no "finished" status, so the end date is what has to be checked.
+  const now = Date.now();
+  const ended = (a: { adset?: { end_time?: string } }) => {
+    const end = a.adset?.end_time;
+    if (!end) return false;                 // no scheduled end = runs until paused
+    const t = new Date(end).getTime();
+    return Number.isFinite(t) && t < now;
+  };
   return (cfg.data || [])
+    .filter((a) => !ended(a))
     .map((a) => {
       const p = perfById.get(a.id);
       const spend = parseFloat(p?.spend || "0");

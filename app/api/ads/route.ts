@@ -2,10 +2,19 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, subDays } from "date-fns";
 import { getAdAccount, fetchAdsTotals, fetchAdsDaily, fetchCampaigns, fetchDaySummary, fetchActiveAdsForDay, fetchCampaignSpendForDay, fetchLiveAds } from "@/lib/meta-ads";
-import { cached } from "@/lib/api-cache";
+import { cachedShared } from "@/lib/api-cache";
 import { safeError } from "@/lib/errors";
 
-const DAY_MS = 24 * 60 * 60_000; // Ads refreshed once/day
+// Meta is nowhere near a rate limit at this cadence — one refresh is ~6 Graph
+// calls, so 2-hourly is ~72 calls/day against limits in the thousands. The long
+// ranges are the expensive ones (a year of daily insights), and nobody needs
+// last February re-fetched every two hours, so those refresh more slowly.
+const TWO_HOURS = 2 * 60 * 60_000;
+const TWELVE_HOURS = 12 * 60 * 60_000;
+const ttlFor = (from: string, to: string) => {
+  const days = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1;
+  return days > 120 ? TWELVE_HOURS : TWO_HOURS;
+};
 
 export async function GET(req: Request) {
   const __denied = await requireSection("ads");
@@ -21,8 +30,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Cache the whole payload once/day — this route fans out to 6 Meta Ads calls.
-    const payload = await cached(`ads:${acct.id}:${from}:${to}`, DAY_MS, async () => {
+    // Shared cache, so the TTL is a real promise rather than a per-instance
+    // accident. `?force=1` is what the Refresh button calls.
+    const force = url.searchParams.get("force") === "1";
+    const { data: payload, fetchedAt, fromCache } = await cachedShared(`ads:${acct.id}:${from}:${to}`, ttlFor(from, to), async () => {
       // Yesterday = most recent complete day (matches Meta's "daily summary" notification)
       const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
       const [totals, daily, campaigns, daySummary, activeAds, yesterdayByCampaign, liveAds] = await Promise.all([
@@ -58,9 +69,11 @@ export async function GET(req: Request) {
         yesterdayByCampaign,
         liveAds,
       };
-    });
+    }, { force });
 
-    return NextResponse.json(payload);
+    // fetchedAt is what the tab shows as "Updated HH:MM" — without it nobody can
+    // tell whether they are looking at live numbers or something hours old.
+    return NextResponse.json({ ...payload, fetchedAt, fromCache });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load ads data"), { status: 500 });
   }
