@@ -125,15 +125,15 @@ function Campaigns() {
         <Overlay onClose={() => setConfirming(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
             className="mt-[16vh] w-full max-w-[440px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
+            <div className="px-6 py-5 border-b border-gray-100 text-center">
               <h3 className="text-[15px] font-medium text-[#232D42]">Remove this campaign?</h3>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#4A5468]">
+              <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
                 <b className="font-medium">{confirming.name}</b> disappears from this tab. The Google Sheet and
-                every lead in it stay exactly as they are — only the link to it is forgotten, and you can add it
+                every lead in it stay exactly as they are. Only the link to it is forgotten, and you can add it
                 back with the same sheet.
               </p>
             </div>
-            <div className="flex items-center gap-2 px-5 py-3.5">
+            <div className="flex items-center justify-center gap-2 px-5 py-4">
               <button onClick={() => remove(confirming)}
                 className="text-[13px] font-medium bg-[#C0392B] text-white rounded-lg px-4 py-2 hover:bg-[#9E2D21]">
                 Remove it
