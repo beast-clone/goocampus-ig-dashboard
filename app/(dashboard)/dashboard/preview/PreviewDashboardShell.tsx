@@ -5,6 +5,7 @@ import { todayIST, daysAgoIST } from "@/lib/date";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { HEADER_SLOT_ID } from "./HeaderSlot";
+import { TabIntro } from "./TabIntro";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import { PreviewSelect } from "./PreviewSelect";
 import { useProfile } from "@/lib/profile";
@@ -136,6 +137,10 @@ export function PreviewDashboardShell({
             </div>
           </div>
         )}
+
+        {/* First-run explainer for this tab. One place, so every tab gets one and
+            a new tab cannot forget it. Renders nothing once dismissed. */}
+        <TabIntro tab={active} />
 
         {children({ accountId: profile ?? accountId, compareAll: false, range, setRange })}
       </div>
