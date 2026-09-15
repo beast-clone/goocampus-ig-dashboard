@@ -1,7 +1,8 @@
 # Campaigns — offline-event leads from Sheets (spec / not built)
 
 > Captured from a working session on **2026-09-15**. Decisions below are agreed; §5 is not.
-> **Status: agreed in principle, NOT built.** Two things are needed before it can be (§6).
+> **Status: tab built and live; the import is blocked (§6).** The tab, its access rules, the
+> settings store and the per-lead WhatsApp button all work. Reading the sheet does not yet.
 > Related: `docs/ASK_GOOCAMPUS_SPEC.md` (same house style — read that one's §2 for the
 > "counts come from code, not a model" rule, which applies here too).
 
@@ -21,16 +22,27 @@ people who don't have dashboard access.
 
 ## 1. Shape
 
-A **Campaigns** tab. *Add campaign* → choose a source → pick the sheet and tab → map its
-columns to dashboard fields → import. Leads then live in the dashboard with the team's own
-working fields on top of the raw data.
+A **Marketing Campaigns** tab, under Sales, so per-section access can give a CEO or salesperson
+a login that opens only this. *Add campaign* → pick the sheet and tab → map its columns → done.
 
-Not a spreadsheet embedded in a page. The sheet supplies raw leads; the dashboard owns the
-work done to them.
+Not a spreadsheet embedded in a page: the sheet holds the leads, the dashboard gives them a
+status, a note and a WhatsApp button.
 
 ---
 
 ## 2. Data flow — deliberately NOT bidirectional
+
+**REVISED 2026-09-15 — there is no database copy.** The first cut stored leads in two new
+Supabase tables and synced them. That was wrong: leads come from the sheet, get edited, and go
+back to the sheet, so a second copy buys nothing and costs two places to diverge, a sync to get
+wrong, and a migration to run by hand. The leads are read from the sheet on load and written
+straight back. Only each campaign's settings are stored — spreadsheet, tab, key column, column
+map — a few hundred bytes, in the `discover_cache` key-value store the dashboard already uses.
+
+What that costs, written down rather than discovered later: every page load calls the Sheets API
+(one request per tab, against a 300/minute quota, so nowhere near a limit), and there are no
+cross-campaign queries and no history. If "every lead across every event" is ever wanted, that is
+the reason to add storage — not before.
 
 **In:** raw lead fields from the sheet.
 **Out:** only the dashboard-owned columns (status, notes, called-at, owner).
@@ -106,8 +118,13 @@ into. Zero cost, no approval, useful when a counsellor wants to say something be
 
 ## 6. Blocked on
 
-1. **The sheet** — or at least its column headers.
-2. **The n8n connector is disconnected** ("connection invalidated, user needs to reconnect"),
+1. **Turn on the Google Sheets API** for Google Cloud project `227161816049`. Verified disabled:
+   Google answers `SERVICE_DISABLED`. Enabling it from the dashboard was attempted and refused —
+   a service account may use an API but not enable one — so it needs a person in the Cloud Console.
+2. **Share the event sheet** with `ig-dashboard-ga-reader@gc-dashboard-analytics.iam.gserviceaccount.com`
+   as **Editor** (Editor, not Viewer — status is written back).
+3. **The sheet** — or at least its column headers.
+4. **The n8n connector is disconnected** ("connection invalidated, user needs to reconnect"),
    so the existing WhatsApp workflow could not be inspected. Needed before building anything
    that reuses it.
 
@@ -117,8 +134,8 @@ into. Zero cost, no approval, useful when a counsellor wants to say something be
 
 1. Service account + read a sheet → list tabs, read headers, preview rows. *Verify: real
    headers appear from the real sheet.*
-2. Import with column mapping + key column, into a new Supabase table. *Verify: row count
-   matches, duplicate keys refused.*
+2. Column mapping + key column, saved as the campaign's settings. *Verify: the mapping survives
+   a reload; duplicate key values are refused.*
 3. The Campaigns tab: lead list, status dropdown, notes. *Verify: live.*
 4. Write-back of dashboard-owned columns as plain text. *Verify: the cell changes in the
    sheet and nothing else does.*

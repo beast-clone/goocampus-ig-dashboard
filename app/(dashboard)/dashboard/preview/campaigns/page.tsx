@@ -4,8 +4,8 @@ import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle } f
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 
-type Campaign = { id: string; name: string; source_kind: string; source_tab: string | null; created_at: string; last_synced_at: string | null };
-type Setup = { tablesReady: boolean; sheetsReady: boolean; serviceAccount: string; migration: string };
+type Campaign = { id: string; name: string; spreadsheetId: string; tab: string; createdAt: string };
+type Setup = { sheetsReady: boolean; serviceAccount: string };
 type Resp = { setup: Setup; campaigns: Campaign[]; error?: string };
 
 export default function CampaignsPage() {
@@ -26,10 +26,7 @@ function Campaigns() {
   const [data, setData] = useState<Resp | null>(null);
 
   useEffect(() => {
-    const blank: Resp = {
-      setup: { tablesReady: false, sheetsReady: false, serviceAccount: "", migration: "sql/012_campaigns.sql" },
-      campaigns: [],
-    };
+    const blank: Resp = { setup: { sheetsReady: false, serviceAccount: "" }, campaigns: [] };
     fetch("/api/campaigns", { credentials: "same-origin" })
       .then((r) => r.json())
       // Any unexpected shape — an error payload, a 502 — falls back to the setup
@@ -44,7 +41,7 @@ function Campaigns() {
 
   if (!data) return <Card><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Loading campaigns…</div></Card>;
 
-  const ready = data.setup?.tablesReady && data.setup?.sheetsReady;
+  const ready = data.setup?.sheetsReady;
 
   return (
     <div className="space-y-4">
@@ -62,8 +59,9 @@ function Campaigns() {
           <div className="px-5 py-10 text-center">
             <div className="text-[14px] text-[#232D42] mb-1">No campaigns yet</div>
             <div className="text-[12.5px] text-[#8A92A6] max-w-[52ch] mx-auto">
-              A campaign is one event&apos;s lead list — Gulbarga, Bijapur — brought in from its sheet and
-              worked on here, with status and notes written back so the sheet stays current for everyone else.
+              A campaign points at one event&apos;s sheet — Gulbarga, Bijapur. The leads stay in that sheet:
+              they are read when you open this tab and written straight back when you change a status or add
+              a note, so the sheet remains correct for everyone who does not use the dashboard.
             </div>
           </div>
         ) : (
@@ -76,8 +74,7 @@ function Campaigns() {
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-medium text-[#232D42] truncate">{c.name}</span>
                   <span className="block text-[11.5px] text-[#8A92A6]">
-                    {c.source_tab || c.source_kind}
-                    {c.last_synced_at ? ` · synced ${new Date(c.last_synced_at).toLocaleString("en-GB")}` : " · never synced"}
+                    Sheet tab <span className="font-mono">{c.tab}</span> · read live, nothing stored here
                   </span>
                 </span>
               </li>
@@ -97,14 +94,9 @@ function Campaigns() {
 function SetupNeeded({ setup }: { setup: Setup }) {
   const steps = [
     {
-      done: setup.tablesReady,
-      title: "Create the two tables",
-      body: <>Run <code className="text-[11.5px] bg-white border border-gray-200 rounded px-1.5 py-[1px]">{setup.migration}</code> once in the Supabase SQL editor. The dashboard&apos;s database login can read and write rows but cannot create tables, so this one is by hand.</>,
-    },
-    {
       done: setup.sheetsReady,
       title: "Turn on the Google Sheets API",
-      body: <>On Google Cloud project <span className="font-mono text-[11.5px]">227161816049</span> — the same project the dashboard already uses for Analytics and Search Console. It&apos;s off today, so every sheet request is refused.</>,
+      body: <>On Google Cloud project <span className="font-mono text-[11.5px]">227161816049</span> — the same project the dashboard already uses for Analytics and Search Console. It&apos;s off today, so every sheet request is refused. I tried turning it on with the dashboard&apos;s own credentials and Google refused: a service account may use an API but not enable one. It needs a person in the Cloud Console.</>,
     },
     {
       done: false,
@@ -117,7 +109,7 @@ function SetupNeeded({ setup }: { setup: Setup }) {
     <div className="rounded-2xl border border-[#F0DFB8] bg-[#FDF6E7] overflow-hidden">
       <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[#F0DFB8]">
         <IconAlertTriangle size={17} stroke={1.9} className="text-[#B7791F]" />
-        <h2 className="text-[14px] font-medium text-[#7A5410]">Three things needed before leads can be imported</h2>
+        <h2 className="text-[14px] font-medium text-[#7A5410]">Two things needed before leads can be imported</h2>
       </div>
       <ol className="divide-y divide-[#F0DFB8]">
         {steps.map((s, i) => (
