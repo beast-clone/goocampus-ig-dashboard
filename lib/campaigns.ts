@@ -35,6 +35,11 @@ export type CampaignConfig = {
   /** Which column free-text notes are written to. */
   notesColumn?: string | null;
   /**
+   * Which column records that the lead was added to the community / sent the
+   * invite. A tick in the table, an ordinary word in the sheet.
+   */
+  communityColumn?: string | null;
+  /**
    * Named links offered when composing a WhatsApp message — the community invite,
    * a brochure, whatever this event needs. Campaign-wide, because the community
    * link is the same for every lead; the choice of whether to include it is made

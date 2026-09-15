@@ -54,6 +54,10 @@ export async function GET(req: Request) {
 
     const statusCol = campaign.statusColumn && headers.includes(campaign.statusColumn) ? campaign.statusColumn : null;
     const notesCol = campaign.notesColumn && headers.includes(campaign.notesColumn) ? campaign.notesColumn : null;
+    const communityCol = campaign.communityColumn && headers.includes(campaign.communityColumn) ? campaign.communityColumn : null;
+    // Ticking the box writes the word this column already uses ("Invite sent"),
+    // not one we invented. Only if it is empty everywhere do we pick "Yes".
+    const communityValue = communityCol ? (optionsIn(rows, communityCol)[0] || "Yes") : "";
     return NextResponse.json({
       campaign,
       headers,
@@ -61,6 +65,8 @@ export async function GET(req: Request) {
       writable: {
         status: statusCol,
         notes: notesCol,
+        community: communityCol,
+        communityValue,
         options: statusCol
           ? optionsIn(rows, statusCol).filter((o) => !(campaign.hiddenStatuses || []).includes(o))
           : [],

@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
-type Writable = { status: string | null; notes: string | null; options: string[] };
+type Writable = { status: string | null; notes: string | null; community: string | null; communityValue: string; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[] };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -35,14 +36,14 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Which field's column is being chosen, if any. Opened from the settings row at
   // the top OR from the cell itself — a person who wants to type a note looks at
   // the note, not at a settings bar two hundred rows above it.
-  const [picking, setPicking] = useState<"status" | "notes" | null>(null);
+  const [picking, setPicking] = useState<"status" | "notes" | "community" | null>(null);
 
   const load = useCallback(() => {
     setData(null);
     fetch(`/api/campaigns/leads?id=${encodeURIComponent(id)}`, { credentials: "same-origin" })
       .then((r) => r.json())
       .then((d) => { setData(d); setSyncedAt(Date.now()); })
-      .catch(() => setData({ campaign: { id, name: "", spreadsheetId: "", tab: "", keyColumn: "" }, headers: [], leads: [], writable: { status: null, notes: null, options: [] }, error: "Couldn't reach the sheet." }));
+      .catch(() => setData({ campaign: { id, name: "", spreadsheetId: "", tab: "", keyColumn: "" }, headers: [], leads: [], writable: { status: null, notes: null, community: null, communityValue: "", options: [] }, error: "Couldn't reach the sheet." }));
   }, [id]);
   useEffect(load, [load]);
 
@@ -57,7 +58,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     return () => clearInterval(id);
   }, [load]);
 
-  if (!data) return <Shell onBack={onBack}><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Reading the sheet…</div></Shell>;
+  if (!data) return <Shell onBack={onBack}><LoadingBlock label="Reading the sheet…" /></Shell>;
 
   if (data.error) {
     return (
@@ -87,7 +88,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
 
   // Which column the dropdown edits is a setting on the campaign, saved so it
   // holds next time. Nothing in the sheet is touched by choosing it.
-  const setColumn = async (which: "statusColumn" | "notesColumn", column: string) => {
+  const setColumn = async (which: "statusColumn" | "notesColumn" | "communityColumn", column: string) => {
     if (!data) return;
     setFailed(null);
     const r = await fetch("/api/campaigns", {
@@ -103,7 +104,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Make a brand-new column in the sheet and point the field at it. Needed
   // because a sheet filled in at an event has no Notes column, and the only
   // columns on offer are ones already holding someone's answers.
-  const createColumn = async (use: "status" | "notes", name: string) => {
+  const createColumn = async (use: "status" | "notes" | "community", name: string) => {
     setFailed(null);
     const r = await fetch("/api/campaigns/column", {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
@@ -256,6 +257,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         <span className="text-[11.5px] text-[#8A92A6] whitespace-nowrap">Saves into this sheet&rsquo;s columns:</span>
         <SettingChip label="Status" column={writable.status} onClick={() => setPicking("status")} />
         <SettingChip label="Notes" column={writable.notes} onClick={() => setPicking("notes")} />
+        <SettingChip label="Community" column={writable.community} onClick={() => setPicking("community")} />
         <span className="text-[11.5px] text-[#A6ACBE]">
           {writable.status
             ? `Status choices come from what's already in ${writable.status} — ${writable.options.length} of them.`
@@ -274,8 +276,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         <ColumnPicker
           what={picking}
           headers={headers}
-          current={picking === "status" ? writable.status : writable.notes}
-          onPick={(h) => setColumn(picking === "status" ? "statusColumn" : "notesColumn", h)}
+          current={picking === "status" ? writable.status : picking === "notes" ? writable.notes : writable.community}
+          onPick={(h) => setColumn(picking === "status" ? "statusColumn" : picking === "notes" ? "notesColumn" : "communityColumn", h)}
           onCreate={(name) => createColumn(picking, name)}
           onClose={() => setPicking(null)}
           error={failed}
@@ -301,8 +303,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
                   the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[7%] px-3"], ["Captured", "w-[7%] px-3"], ["Name", "w-[19%] px-3"],
-                ["Phone", "w-[13%] px-3"], ["Status", "w-[16%] px-3"], ["Notes", "w-[24%] px-3"], ["WhatsApp", "w-[11%] pl-3 pr-5"],
+                ["Lead ID", "w-[6%] px-3"], ["Captured", "w-[7%] px-3"], ["Name", "w-[18%] px-3"],
+                ["Phone", "w-[12%] px-3"], ["Status", "w-[15%] px-3"], ["Notes", "w-[21%] px-3"],
+                ["Community", "w-[8%] px-3"], ["WhatsApp", "w-[10%] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
@@ -360,6 +363,25 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                       />
                     ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt>}
                   </td>
+                  {/* A tick, because "did we send the invite" is a yes/no. It writes
+                      the word this column already uses, so the sheet keeps reading
+                      the way whoever filled it in expects. */}
+                  <td className="px-3 py-3">
+                    {writable.community ? (
+                      <label className="inline-flex items-center gap-2 cursor-pointer"
+                        title={l.fields[writable.community] ? `Sheet says “${l.fields[writable.community]}”` : "Not sent yet"}>
+                        <input type="checkbox"
+                          checked={Boolean((l.fields[writable.community] || "").trim())}
+                          disabled={busy === `${l.rowKey}:${writable.community}`}
+                          onChange={(e) => write(l, writable.community!, e.target.checked ? writable.communityValue : "")}
+                          className="w-[15px] h-[15px] accent-[#3A57E8] cursor-pointer disabled:opacity-40" />
+                        <span className="text-[11.5px] text-[#8A92A6] truncate">
+                          {busy === `${l.rowKey}:${writable.community}` ? "Saving…"
+                            : (l.fields[writable.community] || "").trim() || "Not sent"}
+                        </span>
+                      </label>
+                    ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt>}
+                  </td>
                   <td className="pl-3 pr-5 py-3">
                     <WhatsAppSend phone={phone} name={fullName(l)} compact
                       links={campaign.links || []} onAddLink={addLink} onRemoveLink={removeLink} />
@@ -368,7 +390,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               );
             })}
             {leads.length === 0 && (
-              <tr><td colSpan={8} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
+              <tr><td colSpan={9} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -410,7 +432,7 @@ function PickPrompt({ onClick, children }: { onClick: () => void; children: Reac
  * column at the end is the only option that writes nothing over.
  */
 function ColumnPicker({ what, headers, current, onPick, onCreate, onClose, error }: {
-  what: "status" | "notes";
+  what: "status" | "notes" | "community";
   headers: string[];
   current: string | null;
   onPick: (h: string) => void;
@@ -419,7 +441,7 @@ function ColumnPicker({ what, headers, current, onPick, onCreate, onClose, error
   /** Shown inside the dialog: the page's own banner is behind it and unreadable. */
   error: string | null;
 }) {
-  const [name, setName] = useState(what === "notes" ? "Notes" : "Status");
+  const [name, setName] = useState(what === "notes" ? "Notes" : what === "community" ? "Added to community" : "Status");
   const [saving, setSaving] = useState(false);
   const exists = headers.some((h) => h.toLowerCase() === name.trim().toLowerCase());
 
@@ -429,11 +451,15 @@ function ColumnPicker({ what, headers, current, onPick, onCreate, onClose, error
         className="mt-[12vh] w-full max-w-[520px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <header className="px-5 py-4 bg-brand-light border-b border-gray-100">
           <h3 className="text-[15px] font-medium text-[#232D42]">
-            {what === "notes" ? "Where should notes be saved?" : "Which column holds the status?"}
+            {what === "notes" ? "Where should notes be saved?"
+              : what === "community" ? "Which column records the community invite?"
+              : "Which column holds the status?"}
           </h3>
           <p className="mt-1 text-[12.5px] text-[#4A5468]">
             {what === "notes"
               ? "Notes are typed here and written straight into this column of your sheet. Pick an empty one, or add a new column."
+              : what === "community"
+              ? "Ticking the box on a row writes into this column. It uses the wording already in there, so the sheet keeps reading the way it does now."
               : "The dropdown on each row edits this column, and its choices are whatever values are already in it."}
           </p>
         </header>

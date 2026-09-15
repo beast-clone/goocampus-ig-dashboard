@@ -80,6 +80,7 @@ export async function POST(req: Request) {
       columnMap: b.columnMap && typeof b.columnMap === "object" ? b.columnMap : {},
       statusColumn: b.statusColumn ?? null,
       notesColumn: b.notesColumn ?? null,
+      communityColumn: b.communityColumn ?? null,
       // Statuses hidden from the dropdown — the sheet column keeps them.
       hiddenStatuses: Array.isArray(b.hiddenStatuses)
         ? b.hiddenStatuses.map((v) => String(v)).filter(Boolean).slice(0, 100)

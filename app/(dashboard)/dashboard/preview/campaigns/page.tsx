@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { AddCampaign } from "./AddCampaign";
@@ -61,7 +62,7 @@ function Campaigns() {
   }, [reload]);
 
   if (openId) return <CampaignLeads id={openId} onBack={() => setOpenId(null)} />;
-  if (!data) return <Card><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Loading campaigns…</div></Card>;
+  if (!data) return <Card><LoadingBlock label="Loading campaigns…" /></Card>;
 
   const ready = data.setup?.sheetsReady;
 
