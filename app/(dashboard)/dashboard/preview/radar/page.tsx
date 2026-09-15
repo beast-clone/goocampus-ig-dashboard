@@ -329,6 +329,58 @@ const DEADLINE_WORDS = [
 
 type Flag = { label: string; why: string; tone: "urgent" | "new" | "watch" };
 
+const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+const MONTH_RE = new RegExp(`\\b(${MONTHS.join("|")}|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\.?\\s+(\\d{1,2})\\b|\\b(\\d{1,2})\\s+(${MONTHS.join("|")}|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\b`, "gi");
+
+// When the thing in the headline actually falls due.
+//
+// The catch that makes this necessary: "closes today" in a story published on
+// 28 July means 28 July, not today. Reading those words literally badged
+// seven-week-old deadlines as urgent — the exact opposite of useful. Relative
+// words are therefore resolved against the article's OWN publication date, and
+// anything already past stops being urgent.
+//
+// Where a headline carries more than one date ("opens today; correct images by
+// August 10") the latest is the deadline; the earlier one is a start date.
+function deadlineOf(item: FeedItem): Date | null {
+  const title = item.title.toLowerCase();
+  const pub = new Date(item.publishedAt);
+  if (isNaN(pub.getTime())) return null;
+  const cands: Date[] = [];
+
+  if (/\btoday\b/.test(title)) cands.push(new Date(pub));
+  if (/\btomorrow\b/.test(title)) { const d = new Date(pub); d.setDate(d.getDate() + 1); cands.push(d); }
+
+  for (const m of item.title.matchAll(MONTH_RE)) {
+    const name = (m[1] || m[4] || "").toLowerCase();
+    const day = parseInt(m[2] || m[3] || "", 10);
+    const mi = MONTHS.findIndex((x) => x.startsWith(name.slice(0, 3)));
+    if (mi < 0 || !day || day > 31) continue;
+    const d = new Date(pub.getFullYear(), mi, day);
+    // A date well before publication is next year's (December → January).
+    if (d.getTime() < pub.getTime() - 60 * 86_400_000) d.setFullYear(d.getFullYear() + 1);
+    cands.push(d);
+  }
+  if (!cands.length) return null;
+  return new Date(Math.max(...cands.map((d) => d.getTime())));
+}
+
+// Whole days from today, so "closes today" stays today all day rather than
+// flipping to "tomorrow" after midday.
+function daysAway(d: Date): number {
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(d); b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+function dueLabel(n: number): string {
+  if (n === 0) return "Due today";
+  if (n === 1) return "Due tomorrow";
+  if (n === 2) return "Day after tomorrow";
+  if (n <= 7) return `Due in ${n} days`;
+  return `Due ${new Date(Date.now() + n * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+}
+
 function flagFor(item: FeedItem, sentiment: "positive" | "negative" | "neutral"): Flag | null {
   // Title only, not the snippet. Matching body text flagged six stories out of
   // six — "released" and "ending" turned up mid-paragraph in articles with no
@@ -336,7 +388,17 @@ function flagFor(item: FeedItem, sentiment: "positive" | "negative" | "neutral")
   // is written to signal urgency; body prose is not.
   const hay = item.title.toLowerCase();
   const hit = DEADLINE_WORDS.find((w) => hay.includes(w));
-  if (hit) return { label: "Time-sensitive", why: `mentions “${hit}”`, tone: "urgent" };
+  if (hit) {
+    const due = deadlineOf(item);
+    // A deadline that has already passed is not urgent, it is history. Without
+    // this, "closes today" from July stayed red for ever.
+    if (due) {
+      const n = daysAway(due);
+      if (n >= 0) return { label: dueLabel(n), why: `“${hit}” in the headline, due ${due.toDateString()}`, tone: "urgent" };
+    } else {
+      return { label: "Time-sensitive", why: `mentions “${hit}”, no date given`, tone: "urgent" };
+    }
+  }
 
   const ageH = (Date.now() - new Date(item.publishedAt).getTime()) / 3_600_000;
   if (ageH <= 24) return { label: "New today", why: "published in the last 24 hours", tone: "new" };
