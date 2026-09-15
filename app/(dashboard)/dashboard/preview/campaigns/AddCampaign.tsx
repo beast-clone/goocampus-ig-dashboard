@@ -1,11 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconTable, IconX, IconAlertTriangle, IconCheck } from "@tabler/icons-react";
+import { IconTable, IconX, IconAlertTriangle, IconCheck, IconPlus } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 
 type Tab = { title: string; rows: number; columns: number };
 type Dup = { value: string; count: number };
+
+// What the dashboard shows and writes, and the shape of a guess at which sheet
+// column is which. Guessed once, then shown — so a wrong guess is corrected here
+// rather than discovered later by someone typing into the wrong column.
+const FIELDS = [
+  { key: "captured", label: "Captured", hint: "when the lead came in", re: /capture|created|timestamp|date|time/i },
+  { key: "name", label: "Name", hint: "shown in the list", re: /^first\s*name$|name/i },
+  { key: "phone", label: "Phone", hint: "used by the WhatsApp button", re: /phone|mobile|contact|whats/i },
+  { key: "status", label: "Status", hint: "the dropdown writes here", re: /status|attendance|confirm/i },
+  { key: "notes", label: "Notes", hint: "typed in the row, saved here", re: /note|remark|comment/i },
+  { key: "community", label: "Community", hint: "the invite-sent tick", re: /communit|invite/i },
+] as const;
+type FieldKey = (typeof FIELDS)[number]["key"];
 
 // Paste a sheet link → pick the tab → pick the column that identifies a row.
 //
@@ -35,6 +48,9 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
   const [keyColumn, setKeyColumn] = useState("");
   const [dups, setDups] = useState<Dup[]>([]);
   const [name, setName] = useState("");
+  const [map, setMap] = useState<Partial<Record<FieldKey, string>>>({});
+  const [newCol, setNewCol] = useState("");
+  const [addingCol, setAddingCol] = useState(false);
 
   const post = async (body: unknown) => {
     const r = await fetch("/api/campaigns/sheet", {
@@ -62,6 +78,7 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
       const d = await post({ url: sid || sheet?.spreadsheetId || url, tab: t });
       if (d.error) { setError(d.error); return; }
       setCols(d);
+      setMap(guessMap(d.headers as string[]));
       // A column called id / registration / phone is the usual answer, so offer it.
       const guess = (d.headers as string[]).find((h) => /(^|\b)(id|reg|registration|phone|mobile|contact)\b/i.test(h));
       if (guess) checkKey(guess, t, sid);
@@ -76,12 +93,34 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
     } finally { setBusy(false); }
   };
 
+  // A column that doesn't exist yet, created in the sheet from here.
+  const addColumn = async () => {
+    const n = newCol.trim();
+    if (!n) return;
+    setAddingCol(true); setError(null);
+    try {
+      const d = await post({ url: sheet?.spreadsheetId || url, tab, addColumn: n });
+      if (d.error) { setError(d.error); return; }
+      setCols(d);
+      setMap((m) => ({ ...m, ...autoAssign(n, m) }));
+      setNewCol("");
+    } finally { setAddingCol(false); }
+  };
+
   const save = async () => {
     setBusy(true); setError(null);
     try {
       const r = await fetch("/api/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ name, spreadsheetId: sheet?.spreadsheetId, tab, keyColumn, columnMap: {} }),
+        body: JSON.stringify({
+          name, spreadsheetId: sheet?.spreadsheetId, tab, keyColumn,
+          // Display columns travel in columnMap; the three writable ones have
+          // their own fields because the API validates and uses them directly.
+          columnMap: { captured: map.captured || "", name: map.name || "", phone: map.phone || "" },
+          statusColumn: map.status || null,
+          notesColumn: map.notes || null,
+          communityColumn: map.community || null,
+        }),
       });
       const d = await r.json();
       if (!r.ok || d.error) { setError(d.error || "Couldn't save"); return; }
@@ -187,6 +226,43 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
                 </div>
               </div>
 
+              {/* Map every column here, at setup. The alternative was setting Status,
+                  Notes and Community one at a time from inside the lead table, which
+                  is both hidden and too late. */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                <div className="px-3.5 py-2.5 bg-brand-light border-b border-gray-100">
+                  <div className="text-[12.5px] font-medium text-[#232D42]">Map the columns</div>
+                  <div className="text-[11.5px] text-[#4A5468] mt-0.5">
+                    Filled in from your headers. Change anything that looks wrong — Status, Notes and
+                    Community are the three the dashboard writes to.
+                  </div>
+                </div>
+                <div className="p-3 flex flex-col gap-2">
+                  {FIELDS.map((f) => (
+                    <div key={f.key} className="flex items-center gap-2.5">
+                      <span className="w-[86px] shrink-0 text-[11.5px] text-[#4A5468]">{f.label}</span>
+                      <span className="flex-1 min-w-0">
+                        <PreviewSelect className="w-full justify-between" value={map[f.key] || ""}
+                          onChange={(v) => setMap((m) => ({ ...m, [f.key]: v }))}
+                          placeholder="Not mapped"
+                          options={[{ value: "", label: "Not mapped" }, ...cols.headers.map((h) => ({ value: h, label: h }))]} />
+                      </span>
+                      <span className="w-[150px] shrink-0 text-[11px] text-[#A6ACBE] truncate">{f.hint}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-3 pb-3 flex items-center gap-2">
+                  <input value={newCol} onChange={(e) => setNewCol(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && newCol.trim()) { e.preventDefault(); addColumn(); } }}
+                    placeholder="Missing one? Name it — e.g. Notes"
+                    className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-gray-200 focus:border-brand focus:outline-none text-[12px] text-[#232D42] placeholder:text-[#C9CDD8]" />
+                  <button onClick={addColumn} disabled={!newCol.trim() || addingCol}
+                    className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-medium text-brand border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-brand disabled:opacity-40">
+                    <IconPlus size={13} stroke={2} /> {addingCol ? "Adding…" : "Add to the sheet"}
+                  </button>
+                </div>
+              </div>
+
               <label className="block">
                 <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Call this campaign</span>
                 <input value={name} onChange={(e) => setName(e.target.value)}
@@ -207,4 +283,21 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
       </div>
     </Overlay>
   );
+}
+
+/** First header matching each field's pattern. A starting point, not a decision. */
+function guessMap(headers: string[]): Partial<Record<FieldKey, string>> {
+  const out: Partial<Record<FieldKey, string>> = {};
+  const taken = new Set<string>();
+  for (const f of FIELDS) {
+    const hit = headers.find((h) => f.re.test(h) && !taken.has(h));
+    if (hit) { out[f.key] = hit; taken.add(hit); }
+  }
+  return out;
+}
+
+/** A freshly added column slots into the first field its name fits and nothing holds. */
+function autoAssign(header: string, current: Partial<Record<FieldKey, string>>) {
+  const f = FIELDS.find((f) => f.re.test(header) && !current[f.key]);
+  return f ? { [f.key]: header } : {};
 }

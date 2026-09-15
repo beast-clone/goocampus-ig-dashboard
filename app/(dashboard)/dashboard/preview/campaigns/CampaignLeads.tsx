@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck } from "@tabler/icons-react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
@@ -9,7 +9,7 @@ import { WhatsAppSend } from "@/components/WhatsAppSend";
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; community: string | null; communityValue: string; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; columnMap?: Record<string, string>; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -37,6 +37,11 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // the top OR from the cell itself — a person who wants to type a note looks at
   // the note, not at a settings bar two hundred rows above it.
   const [picking, setPicking] = useState<"status" | "notes" | "community" | null>(null);
+  // Filters. Sorting 173 event leads by hand to find the ones worth calling is the
+  // job this tab exists to remove.
+  const [q, setQ] = useState("");
+  const [filterCol, setFilterCol] = useState("");
+  const [filterVal, setFilterVal] = useState("");
 
   const load = useCallback(() => {
     setData(null);
@@ -75,13 +80,16 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Fixed column order, whatever the sheet calls things: id, when it came in,
   // who it is, how to reach them, then the two editable fields. Used for DISPLAY
   // only — nothing is written on the strength of a guessed column.
+  // Mapped at setup wins; the guess is only a fallback for campaigns made before
+  // the mapping step existed.
+  const mapped = (campaign.columnMap || {}) as Record<string, string>;
   const firstName = pick(headers, /^first\s*name$/i);
   const lastName = pick(headers, /^last\s*name$/i);
-  const nameCol = firstName || pick(headers, /name/i);
-  const phoneCol = pick(headers, /phone|mobile|contact|whats/i);
-  const timeCol = pick(headers, /capture|created|timestamp|date|time/i);
+  const nameCol = (mapped.name && headers.includes(mapped.name) ? mapped.name : null) || firstName || pick(headers, /name/i);
+  const phoneCol = (mapped.phone && headers.includes(mapped.phone) ? mapped.phone : null) || pick(headers, /phone|mobile|contact|whats/i);
+  const timeCol = (mapped.captured && headers.includes(mapped.captured) ? mapped.captured : null) || pick(headers, /capture|created|timestamp|date|time/i);
   const fullName = (l: Lead) => {
-    const a = (firstName && l.fields[firstName]) || (nameCol && l.fields[nameCol]) || "";
+    const a = (nameCol && l.fields[nameCol]) || (firstName && l.fields[firstName]) || "";
     const b = (lastName && l.fields[lastName]) || "";
     return [a, b].filter(Boolean).join(" ").trim() || "—";
   };
@@ -211,6 +219,32 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     } finally { setBusy(null); }
   };
 
+  // Two filters that between them cover what people actually ask: "show me the
+  // ones that say X" and "find the person who said something about Y". The value
+  // list is built from the column, so it can only offer what is really in there.
+  const valuesIn = (col: string) => {
+    const seen = new Map<string, number>();
+    for (const l of leads) {
+      const v = (l.fields[col] || "").trim();
+      if (v) seen.set(v, (seen.get(v) || 0) + 1);
+    }
+    return [...seen.entries()].sort((a, b) => b[1] - a[1]);
+  };
+
+  const needle = q.trim().toLowerCase();
+  const shown = leads.filter((l) => {
+    if (filterCol && filterVal) {
+      const v = (l.fields[filterCol] || "").trim();
+      if (filterVal === "\u0000blank" ? v !== "" : v !== filterVal) return false;
+    }
+    if (!needle) return true;
+    // Every column, not just the visible ones — "60 lakhs" lives in a note, and
+    // the budget answer lives in a column this table never shows.
+    return Object.values(l.fields).some((v) => (v || "").toLowerCase().includes(needle));
+  });
+  const shownKeys = shown.map((l) => l.rowKey).filter(Boolean);
+  const allShownPicked = shownKeys.length > 0 && shownKeys.every((k) => picked.has(k));
+
   return (
     <Shell
       onBack={onBack}
@@ -218,7 +252,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       meta={
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-[#8A92A6]">
-            {leads.length} lead{leads.length === 1 ? "" : "s"} from the <b className="font-medium text-[#4A5468]">{campaign.tab}</b> tab
+            {shown.length === leads.length
+              ? <>{leads.length} lead{leads.length === 1 ? "" : "s"}</>
+              : <><b className="font-medium text-[#4A5468]">{shown.length}</b> of {leads.length} leads</>}
+            {" "}from the <b className="font-medium text-[#4A5468]">{campaign.tab}</b> tab
             {writable.status && <> · Status saves into <b className="font-medium text-[#4A5468]">{writable.status}</b></>}
             {syncedAt && <> · synced {new Date(syncedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</>}
           </span>
@@ -231,6 +268,32 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         </div>
       }
     >
+      <div className="flex items-center gap-2.5 flex-wrap px-5 py-2.5 border-b border-gray-100">
+        <span className="relative">
+          <IconSearch size={14} stroke={1.9} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A6ACBE]" />
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Search every column — a name, a number, “60 lakhs”…"
+            className="w-[300px] pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 focus:border-brand focus:outline-none text-[12.5px] text-[#232D42] placeholder:text-[#C9CDD8]" />
+        </span>
+        <PreviewSelect className="justify-between min-w-[170px]" value={filterCol}
+          onChange={(v) => { setFilterCol(v); setFilterVal(""); }}
+          placeholder="Filter by a column…"
+          options={[{ value: "", label: "No column filter" }, ...headers.map((h) => ({ value: h, label: h }))]} />
+        {filterCol && (
+          <PreviewSelect className="justify-between min-w-[170px]" value={filterVal} onChange={setFilterVal}
+            placeholder="Any value"
+            options={[
+              { value: "", label: "Any value" },
+              { value: "\u0000blank", label: "(blank)" },
+              ...valuesIn(filterCol).map(([v, n]) => ({ value: v, label: `${v} (${n})` })),
+            ]} />
+        )}
+        {(q || filterVal) && (
+          <button onClick={() => { setQ(""); setFilterCol(""); setFilterVal(""); }}
+            className="text-[12px] text-[#8A92A6] hover:text-brand">Clear</button>
+        )}
+      </div>
+
       <div className="flex items-center gap-3 flex-wrap px-5 py-2.5 border-b border-gray-100">
         <span className="text-[12px] text-[#8A92A6]">
           {picked.size > 0 ? `${picked.size} selected` : "Tick leads to send them to the CRM"}
@@ -295,9 +358,13 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="pl-5 pr-3 py-2.5 w-[3%]">
-                <input type="checkbox" aria-label="Select all"
-                  checked={picked.size > 0 && picked.size === leads.filter((l) => l.rowKey).length}
-                  onChange={(e) => setPicked(e.target.checked ? new Set(leads.map((l) => l.rowKey).filter(Boolean)) : new Set())}
+                {/* Selects what is on screen, not what is hidden behind a filter —
+                    a tick that quietly picks 173 leads when 6 are showing is how
+                    the wrong people end up in the CRM. */}
+                <input type="checkbox" aria-label="Select all shown"
+                  title={`Select the ${shownKeys.length} lead${shownKeys.length === 1 ? "" : "s"} showing`}
+                  checked={allShownPicked}
+                  onChange={(e) => setPicked(e.target.checked ? new Set(shownKeys) : new Set())}
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
@@ -312,7 +379,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
             </tr>
           </thead>
           <tbody>
-            {leads.map((l) => {
+            {shown.map((l) => {
               const phone = (phoneCol && l.fields[phoneCol]) || "";
               return (
                 <tr key={l.rowKey || l.sheetRow} className={`border-b border-gray-50 last:border-0 align-top ${picked.has(l.rowKey) ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
@@ -389,8 +456,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                 </tr>
               );
             })}
-            {leads.length === 0 && (
-              <tr><td colSpan={9} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
+            {shown.length === 0 && (
+              <tr><td colSpan={9} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
+                {leads.length === 0 ? "That tab has no rows yet." : "No lead matches that filter."}
+              </td></tr>
             )}
           </tbody>
         </table>
