@@ -159,7 +159,7 @@ function Radar() {
           {/* The four tiles that used to sit below counted the things directly
               beneath them — "Brand mentions 10" above the list of 10. One line
               instead, and Breakouts is gone until there actually is one. */}
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-[#8A92A6]">
             <b className="font-semibold text-[#232D42] tabular-nums">{items.length}</b> headline{items.length === 1 ? "" : "s"}
             {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
             {trends ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0))}</b> rising search{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0)) === 1 ? "" : "es"}</> : null}
@@ -200,17 +200,17 @@ function Radar() {
       {alerts.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] gap-4 items-start">
           {/* LEFT — News feed */}
-          <section id="sec-headlines" className="scroll-mt-24 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <section id="sec-headlines" className="scroll-mt-24 bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
               <IconNews size={17} stroke={1.8} className="text-brand" />
               <h2 className="text-base font-medium text-[#232D42]">Latest in your domain</h2>
-              <span className="text-xs text-gray-500">· {items.length} news headline{items.length === 1 ? "" : "s"}</span>
+              <span className="text-xs text-[#8A92A6]">· {items.length} news headline{items.length === 1 ? "" : "s"}</span>
               {interestChips.length > 1 && (
                 <div className="ml-auto flex items-center gap-1.5 flex-wrap">
                   {interestChips.map((i) => (
                     <button key={i} onClick={() => setActiveInterest(i)}
                       className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
-                        activeInterest === i ? "bg-brand text-white border-brand" : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
+                        activeInterest === i ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand/40"
                       }`}>
                       {i === "all" ? "All" : i}
                     </button>
@@ -220,8 +220,8 @@ function Radar() {
             </div>
             {items.length === 0 && !loading ? (
               <div className="p-8 text-center">
-                <div className="text-sm text-gray-700 mb-1">No cached items yet.</div>
-                <div className="text-xs text-gray-500 mb-4">Hit &quot;Pull latest from Google&quot; to fetch your feeds for the first time.</div>
+                <div className="text-sm text-[#232D42] mb-1">No cached items yet.</div>
+                <div className="text-xs text-[#8A92A6] mb-4">Hit &quot;Pull latest from Google&quot; to fetch your feeds for the first time.</div>
                 <button onClick={refreshAll} disabled={refreshing}
                   className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50">
                   {refreshing ? "Fetching…" : "Pull latest from Google"}
@@ -430,8 +430,8 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
       </span>
       <button type="button" onClick={onRead} className="flex-1 min-w-0 text-left group flex flex-col gap-1">
         <div className="text-sm font-medium text-[#232D42] group-hover:text-brand leading-snug">{item.title}</div>
-        <div className="flex items-center gap-2 text-[11.5px] text-gray-500 flex-wrap">
-          <span className="font-medium text-gray-600">{src}</span>
+        <div className="flex items-center gap-2 text-[11.5px] text-[#8A92A6] flex-wrap">
+          <span className="font-medium text-[#4A5468]">{src}</span>
           <span className="opacity-50">·</span>
           <span>{relative}</span>
           <span className="opacity-50">·</span>
@@ -479,7 +479,7 @@ type MentionResult = {
 const SENT_STYLE: Record<MentionSentiment, { dot: string; label: string; text: string }> = {
   positive: { dot: "#1aa053", label: "Positive", text: "text-[#1aa053]" },
   negative: { dot: "#c03221", label: "Negative", text: "text-[#c03221]" },
-  neutral: { dot: "#8A92A6", label: "Neutral", text: "text-gray-500" },
+  neutral: { dot: "#8A92A6", label: "Neutral", text: "text-[#8A92A6]" },
 };
 
 // The brand name doubles as the default query, so the panel opens on "what's the
@@ -542,21 +542,21 @@ function KeywordIntel() {
   };
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+    <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center"><IconWorldSearch size={16} stroke={1.8} /></span>
           <div>
             <h2 className="text-base font-medium text-[#232D42] leading-tight">Search the web &amp; your brand</h2>
-            <div className="text-[11px] text-gray-500">Type any keyword or your brand — see where it&apos;s mentioned online + the mood. Free · News + Reddit · Quora · MouthShut · ValueMD</div>
+            <div className="text-[11px] text-[#8A92A6]">Type any keyword or your brand — see where it&apos;s mentioned online + the mood. Free · News + Reddit · Quora · MouthShut · ValueMD</div>
           </div>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus-within:border-brand/50">
-            <IconSearch size={16} stroke={1.8} className="text-gray-400" />
+          <div className="flex-1 flex items-center gap-2 bg-[#FCFCFE] border border-gray-200 rounded-lg px-3 py-2 focus-within:border-brand/50">
+            <IconSearch size={16} stroke={1.8} className="text-[#A6ACBE]" />
             <input value={input} onChange={(e) => setInput(e.target.value)}
               placeholder="e.g. GooCampus · AMC exam 2026 · PLAB 2"
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400" />
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#A6ACBE]" />
           </div>
           <button type="submit" disabled={loading}
             className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50">
@@ -564,10 +564,10 @@ function KeywordIntel() {
           </button>
         </form>
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-          <span className="text-[11px] text-gray-400">Try:</span>
+          <span className="text-[11px] text-[#A6ACBE]">Try:</span>
           {[BRAND_QUERY, "AMC exam 2026", "PLAB 2 2026", "NEET PG 2026"].map((s) => (
             <button key={s} onClick={() => { setInput(s); run(s); }}
-              className="text-[11px] bg-gray-50 hover:bg-brand-light text-gray-600 hover:text-brand border border-gray-100 px-2 py-0.5 rounded-full transition">
+              className="text-[11px] bg-[#FCFCFE] hover:bg-brand-light text-[#4A5468] hover:text-brand border border-gray-100 px-2 py-0.5 rounded-full transition">
               {s}
             </button>
           ))}
@@ -576,7 +576,7 @@ function KeywordIntel() {
         {/* Sources — where we look for mentions. One live now; the rest connect free. */}
         <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-0.5">Sources we scan</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#A6ACBE] mr-0.5">Sources we scan</span>
             {SOURCES.map((s) => {
               const active = srcFilter !== null && srcFilter === s.filterKey;
               const clickable = s.live && !!s.filterKey;
@@ -590,26 +590,26 @@ function KeywordIntel() {
                       ? "bg-brand border-brand text-white"
                       : s.live
                         ? "bg-[#1aa053]/[0.06] border-[#1aa053]/30 text-[#1aa053] hover:border-[#1aa053]/60 cursor-pointer"
-                        : "bg-gray-50 border-gray-200 text-gray-600 cursor-default"
+                        : "bg-[#FCFCFE] border-gray-200 text-[#4A5468] cursor-default"
                   }`}>
                   <s.Icon size={15} stroke={1.8} />
                   <span className="font-medium">{s.platform}</span>
                   {s.live
                     ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-white/70 border border-[#1aa053]/20"}`}>{res ? n : "✓"}</span>
-                    : <span className="text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 px-1.5 py-0.5 rounded-full">+ Connect</span>}
+                    : <span className="text-[10px] font-semibold text-[#A6ACBE] bg-white border border-gray-200 px-1.5 py-0.5 rounded-full">+ Connect</span>}
                 </button>
               );
             })}
             {srcFilter
               ? <button type="button" onClick={() => setSrcFilter(null)} className="text-[11px] font-medium text-brand hover:underline ml-1">Show all sources</button>
-              : <span className="text-[11px] text-gray-400 ml-1">Tap a source to see only its mentions · {SOURCES.filter((s) => s.live).length}/{SOURCES.length} live</span>}
+              : <span className="text-[11px] text-[#A6ACBE] ml-1">Tap a source to see only its mentions · {SOURCES.filter((s) => s.live).length}/{SOURCES.length} live</span>}
           </div>
         </div>
       </div>
 
       <div className="p-5">
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 py-2">
+          <div className="flex items-center gap-2 text-xs text-[#8A92A6] py-2">
             <span className="inline-block w-4 h-4 border-2 border-gray-200 border-t-brand rounded-full animate-spin" />
             Scanning the web for “{query}”…
           </div>
@@ -629,7 +629,7 @@ function KeywordIntel() {
               </div>
               <div className="flex items-center gap-1.5">
                 {(["positive", "neutral", "negative"] as MentionSentiment[]).map((s) => (
-                  <span key={s} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-50">
+                  <span key={s} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#FCFCFE]">
                     <span className="w-2 h-2 rounded-full" style={{ background: SENT_STYLE[s].dot }} />
                     {res.counts[s]} {SENT_STYLE[s].label.toLowerCase()}
                   </span>
@@ -638,7 +638,7 @@ function KeywordIntel() {
             </div>
 
             {filtered.length === 0 ? (
-              <div className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+              <div className="text-xs text-[#8A92A6] bg-[#FCFCFE] border border-gray-100 rounded-lg px-3 py-2.5">
                 {srcFilter
                   ? <>No {SOURCES.find((s) => s.filterKey === srcFilter)?.platform ?? srcFilter} mentions for “{query}” yet.{srcFilter !== "news" && " Add a free Serper.dev key to reliably pull this source."} <button type="button" onClick={() => setSrcFilter(null)} className="text-brand font-medium hover:underline">Show all sources</button></>
                   : <>No web mentions found for “{query}”. {isBrand ? "That can be good — or add the Serper key to widen the net." : "Try a broader phrase."}</>}
@@ -649,9 +649,9 @@ function KeywordIntel() {
                   <li key={m.url} className="flex items-start gap-2.5 px-1 py-2.5">
                     <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: SENT_STYLE[m.sentiment].dot }} title={SENT_STYLE[m.sentiment].label} />
                     <div className="min-w-0 flex-1">
-                      <button type="button" onClick={() => setReaderMention(m)} className="text-left block w-full text-sm text-gray-900 hover:text-brand leading-snug line-clamp-2">{m.title}</button>
-                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        {m.source && <><span className="font-medium text-gray-600">{m.source}</span><span className="opacity-50">·</span></>}
+                      <button type="button" onClick={() => setReaderMention(m)} className="text-left block w-full text-sm text-[#232D42] hover:text-brand leading-snug line-clamp-2">{m.title}</button>
+                      <div className="text-[11px] text-[#8A92A6] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        {m.source && <><span className="font-medium text-[#4A5468]">{m.source}</span><span className="opacity-50">·</span></>}
                         {relDate(m.publishedAt) && <><span>{relDate(m.publishedAt)}</span><span className="opacity-50">·</span></>}
                         <span className={SENT_STYLE[m.sentiment].text}>{SENT_STYLE[m.sentiment].label}</span>
                       </div>
@@ -766,13 +766,13 @@ function SearchDemand({ trends, refreshing, onRefresh }: {
 type SeoKeyword = { query: string; clicks: number; impressions: number; ctr: number; position: number };
 type GscResp = { winning: SeoKeyword[]; striking: SeoKeyword[]; totals: { clicks: number; impressions: number; queries: number }; range: { from: string; to: string } };
 
-const seoCardShell = "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden";
+const seoCardShell = "bg-white rounded-2xl border border-gray-100 overflow-hidden";
 function SeoHeader({ Icon, title, sub }: { Icon: TablerIcon; title: string; sub: string }) {
   return (
     <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
       <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ color: "#1aa053", background: "rgba(26,160,83,.12)" }}><Icon size={16} stroke={1.8} /></span>
       <h3 className="text-sm font-medium text-[#232D42]">{title}</h3>
-      <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">{sub}</span>
+      <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-[#A6ACBE]">{sub}</span>
     </div>
   );
 }
@@ -810,7 +810,7 @@ function SeoLanes() {
   if (state === "error" || !data) return (
     <div className={seoCardShell}>
       <SeoHeader Icon={IconSeo} title="Search Console" sub="error" />
-      <div className="p-4 text-xs text-gray-500">Couldn&apos;t load Search Console right now. It refreshes on the next pull.</div>
+      <div className="p-4 text-xs text-[#8A92A6]">Couldn&apos;t load Search Console right now. It refreshes on the next pull.</div>
     </div>
   );
   return (
@@ -830,17 +830,17 @@ function SeoDataCard({ Icon, title, sub, rows, metric, empty }: {
     <div className={seoCardShell}>
       <SeoHeader Icon={Icon} title={title} sub={sub} />
       {rows.length === 0 ? (
-        <div className="p-4 text-xs text-gray-500">{empty}</div>
+        <div className="p-4 text-xs text-[#8A92A6]">{empty}</div>
       ) : (
         <ul className="divide-y divide-gray-50">
           {rows.map((r) => (
             <li key={r.query} className="flex items-center gap-2 px-4 py-2">
               <PosPill pos={r.position} />
               <span className="text-xs text-[#232D42] truncate flex-1" title={r.query}>{r.query}</span>
-              <span className="text-[11px] text-gray-500 tabular-nums flex-shrink-0" title={`${r.clicks} clicks · ${r.impressions} impressions · ${r.ctr}% CTR`}>
+              <span className="text-[11px] text-[#8A92A6] tabular-nums flex-shrink-0" title={`${r.clicks} clicks · ${r.impressions} impressions · ${r.ctr}% CTR`}>
                 {metric === "clicks"
-                  ? <><b className="text-gray-700">{r.clicks.toLocaleString()}</b> click{r.clicks === 1 ? "" : "s"}</>
-                  : <><b className="text-gray-700">{r.impressions.toLocaleString()}</b> impr</>}
+                  ? <><b className="text-[#232D42]">{r.clicks.toLocaleString()}</b> click{r.clicks === 1 ? "" : "s"}</>
+                  : <><b className="text-[#232D42]">{r.impressions.toLocaleString()}</b> impr</>}
               </span>
             </li>
           ))}
@@ -861,7 +861,7 @@ function SeoSkeleton({ Icon, title, sub }: { Icon: TablerIcon; title: string; su
     <div className={seoCardShell}>
       <SeoHeader Icon={Icon} title={title} sub={sub} />
       <div className="p-4 space-y-2.5">
-        {[0, 1, 2, 3].map((i) => <div key={i} className="h-3.5 bg-gray-100 rounded animate-pulse" style={{ width: `${90 - i * 12}%` }} />)}
+        {[0, 1, 2, 3].map((i) => <div key={i} className="h-3.5 bg-[#F6F7FB] rounded animate-pulse" style={{ width: `${90 - i * 12}%` }} />)}
       </div>
     </div>
   );
@@ -873,10 +873,10 @@ function SeoAccessCard({ account, siteUrl }: { account?: string; siteUrl?: strin
   return (
     <div className={seoCardShell}>
       <SeoHeader Icon={IconShieldCheck} title="One step to go live" sub="Search Console" />
-      <div className="p-4 text-xs text-gray-600 leading-relaxed space-y-2">
+      <div className="p-4 text-xs text-[#4A5468] leading-relaxed space-y-2">
         <p>Search Console is wired up. To switch it on, add this service account as a <b>Full</b> or <b>Restricted</b> user on the <b>{siteUrl || "goocampusevents.com"}</b> property:</p>
-        <code className="block bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-[11px] text-gray-700 break-all select-all">{account || "the dashboard service account"}</code>
-        <p className="text-gray-400">Search Console → Settings → Users and permissions → Add user. Then the winning keywords + striking-distance gaps fill in automatically.</p>
+        <code className="block bg-[#FCFCFE] border border-gray-100 rounded-lg px-2.5 py-1.5 text-[11px] text-[#232D42] break-all select-all">{account || "the dashboard service account"}</code>
+        <p className="text-[#A6ACBE]">Search Console → Settings → Users and permissions → Add user. Then the winning keywords + striking-distance gaps fill in automatically.</p>
       </div>
     </div>
   );
@@ -887,7 +887,7 @@ function SeoEnableApiCard({ enableUrl }: { enableUrl?: string }) {
   return (
     <div className={seoCardShell}>
       <SeoHeader Icon={IconShieldCheck} title="One click to go live" sub="Search Console" />
-      <div className="p-4 text-xs text-gray-600 leading-relaxed space-y-2.5">
+      <div className="p-4 text-xs text-[#4A5468] leading-relaxed space-y-2.5">
         <p>The service account already has access — the last step is enabling the <b>Search Console API</b> in the Google Cloud project that owns it.</p>
         {enableUrl ? (
           <a href={enableUrl} target="_blank" rel="noreferrer"
@@ -895,9 +895,9 @@ function SeoEnableApiCard({ enableUrl }: { enableUrl?: string }) {
             <IconBrandGoogle size={14} stroke={1.8} /> Enable Search Console API ↗
           </a>
         ) : (
-          <p className="text-gray-500">Google Cloud Console → APIs &amp; Services → enable &ldquo;Google Search Console API&rdquo;.</p>
+          <p className="text-[#8A92A6]">Google Cloud Console → APIs &amp; Services → enable &ldquo;Google Search Console API&rdquo;.</p>
         )}
-        <p className="text-gray-400">Takes a few minutes to propagate, then the winning keywords + striking-distance gaps fill in automatically.</p>
+        <p className="text-[#A6ACBE]">Takes a few minutes to propagate, then the winning keywords + striking-distance gaps fill in automatically.</p>
       </div>
     </div>
   );
@@ -909,8 +909,8 @@ function SeoConnectCard({ Icon, title, sub }: { Icon: TablerIcon; title: string;
     <div className={seoCardShell}>
       <SeoHeader Icon={Icon} title={title} sub={sub} />
       <div className="p-4">
-        <div className="text-xs text-gray-500 leading-relaxed mb-3">
-          Connect <b className="text-gray-700">Search Console</b> for goocampusevents.com to see your domain&apos;s real {title.toLowerCase()} — free, refreshes weekly.
+        <div className="text-xs text-[#8A92A6] leading-relaxed mb-3">
+          Connect <b className="text-[#232D42]">Search Console</b> for goocampusevents.com to see your domain&apos;s real {title.toLowerCase()} — free, refreshes weekly.
         </div>
         <button disabled title="Setup coming next"
           className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-brand-light text-brand px-3 py-1.5 rounded-lg opacity-70 cursor-not-allowed">
@@ -923,18 +923,18 @@ function SeoConnectCard({ Icon, title, sub }: { Icon: TablerIcon; title: string;
 
 function EmptyState({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+    <div className="bg-white rounded-2xl border border-gray-100 p-8">
       <div className="max-w-xl mx-auto text-center">
         <div className="text-4xl mb-3">📡</div>
         <h2 className="text-base font-medium text-[#232D42] mb-2">Track your first topic</h2>
-        <p className="text-sm text-gray-600 mb-5">
+        <p className="text-sm text-[#4A5468] mb-5">
           Type in a topic — like <i>AMC exam 2026</i>, <i>DHA licensing</i>, or <i>NEET PG cutoff</i> — and
           the Radar pulls fresh news for it every time you hit refresh. Read the article body inline,
           then turn it into a post without leaving the dashboard.
         </p>
         <div className="flex flex-wrap gap-2 justify-center mb-6">
           {["AMC exam 2026", "DHA licensing UAE", "NEET PG cutoff", "AHPRA IMG registration", "PLAB 2 dates"].map((t) => (
-            <span key={t} className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">{t}</span>
+            <span key={t} className="text-xs bg-[#F6F7FB] text-[#232D42] px-2.5 py-1 rounded-full">{t}</span>
           ))}
         </div>
         <button
@@ -1031,17 +1031,17 @@ function SettingsModal({ alerts, onClose, onChanged }: {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <div className="text-sm font-semibold">⚙ Track topics</div>
-            <div className="text-xs text-gray-500">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
+            <div className="text-xs text-[#8A92A6]">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-xl">×</button>
+          <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-xl">×</button>
         </div>
 
-        <form onSubmit={addAlert} className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Add a topic</div>
+        <form onSubmit={addAlert} className="px-5 py-4 border-b border-gray-100 bg-[#FCFCFE]">
+          <div className="text-xs font-medium text-[#8A92A6] uppercase tracking-wide mb-2">Add a topic</div>
           {!showAdvanced && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2">
@@ -1082,7 +1082,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                 className="w-full mt-2 text-xs px-3 py-2 rounded-md border border-gray-200 bg-white font-mono"
                 required
               />
-              <div className="text-xs text-gray-500 mt-1.5">
+              <div className="text-xs text-[#8A92A6] mt-1.5">
                 Advanced: paste an RSS URL from a Google Alert you set up manually.
               </div>
             </>
@@ -1092,7 +1092,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs text-gray-500 hover:text-brand underline"
+              className="text-xs text-[#8A92A6] hover:text-brand underline"
             >
               {showAdvanced ? "← Use topic search instead" : "Use a Google Alerts RSS URL instead →"}
             </button>
@@ -1107,22 +1107,22 @@ function SettingsModal({ alerts, onClose, onChanged }: {
         </form>
 
         {alerts.length === 0 ? (
-          <div className="px-5 py-8 text-center text-xs text-gray-500">No alerts yet.</div>
+          <div className="px-5 py-8 text-center text-xs text-[#8A92A6]">No alerts yet.</div>
         ) : (
           <ul className="divide-y divide-gray-100">
             {alerts.map((a) => (
               <li key={a.id} className="px-5 py-3 flex items-start gap-3">
-                <label className={`shrink-0 w-8 h-4 rounded-full relative cursor-pointer transition ${a.active ? "bg-brand" : "bg-gray-300"}`}>
+                <label className={`shrink-0 w-8 h-4 rounded-full relative cursor-pointer transition ${a.active ? "bg-brand" : "bg-[#C9CDD8]"}`}>
                   <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition ${a.active ? "left-4" : "left-0.5"}`} />
                   <input type="checkbox" className="sr-only" checked={a.active} disabled={rowBusy === a.id} onChange={(e) => toggle(a.id, e.target.checked)} />
                 </label>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900">{a.name}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-sm font-medium text-[#232D42]">{a.name}</div>
+                  <div className="text-xs text-[#8A92A6]">
                     <span className="text-brand">{a.primaryInterest}</span>
                     <span className="mx-1.5">·</span>
                     {a.searchQuery ? (
-                      <span>🔍 tracking: <span className="text-gray-700">{a.searchQuery}</span></span>
+                      <span>🔍 tracking: <span className="text-[#232D42]">{a.searchQuery}</span></span>
                     ) : a.feedUrl ? (
                       <span>📡 <span className="font-mono">{a.feedUrl.replace(/^https?:\/\//, "").slice(0, 60)}</span></span>
                     ) : (
@@ -1133,7 +1133,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                     <div className="text-xs text-rose-600 mt-1">⚠ {a.lastError}</div>
                   )}
                   {a.lastFetchedAt && !a.lastError && (
-                    <div className="text-xs text-gray-400 mt-0.5">
+                    <div className="text-xs text-[#A6ACBE] mt-0.5">
                       Last pulled {fmtDateTime(a.lastFetchedAt)}
                     </div>
                   )}
@@ -1142,7 +1142,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                   <button
                     onClick={() => pullOne(a.id)}
                     disabled={rowBusy === a.id}
-                    className="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+                    className="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-[#F6F7FB] disabled:opacity-50"
                   >
                     {rowBusy === a.id ? "…" : "↻ Pull"}
                   </button>
@@ -1212,13 +1212,13 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col"
+        className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs text-gray-500 flex items-center gap-2 mb-1">
+            <div className="text-xs text-[#8A92A6] flex items-center gap-2 mb-1">
               <span className="font-medium text-brand">{item.primaryInterest}</span>
               <span>·</span>
               <span>{item.source || "unknown"}</span>
@@ -1228,9 +1228,9 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
             <h2 className="text-base font-medium text-[#232D42] leading-snug">
               {item.title || articleTitle}
             </h2>
-            {byline && <div className="text-xs text-gray-500 mt-1 italic">{byline}</div>}
+            {byline && <div className="text-xs text-[#8A92A6] mt-1 italic">{byline}</div>}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-2xl leading-none">×</button>
+          <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-2xl leading-none">×</button>
         </div>
 
         {/* Body */}
@@ -1238,17 +1238,17 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           {loading && (
             <div className="text-center py-10">
               <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" />
-              <div className="text-xs text-gray-500 mt-3">Loading article inside the dashboard…</div>
+              <div className="text-xs text-[#8A92A6] mt-3">Loading article inside the dashboard…</div>
             </div>
           )}
           {!loading && error && (
             <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
               <div className="text-sm font-semibold text-rose-900 mb-1">Couldn&apos;t pull the article body.</div>
               <div className="text-xs text-rose-700 mb-3">{error}</div>
-              <div className="text-xs text-gray-600 mb-3">
+              <div className="text-xs text-[#4A5468] mb-3">
                 Here&apos;s the summary we have:
               </div>
-              <div className="text-sm text-gray-800 bg-white border border-gray-200 rounded p-3">
+              <div className="text-sm text-[#232D42] bg-white border border-gray-200 rounded p-3">
                 {item.snippet || "(no snippet)"}
               </div>
             </div>
@@ -1281,7 +1281,7 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
             :global(.reader-content th) { background: #F9FAFB; font-weight: 600; }
           `}</style>
           {!loading && !error && !html && (
-            <div className="text-sm text-gray-500 italic">The reader returned nothing for this URL.</div>
+            <div className="text-sm text-[#8A92A6] italic">The reader returned nothing for this URL.</div>
           )}
         </div>
 
@@ -1297,13 +1297,13 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
             href={finalUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-gray-600 hover:text-brand"
+            className="text-xs text-[#4A5468] hover:text-brand"
           >
             Open on {new URL(finalUrl).hostname.replace(/^www\./, "")} ↗
           </a>
           <button
             onClick={onClose}
-            className="ml-auto text-xs text-gray-500 hover:text-gray-900"
+            className="ml-auto text-xs text-[#8A92A6] hover:text-[#232D42]"
           >
             Close
           </button>
@@ -1367,53 +1367,53 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs text-gray-500 flex items-center gap-2 mb-1">
+            <div className="text-xs text-[#8A92A6] flex items-center gap-2 mb-1">
               <span className="font-medium text-brand">{thread?.subreddit || m.source || host}</span><span>·</span>
               <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SENT_STYLE[m.sentiment].dot }} />{SENT_STYLE[m.sentiment].label}</span>
               {thread && <><span>·</span><span>▲ {thread.score} · {thread.numComments} comments</span></>}
             </div>
             <h2 className="text-base font-medium text-[#232D42] leading-snug">{m.title}</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-2xl leading-none shrink-0">×</button>
+          <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-2xl leading-none shrink-0">×</button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {m.snippet && <div className="text-sm text-gray-800 bg-gray-50 border border-gray-100 rounded-lg p-3 mb-4">{m.snippet}</div>}
+          {m.snippet && <div className="text-sm text-[#232D42] bg-[#FCFCFE] border border-gray-100 rounded-lg p-3 mb-4">{m.snippet}</div>}
 
           {/* Reddit — full thread + comments via the official API */}
-          {isReddit && rLoading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-gray-500 mt-3">Loading the Reddit thread…</div></div>}
+          {isReddit && rLoading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-[#8A92A6] mt-3">Loading the Reddit thread…</div></div>}
           {isReddit && !rLoading && thread && (
             <div>
-              {thread.selftext && <p className="text-sm text-gray-800 whitespace-pre-wrap mb-4 leading-relaxed">{thread.selftext}</p>}
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">{thread.comments.length} top comment{thread.comments.length === 1 ? "" : "s"}</div>
+              {thread.selftext && <p className="text-sm text-[#232D42] whitespace-pre-wrap mb-4 leading-relaxed">{thread.selftext}</p>}
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-[#A6ACBE] mb-2">{thread.comments.length} top comment{thread.comments.length === 1 ? "" : "s"}</div>
               <ul className="flex flex-col gap-3">
                 {thread.comments.map((c, i) => (
                   <li key={i} className="border-l-2 border-gray-100 pl-3">
-                    <div className="text-[11px] text-gray-500 mb-0.5"><span className="font-medium text-gray-700">u/{c.author}</span> · ▲ {c.score}</div>
-                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{c.body}</div>
+                    <div className="text-[11px] text-[#8A92A6] mb-0.5"><span className="font-medium text-[#232D42]">u/{c.author}</span> · ▲ {c.score}</div>
+                    <div className="text-sm text-[#232D42] whitespace-pre-wrap leading-relaxed">{c.body}</div>
                   </li>
                 ))}
-                {thread.comments.length === 0 && <li className="text-xs text-gray-500">No comments on this thread yet.</li>}
+                {thread.comments.length === 0 && <li className="text-xs text-[#8A92A6]">No comments on this thread yet.</li>}
               </ul>
             </div>
           )}
           {isReddit && !rLoading && !thread && needsAuth && (
-            <div className="text-xs text-gray-600 bg-brand-light/50 border border-brand/15 rounded-lg p-3">📖 The full thread + all comments open on Reddit — use the button below.</div>
+            <div className="text-xs text-[#4A5468] bg-brand-light/50 border border-brand/15 rounded-lg p-3">📖 The full thread + all comments open on Reddit — use the button below.</div>
           )}
           {isReddit && !rLoading && !thread && !needsAuth && rErr && (
-            <div className="text-xs text-gray-500">Couldn&apos;t load the thread ({rErr}). The snippet above is the preview — use “Open on reddit.com”.</div>
+            <div className="text-xs text-[#8A92A6]">Couldn&apos;t load the thread ({rErr}). The snippet above is the preview — use “Open on reddit.com”.</div>
           )}
 
           {/* Quora — no API, login-walled */}
-          {isQuora && <div className="text-xs text-gray-600 bg-brand-light/50 border border-brand/15 rounded-lg p-3">Quora has no API and requires login, so we preview the snippet here. Use <b>Open on {host}</b> to read the full answer.</div>}
+          {isQuora && <div className="text-xs text-[#4A5468] bg-brand-light/50 border border-brand/15 rounded-lg p-3">Quora has no API and requires login, so we preview the snippet here. Use <b>Open on {host}</b> to read the full answer.</div>}
 
           {/* Public sites (MouthShut / ValueMD / news) — Readability reader */}
-          {useArticle && loading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-gray-500 mt-3">Loading the full page inside the dashboard…</div></div>}
+          {useArticle && loading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-[#8A92A6] mt-3">Loading the full page inside the dashboard…</div></div>}
           {useArticle && !loading && html && <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />}
           {useArticle && !loading && !html && (
-            <div className="text-xs text-gray-500">{readErr ? `Couldn't load the full page (${readErr}). ` : ""}The preview above is what we have — use “Open on {host}” for the full text.</div>
+            <div className="text-xs text-[#8A92A6]">{readErr ? `Couldn't load the full page (${readErr}). ` : ""}The preview above is what we have — use “Open on {host}” for the full text.</div>
           )}
           <style jsx>{`
             :global(.reader-content){ color:#1F2937; font-size:14.5px; line-height:1.7; }
@@ -1424,10 +1424,10 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
             :global(.reader-content img){ max-width:100%; height:auto; border-radius:8px; margin:12px 0; }
           `}</style>
         </div>
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">
+        <div className="px-6 py-3 border-t border-gray-100 bg-[#FCFCFE] flex items-center gap-3">
           <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark">✍ Turn into post</Link>
           <a href={thread?.permalink || finalUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand-light text-brand border border-brand/20 px-3 py-1.5 rounded-md hover:bg-brand hover:text-white transition">{isReddit ? "📖 Read full thread on Reddit ↗" : `Open on ${host} ↗`}</a>
-          <button onClick={onClose} className="ml-auto text-xs text-gray-500 hover:text-gray-900">Close</button>
+          <button onClick={onClose} className="ml-auto text-xs text-[#8A92A6] hover:text-[#232D42]">Close</button>
         </div>
       </div>
     </div>
