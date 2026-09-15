@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
+import { AddCampaign } from "./AddCampaign";
 
 type Campaign = { id: string; name: string; spreadsheetId: string; tab: string; createdAt: string };
 type Setup = { sheetsReady: boolean; serviceAccount: string };
@@ -24,6 +25,8 @@ export default function CampaignsPage() {
 
 function Campaigns() {
   const [data, setData] = useState<Resp | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const blank: Resp = { setup: { sheetsReady: false, serviceAccount: "" }, campaigns: [] };
@@ -37,7 +40,7 @@ function Campaigns() {
         campaigns: Array.isArray(d?.campaigns) ? d.campaigns : [],
       }))
       .catch(() => setData(blank));
-  }, []);
+  }, [reload]);
 
   if (!data) return <Card><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Loading campaigns…</div></Card>;
 
@@ -49,7 +52,7 @@ function Campaigns() {
 
       <Card>
         <Head icon={<IconSpeakerphone size={18} stroke={1.8} />} title="Campaigns"
-          meta={<button disabled={!ready}
+          meta={<button disabled={!ready} onClick={() => setAdding(true)}
             className="inline-flex items-center gap-1.5 text-[12.5px] font-medium bg-brand text-white rounded-lg px-3.5 py-1.5 hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed"
             title={ready ? "Import a lead list" : "Finish the setup above first"}>
             <IconPlus size={15} stroke={2} /> Add campaign
@@ -84,6 +87,13 @@ function Campaigns() {
       </Card>
 
       <WhatsAppReady />
+
+      {adding && (
+        <AddCampaign
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); setData(null); setReload((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }

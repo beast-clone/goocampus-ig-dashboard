@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { hasGoogleServiceAccount, SERVICE_ACCOUNT_EMAIL, googleAccessToken } from "@/lib/google-jwt";
-import { listCampaigns } from "@/lib/campaigns";
+import { listCampaigns, saveCampaign, deleteCampaign, type CampaignConfig } from "@/lib/campaigns";
+import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 
 // Marketing Campaigns — event lead lists that live in a Google Sheet.
@@ -56,4 +57,43 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load campaigns"), { status: 502 });
   }
+}
+
+// POST { name, spreadsheetId, tab, keyColumn, columnMap } → saves a campaign's
+// settings. The leads are not touched: they stay in the sheet.
+export async function POST(req: Request) {
+  const denied = await requireSection("sales");
+  if (denied) return denied;
+  try {
+    const b = (await req.json().catch(() => ({}))) as Partial<CampaignConfig> & { id?: string };
+    const missing = (["name", "spreadsheetId", "tab", "keyColumn"] as const).filter((k) => !String(b[k] || "").trim());
+    if (missing.length) {
+      return NextResponse.json({ error: `Still needed: ${missing.join(", ")}` }, { status: 400 });
+    }
+    const config: CampaignConfig = {
+      id: b.id || crypto.randomUUID(),
+      name: String(b.name).trim(),
+      spreadsheetId: String(b.spreadsheetId),
+      tab: String(b.tab),
+      keyColumn: String(b.keyColumn),
+      columnMap: b.columnMap && typeof b.columnMap === "object" ? b.columnMap : {},
+      createdAt: new Date().toISOString(),
+      createdBy: getSessionUserId(),
+    };
+    const ok = await saveCampaign(config);
+    if (!ok) return NextResponse.json({ error: "Couldn't save the campaign" }, { status: 502 });
+    return NextResponse.json({ ok: true, campaign: config });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Couldn't save the campaign"), { status: 502 });
+  }
+}
+
+// DELETE ?id= — removes the campaign's settings only. The sheet is untouched.
+export async function DELETE(req: Request) {
+  const denied = await requireSection("sales");
+  if (denied) return denied;
+  const id = new URL(req.url).searchParams.get("id") || "";
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const ok = await deleteCampaign(id);
+  return NextResponse.json({ ok });
 }
