@@ -128,9 +128,15 @@ function Campaigns() {
             <div className="px-6 py-5 border-b border-gray-100 text-center">
               <h3 className="text-[15px] font-medium text-[#232D42]">Remove this campaign?</h3>
               <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
-                <b className="font-medium">{confirming.name}</b> disappears from this tab. The Google Sheet and
-                every lead in it stay exactly as they are. Only the link to it is forgotten, and you can add it
-                back with the same sheet.
+                <b className="font-medium">{confirming.name}</b> disappears from this tab.
+              </p>
+              {/* The one thing worth reading before pressing a red button. */}
+              <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#E8F6F0] px-3 py-2 text-[12.5px] font-medium text-[#2F9E6F]">
+                <IconCheck size={15} stroke={2.2} className="shrink-0" />
+                Your Google Sheet and its leads are not touched.
+              </p>
+              <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
+                Only the link to it is forgotten. You can add it back with the same sheet.
               </p>
             </div>
             <div className="flex items-center justify-center gap-2 px-5 py-4">
