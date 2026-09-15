@@ -23,8 +23,14 @@ export async function POST(req: Request) {
     const campaign = await getCampaign(b.id || "");
     if (!campaign) return NextResponse.json({ error: "No such campaign" }, { status: 404 });
 
-    const use = b.use === "status" ? "statusColumn" : b.use === "notes" ? "notesColumn" : null;
-    if (!use) return NextResponse.json({ error: "use must be status or notes" }, { status: 400 });
+    // "none" adds the column and maps it to nothing — it shows up read-only
+    // beside the lead like every other column in the sheet.
+    const use = b.use === "status" ? "statusColumn"
+      : b.use === "notes" ? "notesColumn"
+      : b.use === "community" ? "communityColumn"
+      : b.use === "none" ? null
+      : undefined;
+    if (use === undefined) return NextResponse.json({ error: "use must be status, notes, community or none" }, { status: 400 });
 
     const name = (b.name || "").trim();
     if (!name) return NextResponse.json({ error: "Give the column a name" }, { status: 400 });
@@ -40,8 +46,10 @@ export async function POST(req: Request) {
       ]);
     }
 
-    const saved = await saveCampaign({ ...campaign, [use]: name });
-    if (!saved) return NextResponse.json({ error: "Added the column, but couldn't remember it here." }, { status: 200 });
+    if (use) {
+      const saved = await saveCampaign({ ...campaign, [use]: name });
+      if (!saved) return NextResponse.json({ error: "Added the column, but couldn't remember it here." }, { status: 200 });
+    }
 
     return NextResponse.json({ ok: true, name });
   } catch (err) {

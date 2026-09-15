@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconGripVertical, IconX } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconGripVertical, IconX, IconChevronDown } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
@@ -8,11 +8,12 @@ import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { type ColumnPrefs } from "./ColumnChooser";
 
 type Col = { key: string; label: string; width: number; cell: (l: Lead) => React.ReactNode };
+type Community = { name: string; link?: string };
 
 type Lead = { rowKey: string; sheetRow: number; fields: Record<string, string> };
 type Writable = { status: string | null; notes: string | null; community: string | null; communityValue: string; options: string[] };
 type Data = {
-  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; columnMap?: Record<string, string>; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null; columnPrefs?: ColumnPrefs | null };
+  campaign: { id: string; name: string; spreadsheetId: string; tab: string; keyColumn: string; columnMap?: Record<string, string>; statusColumn?: string | null; notesColumn?: string | null; links?: { name: string; url: string }[]; hiddenStatuses?: string[]; communityColumn?: string | null; columnPrefs?: ColumnPrefs | null; communities?: Community[] };
   headers: string[];
   leads: Lead[];
   writable: Writable;
@@ -50,6 +51,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const [todoOnly, setTodoOnly] = useState(true);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  const [addingCol, setAddingCol] = useState(false);
+  const [newCol, setNewCol] = useState("");
+  // Live width while a column edge is being dragged; committed on mouse-up.
+  const [sizing, setSizing] = useState<{ key: string; width: number } | null>(null);
 
   const load = useCallback(() => {
     setData(null);
@@ -317,22 +322,19 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         className="w-full resize-y px-2.5 py-1.5 rounded-lg bg-white text-[12.5px] leading-snug text-[#232D42] border border-gray-200 hover:border-gray-300 focus:border-brand focus:outline-none placeholder:text-[#C9CDD8]"
       />
     ) : <PickPrompt onClick={() => setPicking("notes")}>Choose a Notes column to type in</PickPrompt> },
-    { key: "#community", label: "Community", width: 130, cell: (l) => writable.community ? (
-      // A tick, because "did we send the invite" is a yes/no. It writes the word
-      // this column already uses, so the sheet keeps reading the way whoever
-      // filled it in expects.
-      <label className="inline-flex items-center gap-2 cursor-pointer"
-        title={l.fields[writable.community] ? `Sheet says “${l.fields[writable.community]}”` : "Not sent yet"}>
-        <input type="checkbox"
-          checked={Boolean((l.fields[writable.community] || "").trim())}
-          disabled={busy === `${l.rowKey}:${writable.community}`}
-          onChange={(e) => write(l, writable.community!, e.target.checked ? writable.communityValue : "")}
-          className="w-[15px] h-[15px] accent-[#3A57E8] cursor-pointer disabled:opacity-40" />
-        <span className="text-[11.5px] text-[#8A92A6] truncate">
-          {busy === `${l.rowKey}:${writable.community}` ? "Saving…"
-            : (l.fields[writable.community] || "").trim() || "Not sent"}
-        </span>
-      </label>
+    { key: "#community", label: "Community", width: 175, cell: (l) => writable.community ? (
+      // Two ways in, because there are two ways it really happens: you send them
+      // the invite link and they join, or someone puts them in and ticks it here.
+      // The tick keeps the word the column already uses; the menu records which
+      // community, which is the bit that was missing.
+      <CommunityCell
+        value={(l.fields[writable.community!] || "").trim()}
+        saving={busy === `${l.rowKey}:${writable.community}`}
+        communities={communities}
+        onTick={(on) => write(l, writable.community!, on ? writable.communityValue : "")}
+        onPick={(c) => addToCommunity(l, c)}
+        onAddCommunity={(c) => saveCommunities([...communities.filter((x) => x.name !== c.name), c])}
+      />
     ) : <PickPrompt onClick={() => setPicking("community")}>Choose a column</PickPrompt> },
     { key: "#whatsapp", label: "WhatsApp", width: 130, cell: (l) => (
       <WhatsAppSend phone={(phoneCol && l.fields[phoneCol]) || ""} name={fullName(l)} compact
@@ -363,13 +365,68 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     const next = orderedKeys.filter((k) => k !== dragKey);
     next.splice(next.indexOf(targetKey), 0, dragKey);
     setDragKey(null); setOverKey(null);
-    saveColumnPrefs({ order: next, hidden: [...hiddenKeys] });
+    saveColumnPrefs({ order: next, hidden: [...hiddenKeys], widths: prefs.widths });
+  };
+
+  const widthOf = (c: Col) =>
+    (sizing && sizing.key === c.key ? sizing.width : prefs.widths?.[c.key]) || c.width;
+
+  // Drag the right edge of a header. Tracked on window so the pointer can leave
+  // the 1px handle without the drag dying, which is most of what makes a resize
+  // feel broken.
+  const startResize = (key: string, startX: number, startWidth: number) => {
+    const move = (e: MouseEvent) => setSizing({ key, width: Math.max(60, Math.min(700, startWidth + e.clientX - startX)) });
+    const up = (e: MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      const width = Math.max(60, Math.min(700, startWidth + e.clientX - startX));
+      setSizing(null);
+      saveColumnPrefs({ order: orderedKeys, hidden: [...hiddenKeys], widths: { ...(prefs.widths || {}), [key]: width } });
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
+  const addSheetColumn = async () => {
+    const name = newCol.trim();
+    if (!name) return;
+    setFailed(null);
+    const r = await fetch("/api/campaigns/column", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ id, use: "none", name }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) { setFailed(d.error || "Couldn't add that column"); return; }
+    setNewCol(""); setAddingCol(false);
+    load();
+  };
+
+  // WhatsApp cannot put somebody in a group from outside it. So "add to
+  // community" records which community they belong in, and opens the group's
+  // invite link if we have one — the joining itself is still a person's doing.
+  const communities: Community[] = campaign.communities?.length
+    ? campaign.communities
+    : [{ name: "NEET PG community" }];
+
+  const addToCommunity = async (l: Lead, c: Community) => {
+    if (!writable.community) { setPicking("community"); return; }
+    if (c.link) window.open(c.link, "_blank", "noopener");
+    await write(l, writable.community, c.name);
+  };
+
+  const saveCommunities = async (next: Community[]) => {
+    if (!data) return;
+    setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, communities: next } }));
+    await fetch("/api/campaigns", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ ...data.campaign, communities: next }),
+    });
   };
 
   const hideColumn = (key: string) =>
-    saveColumnPrefs({ order: orderedKeys, hidden: [...new Set([...hiddenKeys, key])] });
+    saveColumnPrefs({ order: orderedKeys, hidden: [...new Set([...hiddenKeys, key])], widths: prefs.widths });
   const showColumn = (key: string) =>
-    saveColumnPrefs({ order: orderedKeys, hidden: [...hiddenKeys].filter((k) => k !== key) });
+    saveColumnPrefs({ order: orderedKeys, hidden: [...hiddenKeys].filter((k) => k !== key), widths: prefs.widths });
 
   return (
     <Shell
@@ -387,6 +444,10 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           </span>
           <a href={`https://docs.google.com/spreadsheets/d/${campaign.spreadsheetId}/edit`} target="_blank" rel="noopener noreferrer"
             className="text-[#A6ACBE] hover:text-brand" title="Open the sheet"><IconExternalLink size={15} stroke={1.8} /></a>
+          <button onClick={() => setAddingCol(true)} title="Add a new column to the sheet"
+            className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
+            <IconPlus size={13} stroke={2} /> Column
+          </button>
           <button onClick={load} title="Re-reads the sheet now. It also re-reads on its own every 2 minutes, so leads added to the sheet turn up here without anyone pressing this."
             className="inline-flex items-center gap-1.5 text-[12px] text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand hover:text-brand">
             <IconRefresh size={13} stroke={1.8} /> Sync
@@ -486,6 +547,33 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         )}
       </div>
 
+      {addingCol && (
+        <Overlay onClose={() => setAddingCol(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+            className="mt-[16vh] w-full max-w-[440px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-[15px] font-medium text-[#232D42]">Add a column</h3>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#4A5468]">
+                It goes in as a new, empty column at the end of the <b className="font-medium">{campaign.tab}</b> tab
+                and appears here straight away. Nothing already in the sheet is touched.
+              </p>
+              <input autoFocus value={newCol} onChange={(e) => setNewCol(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addSheetColumn(); }}
+                placeholder="What to call it — e.g. Counsellor"
+                className="mt-3 w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-brand focus:outline-none text-[13px] text-[#232D42] placeholder:text-[#C9CDD8]" />
+            </div>
+            <div className="flex items-center gap-2 px-5 py-3.5">
+              <button onClick={addSheetColumn} disabled={!newCol.trim()}
+                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-40">
+                Add to the sheet
+              </button>
+              <button onClick={() => { setAddingCol(false); setNewCol(""); }}
+                className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">Cancel</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {picking && (
         <ColumnPicker
           what={picking}
@@ -503,7 +591,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
           possible at all — before this the header and the row were two hand-kept
           sequences that only agreed by luck. */}
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed" style={{ minWidth: 46 + cols.reduce((n, c) => n + c.width, 0) }}>
+        <table className="w-full table-fixed" style={{ minWidth: 46 + cols.reduce((n, c) => n + widthOf(c), 0) }}>
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="pl-5 pr-3 py-2.5 w-[46px]">
@@ -517,7 +605,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
               {cols.map((c, i) => (
-                <th key={c.key} style={{ width: c.width }}
+                <th key={c.key} style={{ width: widthOf(c) }}
                   draggable
                   onDragStart={(e) => { setDragKey(c.key); e.dataTransfer.effectAllowed = "move"; }}
                   onDragEnd={() => { setDragKey(null); setOverKey(null); }}
@@ -525,7 +613,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   onDragLeave={() => setOverKey((k) => (k === c.key ? null : k))}
                   onDrop={(e) => { e.preventDefault(); dropOn(c.key); }}
                   title={`${c.label} — drag to move it`}
-                  className={`group py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] cursor-grab active:cursor-grabbing select-none
+                  className={`group relative py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] cursor-grab active:cursor-grabbing select-none
                     ${i === cols.length - 1 ? "pl-3 pr-5" : "px-3"}
                     ${dragKey === c.key ? "opacity-40" : ""}
                     ${overKey === c.key ? "bg-brand-light" : ""}`}>
@@ -538,6 +626,12 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                       <IconX size={11} stroke={2.4} />
                     </button>
                   </span>
+                  {/* The edge. draggable is off on it, or the browser starts a
+                      column drag the moment you grab the handle. */}
+                  <span draggable={false} onDragStart={(e) => e.preventDefault()}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); startResize(c.key, e.clientX, widthOf(c)); }}
+                    title={`Drag to resize ${c.label}`}
+                    className={`absolute top-0 right-0 h-full w-[7px] cursor-col-resize ${sizing?.key === c.key ? "bg-brand/40" : "hover:bg-brand/20"}`} />
                 </th>
               ))}
             </tr>
@@ -697,5 +791,97 @@ function Shell({ onBack, title, meta, children }: { onBack: () => void; title?: 
       </header>
       {children}
     </section>
+  );
+}
+
+/**
+ * The community cell: a tick for "they're in", and a menu for which community.
+ *
+ * Worth stating plainly because the UI must not imply otherwise: WhatsApp gives
+ * nobody a way to add a person to a group from outside it. Choosing a community
+ * records it in the sheet and opens that group's invite link if one is saved —
+ * the joining is still done by a person, in WhatsApp.
+ */
+function CommunityCell({ value, saving, communities, onTick, onPick, onAddCommunity }: {
+  value: string;
+  saving: boolean;
+  communities: Community[];
+  onTick: (on: boolean) => void;
+  onPick: (c: Community) => void;
+  onAddCommunity: (c: Community) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState<Community>({ name: "", link: "" });
+  const wrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) { setOpen(false); setAdding(false); } };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative flex items-center gap-1.5">
+      <input type="checkbox" checked={Boolean(value)} disabled={saving}
+        onChange={(e) => onTick(e.target.checked)}
+        title={value ? `Sheet says “${value}”` : "Not added yet"}
+        className="w-[15px] h-[15px] accent-[#3A57E8] cursor-pointer disabled:opacity-40 shrink-0" />
+      <button onClick={() => setOpen((o) => !o)}
+        className="min-w-0 flex items-center gap-1 text-[11.5px] text-[#8A92A6] hover:text-brand">
+        <span className="truncate">{saving ? "Saving…" : value || "Add to community"}</span>
+        <IconChevronDown size={12} stroke={2} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
+          className="absolute left-0 top-full mt-1.5 z-30 w-[260px] bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-3 py-2 bg-[#FCFCFE] border-b border-gray-100 text-[10.5px] font-semibold uppercase tracking-wider text-[#A6ACBE]">
+            Add to which community
+          </div>
+          {communities.map((c) => (
+            <button key={c.name} onClick={() => { onPick(c); setOpen(false); }}
+              className="block w-full text-left px-3 py-2 hover:bg-brand-light">
+              <span className="block text-[12.5px] font-medium text-[#232D42]">{c.name}</span>
+              <span className="block text-[11px] text-[#A6ACBE] truncate">
+                {c.link ? "Records it and opens the group" : "Records it in the sheet — no link saved yet"}
+              </span>
+            </button>
+          ))}
+          {adding ? (
+            <form className="px-3 py-2.5 border-t border-gray-100 bg-[#FCFCFE] flex flex-col gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = draft.name.trim();
+                if (!name) return;
+                onAddCommunity({ name, link: draft.link?.trim() || undefined });
+                setDraft({ name: "", link: "" }); setAdding(false);
+              }}>
+              <input autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                placeholder="Community name"
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] focus:border-brand focus:outline-none" />
+              <input value={draft.link || ""} onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
+                placeholder="Invite link (optional)"
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] focus:border-brand focus:outline-none" />
+              <div className="flex items-center gap-2">
+                <button type="submit" disabled={!draft.name.trim()}
+                  className="text-[12px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 disabled:opacity-40">Save</button>
+                <button type="button" onClick={() => setAdding(false)} className="text-[12px] text-[#8A92A6]">Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <button onClick={() => setAdding(true)}
+              className="flex items-center gap-1.5 w-full px-3 py-2 text-[12px] text-brand hover:bg-brand-light border-t border-gray-100">
+              <IconPlus size={13} stroke={2} /> Add a community
+            </button>
+          )}
+          <div className="px-3 py-2 bg-[#FCFCFE] border-t border-gray-100 text-[10.5px] leading-snug text-[#A6ACBE]">
+            WhatsApp has no way to put someone in a group from outside it. This records the
+            community in your sheet and opens the invite link if one is saved.
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

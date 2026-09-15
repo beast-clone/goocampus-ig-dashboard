@@ -11,7 +11,7 @@ import { IconEye, IconEyeOff, IconArrowUp, IconArrowDown, IconArrowBarUp } from 
 // Order is stored as a list of headers. A column added to the sheet later isn't
 // in that list and appears at the end rather than vanishing.
 
-export type ColumnPrefs = { order: string[]; hidden: string[] };
+export type ColumnPrefs = { order: string[]; hidden: string[]; widths?: Record<string, number> };
 
 export function applyPrefs(all: string[], prefs?: ColumnPrefs | null): string[] {
   const order = prefs?.order || [];

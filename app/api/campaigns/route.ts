@@ -85,8 +85,21 @@ export async function POST(req: Request) {
         ? {
             order: Array.isArray(b.columnPrefs.order) ? b.columnPrefs.order.map(String) : [],
             hidden: Array.isArray(b.columnPrefs.hidden) ? b.columnPrefs.hidden.map(String) : [],
+            widths: (b.columnPrefs.widths && typeof b.columnPrefs.widths === "object")
+              ? Object.fromEntries(Object.entries(b.columnPrefs.widths)
+                  .map(([k, v]) => [k, Math.max(60, Math.min(700, Number(v) || 0))])
+                  .filter(([, v]) => Number(v) >= 60))
+              : {},
           }
         : null,
+      // http(s) only on the link: it goes into a message to a real person.
+      communities: Array.isArray(b.communities)
+        ? b.communities
+            .map((c) => ({ name: String(c?.name || "").trim().slice(0, 60), link: String(c?.link || "").trim() }))
+            .filter((c) => c.name)
+            .map((c) => (/^https?:\/\//i.test(c.link) ? c : { name: c.name }))
+            .slice(0, 20)
+        : [],
       // Statuses hidden from the dropdown — the sheet column keeps them.
       hiddenStatuses: Array.isArray(b.hiddenStatuses)
         ? b.hiddenStatuses.map((v) => String(v)).filter(Boolean).slice(0, 100)

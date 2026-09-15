@@ -53,8 +53,14 @@ export type CampaignConfig = {
    * it from the list without touching the rows that still hold it.
    */
   hiddenStatuses?: string[];
-  /** Which of the sheet's other columns to show beside the lead, and in what order. */
-  columnPrefs?: { order: string[]; hidden: string[] } | null;
+  /** Which columns to show, in what order, and how wide. */
+  columnPrefs?: { order: string[]; hidden: string[]; widths?: Record<string, number> } | null;
+  /**
+   * The WhatsApp communities a lead can be added to. A name to record in the
+   * sheet, and optionally the group's invite link — WhatsApp has no way to put
+   * somebody in a group from outside it, so the link is how they actually join.
+   */
+  communities?: { name: string; link?: string }[];
   createdAt: string;
   createdBy: string | null;
 };
