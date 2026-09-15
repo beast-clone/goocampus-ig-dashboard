@@ -66,6 +66,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
   try {
     const b = (await req.json().catch(() => ({}))) as Partial<CampaignConfig> & { id?: string };
+    // createdAt is preserved when editing an existing campaign rather than reset.
     const missing = (["name", "spreadsheetId", "tab", "keyColumn"] as const).filter((k) => !String(b[k] || "").trim());
     if (missing.length) {
       return NextResponse.json({ error: `Still needed: ${missing.join(", ")}` }, { status: 400 });
@@ -77,6 +78,8 @@ export async function POST(req: Request) {
       tab: String(b.tab),
       keyColumn: String(b.keyColumn),
       columnMap: b.columnMap && typeof b.columnMap === "object" ? b.columnMap : {},
+      statusColumn: b.statusColumn ?? null,
+      notesColumn: b.notesColumn ?? null,
       createdAt: new Date().toISOString(),
       createdBy: getSessionUserId(),
     };

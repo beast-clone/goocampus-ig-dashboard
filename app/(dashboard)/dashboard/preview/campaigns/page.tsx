@@ -4,6 +4,7 @@ import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle } f
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { AddCampaign } from "./AddCampaign";
+import { CampaignLeads } from "./CampaignLeads";
 
 type Campaign = { id: string; name: string; spreadsheetId: string; tab: string; createdAt: string };
 type Setup = { sheetsReady: boolean; serviceAccount: string };
@@ -26,6 +27,7 @@ export default function CampaignsPage() {
 function Campaigns() {
   const [data, setData] = useState<Resp | null>(null);
   const [adding, setAdding] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ function Campaigns() {
       .catch(() => setData(blank));
   }, [reload]);
 
+  if (openId) return <CampaignLeads id={openId} onBack={() => setOpenId(null)} />;
   if (!data) return <Card><div className="px-5 py-8 text-[13px] text-[#8A92A6]">Loading campaigns…</div></Card>;
 
   const ready = data.setup?.sheetsReady;
@@ -70,7 +73,8 @@ function Campaigns() {
         ) : (
           <ul className="divide-y divide-gray-50">
             {data.campaigns.map((c) => (
-              <li key={c.id} className="flex items-center gap-3 px-5 py-3">
+              <li key={c.id}>
+                <button onClick={() => setOpenId(c.id)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-[#FCFCFE] transition">
                 <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center shrink-0">
                   <IconTable size={16} stroke={1.8} />
                 </span>
@@ -80,6 +84,7 @@ function Campaigns() {
                     Sheet tab <span className="font-mono">{c.tab}</span> · read live, nothing stored here
                   </span>
                 </span>
+                </button>
               </li>
             ))}
           </ul>

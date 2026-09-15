@@ -30,6 +30,10 @@ export type CampaignConfig = {
   keyColumn: string;
   /** Sheet column header -> our field name. Headers not listed are carried but not shown. */
   columnMap: Record<string, string>;
+  /** Which column the status dropdown edits. Chosen, never guessed — see the API. */
+  statusColumn?: string | null;
+  /** Which column free-text notes are written to. */
+  notesColumn?: string | null;
   createdAt: string;
   createdBy: string | null;
 };

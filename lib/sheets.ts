@@ -97,7 +97,11 @@ export async function readTab(spreadsheetId: string, tab: string): Promise<Sheet
   const rows = values.slice(1)
     .map((r) => {
       const o: Record<string, string> = {};
-      headers.forEach((h, i) => { if (h) o[h] = (r[i] ?? "").toString(); });
+      // Trimmed. Hand-maintained sheets are full of stray whitespace — this one
+      // holds "Will not be attending " and "decision pending " — and an untrimmed
+      // value never matches the trimmed list of choices built from the same
+      // column, so a row with a real status rendered as though it had none.
+      headers.forEach((h, i) => { if (h) o[h] = (r[i] ?? "").toString().trim(); });
       return o;
     })
     // A wholly blank row is spacing, not a lead.
