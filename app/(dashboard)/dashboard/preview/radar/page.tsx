@@ -285,47 +285,99 @@ function sbuFor(interest: string): string {
   return "General Content";
 }
 
-function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
-  const router = useRouter();
-  const [making, setMaking] = useState(false);
-  // "Make content" → raise a real task on the board for someone to write, rather
-  // than generating a draft and walking the clicker off to Content Studio. A
-  // headline is a job for the writer; it is not content yet.
-  //
-  // Reuses /api/marketing-hub/create — the same endpoint the Hub's own form
-  // calls — so a task raised here is indistinguishable from one raised there,
-  // and inherits its permission check and completeness gate. That endpoint
-  // requires an SBU, which is why the picker asks for one.
+// Raises a real task on the board from a headline, and then points at it.
+//
+// Shared by the feed row and the article reader so both behave identically —
+// the reader used to run the old "generate a draft and walk you to Content
+// Studio" path, which meant the same headline did two different things
+// depending on where you clicked it.
+function MakeTaskButton({ item, up }: { item: FeedItem; up?: boolean }) {
   const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
   const [sbu, setSbu] = useState(sbuFor(item.primaryInterest));
-  const [made, setMade] = useState(false);
+  const [madeId, setMadeId] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
   const createTask = async () => {
-    setMaking(true); setFailed(null);
+    setBusy(true); setFailed(null);
     try {
       const r = await fetch("/api/marketing-hub/create", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
         body: JSON.stringify({
           title: item.title,
-          sbu,
-          owner,
-          // Everything the writer needs to start, so they never have to come
-          // back here to find out what the task was about.
+          sbu, owner,
+          // Everything the writer needs to start, so they never have to come back
+          // here to work out what the task was about.
           content: `From Content Radar — ${item.source || item.alertName || "news"}\n${item.link}\n\nTopic: ${item.primaryInterest}`,
         }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d?.error || `Couldn't create the task (${r.status})`);
-      setMade(true); setPicking(false);
+      setMadeId(d?.id || null);
+      setPicking(false);
     } catch (e) {
       setFailed((e as Error).message);
     } finally {
-      setMaking(false);
+      setBusy(false);
     }
   };
 
+  // Created → the button becomes the way in. ?open= is the Hub's existing
+  // deep link, and its API fetches the row even when the current filter
+  // excludes it, so this always lands on the task itself.
+  if (madeId) {
+    return (
+      <Link href={`/dashboard/preview/marketing-hub?open=${madeId}`}
+        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[#2F9E6F] bg-[#E8F6F0] hover:bg-[#d9f0e6] px-3 py-1.5 rounded-lg whitespace-nowrap">
+        <IconCheck size={13} stroke={2.2} /> Task created — open it
+      </Link>
+    );
+  }
+
+  return (
+    <div className="shrink-0 self-center relative">
+      <button type="button" onClick={() => setPicking((v) => !v)} disabled={busy} aria-expanded={picking}
+        className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
+        <IconSparkles size={13} stroke={1.8} /> {busy ? "Creating…" : "Make content"}
+      </button>
+
+      {picking && (
+        <div className={`absolute right-0 z-30 w-[260px] bg-white border border-gray-200 rounded-xl p-3 flex flex-col gap-2.5 ${up ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
+          <label className="block">
+            <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Who writes it</span>
+            <select value={owner} onChange={(e) => setOwner(e.target.value)}
+              className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
+              {TEAM_USERS.map((u) => <option key={u.id} value={u.id}>{u.name} — {u.role}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Which brand</span>
+            <select value={sbu} onChange={(e) => setSbu(e.target.value)}
+              className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
+              {SBU_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </label>
+          {failed && <div className="text-[11.5px] text-[#C0392B]">{failed}</div>}
+          <div className="flex items-center gap-2">
+            <button onClick={createTask} disabled={busy}
+              className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
+              {busy ? "Creating…" : "Create task"}
+            </button>
+            <button onClick={() => setPicking(false)} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+          </div>
+          <p className="text-[10.5px] text-[#A6ACBE] leading-snug">
+            Lands on their board as <b className="font-medium text-[#8A92A6]">Content&nbsp;-&nbsp;Pending</b>, with this headline and its link in the brief.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
+  const router = useRouter();
+  const [making, setMaking] = useState(false);
   const relative = useMemo(() => {
     const diff = Date.now() - new Date(item.publishedAt).getTime();
     const h = Math.round(diff / 3_600_000);
@@ -359,52 +411,7 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
           <span>{item.primaryInterest}</span>
         </div>
       </button>
-      {/* Ask who and which brand before raising the task. Two selects because the
-          board needs an owner and a brand to file the work — guessing either
-          silently puts a task where nobody will look for it. */}
-      <div className="shrink-0 self-center relative">
-        {made ? (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[#2F9E6F] bg-[#E8F6F0] px-3 py-1.5 rounded-lg whitespace-nowrap">
-            <IconCheck size={13} stroke={2.2} /> Task created
-          </span>
-        ) : (
-          <button type="button" onClick={() => setPicking((v) => !v)} disabled={making}
-            aria-expanded={picking}
-            className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
-            <IconSparkles size={13} stroke={1.8} /> {making ? "Creating…" : "Make content"}
-          </button>
-        )}
-
-        {picking && !made && (
-          <div className="absolute right-0 top-full mt-1.5 z-20 w-[260px] bg-white border border-gray-200 rounded-xl p-3 flex flex-col gap-2.5">
-            <label className="block">
-              <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Who writes it</span>
-              <select value={owner} onChange={(e) => setOwner(e.target.value)}
-                className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
-                {TEAM_USERS.map((u) => <option key={u.id} value={u.id}>{u.name} — {u.role}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Which brand</span>
-              <select value={sbu} onChange={(e) => setSbu(e.target.value)}
-                className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
-                {SBU_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </label>
-            {failed && <div className="text-[11.5px] text-[#C0392B]">{failed}</div>}
-            <div className="flex items-center gap-2">
-              <button onClick={createTask} disabled={making}
-                className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
-                {making ? "Creating…" : "Create task"}
-              </button>
-              <button onClick={() => setPicking(false)} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
-            </div>
-            <p className="text-[10.5px] text-[#A6ACBE] leading-snug">
-              Lands on their board as <b className="font-medium text-[#8A92A6]">Content&nbsp;-&nbsp;Pending</b>, with this headline and its link in the brief.
-            </p>
-          </div>
-        )}
-      </div>
+      <MakeTaskButton item={item} />
     </li>
   );
 }
@@ -1170,14 +1177,6 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
       .replace(/\son\w+="[^"]*"/gi, "");
   }, [rawHtml]);
 
-  const draftHref = useMemo(() => {
-    const p = new URLSearchParams({
-      title: item.title,
-      brief: `Headline: ${item.title}\nSource: ${item.source || "unknown"}\nURL: ${finalUrl}\n\n${item.snippet}`,
-      interest: item.primaryInterest,
-    });
-    return `/dashboard/scheduler?draft=${encodeURIComponent(p.toString())}`;
-  }, [item, finalUrl]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1255,14 +1254,14 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           )}
         </div>
 
-        {/* Footer actions */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">
-          <Link
-            href={draftHref}
-            className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"
-          >
-            ✍ Turn into post
-          </Link>
+        {/* Footer actions. Same px-6 py-4 as the header — it was py-3 with a grey
+            tint against the header's white, so the two ends of the dialog did not
+            line up. */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+          {/* The same control as the feed row. This used to be a link that
+              generated a draft and navigated away, so one headline behaved two
+              different ways depending on where you clicked it. */}
+          <MakeTaskButton item={item} up />
           <a
             href={finalUrl}
             target="_blank"
