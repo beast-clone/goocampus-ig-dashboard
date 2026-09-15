@@ -58,7 +58,7 @@ export const SECTIONS: { key: Section; label: string; tabs: string; adminOnly?: 
   { key: "content", label: "Content", tabs: "Marketing Hub, My Day, Content Radar, Calendar, Review, Scheduler, Post Planner" },
   { key: "analytics", label: "Analytics", tabs: "Instagram, LinkedIn, YouTube, Facebook, Website, All platforms" },
   { key: "ads", label: "Ads", tabs: "Ads, Competitor Ads, Benchmark" },
-  { key: "sales", label: "Sales", tabs: "Social Leads, Sales Hub" },
+  { key: "sales", label: "Sales", tabs: "Marketing Campaigns, Social Leads, Sales Hub" },
   { key: "ai", label: "AI", tabs: "AI Insights, AI Reports" },
   { key: "system", label: "System", tabs: "Integrations, Diagnostics, Tools, Team", adminOnly: true },
 ];
@@ -71,7 +71,7 @@ export const TAB_SECTION: Record<string, Section> = {
   "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", "post-planner": "content",
   instagram: "analytics", linkedin: "analytics", youtube: "analytics", facebook: "analytics", website: "analytics", audience: "analytics",
   ads: "ads", competitors: "ads", benchmark: "ads",
-  leads: "sales", sales: "sales",
+  leads: "sales", sales: "sales", campaigns: "sales",
   "ai-insights": "ai", "ai-reports": "ai",
   integrations: "system", diagnostics: "system", tools: "system", team: "system",
 };
