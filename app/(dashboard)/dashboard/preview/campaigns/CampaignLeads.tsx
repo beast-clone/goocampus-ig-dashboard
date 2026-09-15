@@ -195,7 +195,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px]">
+        {/* table-fixed, or the browser sizes columns by their content and the
+              widths below are ignored — which is why Captured sat in a sea of space. */}
+          <table className="w-full min-w-[1020px] table-fixed">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
               <th className="px-3 py-2.5 w-[34px]">
@@ -205,8 +207,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
               </th>
               {([
-                ["Lead ID", "w-[86px]"], ["Captured", "w-[120px]"], ["Name", "w-[200px]"],
-                ["Phone", "w-[150px]"], ["Status", "w-[190px]"], ["Notes", ""], ["WhatsApp", "w-[130px]"],
+                ["Lead ID", "w-[86px]"], ["Captured", "w-[104px]"], ["Name", "w-[210px]"],
+                ["Phone", "w-[148px]"], ["Status", "w-[196px]"], ["Notes", ""], ["WhatsApp", "w-[128px]"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
@@ -242,14 +244,13 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                     {/* Fixed width so "ATC" and "Will not be attending" are the same
                         size — ragged boxes down a column read as broken. */}
                     {writable.status ? (
-                      <div className="w-[178px]">
-                        <PreviewSelect
-                          value={l.fields[writable.status] || ""}
-                          onChange={(v) => write(l, writable.status!, v)}
-                          placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
-                          options={writable.options.map((op) => ({ value: op, label: op }))}
-                        />
-                      </div>
+                      <PreviewSelect
+                        className="w-full justify-between overflow-hidden"
+                        value={l.fields[writable.status] || ""}
+                        onChange={(v) => write(l, writable.status!, v)}
+                        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
+                        options={writable.options.map((op) => ({ value: op, label: op }))}
+                      />
                     ) : <span className="text-[12px] text-[#C9CDD8]">choose a Status column above</span>}
                   </td>
                   <td className="px-3 py-3 min-w-[280px]">
