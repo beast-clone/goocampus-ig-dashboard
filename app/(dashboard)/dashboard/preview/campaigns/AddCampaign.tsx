@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconTable, IconX, IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -17,6 +17,18 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The sheets already shared with the dashboard. A list beats hunting for a URL,
+  // but it can only ever show what has been shared with the service account —
+  // which is why pasting a link stays right below it.
+  const [mine, setMine] = useState<{ id: string; name: string; canEdit: boolean }[]>([]);
+  const [mineNote, setMineNote] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/campaigns/sheets", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d) => { setMine(d.sheets || []); if (d.error) setMineNote(d.error); })
+      .catch(() => setMineNote("Couldn't reach Google to list your sheets — paste a link instead."));
+  }, []);
+
   const [sheet, setSheet] = useState<{ spreadsheetId: string; title: string; tabs: Tab[] } | null>(null);
   const [tab, setTab] = useState("");
   const [cols, setCols] = useState<{ headers: string[]; rowCount: number; sample: Record<string, string>[] } | null>(null);
@@ -32,10 +44,11 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
     return r.json();
   };
 
-  const openSheet = async () => {
+  const openSheet = async (explicit?: string) => {
+    const target = explicit || url;
     setBusy(true); setError(null); setSheet(null); setCols(null); setTab("");
     try {
-      const d = await post({ url });
+      const d = await post({ url: target });
       if (d.error) { setError(d.error); return; }
       setSheet(d);
       setName((n) => n || d.title);
@@ -88,15 +101,31 @@ export function AddCampaign({ onClose, onSaved }: { onClose: () => void; onSaved
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-4">
-          {/* 1 — the link */}
+          {/* 1 — pick one the dashboard can already see… */}
           <label className="block">
-            <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Paste the Google Sheet link</span>
+            <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">
+              Pick a sheet {mine.length > 0 && <span className="font-normal">— {mine.length} shared with the dashboard</span>}
+            </span>
+            <PreviewSelect
+              className="w-full justify-between"
+              value=""
+              onChange={(id) => { setUrl(id); openSheet(id); }}
+              placeholder={mine.length ? "Choose a sheet…" : "No sheets to choose from"}
+              disabled={mine.length === 0}
+              options={mine.map((m) => ({ value: m.id, label: m.canEdit ? m.name : `${m.name} (read-only)` }))}
+            />
+            {mineNote && <span className="block mt-1.5 text-[11px] leading-snug text-[#A6ACBE]">{mineNote}</span>}
+          </label>
+
+          {/* …or paste its link */}
+          <label className="block">
+            <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Or paste the Google Sheet link</span>
             <div className="flex gap-2">
               <input value={url} onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) openSheet(); }}
                 placeholder="https://docs.google.com/spreadsheets/d/…"
                 className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 focus:border-brand focus:outline-none text-[13px] text-[#232D42] placeholder:text-[#C9CDD8]" />
-              <button onClick={openSheet} disabled={busy || !url.trim()}
+              <button onClick={() => openSheet()} disabled={busy || !url.trim()}
                 className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50 shrink-0">
                 {busy && !sheet ? "Opening…" : "Open"}
               </button>

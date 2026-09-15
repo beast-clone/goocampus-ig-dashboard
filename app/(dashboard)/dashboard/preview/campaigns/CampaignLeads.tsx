@@ -19,6 +19,11 @@ type Data = {
 // Only used for display — nothing is written based on a guess.
 const pick = (headers: string[], re: RegExp) => headers.find((h) => re.test(h)) || null;
 
+// Meta writes phone numbers into the sheet as "p:+919848660520" — the "p:" is
+// Meta's field marker, not part of the number. Stripped for display only; the
+// sheet keeps whatever it holds, and WhatsApp works off the digits regardless.
+const tidyPhone = (raw: string) => (raw || "").replace(/^\s*p\s*:\s*/i, "").trim();
+
 export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -232,16 +237,16 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
       )}
 
       <div className="overflow-x-auto">
-        {/* table-fixed, or the browser sizes columns by their content and the
-              widths below are ignored — which is why Captured sat in a sea of space.
-              Capped and centred, because a full-width table on a wide screen has to
-              dump its slack into some column, and whichever one gets it looks broken:
-              a name column with a hole after it, or a notes box stretched to the edge.
-              Sized columns with margin either side is the honest answer. */}
-          <table className="w-full min-w-[980px] max-w-[1280px] mx-auto table-fixed">
+        {/* Full width, with every column a PERCENTAGE of it.
+              table-fixed is what makes the widths bind at all — without it the
+              browser sizes columns by content and ignores them. Percentages then
+              share the leftover width between all eight columns instead of dumping
+              it on whichever one was left unsized, which is what produced first a
+              hole after the name and then a notes box run out to the edge. */}
+          <table className="w-full min-w-[980px] table-fixed">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
-              <th className="pl-5 pr-3 py-2.5 w-[46px]">
+              <th className="pl-5 pr-3 py-2.5 w-[3%]">
                 <input type="checkbox" aria-label="Select all"
                   checked={picked.size > 0 && picked.size === leads.filter((l) => l.rowKey).length}
                   onChange={(e) => setPicked(e.target.checked ? new Set(leads.map((l) => l.rowKey).filter(Boolean)) : new Set())}
@@ -250,8 +255,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
               {/* Last column gets pr-5 so the WhatsApp buttons aren't jammed into
                   the card's edge — every other column has air on both sides. */}
               {([
-                ["Lead ID", "w-[86px] px-3"], ["Captured", "w-[104px] px-3"], ["Name", "px-3"],
-                ["Phone", "w-[150px] px-3"], ["Status", "w-[196px] px-3"], ["Notes", "w-[300px] px-3"], ["WhatsApp", "w-[132px] pl-3 pr-5"],
+                ["Lead ID", "w-[7%] px-3"], ["Captured", "w-[7%] px-3"], ["Name", "w-[19%] px-3"],
+                ["Phone", "w-[13%] px-3"], ["Status", "w-[16%] px-3"], ["Notes", "w-[24%] px-3"], ["WhatsApp", "w-[11%] pl-3 pr-5"],
               ] as const).map(([h, w]) => (
                 <th key={h} className={`py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
@@ -280,8 +285,8 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                   </td>
                   <td className="px-3 py-3 text-[11.5px] text-[#8A92A6] truncate">{(timeCol && l.fields[timeCol]) || "—"}</td>
                   <td className="px-3 py-3 text-[13px] font-medium text-[#232D42] truncate" title={fullName(l)}>{fullName(l)}</td>
-                  <td className="px-3 py-3 text-[12.5px] text-[#4A5468] tabular-nums whitespace-nowrap">
-                    {phone || <span className="text-[#C9CDD8]">no number</span>}
+                  <td className="px-3 py-3 text-[12.5px] text-[#4A5468] tabular-nums truncate">
+                    {tidyPhone(phone) || <span className="text-[#C9CDD8]">no number</span>}
                   </td>
                   <td className="px-3 py-3">
                     {/* Fixed width so "ATC" and "Will not be attending" are the same
