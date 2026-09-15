@@ -3,13 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { TEAM_USERS } from "@/lib/users";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import {
-  IconSearch, IconTrendingUp, IconFlame, IconNews, IconRefresh, IconPencil,
-  IconBrandReddit, IconBrandGoogle, IconStar, IconMessageQuestion, IconMessage2, IconStethoscope,
-  IconTargetArrow, IconSeo, IconWorldSearch, IconShieldCheck, IconSparkles,
-} from "@tabler/icons-react";
+import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -271,20 +268,62 @@ function Radar() {
   );
 }
 
+// Radar tracks interests; the board files work by brand. Two of the three names
+// already match, so only the odd one needs mapping — and the picker shows the
+// result, so a wrong guess is one click to fix rather than a silent mis-file.
+const SBU_OPTIONS = [
+  "NEET PG", "India NEET UG Consulting", "Australia-PGCP",
+  "Standard Consulting Program - Australia", "Middle East", "Study Abroad",
+  "Mentorship Platform", "10K Mentorship", "General Content",
+];
+function sbuFor(interest: string): string {
+  const i = (interest || "").toLowerCase();
+  if (SBU_OPTIONS.some((o) => o.toLowerCase() === i)) return SBU_OPTIONS.find((o) => o.toLowerCase() === i)!;
+  if (i.includes("uae") || i.includes("gulf")) return "Middle East";
+  if (i.includes("australia")) return "Australia-PGCP";
+  if (i.includes("neet")) return "NEET PG";
+  return "General Content";
+}
+
 function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
   const router = useRouter();
   const [making, setMaking] = useState(false);
-  // "Make content" → kick off the content pipeline for this item, then jump to
-  // Content Studio where the generated drafts (fact-check + posts) show up.
-  const makeContent = async () => {
-    setMaking(true);
+  // "Make content" → raise a real task on the board for someone to write, rather
+  // than generating a draft and walking the clicker off to Content Studio. A
+  // headline is a job for the writer; it is not content yet.
+  //
+  // Reuses /api/marketing-hub/create — the same endpoint the Hub's own form
+  // calls — so a task raised here is indistinguishable from one raised there,
+  // and inherits its permission check and completeness gate. That endpoint
+  // requires an SBU, which is why the picker asks for one.
+  const [picking, setPicking] = useState(false);
+  const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
+  const [sbu, setSbu] = useState(sbuFor(item.primaryInterest));
+  const [made, setMade] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const createTask = async () => {
+    setMaking(true); setFailed(null);
     try {
-      await fetch("/api/content/make", {
+      const r = await fetch("/api/marketing-hub/create", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ title: item.title, url: item.link, source: item.source, interest: item.primaryInterest, kind: "radar" }),
+        body: JSON.stringify({
+          title: item.title,
+          sbu,
+          owner,
+          // Everything the writer needs to start, so they never have to come
+          // back here to find out what the task was about.
+          content: `From Content Radar — ${item.source || item.alertName || "news"}\n${item.link}\n\nTopic: ${item.primaryInterest}`,
+        }),
       });
-      router.push("/dashboard/preview/content-studio");
-    } catch { setMaking(false); }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error || `Couldn't create the task (${r.status})`);
+      setMade(true); setPicking(false);
+    } catch (e) {
+      setFailed((e as Error).message);
+    } finally {
+      setMaking(false);
+    }
   };
 
   const relative = useMemo(() => {
@@ -320,10 +359,52 @@ function FeedRow({ item, onRead }: { item: FeedItem; onRead: () => void }) {
           <span>{item.primaryInterest}</span>
         </div>
       </button>
-      <button type="button" onClick={makeContent} disabled={making}
-        className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
-        <IconSparkles size={13} stroke={1.8} /> {making ? "Sending…" : "Make content"}
-      </button>
+      {/* Ask who and which brand before raising the task. Two selects because the
+          board needs an owner and a brand to file the work — guessing either
+          silently puts a task where nobody will look for it. */}
+      <div className="shrink-0 self-center relative">
+        {made ? (
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[#2F9E6F] bg-[#E8F6F0] px-3 py-1.5 rounded-lg whitespace-nowrap">
+            <IconCheck size={13} stroke={2.2} /> Task created
+          </span>
+        ) : (
+          <button type="button" onClick={() => setPicking((v) => !v)} disabled={making}
+            aria-expanded={picking}
+            className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand border border-gray-100 px-3 py-1.5 rounded-lg hover:bg-brand-light hover:border-brand/30 whitespace-nowrap disabled:opacity-60">
+            <IconSparkles size={13} stroke={1.8} /> {making ? "Creating…" : "Make content"}
+          </button>
+        )}
+
+        {picking && !made && (
+          <div className="absolute right-0 top-full mt-1.5 z-20 w-[260px] bg-white border border-gray-200 rounded-xl p-3 flex flex-col gap-2.5">
+            <label className="block">
+              <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Who writes it</span>
+              <select value={owner} onChange={(e) => setOwner(e.target.value)}
+                className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
+                {TEAM_USERS.map((u) => <option key={u.id} value={u.id}>{u.name} — {u.role}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-[10.5px] font-medium text-[#8A92A6] mb-1">Which brand</span>
+              <select value={sbu} onChange={(e) => setSbu(e.target.value)}
+                className="w-full text-[12.5px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] focus:border-brand focus:outline-none">
+                {SBU_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            {failed && <div className="text-[11.5px] text-[#C0392B]">{failed}</div>}
+            <div className="flex items-center gap-2">
+              <button onClick={createTask} disabled={making}
+                className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
+                {making ? "Creating…" : "Create task"}
+              </button>
+              <button onClick={() => setPicking(false)} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+            </div>
+            <p className="text-[10.5px] text-[#A6ACBE] leading-snug">
+              Lands on their board as <b className="font-medium text-[#8A92A6]">Content&nbsp;-&nbsp;Pending</b>, with this headline and its link in the brief.
+            </p>
+          </div>
+        )}
+      </div>
     </li>
   );
 }
