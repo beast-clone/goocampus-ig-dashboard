@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink } from "@tabler/icons-react";
+import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 
@@ -23,6 +23,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [pushing, setPushing] = useState(false);
+  const [pushed, setPushed] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setData(null);
@@ -86,6 +89,28 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
     load();
   };
 
+  // Send the ticked leads to the Sales Hub CRM. One or a hundred — same path,
+  // because doing a hundred one at a time is how people give up on a tool.
+  const sendToCrm = async () => {
+    if (picked.size === 0) return;
+    setPushing(true); setFailed(null); setPushed(null);
+    try {
+      const r = await fetch("/api/campaigns/crm", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ id, rowKeys: [...picked] }),
+      });
+      const d = await r.json();
+      if (d.error) { setFailed(d.error); return; }
+      const bits = [`${d.created} sent to the CRM`];
+      if (d.skipped?.length) bits.push(`${d.skipped.length} skipped (no phone number)`);
+      if (d.failed?.length) bits.push(`${d.failed.length} failed: ${d.failed[0]}`);
+      setPushed(bits.join(" · "));
+      setPicked(new Set());
+    } catch {
+      setFailed("Couldn't reach the CRM — nothing was sent.");
+    } finally { setPushing(false); }
+  };
+
   const write = async (lead: Lead, column: string, value: string) => {
     setBusy(`${lead.rowKey}:${column}`); setFailed(null);
     try {
@@ -125,6 +150,18 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         </div>
       }
     >
+      <div className="flex items-center gap-3 flex-wrap px-5 py-2.5 border-b border-gray-100">
+        <span className="text-[12px] text-[#8A92A6]">
+          {picked.size > 0 ? `${picked.size} selected` : "Tick leads to send them to the CRM"}
+        </span>
+        <button onClick={sendToCrm} disabled={picked.size === 0 || pushing}
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed">
+          <IconUserPlus size={14} stroke={1.9} />
+          {pushing ? "Sending…" : `Send to CRM${picked.size > 0 ? ` (${picked.size})` : ""}`}
+        </button>
+        {pushed && <span className="text-[12px] text-[#2F9E6F]">{pushed}</span>}
+      </div>
+
       {failed && (
         <div className="mx-5 my-3 flex items-start gap-2 rounded-lg bg-[#FDECEA] border border-[#F5C6C0] px-3 py-2.5">
           <IconAlertTriangle size={15} stroke={1.9} className="text-[#C0392B] shrink-0 mt-[1px]" />
@@ -161,8 +198,17 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         <table className="w-full min-w-[820px]">
           <thead>
             <tr className="bg-[#FCFCFE] border-b border-gray-100">
-              {["Lead ID", "Captured", "Lead", "Phone", "Status", "Notes", "WhatsApp"].map((h) => (
-                <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap">{h}</th>
+              <th className="px-3 py-2.5 w-[34px]">
+                <input type="checkbox" aria-label="Select all"
+                  checked={picked.size > 0 && picked.size === leads.filter((l) => l.rowKey).length}
+                  onChange={(e) => setPicked(e.target.checked ? new Set(leads.map((l) => l.rowKey).filter(Boolean)) : new Set())}
+                  className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer" />
+              </th>
+              {([
+                ["Lead ID", "w-[86px]"], ["Captured", "w-[120px]"], ["Name", "w-[200px]"],
+                ["Phone", "w-[150px]"], ["Status", "w-[190px]"], ["Notes", ""], ["WhatsApp", "w-[130px]"],
+              ] as const).map(([h, w]) => (
+                <th key={h} className={`px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#A6ACBE] whitespace-nowrap ${w}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -170,27 +216,43 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
             {leads.map((l) => {
               const phone = (phoneCol && l.fields[phoneCol]) || "";
               return (
-                <tr key={l.rowKey || l.sheetRow} className="border-b border-gray-50 last:border-0 hover:bg-[#FCFCFE] align-top">
-                  {/* Only here so a row can be traced back to its line in the sheet. */}
-                  <td className="px-4 py-3 text-[11px] text-[#C9CDD8] font-mono whitespace-nowrap" title={l.rowKey}>
-                    {l.rowKey ? l.rowKey.replace(/^l:/, "").slice(-6) : "—"}
+                <tr key={l.rowKey || l.sheetRow} className={`border-b border-gray-50 last:border-0 align-top ${picked.has(l.rowKey) ? "bg-brand-light/40" : "hover:bg-[#FCFCFE]"}`}>
+                  <td className="px-3 py-3">
+                    <input type="checkbox" aria-label={`Select ${fullName(l)}`}
+                      checked={picked.has(l.rowKey)} disabled={!l.rowKey}
+                      onChange={(e) => setPicked((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(l.rowKey); else next.delete(l.rowKey);
+                        return next;
+                      })}
+                      className="w-[14px] h-[14px] accent-[#3A57E8] cursor-pointer disabled:opacity-30" />
                   </td>
-                  <td className="px-4 py-3 text-[12px] text-[#8A92A6] whitespace-nowrap">{(timeCol && l.fields[timeCol]) || "—"}</td>
-                  <td className="px-4 py-3 text-[13px] font-medium text-[#232D42]">{fullName(l)}</td>
-                  <td className="px-4 py-3 text-[12.5px] text-[#4A5468] tabular-nums whitespace-nowrap">
+                  {/* Only here so a row can be traced back to its line in the sheet. */}
+                  {/* Truncated for width only — the full value is on hover, and a
+                      write always matches on the whole thing, never on these six. */}
+                  <td className="px-3 py-3 text-[11px] text-[#C9CDD8] font-mono truncate" title={`Sheet ${campaign.keyColumn}: ${l.rowKey}`}>
+                    …{l.rowKey ? l.rowKey.slice(-6) : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-[11.5px] text-[#8A92A6] truncate">{(timeCol && l.fields[timeCol]) || "—"}</td>
+                  <td className="px-3 py-3 text-[13px] font-medium text-[#232D42] truncate" title={fullName(l)}>{fullName(l)}</td>
+                  <td className="px-3 py-3 text-[12.5px] text-[#4A5468] tabular-nums whitespace-nowrap">
                     {phone || <span className="text-[#C9CDD8]">no number</span>}
                   </td>
-                  <td className="px-4 py-3 w-[180px]">
+                  <td className="px-3 py-3">
+                    {/* Fixed width so "ATC" and "Will not be attending" are the same
+                        size — ragged boxes down a column read as broken. */}
                     {writable.status ? (
-                      <PreviewSelect
-                        value={l.fields[writable.status] || ""}
-                        onChange={(v) => write(l, writable.status!, v)}
-                        placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
-                        options={writable.options.map((op) => ({ value: op, label: op }))}
-                      />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">pick a column above</span>}
+                      <div className="w-[178px]">
+                        <PreviewSelect
+                          value={l.fields[writable.status] || ""}
+                          onChange={(v) => write(l, writable.status!, v)}
+                          placeholder={busy === `${l.rowKey}:${writable.status}` ? "Saving…" : "Set status…"}
+                          options={writable.options.map((op) => ({ value: op, label: op }))}
+                        />
+                      </div>
+                    ) : <span className="text-[12px] text-[#C9CDD8]">choose a Status column above</span>}
                   </td>
-                  <td className="px-4 py-3 min-w-[240px]">
+                  <td className="px-3 py-3 min-w-[280px]">
                     {writable.notes ? (
                       <textarea
                         defaultValue={l.fields[writable.notes] || ""}
@@ -199,14 +261,14 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
                         onBlur={(e) => { const v = e.target.value; if (v !== (l.fields[writable.notes!] || "")) write(l, writable.notes!, v); }}
                         className="w-full resize-y px-2 py-1.5 rounded-lg bg-transparent text-[12.5px] leading-snug text-[#232D42] border border-transparent hover:border-gray-200 focus:border-brand focus:bg-white focus:outline-none placeholder:text-[#C9CDD8]"
                       />
-                    ) : <span className="text-[12px] text-[#C9CDD8]">pick a column above</span>}
+                    ) : <span className="text-[12px] text-[#C9CDD8]">choose a Notes column above</span>}
                   </td>
-                  <td className="px-4 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
+                  <td className="px-3 py-3"><WhatsAppSend phone={phone} name={fullName(l)} compact /></td>
                 </tr>
               );
             })}
             {leads.length === 0 && (
-              <tr><td colSpan={7} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
+              <tr><td colSpan={8} className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">That tab has no rows yet.</td></tr>
             )}
           </tbody>
         </table>
