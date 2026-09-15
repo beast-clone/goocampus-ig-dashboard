@@ -55,7 +55,7 @@ const INTEREST_OPTIONS = [
 
 export default function RadarPage() {
   return (
-    <PreviewDashboardShell active="radar" title="Content Radar" subtitle="What's trending in your domain right now — news, search, your SEO and brand mentions — turned into a post in one click." hideAccountPicker>
+    <PreviewDashboardShell active="radar" title="Content Radar" subtitle="What's trending in your domain right now — news, search, your SEO and brand mentions — turned into a post in one click." hideAccountPicker hideRange>
       {() => <Radar />}
     </PreviewDashboardShell>
   );
