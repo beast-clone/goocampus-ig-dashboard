@@ -170,7 +170,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           <h2 className="text-base font-medium text-[#232D42]">Competitors <span className="text-gray-400 text-base font-normal">· {data?.niche || "—"}</span></h2>
           <p className="text-sm text-gray-500 mt-0.5">Public Instagram accounts tracked via Meta&apos;s public data — followers, posting cadence, engagement rate.</p>
         </div>
-        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={refresh} loading={loading} />
+        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} onRefresh={refresh} loading={loading} error={error ? error.message : null} />
       </div>
 
       {/* Filter row */}

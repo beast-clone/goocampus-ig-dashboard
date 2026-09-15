@@ -119,7 +119,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
 
   if (error) return (
     <>
-      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />
       <ErrorBox msg={error.message} />
     </>
   );

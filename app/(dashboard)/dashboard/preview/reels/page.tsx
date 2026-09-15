@@ -93,7 +93,7 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
     setInsightsProgress(null);
   }
 
-  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />;
+  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />;
 
   if (error) return <>{live}<div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load reels: {error.message}</div></>;
   if (!posts) return <>{live}<div className="text-sm text-gray-500">Loading reels…</div></>;

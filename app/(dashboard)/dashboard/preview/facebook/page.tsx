@@ -82,7 +82,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           </div>
         </div>
         {/* LiveIndicator IS the honest green "Live" badge — real Graph API data only. */}
-        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={isLoading} onRefresh={refresh} />
+        <LiveIndicator fetchedAt={fetchedAt} latencyMs={data?.latencyMs ?? null} loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
       </div>
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}

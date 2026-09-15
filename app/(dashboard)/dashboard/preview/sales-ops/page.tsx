@@ -182,7 +182,7 @@ export default function SalesOpsPage() {
 
 function Inner({ range }: { range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
-  const { data, isLoading, refresh } = useApi<SalesOpsData>(`/api/leads-crm?${qs}`);
+  const { data, error, isLoading, refresh } = useApi<SalesOpsData>(`/api/leads-crm?${qs}`);
   const [drillCounsellor, setDrillCounsellor] = useState<string | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
 
@@ -225,7 +225,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </>
           ) : isLoading ? "Loading…" : ""}
         </div>
-        <LiveIndicator loading={isLoading} onRefresh={refresh} />
+        <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
       </div>
 
       {/* KPI strip — headline numbers. Untouched and Time-to-convert live in their own

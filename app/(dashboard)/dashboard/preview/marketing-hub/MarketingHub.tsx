@@ -366,7 +366,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
     ? { from: range.from, to: ymd(new Date(Date.now() + 7 * 86_400_000)) }
     : range;
   const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to, ...(openParam ? { open: openParam } : {}) }).toString();
-  const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
+  const { data, error, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
   // Stamp when data lands so the Live chip shows a real "fetched Ns ago" instead of "…".
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
@@ -434,7 +434,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
           </>
         )}
         <div className="ml-auto flex-shrink-0">
-          <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} />
+          <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
         </div>
       </div>
 

@@ -111,7 +111,7 @@ function StoriesView({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={liveApi.error ? liveApi.error.message : null} />
 
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load: {error.message}</div>}
 

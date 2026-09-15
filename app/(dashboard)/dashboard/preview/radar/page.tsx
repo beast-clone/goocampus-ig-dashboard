@@ -67,6 +67,9 @@ function Radar() {
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  // Separate from `banner`, which also carries success messages — feeding that to
+  // the live badge would turn it red on "Refreshed 5 feeds".
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeInterest, setActiveInterest] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -105,6 +108,7 @@ function Radar() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     const t0 = Date.now();
     try {
       const [aRes, iRes] = await Promise.all([
@@ -117,6 +121,7 @@ function Radar() {
       setLatencyMs(Date.now() - t0);
     } catch (e) {
       setBanner((e as Error).message);
+      setLoadError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -159,7 +164,7 @@ function Radar() {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={load} />
+          <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={load} error={loadError} />
           <button
             onClick={refreshAll}
             disabled={refreshing}
