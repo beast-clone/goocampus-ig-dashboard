@@ -138,16 +138,14 @@ export function WhatsAppSend({
       <button
         type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
         aria-label="WhatsApp" title={suspect ? "WhatsApp — check this number first" : "WhatsApp"}
-        className={`inline-flex items-center gap-1 rounded-lg border whitespace-nowrap transition-colors ${
-          compact ? "px-1.5 py-1" : "px-3 py-1.5 text-[12.5px] gap-1.5"
+        className={`inline-flex items-center gap-1.5 rounded-lg border whitespace-nowrap transition-colors ${
+          compact ? "px-2 py-1 text-[11.5px]" : "px-3 py-1.5 text-[12.5px]"
         } ${suspect
           ? "border-[#F0DFB8] bg-[#FDF6E7] text-[#B7791F] hover:border-[#B7791F]"
           : "border-gray-200 text-[#4A5468] hover:border-[#25D366] hover:text-[#128C4A]"}`}
       >
-        <IconBrandWhatsapp size={compact ? 15 : 14} stroke={1.8} className={suspect ? "" : "text-[#25D366]"} />
-        {/* In the lead table the column header already says WhatsApp, so the word
-            on 172 buttons is width spent twice. */}
-        {!compact && "WhatsApp"}
+        <IconBrandWhatsapp size={14} stroke={1.8} className={suspect ? "" : "text-[#25D366]"} />
+        WhatsApp
         <IconChevronDown size={12} stroke={2} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
