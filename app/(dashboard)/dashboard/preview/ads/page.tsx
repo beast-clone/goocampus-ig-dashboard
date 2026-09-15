@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { HeaderSlot } from "@/app/(dashboard)/dashboard/preview/HeaderSlot";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -184,7 +186,13 @@ function Ads({ range }: { range: { from: string; to: string } }) {
     }
   }, [data, isLoading]);
 
-  const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />;
+  // Into the shell's top bar rather than above the content — it is a status
+  // control like the token badge, not part of the page.
+  const live = (
+    <HeaderSlot>
+      <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />
+    </HeaderSlot>
+  );
 
   if (loading && !data) return <>{live}<div className="text-sm text-gray-500">Loading ads data…</div></>;
   if (error) return <>{live}<div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg">Error: {error.message}</div></>;
@@ -206,8 +214,8 @@ function Ads({ range }: { range: { from: string; to: string } }) {
 
   return (
     <>
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
-        {live}
+      {live}
+      <div className="flex items-center justify-end flex-wrap gap-2 mb-3">
         <div className="text-xs text-gray-400">
           Ad account ID: {data.account.id}
         </div>
@@ -816,7 +824,7 @@ function AdsAnalyst({ range, campaign, onClear }: {
 
 function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { from: string; to: string }; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-6 overflow-auto" onClick={onClose}>
+    <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-4xl my-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
           <div>
@@ -893,7 +901,7 @@ function AnalystReport({ data, range, onClose }: { data: AnalystData; range: { f
           </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
 
@@ -1375,7 +1383,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
   const avgCpl = ads && ads.length ? (() => { const v = ads.filter((x) => x.leads > 0 && x.costPerLead > 0).map((x) => x.costPerLead); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; })() : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40" onClick={onClose}>
+    <Overlay onClose={onClose} className="fixed inset-0 z-[300] flex items-end md:items-center justify-center bg-black/40">
       <div
         className="bg-white w-full md:max-w-5xl md:rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -1460,7 +1468,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
           )}
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
 

@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { todayIST, daysAgoIST } from "@/lib/date";
 import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePicker";
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
+import { HEADER_SLOT_ID } from "./HeaderSlot";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
 import { PreviewSelect } from "./PreviewSelect";
 import { useProfile } from "@/lib/profile";
@@ -127,6 +128,9 @@ export function PreviewDashboardShell({
                   options={ACCOUNTS.map((a) => ({ value: a.id, label: a.label, img: avatars[a.id] }))}
                 />
               ))}
+              {/* Pages portal their live/refresh indicator in here, so it sits with
+                  the other status controls instead of floating above the content. */}
+              <div id={HEADER_SLOT_ID} className="flex items-center gap-2 empty:hidden" />
               <TokenExpiryBadge />
               {!hideRange && <DateRangePicker value={range} onChange={setRange} />}
             </div>
