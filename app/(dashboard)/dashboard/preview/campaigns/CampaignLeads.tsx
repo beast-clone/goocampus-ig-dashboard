@@ -279,9 +279,9 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   const shownKeys = shown.map((l) => l.rowKey).filter(Boolean);
   const allShownPicked = shownKeys.length > 0 && shownKeys.every((k) => picked.has(k));
 
-  // Every column the table can show. Core ones keep a "#" key so a sheet header
-  // called "Name" can never collide with ours.
-  const baseCols: Col[] = [
+  // Every column the table can show, keyed so a sheet header called "Name" can
+  // never collide with ours.
+  const byKey: Record<string, Col> = Object.fromEntries(([
     { key: "#leadid", label: "Lead ID", width: 86, cell: (l) => (
       // Only here so a row can be traced back to its line in the sheet. Truncated
       // for width; a write always matches on the whole value, never on these six.
@@ -349,7 +349,28 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
         </span>
       ),
     })),
-  ];
+  ] as Col[]).map((c) => [c.key, c] as const));
+
+  // Default order is the SHEET's order. Every column here stands for one of the
+  // sheet's columns, so walking the header row puts them back the way whoever
+  // built the sheet arranged them — rather than our idea of a good layout with
+  // their columns swept to the end. WhatsApp belongs to no sheet column, so it
+  // goes last. Drag anything anywhere afterwards; that choice is then saved.
+  const keyForHeader = (h: string): string | null => {
+    if (h === campaign.keyColumn) return "#leadid";
+    if (h === timeCol) return "#captured";
+    if (h === nameCol) return "#name";
+    if (h === lastName) return null;   // folded into Name
+    if (h === phoneCol) return "#phone";
+    if (h === writable.status) return "#status";
+    if (h === writable.notes) return "#notes";
+    if (h === writable.community) return "#community";
+    return h;
+  };
+  const sheetOrder = [...new Set(headers.map(keyForHeader).filter(Boolean) as string[])];
+  const baseCols: Col[] = [...sheetOrder, "#whatsapp"]
+    .filter((k, i, a) => byKey[k] && a.indexOf(k) === i)
+    .map((k) => byKey[k]);
 
   const allKeys = baseCols.map((c) => c.key);
   const orderedKeys = [...(prefs.order || []).filter((k) => allKeys.includes(k)),
