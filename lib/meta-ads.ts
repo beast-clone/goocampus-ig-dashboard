@@ -30,17 +30,48 @@ function extractAction(actions: RawAction[] | undefined, types: string[]): numbe
     .reduce((sum, a) => sum + parseFloat(a.value || "0"), 0);
 }
 
+// For metrics where Meta sends an umbrella total alongside its own components.
+// Adding those together counts the same conversion more than once, so prefer the
+// umbrella and fall back to summing the parts only when it is absent.
+function extractGrouped(actions: RawAction[] | undefined, umbrella: string, parts: string[]): number {
+  if (!actions) return 0;
+  const top = actions.find((a) => a.action_type === umbrella);
+  if (top) return parseFloat(top.value || "0");
+  return extractAction(actions, parts);
+}
+
 function extractCostPerAction(costs: RawCostAction[] | undefined, types: string[]): number {
   if (!costs) return 0;
-  const matches = costs.filter((a) => types.includes(a.action_type));
-  if (matches.length === 0) return 0;
-  return parseFloat(matches[0].value || "0");
+  // Walk `types` in priority order rather than taking whatever Meta happened to
+  // list first — the umbrella type heads each list, so the cost returned matches
+  // the count returned by extractGrouped instead of depending on response order.
+  for (const t of types) {
+    const hit = costs.find((a) => a.action_type === t);
+    if (hit) return parseFloat(hit.value || "0");
+  }
+  return 0;
 }
 
 // Action-type families
-const LEAD_TYPES = ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"];
+// Meta reports leads under an UMBRELLA type plus the channel-specific ones that
+// make it up, and returns all of them in the same `actions` array. `lead` already
+// contains `onsite_conversion.lead_grouped` (Instant Forms) and
+// `offsite_conversion.fb_pixel_lead` (website pixel) — verified against this
+// account on 2026-09-15, where every campaign had lead === onsite, and IMT had
+// lead 142 === onsite 134 + pixel 8.
+//
+// Summing the list therefore counted every lead twice: the tab reported 2,304
+// leads for 16 Aug–15 Sep when Meta's own figure was 1,152, and so halved every
+// cost-per-lead. Take the umbrella when Meta sends it; only add the specific
+// types together when it doesn't.
+const LEAD_UMBRELLA = "lead";
+const LEAD_PARTS = ["onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead"];
+const LEAD_TYPES = [LEAD_UMBRELLA, ...LEAD_PARTS];
 const MESSAGING_TYPES = ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.messaging_first_reply"];
-const PURCHASE_TYPES = ["purchase", "offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase"];
+// Same umbrella/parts shape as leads.
+const PURCHASE_UMBRELLA = "purchase";
+const PURCHASE_PARTS = ["offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase"];
+const PURCHASE_TYPES = [PURCHASE_UMBRELLA, ...PURCHASE_PARTS];
 const LINK_CLICK_TYPES = ["link_click"];
 const POST_ENGAGEMENT_TYPES = ["post_engagement"];
 
@@ -83,9 +114,9 @@ function mapInsightsRow(r: {
     cpc: parseFloat(r.cpc || "0"),
     ctr: parseFloat(r.ctr || "0"),
     frequency: parseFloat(r.frequency || "0"),
-    leads: extractAction(actions, LEAD_TYPES),
+    leads: extractGrouped(actions, LEAD_UMBRELLA, LEAD_PARTS),
     messagingStarted: extractAction(actions, MESSAGING_TYPES),
-    purchases: extractAction(actions, PURCHASE_TYPES),
+    purchases: extractGrouped(actions, PURCHASE_UMBRELLA, PURCHASE_PARTS),
     linkClicks: extractAction(actions, LINK_CLICK_TYPES),
     postEngagement: extractAction(actions, POST_ENGAGEMENT_TYPES),
     costPerLead: extractCostPerAction(costs, LEAD_TYPES),
@@ -183,7 +214,7 @@ export async function fetchAdsDaily(acct: AdAccountConfig, from: string, to: str
     clicks: parseInt(r.clicks || "0", 10),
     cpm: parseFloat(r.cpm || "0"),
     ctr: parseFloat(r.ctr || "0"),
-    leads: extractAction(r.actions, LEAD_TYPES),
+    leads: extractGrouped(r.actions, LEAD_UMBRELLA, LEAD_PARTS),
   }));
 }
 
@@ -210,7 +241,7 @@ export async function fetchAdsBreakdown(
     e.impressions += parseInt((r.impressions as string) || "0", 10);
     e.reach += parseInt((r.reach as string) || "0", 10);
     e.clicks += parseInt((r.clicks as string) || "0", 10);
-    e.leads += extractAction(r.actions as RawAction[] | undefined, LEAD_TYPES);
+    e.leads += extractGrouped(r.actions as RawAction[] | undefined, LEAD_UMBRELLA, LEAD_PARTS);
   }
   return [...map.values()].sort((a, b) => b.spend - a.spend);
 }
@@ -367,7 +398,7 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
     .map((a) => {
       const p = perfById.get(a.id);
       const spend = parseFloat(p?.spend || "0");
-      const leads = extractAction(p?.actions, LEAD_TYPES);
+      const leads = extractGrouped(p?.actions, LEAD_UMBRELLA, LEAD_PARTS);
       const clicks = parseInt(p?.inline_link_clicks || "0", 10);
       const destination = destinationHost(a.creative?.object_story_spec);
       return {
@@ -407,7 +438,7 @@ export async function fetchDaySummary(acct: AdAccountConfig, date: string): Prom
     spend: parseFloat(r.spend || "0"),
     reach: parseInt(r.reach || "0", 10),
     impressions: parseInt(r.impressions || "0", 10),
-    leads: extractAction(r.actions, LEAD_TYPES),
+    leads: extractGrouped(r.actions, LEAD_UMBRELLA, LEAD_PARTS),
   };
 }
 
@@ -435,7 +466,7 @@ export async function fetchCampaignSpendForDay(acct: AdAccountConfig, date: stri
       spend: parseFloat(r.spend || "0"),
       reach: parseInt(r.reach || "0", 10),
       impressions: parseInt(r.impressions || "0", 10),
-      leads: extractAction(r.actions, LEAD_TYPES),
+      leads: extractGrouped(r.actions, LEAD_UMBRELLA, LEAD_PARTS),
     }))
     .filter((c) => c.spend > 0)
     .sort((a, b) => b.spend - a.spend);
@@ -455,7 +486,7 @@ export async function fetchActiveAdsForDay(acct: AdAccountConfig, date: string):
       impressions: parseInt(r.impressions || "0", 10),
       cpm: parseFloat(r.cpm || "0"),
       ctr: parseFloat(r.ctr || "0"),
-      leads: extractAction(r.actions, LEAD_TYPES),
+      leads: extractGrouped(r.actions, LEAD_UMBRELLA, LEAD_PARTS),
     }))
     .filter((a) => a.spend > 0)
     .sort((a, b) => b.spend - a.spend);
