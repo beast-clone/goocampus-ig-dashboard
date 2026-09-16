@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { IconChevronLeft, IconChevronRight, IconRefresh, IconBrandInstagram, IconBrandFacebook } from "@tabler/icons-react";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { fmtDateTime } from "@/lib/date";
 
 // Themed (Version 2) Publishing Calendar — built to match the the dashboard theme reference
@@ -259,13 +261,18 @@ export function PreviewCalendar() {
   // was unanswerable before — every view showed everything.
   const [fSbu, setFSbu] = useState("");
   const [fStatus, setFStatus] = useState<"" | EffectiveStatus>("");
+  // A custom window, for questions the month grid can't answer on its own —
+  // "everything for this brand between the 1st and the 20th".
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
 
   const unfiltered = useMemo(() => (showDemo ? [...posts, ...samplePosts] : posts), [posts, samplePosts, showDemo]);
   const allPosts = useMemo(
     () => unfiltered.filter((p) =>
       (!fSbu || (fSbu === "__none" ? !p.primaryInterest : p.primaryInterest === fSbu))
-      && (!fStatus || p.effectiveStatus === fStatus)),
-    [unfiltered, fSbu, fStatus],
+      && (!fStatus || p.effectiveStatus === fStatus)
+      && inRange(p, fFrom, fTo)),
+    [unfiltered, fSbu, fStatus, fFrom, fTo],
   );
   // Brands actually present, so the picker never offers one with nothing behind it.
   const sbusPresent = useMemo(
@@ -273,7 +280,9 @@ export function PreviewCalendar() {
     [unfiltered],
   );
   // What the filters are showing, for the month on screen.
+  const ranged = Boolean(fFrom || fTo);
   const monthCount = useMemo(() => {
+    if (ranged) return allPosts.filter((p) => p.publishedAt || p.scheduleTime).length;
     const y = anchor.getFullYear(), m = anchor.getMonth();
     return allPosts.filter((p) => {
       const ts = p.publishedAt || p.scheduleTime;
@@ -281,7 +290,10 @@ export function PreviewCalendar() {
       const d = new Date(ts);
       return d.getFullYear() === y && d.getMonth() === m;
     }).length;
-  }, [allPosts, anchor]);
+  }, [allPosts, anchor, ranged]);
+  const countWhere = ranged
+    ? `${fFrom ? niceDay(fFrom) : "the start"} – ${fTo ? niceDay(fTo) : "now"}`
+    : anchor.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
   // Bucket scheduled/published posts onto their day (drafts with no time are simply
   // not plotted — the reference calendar shows only dated events).
@@ -394,24 +406,24 @@ export function PreviewCalendar() {
       {/* The calendar card */}
       <div className="hcal-card">
         <div className="hcal-filters">
-          <label className="hcal-flabel">Primary interest</label>
-          <select className="hcal-fsel" value={fSbu} onChange={(e) => setFSbu(e.target.value)}>
-            <option value="">All brands</option>
-            {sbusPresent.map((b) => <option key={b} value={b}>{b}</option>)}
-            {/* Most posts carry no brand yet — this is how you find the ones to tag. */}
-            <option value="__none">No brand set</option>
-          </select>
-          <label className="hcal-flabel">Status</label>
-          <select className="hcal-fsel" value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | EffectiveStatus)}>
-            <option value="">Any status</option>
-            {(["published", "scheduled", "publishing", "failed", "draft"] as EffectiveStatus[]).map((k) => (
-              <option key={k} value={k}>{STATUS_STYLE[k].label}</option>
-            ))}
-          </select>
-          {(fSbu || fStatus) && (
-            <button className="hcal-fclear" onClick={() => { setFSbu(""); setFStatus(""); }}>Clear</button>
+          <span className="hcal-flabel">Primary interest</span>
+          <PreviewSelect className="!text-[12px]" value={fSbu} onChange={setFSbu} placeholder="All brands"
+            options={[{ value: "", label: "All brands" },
+                      ...sbusPresent.map((b) => ({ value: b, label: b })),
+                      { value: "__none", label: "No brand set" }]} />
+          <span className="hcal-flabel">Status</span>
+          <PreviewSelect className="!text-[12px]" value={fStatus} onChange={(v) => setFStatus(v as "" | EffectiveStatus)}
+            placeholder="Any status"
+            options={[{ value: "", label: "Any status" },
+                      ...(["published", "scheduled", "publishing", "failed", "draft"] as EffectiveStatus[])
+                        .map((k) => ({ value: k, label: STATUS_STYLE[k].label }))]} />
+          <span className="hcal-flabel">Between</span>
+          <PreviewDatePicker value={fFrom} onChange={setFFrom} size="sm" placeholder="Any start" max={fTo || undefined} />
+          <PreviewDatePicker value={fTo} onChange={setFTo} size="sm" placeholder="Any end" min={fFrom || undefined} />
+          {(fSbu || fStatus || fFrom || fTo) && (
+            <button className="hcal-fclear" onClick={() => { setFSbu(""); setFStatus(""); setFFrom(""); setFTo(""); }}>Clear</button>
           )}
-          <span className="hcal-fcount"><b>{monthCount}</b> {monthCount === 1 ? "post" : "posts"} in {title}</span>
+          <span className="hcal-fcount"><b>{monthCount}</b> {monthCount === 1 ? "post" : "posts"} in {countWhere}</span>
           {/* What the colours mean — they were already doing this, just never said so. */}
           <span className="hcal-legend">
             {(["published", "scheduled", "publishing", "failed"] as EffectiveStatus[]).map((k) => (
@@ -576,6 +588,23 @@ export function PreviewCalendar() {
 }
 
 /* ---------- building blocks ---------- */
+
+/** "YYYY-MM-DD" → "3 Sep". */
+function niceDay(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/** Inside the chosen window? An open end stays open. */
+function inRange(p: ScheduledPost, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const ts = p.publishedAt || p.scheduleTime;
+  if (!ts) return false;
+  const key = ymd(new Date(ts));
+  if (from && key < from) return false;
+  if (to && key > to) return false;
+  return true;
+}
 
 function EventChip({ post, onClick, block }: { post: ScheduledPost; onClick: () => void; block?: boolean }) {
   const acct = ACCOUNT_STYLE[accountKeyFor(post.publishToPage)];
