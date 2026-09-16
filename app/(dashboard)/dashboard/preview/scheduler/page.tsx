@@ -2381,7 +2381,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
             <>
               <div className="text-2xl mb-1">📎</div>
               <div className="text-sm font-medium text-gray-700">Drag a file here or click to upload</div>
-              <div className="text-xs text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 300 MB</div>
+              <div className="text-xs text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
             </>
           )}
         </div>
