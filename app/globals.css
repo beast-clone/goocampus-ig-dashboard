@@ -157,11 +157,37 @@ html { scrollbar-gutter: stable; }
 /* Panels outside the composer — the queue strip, the list, the calendar cards. */
 .scheduler-dense .p-5 { padding: 1rem !important; }
 
-/* Form controls. The border stays (Meta's are borderless, ours are not — that is
-   the design system, not a density decision); only the height comes down. */
+/* Form controls. Meta's visible field is bordered too — 1.11px #CBD2D9, 4px radius,
+   7px/8px padding, 14px text on a 20px line, so 34px overall. The "borderless 20px"
+   in the first measurement was the inner text node, not the field. */
 .scheduler-dense input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .scheduler-dense textarea,
 .scheduler-dense select {
-  padding-top: 0.375rem !important;
-  padding-bottom: 0.375rem !important;
+  padding-top: calc(7px * var(--dense, 1)) !important;
+  padding-bottom: calc(7px * var(--dense, 1)) !important;
+  font-size: calc(14px * var(--dense, 1)) !important;
+  line-height: calc(20px * var(--dense, 1)) !important;
 }
+
+/* ── DENSITY, RELATIVE TO META ──────────────────────────────────────────────
+   Matching Meta exactly still read as too loud on a 1920 screen, so this sits
+   deliberately below the reference.
+
+   --dense is the whole dial. Every number below is Meta's own measurement times
+   that factor, so 1 is Meta, 0.8 is 20% under, 0.9 is 10% under. It is one line
+   to change and there is nowhere else to look.
+
+     0.8 gives:  16 -> 13   card padding, gap between cards
+                 16/20 -> 13/16  section title
+                 14/20 -> 11/16  field text
+                 34 -> 28   field height
+   ───────────────────────────────────────────────────────────────────────────── */
+.scheduler-dense { --dense: 0.8; }
+
+.scheduler-dense .text-base { font-size: calc(16px * var(--dense)) !important; line-height: calc(21px * var(--dense)) !important; }
+.scheduler-dense .text-sm   { font-size: calc(14px * var(--dense)) !important; line-height: calc(20px * var(--dense)) !important; }
+.scheduler-dense .text-xs   { font-size: calc(13px * var(--dense)) !important; line-height: calc(17px * var(--dense)) !important; }
+.scheduler-dense .p-5,
+.scheduler-dense .p-4                 { padding: calc(16px * var(--dense)) !important; }
+.scheduler-dense .space-y-4 > * + *   { margin-top: calc(16px * var(--dense)) !important; }
+.scheduler-dense .space-y-3 > * + *   { margin-top: calc(12px * var(--dense)) !important; }
