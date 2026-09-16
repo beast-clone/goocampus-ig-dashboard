@@ -71,6 +71,7 @@ type TopPerformer = {
 // A .pdf in the media list means a LinkedIn document carousel, not an image.
 // Kept as a URL test because that is all the composer holds after upload.
 const isPdfUrl = (u: string) => /\.pdf(\?|#|$)/i.test(u);
+const isVideoUrl = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u || "");
 // Filename off the storage URL, minus the upload timestamp prefix we add.
 const pdfName = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "document.pdf"))
   .replace(/^\d{10,}-[a-z0-9]{4,8}-/i, "");
@@ -2955,6 +2956,16 @@ function SocialPreview({ platform, handle, name, images, caption }: {
             <div className="text-[12.5px] font-medium px-4 text-center break-all">{pdfName(image)}</div>
             <div className="text-[11px] text-[#C0392B]/70">Document carousel</div>
           </div>
+        : image && isVideoUrl(image)
+        // A video in an <img> renders nothing at all, which is why the preview went
+        // blank the moment a reel was the creative. Muted + playsInline so it can
+        // autoplay at all; looped because that is how a reel is watched.
+        // autoPlay alone is unreliable here: the element mounts before the source is
+        // ready, and Chrome silently declines the attempt. Asking again once there
+        // are frames to show is what actually starts it.
+        ? <video key={image} src={image} autoPlay muted loop playsInline controls preload="auto"
+            onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }}
+            className="w-full h-auto max-h-[520px] object-contain block bg-black" />
         : image
         ? <img src={image} alt="" className="w-full h-auto max-h-[520px] object-contain block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         : <><div className="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center mb-2.5"><IconPhoto size={24} stroke={1.6} className="text-brand" /></div><div className="text-[12.5px] font-medium text-[#8A92A6]">Add media to preview</div></>}

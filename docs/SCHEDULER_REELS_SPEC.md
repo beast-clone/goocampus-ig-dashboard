@@ -322,8 +322,12 @@ was queued or posted. Test files deleted from the bucket afterwards.
 - **Save as draft** — writes `publish_status='draft'`. The worker only picks up
   `scheduled`, so a draft sits still. It is OURS, not Meta's: Instagram has no draft
   API. LinkedIn cross-posting is skipped for a draft too.
-- **Looping FB/IG preview** — already existed (`page.tsx:2010`, `<video autoPlay muted
-  loop>` behind the Instagram/Facebook/LinkedIn switcher). Nothing to build.
+- **Looping FB/IG preview** — I claimed this already existed. It did not. The player
+  at `page.tsx:2010` belongs to the queue's post-detail view; the composer's own
+  FEED PREVIEW rendered every creative through an `<img>`, and a video in an `<img>`
+  draws nothing, so the preview went blank the moment the creative was a reel. It now
+  renders a looping muted `<video>` and asks it to play once there are frames —
+  `autoPlay` alone mounts before the source is ready and Chrome declines silently.
 
 **Tags: not built, on purpose.** Meta's composer has a keywords field; the API has no
 equivalent. Instagram's REELS container takes `media_type`, `video_url`, `caption`,
