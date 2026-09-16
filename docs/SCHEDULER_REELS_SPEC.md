@@ -316,5 +316,26 @@ default, the per-platform "Customize" toggle, Tags, the looping FB/IG preview, a
 Save-as-draft. **Stories are deliberately not offered** — nothing publishes them, and
 a format you can pick but not send is worse than one that is not there.
 
-**Facebook still receives `POST /{page}/videos`** — an ordinary video post, not a
-reel. That is the next real piece of work (§3).
+**Facebook reels — built 16 Sep.** The Page branch no longer posts to `/videos` when a
+reel was asked for. It now runs Meta's three phases against `/{page-id}/video_reels`:
+
+1. `upload_phase=start` → `video_id` + `upload_url`
+2. upload with the **`file_url` header** to `rupload.facebook.com`, so Facebook fetches
+   the mp4 itself and the binary never passes through the n8n Code node — which
+   matters for a 50 MB file
+3. poll `GET /{video-id}?fields=status` until `processing_phase` is complete (same
+   5-minute ceiling as Instagram), then `upload_phase=finish` with
+   `video_state=PUBLISHED`
+
+The cover goes on **before** finish, via multipart `POST /{video-id}/thumbnails` with
+`is_preferred=true` — that endpoint takes an image file and will not take a URL, which
+is exactly why every thumbnail mode resolves to an uploaded image (§3).
+
+`video_state` also accepts `SCHEDULED` + `scheduled_publish_time` and `DRAFT`. Not
+wired yet — the queue already holds the post until its time, so scheduling stays the
+dashboard's job for now.
+
+**Not verified:** the cover step is the one thing that cannot be proved without
+publishing a real reel to a live Page. It is wrapped so a failure never loses the
+post, and the reason is written to `failure_reason` on an otherwise-published row.
+Check that field after the first real reel.
