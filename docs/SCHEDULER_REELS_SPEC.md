@@ -311,10 +311,25 @@ the browser, a chosen frame uploaded as the cover, and the Publish payload carry
 `format: "reel"` plus the cover URL — captured with `fetch` intercepted so nothing
 was queued or posted. Test files deleted from the bucket afterwards.
 
-**Still to do in Phase 1:** destination multi-select across FB and IG with a saved
-default, the per-platform "Customize" toggle, Tags, the looping FB/IG preview, and
-Save-as-draft. **Stories are deliberately not offered** — nothing publishes them, and
-a format you can pick but not send is worse than one that is not there.
+**Phase 1 finished 16 Sep**, with two deliberate omissions:
+
+- **Channels** — Instagram and Facebook tick separately in the Post-to card, and the
+  choice is remembered per browser. A row without channels counts as both, so posts
+  queued before today still publish everywhere they used to.
+- **A different caption for Facebook** — off by default; ticking it copies the
+  Instagram caption as a starting point. Rides in `custom.caption_fb`; the worker
+  falls back to the single caption when it is absent.
+- **Save as draft** — writes `publish_status='draft'`. The worker only picks up
+  `scheduled`, so a draft sits still. It is OURS, not Meta's: Instagram has no draft
+  API. LinkedIn cross-posting is skipped for a draft too.
+- **Looping FB/IG preview** — already existed (`page.tsx:2010`, `<video autoPlay muted
+  loop>` behind the Instagram/Facebook/LinkedIn switcher). Nothing to build.
+
+**Tags: not built, on purpose.** Meta's composer has a keywords field; the API has no
+equivalent. Instagram's REELS container takes `media_type`, `video_url`, `caption`,
+`cover_url`, `thumb_offset` and the branded-content flags — no keywords. Facebook's
+`video_reels` finish takes `description` and `title`. A Tags box would collect text
+nothing could send, which is the same reason **Stories are not offered**.
 
 **Facebook reels — built 16 Sep.** The Page branch no longer posts to `/videos` when a
 reel was asked for. It now runs Meta's three phases against `/{page-id}/video_reels`:

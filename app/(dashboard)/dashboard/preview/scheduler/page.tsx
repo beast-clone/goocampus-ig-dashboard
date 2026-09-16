@@ -159,6 +159,15 @@ function Scheduler() {
   // you can pick but not send is worse than one that isn't offered.
   const [format, setFormat] = useState<"post" | "reel">("post");
   const [coverUrl, setCoverUrl] = useState("");
+  // Which of Meta's two channels this goes to. A brand implies an Instagram account
+  // AND one or more Facebook pages; until now both always fired. Meta lets you tick
+  // them separately, and people do — a reel to Instagram only is a normal thing to want.
+  const [toInstagram, setToInstagram] = useState(true);
+  const [toFacebook, setToFacebook] = useState(true);
+  // A second caption for Facebook. Off by default: one caption is the common case,
+  // and two boxes to fill is a tax on every post that doesn't need it.
+  const [splitCaption, setSplitCaption] = useState(false);
+  const [captionFb, setCaptionFb] = useState("");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
@@ -166,6 +175,18 @@ function Scheduler() {
   // page (Main → GooCampus, World → GooCampus World; India has no LinkedIn page).
   const [alsoLinkedIn, setAlsoLinkedIn] = useState(true);
   // LinkedIn pages reachable from the brands currently ticked. Empty for India.
+  // Remembered per browser — Meta offers the same, and re-ticking two boxes every
+  // time is the kind of small friction that makes people avoid a tool.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("gc.scheduler.channels");
+      if (saved) { const v = JSON.parse(saved); setToInstagram(v.ig !== false); setToFacebook(v.fb !== false); }
+    } catch { /* no preference stored */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("gc.scheduler.channels", JSON.stringify({ ig: toInstagram, fb: toFacebook })); } catch { /* private mode */ }
+  }, [toInstagram, toFacebook]);
+
   const linkedInPages = useMemo(
     () => Array.from(new Set(composePages.map(linkedInKeyFor).filter((k): k is string => !!k))),
     [composePages],
@@ -190,7 +211,7 @@ function Scheduler() {
   const [gate, setGate] = useState<GateBlock | null>(null);
   // recordId is optional: a LinkedIn-only (PDF) post never touches the Meta queue,
   // so there is no mh_posts row to point at.
-  const [result, setResult] = useState<{ ok: true; recordId?: string } | { ok: false; error: string } | null>(null);
+  const [result, setResult] = useState<{ ok: true; recordId?: string; draft?: boolean } | { ok: false; error: string } | null>(null);
 
   // Smart features state
   const [timeSuggestions, setTimeSuggestions] = useState<TimeSuggestion[]>([]);
@@ -537,7 +558,7 @@ function Scheduler() {
   function resetComposer() {
     setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
-    setFormat("post"); setCoverUrl("");
+    setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb("");
   }
 
   // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
@@ -564,7 +585,7 @@ function Scheduler() {
     }
   }
 
-  async function doEnqueue(scheduleTimeISO?: string) {
+  async function doEnqueue(scheduleTimeISO?: string, asDraft?: boolean) {
     setSubmitting(true);
     setResult(null);
     try {
@@ -596,6 +617,9 @@ function Scheduler() {
           mediaUrls: metaMediaUrls,
           format,
           coverUrl: format === "reel" ? coverUrl : "",
+          channels: [toInstagram ? "instagram" : "", toFacebook ? "facebook" : ""].filter(Boolean),
+          captionFb: splitCaption && toInstagram && toFacebook ? captionFb : "",
+          draft: Boolean(asDraft),
           scheduleTimeISO,
         }),
       });
@@ -605,8 +629,8 @@ function Scheduler() {
         if (block) setGate(block);
         else setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
-        setResult({ ok: true, recordId: d.id });
-        await crossPostLinkedIn(scheduleTimeISO);
+        setResult({ ok: true, recordId: d.id, draft: Boolean(asDraft) });
+        if (!asDraft) await crossPostLinkedIn(scheduleTimeISO);
         resetComposer();
         loadToSchedule();               // the scheduled task leaves "To schedule"
         setTimeout(loadQueue, 800);
@@ -1147,6 +1171,19 @@ function Scheduler() {
         <div className="lg:col-span-7 space-y-4">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
+            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+              <span className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</span>
+              {([["Instagram", toInstagram, setToInstagram], ["Facebook", toFacebook, setToFacebook]] as const).map(([label, on, set]) => (
+                <label key={label} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)}
+                    className="w-4 h-4 accent-[#3A57E8]" />
+                  <span className="text-sm text-gray-800">{label}</span>
+                </label>
+              ))}
+              {!toInstagram && !toFacebook && (
+                <span className="text-xs text-[#C0392B]">Tick at least one, or nothing goes to Meta.</span>
+              )}
+            </div>
             <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-gray-100">
               <input type="checkbox" checked={alsoLinkedIn && linkedInAvailable} disabled={!linkedInAvailable}
                 onChange={(e) => setAlsoLinkedIn(e.target.checked)}
@@ -1230,6 +1267,25 @@ function Scheduler() {
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
                   <span>{caption.length} / 2200</span>
                 </div>
+
+                {/* Meta's "Customize post for Facebook and Instagram", same idea:
+                    one caption until you say otherwise. */}
+                {toInstagram && toFacebook && (
+                  <label className="flex items-center gap-2 cursor-pointer mt-2">
+                    <input type="checkbox" checked={splitCaption}
+                      onChange={(e) => { setSplitCaption(e.target.checked); if (e.target.checked && !captionFb) setCaptionFb(caption); }}
+                      className="w-4 h-4 accent-[#3A57E8]" />
+                    <span className="text-xs text-gray-700">Write a different caption for Facebook</span>
+                  </label>
+                )}
+                {splitCaption && toInstagram && toFacebook && (
+                  <div className="mt-2">
+                    <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Facebook caption</label>
+                    <CaptionField value={captionFb} onChange={setCaptionFb} placeholder="Facebook version…"
+                      className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                    <div className="text-xs text-gray-400 mt-1">The box above is the Instagram one.</div>
+                  </div>
+                )}
 
                 {/* AI caption suggester — 3 variants from the topic above */}
                 <AISuggestBar
@@ -1327,17 +1383,31 @@ function Scheduler() {
       {/* ACTION BAR */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3 flex items-center justify-between mb-8 sticky bottom-2">
         <div className="text-xs text-gray-500">
-          {result?.ok === true && <span className="text-green-700">✓ Scheduled. Row <code className="bg-green-50 px-1 rounded">{result.recordId}</code> dropped into Content Calendar.</span>}
+          {result?.ok === true && (result.draft
+            ? <span className="text-green-700">✓ Saved as a draft. It stays put until you schedule or publish it.</span>
+            : <span className="text-green-700">✓ Scheduled. Row <code className="bg-green-50 px-1 rounded">{result.recordId}</code> dropped into Content Calendar.</span>)}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
           {!result && <span>{scheduleEnabled ? "Goes into your publishing queue for the time you set." : "Goes straight into your publishing queue."}</span>}
         </div>
-        <button
-          onClick={submit}
-          disabled={submitting}
-          className="text-sm font-medium bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {submitting ? "Sending…" : scheduleEnabled ? "Schedule" : "Publish"}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* A draft is OURS, not Meta's. Instagram has no draft API at all, so this
+              parks the post in the queue with publish_status='draft' — the worker only
+              picks up 'scheduled', so it sits still until someone sends it. */}
+          <button
+            onClick={() => doEnqueue(undefined, true)}
+            disabled={submitting}
+            className="text-sm font-medium text-[#4A5468] border border-gray-200 px-4 py-2 rounded-lg hover:border-brand hover:text-brand disabled:opacity-50"
+          >
+            Save as draft
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="text-sm font-medium bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? "Sending…" : scheduleEnabled ? "Schedule" : "Publish"}
+          </button>
+        </div>
       </div>
 
 

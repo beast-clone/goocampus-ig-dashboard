@@ -23,6 +23,9 @@ type Body = {
   collaborators?: string[];    // Instagram usernames to auto-invite (max 3)
   format?: string;             // "post" | "reel" — what the publisher should build
   coverUrl?: string;           // reel cover image, already uploaded
+  channels?: string[];         // ["instagram","facebook"] — which of Meta's two
+  captionFb?: string;          // a different caption for Facebook, when asked for
+  draft?: boolean;             // park it; the worker only picks up "scheduled"
   scheduleTimeISO?: string;    // absent/empty → publish "now" (schedule_time = now)
 };
 
@@ -57,7 +60,16 @@ export async function POST(req: Request) {
     const format = b.format === "reel" ? "reel" : "post";
     const cover = (b.coverUrl || "").trim();
 
-    const customPatch = { publish_format: format, ...(cover ? { cover_url: cover } : { cover_url: null }) };
+    // Empty or missing channels means both, which is what every post did before this
+    // existed — an old row must not suddenly publish nowhere.
+    const channels = (b.channels || []).filter((c) => c === "instagram" || c === "facebook");
+    const fbCaption = (b.captionFb || "").trim();
+    const customPatch = {
+      publish_format: format,
+      cover_url: cover || null,
+      channels: channels.length ? channels : ["instagram", "facebook"],
+      caption_fb: fbCaption || null,
+    };
 
     const common = {
       caption: b.caption || null,
@@ -66,7 +78,7 @@ export async function POST(req: Request) {
       publish_to_pages: pages.length ? pages : null,
       collaborators: cleanCollaborators(b.collaborators),
       schedule_time: scheduleTime,
-      publish_status: "scheduled" as const,
+      publish_status: (b.draft ? "draft" : "scheduled") as "draft" | "scheduled",
     };
 
     if (b.taskId) {
@@ -77,7 +89,7 @@ export async function POST(req: Request) {
       const merged = { ...((existing?.custom as Record<string, unknown>) || {}), ...customPatch };
       const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).select("id").single();
       if (error) throw new Error(error.message);
-      return NextResponse.json({ ok: true, id: data.id, when, scheduleTime, mode: "updated" });
+      return NextResponse.json({ ok: true, id: data.id, when: b.draft ? "draft" : when, scheduleTime, mode: "updated" });
     }
 
     // New manual post
