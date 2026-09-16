@@ -139,55 +139,35 @@ html { scrollbar-gutter: stable; }
    SCHEDULER DENSITY
    Measured against Meta's own Create-reel composer, side by side, same monitor:
    Meta fits its whole form in 803px — one screen. Ours needed 1715px, nearly two.
-   The gap was not type size, it was accumulated padding: 20px card padding against
-   16px, a 24px line-height on a 16px title against 20px, and 38px-tall inputs
-   against ~20px.
 
-   Scoped to .scheduler-dense rather than .preview-scope, so the rest of the
-   dashboard keeps the documented 8px / 20px rhythm and only this tab tightens.
-   Tokens are untouched — same brand colours, same 400/500 weights, same borders.
+   The scale is a `zoom` on the whole tab, not a list of shrunk classes. The first
+   attempt overrode .text-sm / .p-4 / .space-y-4 and so on, which reduced the things
+   it happened to name and left everything else — the KPI numbers, the icons, the
+   buttons, the hero — at full size. That is not a smaller tab, it is a tab with
+   inconsistent type. `zoom` takes the lot: type, padding, icons, borders, images,
+   and it reflows rather than smearing like transform: scale.
+
+   --dense is the dial, expressed against Meta: 1 is Meta exactly, 0.9 is 10% under,
+   0.8 is 20% under. One line, nowhere else to look.
    ──────────────────────────────────────────────────────────────────────────── */
+body.sched-dense { --dense: 0.8; }
+body.sched-dense .preview-scope { zoom: var(--dense); }
+
+/* A fixed element inside a zoomed ancestor measures the viewport in zoomed units,
+   so `inset-0` would overshoot by 1/0.8 and the backdrop would scroll. Put the
+   overlay back to viewport scale, and scale its contents again. */
+body.sched-dense .sched-overlay { zoom: calc(1 / var(--dense)); }
+body.sched-dense .sched-overlay > * { zoom: var(--dense); }
+
+/* Base metrics are Meta's own, and --dense scales them from there:
+   4px corners, and fields at 7px/8px padding on 14px text = 34px. */
 .preview-scope .scheduler-dense .rounded-2xl,
 .preview-scope .scheduler-dense .rounded-xl,
 .preview-scope .scheduler-dense .rounded-lg { border-radius: 4px !important; }
-.scheduler-dense input:not([type="checkbox"]):not([type="radio"]),
-.scheduler-dense textarea,
-.scheduler-dense select { border-radius: 4px !important; }
-
-/* Panels outside the composer — the queue strip, the list, the calendar cards. */
-.scheduler-dense .p-5 { padding: 1rem !important; }
-
-/* Form controls. Meta's visible field is bordered too — 1.11px #CBD2D9, 4px radius,
-   7px/8px padding, 14px text on a 20px line, so 34px overall. The "borderless 20px"
-   in the first measurement was the inner text node, not the field. */
 .scheduler-dense input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .scheduler-dense textarea,
 .scheduler-dense select {
-  padding-top: calc(7px * var(--dense, 1)) !important;
-  padding-bottom: calc(7px * var(--dense, 1)) !important;
-  font-size: calc(14px * var(--dense, 1)) !important;
-  line-height: calc(20px * var(--dense, 1)) !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+  border-radius: 4px !important;
 }
-
-/* ── DENSITY, RELATIVE TO META ──────────────────────────────────────────────
-   Matching Meta exactly still read as too loud on a 1920 screen, so this sits
-   deliberately below the reference.
-
-   --dense is the whole dial. Every number below is Meta's own measurement times
-   that factor, so 1 is Meta, 0.8 is 20% under, 0.9 is 10% under. It is one line
-   to change and there is nowhere else to look.
-
-     0.8 gives:  16 -> 13   card padding, gap between cards
-                 16/20 -> 13/16  section title
-                 14/20 -> 11/16  field text
-                 34 -> 28   field height
-   ───────────────────────────────────────────────────────────────────────────── */
-.scheduler-dense { --dense: 0.8; }
-
-.scheduler-dense .text-base { font-size: calc(16px * var(--dense)) !important; line-height: calc(21px * var(--dense)) !important; }
-.scheduler-dense .text-sm   { font-size: calc(14px * var(--dense)) !important; line-height: calc(20px * var(--dense)) !important; }
-.scheduler-dense .text-xs   { font-size: calc(13px * var(--dense)) !important; line-height: calc(17px * var(--dense)) !important; }
-.scheduler-dense .p-5,
-.scheduler-dense .p-4                 { padding: calc(16px * var(--dense)) !important; }
-.scheduler-dense .space-y-4 > * + *   { margin-top: calc(16px * var(--dense)) !important; }
-.scheduler-dense .space-y-3 > * + *   { margin-top: calc(12px * var(--dense)) !important; }

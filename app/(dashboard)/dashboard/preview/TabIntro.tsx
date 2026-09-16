@@ -52,7 +52,7 @@ export function TabIntro({ tab }: { tab: string }) {
 
   const { intro } = state;
   return (
-    <div className="relative rounded-2xl border border-brand/20 bg-brand-light px-5 py-4 mb-4">
+    <div className="relative rounded-2xl border border-brand/20 bg-brand-light px-4 py-3 mb-3">
       <button
         onClick={dismiss}
         aria-label="Close"
@@ -61,26 +61,26 @@ export function TabIntro({ tab }: { tab: string }) {
         <IconX size={16} stroke={2} />
       </button>
 
-      <div className="flex items-start gap-3 pr-8">
-        <span className="w-8 h-8 rounded-lg bg-brand text-white grid place-items-center shrink-0">
-          <IconBulb size={17} stroke={1.8} />
+      <div className="flex items-start gap-2.5 pr-8">
+        <span className="w-7 h-7 rounded-lg bg-brand text-white grid place-items-center shrink-0">
+          <IconBulb size={15} stroke={1.8} />
         </span>
         <div className="min-w-0">
-          <h2 className="text-[14.5px] font-medium text-[#232D42]">{intro.title}</h2>
-          <p className="text-[13px] leading-relaxed text-[#2138B0] mt-1 max-w-[80ch]">{intro.body}</p>
+          <h2 className="text-[14px] font-medium text-[#232D42]">{intro.title}</h2>
+          <p className="text-[12.5px] leading-snug text-[#2138B0] mt-0.5 max-w-[95ch]">{intro.body}</p>
 
           {intro.points && intro.points.length > 0 && (
-            <ul className="mt-2.5 flex flex-col gap-1.5">
+            <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {intro.points.map((p) => (
-                <li key={p} className="flex items-start gap-2 text-[12.5px] text-[#2138B0]">
-                  <IconCheck size={14} stroke={2.2} className="text-brand mt-[2px] shrink-0" />
+                <li key={p} className="flex items-start gap-1.5 text-[12px] text-[#2138B0]">
+                  <IconCheck size={13} stroke={2.2} className="text-brand mt-[2px] shrink-0" />
                   <span>{p}</span>
                 </li>
               ))}
             </ul>
           )}
 
-          <div className="flex items-center gap-4 mt-3.5 flex-wrap">
+          <div className="flex items-center gap-4 mt-2.5 flex-wrap">
             <button
               onClick={dismiss}
               className="text-[12.5px] font-medium bg-brand text-white rounded-lg px-3.5 py-1.5 hover:bg-brand-dark"

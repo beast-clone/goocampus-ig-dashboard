@@ -147,17 +147,27 @@ export default function SchedulerPage() {
 // self-contained LinkedIn scheduler (its own queue + cron worker).
 function SchedulerTabs() {
   const [tab, setTab] = useState<"meta" | "linkedin">("meta");
+
+  // The scale is a zoom on the shell's .preview-scope, which is above this
+  // component, so it is switched on from here by class and taken off on the way
+  // out. Nothing else in the dashboard is touched.
+  useEffect(() => {
+    document.body.classList.add("sched-dense");
+    return () => document.body.classList.remove("sched-dense");
+  }, []);
+
+  // Same segmented control as the To schedule / Calendar / Top performers row
+  // below it. Two switches doing the same job in two different shapes and two
+  // different sizes read as an accident, because that is what it was.
   return (
-    <div className="preview-scope">
-      <div className="flex items-center gap-2 mb-5">
-        <button onClick={() => setTab("meta")}
-          className={`inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-xl border transition ${tab === "meta" ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}>
-          <IconBrandMeta size={16} /> Instagram &amp; Facebook
-        </button>
-        <button onClick={() => setTab("linkedin")}
-          className={`inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-xl border transition ${tab === "linkedin" ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}>
-          <IconBrandLinkedin size={16} /> LinkedIn
-        </button>
+    <div>
+      <div className="mb-4 inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
+        {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin]] as const).map(([id, label, Icon]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === id ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
       </div>
       {tab === "meta" ? <Scheduler /> : <LinkedInScheduler />}
     </div>
@@ -1329,7 +1339,7 @@ function Scheduler() {
           reach prediction / smart time / brand picker / etc.) lives in here
           — nothing was dropped, just moved out of the primary view. */}
       {showCreateForm && (
-        <div className="fixed inset-0 bg-black/60 z-40 overflow-y-auto"
+        <div className="sched-overlay fixed inset-0 bg-black/60 z-40 overflow-y-auto"
           onClick={() => setShowCreateForm(false)}>
           <div className="min-h-screen py-6 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4">
@@ -1753,15 +1763,15 @@ function StatusCounter({ label, count, color, active, onClick }: { label: string
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`text-left rounded-xl border px-4 py-3.5 transition ${active ? "" : "bg-white border-gray-100 hover:border-gray-200"}`}
+      className={`text-left rounded-xl border px-3 py-2.5 transition ${active ? "" : "bg-white border-gray-100 hover:border-gray-200"}`}
       style={active ? { background: m.activeBg, borderColor: m.fg } : undefined}
     >
-      <span className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-[9px] mb-3" style={{ background: m.chipBg }}>
-        <m.Icon size={18} stroke={1.8} style={{ color: m.fg }} />
+      <span className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-[7px] mb-1.5" style={{ background: m.chipBg }}>
+        <m.Icon size={15} stroke={1.8} style={{ color: m.fg }} />
       </span>
-      <div className="text-[10.5px] uppercase tracking-wider font-semibold text-[#8A92A6]">{label}</div>
-      <div className="text-[30px] font-semibold text-[#232D42] tabular-nums leading-[1.05] mt-0.5">{count}</div>
-      <div className="text-[11.5px] text-[#9AA1B1] mt-1">{m.hint}</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8A92A6]">{label}</div>
+      <div className="text-[21px] font-semibold text-[#232D42] tabular-nums leading-[1.1]">{count}</div>
+      <div className="text-[11px] text-[#9AA1B1]">{m.hint}</div>
     </button>
   );
 }
