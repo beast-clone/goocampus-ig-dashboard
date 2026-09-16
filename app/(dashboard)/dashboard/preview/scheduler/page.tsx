@@ -8,6 +8,7 @@ import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCale
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
+import { CopyrightCheck } from "./CopyrightCheck";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
@@ -1397,6 +1398,14 @@ function Scheduler() {
 
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
+            {/* Meta runs this while a reel processes in their own composer. Running it
+                here means a rights match turns up while the caption is still being
+                written, not after the post is live. */}
+            {singleVideoUrl && (
+              <div className="mt-3">
+                <CopyrightCheck videoUrl={singleVideoUrl} page={publishToPage} />
+              </div>
+            )}
           </Card>
 
           {/* Only asked once there is a single video to ask about. Offering "Reel"
