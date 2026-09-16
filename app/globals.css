@@ -171,3 +171,16 @@ body.sched-dense .sched-overlay > * { zoom: var(--dense); }
   padding-bottom: 7px !important;
   border-radius: 4px !important;
 }
+
+/* Legibility floor. Nothing on this tab renders below 10px.
+   The zoom is uniform, which is the point of it, but uniform means the smallest
+   type went down with everything else: 10px labels landed at 8px on screen and
+   12px body text at 9.6px. Scaled correctly and unreadable.
+   Expressed against --dense so the floor stays 10px on screen at any dial
+   setting — at 0.8 these resolve to a 12.5px base. */
+body.sched-dense .preview-scope .text-xs,
+body.sched-dense .preview-scope [class*="text-[10"],
+body.sched-dense .preview-scope [class*="text-[11"],
+body.sched-dense .preview-scope [class*="text-[12"] {
+  font-size: calc(10px / var(--dense)) !important;
+}
