@@ -582,7 +582,8 @@ export function PreviewCalendar() {
         )}
       </div>
 
-      {selected && <DetailModal post={selected} onClose={() => setSelected(null)} onRetried={() => { setSelected(null); load(); }} />}
+      {selected && <DetailModal post={selected} onClose={() => setSelected(null)} onRetried={() => { setSelected(null); load(); }}
+        onReschedule={(p) => { setSelected(null); window.location.href = "/dashboard/preview/scheduler"; void p; }} />}
     </div>
   );
 }
@@ -746,7 +747,9 @@ function Caption({ text }: { text: string }) {
   );
 }
 
-function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClose: () => void; onRetried: () => void }) {
+function DetailModal({ post, onClose, onRetried, onReschedule }: {
+  post: ScheduledPost; onClose: () => void; onRetried: () => void; onReschedule?: (p: ScheduledPost) => void;
+}) {
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const acct = ACCOUNT_STYLE[accountKeyFor(post.publishToPage)];
@@ -811,12 +814,50 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
           <Caption text={post.fullCaption || post.caption} />
         </div>
       )}
-      {post.effectiveStatus === "failed" && post.failureReason && (
+      {/* Each state says what it means and what to do next. "Failed" with no
+          explanation and no button is a dead end someone has to ask about. */}
+      {post.effectiveStatus === "failed" && (
         <div className="hcal-modal-fail">
-          <div className="hcal-modal-faillbl">Why it failed</div>
-          <div className="hcal-modal-failtxt">{post.failureReason}</div>
-          <button onClick={retry} disabled={retrying} className="hcal-modal-retry">{retrying ? "Retrying…" : "↻ Retry — bump back into the queue"}</button>
+          <div className="hcal-modal-faillbl">What went wrong</div>
+          <div className="hcal-modal-failtxt">{post.failureReason || "No reason was recorded."}</div>
+          <div className="hcal-state-actions">
+            <button onClick={retry} disabled={retrying} className="hcal-act primary">
+              {retrying ? "Putting it back…" : "Try again now"}
+            </button>
+            <button onClick={() => onReschedule?.(post)} className="hcal-act">Pick a new time</button>
+          </div>
+          <div className="hcal-state-note">Trying again puts it back in the queue; the worker takes it within a minute.</div>
           {error && <div className="hcal-modal-failtxt" style={{ marginTop: ".5rem" }}>{error}</div>}
+        </div>
+      )}
+      {post.effectiveStatus === "scheduled" && (
+        <div className="hcal-state">
+          <div className="hcal-state-h">Waiting to go out</div>
+          <div className="hcal-state-note">
+            Nothing is live yet. It publishes {post.scheduleTime ? `on ${fmtDateTime(post.scheduleTime)}` : "when a time is set"} without
+            anyone being here.
+          </div>
+          <div className="hcal-state-actions">
+            <button onClick={retry} disabled={retrying} className="hcal-act primary">
+              {retrying ? "Sending…" : "Publish now instead"}
+            </button>
+            <button onClick={() => onReschedule?.(post)} className="hcal-act">Pick a new time</button>
+          </div>
+        </div>
+      )}
+      {post.effectiveStatus === "publishing" && (
+        <div className="hcal-state">
+          <div className="hcal-state-h">Going out now</div>
+          <div className="hcal-state-note">
+            Meta is processing the video. A reel takes a few minutes; the links appear here the moment
+            it lands. Leave it — it carries on without this page open.
+          </div>
+        </div>
+      )}
+      {post.effectiveStatus === "draft" && (
+        <div className="hcal-state">
+          <div className="hcal-state-h">Draft</div>
+          <div className="hcal-state-note">Saved, not queued. It stays here until someone schedules or publishes it.</div>
         </div>
       )}
       {(post.instagramUrl || post.facebookUrl) && (
@@ -1009,6 +1050,15 @@ const HCAL_CSS = `
 .hcal-ins-cell{background:#F6F7FB;border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem;text-align:center}
 .hcal-ins-n{font-size:1rem;font-weight:700;color:var(--ink);line-height:1.1}
 .hcal-ins-k{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:.15rem}
+.hcal-state{padding:.7rem .85rem;border:1px solid var(--line);border-radius:11px;background:#FBFCFE}
+.hcal-state-h{font-size:.82rem;font-weight:700;color:var(--ink)}
+.hcal-state-note{font-size:.74rem;color:var(--muted);margin-top:.25rem;line-height:1.45}
+.hcal-state-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}
+.hcal-act{font-size:.76rem;font-weight:600;padding:.4rem .75rem;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.hcal-act:hover{border-color:var(--brand);color:var(--brand)}
+.hcal-act.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.hcal-act.primary:hover{background:#2f49c9;color:#fff}
+.hcal-act:disabled{opacity:.6}
 .hcal-modal-links{display:flex;flex-wrap:wrap;gap:.5rem;padding-top:.5rem}
 .hcal-linkbtn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:600;padding:.4rem .7rem;border-radius:9px;border:1px solid var(--line);text-decoration:none;color:var(--ink);background:var(--panel)}
 .hcal-linkbtn:hover{border-color:var(--brand);color:var(--brand)}

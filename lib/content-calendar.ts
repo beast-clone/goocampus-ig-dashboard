@@ -192,6 +192,7 @@ type MhQueueRow = {
   facebook_url: string | null;
   published_at: string | null;
   custom: Record<string, unknown> | null;
+  failure_reason: string | null;
 };
 
 function deriveSupabaseStatus(
@@ -205,7 +206,9 @@ function deriveSupabaseStatus(
     case "published":
       return { effective: "published", failureReason: null };
     case "failed":
-      return { effective: "failed", failureReason: "Publish failed — check the worker log." };
+      // The row's own failure_reason is what Meta actually said; it is filled in by
+      // the caller. This generic line is only the fallback when nothing was recorded.
+      return { effective: "failed", failureReason: "Publish failed — no reason was recorded by the worker." };
     case "publishing":
       if (hasUrl) return { effective: "published", failureReason: null };
       if (schedMs && now - schedMs > STUCK_PUBLISHING_MS) {
@@ -227,7 +230,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb
     .from("mh_posts")
-    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom")
+    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom, failure_reason")
     .not("publish_status", "is", null)
     .order("schedule_time", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -257,7 +260,11 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
     const pages = r.publish_to_pages || [];
     const fullCaption = r.caption || "";
     const hasUrl = !!(r.instagram_url || r.facebook_url);
-    const { effective, failureReason } = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
+    const derived = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
+    const effective = derived.effective;
+    // Prefer what the worker actually wrote. Overwriting it with "check the worker
+    // log" is what made every failure look identical and unactionable.
+    const failureReason = (r.failure_reason && String(r.failure_reason).trim()) || derived.failureReason;
     // Prefer the real media_urls; fall back to attachment creatives when that's empty.
     const media = (r.media_urls && r.media_urls.length) ? r.media_urls : (attByPost.get(r.id) || []);
     const cust = (r.custom && typeof r.custom === "object" ? r.custom : {}) as Record<string, unknown>;
