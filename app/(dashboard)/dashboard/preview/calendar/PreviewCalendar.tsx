@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconRefresh, IconBrandInstagram, IconBrandFacebook } from "@tabler/icons-react";
 import { fmtDateTime } from "@/lib/date";
 
 // Themed (Version 2) Publishing Calendar — built to match the the dashboard theme reference
@@ -20,6 +20,7 @@ export type ScheduledPost = {
   status: string; effectiveStatus: EffectiveStatus; failureReason: string | null;
   instagramUrl: string | null; facebookUrl: string | null; publishedAt: string | null;
   mediaUrls?: string[]; // all slides / the reel video, in order (from the queue API)
+  fullCaption?: string;       // untrimmed, for "see more"
   coverUrl?: string | null;   // reel cover, when one was chosen
   igMediaId?: string | null;  // Instagram media id, recorded at publish — for insights
 };
@@ -639,6 +640,31 @@ function PostInsights({ post }: { post: ScheduledPost }) {
   );
 }
 
+/** What kind of post this is, when the content record didn't say. */
+function derivedType(media: string[]): string {
+  if (media.length > 1) return "Carousel";
+  if (isVideoUrl(media[0])) return "Reel";
+  if (media.length === 1) return "Image";
+  return "Post";
+}
+
+/** Captions run long. Show the opening, and the rest on request. */
+function Caption({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const LIMIT = 220;
+  const long = text.length > LIMIT;
+  return (
+    <div className="hcal-modal-caption">
+      <span style={{ whiteSpace: "pre-wrap" }}>{open || !long ? text : text.slice(0, LIMIT).trimEnd() + "…"}</span>
+      {long && (
+        <button type="button" className="hcal-more-btn" onClick={() => setOpen((o) => !o)}>
+          {open ? "See less" : "See more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClose: () => void; onRetried: () => void }) {
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -690,14 +716,18 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
       </div>
       <div className="hcal-modal-grid">
         <div><div className="hcal-modal-lbl">Brand</div><div className="hcal-modal-val">{post.publishToPage}</div></div>
-        <div><div className="hcal-modal-lbl">Type</div><div className="hcal-modal-val">{post.type || "—"}</div></div>
-        <div><div className="hcal-modal-lbl">Interest</div><div className="hcal-modal-val">{post.primaryInterest || "—"}</div></div>
+        {/* The editorial type when the content record carries one, otherwise read off
+            the creative itself — a dash told nobody anything. */}
+        <div><div className="hcal-modal-lbl">Type</div><div className="hcal-modal-val">{post.type || derivedType(media)}</div></div>
+        {post.primaryInterest && (
+          <div><div className="hcal-modal-lbl">Interest</div><div className="hcal-modal-val">{post.primaryInterest}</div></div>
+        )}
         <div><div className="hcal-modal-lbl">Time</div><div className="hcal-modal-val">{whenLabel}</div></div>
       </div>
-      {post.caption && (
+      {(post.fullCaption || post.caption) && (
         <div>
-          <div className="hcal-modal-lbl">Caption preview</div>
-          <div className="hcal-modal-caption">{post.caption}</div>
+          <div className="hcal-modal-lbl">Caption</div>
+          <Caption text={post.fullCaption || post.caption} />
         </div>
       )}
       {post.effectiveStatus === "failed" && post.failureReason && (
@@ -713,13 +743,16 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
           <div className="hcal-modal-lbl">Published to</div>
           <div className="hcal-modal-links">
             {post.instagramUrl && (
-              <a href={post.instagramUrl} target="_blank" rel="noreferrer">Instagram ↗</a>
+              <a className="hcal-linkbtn ig" href={post.instagramUrl} target="_blank" rel="noreferrer">
+                <IconBrandInstagram size={14} stroke={1.9} /> Instagram
+              </a>
             )}
             {/* The worker joins several Facebook Pages with " , " — one link each,
                 or the whole string becomes one dead href. */}
             {splitUrls(post.facebookUrl).map((u, i) => (
-              <a key={u} href={u} target="_blank" rel="noreferrer">
-                Facebook{splitUrls(post.facebookUrl).length > 1 ? ` (page ${i + 1})` : ""} ↗
+              <a key={u} className="hcal-linkbtn fb" href={u} target="_blank" rel="noreferrer">
+                <IconBrandFacebook size={14} stroke={1.9} />
+                Facebook{splitUrls(post.facebookUrl).length > 1 ? ` ${i + 1}` : ""}
               </a>
             ))}
           </div>
@@ -886,7 +919,12 @@ const HCAL_CSS = `
 .hcal-ins-cell{background:#F6F7FB;border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem;text-align:center}
 .hcal-ins-n{font-size:1rem;font-weight:700;color:var(--ink);line-height:1.1}
 .hcal-ins-k{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:.15rem}
-.hcal-modal-links{display:flex;gap:1rem;font-size:.76rem;padding-top:.7rem;border-top:1px solid var(--line)}
+.hcal-modal-links{display:flex;flex-wrap:wrap;gap:.5rem;padding-top:.5rem}
+.hcal-linkbtn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:600;padding:.4rem .7rem;border-radius:9px;border:1px solid var(--line);text-decoration:none;color:var(--ink);background:var(--panel)}
+.hcal-linkbtn:hover{border-color:var(--brand);color:var(--brand)}
+.hcal-linkbtn.ig:hover{border-color:#C13584;color:#C13584}
+.hcal-linkbtn.fb:hover{border-color:#1877F2;color:#1877F2}
+.hcal-more-btn{display:block;margin-top:.35rem;background:none;border:none;padding:0;font-size:.74rem;font-weight:600;color:var(--brand)}
 .hcal-modal-links a{color:var(--brand);text-decoration:none}
 .hcal-modal-links a:hover{text-decoration:underline}
 /* creative preview */

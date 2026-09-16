@@ -103,6 +103,9 @@ export async function POST(req: Request) {
         status: "Ready to Publish",   // content-workflow status (enum)
         needs_review: false,
         synced_to_scheduler: false,
+        // Only for a reel, and only on a new row — `type` is the Marketing Hub's
+        // editorial type and an existing one is not ours to overwrite.
+        ...(format === "reel" ? { type: "Reel" } : {}),
         custom: customPatch,
         ...common,
       })
