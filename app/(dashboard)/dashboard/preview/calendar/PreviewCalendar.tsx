@@ -255,7 +255,33 @@ export function PreviewCalendar() {
   };
   useEffect(() => { load(); }, []);
 
-  const allPosts = useMemo(() => (showDemo ? [...posts, ...samplePosts] : posts), [posts, samplePosts, showDemo]);
+  // Narrow by brand and by outcome. "How many 12thPlus posts went out this month"
+  // was unanswerable before — every view showed everything.
+  const [fSbu, setFSbu] = useState("");
+  const [fStatus, setFStatus] = useState<"" | EffectiveStatus>("");
+
+  const unfiltered = useMemo(() => (showDemo ? [...posts, ...samplePosts] : posts), [posts, samplePosts, showDemo]);
+  const allPosts = useMemo(
+    () => unfiltered.filter((p) =>
+      (!fSbu || (fSbu === "__none" ? !p.primaryInterest : p.primaryInterest === fSbu))
+      && (!fStatus || p.effectiveStatus === fStatus)),
+    [unfiltered, fSbu, fStatus],
+  );
+  // Brands actually present, so the picker never offers one with nothing behind it.
+  const sbusPresent = useMemo(
+    () => [...new Set(unfiltered.map((p) => p.primaryInterest).filter(Boolean))].sort(),
+    [unfiltered],
+  );
+  // What the filters are showing, for the month on screen.
+  const monthCount = useMemo(() => {
+    const y = anchor.getFullYear(), m = anchor.getMonth();
+    return allPosts.filter((p) => {
+      const ts = p.publishedAt || p.scheduleTime;
+      if (!ts) return false;
+      const d = new Date(ts);
+      return d.getFullYear() === y && d.getMonth() === m;
+    }).length;
+  }, [allPosts, anchor]);
 
   // Bucket scheduled/published posts onto their day (drafts with no time are simply
   // not plotted — the reference calendar shows only dated events).
@@ -367,6 +393,32 @@ export function PreviewCalendar() {
 
       {/* The calendar card */}
       <div className="hcal-card">
+        <div className="hcal-filters">
+          <label className="hcal-flabel">Primary interest</label>
+          <select className="hcal-fsel" value={fSbu} onChange={(e) => setFSbu(e.target.value)}>
+            <option value="">All brands</option>
+            {sbusPresent.map((b) => <option key={b} value={b}>{b}</option>)}
+            {/* Most posts carry no brand yet — this is how you find the ones to tag. */}
+            <option value="__none">No brand set</option>
+          </select>
+          <label className="hcal-flabel">Status</label>
+          <select className="hcal-fsel" value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | EffectiveStatus)}>
+            <option value="">Any status</option>
+            {(["published", "scheduled", "publishing", "failed", "draft"] as EffectiveStatus[]).map((k) => (
+              <option key={k} value={k}>{STATUS_STYLE[k].label}</option>
+            ))}
+          </select>
+          {(fSbu || fStatus) && (
+            <button className="hcal-fclear" onClick={() => { setFSbu(""); setFStatus(""); }}>Clear</button>
+          )}
+          <span className="hcal-fcount"><b>{monthCount}</b> {monthCount === 1 ? "post" : "posts"} in {title}</span>
+          {/* What the colours mean — they were already doing this, just never said so. */}
+          <span className="hcal-legend">
+            {(["published", "scheduled", "publishing", "failed"] as EffectiveStatus[]).map((k) => (
+              <span key={k} className="hcal-lg"><i style={{ background: STATUS_STYLE[k].dot }} />{STATUS_STYLE[k].label}</span>
+            ))}
+          </span>
+        </div>
         <div className="hcal-toolbar">
           <div className="hcal-nav">
             <button className="hcal-navbtn" onClick={() => shift(-1)} aria-label="Previous"><IconChevronLeft size={17} stroke={2.2} /></button>
@@ -814,6 +866,15 @@ const HCAL_CSS = `
 @keyframes hcalspin{to{transform:rotate(360deg)}}
 /* calendar card */
 .hcal-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:1.1rem}
+.hcal-filters{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .7rem;padding:.7rem 1rem;border-bottom:1px solid var(--line)}
+.hcal-flabel{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.hcal-fsel{font:inherit;font-size:.78rem;padding:.35rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);max-width:230px}
+.hcal-fclear{font-size:.74rem;font-weight:600;color:var(--brand);background:none;border:none;padding:.2rem .3rem}
+.hcal-fcount{font-size:.78rem;color:var(--muted)}
+.hcal-fcount b{color:var(--ink)}
+.hcal-legend{margin-left:auto;display:flex;gap:.7rem;flex-wrap:wrap}
+.hcal-lg{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;color:var(--muted)}
+.hcal-lg i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .hcal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;flex-wrap:wrap}
 .hcal-nav{display:flex;align-items:center;gap:.4rem}
 .hcal-navbtn{width:34px;height:34px;border-radius:9px;border:none;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
