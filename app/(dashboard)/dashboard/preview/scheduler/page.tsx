@@ -853,24 +853,26 @@ function Scheduler() {
   }
 
   return (
-    <>
+    // scheduler-dense: the density rules live in globals.css, scoped to this tab.
+    // Meta's Create-reel composer fits one screen; ours needed 1.85 of them.
+    <div className="scheduler-dense">
       {/* Tab toggle — Output-Ready content to schedule vs the manual composer + queue */}
       <div className="mb-4 inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
         <button
           onClick={() => setSchedTab("to_schedule")}
-          className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "to_schedule" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
+          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "to_schedule" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
           To schedule {toSchedule.length > 0 && <span className={schedTab === "to_schedule" ? "text-white/70" : "text-gray-400"}>{toSchedule.length}</span>}
         </button>
         <button
           onClick={() => setSchedTab("publish")}
-          className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
+          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
           Calendar
         </button>
         <button
           onClick={() => setSchedTab("top")}
-          className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${schedTab === "top" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
+          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "top" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
         >
           Top performers
         </button>
@@ -935,7 +937,7 @@ function Scheduler() {
                                 if (!t.publishingDate) return <span className="text-xs text-gray-300">no date</span>;
                                 const d = new Date(t.publishingDate);
                                 const label = Number.isNaN(d.getTime()) ? t.publishingDate : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-                                return <span className="inline-flex items-center gap-1 text-xs text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
+                                return <span className="inline-flex items-center gap-1 text-xs text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
                               })()}
                               <IconChevronRight size={16} stroke={2.2} className={`transition-transform ${open ? "text-brand rotate-90" : "text-gray-400"}`} />
                             </div>
@@ -1030,7 +1032,7 @@ function Scheduler() {
                         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
                           {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
                             <button key={p} onClick={() => setPreviewPlatform(p)}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                              className={`text-xs font-medium px-2.5 py-1 rounded capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
                               {p}
                             </button>
                           ))}
@@ -1329,20 +1331,20 @@ function Scheduler() {
       {showCreateForm && (
         <div className="fixed inset-0 bg-black/60 z-40 overflow-y-auto"
           onClick={() => setShowCreateForm(false)}>
-          <div className="min-h-screen py-8 px-4" onClick={(e) => e.stopPropagation()}>
-            <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-5">
+          <div className="min-h-screen py-6 px-4" onClick={(e) => e.stopPropagation()}>
+            <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-base font-medium text-[#232D42]">Add a new post</div>
                 <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
               </div>
 
       {/* TWO-COLUMN LAYOUT: form left, preview right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
         {/* LEFT — form */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className="lg:col-span-8 space-y-4">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-gray-100">
               <span className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</span>
               {([["Instagram", toInstagram, setToInstagram], ["Facebook", toFacebook, setToFacebook]] as const).map(([label, on, set]) => (
                 <label key={label} className="flex items-center gap-2 cursor-pointer">
@@ -1398,14 +1400,6 @@ function Scheduler() {
 
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
-            {/* Meta runs this while a reel processes in their own composer. Running it
-                here means a rights match turns up while the caption is still being
-                written, not after the post is live. */}
-            {singleVideoUrl && (
-              <div className="mt-3">
-                <CopyrightCheck videoUrl={singleVideoUrl} page={publishToPage} />
-              </div>
-            )}
           </Card>
 
           {/* Only asked once there is a single video to ask about. Offering "Reel"
@@ -1562,26 +1556,35 @@ function Scheduler() {
         </div>
 
         {/* RIGHT — live preview with an Instagram / Facebook / LinkedIn switcher */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-4">
           <div className="sticky top-6">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
               <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
                 {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
                   <button key={p} type="button" onClick={() => setPreviewPlatform(p)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-md capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+                    className={`text-xs font-medium px-2.5 py-1 rounded capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
                     {p}
                   </button>
                 ))}
               </div>
             </div>
             <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} />
+            {/* Meta runs this while a reel processes in their own composer, under the
+                preview. Same place here — it is what you are looking at anyway, and
+                the column had dead space below the phone. */}
+            {singleVideoUrl && (
+              <div className="mt-3">
+                <CopyrightCheck videoUrl={singleVideoUrl} page={publishToPage}
+                  collapseWhenClear={caption.trim().length > 0} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* ACTION BAR */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3 flex items-center justify-between mb-8 sticky bottom-2">
+      <div className="bg-white rounded border border-gray-100 px-4 py-2.5 flex items-center justify-between mb-5 sticky bottom-2">
         <div className="text-xs text-gray-500">
           {/* A row id told nobody anything. What people need to know is whether it
               has gone, or when it will. */}
@@ -1619,7 +1622,7 @@ function Scheduler() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1699,8 +1702,8 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
               {t.mediaUrls.length > 0 ? (
                 <div className="relative">
                   {/\.(mp4|mov|webm)(\?|$)/i.test(t.mediaUrls[0])
-                    ? <video src={t.mediaUrls[0]} className="w-full h-28 object-cover rounded-md border border-gray-100" muted />
-                    : <img src={t.mediaUrls[0]} alt="" className="w-full h-28 object-cover rounded-md border border-gray-100" />}
+                    ? <video src={t.mediaUrls[0]} className="w-full h-28 object-cover rounded border border-gray-100" muted />
+                    : <img src={t.mediaUrls[0]} alt="" className="w-full h-28 object-cover rounded border border-gray-100" />}
                   {t.mediaUrls.length > 1 && <span className="absolute top-1 right-1 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded-full">+{t.mediaUrls.length - 1}</span>}
                   <label className="absolute bottom-1 right-1 text-xs bg-white/90 text-gray-700 border border-gray-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white">
                     replace
@@ -1708,7 +1711,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
                   </label>
                 </div>
               ) : (
-                <label className={`flex flex-col items-center justify-center gap-1 h-28 rounded-md border border-dashed cursor-pointer transition ${uploadingId === t.id ? "border-brand bg-brand-light/40" : "border-gray-300 hover:border-brand"}`}>
+                <label className={`flex flex-col items-center justify-center gap-1 h-28 rounded border border-dashed cursor-pointer transition ${uploadingId === t.id ? "border-brand bg-brand-light/40" : "border-gray-300 hover:border-brand"}`}>
                   <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadForTask(t.id, e.target.files); e.currentTarget.value = ""; }} />
                   {uploadingId === t.id ? (
                     <span className="text-xs text-brand font-medium">Uploading…</span>
@@ -2059,7 +2062,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
             type="button"
             onClick={() => onScheduleNow?.(post)}
             disabled={busy}
-            className="text-xs font-medium bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
+            className="text-xs font-medium bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded disabled:opacity-50 whitespace-nowrap"
           >
             📅 Schedule now
           </button>
@@ -2217,12 +2220,12 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
               type="datetime-local"
               value={customLocal}
               onChange={(e) => setCustomLocal(e.target.value)}
-              className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5"
+              className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5"
             />
             <button
               onClick={() => customLocal && pickAndConfirm(new Date(customLocal).toISOString())}
               disabled={!customLocal || saving}
-              className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+              className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded disabled:opacity-50"
             >
               {saving ? "Saving…" : "Confirm"}
             </button>
@@ -2495,7 +2498,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                         type="button"
                         onClick={() => onSelect?.(it)}
                         title={p.caption ? truncate(p.caption, 140) : "View post"}
-                        className="group block w-full text-left rounded-md overflow-hidden border border-gray-200 hover:border-brand/50 hover:shadow-md transition"
+                        className="group block w-full text-left rounded overflow-hidden border border-gray-200 hover:border-brand/50 hover:shadow-md transition"
                       >
                         <div className="relative">
                           {p.mediaUrl ? (
@@ -2526,7 +2529,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                       type="button"
                       onClick={() => onSelect?.(it)}
                       title={p.particulars || "(untitled)"}
-                      className="block w-full text-left rounded-md overflow-hidden border border-amber-200 bg-amber-50 hover:border-amber-400 hover:shadow-md transition"
+                      className="block w-full text-left rounded overflow-hidden border border-amber-200 bg-amber-50 hover:border-amber-400 hover:shadow-md transition"
                     >
                       <div className="relative">
                         {p.thumbnailUrl ? (
@@ -2648,7 +2651,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
           setDragOver(false);
           if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
         }}
-        className={`flex items-center justify-center gap-3 border-2 border-dashed rounded-xl px-4 py-5 cursor-pointer transition ${
+        className={`flex items-center justify-center gap-3 border-2 border-dashed rounded px-4 py-3.5 cursor-pointer transition ${
           dragOver ? "border-brand bg-brand-light/40" : "border-gray-300 hover:border-brand hover:bg-gray-50"
         } ${uploading ? "opacity-60 pointer-events-none" : ""}`}
       >
@@ -2667,9 +2670,8 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
             </div>
           ) : (
             <>
-              <div className="text-2xl mb-1">📎</div>
-              <div className="text-sm font-medium text-gray-700">Drag a file here or click to upload</div>
-              <div className="text-xs text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
+              <div className="text-[13px] font-medium text-gray-700">📎 Drag a file here or click to upload</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
             </>
           )}
         </div>
@@ -2693,7 +2695,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 onDrop={locked ? undefined : () => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
                 onDragEnd={locked ? undefined : () => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
                 title={locked ? undefined : "Drag to reorder"}
-                className={`relative group w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
+                className={`relative group w-16 h-16 flex-shrink-0 rounded overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
                 {/* A PDF has nothing an <img> can render — it used to fade to a
                     blank tile. Draw it as a labelled document instead. */}
                 {isPdfUrl(url)
@@ -2718,7 +2720,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files); }}
                 title="Add media"
-                className={`w-16 h-16 flex-shrink-0 rounded-md border border-dashed flex items-center justify-center cursor-pointer transition ${dragOver ? "border-brand bg-brand-light/40 text-brand" : "border-gray-300 text-gray-400 hover:border-brand hover:text-brand"} ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+                className={`w-16 h-16 flex-shrink-0 rounded border border-dashed flex items-center justify-center cursor-pointer transition ${dragOver ? "border-brand bg-brand-light/40 text-brand" : "border-gray-300 text-gray-400 hover:border-brand hover:text-brand"} ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
                 <input type="file" multiple accept="image/jpeg,image/png,image/gif,video/mp4,application/pdf" className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files); e.target.value = ""; }} />
                 {uploading ? <span className="inline-block w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" /> : <IconPlus size={20} stroke={2} />}
               </label>
@@ -2996,18 +2998,18 @@ function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: st
     onChange(value.includes(page) ? value.filter((p) => p !== page) : [...value, page]);
   }
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {PAGE_OPTIONS.map((o) => {
         const checked = value.includes(o.value);
         const isPrimary = value[0] === o.value;
         return (
           <label key={o.value}
-            className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition ${checked ? "border-brand/50 bg-brand-light" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+            className={`flex items-center gap-2.5 rounded border px-3 py-1.5 cursor-pointer transition ${checked ? "border-brand/50 bg-brand-light" : "border-gray-200 bg-white hover:border-gray-300"}`}>
             <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} className="w-4 h-4 accent-[#3A57E8]" />
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
             <span className="flex-1 min-w-0">
-              <span className="block text-sm truncate text-gray-900">{o.label}</span>
-              <span className="block text-xs text-gray-500 truncate">{o.subtitle}</span>
+              <span className="block text-[13px] leading-4 truncate text-gray-900">{o.label}</span>
+              <span className="block text-[11px] leading-4 text-gray-500 truncate">{o.subtitle}</span>
             </span>
             {checked && value.length > 1 && (
               <span className="text-[10px] font-semibold uppercase tracking-wide text-brand flex-shrink-0">{isPrimary ? "Primary" : "Cross-post"}</span>
@@ -3261,10 +3263,10 @@ function SocialPreview({ platform, handle, name, images, caption }: {
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-      <div className="text-base font-medium text-[#232D42]">{title}</div>
-      {subtitle && <div className="text-xs text-gray-500 mt-0.5 mb-3">{subtitle}</div>}
-      {!subtitle && <div className="mt-3" />}
+    <div className="bg-white rounded border border-gray-100 p-4">
+      <div className="text-base leading-5 font-medium text-[#232D42]">{title}</div>
+      {subtitle && <div className="text-xs text-gray-500 mt-1 mb-2.5">{subtitle}</div>}
+      {!subtitle && <div className="mt-2.5" />}
       {children}
     </div>
   );

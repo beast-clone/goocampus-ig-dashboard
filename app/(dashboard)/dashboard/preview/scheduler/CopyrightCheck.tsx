@@ -9,19 +9,35 @@ import type { CopyrightState } from "@/lib/copyright-check";
 // is usually in. Nothing here blocks the Schedule button — a match is Meta's opinion
 // about the audio, not a rejection, and the person writing the post is better placed
 // to decide than a boolean is.
+//
+// Once there is a caption, a clear result shrinks to a tick you can hover. A green
+// bar earns its space while you are waiting for it and stops earning it the moment
+// it says yes. A warning does not shrink: "this may be copyrighted" reduced to an
+// icon is a warning nobody reads.
 
 type Result = { state: CopyrightState; message?: string };
 
 const POLL_MS = 6000;
 const GIVE_UP_MS = 4 * 60 * 1000;   // the check itself takes ~1 min; this is the long tail
 
-export function CopyrightCheck({ videoUrl, page }: { videoUrl: string; page: string }) {
+export function CopyrightCheck({ videoUrl, page, collapseWhenClear }: {
+  videoUrl: string;
+  page: string;
+  /** Set once the caption has been written — a settled "all clear" stops being news. */
+  collapseWhenClear?: boolean;
+}) {
   const [result, setResult] = useState<Result | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // The video a run belongs to, so a slow poll from the previous file can't paint
   // its answer over the new one.
   const runFor = useRef("");
+  // Read, never depended on. Switching the target Page used to restart the check and
+  // leave the old container behind — four of them for one video, each one Instagram
+  // downloading and transcoding the file again. The rights match is the same whoever
+  // publishes it, so a Page change is not a reason to ask twice.
+  const pageRef = useRef(page);
+  pageRef.current = page;
 
   useEffect(() => {
     if (!videoUrl) { setResult(null); setFailed(false); return; }
@@ -36,7 +52,7 @@ export function CopyrightCheck({ videoUrl, page }: { videoUrl: string; page: str
       try {
         const r = await fetch("/api/scheduler/copyright-check", {
           method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-          body: JSON.stringify({ videoUrl, page }),
+          body: JSON.stringify({ videoUrl, page: pageRef.current }),
         });
         const d = await r.json();
         if (!alive || runFor.current !== videoUrl) return;
@@ -47,7 +63,7 @@ export function CopyrightCheck({ videoUrl, page }: { videoUrl: string; page: str
           if (Date.now() - startedAt > GIVE_UP_MS) { setResult({ state: "unavailable" }); return; }
           try {
             const s = await fetch(
-              `/api/scheduler/copyright-check?containerId=${encodeURIComponent(d.containerId)}&page=${encodeURIComponent(page)}`,
+              `/api/scheduler/copyright-check?containerId=${encodeURIComponent(d.containerId)}&page=${encodeURIComponent(pageRef.current)}`,
               { credentials: "same-origin" });
             const sd = (await s.json()) as Result & { error?: string };
             if (!alive || runFor.current !== videoUrl) return;
@@ -66,7 +82,7 @@ export function CopyrightCheck({ videoUrl, page }: { videoUrl: string; page: str
     run();
 
     return () => { alive = false; clearTimeout(timer); };
-  }, [videoUrl, page, attempt]);
+  }, [videoUrl, attempt]);
 
   if (!videoUrl) return null;
 
@@ -89,7 +105,12 @@ export function CopyrightCheck({ videoUrl, page }: { videoUrl: string; page: str
     case "checking":
       return <Strip tone="muted" spinner>Checking for copyrighted content · optional</Strip>;
     case "clear":
-      return (
+      return collapseWhenClear ? (
+        <span title="This video is ready to publish — no copyright issues were found."
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#BFE6D4] bg-[#E8F6F0] px-2 py-1 text-[11.5px] text-[#1F7A55] cursor-default">
+          <IconCheck size={13} stroke={2.4} /> Copyright checked
+        </span>
+      ) : (
         <Strip tone="good" icon={<IconCheck size={15} stroke={2.4} />}>
           <b className="font-medium">Your video is safe to publish.</b> No copyright issues were found.
         </Strip>

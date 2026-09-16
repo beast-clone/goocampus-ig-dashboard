@@ -134,3 +134,34 @@ html { scrollbar-gutter: stable; }
 @media (prefers-reduced-motion: reduce) {
   .brand-loader > i { animation-duration: 2.2s; }
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   SCHEDULER DENSITY
+   Measured against Meta's own Create-reel composer, side by side, same monitor:
+   Meta fits its whole form in 803px — one screen. Ours needed 1715px, nearly two.
+   The gap was not type size, it was accumulated padding: 20px card padding against
+   16px, a 24px line-height on a 16px title against 20px, and 38px-tall inputs
+   against ~20px.
+
+   Scoped to .scheduler-dense rather than .preview-scope, so the rest of the
+   dashboard keeps the documented 8px / 20px rhythm and only this tab tightens.
+   Tokens are untouched — same brand colours, same 400/500 weights, same borders.
+   ──────────────────────────────────────────────────────────────────────────── */
+.preview-scope .scheduler-dense .rounded-2xl,
+.preview-scope .scheduler-dense .rounded-xl,
+.preview-scope .scheduler-dense .rounded-lg { border-radius: 4px !important; }
+.scheduler-dense input:not([type="checkbox"]):not([type="radio"]),
+.scheduler-dense textarea,
+.scheduler-dense select { border-radius: 4px !important; }
+
+/* Panels outside the composer — the queue strip, the list, the calendar cards. */
+.scheduler-dense .p-5 { padding: 1rem !important; }
+
+/* Form controls. The border stays (Meta's are borderless, ours are not — that is
+   the design system, not a density decision); only the height comes down. */
+.scheduler-dense input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.scheduler-dense textarea,
+.scheduler-dense select {
+  padding-top: 0.375rem !important;
+  padding-bottom: 0.375rem !important;
+}
