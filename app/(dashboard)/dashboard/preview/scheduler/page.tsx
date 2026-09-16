@@ -7,6 +7,7 @@ import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
+import { CollaboratorPicker } from "./CollaboratorPicker";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
@@ -91,6 +92,14 @@ const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] 
   { value: "GooCampus Main",     label: "GooCampus Main",       subtitle: "@goocampus + 2 FB pages" },
   { value: "GooCampus World",    label: "GooCampus World",      subtitle: "@goocampusworld + GooCampus World page" },
   { value: "12Plus / GC India",  label: "GooCampus India",      subtitle: "@12thplusdotcom + GC India page" },
+];
+
+// Our own handles, offered before anyone types — collaborating with a sister
+// account is the common case and should not need a lookup.
+const OWN_IG_ACCOUNTS = [
+  { username: "goocampus", label: "GooCampus Main" },
+  { username: "goocampusworld", label: "GooCampus World" },
+  { username: "12thplusdotcom", label: "GooCampus India" },
 ];
 
 // Soft daily post limits per account — warn (don't hard-block) before a day exceeds the
@@ -3007,15 +3016,22 @@ function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: st
 // Instagram collaborator input — auto-invites the tagged account(s) when the post
 // publishes (up to 3, comma-separated usernames or Instagram profile URLs).
 function CollaboratorField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  // The composer still holds a comma-separated string; the picker works in objects.
+  // Converting here keeps the change to this one component instead of threading a
+  // new shape through the whole page.
+  const chips = value.split(",").map((s) => s.trim().replace(/^@+/, "")).filter(Boolean)
+    .map((u) => ({ username: u, name: null, profilePictureUrl: null }));
   return (
     <div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Enter username or Page URL"
-        className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand"
+      <CollaboratorPicker
+        value={chips}
+        onChange={(next) => onChange(next.map((c) => c.username).join(", "))}
+        ownAccounts={OWN_IG_ACCOUNTS}
       />
-      <div className="text-xs text-gray-400 mt-1">Instagram only — each gets an invite when the post goes live and appears once they accept. Up to 3, separate with commas.</div>
+      <div className="text-xs text-gray-400 mt-1.5">
+        Instagram only. Each one is checked against Instagram before it can be added, then invited
+        when the post goes live — the credit appears once they accept.
+      </div>
     </div>
   );
 }

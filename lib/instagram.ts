@@ -624,3 +624,48 @@ export async function checkDmCapability(acc: IGAccountConfig): Promise<{ availab
     return { available: false, reason: (e as Error).message };
   }
 }
+
+/**
+ * Confirm an Instagram handle exists before it is offered as a collaborator.
+ *
+ * business_discovery is the only public lookup Meta gives us, and it answers for
+ * Business and Creator accounts only — a personal account returns nothing, which
+ * is correct here: a personal account cannot be tagged as a collaborator either.
+ *
+ * Deliberately slim. fetchCompetitor pulls 25 posts; a typeahead wants a name and
+ * a picture.
+ */
+export type CollaboratorMatch = {
+  username: string;
+  name: string | null;
+  profilePictureUrl: string | null;
+  followers: number;
+};
+
+export async function lookupCollaborator(acc: IGAccountConfig, username: string): Promise<CollaboratorMatch | null> {
+  const clean = username.replace(/^@+/, "").trim();
+  if (!clean) return null;
+  type R = {
+    business_discovery?: {
+      username: string; name?: string; profile_picture_url?: string; followers_count?: number;
+    };
+  };
+  try {
+    const res = await gget<R>(acc.igUserId, {
+      fields: `business_discovery.username(${clean}){username,name,profile_picture_url,followers_count}`,
+      access_token: acc.pageAccessToken,
+    });
+    const bd = res.business_discovery;
+    if (!bd?.username) return null;
+    return {
+      username: bd.username,
+      name: bd.name || null,
+      profilePictureUrl: bd.profile_picture_url || null,
+      followers: bd.followers_count || 0,
+    };
+  } catch {
+    // Meta answers a miss with an error, not an empty body. "Not found" is a
+    // normal result while someone is still typing, not a failure worth showing.
+    return null;
+  }
+}
