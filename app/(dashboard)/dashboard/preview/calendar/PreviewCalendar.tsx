@@ -12,6 +12,8 @@ import { fmtDateTime } from "@/lib/date";
 
 export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
 
+const isVideoUrl = (u?: string | null) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u || "");
+
 export type ScheduledPost = {
   id: string; particulars: string; publishToPage: string; primaryInterest: string;
   type: string; caption: string; thumbnailUrl: string | null; scheduleTime: string | null;
@@ -547,8 +549,8 @@ function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
   const [idx, setIdx] = useState(0);
   if (!media.length) return <div className="hcal-media-empty">No creative attached to this post.</div>;
   const cur = media[Math.min(idx, media.length - 1)];
-  const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(cur);
-  const isReel = /reel/i.test(post.type);
+  const isVideo = isVideoUrl(cur);
+  const isReel = /reel/i.test(post.type) || isVideo;
   return (
     <div className={`hcal-media ${pane ? "pane" : ""}`}>
       <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
@@ -662,7 +664,10 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
   // column sized to its shape (no letterbox bars) with the details beside it.
   // A single image keeps the compact top-media layout.
   const media = (post.mediaUrls && post.mediaUrls.length) ? post.mediaUrls : (post.thumbnailUrl ? [post.thumbnailUrl] : []);
-  const isReel = /reel/i.test(post.type);
+  // Portrait video = reel, whatever the type column says. It said "—" on the first
+  // real reel, so the wide layout never triggered and the post rendered stacked with
+  // empty air either side.
+  const isReel = /reel/i.test(post.type) || isVideoUrl(media[0]);
   const isCarousel = /carousel/i.test(post.type) || media.length > 1;
   const wide = media.length > 0 && (isReel || isCarousel);
   const paneW = isReel ? 300 : 360;
