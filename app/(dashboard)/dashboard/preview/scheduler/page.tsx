@@ -7,6 +7,7 @@ import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
@@ -212,7 +213,7 @@ function Scheduler() {
   const [gate, setGate] = useState<GateBlock | null>(null);
   // recordId is optional: a LinkedIn-only (PDF) post never touches the Meta queue,
   // so there is no mh_posts row to point at.
-  const [result, setResult] = useState<{ ok: true; recordId?: string; draft?: boolean } | { ok: false; error: string } | null>(null);
+  const [result, setResult] = useState<{ ok: true; recordId?: string; draft?: boolean; whenLabel?: string } | { ok: false; error: string } | null>(null);
 
   // Smart features state
   const [timeSuggestions, setTimeSuggestions] = useState<TimeSuggestion[]>([]);
@@ -630,7 +631,14 @@ function Scheduler() {
         if (block) setGate(block);
         else setResult({ ok: false, error: d.error || `HTTP ${res.status}` });
       } else {
-        setResult({ ok: true, recordId: d.id, draft: Boolean(asDraft) });
+        setResult({
+          ok: true,
+          recordId: d.id,
+          draft: Boolean(asDraft),
+          whenLabel: !asDraft && scheduleTimeISO
+            ? new Date(scheduleTimeISO).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
+            : undefined,
+        });
         if (!asDraft) await crossPostLinkedIn(scheduleTimeISO);
         resetComposer();
         loadToSchedule();               // the scheduled task leaves "To schedule"
@@ -706,8 +714,11 @@ function Scheduler() {
       else loadQueue();
     } finally { setRowActionId(null); }
   }
+  // Asked in our own dialog — window.confirm draws Chrome's grey OS box, which
+  // belongs to the browser, not to this dashboard.
+  const [publishNowPost, setPublishNowPost] = useState<ScheduledPost | null>(null);
   async function handlePublishNow(recordId: string) {
-    if (!confirm("Publish this post right now (within ~1 min)?")) return;
+    setPublishNowPost(null);
     setRowActionId(recordId);
     try {
       const r = await fetch("/api/scheduler/publish-now", {
@@ -953,6 +964,7 @@ function Scheduler() {
               pageHandle={pageHandle}
               onOpen={(p) => setCalItem({ kind: "scheduled", whenMs: new Date(p.scheduleTime || p.publishedAt || 0).getTime(), post: p })}
               onReschedule={(p) => setScheduleModalPost(p)}
+              onPublishNow={(p) => setPublishNowPost(p)}
               onDelete={(p) => setDeletePost(p)}
             />
           )}
@@ -1120,6 +1132,33 @@ function Scheduler() {
 
       {/* Big full-screen view of a scheduled / published post */}
       {calItem && <SchedulePreviewModal item={calItem} onClose={() => setCalItem(null)} />}
+
+      {publishNowPost && (
+        <Overlay onClose={() => setPublishNowPost(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+            className="mt-[16vh] w-full max-w-[440px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 text-center">
+              <h3 className="text-[15px] font-medium text-[#232D42]">Publish this now?</h3>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
+                <b className="font-medium">{publishNowPost.particulars || "This post"}</b> goes out within about a
+                minute, instead of at the time it was scheduled for.
+              </p>
+              <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
+                Once it is live it can only be removed from Instagram or Facebook themselves.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 px-5 py-4">
+              <button onClick={() => handlePublishNow(publishNowPost.id)}
+                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark">
+                Publish it now
+              </button>
+              <button onClick={() => setPublishNowPost(null)}
+                className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">Cancel</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
 
       {/* Caption-edit modal */}
       {editingCaptionId && (
@@ -1384,9 +1423,13 @@ function Scheduler() {
       {/* ACTION BAR */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3 flex items-center justify-between mb-8 sticky bottom-2">
         <div className="text-xs text-gray-500">
+          {/* A row id told nobody anything. What people need to know is whether it
+              has gone, or when it will. */}
           {result?.ok === true && (result.draft
-            ? <span className="text-green-700">✓ Saved as a draft. It stays put until you schedule or publish it.</span>
-            : <span className="text-green-700">✓ Scheduled. Row <code className="bg-green-50 px-1 rounded">{result.recordId}</code> dropped into Content Calendar.</span>)}
+            ? <span className="text-green-700">✓ Saved as a draft. Nothing is posted until you send it.</span>
+            : result.whenLabel
+            ? <span className="text-green-700">✓ Scheduled for {result.whenLabel}. It goes out on its own — you don&apos;t need to be here.</span>
+            : <span className="text-green-700">✓ Publishing now. It should be live within a minute.</span>)}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
           {!result && <span>{scheduleEnabled ? "Goes into your publishing queue for the time you set." : "Goes straight into your publishing queue."}</span>}
         </div>
@@ -1562,12 +1605,13 @@ function StatusCounter({ label, count, color, active, onClick }: { label: string
 
 // Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
 // is the active filter. Click a row to open the big preview/analytics modal.
-function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onDelete }: {
+function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onPublishNow, onDelete }: {
   posts: ScheduledPost[];
   emptyLabel: string;
   pageHandle: (page: string) => string;
   onOpen: (p: ScheduledPost) => void;
   onReschedule: (p: ScheduledPost) => void;
+  onPublishNow: (p: ScheduledPost) => void;
   onDelete: (p: ScheduledPost) => void;
 }) {
   if (posts.length === 0) {
@@ -1607,6 +1651,11 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           {/* Row actions — only for posts that are still actionable (not already published) */}
           {p.effectiveStatus !== "published" && (
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Some posts are written to go out now, not at the time someone
+                  picked earlier. Without this the only way was to reschedule to a
+                  minute in the future and wait. */}
+              <button onClick={() => onPublishNow(p)}
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark transition">Publish now</button>
               <button onClick={() => onReschedule(p)}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
               <button onClick={() => onDelete(p)}
