@@ -3015,7 +3015,7 @@ function CollaboratorField({ value, onChange }: { value: string; onChange: (v: s
         placeholder="Enter username or Page URL"
         className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand"
       />
-      <div className="text-xs text-gray-400 mt-1">They&apos;re automatically invited when the post goes live. Up to 3 — separate with commas.</div>
+      <div className="text-xs text-gray-400 mt-1">Instagram only — each gets an invite when the post goes live and appears once they accept. Up to 3, separate with commas.</div>
     </div>
   );
 }
