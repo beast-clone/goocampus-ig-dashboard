@@ -283,7 +283,31 @@ remixing controls.
 Carousels and stories are the same shape of work as reels and should be quoted with
 them, not discovered afterwards.
 
-## 7. Built so far — 16 Sep
+## 7a. The 300-second wall — and why waiting is the wrong shape
+
+Raising the reel poll from 90s to 5 minutes looked like the fix. It was a regression.
+n8n kills a Code node task at **300 seconds** (`N8N_RUNNERS_TASK_TIMEOUT`), so a
+5-minute wait IS the timeout — and with Facebook added the node could wait 300s for
+Instagram and 300s more for Facebook.
+
+Proof, execution `2742338`: picked up Praveen's reel at 05:03:25Z, died at 05:08:26Z
+with *"Task execution timed out after 300 seconds"*. That was the error he was
+notified about, and it was caused by this spec's own advice.
+
+**The fix is not a longer wait, it is not waiting.** The workflow already runs every
+minute, so an in-flight upload keeps its state on the row and is picked up again:
+
+- `custom.ig_creation_id` — the Instagram container, made once and reused
+- `custom.fb_ids[page]` — the Facebook video id, so the mp4 is uploaded once
+- `custom.ig_url_done`, `custom.fb_done[page]` — what already published, so a second
+  platform still waiting never republishes the first
+- `custom.attempts` — 20 runs (~20 min) and it is declared stuck
+
+Each run looks for 40 seconds per platform and returns. Not ready means
+`publish_status` stays `scheduled`, not `failed`, so the next minute continues where
+this one left off. `Mark Results` now writes `custom` back, or none of that survives.
+
+## 7b. Built so far — 16 Sep
 
 **n8n, `IG/FB Publisher — Supabase v2` (`frQoNFQjqVSnZsTp`, live):**
 
