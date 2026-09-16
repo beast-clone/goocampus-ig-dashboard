@@ -378,7 +378,19 @@ is exactly why every thumbnail mode resolves to an uploaded image (§3).
 wired yet — the queue already holds the post until its time, so scheduling stays the
 dashboard's job for now.
 
-**Not verified:** the cover step is the one thing that cannot be proved without
-publishing a real reel to a live Page. It is wrapped so a failure never loses the
-post, and the reason is written to `failure_reason` on an otherwise-published row.
-Check that field after the first real reel.
+**Proved on a real post, 16 Sep** — and three things were wrong. All fixed:
+
+1. **Overlapping runs double-posted.** A run now takes ~90s against a 1-minute
+   trigger, so two runs took the same row and published two Instagram reels. The row
+   is now **claimed** (`publish_status='publishing'`) by a Supabase node between
+   `Get Due Posts` and the Code node; only `scheduled` rows are ever selected.
+2. **Polling Facebook before `upload_phase=finish` is a deadlock.** Facebook does not
+   begin processing until finish is called, so waiting for `complete` first waits
+   forever — three runs of it proved that. Order is now start → upload → cover →
+   finish, with no pre-finish poll.
+3. **`Blob is not defined`** in the Code node sandbox, so the cover never reached
+   Facebook. The multipart body for `/thumbnails` is now built by hand from a Buffer.
+
+Final run: one pass, `published`, Instagram reel + two Facebook Page reels
+(`goocampus edu`, `goocampus.in`), links written back to the row. The cover failure
+was surfaced in `failure_reason` rather than swallowed, which is how it was caught.
