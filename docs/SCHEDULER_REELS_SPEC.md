@@ -117,18 +117,39 @@ n8n does the publishing and does it today.
 | Carousel publish | not present — publish route sends `media_urls[0]` only |
 | `media_type=STORIES` | not present |
 | Facebook page publishing | not present — `lib/facebook.ts` is read-only analytics |
-| Video container status polling | **not present** |
+| Video container status polling | not in this repo — **present in the live n8n worker** |
 | A `format` column on `mh_posts` | **not present** — see §5 |
 | LinkedIn image + PDF carousel publish | present and real (`lib/linkedin-publish.ts:32-113`) |
 
-### Why "sometimes it will not work"
+### Why "sometimes it will not work" — ANSWERED 16 Sep
 
-Meta will not publish a video container until processing finishes. Any publisher
-that goes straight from creating the container to `media_publish` without polling
-`status_code` is racing, and losing that race looks exactly like "it sometimes
-doesn't work." The dead route in this repo has that bug (`:34` → `:42`); whether
-the live n8n worker does is **unverified and worth checking first** — it is the
-likeliest cause of Praveen's complaint.
+The dead route in this repo does have the no-polling bug (`:34` → `:42`). **The live
+n8n worker does not.** Read from the instance on 16 Sep:
+
+`IG/FB Publisher — Supabase v2 (all types)` (`frQoNFQjqVSnZsTp`, active, every minute)
+already does more than this spec assumed:
+
+- **Instagram reels: yes.** `media_type=REELS&video_url=…` on the container.
+- **Status polling: yes, and it fails safe.** 18 attempts × 5s, `FINISHED` to proceed,
+  `ERROR` throws, and `if (!ready) throw new Error('reel not ready after ~90s')` — it
+  never publishes blind.
+- **Carousels: yes**, `is_carousel_item` children into a `CAROUSEL` parent, mixed
+  image and video.
+- **Cover / thumbnail: no.** No `cover_url`, no `thumb_offset` anywhere.
+- **Stories: no.**
+- **Facebook gets `POST /{page}/videos?file_url=…` — an ordinary video post, NOT a
+  reel.** `/{page-id}/video_reels` is not used.
+
+So the missing poll is **not** the cause. The three candidates left, in order:
+
+1. **The 90-second ceiling.** Meta's guidance is to poll up to ~5 minutes; a long or
+   large reel that is still transcoding at 90s fails with "reel not ready". One-line
+   fix — raise the attempts.
+2. **Facebook never receives a reel at all.** A "reel" posted to a Page becomes a
+   normal video post. If "it didn't work" means "it didn't show up as a reel on
+   Facebook", this is why, and it needs the 3-phase `video_reels` flow.
+3. Transient network. The only two retained failures (12 Sep) were both
+   *"The DNS server returned an error"* — unrelated to reels.
 
 ---
 
@@ -250,8 +271,9 @@ remixing controls.
 
 ## 6. Open questions
 
-1. **Does the live n8n worker poll container status before publishing?** If not,
-   that is Praveen's bug and it is fixable without any of the above.
+1. ~~Does the live n8n worker poll container status before publishing?~~
+   **Answered 16 Sep: yes, and it fails safe.** See §2. Raise the 90s ceiling and
+   give Facebook a real `video_reels` path instead.
 2. **Do FB closed captions matter enough** to justify our own transcription for one
    platform only?
 3. **Which accounts are we targeting** — the composer was opened on `Goocampus.in`
