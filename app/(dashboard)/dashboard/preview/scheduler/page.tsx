@@ -101,6 +101,20 @@ const DAILY_POST_LIMITS: Record<string, { min: number; max: number }> = {
   "GooCampus World": { min: 1, max: 2 },  // @goocampusworld
   "12Plus / GC India": { min: 1, max: 2 }, // @12thplusdotcom
 };
+// How far apart two posts on the same account should sit. Two posts minutes apart
+// split one audience: the second competes with the first for the same early
+// engagement, and buries it in the feed. A warning, never a block — a launch or a
+// live event is a real reason to double-post.
+const MIN_GAP_MINUTES: Record<string, number> = {
+  "GooCampus Main": 60,
+  "GooCampus World": 90,
+  "12Plus / GC India": 90,
+};
+const DEFAULT_GAP_MINUTES = 60;
+function minGapMinutes(page: string): number {
+  return MIN_GAP_MINUTES[page] ?? DEFAULT_GAP_MINUTES;
+}
+
 function maxPostsPerDay(page: string): number {
   return DAILY_POST_LIMITS[page]?.max ?? 4;
 }
@@ -347,6 +361,11 @@ function Scheduler() {
   const [deletePost, setDeletePost] = useState<ScheduledPost | null>(null);
   // Over-posting guard: when a target day already hit the account's daily max, hold the
   // pending schedule here and show the warning popup instead of committing straight away.
+  const [gapWarn, setGapWarn] = useState<{
+    page: string; gap: number; minutes: number; other: ScheduledPost;
+    whenLabel: string; suggestedISO: string; suggestedLabel: string;
+    onProceed: () => void; onMove: () => void;
+  } | null>(null);
   const [capWarn, setCapWarn] = useState<{
     dateLabel: string; page: string; limit: number; existing: ScheduledPost[];
     onProceed: () => void | Promise<void>; onPickAnother: () => void;
@@ -527,6 +546,40 @@ function Scheduler() {
       return !!t && new Date(t).toLocaleDateString("en-CA") === day;
     });
   }
+  /** The post on this page nearest to `iso`, if it falls inside the gap. */
+  function tooCloseTo(iso: string, page: string, excludeId?: string): { post: ScheduledPost; minutes: number } | null {
+    const target = new Date(iso).getTime();
+    const gapMs = minGapMinutes(page) * 60_000;
+    let nearest: { post: ScheduledPost; minutes: number } | null = null;
+    for (const p of postsOnDay(iso, page, excludeId)) {
+      const t = p.scheduleTime || p.publishedAt;
+      if (!t) continue;
+      const diff = Math.abs(new Date(t).getTime() - target);
+      if (diff >= gapMs) continue;
+      const minutes = Math.round(diff / 60_000);
+      if (!nearest || minutes < nearest.minutes) nearest = { post: p, minutes };
+    }
+    return nearest;
+  }
+
+  /** The first slot at or after `iso` that clears every post on that page. */
+  function nextClearSlot(iso: string, page: string, excludeId?: string): string {
+    const gapMs = minGapMinutes(page) * 60_000;
+    let t = new Date(iso).getTime();
+    // Walk forward past each conflict rather than adding one gap blindly — three
+    // posts an hour apart would otherwise land you on top of the next one.
+    for (let i = 0; i < 24; i++) {
+      const clash = tooCloseTo(new Date(t).toISOString(), page, excludeId);
+      if (!clash) break;
+      const other = new Date(clash.post.scheduleTime || clash.post.publishedAt || t).getTime();
+      t = other + gapMs;
+    }
+    return new Date(t).toISOString();
+  }
+
+  const hhmm = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+
   function dayLabel(iso: string): string {
     const d = new Date(iso);
     const full = d.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
@@ -555,6 +608,30 @@ function Scheduler() {
           dateLabel: dayLabel(iso), page: publishToPage, limit, existing,
           onProceed: () => { setCapWarn(null); doEnqueue(iso); },
           onPickAnother: () => setCapWarn(null),
+        });
+        return;
+      }
+      // Spacing guard. Runs after the day cap so the more serious warning wins.
+      const clash = tooCloseTo(scheduleTimeISO, publishToPage, schedulingTaskId || undefined);
+      if (clash) {
+        const iso = scheduleTimeISO;
+        const moveTo = nextClearSlot(iso, publishToPage, schedulingTaskId || undefined);
+        setGapWarn({
+          page: publishToPage,
+          gap: minGapMinutes(publishToPage),
+          minutes: clash.minutes,
+          other: clash.post,
+          whenLabel: hhmm(clash.post.scheduleTime || clash.post.publishedAt || iso),
+          suggestedISO: moveTo,
+          suggestedLabel: hhmm(moveTo),
+          onProceed: () => { setGapWarn(null); doEnqueue(iso); },
+          onMove: () => {
+            const d = new Date(moveTo);
+            setScheduleDate(d.toLocaleDateString("en-CA"));
+            setScheduleTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+            setGapWarn(null);
+            doEnqueue(moveTo);
+          },
         });
         return;
       }
@@ -1103,6 +1180,41 @@ function Scheduler() {
       {gate && <MissingFieldsModal {...gate} onClose={() => setGate(null)} />}
 
       {/* Over-posting warning — a day already hit the account's daily max */}
+      {gapWarn && (
+        <Overlay onClose={() => setGapWarn(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+            className="mt-[14vh] w-full max-w-[460px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 text-center">
+              <h3 className="text-[15px] font-medium text-[#232D42]">
+                {gapWarn.minutes === 0 ? "Another post is already at that time" : `Only ${gapWarn.minutes} minutes apart`}
+              </h3>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
+                <b className="font-medium">{gapWarn.page}</b> already has
+                {" "}<b className="font-medium">&ldquo;{gapWarn.other.particulars || "a post"}&rdquo;</b> at {gapWarn.whenLabel}.
+              </p>
+              <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
+                Two posts close together split the same audience — the second competes with the first
+                for its opening hour and pushes it down the feed. {gapWarn.gap} minutes apart is the
+                spacing set for this account.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 px-5 py-4 flex-wrap">
+              <button onClick={gapWarn.onMove}
+                className="text-[13px] font-medium bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark">
+                Move to {gapWarn.suggestedLabel}
+              </button>
+              <button onClick={gapWarn.onProceed}
+                className="text-[13px] font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand">
+                Schedule anyway
+              </button>
+              <button onClick={() => setGapWarn(null)} className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">
+                Pick another time
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {capWarn && (
         <DayCapWarningModal
           dateLabel={capWarn.dateLabel}
@@ -1395,18 +1507,31 @@ function Scheduler() {
                   <div className="mt-3">
                     <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Smart suggestions — when your audience is most online</div>
                     <div className="flex flex-wrap gap-2">
-                      {timeSuggestions.map((s, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => applyTimeSuggestion(s)}
-                          className="text-xs bg-brand-light hover:bg-brand-light border border-brand/30 text-brand rounded-lg px-3 py-1.5 transition"
-                          title={`Next ${s.weekdayLabel} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}
-                        >
-                          <span className="font-semibold">{s.weekdayLabel} {s.hourLabel}</span>
-                          <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
-                        </button>
-                      ))}
+                      {/* The same "best time" is best for every post that day, so the
+                          suggester was funnelling posts into one slot. A taken slot
+                          still shows — greyed, and saying why — rather than vanishing
+                          and leaving someone wondering where their best hour went. */}
+                      {timeSuggestions.map((s, i) => {
+                        const taken = tooCloseTo(s.nextOccurrenceISO, publishToPage, schedulingTaskId || undefined);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => applyTimeSuggestion(s)}
+                            className={`text-xs rounded-lg px-3 py-1.5 border transition ${taken
+                              ? "bg-[#F6F7FB] border-gray-200 text-[#A6ACBE]"
+                              : "bg-brand-light hover:bg-brand-light border-brand/30 text-brand"}`}
+                            title={taken
+                              ? `${s.weekdayLabel} ${s.hourLabel} is ${taken.minutes} min from "${taken.post.particulars || "another post"}" on this account`
+                              : `Next ${s.weekdayLabel} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}
+                          >
+                            <span className="font-semibold">{s.weekdayLabel} {s.hourLabel}</span>
+                            {taken
+                              ? <span className="ml-1">· already booked</span>
+                              : <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
