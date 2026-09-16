@@ -7,6 +7,7 @@ import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
+import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
@@ -168,6 +169,10 @@ function Scheduler() {
   const [toFacebook, setToFacebook] = useState(true);
   // A second caption for Facebook. Off by default: one caption is the common case,
   // and two boxes to fill is a tax on every post that doesn't need it.
+  // The brand/business unit this post is for. Required on every Marketing Hub row,
+  // and the calendar has been showing a blank Interest for every post made here
+  // because the composer never asked.
+  const [sbu, setSbu] = useState("");
   const [splitCaption, setSplitCaption] = useState(false);
   const [captionFb, setCaptionFb] = useState("");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -560,7 +565,7 @@ function Scheduler() {
   function resetComposer() {
     setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
-    setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb("");
+    setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb(""); setSbu("");
   }
 
   // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
@@ -618,6 +623,7 @@ function Scheduler() {
           caption,
           mediaUrls: metaMediaUrls,
           format,
+          sbu,
           coverUrl: format === "reel" ? coverUrl : "",
           channels: [toInstagram ? "instagram" : "", toFacebook ? "facebook" : ""].filter(Boolean),
           captionFb: splitCaption && toInstagram && toFacebook ? captionFb : "",
@@ -1302,6 +1308,14 @@ function Scheduler() {
                   placeholder="e.g. NEET PG 2026 cutoff trends — key dates & what changed"
                   className="w-full mt-1 mb-2 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
                 />
+                <div className="mb-2">
+                  <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Primary interest</label>
+                  <div className="mt-1">
+                    <PreviewSelect className="w-full justify-between" value={sbu} onChange={setSbu}
+                      placeholder="Which brand or programme is this for?"
+                      options={SBU_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                  </div>
+                </div>
                 <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>We&apos;ll split this into Instagram / Facebook versions and strip markdown automatically.</span>
@@ -2924,14 +2938,20 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
 
 // Themed dropdown for simple {value,label} options (e.g. the account filter) —
 // a themed popover instead of a native OS <select>.
-function PreviewSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+function PreviewSelect({ value, onChange, options, className, placeholder }: {
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+  className?: string; placeholder?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const current = options.find((o) => o.value === value) || options[0];
+  const chosen = options.find((o) => o.value === value);
+  // With a placeholder and nothing chosen, say so in grey instead of silently
+  // showing the first option as though it had been picked.
+  const current = chosen || (placeholder ? null : options[0]);
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:border-gray-300 text-gray-800">
-        <span className="whitespace-nowrap">{current?.label}</span>
+        className={`flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:border-gray-300 text-gray-800 ${className || ""}`}>
+        <span className={`truncate ${current ? "" : "text-gray-400"}`}>{current?.label ?? placeholder}</span>
         <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (

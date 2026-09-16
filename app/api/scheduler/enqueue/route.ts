@@ -26,6 +26,7 @@ type Body = {
   channels?: string[];         // ["instagram","facebook"] — which of Meta's two
   captionFb?: string;          // a different caption for Facebook, when asked for
   draft?: boolean;             // park it; the worker only picks up "scheduled"
+  sbu?: string;                // brand / business unit — the calendar's "Interest"
   scheduleTimeISO?: string;    // absent/empty → publish "now" (schedule_time = now)
 };
 
@@ -71,7 +72,12 @@ export async function POST(req: Request) {
       caption_fb: fbCaption || null,
     };
 
+    const sbu = (b.sbu || "").trim();
+
     const common = {
+      // Only written when the composer actually collected one — an empty string
+      // would wipe the brand off a row that already had it.
+      ...(sbu ? { sbu } : {}),
       caption: b.caption || null,
       media_urls: media.length ? media : null,
       publish_to: b.publishTo || null,
