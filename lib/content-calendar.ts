@@ -139,6 +139,8 @@ export function extractCaptionFromContent(content: string): string {
     .trim();
 }
 
+const isVideoUrl = (u?: string | null) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u || "");
+
 export type ScheduledPost = {
   id: string;
   particulars: string;
@@ -151,6 +153,8 @@ export type ScheduledPost = {
   igCaption: string;               // Instagram-specific override, if any
   fbCaption: string;               // Facebook-specific override, if any
   thumbnailUrl: string | null;     // first attachment thumbnail for the card
+  coverUrl: string | null;         // reel cover, when one was chosen
+  igMediaId: string | null;        // Instagram media id, for insights
   mediaUrls: string[];             // all media (carousel slides / video), in order
   scheduleTime: string | null;
   status: string;                  // raw Airtable status
@@ -187,6 +191,7 @@ type MhQueueRow = {
   instagram_url: string | null;
   facebook_url: string | null;
   published_at: string | null;
+  custom: Record<string, unknown> | null;
 };
 
 function deriveSupabaseStatus(
@@ -222,7 +227,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb
     .from("mh_posts")
-    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at")
+    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom")
     .not("publish_status", "is", null)
     .order("schedule_time", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -255,6 +260,8 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
     const { effective, failureReason } = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
     // Prefer the real media_urls; fall back to attachment creatives when that's empty.
     const media = (r.media_urls && r.media_urls.length) ? r.media_urls : (attByPost.get(r.id) || []);
+    const cust = (r.custom && typeof r.custom === "object" ? r.custom : {}) as Record<string, unknown>;
+    const cover = typeof cust.cover_url === "string" && cust.cover_url ? cust.cover_url : null;
     return {
       id: r.id,
       particulars: r.particulars || "",
@@ -266,7 +273,12 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       fullCaption,
       igCaption: "",
       fbCaption: "",
-      thumbnailUrl: media[0] || null,
+      // A card thumbnail has to be an IMAGE. media[0] is the mp4 for a reel, and an
+      // mp4 in an <img> renders as a broken-image icon — so the chosen cover stands
+      // in when there is one.
+      thumbnailUrl: (isVideoUrl(media[0]) && cover) ? cover : (media[0] || null),
+      coverUrl: cover,
+      igMediaId: typeof cust.ig_media_id === "string" ? cust.ig_media_id : null,
       mediaUrls: media,
       scheduleTime: r.schedule_time,
       status: r.publish_status || "",

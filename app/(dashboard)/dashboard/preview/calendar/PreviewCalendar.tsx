@@ -18,6 +18,8 @@ export type ScheduledPost = {
   status: string; effectiveStatus: EffectiveStatus; failureReason: string | null;
   instagramUrl: string | null; facebookUrl: string | null; publishedAt: string | null;
   mediaUrls?: string[]; // all slides / the reel video, in order (from the queue API)
+  coverUrl?: string | null;   // reel cover, when one was chosen
+  igMediaId?: string | null;  // Instagram media id, recorded at publish — for insights
 };
 
 // ── Demo creatives ────────────────────────────────────────────────────────────
@@ -203,6 +205,7 @@ function igToScheduled(m: IgPost, page: string): ScheduledPost {
     failureReason: null,
     instagramUrl: m.permalink || null,
     facebookUrl: null,
+    igMediaId: m.id || null,
     publishedAt: m.timestamp || null,
     mediaUrls: media,
   };
@@ -550,7 +553,9 @@ function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
     <div className={`hcal-media ${pane ? "pane" : ""}`}>
       <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
         {isVideo
-          ? <video className="hcal-media-el" src={cur} controls playsInline poster={post.thumbnailUrl || undefined} />
+          ? <video className="hcal-media-el" src={cur} controls autoPlay muted loop playsInline preload="auto"
+              poster={post.coverUrl || undefined}
+              onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }} />
           : <img className="hcal-media-el" src={cur} alt={post.particulars} />}
         {isReel && !isVideo && (
           post.instagramUrl
@@ -568,6 +573,66 @@ function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Several URLs arrive in one column, joined with " , " by the publish worker. */
+function splitUrls(v: string | null): string[] {
+  return String(v || "").split(/[\s,]*,[\s,]*|\n/).map((x) => x.trim()).filter((x) => /^https?:\/\//i.test(x));
+}
+
+/**
+ * What the post actually did. Instagram only — Meta gives no per-post insight for a
+ * Page reel through this account's permissions, and a panel that shows Instagram's
+ * numbers under a "Facebook" heading would be a lie.
+ *
+ * Needs the media id, which is recorded at publish time; posts published before that
+ * was stored simply have no id and say so.
+ */
+function PostInsights({ post }: { post: ScheduledPost }) {
+  const [data, setData] = useState<Record<string, number> | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "none" | "error">("idle");
+
+  useEffect(() => {
+    if (!post.igMediaId) { setState("none"); return; }
+    let alive = true;
+    setState("loading");
+    fetch("/api/posts/insights", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ items: [{ id: post.igMediaId, mediaType: "VIDEO", mediaProductType: "REELS" }] }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        const row = (d.insights || [])[0];
+        if (!row) { setState("none"); return; }
+        setData(row); setState("idle");
+      })
+      .catch(() => alive && setState("error"));
+    return () => { alive = false; };
+  }, [post.igMediaId]);
+
+  if (state === "none") return null;
+  const tiles: [string, number | undefined][] = [
+    ["Views", data?.views], ["Reach", data?.reach],
+    ["Interactions", data?.totalInteractions], ["Saves", data?.saves], ["Shares", data?.shares],
+  ];
+  return (
+    <div>
+      <div className="hcal-modal-lbl">Instagram insights</div>
+      {state === "loading" ? <div className="hcal-modal-val">Asking Instagram…</div>
+        : state === "error" ? <div className="hcal-modal-val">Couldn&apos;t read the insights just now.</div>
+        : (
+          <div className="hcal-ins">
+            {tiles.filter(([, v]) => typeof v === "number").map(([k, v]) => (
+              <div key={k} className="hcal-ins-cell">
+                <div className="hcal-ins-n">{(v as number).toLocaleString("en-IN")}</div>
+                <div className="hcal-ins-k">{k}</div>
+              </div>
+            ))}
+          </div>
+        )}
     </div>
   );
 }
@@ -639,11 +704,23 @@ function DetailModal({ post, onClose, onRetried }: { post: ScheduledPost; onClos
         </div>
       )}
       {(post.instagramUrl || post.facebookUrl) && (
-        <div className="hcal-modal-links">
-          {post.instagramUrl && <a href={post.instagramUrl} target="_blank" rel="noreferrer">View on Instagram ↗</a>}
-          {post.facebookUrl && <a href={post.facebookUrl.split("\n")[0]} target="_blank" rel="noreferrer">View on Facebook ↗</a>}
+        <div>
+          <div className="hcal-modal-lbl">Published to</div>
+          <div className="hcal-modal-links">
+            {post.instagramUrl && (
+              <a href={post.instagramUrl} target="_blank" rel="noreferrer">Instagram ↗</a>
+            )}
+            {/* The worker joins several Facebook Pages with " , " — one link each,
+                or the whole string becomes one dead href. */}
+            {splitUrls(post.facebookUrl).map((u, i) => (
+              <a key={u} href={u} target="_blank" rel="noreferrer">
+                Facebook{splitUrls(post.facebookUrl).length > 1 ? ` (page ${i + 1})` : ""} ↗
+              </a>
+            ))}
+          </div>
         </div>
       )}
+      {post.effectiveStatus === "published" && <PostInsights post={post} />}
     </>
   );
 
@@ -800,6 +877,10 @@ const HCAL_CSS = `
 .hcal-modal-failtxt{font-size:.74rem;color:#BE123C}
 .hcal-modal-retry{margin-top:.7rem;font-size:.74rem;font-weight:600;background:#E11D48;color:#fff;border:none;padding:.45rem .8rem;border-radius:8px}
 .hcal-modal-retry:disabled{opacity:.6}
+.hcal-ins{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:.5rem;margin-top:.4rem}
+.hcal-ins-cell{background:#F6F7FB;border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem;text-align:center}
+.hcal-ins-n{font-size:1rem;font-weight:700;color:var(--ink);line-height:1.1}
+.hcal-ins-k{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:.15rem}
 .hcal-modal-links{display:flex;gap:1rem;font-size:.76rem;padding-top:.7rem;border-top:1px solid var(--line)}
 .hcal-modal-links a{color:var(--brand);text-decoration:none}
 .hcal-modal-links a:hover{text-decoration:underline}

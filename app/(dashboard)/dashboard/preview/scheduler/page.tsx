@@ -1637,7 +1637,11 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3.5 py-3 hover:border-brand transition">
           <button onClick={() => onOpen(p)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
             <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-              {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+              {/* A reel with no cover has only an mp4 to show — a still frame from
+                  the video beats the broken-image icon that an <img> gives. */}
+              {p.thumbnailUrl && (isVideoUrl(p.thumbnailUrl)
+                ? <video src={p.thumbnailUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
@@ -1726,7 +1730,11 @@ function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onPr
                 {openId === p.id && (
                   <div className="px-3.5 pb-3 flex gap-3 bg-gray-50/60">
                     <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 mt-2">
-                      {p.thumbnailUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
+                      {/* A reel with no cover has only an mp4 to show — a still frame from
+                  the video beats the broken-image icon that an <img> gives. */}
+              {p.thumbnailUrl && (isVideoUrl(p.thumbnailUrl)
+                ? <video src={p.thumbnailUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />)}
                     </div>
                     <div className="text-[12px] text-gray-600 whitespace-pre-wrap flex-1 max-h-32 overflow-y-auto pt-2">{p.fullCaption || p.caption || "No caption"}</div>
                   </div>
