@@ -1,0 +1,217 @@
+// One-way import: Airtable's Content Calendar → the Supabase master sheet (mh_posts).
+//
+// Airtable is where the team plans. This copies a window of that plan into the
+// dashboard so the master sheet, calendar and scheduler are working from the same
+// content — without anyone re-typing it.
+//
+// Deliberately manual. A background sync that runs on its own has to answer "which
+// side wins" every minute, forever; a button pressed by a person answers it once,
+// visibly, for a range they chose.
+//
+// Direction is one way. Nothing here writes back to Airtable.
+
+import { airtableList, CONTENT_CALENDAR_TABLE } from "@/lib/marketing-hub";
+import { getSupabase } from "@/lib/supabase";
+import { bustMarketingHubCache } from "@/lib/mh-cache";
+
+// Supabase's mh_status is an enum of 8; Airtable's Status offers 11. Writing one of
+// the extra three fails the whole row with an opaque Postgres error, so they are
+// mapped to their nearest equivalent — and the original is kept in
+// custom.airtable_status so nothing is silently rewritten out of existence.
+const STATUS_MAP: Record<string, string> = {
+  "content - needs approval": "Content - In Progress",
+  "rejected/not published": "Incorporating Feedback",
+  "failed": "Incorporating Feedback",
+};
+const VALID_STATUS = new Set([
+  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
+  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+]);
+
+// Airtable stores the owner as a collaborator record; the dashboard keys people by
+// a short name. Same map the create route uses.
+const OWNER_ALIASES: Record<string, string> = {
+  "manya b m": "manya", "manya": "manya",
+  "praveen l": "praveen", "praveen": "praveen",
+  "nikhil shyamraj": "nikhil", "nikhi shyamraj": "nikhil", "nikhil": "nikhil",
+  "nandu c": "nandu", "nandu": "nandu",
+  "maheen ejaz": "maheen", "maheen": "maheen",
+};
+
+/** The Airtable fields we read. Everything else on the record is left behind. */
+type CalendarFields = {
+  "Particulars"?: string;
+  "Type"?: string;
+  "Status"?: string;
+  "SBU"?: string;
+  "Content"?: string;
+  "Caption"?: string;
+  "Additional Info"?: string;
+  "Publishing Date"?: string;
+  "Due Date"?: string;
+  "Completion Time"?: string;
+  "Priority"?: string;
+  "Platform(s)"?: string[];
+  "Publish To"?: string;
+  "Publish To Page"?: string;
+  "Needs Review"?: boolean;
+  "Synced to Scheduler"?: boolean;
+  "Output Link"?: string;
+  "Instagram URL"?: string;
+  "Facebook URL"?: string;
+  "Link"?: string;
+  "Slack Link"?: string;
+  "Start Date & Time"?: string;
+  "End Date & Time"?: string;
+  "References"?: string;
+  "Owner"?: { id?: string; email?: string; name?: string };
+  "Attachments"?: { url?: string; type?: string }[];
+};
+
+export type ImportResult = {
+  scanned: number;
+  created: number;
+  updated: number;
+  skipped: { reason: string; count: number }[];
+  errors: string[];
+};
+
+const str = (v: unknown): string | null => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s ? s : null;
+};
+
+/**
+ * A record already published from the dashboard is not re-imported over the top.
+ * Airtable does not know the permalink, the cover or the insight ids, and
+ * overwriting a live post with the plan that preceded it loses all three.
+ */
+const PROTECTED_STATUSES = new Set(["published", "publishing"]);
+
+export async function importFromAirtable(opts: {
+  /** Inclusive "YYYY-MM-DD" on Airtable's Publishing Date. */
+  from: string;
+  to: string;
+  /** Preview only — count what would happen, write nothing. */
+  dryRun?: boolean;
+}): Promise<ImportResult> {
+  const db = getSupabase();
+  if (!db) throw new Error("Supabase not configured");
+
+  const out: ImportResult = { scanned: 0, created: 0, updated: 0, skipped: [], errors: [] };
+  const skip = (reason: string) => {
+    const row = out.skipped.find((s) => s.reason === reason);
+    if (row) row.count += 1; else out.skipped.push({ reason, count: 1 });
+  };
+
+  // IS_AFTER/IS_BEFORE are exclusive, so the range is widened by a day at each end
+  // and the exact comparison is done here — an off-by-one on a date range quietly
+  // drops the first and last day of the month somebody asked for.
+  const formula = `AND(IS_AFTER({Publishing Date}, DATEADD('${opts.from}', -1, 'days')), IS_BEFORE({Publishing Date}, DATEADD('${opts.to}', 1, 'days')))`;
+
+  const records = await airtableList<CalendarFields>(CONTENT_CALENDAR_TABLE, {
+    filterByFormula: formula,
+    sort: [{ field: "Publishing Date", direction: "asc" }],
+  });
+  out.scanned = records.length;
+  if (records.length === 0) return out;
+
+  // One read of everything already here, rather than a query per record.
+  const ids = records.map((r) => r.id);
+  const existing = new Map<string, { id: string; publish_status: string | null; custom: Record<string, unknown> | null }>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await db
+      .from("mh_posts")
+      .select("id, airtable_record_id, publish_status, custom")
+      .in("airtable_record_id", ids.slice(i, i + 200));
+    if (error) throw new Error(`Reading existing rows failed: ${error.message}`);
+    for (const row of data || []) {
+      if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom });
+    }
+  }
+
+  for (const rec of records) {
+    const f = rec.fields;
+    const particulars = str(f["Particulars"]);
+    if (!particulars) { skip("no title in Airtable"); continue; }
+
+    const media = (f["Attachments"] || [])
+      .map((a) => a?.url)
+      .filter((u): u is string => typeof u === "string" && u.startsWith("http"));
+
+    const rawStatus = str(f["Status"]);
+    const mapped = rawStatus
+      ? (VALID_STATUS.has(rawStatus) ? rawStatus : STATUS_MAP[rawStatus.toLowerCase()] || "Content - Pending")
+      : "Content - Pending";
+    const ownerName = str(f["Owner"]?.name);
+
+    const row: Record<string, unknown> = {
+      airtable_record_id: rec.id,
+      particulars,
+      type: str(f["Type"]),
+      status: mapped,
+      owner_key: ownerName ? OWNER_ALIASES[ownerName.toLowerCase()] || null : null,
+      sbu: str(f["SBU"]),
+      content: str(f["Content"]),
+      caption: str(f["Caption"]),
+      additional_info: str(f["Additional Info"]),
+      publishing_date: str(f["Publishing Date"]),
+      due_date: str(f["Due Date"]),
+      completion_time: str(f["Completion Time"]),
+      priority: str(f["Priority"]),
+      platforms: f["Platform(s)"]?.length ? f["Platform(s)"] : null,
+      publish_to: str(f["Publish To"]),
+      publish_to_page: str(f["Publish To Page"]),
+      needs_review: Boolean(f["Needs Review"]),
+      synced_to_scheduler: Boolean(f["Synced to Scheduler"]),
+      output_link: str(f["Output Link"]),
+      instagram_url: str(f["Instagram URL"]),
+      facebook_url: str(f["Facebook URL"]),
+      external_link: str(f["Link"]),
+      slack_link: str(f["Slack Link"]),
+      start_at: str(f["Start Date & Time"]),
+      end_at: str(f["End Date & Time"]),
+      // text[] in Postgres, not text — a bare string is rejected and the row is lost.
+      reference_links: str(f["References"]) ? [str(f["References"]) as string] : null,
+      // Attachments only fill media_urls when Airtable actually has some, so an
+      // import never blanks creatives that were uploaded in the dashboard.
+      ...(media.length ? { media_urls: media } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    const hit = existing.get(rec.id);
+    // Keep Airtable's own wording when it had no Supabase equivalent, and never
+    // clobber the rest of an existing row's custom object.
+    row.custom = {
+      ...((hit?.custom as Record<string, unknown>) || {}),
+      ...(rawStatus && rawStatus !== mapped ? { airtable_status: rawStatus } : {}),
+    };
+    if (opts.dryRun) {
+      if (hit && PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) skip("already published here");
+      else if (hit) out.updated += 1;
+      else out.created += 1;
+      continue;
+    }
+
+    try {
+      if (hit) {
+        if (PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) { skip("already published here"); continue; }
+        const { error } = await db.from("mh_posts").update(row).eq("id", hit.id);
+        if (error) throw new Error(error.message);
+        out.updated += 1;
+      } else {
+        const { error } = await db.from("mh_posts").insert({ ...row, created_at: new Date().toISOString() });
+        if (error) throw new Error(error.message);
+        out.created += 1;
+      }
+    } catch (e) {
+      // One bad record must not abandon the other four thousand.
+      if (out.errors.length < 10) out.errors.push(`${particulars}: ${(e as Error).message}`);
+    }
+  }
+
+  // The hub read endpoint caches for 12 hours. Without this an import appears to
+  // have done nothing until the TTL expires.
+  if (!opts.dryRun && (out.created || out.updated)) bustMarketingHubCache();
+  return out;
+}

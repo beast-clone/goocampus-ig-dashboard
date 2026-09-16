@@ -1,5 +1,6 @@
 "use client";
 import { Fragment, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { SyncFromAirtable } from "./SyncFromAirtable";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { createPortal } from "react-dom";
@@ -433,7 +434,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
             </div>
           </>
         )}
-        <div className="ml-auto flex-shrink-0">
+        <div className="ml-auto flex-shrink-0 flex items-center gap-2">
+          {/* The plan lives in Airtable; this is how a window of it gets here. */}
+          {tab === "master" && <SyncFromAirtable onImported={refresh} />}
           <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
         </div>
       </div>
