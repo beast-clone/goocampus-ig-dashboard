@@ -1183,7 +1183,7 @@ function Scheduler() {
       {gapWarn && (
         <Overlay onClose={() => setGapWarn(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
-            className="mt-[14vh] w-full max-w-[460px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            className="mt-[14vh] w-full max-w-[520px] bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100 text-center">
               <h3 className="text-[15px] font-medium text-[#232D42]">
                 {gapWarn.minutes === 0 ? "Another post is already at that time" : `Only ${gapWarn.minutes} minutes apart`}
@@ -1207,7 +1207,10 @@ function Scheduler() {
                 className="text-[13px] font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand">
                 Schedule anyway
               </button>
-              <button onClick={() => setGapWarn(null)} className="text-[13px] text-[#8A92A6] hover:text-[#232D42] px-2">
+              {/* A third option is a third button. As grey text on its own line it
+                  read as a footnote, and half the choice was invisible. */}
+              <button onClick={() => setGapWarn(null)}
+                className="text-[13px] font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand">
                 Pick another time
               </button>
             </div>
