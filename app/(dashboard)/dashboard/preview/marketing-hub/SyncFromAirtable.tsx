@@ -57,7 +57,7 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
     <>
       <button onClick={() => { setOpen(true); setPreview(null); setDone(null); setError(null); }}
         title="Copy a date range of Airtable's Content Calendar into this sheet"
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand">
+        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-brand rounded-lg px-3 py-1.5 hover:bg-brand-dark">
         <IconRefresh size={14} stroke={1.9} /> Sync from Airtable
       </button>
 
