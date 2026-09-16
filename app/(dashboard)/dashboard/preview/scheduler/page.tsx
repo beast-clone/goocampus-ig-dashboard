@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
+import { ReelThumbnail } from "./ReelThumbnail";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
@@ -153,6 +154,11 @@ function Scheduler() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<string[]>([""]);
+  // What the publisher should build. A reel is a single video; anything else is a
+  // post. Stories are deliberately absent — nothing publishes them yet, and a format
+  // you can pick but not send is worse than one that isn't offered.
+  const [format, setFormat] = useState<"post" | "reel">("post");
+  const [coverUrl, setCoverUrl] = useState("");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
@@ -462,6 +468,11 @@ function Scheduler() {
   // PDF and nothing else → there is nothing for Instagram/Facebook to post, so
   // this becomes a LinkedIn-only post and the Meta queue is skipped entirely.
   const linkedInOnly = pdfUrls.length > 0 && metaMediaUrls.length === 0;
+  // Exactly one video and nothing else — the only shape a reel can be.
+  const singleVideoUrl = useMemo(
+    () => (metaMediaUrls.length === 1 && /\.mp4($|\?)/i.test(metaMediaUrls[0]) ? metaMediaUrls[0] : ""),
+    [metaMediaUrls],
+  );
   // Everything the queue needs, listed in one place. The Schedule/Publish button stays
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
@@ -526,6 +537,7 @@ function Scheduler() {
   function resetComposer() {
     setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
+    setFormat("post"); setCoverUrl("");
   }
 
   // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
@@ -582,6 +594,8 @@ function Scheduler() {
           collaborators: collab.split(",").map((s) => s.trim()).filter(Boolean),
           caption,
           mediaUrls: metaMediaUrls,
+          format,
+          coverUrl: format === "reel" ? coverUrl : "",
           scheduleTimeISO,
         }),
       });
@@ -1177,6 +1191,29 @@ function Scheduler() {
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
+
+          {/* Only asked once there is a single video to ask about. Offering "Reel"
+              beside a jpg, or beside four files, is a choice that cannot be honoured. */}
+          {singleVideoUrl && (
+            <Card title="Format" subtitle="A reel is a single video. Instagram publishes it as a reel; Facebook posts it to the Page.">
+              <div className="space-y-3">
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                  {(["post", "reel"] as const).map((f) => (
+                    <button key={f} type="button" onClick={() => setFormat(f)}
+                      className={`px-3.5 py-1.5 text-[12.5px] ${format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"} ${f === "reel" ? "border-l border-gray-200" : ""}`}>
+                      {f === "post" ? "Post" : "Reel"}
+                    </button>
+                  ))}
+                </div>
+                {format === "reel" && (
+                  <div className="pt-1 border-t border-gray-100">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mt-3 mb-2">Thumbnail</div>
+                    <ReelThumbnail videoUrl={singleVideoUrl} coverUrl={coverUrl} onCover={setCoverUrl} />
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           <Card title="Caption">
             <div className="space-y-3">

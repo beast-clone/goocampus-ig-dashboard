@@ -21,6 +21,8 @@ type Body = {
   caption?: string;
   mediaUrls?: string[];
   collaborators?: string[];    // Instagram usernames to auto-invite (max 3)
+  format?: string;             // "post" | "reel" — what the publisher should build
+  coverUrl?: string;           // reel cover image, already uploaded
   scheduleTimeISO?: string;    // absent/empty → publish "now" (schedule_time = now)
 };
 
@@ -48,6 +50,15 @@ export async function POST(req: Request) {
     const pages = (b.pages && b.pages.length ? b.pages : (b.publishToPage ? [b.publishToPage] : [])).filter(Boolean);
     const media = (b.mediaUrls || []).filter((u) => u && u.trim());
 
+    // Format and cover ride in `custom` (jsonb), which mh_posts already carries for
+    // fields outside the fixed schema. No migration, and the publisher reads the row
+    // whole. NOT the `type` column: that is the Marketing Hub's editorial type and
+    // already holds things like "Reel Thumbnail" and "YouTube Long-Form".
+    const format = b.format === "reel" ? "reel" : "post";
+    const cover = (b.coverUrl || "").trim();
+
+    const customPatch = { publish_format: format, ...(cover ? { cover_url: cover } : { cover_url: null }) };
+
     const common = {
       caption: b.caption || null,
       media_urls: media.length ? media : null,
@@ -59,7 +70,12 @@ export async function POST(req: Request) {
     };
 
     if (b.taskId) {
-      const { data, error } = await sb.from("mh_posts").update(common).eq("id", b.taskId).select("id").single();
+      // Merge into whatever custom already holds. An Output-Ready row can carry other
+      // custom fields (claim_role, and any column the Marketing Hub has added), and
+      // replacing the object outright would quietly delete them.
+      const { data: existing } = await sb.from("mh_posts").select("custom").eq("id", b.taskId).maybeSingle();
+      const merged = { ...((existing?.custom as Record<string, unknown>) || {}), ...customPatch };
+      const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).select("id").single();
       if (error) throw new Error(error.message);
       return NextResponse.json({ ok: true, id: data.id, when, scheduleTime, mode: "updated" });
     }
@@ -75,6 +91,7 @@ export async function POST(req: Request) {
         status: "Ready to Publish",   // content-workflow status (enum)
         needs_review: false,
         synced_to_scheduler: false,
+        custom: customPatch,
         ...common,
       })
       .select("id")

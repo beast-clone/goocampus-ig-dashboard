@@ -283,7 +283,38 @@ remixing controls.
 Carousels and stories are the same shape of work as reels and should be quoted with
 them, not discovered afterwards.
 
-## 7. Decision taken
+## 7. Built so far — 16 Sep
 
-Campaigns shipped first; reels are next. Phase 1 is fully specified above and needs
-no video processing. Nothing is started.
+**n8n, `IG/FB Publisher — Supabase v2` (`frQoNFQjqVSnZsTp`, live):**
+
+- Reel polling ceiling **90s → 5 minutes** (18 → 60 attempts). Meta's own guidance is
+  ~5 min; a long reel still transcoding at 90s was failing for no good reason.
+- The reel container now sends **`cover_url`** when the row carries one.
+- A single video is only published as a reel **when the composer asked for one**
+  (`custom.publish_format !== 'post'`). Before this every mp4 became a reel.
+
+**Dashboard composer:**
+
+- **Format** card — Post / Reel — shown only when the media is exactly one mp4.
+  Offering "Reel" beside a jpg, or beside four files, is a choice that cannot be
+  honoured.
+- **Thumbnail** picker with Meta's three modes: *Choose suggested* (6 frames pulled
+  from the video in the browser), *Choose frame* (scrubber), *Upload image*. All
+  three resolve to an uploaded image, per §3.
+- `format` and `cover_url` ride in **`mh_posts.custom`** (jsonb, already used for
+  fields outside the fixed schema) — so no migration. NOT the `type` column: that is
+  the Marketing Hub's editorial type and already holds "Reel Thumbnail" and
+  "YouTube Long-Form". On an update the object is merged, never replaced.
+
+Verified end to end on 16 Sep with a generated 8s test clip: six frames extracted in
+the browser, a chosen frame uploaded as the cover, and the Publish payload carrying
+`format: "reel"` plus the cover URL — captured with `fetch` intercepted so nothing
+was queued or posted. Test files deleted from the bucket afterwards.
+
+**Still to do in Phase 1:** destination multi-select across FB and IG with a saved
+default, the per-platform "Customize" toggle, Tags, the looping FB/IG preview, and
+Save-as-draft. **Stories are deliberately not offered** — nothing publishes them, and
+a format you can pick but not send is worse than one that is not there.
+
+**Facebook still receives `POST /{page}/videos`** — an ordinary video post, not a
+reel. That is the next real piece of work (§3).
