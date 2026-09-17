@@ -2268,8 +2268,15 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   const safeIdx = Math.min(idx, Math.max(0, slides.length - 1));
   const cur = slides[safeIdx] || null;
   const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
-  // Standard IG dimensions for the creative: reel/story = 9:16 (1080×1920), else 4:5 (1080×1350).
+  // The creative's own shape, read off the file once it loads. Guessing 9:16 from
+  // the word "reel" in a type field was wrong for every carousel and square that
+  // ever went out, and the panel kept the reel's height either way — which is
+  // where the black band under the image came from.
+  const [ratio, setRatio] = useState<string | null>(null);
+  useEffect(() => { setRatio(null); }, [safeIdx, slides.length]);
   const portrait = /reel|story/i.test(p.type || "");
+  // Until it has loaded, the old guess is still the best one available.
+  const boxRatio = ratio || (portrait ? "9 / 16" : "4 / 5");
   const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
   const when = fmtDateTime(new Date(item.whenMs).toISOString());
   const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
@@ -2293,14 +2300,18 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
-        <div className="grid md:grid-cols-2 min-h-0 overflow-auto">
+        {/* items-start, so the media column stops at the creative instead of being
+            stretched to whatever the caption beside it needs. */}
+        <div className="grid md:grid-cols-2 min-h-0 overflow-auto items-start">
           <div className="bg-gray-900 relative">
             {cur
               ? (
-                <div className={`w-full ${portrait ? "aspect-[9/16]" : "aspect-[4/5]"} relative`}>
+                <div className="w-full relative" style={{ aspectRatio: boxRatio }}>
                   {isVideo(cur)
-                    ? <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover" />
-                    : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover" />}
+                    ? <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover"
+                        onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setRatio(`${v.videoWidth} / ${v.videoHeight}`); }} />
+                    : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover"
+                        onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setRatio(`${i.naturalWidth} / ${i.naturalHeight}`); }} />}
                 </div>
               )
               : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-500 text-6xl">🖼️</div>}
