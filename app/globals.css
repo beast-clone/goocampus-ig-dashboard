@@ -157,7 +157,7 @@ html { scrollbar-gutter: stable; }
    --dense is the dial, expressed against Meta: 1 is Meta exactly, 0.9 is 10%
    under, 0.8 is 20% under.
    ──────────────────────────────────────────────────────────────────────────── */
-:root { --dense: 0.8; }
+:root { --dense: 1; }              /* Meta exactly. 0.9 is 10% under, 0.8 is 20% under. */
 :root:has(body.sched-dense) { zoom: var(--dense); }
 
 /* Base metrics are Meta's own, and --dense scales them from there:

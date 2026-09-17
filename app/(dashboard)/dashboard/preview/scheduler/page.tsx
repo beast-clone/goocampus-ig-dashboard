@@ -906,7 +906,7 @@ function Scheduler() {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => { if (listFilter === "ready") loadToSchedule(); else loadQueue(); }} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
-              <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
+              <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Create post</button>
             </div>
           </div>
 
@@ -1342,16 +1342,18 @@ function Scheduler() {
         <div className="fixed inset-0 bg-black/60 z-40 overflow-y-auto"
           onClick={() => setShowCreateForm(false)}>
           <div className="min-h-screen py-6 px-4" onClick={(e) => e.stopPropagation()}>
-            <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4">
+            <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4 flex flex-col max-h-[calc(100vh-48px)]">
               <div className="flex items-center justify-between mb-4">
-                <div className="text-base font-medium text-[#232D42]">Add a new post</div>
+                <div className="text-[20px] leading-6 font-medium text-[#232D42]">Create post</div>
                 <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
               </div>
 
-      {/* TWO-COLUMN LAYOUT: form left, preview right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
-        {/* LEFT — form */}
-        <div className="lg:col-span-8 space-y-4">
+      {/* TWO-COLUMN LAYOUT: form left, preview right.
+          The form scrolls on its own so the action bar below can stay put, which is
+          how Meta's composer behaves — Publish is never below the fold. */}
+      <div className="flex gap-6 min-h-0 flex-1 overflow-y-auto pr-1">
+        {/* LEFT — form, 600px to Meta's 600 */}
+        <div className="w-[600px] shrink-0 space-y-4 pb-1">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
             <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-gray-100">
@@ -1566,8 +1568,8 @@ function Scheduler() {
         </div>
 
         {/* RIGHT — live preview with an Instagram / Facebook / LinkedIn switcher */}
-        <div className="lg:col-span-4">
-          <div className="sticky top-6">
+        <div className="flex-1 min-w-0">
+          <div className="sticky top-0">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
               <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
@@ -1593,8 +1595,8 @@ function Scheduler() {
         </div>
       </div>
 
-      {/* ACTION BAR */}
-      <div className="bg-white rounded border border-gray-100 px-4 py-2.5 flex items-center justify-between mb-5 sticky bottom-2">
+      {/* ACTION BAR — outside the scroller, pinned under it. */}
+      <div className="bg-white rounded border-t border-gray-100 px-4 py-2.5 flex items-center justify-between shrink-0 mt-3">
         <div className="text-xs text-gray-500">
           {/* A row id told nobody anything. What people need to know is whether it
               has gone, or when it will. */}
@@ -1684,7 +1686,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
         </div>
         <div className="flex items-center gap-2">
           <button onClick={onRefresh} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
-          <button onClick={onAddManual} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Add manual post</button>
+          <button onClick={onAddManual} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Create post</button>
         </div>
       </div>
       )}
@@ -3004,31 +3006,78 @@ const PAGE_DOT: Record<string, string> = {
 // Multi-select brand pages — tick one or more to cross-post the same content to
 // several GooCampus accounts at once. The first ticked page is the "primary".
 function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  // A dropdown, the way Meta's composer does it, rather than three rows sitting
+  // open forever. Three pages take 174px of a 600px column to answer a question
+  // that is settled once and rarely changed; the trigger says who is selected and
+  // the list is one click away when it is not.
+  //
+  // Measured from their composer: 36px trigger, 4px corners, a bold header over
+  // the list, 36px rows, checked rows tinted.
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
   function toggle(page: string) {
+    // Never let the last one go: a post with no page cannot be published, and an
+    // empty trigger reads as broken rather than as a choice.
+    if (value.includes(page) && value.length === 1) return;
     onChange(value.includes(page) ? value.filter((p) => p !== page) : [...value, page]);
   }
+
+  const chosen = PAGE_OPTIONS.filter((o) => value.includes(o.value));
+  const summary = chosen.length === 0 ? "Pick a page"
+    : chosen.length === 1 ? chosen[0].label
+    : chosen.length === PAGE_OPTIONS.length ? "All three pages"
+    : chosen.map((o) => o.label).join(" and ");
+
   return (
-    <div className="space-y-1">
-      {PAGE_OPTIONS.map((o) => {
-        const checked = value.includes(o.value);
-        const isPrimary = value[0] === o.value;
-        return (
-          <label key={o.value}
-            className={`flex items-center gap-2.5 rounded border px-3 py-1.5 cursor-pointer transition ${checked ? "border-brand/50 bg-brand-light" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-            <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} className="w-4 h-4 accent-[#3A57E8]" />
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
-            <span className="flex-1 min-w-0">
-              <span className="block text-[13px] leading-4 truncate text-gray-900">{o.label}</span>
-              <span className="block text-[11px] leading-4 text-gray-500 truncate">{o.subtitle}</span>
-            </span>
-            {checked && value.length > 1 && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-brand flex-shrink-0">{isPrimary ? "Primary" : "Cross-post"}</span>
-            )}
-          </label>
-        );
-      })}
+    <div ref={wrap} className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox"
+        className="flex items-center gap-2 w-full h-9 rounded border border-gray-200 bg-white px-3 text-left hover:border-gray-300 focus:border-brand focus:outline-none">
+        <span className="flex items-center gap-1 shrink-0">
+          {chosen.map((o) => (
+            <span key={o.value} className="w-2.5 h-2.5 rounded-full" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
+          ))}
+        </span>
+        <span className="flex-1 min-w-0 truncate text-[14px] text-[#232D42]">{summary}</span>
+        <IconChevronDown size={15} stroke={2} className={`shrink-0 text-[#8A92A6] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div role="listbox" style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-40 bg-white border border-gray-200 rounded overflow-hidden">
+          <div className="px-3 pt-2.5 pb-1.5 text-[13px] font-semibold text-[#232D42]">Post to Instagram and Facebook</div>
+          {PAGE_OPTIONS.map((o) => {
+            const checked = value.includes(o.value);
+            const isPrimary = value[0] === o.value;
+            return (
+              <label key={o.value} role="option" aria-selected={checked}
+                className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${checked ? "bg-brand-light" : "hover:bg-[#F6F7FB]"}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} className="w-4 h-4 accent-[#3A57E8]" />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PAGE_DOT[o.value] || "#94A3B8" }} />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] leading-4 truncate text-gray-900">{o.label}</span>
+                  <span className="block text-[11px] leading-4 text-gray-500 truncate">{o.subtitle}</span>
+                </span>
+                {checked && value.length > 1 && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-brand shrink-0">{isPrimary ? "Primary" : "Cross-post"}</span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
+
       {value.length > 1 && (
-        <div className="text-xs text-brand pl-1">Cross-posting to {value.length} pages — one post is created per page.</div>
+        <div className="mt-1.5 text-[11px] text-brand">Cross-posting to {value.length} pages — one post is created per page.</div>
       )}
     </div>
   );
