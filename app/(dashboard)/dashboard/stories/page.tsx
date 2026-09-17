@@ -232,7 +232,7 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="bg-gray-50 rounded-md px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">{label}</div>
+      <div className="text-[12px] uppercase tracking-wide text-gray-500 font-medium">{label}</div>
       <div className="font-semibold text-gray-900 truncate">{value}</div>
     </div>
   );

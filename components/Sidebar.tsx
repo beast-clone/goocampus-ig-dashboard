@@ -202,7 +202,7 @@ export function Sidebar() {
         >
           <Ico size={17} stroke={1.7} className="text-[#8A93A6]" />
           <span className="flex-1">{f.label}</span>
-          <span className="text-[9px] uppercase tracking-wider pr-1.5">none</span>
+          <span className="text-[12px] uppercase tracking-wider pr-1.5">none</span>
         </div>
       );
     }

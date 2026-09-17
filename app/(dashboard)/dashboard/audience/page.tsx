@@ -868,7 +868,7 @@ function OrbitChip({ className = "", emoji, label, value, sub, tint = "violet", 
       <div className="flex items-start gap-2.5">
         <div className="text-xl leading-none">{emoji}</div>
         <div className="flex-1 min-w-0">
-          <div className={`text-[9px] uppercase tracking-wider ${labelColors[tint]} font-bold`}>{label}</div>
+          <div className={`text-[12px] uppercase tracking-wider ${labelColors[tint]} font-bold`}>{label}</div>
           <div className="text-sm font-bold text-gray-900 leading-tight truncate">{value}</div>
           {sub && <div className="text-[10px] text-gray-500 mt-0.5 leading-snug">{sub}</div>}
         </div>

@@ -258,7 +258,7 @@ function LeadsLedger() {
                             <div className="min-w-0">
                               <div className="text-[13.5px] font-semibold text-[#232D42] truncate flex items-center gap-1.5">
                                 {`${l.first} ${l.last}`.trim() || "New lead"}
-                                {l.live && <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 rounded px-1 py-[1px]">live</span>}
+                                {l.live && <span className="text-[12px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 rounded px-1 py-[1px]">live</span>}
                               </div>
                               <div className="text-[11px] text-[#A6ACBE]">{l.when}</div>
                             </div>

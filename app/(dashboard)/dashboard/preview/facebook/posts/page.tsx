@@ -78,9 +78,9 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                     <div className="text-[10px] text-gray-400 uppercase tracking-wide">{(() => { try { return format(parseISO(p.createdTime), "d MMM yyyy"); } catch { return ""; } })()}</div>
                     <div className="text-[13px] text-gray-900 leading-snug mt-0.5 line-clamp-2">{p.message || "(no text)"}</div>
                     <div className="grid grid-cols-3 gap-1 mt-auto pt-2 text-center">
-                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.likes)}</div><div className="text-[9px] uppercase text-gray-500">Likes</div></div>
-                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.comments)}</div><div className="text-[9px] uppercase text-gray-500">Comm.</div></div>
-                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.shares)}</div><div className="text-[9px] uppercase text-gray-500">Shares</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.likes)}</div><div className="text-[12px] uppercase text-gray-500">Likes</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.comments)}</div><div className="text-[12px] uppercase text-gray-500">Comm.</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.shares)}</div><div className="text-[12px] uppercase text-gray-500">Shares</div></div>
                     </div>
                   </div>
                 </a>

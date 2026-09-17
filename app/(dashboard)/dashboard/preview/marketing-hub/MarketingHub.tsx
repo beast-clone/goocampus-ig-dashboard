@@ -3198,7 +3198,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={c.url} alt={c.name} onClick={() => setLightbox({ items: refImages, index: i })} className="w-full h-full object-cover cursor-pointer" />
                           ) : (
-                            <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[9px] uppercase">{kind === "pdf" ? "PDF" : "file"}</span></a>
+                            <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">{kind === "pdf" ? "PDF" : "file"}</span></a>
                           )}
                           {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={12} /></button>}
                         </div>

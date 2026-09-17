@@ -465,15 +465,15 @@ function TopPerformerCard({ label, post }: { label: string; post: ApiPost | null
           </div>
           <div className="grid grid-cols-3 gap-2 mt-auto pt-3 text-center">
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Reach</div>
+              <div className="text-[12px] uppercase tracking-wide text-gray-500">Reach</div>
               <div className="text-xl font-bold text-gray-900 tabular-nums">{post.reach.toLocaleString("en-IN")}</div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Likes</div>
+              <div className="text-[12px] uppercase tracking-wide text-gray-500">Likes</div>
               <div className="text-xl font-bold text-gray-900 tabular-nums">{post.likes.toLocaleString("en-IN")}</div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-500">Engage</div>
+              <div className="text-[12px] uppercase tracking-wide text-gray-500">Engage</div>
               <div className="text-xl font-bold text-gray-900 tabular-nums">{engagement.toLocaleString("en-IN")}</div>
             </div>
           </div>

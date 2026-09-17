@@ -69,7 +69,7 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 .preview-scope .overflow-hidden:has(table) { overflow-x: auto !important; }
 .preview-scope table { width: 100%; color: #8A92A6; border-collapse: collapse; }
 .preview-scope table thead th {
-  text-transform: uppercase; font-size: 0.7rem !important; font-weight: 600 !important;
+  text-transform: uppercase; font-size: 12px !important; font-weight: 600 !important;
   letter-spacing: 0.05em; color: #8A92A6 !important; background: #F7F8FC !important;
   padding: 0.8rem 1rem !important; border-bottom: 1px solid #eee !important;
 }

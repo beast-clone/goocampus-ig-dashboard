@@ -92,7 +92,7 @@ export function LatestPostsStrip({ accountId, range }: { accountId: string; rang
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-3xl text-gray-300">▢</div>
                   )}
-                  <span className="absolute top-2 left-2 text-[9px] uppercase tracking-wide font-semibold bg-white/95 border border-gray-200 text-gray-800 rounded px-1.5 py-0.5">
+                  <span className="absolute top-2 left-2 text-[12px] uppercase tracking-wide font-semibold bg-white/95 border border-gray-200 text-gray-800 rounded px-1.5 py-0.5">
                     {meta.label}
                   </span>
                 </div>
@@ -184,7 +184,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-gray-50 rounded-md px-3 py-2">
       <div className="text-[16px] font-semibold tabular-nums leading-tight">{value}</div>
-      <div className="text-[9.5px] uppercase tracking-wider text-gray-500 mt-0.5">{label}</div>
+      <div className="text-[12px] uppercase tracking-wider text-gray-500 mt-0.5">{label}</div>
     </div>
   );
 }

@@ -103,7 +103,7 @@ export function AiTipsStrip({ accountId, range }: { accountId: string; range: { 
                   <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-gray-500">
                     <span className="mr-1">{meta.icon}</span>{meta.label}
                   </div>
-                  <span className={`text-[9px] uppercase tracking-wide font-semibold rounded-full border px-2 py-0.5 ${TONE_STYLE[t.tone]}`}>
+                  <span className={`text-[12px] uppercase tracking-wide font-semibold rounded-full border px-2 py-0.5 ${TONE_STYLE[t.tone]}`}>
                     {t.tone === "grow" ? "growing" : t.tone === "hold" ? "flat" : "declining"}
                   </span>
                 </div>

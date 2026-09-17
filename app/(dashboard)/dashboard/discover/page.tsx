@@ -312,7 +312,7 @@ function TopHashtagsLeaderboard({ buckets }: { buckets: NicheBucket[] }) {
               </div>
               <div className="text-right min-w-[90px]">
                 <div className="text-sm font-semibold tabular-nums text-gray-800">{r.avgEng.toLocaleString()}</div>
-                <div className="text-[9px] uppercase tracking-wide text-gray-400">avg engagement</div>
+                <div className="text-[12px] uppercase tracking-wide text-gray-400">avg engagement</div>
               </div>
               <svg className="text-gray-300 group-hover:text-violet-500 transition" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
@@ -357,7 +357,7 @@ function NicheFeed({ niche, onSelect }: { niche: { audience: string; buckets: Ni
                 <div className="text-sm font-mono text-violet-700 flex items-center gap-2">
                   {b.tag}
                   {b.provider && (
-                    <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                    <span className={`text-[12px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
                       b.provider === "apify" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"
                     }`}>via {b.provider}</span>
                   )}

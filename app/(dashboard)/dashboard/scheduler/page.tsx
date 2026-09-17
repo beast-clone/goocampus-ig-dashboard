@@ -1127,7 +1127,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
                     <div className="text-[10px] text-gray-500">{handle}</div>
                   </div>
                   {page === post.publishToPage && (
-                    <span className="text-[9px] font-medium text-violet-700 uppercase tracking-wide">Original</span>
+                    <span className="text-[12px] font-medium text-violet-700 uppercase tracking-wide">Original</span>
                   )}
                 </label>
               );
@@ -1729,7 +1729,7 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
     <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
       {/* Headline numbers */}
       <div className="flex items-baseline gap-3 flex-wrap">
-        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${basisChip.bg} ${basisChip.text}`}>{basisChip.label}</span>
+        <span className={`text-[12px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${basisChip.bg} ${basisChip.text}`}>{basisChip.label}</span>
         <span className="text-[10px] uppercase tracking-wide text-violet-600 font-semibold">Expected reach</span>
         <span className="text-lg font-bold tabular-nums text-violet-900">~{prediction.avgReach.toLocaleString("en-IN")}</span>
         <span className="text-xs text-violet-700">· {prediction.avgEngagement.toLocaleString("en-IN")} engagements · {prediction.avgLikes.toLocaleString("en-IN")} likes</span>

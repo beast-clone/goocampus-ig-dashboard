@@ -224,7 +224,7 @@ function shortNum(n: number): string {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2.5">
-      <div className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
+      <div className="text-[12px] uppercase tracking-wide text-gray-500 font-semibold truncate" title={label}>{label}</div>
       <div className="text-lg font-bold text-gray-900 tabular-nums leading-tight mt-0.5 truncate">{value}</div>
     </div>
   );
@@ -312,7 +312,7 @@ function TopReelCard({ label, reel }: { label: string; reel: ApiPost | null }) {
     <a href={reel.permalink} target="_blank" rel="noopener noreferrer" className="block p-4 hover:bg-gray-50 transition group">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">{label}</div>
-        <div className="text-[9px] uppercase tracking-wide bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 font-semibold">
+        <div className="text-[12px] uppercase tracking-wide bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 font-semibold">
           Top by views
         </div>
       </div>
@@ -331,15 +331,15 @@ function TopReelCard({ label, reel }: { label: string; reel: ApiPost | null }) {
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
         <div>
-          <div className="text-[9px] uppercase tracking-wide text-gray-500">Views</div>
+          <div className="text-[12px] uppercase tracking-wide text-gray-500">Views</div>
           <div className="text-sm font-bold text-gray-900 tabular-nums">{(reel.views ?? 0).toLocaleString("en-IN")}</div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wide text-gray-500">Watch</div>
+          <div className="text-[12px] uppercase tracking-wide text-gray-500">Watch</div>
           <div className="text-sm font-bold text-gray-900 tabular-nums">{reel.avgWatchMs ? `${Math.round(reel.avgWatchMs / 1000)}s` : "—"}</div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wide text-gray-500">Reach</div>
+          <div className="text-[12px] uppercase tracking-wide text-gray-500">Reach</div>
           <div className="text-sm font-bold text-gray-900 tabular-nums">{reel.reach.toLocaleString("en-IN")}</div>
         </div>
       </div>

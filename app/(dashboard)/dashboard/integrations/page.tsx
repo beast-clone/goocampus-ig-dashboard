@@ -302,7 +302,7 @@ function CallStat({ n, label, primary, danger }: { n: number; label: string; pri
   return (
     <div className={`flex-1 rounded-lg px-2.5 py-1.5 ${primary ? "bg-brand/5" : "bg-gray-50"}`}>
       <div className={`text-[16px] font-semibold tabular-nums leading-none ${color}`}>{n.toLocaleString("en-IN")}</div>
-      <div className="text-[9.5px] uppercase tracking-wide text-gray-500 mt-1">{label}</div>
+      <div className="text-[12px] uppercase tracking-wide text-gray-500 mt-1">{label}</div>
     </div>
   );
 }

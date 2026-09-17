@@ -413,7 +413,7 @@ function Calendar() {
                       {cell.date.getDate()}
                     </div>
                     {cell.isToday && (
-                      <span className="text-[9px] uppercase tracking-[0.1em] font-semibold text-brand">Today</span>
+                      <span className="text-[12px] uppercase tracking-[0.1em] font-semibold text-brand">Today</span>
                     )}
                   </div>
                   <div className="space-y-1">

@@ -573,7 +573,7 @@ function FormatComparisonCard({ accountId, defaultRange }: { accountId: string; 
                       <span className="text-[15px] font-semibold text-gray-900">{meta.label}</span>
                     </div>
                     {isTopReach && (
-                      <span className="text-[9.5px] uppercase tracking-widest font-semibold" style={{ color: meta.color }}>
+                      <span className="text-[12px] uppercase tracking-widest font-semibold" style={{ color: meta.color }}>
                         Top reach
                       </span>
                     )}
@@ -689,7 +689,7 @@ function MiniStat({ n, l, hint }: { n: string; l: string; hint?: string }) {
   return (
     <div className="bg-white/70 rounded-lg px-3 py-2 border border-white" title={hint}>
       <div className="text-[17px] font-semibold tabular-nums leading-none text-gray-900">{n}</div>
-      <div className={`text-[9.5px] uppercase tracking-wide text-gray-500 mt-1 leading-tight whitespace-nowrap ${hint ? "cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2" : ""}`}>{l}</div>
+      <div className={`text-[12px] uppercase tracking-wide text-gray-500 mt-1 leading-tight whitespace-nowrap ${hint ? "cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2" : ""}`}>{l}</div>
     </div>
   );
 }
@@ -728,7 +728,7 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">▢</div>
                   )}
-                  <span className="absolute top-2 left-2 text-[9px] uppercase tracking-wide font-semibold bg-white/95 border border-gray-200 text-gray-800 rounded px-1.5 py-0.5">
+                  <span className="absolute top-2 left-2 text-[12px] uppercase tracking-wide font-semibold bg-white/95 border border-gray-200 text-gray-800 rounded px-1.5 py-0.5">
                     {meta.label}
                   </span>
                 </div>

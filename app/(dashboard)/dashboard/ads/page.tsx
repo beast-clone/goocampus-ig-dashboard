@@ -689,12 +689,12 @@ function InterestCard({
         </div>
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-baseline justify-between gap-2">
           <div>
-            <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">Spend</div>
+            <div className="text-[12px] uppercase tracking-wide text-gray-500 font-medium">Spend</div>
             <div className="text-base font-bold text-gray-900 tabular-nums">{fmtINR(spend)}</div>
           </div>
           {showLeads && (
             <div className="text-right">
-              <div className="text-[9px] uppercase tracking-wide text-gray-500 font-medium">
+              <div className="text-[12px] uppercase tracking-wide text-gray-500 font-medium">
                 {leads > 0 ? "Cost / Lead" : "Leads"}
               </div>
               <div className="text-base font-bold text-gray-900 tabular-nums">
