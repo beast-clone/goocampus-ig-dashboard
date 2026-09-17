@@ -2735,7 +2735,17 @@ type TaskDetail = {
   me?: string | null;
 };
 const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
-const fmtWhen = (iso?: string | null) => fmtDateTime(iso, "");
+// "Mon 17 Aug, 9:51 pm" — the year only when it is not the current one. The shared
+// fmtDateTime spells the weekday and month out in full, which is more than this
+// 240px column can hold.
+const fmtWhen = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const date = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+  return `${date}, ${d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+};
 // How long a task took (start → end), e.g. "2h 15m" or "3d 4h".
 function durationBetween(start?: string | null, end?: string | null): string {
   if (!start || !end) return "";
@@ -3090,7 +3100,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
 
   const detailRow = (label: string, value: React.ReactNode) => (
-    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
+    <div className="flex items-start justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
       <span className="text-[14px] text-[#8A92A6]">{label}</span>
       <span className="text-[14px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
     </div>
