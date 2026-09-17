@@ -596,6 +596,15 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const [prio, setPrio] = useState(task.detail.priority);
   const [due, setDue] = useState(task.due || "");
   const [contentEdit, setContentEdit] = useState(task.detail.content || ""); // the brief — editable even after approval
+  // Edit turns the fields themselves editable rather than opening a panel of its
+  // own. One field at a time, opened by the pencil that sits beside its label.
+  const [editField, setEditField] = useState<null | "owner" | "prio" | "due">(null);
+  const Pen = ({ field }: { field: "owner" | "prio" | "due" }) => (
+    <button type="button" className="fld-pen" title="Change this"
+      onClick={() => setEditField((f) => (f === field ? null : field))}>
+      <IconPencil size={12} stroke={1.9} />
+    </button>
+  );
   const saveEdit = async () => {
     setBusy(true);
     try {
@@ -678,34 +687,17 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       {(canEdit || canAssign || canDelete) && (
         <>
-          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
-            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
+          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap", marginTop: ".7rem", alignItems: "center" }}>
+            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> {editing ? "Done editing" : "Edit"}</button>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
           </div>
 
           {editing && (
-            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem" }}>
-              {/* Content is edited in place in the Content-brief section above; this panel
-                  handles priority + due date. Everything saves together on Save changes. */}
-              <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-                <div>
-                  <div className="mlbl">Priority</div>
-                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem", flexWrap: "wrap" }}>
-                    {Object.keys(PRIO).map((k) => (
-                      <button key={k} className="btn sm" onClick={() => setPrio(k as typeof prio)} style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="mlbl">Due date</div>
-                  <div style={{ marginTop: ".3rem" }}><DatePicker value={due} onChange={setDue} /></div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: ".4rem", marginTop: ".9rem" }}>
-                <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
-              </div>
+            <div style={{ display: "flex", gap: ".4rem", marginTop: ".5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
+              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
+              <span className="mlbl" style={{ textTransform: "none", letterSpacing: 0 }}>Use the pencils below to change a field.</span>
             </div>
           )}
 
@@ -737,7 +729,16 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
       <div className="meta-grid" style={{ marginTop: "1.1rem" }}>
         <div>
-          <div className="mlbl">Owner</div>
+          <div className="mlbl">Owner{editing && canAssign && <Pen field="owner" />}</div>
+          {editing && editField === "owner" && (
+            <div className="fld-edit">
+              {Object.entries(PPL).map(([key, pp]) => (
+                <button key={key} className="btn sm" disabled={busy} onClick={() => { reassign(key); setEditField(null); }}>
+                  <span className="av av-sm" style={{ background: pp.color, marginRight: ".35rem" }}>{pp.av}</span>{pp.name}
+                </button>
+              ))}
+            </div>
+          )}
           {ownerP ? (
             <div className="collab-cell">
               <Avatar p={ownerP} />
@@ -746,7 +747,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           ) : <div className="mval">{task.detail.owner}</div>}
         </div>
         <div>
-          <div className="mlbl">Collaborators</div>
+          <div className="mlbl">Collaborators{editing && addable.length > 0 && <span className="fld-hint" title="Use the + to add one">＋</span>}</div>
           <div className="collab-cell" style={{ position: "relative" }}>
             {collabs.map((c, i) => <Avatar key={i} p={c} />)}
             {collabs.length ? (
@@ -773,15 +774,27 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           </div>
         </div>
         <div>
-          <div className="mlbl">Priority</div>
-          <span className="pill" style={{ background: PRIO[task.detail.priority].bg, color: PRIO[task.detail.priority].fg }}>{task.detail.priority}</span>
+          <div className="mlbl">Priority{editing && <Pen field="prio" />}</div>
+          <span className="pill" style={{ background: PRIO[prio].bg, color: PRIO[prio].fg }}>{prio}</span>
+          {editing && editField === "prio" && (
+            <div className="fld-edit">
+              {Object.keys(PRIO).map((k) => (
+                <button key={k} className="btn sm" onClick={() => { setPrio(k as typeof prio); setEditField(null); }}
+                  style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Task clock — captured on create → done, so you can see how long it took */}
       <div className="meta-grid">
         <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
-        <div><div className="mlbl">Published Date</div><div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div></div>
+        <div>
+          <div className="mlbl">Published Date{editing && <Pen field="due" />}</div>
+          <div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div>
+          {editing && editField === "due" && <div className="fld-edit"><DatePicker value={due} onChange={(v) => setDue(v)} /></div>}
+        </div>
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
       </div>
 
@@ -3322,7 +3335,7 @@ const CSS = `
 .hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:12px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:12px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
-.hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:.75rem;margin-top:.6rem;align-items:start}
+.hmd .work{display:grid;grid-template-columns:minmax(300px,.72fr) 2fr;gap:.75rem;margin-top:.6rem;align-items:start}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
 /* The task-detail card scrolls INSIDE itself so a long brief/creatives list can
    never push the page into a mile of whitespace — My tasks stays visible. */
@@ -3488,6 +3501,10 @@ const CSS = `
 .hmd .thumb-add-lbl{font-size:12px;font-weight:600}
 .hmd .upload-drop{display:flex;align-items:center;gap:.7rem;border:1px dashed #C7CEDD;border-radius:4px;padding:.55rem .75rem;cursor:pointer;background:var(--panel-2);transition:border-color .12s}
 .hmd .upload-drop:hover{border-color:var(--brand)}
+.hmd .fld-pen{margin-left:.35rem;border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:1px 3px;cursor:pointer;color:var(--muted);vertical-align:middle;line-height:0}
+.hmd .fld-pen:hover{border-color:var(--brand);color:var(--brand)}
+.hmd .fld-hint{margin-left:.3rem;color:var(--brand);font-weight:700}
+.hmd .fld-edit{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;padding:.4rem;border:1px solid var(--line);border-radius:4px;background:var(--panel-2)}
 .hmd .upload-ic{font-size:1rem;color:var(--muted)}
 .hmd .upload-drop b{color:var(--ink);font-size:14px}
 .hmd .upload-sub{display:block;font-size:12px;color:var(--muted);margin-top:.15rem}
