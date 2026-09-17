@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconBulb, IconX, IconCheck } from "@tabler/icons-react";
+import { IconBulb, IconX, IconCheck, IconChevronDown } from "@tabler/icons-react";
 
 type Intro = { title: string; body: string; points?: string[] };
 type State = { seen: string[]; always: boolean; intro: Intro | null };
@@ -17,6 +17,7 @@ type State = { seen: string[]; always: boolean; intro: Intro | null };
 export function TabIntro({ tab }: { tab: string }) {
   const [state, setState] = useState<State | null>(null);
   const [closing, setClosing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,23 +53,33 @@ export function TabIntro({ tab }: { tab: string }) {
 
   const { intro } = state;
   return (
-    <div className="relative rounded-2xl border border-brand/20 bg-brand-light px-4 py-3 mb-3">
-      <button
-        onClick={dismiss}
-        aria-label="Close"
-        className="absolute top-3 right-3 text-brand/50 hover:text-brand rounded-lg p-1 hover:bg-white/60"
-      >
-        <IconX size={16} stroke={2} />
-      </button>
-
-      <div className="flex items-start gap-2.5 pr-8">
-        <span className="w-7 h-7 rounded-lg bg-brand text-white grid place-items-center shrink-0">
-          <IconBulb size={15} stroke={1.8} />
+    <div className="relative rounded-2xl border border-brand/20 bg-brand-light px-3.5 py-2.5 mb-4">
+      <div className="flex items-center gap-2.5">
+        <span className="w-6 h-6 rounded-lg bg-brand text-white grid place-items-center shrink-0">
+          <IconBulb size={14} stroke={1.8} />
         </span>
-        <div className="min-w-0">
-          <h2 className="text-[14px] font-medium text-[#232D42]">{intro.title}</h2>
-          <p className="text-[12.5px] leading-snug text-[#2138B0] mt-0.5 max-w-[95ch]">{intro.body}</p>
+        <h2 className="text-[13px] font-medium text-[#232D42] shrink-0">{intro.title}</h2>
+        <p className="text-[12.5px] text-[#2138B0] truncate min-w-0 flex-1">{intro.body}</p>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className="shrink-0 inline-flex items-center gap-1 text-[12px] font-medium text-brand rounded-lg px-2 py-1 hover:bg-white/60"
+        >
+          {expanded ? "Less" : "More"}
+          <IconChevronDown size={13} stroke={2.2} className={expanded ? "rotate-180" : ""} />
+        </button>
+        <button
+          onClick={dismiss}
+          aria-label="Close"
+          className="shrink-0 text-brand/50 hover:text-brand rounded-lg p-1 hover:bg-white/60"
+        >
+          <IconX size={15} stroke={2} />
+        </button>
+      </div>
 
+      {expanded && (
+        <div className="pl-[34px] pt-2">
+          <p className="text-[12.5px] leading-snug text-[#2138B0]">{intro.body}</p>
           {intro.points && intro.points.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {intro.points.map((p) => (
@@ -79,7 +90,6 @@ export function TabIntro({ tab }: { tab: string }) {
               ))}
             </ul>
           )}
-
           <div className="flex items-center gap-4 mt-2.5 flex-wrap">
             <button
               onClick={dismiss}
@@ -98,7 +108,7 @@ export function TabIntro({ tab }: { tab: string }) {
             </label>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

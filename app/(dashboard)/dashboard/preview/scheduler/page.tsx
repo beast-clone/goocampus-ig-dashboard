@@ -4,7 +4,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
@@ -159,22 +159,24 @@ function SchedulerTabs() {
   // Same segmented control as the To schedule / Calendar / Top performers row
   // below it. Two switches doing the same job in two different shapes and two
   // different sizes read as an accident, because that is what it was.
+  const networkSwitch = (
+    <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
+      {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin]] as const).map(([id, label, Icon]) => (
+        <button key={id} onClick={() => setTab(id)}
+          className={`inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === id ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+          <Icon size={15} /> {label}
+        </button>
+      ))}
+    </div>
+  );
   return (
     <div>
-      <div className="mb-4 inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-        {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin]] as const).map(([id, label, Icon]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === id ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
-            <Icon size={15} /> {label}
-          </button>
-        ))}
-      </div>
-      {tab === "meta" ? <Scheduler /> : <LinkedInScheduler />}
+      {tab === "meta" ? <Scheduler networkSwitch={networkSwitch} /> : <LinkedInScheduler networkSwitch={networkSwitch} />}
     </div>
   );
 }
 
-function Scheduler() {
+function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   // Form state
   const [particulars, setParticulars] = useState("");
   const [publishToPage, setPublishToPage] = useState<PublishToPage>("GooCampus Main");
@@ -323,6 +325,7 @@ function Scheduler() {
   const openTaskRef = useRef<string | null>(null); // guards the async caption fetch against fast task switches
   // Which network the live preview mocks. IG/FB share the handle; LinkedIn uses the page name.
   const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>("instagram");
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("mobile");
   // A scheduled/published post opened in the big full-screen view popup.
   const [calItem, setCalItem] = useState<CalendarItem | null>(null);
   // Open the manual composer pre-filled from an Output-Ready task.
@@ -866,8 +869,10 @@ function Scheduler() {
     // scheduler-dense: the density rules live in globals.css, scoped to this tab.
     // Meta's Create-reel composer fits one screen; ours needed 1.85 of them.
     <div className="scheduler-dense">
-      {/* Tab toggle — Output-Ready content to schedule vs the manual composer + queue */}
-      <div className="mb-4 inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
+      {/* Views on the left, network on the right — one line, and the network sits
+          directly above the Create post button it belongs to. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+      <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
         <button
           onClick={() => setSchedTab("to_schedule")}
           className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "to_schedule" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
@@ -887,11 +892,13 @@ function Scheduler() {
           Top performers
         </button>
       </div>
+        {networkSwitch}
+      </div>
 
       {schedTab === "to_schedule" && (
         <div>
           {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
             <div>
               <div className="text-base font-medium text-[#232D42]">{
                 listFilter === "ready" ? "Ready to schedule"
@@ -915,7 +922,7 @@ function Scheduler() {
               published/failed in one pass, so nothing ever sits in an intermediate state.
               A scheduled post the worker never picks up auto-flips to Failed (see
               deriveSupabaseStatus), so nothing is ever silently missed. */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <StatusCounter label="Ready to schedule" count={toScheduleTotal} color="amber" active={listFilter === "ready"} onClick={() => setListFilter("ready")} />
             <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" active={listFilter === "scheduled"} onClick={() => setListFilter("scheduled")} />
             <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" active={listFilter === "published"} onClick={() => setListFilter("published")} />
@@ -1037,19 +1044,10 @@ function Scheduler() {
                   {/* RIGHT — sticky live preview with an Instagram / Facebook / LinkedIn switcher */}
                   <div className="lg:col-span-5">
                     <div className="sticky top-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
-                        <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
-                          {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
-                            <button key={p} onClick={() => setPreviewPlatform(p)}
-                              className={`text-xs font-medium px-2.5 py-1 rounded capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform}
+                        device={previewDevice} onDevice={setPreviewDevice} />
                       {selectedTaskId ? (
-                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} />
+                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
                       ) : (
                         <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400 max-w-sm mx-auto">Select a post on the left to preview it here.</div>
                       )}
@@ -1570,18 +1568,9 @@ function Scheduler() {
         {/* RIGHT — live preview with an Instagram / Facebook / LinkedIn switcher */}
         <div className="flex-1 min-w-0">
           <div className="sticky top-0">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs uppercase tracking-wide text-gray-500 font-medium">Feed preview</div>
-              <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
-                {(["instagram", "facebook", "linkedin"] as PreviewPlatform[]).map((p) => (
-                  <button key={p} type="button" onClick={() => setPreviewPlatform(p)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded capitalize transition ${previewPlatform === p ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} />
+            <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform}
+              device={previewDevice} onDevice={setPreviewDevice} />
+            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
             {/* Meta runs this while a reel processes in their own composer, under the
                 preview. Same place here — it is what you are looking at anyway, and
                 the column had dead space below the phone. */}
@@ -3221,10 +3210,69 @@ function LinkedInLogo({ size = 34 }: { size?: number }) {
 // Live post preview, mocked per network. IG = square + handle; FB = text-above-media
 // feed post; LinkedIn = professional post with a reaction bar. Caption binds live.
 type PreviewPlatform = "instagram" | "facebook" | "linkedin";
-function SocialPreview({ platform, handle, name, images, caption }: {
-  platform: PreviewPlatform; handle: string; name: string; images: string[]; caption: string;
+type PreviewDevice = "mobile" | "tablet";
+const PREVIEW_SURFACES: { value: PreviewPlatform; label: string }[] = [
+  { value: "instagram", label: "Instagram feed" },
+  { value: "facebook", label: "Facebook feed" },
+  { value: "linkedin", label: "LinkedIn feed" },
+];
+// Meta names the surface it is showing you — "Facebook Feed preview" — in a
+// dropdown, with the device it is drawn at beside it. Three capitalised brand names
+// in a segmented control said neither.
+function PreviewHeader({ platform, onPlatform, device, onDevice }: {
+  platform: PreviewPlatform; onPlatform: (p: PreviewPlatform) => void;
+  device: PreviewDevice; onDevice: (d: PreviewDevice) => void;
 }) {
-  const shell = "bg-white rounded-2xl border border-gray-100 overflow-hidden max-w-sm mx-auto";
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const current = PREVIEW_SURFACES.find((s) => s.value === platform) || PREVIEW_SURFACES[0];
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div ref={wrap} className="relative">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+          className="inline-flex items-center gap-2 h-9 rounded border border-gray-200 bg-white px-3 text-[14px] text-[#232D42] hover:border-gray-300">
+          {current.label} preview
+          <IconChevronDown size={15} stroke={2} className={`text-[#8A92A6] transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
+            className="absolute left-0 top-[calc(100%+4px)] z-30 min-w-[180px] bg-white border border-gray-200 rounded overflow-hidden">
+            {PREVIEW_SURFACES.map((s) => (
+              <button key={s.value} type="button" onClick={() => { onPlatform(s.value); setOpen(false); }}
+                className={`block w-full text-left px-3 py-2 text-[13px] ${platform === s.value ? "bg-brand-light text-brand font-medium" : "text-[#232D42] hover:bg-[#F6F7FB]"}`}>
+                {s.label} preview
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="inline-flex bg-white border border-gray-200 rounded p-0.5">
+        {([["mobile", IconDeviceMobile], ["tablet", IconDeviceTablet]] as const).map(([d, Icon]) => (
+          <button key={d} type="button" onClick={() => onDevice(d)} title={`${d[0].toUpperCase()}${d.slice(1)} view`}
+            aria-label={`${d} view`} aria-pressed={device === d}
+            className={`px-2.5 py-1.5 rounded transition ${device === d ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
+            <Icon size={16} stroke={1.8} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SocialPreview({ platform, handle, name, images, caption, device = "mobile" }: {
+  platform: PreviewPlatform; handle: string; name: string; images: string[]; caption: string;
+  /** Feed width to render at — the same two Meta offers beside their preview. */
+  device?: PreviewDevice;
+}) {
+  // A phone feed and a tablet feed wrap a caption differently and crop nothing
+  // the same way, which is the only reason to offer the choice at all.
+  const shell = `bg-white rounded-2xl border border-gray-100 overflow-hidden mx-auto ${device === "tablet" ? "max-w-[480px]" : "max-w-sm"}`;
   const capNode = caption
     ? <span className="whitespace-pre-wrap">{caption.length > 220 ? caption.slice(0, 220) + "… more" : caption}</span>
     : <span className="text-gray-400 italic">Your caption will appear here</span>;
@@ -3278,7 +3326,7 @@ function SocialPreview({ platform, handle, name, images, caption }: {
       <div className={shell}>
         <div className="flex items-center gap-2 px-3 py-2.5">
           <FacebookLogo size={34} />
-          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6] inline-flex items-center gap-1">Sponsored · <IconWorld size={11} /></div></div>
+          <div className="leading-tight"><div className="text-sm font-semibold text-[#232D42]">{name}</div><div className="text-xs text-[#8A92A6] inline-flex items-center gap-1">Just now · <IconWorld size={11} /></div></div>
           <div className="ml-auto text-gray-400">⋯</div>
         </div>
         <div className="px-3 pb-2 text-xs text-[#232D42]">{capNode}</div>

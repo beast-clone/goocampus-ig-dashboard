@@ -28,7 +28,7 @@ const fmt = (iso: string) => {
   catch { return iso; }
 };
 
-export function LinkedInScheduler() {
+export function LinkedInScheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [pages, setPages] = useState<string[]>(["goocampus"]);
@@ -93,7 +93,11 @@ export function LinkedInScheduler() {
   };
 
   return (
-    <div className="preview-scope grid grid-cols-1 lg:grid-cols-5 gap-5">
+    <div className="preview-scope">
+      {/* The network switch lives on the tab row now, so this side renders it too —
+          crossing over must not lose the way back. */}
+      {networkSwitch && <div className="flex justify-end mb-5">{networkSwitch}</div>}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
       {/* Composer */}
       <div className="lg:col-span-3 bg-white border border-gray-100 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
@@ -161,6 +165,7 @@ export function LinkedInScheduler() {
       </div>
 
       {gate && <MissingFieldsModal gate="schedule" missing={gate} onClose={() => setGate(null)} />}
+      </div>
     </div>
   );
 }
