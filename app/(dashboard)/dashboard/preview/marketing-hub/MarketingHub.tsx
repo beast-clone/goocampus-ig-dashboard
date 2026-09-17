@@ -2822,7 +2822,7 @@ function Panel({ icon: Ic, title, right, accent, children }: {
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
       <div className={`flex items-center gap-2 px-3 py-1 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
         {Ic && <Ic size={17} stroke={1.8} className="text-brand" />}
-        <span className="text-[14px] font-medium text-[#232D42]">{title}</span>
+        <span className="text-[16px] font-semibold text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
       <div className="p-2.5">{children}</div>
@@ -3073,7 +3073,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const editBox = (rows: number, placeholder: string) => (
     <div className="space-y-2">
       <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={rows} autoFocus placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg p-2.5 text-[15px] leading-relaxed font-normal focus:outline-none focus:ring-1 focus:ring-brand" />
+        className="w-full border border-gray-200 rounded-lg p-2.5 text-[14px] leading-relaxed font-normal focus:outline-none focus:ring-1 focus:ring-brand" />
       <div className="flex items-center gap-2">
         <button onClick={saveEdit} disabled={savingEdit} className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 disabled:opacity-60">{savingEdit ? "Saving…" : "Save"}</button>
         <button onClick={() => setEditSection(null)} className="text-[12px] text-gray-500 hover:text-gray-800 px-2">Cancel</button>
@@ -3115,7 +3115,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-[18px] font-semibold text-[#232D42] leading-tight tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="text-[20px] font-semibold text-[#232D42] leading-[26px] tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
@@ -3235,20 +3235,20 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
                 {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <div className="text-[15px] leading-relaxed prose prose-sm max-w-none text-gray-800 [&_*]:text-[15px] [&_*]:leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />
-                  : loadingDetail ? <div className="text-[15px] text-gray-400">Loading content…</div>
-                  : <div className="text-[15px] text-gray-400 italic">No content written yet.</div>}
+                  : content ? <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-gray-800 [&_*]:text-[14px] [&_*]:leading-[22px]" dangerouslySetInnerHTML={{ __html: content }} />
+                  : loadingDetail ? <div className="text-[14px] text-gray-400">Loading content…</div>
+                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
               </Panel>
 
               <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
                 {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-gray-800">{caption}</div>
-                  : <div className="text-[15px] text-gray-400 italic">No caption yet.</div>}
+                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-gray-800">{caption}</div>
+                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
               </Panel>
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
-                  <div className="text-[15px] prose prose-sm max-w-none [&_*]:text-[15px]" dangerouslySetInnerHTML={{ __html: notes }} />
+                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: notes }} />
                 </Panel>
               )}
 
