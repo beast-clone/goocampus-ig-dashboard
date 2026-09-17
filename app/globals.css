@@ -242,3 +242,11 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
    the content to a column makes the same elements read larger, because they stop
    being adrift. Nothing was resized to achieve it. */
 body.sched-dense .preview-scope { max-width: 1440px; margin-inline: auto; }
+
+/* Meta sets the composer's headings at 700 and it is the one measurement ours
+   still missed. This is a deliberate exception to the brand book, which allows 400
+   and 500 only — asked for explicitly, and scoped to the Scheduler so nothing else
+   in the dashboard picks it up.
+
+   Needs the class rather than .font-bold: .preview-scope pins .font-bold to 600. */
+body.sched-dense .preview-scope .sched-heading { font-weight: 700 !important; }

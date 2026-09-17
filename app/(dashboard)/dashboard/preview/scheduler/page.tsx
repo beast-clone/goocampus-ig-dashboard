@@ -900,7 +900,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
           {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
           <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
             <div>
-              <div className="text-base font-medium text-[#232D42]">{
+              <div className="sched-heading text-base text-[#232D42]">{
                 listFilter === "ready" ? "Ready to schedule"
                 : listFilter === "scheduled" ? "Scheduled"
                 : listFilter === "published" ? "Published" : "Failed"
@@ -1342,7 +1342,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
           <div className="min-h-screen py-6 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4 flex flex-col max-h-[calc(100vh-48px)]">
               <div className="flex items-center justify-between mb-4">
-                <div className="text-[20px] leading-6 font-medium text-[#232D42]">Create post</div>
+                <div className="sched-heading text-[20px] leading-6 text-[#232D42]">Create post</div>
                 <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
               </div>
 
@@ -3371,7 +3371,7 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded border border-gray-100 p-4">
-      <div className="text-base leading-5 font-medium text-[#232D42]">{title}</div>
+      <div className="sched-heading text-base leading-5 text-[#232D42]">{title}</div>
       {subtitle && <div className="text-xs text-gray-500 mt-1 mb-2.5">{subtitle}</div>}
       {!subtitle && <div className="mt-2.5" />}
       {children}
