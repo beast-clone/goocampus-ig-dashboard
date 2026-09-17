@@ -3115,7 +3115,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-[20px] font-semibold text-[#232D42] leading-[26px] tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="text-[30px] font-semibold text-[#232D42] leading-[36px] tracking-[-0.02em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
