@@ -2820,12 +2820,12 @@ function Panel({ icon: Ic, title, right, accent, children }: {
 }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
+      <div className={`flex items-center gap-2 px-3 py-1 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
         {Ic && <Ic size={17} stroke={1.8} className="text-brand" />}
         <span className="text-[14px] font-medium text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
-      <div className="p-3">{children}</div>
+      <div className="p-2.5">{children}</div>
     </div>
   );
 }
@@ -3100,7 +3100,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
 
   const detailRow = (label: string, value: React.ReactNode) => (
-    <div className="flex items-start justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
+    <div className="flex items-start justify-between gap-3 py-1 border-b border-gray-50 last:border-0">
       <span className="text-[14px] text-[#8A92A6]">{label}</span>
       <span className="text-[14px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
     </div>
@@ -3111,7 +3111,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Themed hero band: brand-tinted, large title */}
-        <div className="relative flex items-start justify-between gap-4 px-5 py-3.5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
+        <div className="relative flex items-start justify-between gap-4 px-4 py-2.5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
           <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
@@ -3135,9 +3135,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         {/* Body — light canvas so the white cards read as real sections.
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
-        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-5">
-          <div className="grid md:grid-cols-5 gap-5 items-start">
-            <div className="md:col-span-3 space-y-4">
+        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-3">
+          <div className="grid md:grid-cols-5 gap-3 items-start">
+            <div className="md:col-span-3 space-y-2.5">
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -3176,7 +3176,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </div>
                 ) : (
                   <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
-                    className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2.5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
+                    className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
                     <IconCloudUpload size={18} className="text-brand mb-0.5" stroke={1.6} />
                     <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
                     <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop or click to browse</div>
@@ -3254,7 +3254,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
             </div>
 
-            <div className="md:col-span-2 space-y-4">
+            <div className="md:col-span-2 space-y-2.5">
               <Panel title="Details">
                 {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
