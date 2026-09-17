@@ -2819,15 +2819,16 @@ function Panel({ icon: Ic, title, right, accent, children }: {
   icon?: typeof IconPhoto; title: string; right?: React.ReactNode; accent?: boolean; children: React.ReactNode;
 }) {
   return (
-    <div>
-      {/* Airtable puts the field name above the value, small and grey, and lets
-          the bordered box carry the structure instead of a loud heading. */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        {Ic && <Ic size={14} stroke={1.8} className="text-[#8A92A6]" />}
-        <span className="text-[12px] text-[#6B7280]">{title}</span>
-        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+    <div className="flex items-start py-2">
+      {/* Airtable's field row: 16px icon, 13px label in a 174px column, value beside it. */}
+      <div className="w-[174px] flex-shrink-0 flex items-center gap-1.5 pt-[3px] pl-2">
+        {Ic && <Ic size={16} stroke={1.6} className="text-[#616670] flex-shrink-0" />}
+        <span className="text-[13px] text-[#565A62] truncate">{title}</span>
       </div>
-      <div className={`bg-white border rounded-md p-3 ${accent ? "border-brand/30" : "border-gray-200"}`}>{children}</div>
+      <div className={`flex-1 min-w-0 ${accent ? "" : ""}`}>
+        {right && <div className="float-right ml-2 flex items-center gap-2">{right}</div>}
+        {children}
+      </div>
     </div>
   );
 }
@@ -3102,22 +3103,22 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
 
   const detailRow = (label: string, value: React.ReactNode) => (
-    <div className="flex items-start justify-between gap-3 py-1 border-b border-gray-50 last:border-0">
-      <span className="text-[14px] text-[#8A92A6]">{label}</span>
-      <span className="text-[14px] text-[#232D42] text-right min-w-0">{value || <span className="text-gray-300">—</span>}</span>
+    <div className="flex items-start py-2">
+      <span className="w-[174px] flex-shrink-0 text-[13px] text-[#565A62] pl-[30px] pt-[3px]">{label}</span>
+      <span className="flex-1 min-w-0 text-[13px] text-[#1D1F25]">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 
   return (
     <>
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] h-[829px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Themed hero band: brand-tinted, large title */}
-        <div className="relative flex items-start justify-between gap-4 pt-6 pr-7 pb-5 pl-6 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
-          <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
+        <div className="relative flex items-start justify-between gap-4 pt-5 pr-5 pb-3 pl-[66px] border-b border-gray-100 flex-shrink-0 bg-white">
+          
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="hub-modal-title text-[24px] text-[#232D42] leading-[32px] tracking-[-0.015em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="hub-modal-title">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
@@ -3137,9 +3138,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         {/* Body — light canvas so the white cards read as real sections.
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
-        <div className="flex-1 overflow-auto bg-white p-5">
-          <div className="grid md:grid-cols-5 gap-3 items-start">
-            <div className="md:col-span-3 space-y-4">
+        <div className="flex-1 flex min-h-0 bg-white">
+          <div className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4">
+            <div>
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -3256,8 +3257,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
             </div>
 
-            <div className="md:col-span-2 space-y-2.5">
-              <Panel title="Details">
                 {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
                 {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
@@ -3278,7 +3277,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {row.startAt && row.endAt && detailRow("Time taken", durationBetween(row.startAt, row.endAt))}
                 {detailRow("Created", row.createdDate ? fmtWhen(row.createdDate) : null)}
                 {detailRow("Last modified", row.lastModified ? fmtWhen(row.lastModified) : null)}
-              </Panel>
 
               {collaborators && (
                 <Panel icon={IconUsers} title="Collaborators">
@@ -3300,9 +3298,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {urlRow("facebook_url", "Facebook", fbUrl, IconBrandFacebook)}
                 {urlRow("linkedin_url", "LinkedIn", liUrl, IconBrandLinkedin)}
               </Panel>
+          </div>
+          <div className="w-[287px] flex-shrink-0 border-l border-gray-100 overflow-auto px-2 py-4">
 
               {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
-              <Panel icon={IconHistory} title="Activity" right={
+              {/* Airtable's right-hand pane: the filter sits alone at the top, the
+                  feed runs full width beneath it, the comment box closes it off. */}
+              <div>
+                <div className="flex items-center mb-3 px-1">
                 <div className="relative">
                   <button ref={feedFilterBtnRef} onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
                     {feedFilter === "all" ? "All activity" : feedFilter === "revisions" ? "Revision history" : "Comments"}
@@ -3318,7 +3321,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     </div>
                   </PortalMenu>
                 </div>
-              }>
+                </div>
                 {loadingDetail ? <LoadingBlock className="!py-6" size={28} />
                   : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
                   : (
@@ -3390,12 +3393,11 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     </div>
                   </div>
                 </div>
-              </Panel>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     {lightbox && lightbox.items[lightbox.index] && (
       <CreativeViewer creatives={lightbox.items} index={lightbox.index} setIndex={(n) => setLightbox((l) => l ? { items: l.items, index: n } : null)} onClose={() => setLightbox(null)} />
     )}
