@@ -9,7 +9,12 @@ import { CalendarTabs } from "./CalendarTabs";
 export default function PreviewCalendarPage() {
   return (
     <PreviewShell active="calendar" title="Publishing Calendar" hideTopbar>
-      <CalendarTabs />
+      {/* This page was never wrapped, so none of the reskin reached it — no type
+          scale, no 4px corners, no 34px fields, no 1440px column, no card
+          padding. Every other tab wraps itself the same way. */}
+      <div className="preview-scope">
+        <CalendarTabs />
+      </div>
     </PreviewShell>
   );
 }

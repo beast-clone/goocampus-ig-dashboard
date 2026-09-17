@@ -138,11 +138,21 @@ export function Planner() {
     }));
   }, [data, tab, pubOverride, planOverride]);
 
-  // Default the calendar to the month of the earliest card.
+  // Open on the month you are actually planning — this one.
+  //
+  // It used to open on the month of the EARLIEST card, so a single stale post
+  // dragged the whole view back with it: one card left on 28 Jul had the planner
+  // opening on July in the middle of September, a month of empty cells with one
+  // post in the corner, which read as a broken calendar rather than an old one.
+  //
+  // The earliest card is still the fallback, for when everything planned is in
+  // the past — better to land on the work than on an empty current month.
   useEffect(() => {
     if (view || cards.length === 0) return;
-    const earliest = cards.map((c) => new Date(c.eff).getTime()).sort((a, b) => a - b)[0];
-    const d = new Date(earliest);
+    const now = new Date();
+    const times = cards.map((c) => new Date(c.eff).getTime()).sort((a, b) => a - b);
+    const hasUpcoming = times.some((t) => t >= startOfDay(now));
+    const d = hasUpcoming ? now : new Date(times[0]);
     setView({ y: d.getFullYear(), m: d.getMonth() });
   }, [cards, view]);
 
