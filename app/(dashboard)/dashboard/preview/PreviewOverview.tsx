@@ -372,7 +372,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
           </div>
         </header>
 
-        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 22, maxWidth: 1320, margin: "0 auto" }}>
+        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 22, margin: "0 auto" }}>
           {/* Platform toggle + date-range filter — the filter drives every tab */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
             <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: 6, display: "inline-flex", gap: 4 }}>

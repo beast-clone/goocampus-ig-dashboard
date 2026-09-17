@@ -43,8 +43,8 @@ export function HeaderProfile() {
       >
         <span style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#3A57E8,#079AA2)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 600, fontSize: 14 }}>{initials}</span>
         <div style={{ lineHeight: 1.2, textAlign: "left" }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: "#232D42" }}>{name}</div>
-          <div style={{ fontSize: 11.5, color: "#8A92A6" }}>{role}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#232D42" }}>{name}</div>
+          <div style={{ fontSize: 12, color: "#8A92A6" }}>{role}</div>
         </div>
         <IconChevronDown size={15} stroke={1.8} style={{ color: "#8A92A6", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
       </button>
@@ -52,13 +52,13 @@ export function HeaderProfile() {
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", background: "#fff", border: "1px solid #EEF0F4", borderRadius: 12, minWidth: 190, padding: 6, boxShadow: "0 10px 30px rgba(35,45,66,0.12)", zIndex: 30 }}>
           <div style={{ padding: "8px 10px", borderBottom: "1px solid #F3F5F9", marginBottom: 4 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#232D42" }}>{name}</div>
-            <div style={{ fontSize: 11.5, color: "#8A92A6" }}>{role}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#232D42" }}>{name}</div>
+            <div style={{ fontSize: 12, color: "#8A92A6" }}>{role}</div>
           </div>
           <Link
             href="/dashboard/preview/account"
             onClick={() => setOpen(false)}
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, fontSize: 13, color: "#232D42", textDecoration: "none" }}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, fontSize: 14, color: "#232D42", textDecoration: "none" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#F6F7FB")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
           >
@@ -67,7 +67,7 @@ export function HeaderProfile() {
           <form action="/api/logout" method="post">
             <button
               type="submit"
-              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "#C03221", textAlign: "left" }}
+              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, color: "#C03221", textAlign: "left" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#FCE8EC")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
