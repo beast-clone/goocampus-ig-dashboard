@@ -671,7 +671,7 @@ function HeroBanner({ eyebrow, person = "", children }: { eyebrow: string; perso
             and the browser (local time) can differ near an hour boundary. The name
             is deterministic; only the greeting word may differ, and it self-corrects
             on the first client re-render. */}
-        <h1 suppressHydrationWarning style={{ fontSize: 32, fontWeight: 500, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, {person || "GooCampus"} 👋</h1>
+        <h1 suppressHydrationWarning className="preview-hero-h1" style={{ fontSize: 32, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, {person || "GooCampus"} 👋</h1>
         <p style={{ fontSize: 16, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
       </div>
     </section>
