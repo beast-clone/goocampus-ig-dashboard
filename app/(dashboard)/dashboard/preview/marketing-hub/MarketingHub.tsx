@@ -2820,12 +2820,12 @@ function Panel({ icon: Ic, title, right, accent, children }: {
 }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
+      <div className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
         {Ic && <Ic size={17} stroke={1.8} className="text-brand" />}
         <span className="text-[14px] font-medium text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   );
 }
@@ -3111,11 +3111,11 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Themed hero band: brand-tinted, large title */}
-        <div className="relative flex items-start justify-between gap-4 px-7 py-6 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
-          <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
+        <div className="relative flex items-start justify-between gap-4 px-5 py-3.5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
+          <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-[22px] font-semibold text-[#232D42] leading-tight tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="text-[18px] font-semibold text-[#232D42] leading-tight tracking-[-0.01em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
@@ -3123,7 +3123,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               )}
               {row.needsReview && <span className="text-[11px] font-medium bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">Needs review</span>}
             </div>
-            <div className="flex items-center gap-2 mt-2 text-[13px] text-[#8A92A6] flex-wrap">
+            <div className="flex items-center gap-2 mt-1 text-[13px] text-[#8A92A6] flex-wrap">
               <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(row.sbu, []) }} />{row.sbu || "—"}</span>
               <span className="text-gray-300">·</span><span>{row.type || "—"}</span>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
@@ -3176,8 +3176,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </div>
                 ) : (
                   <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
-                    className="border-2 border-dashed border-brand/30 bg-brand-light/40 rounded-xl py-5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
-                    <IconCloudUpload size={24} className="text-brand mb-1.5" stroke={1.6} />
+                    className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2.5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
+                    <IconCloudUpload size={18} className="text-brand mb-0.5" stroke={1.6} />
                     <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
                     <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop or click to browse</div>
                   </div>
