@@ -2819,13 +2819,15 @@ function Panel({ icon: Ic, title, right, accent, children }: {
   icon?: typeof IconPhoto; title: string; right?: React.ReactNode; accent?: boolean; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
-        {Ic && <Ic size={16} stroke={1.8} className="text-brand" />}
-        <span className="text-[16px] font-semibold text-[#232D42]">{title}</span>
+    <div>
+      {/* Airtable puts the field name above the value, small and grey, and lets
+          the bordered box carry the structure instead of a loud heading. */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        {Ic && <Ic size={14} stroke={1.8} className="text-[#8A92A6]" />}
+        <span className="text-[12px] text-[#6B7280]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
-      <div className="p-4">{children}</div>
+      <div className={`bg-white border rounded-md p-3 ${accent ? "border-brand/30" : "border-gray-200"}`}>{children}</div>
     </div>
   );
 }
@@ -3115,7 +3117,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-[24px] font-semibold text-[#232D42] leading-[32px] tracking-[-0.015em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="hub-modal-title text-[24px] text-[#232D42] leading-[32px] tracking-[-0.015em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
@@ -3135,9 +3137,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         {/* Body — light canvas so the white cards read as real sections.
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
-        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-4">
+        <div className="flex-1 overflow-auto bg-white p-5">
           <div className="grid md:grid-cols-5 gap-3 items-start">
-            <div className="md:col-span-3 space-y-2.5">
+            <div className="md:col-span-3 space-y-4">
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>

@@ -50,6 +50,11 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 /* Exception: the blue hero-band title matches the Publishing Calendar — bold + white
    (higher specificity than the rule above, so it wins over the 500 !important). */
 .preview-scope .preview-hero-h1 { font-weight: 700 !important; color: #fff !important; }
+/* Airtable's expanded record sets its record title at 23px weight 400 — the
+   size carries the hierarchy, not the weight, and its field labels stay small
+   and grey underneath. The h1-h6 rule above would force 700 and undo that, so
+   the Marketing Hub task modal opts out by name. */
+.preview-scope h2.hub-modal-title { font-weight: 400 !important; }
 /* Emphasis weight tops out at semibold (600) in this theme — never 700 "bold".
    Catches the KPI-number `font-bold` drift on div-based content app-wide. */
 .preview-scope .font-bold, .preview-scope .font-black { font-weight: 600 !important; }
