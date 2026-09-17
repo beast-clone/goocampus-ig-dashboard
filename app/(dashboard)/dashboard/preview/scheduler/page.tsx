@@ -149,14 +149,6 @@ export default function SchedulerPage() {
 function SchedulerTabs() {
   const [tab, setTab] = useState<"meta" | "linkedin">("meta");
 
-  // The scale is a zoom on the shell's .preview-scope, which is above this
-  // component, so it is switched on from here by class and taken off on the way
-  // out. Nothing else in the dashboard is touched.
-  useEffect(() => {
-    document.body.classList.add("sched-dense");
-    return () => document.body.classList.remove("sched-dense");
-  }, []);
-
   // Same segmented control as the To schedule / Calendar / Top performers row
   // below it. Two switches doing the same job in two different shapes and two
   // different sizes read as an accident, because that is what it was.
@@ -892,9 +884,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   }
 
   return (
-    // scheduler-dense: the density rules live in globals.css, scoped to this tab.
-    // Meta's Create-reel composer fits one screen; ours needed 1.85 of them.
-    <div className="scheduler-dense">
+    <div>
       {/* The three views are sidebar entries under Scheduler now, so the only thing
           left on this row is the network, still directly above Create post. */}
       <div className="flex items-center justify-end mb-5">

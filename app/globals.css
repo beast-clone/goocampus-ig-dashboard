@@ -136,7 +136,7 @@ html { scrollbar-gutter: stable; }
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
-   SCHEDULER DENSITY
+   DASHBOARD DENSITY
    Measured against Meta's own composer, side by side on the same monitor: Meta
    fits its whole form in 803px, one screen. Ours needed 1715px.
 
@@ -150,30 +150,30 @@ html { scrollbar-gutter: stable; }
    <body>, outside .preview-scope entirely, and twenty-three more use fixed inset-0.
    At the root they all just work.
 
-   Gated on the body class the Scheduler sets on mount, so only that tab scales.
-   Living with it there first was the call; `:root { zoom: var(--dense) }` with the
-   :has() dropped is the whole change when it should apply everywhere.
+   Every V2 tab, not just the Scheduler. The gate is simply "is a .preview-scope on
+   the page", so there is no class to add and no effect to run — a new tab inherits
+   it by existing. The login screen and anything outside the shell are untouched.
 
    --dense is the dial, expressed against Meta: 1 is Meta exactly, 0.9 is 10%
    under, 0.8 is 20% under.
    ──────────────────────────────────────────────────────────────────────────── */
 :root { --dense: 1; }              /* Meta exactly. 0.9 is 10% under, 0.8 is 20% under. */
-:root:has(body.sched-dense) { zoom: var(--dense); }
+:root:has(.preview-scope) { zoom: var(--dense); }
 
 /* Base metrics are Meta's own, and --dense scales them from there:
    4px corners, and fields at 7px/8px padding on 14px text = 34px. */
-.preview-scope .scheduler-dense .rounded-2xl,
-.preview-scope .scheduler-dense .rounded-xl,
-.preview-scope .scheduler-dense .rounded-lg { border-radius: 4px !important; }
-.scheduler-dense input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-.scheduler-dense textarea,
-.scheduler-dense select {
+.preview-scope .rounded-2xl,
+.preview-scope .rounded-xl,
+.preview-scope .rounded-lg { border-radius: 4px !important; }
+.preview-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.preview-scope textarea,
+.preview-scope select {
   padding-top: 7px !important;
   padding-bottom: 7px !important;
   border-radius: 4px !important;
 }
 
-/* TYPE SCALE — 12 / 14 / 16 / 20, and nothing in between.
+/* TYPE SCALE — 12 / 14 / 16 / 20 across the whole dashboard, nothing in between.
    Small text had drifted across 10, 10.5, 11, 11.5, 12 and 12.5 as things were
    added one at a time, so a field label sat at a different size from the help text
    under the field next to it. The sizes are collapsed here rather than chased
@@ -184,20 +184,20 @@ html { scrollbar-gutter: stable; }
    on screen. The earlier version wrote the floor as a bare 10px/dense, which was a
    floor at 0.8 and a *cap* at 1 — it crushed every label to 10px next to a 14px
    field, which is the mismatch that prompted this. */
-body.sched-dense .preview-scope .text-xs,
-body.sched-dense .preview-scope [class*="text-[10"],
-body.sched-dense .preview-scope [class*="text-[11"],
-body.sched-dense .preview-scope [class*="text-[12"] {
+.preview-scope .text-xs,
+.preview-scope [class*="text-[10"],
+.preview-scope [class*="text-[11"],
+.preview-scope [class*="text-[12"] {
   font-size: max(12px, calc(10px / var(--dense))) !important;
 }
-body.sched-dense .preview-scope .text-sm,
-body.sched-dense .preview-scope [class*="text-[13"],
-body.sched-dense .preview-scope [class*="text-[14"] {
+.preview-scope .text-sm,
+.preview-scope [class*="text-[13"],
+.preview-scope [class*="text-[14"] {
   font-size: max(14px, calc(11.7px / var(--dense))) !important;
 }
-body.sched-dense .preview-scope .text-base,
-body.sched-dense .preview-scope [class*="text-[15"],
-body.sched-dense .preview-scope [class*="text-[16"] {
+.preview-scope .text-base,
+.preview-scope [class*="text-[15"],
+.preview-scope [class*="text-[16"] {
   font-size: max(16px, calc(13.3px / var(--dense))) !important;
 }
 
@@ -236,12 +236,16 @@ body.nav-collapsed .hsidebar .hlogo-img { width: 30px; }
 body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
 
 /* Content width.
+   :not(.fixed) matters — .preview-scope is also put on full-screen modal backdrops
+   (Marketing Hub has three), and capping those to 1440 would leave the page showing
+   either side of the overlay and the click-outside-to-close target short of the
+   edges.
    Meta puts a 600px form in a 2133px window and leaves the right third empty. Ours
    stretched edge to edge, so a 21px number sat alone in a 360px tile — small things
    stranded in a big space, which reads as both small and cluttered at once. Holding
    the content to a column makes the same elements read larger, because they stop
    being adrift. Nothing was resized to achieve it. */
-body.sched-dense .preview-scope { max-width: 1440px; margin-inline: auto; }
+.preview-scope:not(.fixed) { max-width: 1440px; margin-inline: auto; }
 
 /* Meta sets the composer's headings at 700 and it is the one measurement ours
    still missed. This is a deliberate exception to the brand book, which allows 400
@@ -249,4 +253,4 @@ body.sched-dense .preview-scope { max-width: 1440px; margin-inline: auto; }
    in the dashboard picks it up.
 
    Needs the class rather than .font-bold: .preview-scope pins .font-bold to 600. */
-body.sched-dense .preview-scope .sched-heading { font-weight: 700 !important; }
+.preview-scope .sched-heading { font-weight: 700 !important; }
