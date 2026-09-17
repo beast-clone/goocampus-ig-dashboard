@@ -2820,12 +2820,12 @@ function Panel({ icon: Ic, title, right, accent, children }: {
 }) {
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className={`flex items-center gap-2 px-3 py-1 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
+      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
         {Ic && <Ic size={16} stroke={1.8} className="text-brand" />}
         <span className="text-[16px] font-semibold text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
-      <div className="p-2.5">{children}</div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }
@@ -3111,8 +3111,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Themed hero band: brand-tinted, large title */}
-        <div className="relative flex items-start justify-between gap-4 px-4 py-2.5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
-          <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-brand" />
+        <div className="relative flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
+          <span className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-[30px] font-semibold text-[#232D42] leading-[36px] tracking-[-0.02em]">{row.particulars || "(untitled)"}</h2>
@@ -3135,7 +3135,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         {/* Body — light canvas so the white cards read as real sections.
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
-        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-3">
+        <div className="flex-1 overflow-auto bg-[#F6F7FB] p-4">
           <div className="grid md:grid-cols-5 gap-3 items-start">
             <div className="md:col-span-3 space-y-2.5">
               <Panel icon={IconPhoto} title="Creatives" accent
