@@ -809,8 +809,13 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div>
           <div className="mlbl">Created</div>
           <div className="mval">{fmtDT(task.detail.createdAt)}</div>
-          {modifiedAt && <><div className="mlbl" style={{ marginTop: ".4rem" }}>Modified</div><div className="mval">{fmtDT(modifiedAt)}</div></>}
         </div>
+        {modifiedAt && (
+          <div>
+            <div className="mlbl">Modified</div>
+            <div className="mval">{fmtDT(modifiedAt)}</div>
+          </div>
+        )}
         <div>
           <div className="mlbl">Published Date{editing && <Pen field="due" />}</div>
           <div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div>
@@ -3486,8 +3491,7 @@ const CSS = `
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:12px;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:12px;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.hmd .meta-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.9rem;padding:.8rem 0;border-top:1px solid var(--line)}
-@media(max-width:1200px){.hmd .meta-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.hmd .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.9rem;padding:.8rem 0;border-top:1px solid var(--line-2)}
 .hmd .mlbl{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:600}
 .hmd .mval{font-size:14px;color:var(--ink-soft);font-weight:500}
 .hmd .collab{display:flex;align-items:center;gap:.4rem;margin-top:.9rem;flex-wrap:wrap}
