@@ -282,32 +282,37 @@ export function Planner() {
       {err && !data && <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">Couldn&rsquo;t build the plan — {err}</div>}
 
       {data && (
+        <>
+        {/* The helper line and the month nav belong to the page, not to the
+            calendar column. While they sat inside it the calendar card started
+            79px below the detail card beside it, and the two never lined up. */}
+        {tab === "plan" ? (
+          <div className="bg-brand/5 border border-brand/20 rounded-2xl p-4 mb-4 flex items-start gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              {data.rankedBy && /perplexity|search/.test(data.rankedBy) && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
+                  🔎 Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
+                </span>
+              )}
+              <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
+              {data.insight && <p className="text-[12.5px] text-gray-600 mt-1.5 leading-relaxed"><b className="text-brand">What works here:</b> {data.insight}</p>}
+              <p className="text-xs text-gray-500 mt-1.5"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand text-white text-xs font-semibold align-middle mr-1">1</span>on each card = the AI&rsquo;s recommended publish order. Click a card to see it highlighted with its full details. Drag to tweak, then apply.</p>
+            </div>
+            <button onClick={applyPlan} disabled={applying || data.plan.length === 0} className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50 whitespace-nowrap">{applying ? "Applying…" : "Apply plan →"}</button>
+          </div>
+        ) : (
+          <div className="text-[12.5px] text-gray-600 mb-4">Drag any post to a new day to reschedule it — the change saves to the backend and shows up in the team&rsquo;s Marketing Hub. Posts being worked on ask first.</div>
+        )}
+
+        {/* Month nav */}
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => setView((v) => v ? (v.m === 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m: v.m - 1 }) : v)} className="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-600">‹</button>
+          <div className="text-sm font-semibold text-gray-900 w-40 text-center tabular-nums">{monthLabel}</div>
+          <button onClick={() => setView((v) => v ? (v.m === 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m: v.m + 1 }) : v)} className="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-600">›</button>
+        </div>
+
         <div className="flex flex-col lg:flex-row gap-4 items-start">
           <div className="flex-1 min-w-0 w-full">
-          {tab === "plan" ? (
-            <div className="bg-brand/5 border border-brand/20 rounded-2xl p-4 mb-4 flex items-start gap-3 flex-wrap">
-              <div className="min-w-0 flex-1">
-                {data.rankedBy && /perplexity|search/.test(data.rankedBy) && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
-                    🔎 Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
-                  </span>
-                )}
-                <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
-                {data.insight && <p className="text-[12.5px] text-gray-600 mt-1.5 leading-relaxed"><b className="text-brand">What works here:</b> {data.insight}</p>}
-                <p className="text-xs text-gray-500 mt-1.5"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand text-white text-xs font-semibold align-middle mr-1">1</span>on each card = the AI&rsquo;s recommended publish order. Click a card to see it highlighted with its full details. Drag to tweak, then apply.</p>
-              </div>
-              <button onClick={applyPlan} disabled={applying || data.plan.length === 0} className="text-[13px] font-semibold px-4 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50 whitespace-nowrap">{applying ? "Applying…" : "Apply plan →"}</button>
-            </div>
-          ) : (
-            <div className="text-[12.5px] text-gray-600 mb-4">Drag any post to a new day to reschedule it — the change saves to the backend and shows up in the team&rsquo;s Marketing Hub. Posts being worked on ask first.</div>
-          )}
-
-          {/* Month nav */}
-          <div className="flex items-center gap-3 mb-3">
-            <button onClick={() => setView((v) => v ? (v.m === 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m: v.m - 1 }) : v)} className="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-600">‹</button>
-            <div className="text-sm font-semibold text-gray-900 w-40 text-center tabular-nums">{monthLabel}</div>
-            <button onClick={() => setView((v) => v ? (v.m === 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m: v.m + 1 }) : v)} className="w-8 h-8 rounded-lg border border-gray-200 bg-white hover:border-brand text-gray-600">›</button>
-          </div>
 
           {view && (
             <MonthGrid
@@ -342,6 +347,7 @@ export function Planner() {
           <DetailSidebar card={detail} isPlan={tab === "plan"} onClose={() => setDetail(null)}
             onAccept={acceptPost} accepted={detail ? accepted.has(detail.id) : false} busy={busy} />
         </div>
+        </>
       )}
 
       {/* Ownership guard modal */}
