@@ -554,11 +554,21 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     () => (!singleMediaUrl ? [] : singleVideoUrl ? ["post", "reel", "story"] : ["post", "story"]),
     [singleMediaUrl, singleVideoUrl],
   );
-  // Swapping a video for a jpg while "Reel" was selected would otherwise queue a
-  // reel with no video in it.
+  // The file decides, because the file mostly already knows: Instagram publishes a
+  // single video as a reel whatever we choose to call it, and a jpg can only be a
+  // feed post. So an mp4 arrives as Reel and an image as Post, and nobody has to
+  // answer a question the upload already answered.
+  //
+  // It cannot decide everything. A story is an image *or* a video, so no file type
+  // points at it — that is the one the toggle is still for. Picking by hand wins
+  // until the creative changes, at which point the file gets the say again.
+  const formatTouched = useRef(false);
+  useEffect(() => { formatTouched.current = false; }, [singleMediaUrl, metaMediaUrls.length]);
   useEffect(() => {
-    if (formatChoices.length && !formatChoices.includes(format)) setFormat("post");
-  }, [formatChoices, format]);
+    if (formatTouched.current) return;
+    setFormat(!singleMediaUrl ? "post" : singleVideoUrl ? "reel" : "post");
+  }, [singleMediaUrl, singleVideoUrl]);
+  const chooseFormat = (f: "post" | "reel" | "story") => { formatTouched.current = true; setFormat(f); };
   // Everything the queue needs, listed in one place. The Schedule/Publish button stays
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
@@ -1417,7 +1427,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
               <div className="space-y-3">
                 <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
                   {formatChoices.map((f, i) => (
-                    <button key={f} type="button" onClick={() => setFormat(f)}
+                    <button key={f} type="button" onClick={() => chooseFormat(f)}
                       className={`px-3.5 py-1.5 text-[12.5px] ${format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"} ${i > 0 ? "border-l border-gray-200" : ""}`}>
                       {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
                     </button>
@@ -3230,8 +3240,8 @@ type PreviewPlatform = "instagram" | "facebook" | "linkedin";
 type PreviewDevice = "mobile" | "tablet";
 
 const FORMAT_NOTE: Record<"post" | "reel" | "story", string> = {
-  post: "A feed post. It stays on the profile.",
-  reel: "A single video. Instagram publishes it as a reel; Facebook posts it to the Page.",
+  post: "Set from your file. A feed post — it stays on the profile.",
+  reel: "Set from your file. Instagram publishes a single video as a reel either way; Facebook posts it to the Page as one.",
   story: "A single image or video, full screen, gone in 24 hours.",
 };
 const PREVIEW_SURFACES: { value: PreviewPlatform; label: string }[] = [
