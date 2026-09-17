@@ -216,3 +216,11 @@ body.sched-dense .hsidebar .hbrand { padding: 12px 0 10px; }
 body.sched-dense .hsidebar .hlogo-img { width: 30px; }
 /* ⌘K still opens it; the box itself cannot live in 56px. */
 body.sched-dense .hsidebar .hglobalsearch { display: none; }
+
+/* Content width.
+   Meta puts a 600px form in a 2133px window and leaves the right third empty. Ours
+   stretched edge to edge, so a 21px number sat alone in a 360px tile — small things
+   stranded in a big space, which reads as both small and cluttered at once. Holding
+   the content to a column makes the same elements read larger, because they stop
+   being adrift. Nothing was resized to achieve it. */
+body.sched-dense .preview-scope { max-width: 1440px; margin-inline: auto; }
