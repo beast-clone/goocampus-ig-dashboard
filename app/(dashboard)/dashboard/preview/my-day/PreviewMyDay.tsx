@@ -131,7 +131,7 @@ type Task = {
     outputLink?: string;                                // the finished-creative link (Drive/Canva) — output_link
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
-    createdAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
+    createdAt?: string; modifiedAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
     feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
   };
 };
@@ -599,6 +599,10 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   // Edit turns the fields themselves editable rather than opening a panel of its
   // own. One field at a time, opened by the pencil that sits beside its label.
   const [editField, setEditField] = useState<null | "owner" | "prio" | "due">(null);
+  // When this task was last changed. Seeded from the row and then refreshed from
+  // what the save endpoint hands back, so it is the server's timestamp rather than
+  // the browser's guess at one.
+  const [modifiedAt, setModifiedAt] = useState<string | undefined>(task.detail.modifiedAt);
   const Pen = ({ field }: { field: "owner" | "prio" | "due" }) => (
     <button type="button" className="fld-pen" title="Change this"
       onClick={() => setEditField((f) => (f === field ? null : field))}>
@@ -608,7 +612,9 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const saveEdit = async () => {
     setBusy(true);
     try {
-      await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null, content: contentEdit } }) });
+      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null, content: contentEdit } }) });
+      const saved = await res.json().catch(() => null);
+      if (saved?.updatedAt) setModifiedAt(saved.updatedAt);
       setEditing(false); onSaved?.();
     } finally { setBusy(false); }
   };
@@ -688,18 +694,16 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {(canEdit || canAssign || canDelete) && (
         <>
           <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap", marginTop: ".7rem", alignItems: "center" }}>
-            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> {editing ? "Done editing" : "Edit"}</button>}
+            {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
+            {canEdit && editing && <>
+              <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
+              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
+            </>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
           </div>
 
-          {editing && (
-            <div style={{ display: "flex", gap: ".4rem", marginTop: ".5rem", alignItems: "center", flexWrap: "wrap" }}>
-              <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
-              <span className="mlbl" style={{ textTransform: "none", letterSpacing: 0 }}>Use the pencils below to change a field.</span>
-            </div>
-          )}
+
 
           {assigning && (
             <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
@@ -773,14 +777,15 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             )}
           </div>
         </div>
-        <div>
+        <div style={{ position: "relative" }}>
           <div className="mlbl">Priority{editing && <Pen field="prio" />}</div>
           <span className="pill" style={{ background: PRIO[prio].bg, color: PRIO[prio].fg }}>{prio}</span>
           {editing && editField === "prio" && (
-            <div className="fld-edit">
+            <div className="fld-dd">
               {Object.keys(PRIO).map((k) => (
-                <button key={k} className="btn sm" onClick={() => { setPrio(k as typeof prio); setEditField(null); }}
-                  style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
+                <button key={k} className={`fld-dd-item ${k === prio ? "on" : ""}`} onClick={() => { setPrio(k as typeof prio); setEditField(null); }}>
+                  <span className="pill" style={{ background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg }}>{k}</span>
+                </button>
               ))}
             </div>
           )}
@@ -789,7 +794,11 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       {/* Task clock — captured on create → done, so you can see how long it took */}
       <div className="meta-grid">
-        <div><div className="mlbl">Created</div><div className="mval">{fmtDT(task.detail.createdAt)}</div></div>
+        <div>
+          <div className="mlbl">Created</div>
+          <div className="mval">{fmtDT(task.detail.createdAt)}</div>
+          {modifiedAt && <><div className="mlbl" style={{ marginTop: ".4rem" }}>Modified</div><div className="mval">{fmtDT(modifiedAt)}</div></>}
+        </div>
         <div>
           <div className="mlbl">Published Date{editing && <Pen field="due" />}</div>
           <div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div>
@@ -3505,6 +3514,10 @@ const CSS = `
 .hmd .fld-pen:hover{border-color:var(--brand);color:var(--brand)}
 .hmd .fld-hint{margin-left:.3rem;color:var(--brand);font-weight:700}
 .hmd .fld-edit{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;padding:.4rem;border:1px solid var(--line);border-radius:4px;background:var(--panel-2)}
+.hmd .fld-dd{position:absolute;z-index:30;margin-top:.3rem;min-width:150px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:0 12px 32px rgba(35,45,66,.16);overflow:hidden}
+.hmd .fld-dd-item{display:flex;align-items:center;gap:.4rem;border:none;background:none;padding:.4rem .55rem;cursor:pointer;text-align:left;font:inherit}
+.hmd .fld-dd-item:hover{background:var(--panel-2)}
+.hmd .fld-dd-item.on{background:#EEF1FB}
 .hmd .upload-ic{font-size:1rem;color:var(--muted)}
 .hmd .upload-drop b{color:var(--ink);font-size:14px}
 .hmd .upload-sub{display:block;font-size:12px;color:var(--muted);margin-top:.15rem}
