@@ -3318,6 +3318,11 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
   const go = (delta: number) => setIdx((i) => (i + delta + images.length) % images.length);
   const arrowBtn = "absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center z-10";
   // Show the WHOLE creative — natural aspect, never cropped — with carousel controls.
+  // The creative's real shape, read off the file. Everything below used a fixed
+  // max-height with object-contain, so a 9:16 reel in a 4:5 slot was letterboxed —
+  // the black columns either side of the video. Nothing was wrong with the file.
+  const [natural, setNatural] = useState<string | null>(null);
+  useEffect(() => { setNatural(null); }, [image]);
   const media = (placeholderRatio: string) => (
     <div className={`relative overflow-hidden flex items-center justify-center ${image ? "bg-gray-50" : `${placeholderRatio} bg-gray-100 flex-col text-gray-300`}`}>
       {image && isPdfUrl(image)
@@ -3336,10 +3341,15 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
         // ready, and Chrome silently declines the attempt. Asking again once there
         // are frames to show is what actually starts it.
         ? <video key={image} src={image} autoPlay muted loop playsInline controls preload="auto"
+            style={natural ? { aspectRatio: natural } : undefined}
+            onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setNatural(`${v.videoWidth} / ${v.videoHeight}`); }}
             onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }}
-            className="w-full h-auto max-h-[520px] object-contain block bg-black" />
+            className={`w-full block bg-black ${natural ? "h-full object-cover" : "h-auto max-h-[520px] object-contain"}`} />
         : image
-        ? <img src={image} alt="" className="w-full h-auto max-h-[520px] object-contain block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        ? <img src={image} alt="" style={natural ? { aspectRatio: natural } : undefined}
+            className={`w-full block ${natural ? "h-full object-cover" : "h-auto max-h-[520px] object-contain"}`}
+            onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setNatural(`${i.naturalWidth} / ${i.naturalHeight}`); }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         : <><div className="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center mb-2.5"><IconPhoto size={24} stroke={1.6} className="text-brand" /></div><div className="text-[12.5px] font-medium text-[#8A92A6]">Add media to preview</div></>}
       {images.length > 1 && (
         <>
