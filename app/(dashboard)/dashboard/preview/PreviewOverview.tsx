@@ -317,7 +317,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   return (
     // The flex shell and the sidebar come from the route layout; this page owns
     // only its main column, which is full-bleed with its own sticky header.
-    <main style={{ flex: 1, minWidth: 0, color: C.heading }}>
+    <main className="preview-scope" style={{ flex: 1, minWidth: 0, color: C.heading }}>
         <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 28px", background: C.card, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 5 }}>
           {/* Brand / account switcher — which page's data the whole Overview shows */}
           <div style={{ position: "relative" }}>
@@ -329,8 +329,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <IconBrandInstagram size={16} stroke={1.9} style={{ color: C.primary }} />
               </span>
               <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{currentAccount.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{currentAccount.label}</span>
               </span>
               <IconChevronDown size={16} stroke={2} style={{ color: C.muted, transform: brandOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
             </button>
@@ -352,7 +352,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                           <IconBrandInstagram size={17} stroke={1.9} style={{ color: C.primary }} />
                         </span>
                         <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{a.label}</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{a.label}</span>
                           <span style={{ fontSize: 12, color: C.muted }}>{a.handle}</span>
                         </span>
                         {on && <IconCheck size={17} stroke={2.4} style={{ color: C.primary, flexShrink: 0 }} />}
@@ -380,7 +380,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 const on = platform === p.key;
                 return (
                   <button key={p.key} onClick={() => setPlatform(p.key)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13.5, fontWeight: 600, background: on ? C.primary : "transparent", color: on ? "#fff" : C.muted, boxShadow: on ? "0 8px 18px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, background: on ? C.primary : "transparent", color: on ? "#fff" : C.muted, boxShadow: on ? "0 8px 18px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
                     <p.icon size={16} stroke={1.9} /> {p.label}
                   </button>
                 );
@@ -398,14 +398,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   const on = selectedMonth?.key === m.key;
                   return (
                     <button key={m.key} onClick={() => setSelMonthKey(m.key)}
-                      style={{ padding: "7px 13px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: on ? C.primary : C.bg, color: on ? "#fff" : C.muted, boxShadow: on ? "0 6px 14px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
+                      style={{ padding: "7px 13px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: on ? C.primary : C.bg, color: on ? "#fff" : C.muted, boxShadow: on ? "0 6px 14px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
                       {m.label}{m.isCurrent ? " · so far" : ""}
                     </button>
                   );
                 })}
               </div>
               {selectedMonth && (
-                <div style={{ marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.line}`, fontSize: 12.5, color: C.muted }}>
+                <div style={{ marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.line}`, fontSize: 12, color: C.muted }}>
                   Showing <b style={{ color: C.heading, fontWeight: 600 }}>{selectedMonth.full}{selectedMonth.isCurrent ? " (so far)" : ""}</b> · {fmtNice(selectedMonth.from)} → {fmtNice(selectedMonth.to)}
                 </div>
               )}
@@ -414,7 +414,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
           {/* Friendly range caption for every non-switcher case (IG 7d/30d + all of FB/LI/YT) */}
           {!isMonthly && (
-            <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: "10px 14px", fontSize: 12.5, color: C.muted }}>
+            <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: "10px 14px", fontSize: 12, color: C.muted }}>
               Showing <b style={{ color: C.heading, fontWeight: 600 }}>{rangeKey === "custom" ? "your custom range" : rangeLabel}</b> · {fmtNice(range.from)} → {fmtNice(range.to)}
             </div>
           )}
@@ -424,7 +424,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <PlatformHero platform={platform} accountId={accountId} range={range} rangeLabel={rangeLabel} person={person} />
               <div className="preview-scope">
                 <Card>
-                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>{PLATFORMS.find((p) => p.key === platform)?.label} overview</div>
+                  <div style={{ fontSize: 14, color: C.muted, marginBottom: 10 }}>{PLATFORMS.find((p) => p.key === platform)?.label} overview</div>
                   {platform === "facebook" && <FacebookOverview accountId={accountId} range={range} />}
                   {platform === "linkedin" && <LinkedInOverview accountId={accountId} range={range} />}
                   {platform === "youtube" && <YouTubeOverview accountId={accountId} range={range} enhanced />}
@@ -441,7 +441,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 ) : "Loading your latest performance…"}
               </HeroBanner>
               {insStored && (
-                <div style={{ fontSize: 12.5, background: "#EEF1FB", border: "1px solid #DCE3FB", color: "#2138B0", borderRadius: 10, padding: "9px 13px", marginTop: -8 }}>
+                <div style={{ fontSize: 12, background: "#EEF1FB", border: "1px solid #DCE3FB", color: "#2138B0", borderRadius: 10, padding: "9px 13px", marginTop: -8 }}>
                   This month is older than Instagram&rsquo;s 30-day window, so its KPIs are read from your <b>saved snapshots</b>. Reach &amp; follower growth are real; engagement is summed from this month&rsquo;s posts; profile visits weren&rsquo;t recorded before today.
                 </div>
               )}
@@ -462,7 +462,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
                     <div>
                       <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.4px" }}>{t ? fmt(chartMetric === "reach" ? t.reach : t.engagement) : "—"}</div>
-                      <div style={{ fontSize: 13, color: C.muted }}>{chartMetric === "reach" ? "Reach" : "Engagement"} this period</div>
+                      <div style={{ fontSize: 14, color: C.muted }}>{chartMetric === "reach" ? "Reach" : "Engagement"} this period</div>
                     </div>
                     {/* Reach / Engagement toggle — switches the number + graph below */}
                     <div style={{ background: C.bg, borderRadius: 10, padding: 4, display: "inline-flex", gap: 3 }}>
@@ -471,7 +471,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                         const col = m === "reach" ? C.primary : C.teal;
                         return (
                           <button key={m} onClick={() => setChartMetric(m)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: on ? "#fff" : "transparent", color: on ? C.heading : C.muted, boxShadow: on ? "0 1px 3px rgba(35,45,66,0.14)" : "none", transition: "all .15s" }}>
+                            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: on ? "#fff" : "transparent", color: on ? C.heading : C.muted, boxShadow: on ? "0 1px 3px rgba(35,45,66,0.14)" : "none", transition: "all .15s" }}>
                             <span style={{ width: 8, height: 8, borderRadius: 99, background: col }} /> {m === "reach" ? "Reach" : "Engagement"}
                           </button>
                         );
@@ -482,8 +482,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 </Card>
 
                 <Card>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Who you reached</div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Who you reached</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>
                     {aud?.stored
                       ? <>Audience captured for {aud.month ? new Date(aud.month + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "this month"}</>
                       : "Audience split · current"}
@@ -493,7 +493,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                     {(aud?.countries || []).slice(0, 4).map((c, i) => {
                       const max = Math.max(1, ...(aud?.countries || []).slice(0, 4).map((x) => x.value));
                       return (
-                        <div key={c.label} style={{ display: "grid", gridTemplateColumns: "116px 1fr 40px", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                        <div key={c.label} style={{ display: "grid", gridTemplateColumns: "116px 1fr 40px", alignItems: "center", gap: 8, fontSize: 12 }}>
                           <span style={{ color: C.heading, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={countryName(c.label)}>{countryName(c.label)}</span>
                           <span style={{ height: 8, background: "#EEF1FB", borderRadius: 99, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${(c.value / max) * 100}%`, background: AUD_BARS[i % AUD_BARS.length], borderRadius: 99 }} /></span>
                           <span style={{ color: C.muted, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{kfmt(c.value)}</span>
@@ -509,7 +509,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                   <IconTrophy size={18} color={C.primary} />
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{pastMonthLabel ? `${pastMonthLabel} · top performing posts` : "Top performing posts"}</div>
-                  <span style={{ marginLeft: "auto", fontSize: 12.5, color: C.muted }}>ranked by reach</span>
+                  <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>ranked by reach</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
                   {(loading && !posts.length ? Array.from({ length: 5 }) : topPosts).map((p, i) => {
@@ -521,12 +521,12 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                          <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 11.5, fontWeight: 600, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
-                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                          <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 12, fontWeight: 600, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
+                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
                           <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, color: C.muted, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, color: C.muted, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(post.reach || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(post.likes || 0)}</span>
                             <span style={{ marginLeft: "auto", color: C.success, fontWeight: 600 }}>{er}% ER</span>
@@ -543,7 +543,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <Card>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{pastMonthLabel ? `${pastMonthLabel} posts` : "Latest posts"}</div>
-                  <Link href="/dashboard/preview/posts" style={{ fontSize: 12.5, color: C.primary, fontWeight: 600, textDecoration: "none" }}>View all →</Link>
+                  <Link href="/dashboard/preview/posts" style={{ fontSize: 12, color: C.primary, fontWeight: 600, textDecoration: "none" }}>View all →</Link>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
                   {(loading && !posts.length ? Array.from({ length: 5 }) : latest).map((p, i) => {
@@ -554,11 +554,11 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
-                          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
+                          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
                           <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
-                          <div style={{ display: "flex", gap: 12, marginTop: 8, color: C.muted, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
+                          <div style={{ display: "flex", gap: 12, marginTop: 8, color: C.muted, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(post.reach || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(post.likes || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconMessageCircle size={13} /> {kfmt(post.comments || 0)}</span>
@@ -584,7 +584,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   <Card key={m.label}>
                     <span style={{ width: 38, height: 38, borderRadius: 10, background: `${m.color}18`, color: m.color, display: "grid", placeItems: "center", marginBottom: 10 }}><m.icon size={20} stroke={1.9} /></span>
                     <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{rangePosts === null ? "—" : fmt(m.value)}</div>
-                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{m.label}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{m.label}</div>
                   </Card>
                 ))}
               </div>
@@ -600,7 +600,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   <Card key={m.label}>
                     <span style={{ width: 38, height: 38, borderRadius: 10, background: `${m.color}18`, color: m.color, display: "grid", placeItems: "center", marginBottom: 10 }}><m.icon size={20} stroke={1.9} /></span>
                     <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{stories === null ? "—" : fmt(m.value)}</div>
-                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{m.label}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{m.label}</div>
                   </Card>
                 ))}
               </div>
@@ -614,7 +614,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <Card>
                   <span style={{ width: 38, height: 38, borderRadius: 10, background: "#3A57E818", color: C.primary, display: "grid", placeItems: "center", marginBottom: 10 }}><IconMessageCircle size={20} stroke={1.9} /></span>
                   <div style={{ fontSize: 26, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{dmCount === null ? "—" : fmt(dmCount)}</div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>DMs received</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>DMs received</div>
                 </Card>
               </div>
               {dmCount !== null && dmCount === 0 && (
@@ -654,7 +654,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
 /* ---------- pieces ---------- */
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "22px 24px", ...style }}>{children}</div>;
+  return <div style={{ background: C.card, borderRadius: 4, boxShadow: SHADOW, padding: 16, ...style }}>{children}</div>;
 }
 
 // The blue gradient greeting banner — shared by every platform tab.
@@ -666,13 +666,13 @@ function HeroBanner({ eyebrow, person = "", children }: { eyebrow: string; perso
       <div style={{ position: "absolute", right: -40, top: -60, width: 260, height: 260, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
       <div style={{ position: "absolute", right: 90, bottom: -90, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
       <div style={{ position: "relative" }}>
-        <div style={{ fontSize: 13, opacity: 0.85, fontWeight: 500 }}>{eyebrow}</div>
+        <div style={{ fontSize: 14, opacity: 0.85, fontWeight: 500 }}>{eyebrow}</div>
         {/* suppressHydrationWarning: greeting() is time-based, so the server (UTC)
             and the browser (local time) can differ near an hour boundary. The name
             is deterministic; only the greeting word may differ, and it self-corrects
             on the first client re-render. */}
         <h1 suppressHydrationWarning style={{ fontSize: 32, fontWeight: 500, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, {person || "GooCampus"} 👋</h1>
-        <p style={{ fontSize: 15, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
+        <p style={{ fontSize: 16, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
       </div>
     </section>
   );
@@ -730,12 +730,12 @@ function PostMix({ mix, loading, cardStyle }: { mix: { total: number; entries: {
   return (
     <Card style={cardStyle}>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Post mix</div>
-      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 18 }}>What formats you posted, and what the split means.</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>What formats you posted, and what the split means.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
         <div style={{ position: "relative", width: 132, height: 132, flexShrink: 0 }}>
           <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: gradient }} />
           <div style={{ position: "absolute", inset: 15, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center", textAlign: "center" }}>
-            <div><div style={{ fontSize: 25, fontWeight: 600, color: loading ? C.muted : C.heading }}>{loading ? "…" : mix.total}</div><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
+            <div><div style={{ fontSize: 25, fontWeight: 600, color: loading ? C.muted : C.heading }}>{loading ? "…" : mix.total}</div><div style={{ fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Posts</div></div>
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 13 }}>
@@ -749,7 +749,7 @@ function PostMix({ mix, loading, cardStyle }: { mix: { total: number; entries: {
             <div key={e.type} style={{ display: "grid", gridTemplateColumns: "16px 1fr 40px", alignItems: "center", gap: 10 }}>
               <span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} />
               <div>
-                <div><span style={{ fontSize: 13.5, fontWeight: 600, color: C.heading }}>{m.label}</span> <span style={{ fontSize: 12, color: C.muted }}>· {e.count} posts</span></div>
+                <div><span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{m.label}</span> <span style={{ fontSize: 12, color: C.muted }}>· {e.count} posts</span></div>
                 <div style={{ height: 6, background: "#EEF1FB", borderRadius: 99, marginTop: 4, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${e.pct}%`, background: m.color, borderRadius: 99 }} /></div>
               </div>
               <span style={{ fontSize: 14, fontWeight: 600, color: C.heading, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Math.round(e.pct)}%</span>
@@ -770,8 +770,8 @@ function YourRead({ mix }: { mix: { total: number; entries: { type: string; coun
   const carouselPct = mix.entries.find((e) => e.type === "CAROUSEL_ALBUM")?.pct || 0;
   return (
     <div style={{ background: "#F4F6FF", border: "1px solid #E1E7FE", borderRadius: 12, padding: "14px 16px" }}>
-      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
-      <div style={{ fontSize: 12.5, color: C.heading, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.primary, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 5 }}>Your read</div>
+      <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.55 }}>
         {carouselPct >= 50
           ? <>You&rsquo;re <b>Carousel-heavy</b> — great for the followers you already have, but <b>Reels</b> are the format IG shows to NEW people. Bumping Reels from <b>{Math.round(reelPct)}%</b> toward <b>~40%</b> could grow your audience faster.</>
           : reelPct >= 40
@@ -792,19 +792,19 @@ function FormatWins({ rows, cardStyle, footer }: { rows: { type: string; count: 
     <Card style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: C.heading }}>Which format wins</div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#fff", background: wm.color, padding: "4px 11px", borderRadius: 99 }}><IconTrophy size={13} /> {wm.label} — top reach</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#fff", background: wm.color, padding: "4px 11px", borderRadius: 99 }}><IconTrophy size={13} /> {wm.label} — top reach</span>
       </div>
-      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>Average performance per format, so you can see what to make more of.</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Average performance per format, so you can see what to make more of.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {rows.map((r) => { const m = fmtMeta(r.type); const isWin = r.type === winner.type; return (
           <div key={r.type} style={{ border: `1px solid ${isWin ? m.color + "55" : C.line}`, background: isWin ? `linear-gradient(135deg, ${m.color}0F, #fff)` : "#fff", borderRadius: 14, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} /><span style={{ fontSize: 14.5, fontWeight: 600, color: C.heading }}>{m.label}</span><span style={{ fontSize: 11.5, color: C.muted }}>· {r.count} posts</span></div>
-              {isWin && <span style={{ fontSize: 10, fontWeight: 600, color: m.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>Top reach</span>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 11, height: 11, borderRadius: 3, background: m.color }} /><span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{m.label}</span><span style={{ fontSize: 12, color: C.muted }}>· {r.count} posts</span></div>
+              {isWin && <span style={{ fontSize: 12, fontWeight: 600, color: m.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>Top reach</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
               <span style={{ flex: 1, height: 10, background: "#EEF1FB", borderRadius: 99, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${(r.avgReach / maxReach) * 100}%`, background: m.color, borderRadius: 99 }} /></span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.heading, minWidth: 66, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.avgReach)}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.heading, minWidth: 66, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.avgReach)}</span>
             </div>
             <div style={{ display: "flex", gap: 22, fontSize: 12 }}>
               <span style={{ color: C.muted }}>Avg reach per post</span>
@@ -825,7 +825,7 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
   custom: { from: string; to: string }; setCustom: (c: { from: string; to: string }) => void;
 }) {
   const OPTS: [RangeKey, string][] = [["7d", "7 days"], ["30d", "30 days"], ["60d", "60 days"], ["1y", "1 year"], ["custom", "Custom"]];
-  const inputStyle: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 8px", fontSize: 12.5, color: C.heading, outline: "none", fontFamily: "inherit" };
+  const inputStyle: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 8px", fontSize: 12, color: C.heading, outline: "none", fontFamily: "inherit" };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: 6, display: "inline-flex", gap: 4 }}>
@@ -833,7 +833,7 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
           const on = rangeKey === k;
           return (
             <button key={k} onClick={() => setRangeKey(k)}
-              style={{ padding: "8px 14px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: on ? C.primary : "transparent", color: on ? "#fff" : C.muted, boxShadow: on ? "0 8px 18px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
+              style={{ padding: "8px 14px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, background: on ? C.primary : "transparent", color: on ? "#fff" : C.muted, boxShadow: on ? "0 8px 18px rgba(58,87,232,0.28)" : "none", transition: "all .15s" }}>
               {label}
             </button>
           );
@@ -845,7 +845,7 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
           <PreviewDatePicker size="sm" allowClear={false} value={custom.from}
             max={custom.to && custom.to < todayLocalISO() ? custom.to : todayLocalISO()}
             onChange={(v) => setCustom({ ...custom, from: clampToTodayISO(v) })} />
-          <span style={{ color: C.muted, fontSize: 13 }}>→</span>
+          <span style={{ color: C.muted, fontSize: 14 }}>→</span>
           <PreviewDatePicker size="sm" allowClear={false} value={custom.to}
             min={custom.from || undefined} max={todayLocalISO()}
             onChange={(v) => setCustom({ ...custom, to: clampToTodayISO(v) })} />
@@ -859,8 +859,8 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: typeof IconLayoutGrid
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, marginBottom: -8 }}>
       <span style={{ width: 38, height: 38, borderRadius: 10, background: C.chip, color: C.primary, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon size={20} stroke={1.8} /></span>
       <div>
-        <div style={{ fontSize: 17, fontWeight: 600, color: C.heading, letterSpacing: "-0.2px" }}>{title}</div>
-        <div style={{ fontSize: 12.5, color: C.muted }}>{sub}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.heading, letterSpacing: "-0.2px" }}>{title}</div>
+        <div style={{ fontSize: 12, color: C.muted }}>{sub}</div>
       </div>
     </div>
   );
@@ -885,16 +885,16 @@ function StatCard({ label, value, delta, flat, detail, action, badge, est }: { l
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
             {label}
-            {est && <span title="Estimated from reach — Instagram doesn't expose this metric directly" style={{ fontSize: 9, fontWeight: 600, color: C.muted, background: C.bg, border: `1px solid ${C.line}`, padding: "1px 5px", borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "help" }}>est</span>}
+            {est && <span title="Estimated from reach — Instagram doesn't expose this metric directly" style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.bg, border: `1px solid ${C.line}`, padding: "1px 5px", borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "help" }}>est</span>}
           </div>
           <div style={{ fontSize: 23, fontWeight: 600, letterSpacing: "-0.5px", lineHeight: 1.15 }}>{value}</div>
           {hasDelta
             ? <div style={{ fontSize: 12, fontWeight: 600, color: col }}>{up ? "▲" : "▼"} {Math.abs(dv).toFixed(1)}%</div>
-            : badge ? <div style={{ display: "inline-block", marginTop: 3, fontSize: 10, fontWeight: 600, color: C.primary, background: "#EEF1FB", padding: "2px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{badge}</div> : null}
+            : badge ? <div style={{ display: "inline-block", marginTop: 3, fontSize: 12, fontWeight: 600, color: C.primary, background: "#EEF1FB", padding: "2px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{badge}</div> : null}
         </div>
       </div>
-      {detail && <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.4 }}>{detail}</div>}
-      {action && <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px dashed ${C.line}`, fontSize: 12.5, color: C.primary, lineHeight: 1.4 }}>{action}</div>}
+      {detail && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>{detail}</div>}
+      {action && <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px dashed ${C.line}`, fontSize: 12, color: C.primary, lineHeight: 1.4 }}>{action}</div>}
     </div>
   );
 }
@@ -914,12 +914,12 @@ function GenderDonut({ gender }: { gender: { label: string; value: number }[] })
           })}
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-          <div><div style={{ fontSize: 19, fontWeight: 600 }}>{kfmt(total)}</div><div style={{ fontSize: 10.5, color: C.muted }}>reached</div></div>
+          <div><div style={{ fontSize: 19, fontWeight: 600 }}>{kfmt(total)}</div><div style={{ fontSize: 12, color: C.muted }}>reached</div></div>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {gender.map((g, i) => (
-          <div key={g.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+          <div key={g.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
             <span style={{ width: 9, height: 9, borderRadius: 99, background: colors[i % colors.length] }} />
             <span style={{ color: C.heading }}>{genderName(g.label)}</span>
             <span style={{ color: C.muted }}>{Math.round((g.value / total) * 100)}%</span>
@@ -986,7 +986,7 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
             line up with the gridlines drawn inside the SVG. */}
         <div style={{ width: AXIS_W, flex: "0 0 auto" }} />
         {GRIDS.map((g) => (
-          <div key={g} style={{ position: "absolute", left: 0, top: `${yPct(g)}%`, width: AXIS_W - 8, textAlign: "right", transform: "translateY(-50%)", fontSize: 11, color: C.muted, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }}>
+          <div key={g} style={{ position: "absolute", left: 0, top: `${yPct(g)}%`, width: AXIS_W - 8, textAlign: "right", transform: "translateY(-50%)", fontSize: 12, color: C.muted, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }}>
             {kfmt(Math.round(max * (1 - g)))}
           </div>
         ))}
@@ -1015,7 +1015,7 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
           pulled inside so they don't overhang the card. */}
       <div style={{ position: "relative", height: 16, marginLeft: AXIS_W }}>
         {tickIdx.map((i) => (
-          <div key={i} style={{ position: "absolute", left: `${xPct(i)}%`, top: 0, fontSize: 11, color: C.muted, whiteSpace: "nowrap", transform: i === 0 ? "translateX(0)" : i === pts.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}>
+          <div key={i} style={{ position: "absolute", left: `${xPct(i)}%`, top: 0, fontSize: 12, color: C.muted, whiteSpace: "nowrap", transform: i === 0 ? "translateX(0)" : i === pts.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}>
             {pts[i].date}
           </div>
         ))}
@@ -1023,7 +1023,7 @@ function AreaChart({ series, metric }: { series: Insights["series"]; metric: "re
 
       {/* The headline above is the period total; this line is per-day. Say so —
           otherwise a 5-lakh total over a chart peaking at 66K reads as a bug. */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4, fontSize: 11.5, color: C.muted }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4, fontSize: 12, color: C.muted }}>
         {/* The engagement TOTAL is real, but Meta only gives it per window, so
             the daily line is that total spread across days by reach share. Say
             so rather than let it pass as measured per-day data. */}

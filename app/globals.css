@@ -46,7 +46,7 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 /* Headings: The theme uses weight 500 everywhere (even the hero). Kill V1's
    semibold/bold/extrabold on real heading tags. */
 .preview-scope h1, .preview-scope h2, .preview-scope h3, .preview-scope h4,
-.preview-scope h5, .preview-scope h6 { font-weight: 500 !important; color: #232D42; }
+.preview-scope h5, .preview-scope h6 { font-weight: 700 !important; color: #232D42; }
 /* Exception: the blue hero-band title matches the Publishing Calendar — bold + white
    (higher specificity than the rule above, so it wins over the 500 !important). */
 .preview-scope .preview-hero-h1 { font-weight: 700 !important; color: #fff !important; }
@@ -253,4 +253,19 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
    in the dashboard picks it up.
 
    Needs the class rather than .font-bold: .preview-scope pins .font-bold to 600. */
-.preview-scope .sched-heading { font-weight: 700 !important; }
+.preview-scope .sched-heading,
+/* Most headings here are a div, not an <h2>: 16px or 15px, font-medium or
+   font-semibold, in the heading colour. That combination is only ever a section
+   title — 44 of the 16px ones alone. The 12px to 14px rows in the same colour are
+   deliberately left out; those are list titles and body copy, and bolding them
+   would turn every table row into a headline. */
+.preview-scope .text-base.font-medium.text-\[\#232D42\],
+.preview-scope .text-base.font-semibold.text-\[\#232D42\],
+.preview-scope .text-lg.font-medium.text-\[\#232D42\],
+.preview-scope .text-lg.font-semibold.text-\[\#232D42\],
+.preview-scope .text-\[15px\].font-medium.text-\[\#232D42\],
+.preview-scope .text-\[15px\].font-semibold.text-\[\#232D42\],
+.preview-scope .text-\[16px\].font-medium.text-\[\#232D42\],
+.preview-scope .text-\[17px\].font-medium.text-\[\#232D42\],
+.preview-scope .text-\[18px\].font-medium.text-\[\#232D42\],
+.preview-scope .text-\[20px\].font-medium.text-\[\#232D42\] { font-weight: 700 !important; }
