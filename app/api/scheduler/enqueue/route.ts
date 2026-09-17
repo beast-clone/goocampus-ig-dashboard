@@ -21,7 +21,7 @@ type Body = {
   caption?: string;
   mediaUrls?: string[];
   collaborators?: string[];    // Instagram usernames to auto-invite (max 3)
-  format?: string;             // "post" | "reel" — what the publisher should build
+  format?: string;             // "post" | "reel" | "story" — what the publisher should build
   coverUrl?: string;           // reel cover image, already uploaded
   channels?: string[];         // ["instagram","facebook"] — which of Meta's two
   captionFb?: string;          // a different caption for Facebook, when asked for
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     // fields outside the fixed schema. No migration, and the publisher reads the row
     // whole. NOT the `type` column: that is the Marketing Hub's editorial type and
     // already holds things like "Reel Thumbnail" and "YouTube Long-Form".
-    const format = b.format === "reel" ? "reel" : "post";
+    const format = b.format === "reel" ? "reel" : b.format === "story" ? "story" : "post";
     const cover = (b.coverUrl || "").trim();
 
     // Empty or missing channels means both, which is what every post did before this
@@ -109,9 +109,10 @@ export async function POST(req: Request) {
         status: "Ready to Publish",   // content-workflow status (enum)
         needs_review: false,
         synced_to_scheduler: false,
-        // Only for a reel, and only on a new row — `type` is the Marketing Hub's
-        // editorial type and an existing one is not ours to overwrite.
-        ...(format === "reel" ? { type: "Reel" } : {}),
+        // Only for a reel or a story, and only on a new row — `type` is the
+        // Marketing Hub's editorial type and an existing one is not ours to
+        // overwrite.
+        ...(format === "reel" ? { type: "Reel" } : format === "story" ? { type: "Story" } : {}),
         custom: customPatch,
         ...common,
       })

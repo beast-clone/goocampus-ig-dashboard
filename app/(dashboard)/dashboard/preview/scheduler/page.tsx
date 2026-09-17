@@ -197,7 +197,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   // What the publisher should build. A reel is a single video; anything else is a
   // post. Stories are deliberately absent — nothing publishes them yet, and a format
   // you can pick but not send is worse than one that isn't offered.
-  const [format, setFormat] = useState<"post" | "reel">("post");
+  const [format, setFormat] = useState<"post" | "reel" | "story">("post");
   const [coverUrl, setCoverUrl] = useState("");
   // Which of Meta's two channels this goes to. A brand implies an Instagram account
   // AND one or more Facebook pages; until now both always fired. Meta lets you tick
@@ -547,6 +547,18 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     () => (metaMediaUrls.length === 1 && /\.mp4($|\?)/i.test(metaMediaUrls[0]) ? metaMediaUrls[0] : ""),
     [metaMediaUrls],
   );
+  // A story is one image or one video, so the format question is no longer
+  // video-only. A carousel cannot be either a reel or a story.
+  const singleMediaUrl = metaMediaUrls.length === 1 ? metaMediaUrls[0] : "";
+  const formatChoices = useMemo<("post" | "reel" | "story")[]>(
+    () => (!singleMediaUrl ? [] : singleVideoUrl ? ["post", "reel", "story"] : ["post", "story"]),
+    [singleMediaUrl, singleVideoUrl],
+  );
+  // Swapping a video for a jpg while "Reel" was selected would otherwise queue a
+  // reel with no video in it.
+  useEffect(() => {
+    if (formatChoices.length && !formatChoices.includes(format)) setFormat("post");
+  }, [formatChoices, format]);
   // Everything the queue needs, listed in one place. The Schedule/Publish button stays
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
@@ -723,7 +735,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
           publishTo,
           publishToPage,
           pages: composePages,
-          collaborators: collab.split(",").map((s) => s.trim()).filter(Boolean),
+          collaborators: format === "story" ? [] : collab.split(",").map((s) => s.trim()).filter(Boolean),
           caption,
           mediaUrls: metaMediaUrls,
           format,
@@ -1388,31 +1400,41 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
             )}
           </Card>
 
-          <Card title="Collaborator" subtitle="Add a collaborator to your post and they will automatically be invited.">
-            <CollaboratorField value={collab} onChange={setCollab} />
-          </Card>
+          {format !== "story" && (
+            <Card title="Collaborator" subtitle="Add a collaborator to your post and they will automatically be invited.">
+              <CollaboratorField value={collab} onChange={setCollab} />
+            </Card>
+          )}
 
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
-          {/* Only asked once there is a single video to ask about. Offering "Reel"
-              beside a jpg, or beside four files, is a choice that cannot be honoured. */}
-          {singleVideoUrl && (
-            <Card title="Format" subtitle="A reel is a single video. Instagram publishes it as a reel; Facebook posts it to the Page.">
+          {/* Only asked once there is a single creative to ask about. Offering
+              "Reel" beside four files is a choice that cannot be honoured. */}
+          {formatChoices.length > 1 && (
+            <Card title="Format" subtitle={FORMAT_NOTE[format]}>
               <div className="space-y-3">
                 <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                  {(["post", "reel"] as const).map((f) => (
+                  {formatChoices.map((f, i) => (
                     <button key={f} type="button" onClick={() => setFormat(f)}
-                      className={`px-3.5 py-1.5 text-[12.5px] ${format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"} ${f === "reel" ? "border-l border-gray-200" : ""}`}>
-                      {f === "post" ? "Post" : "Reel"}
+                      className={`px-3.5 py-1.5 text-[12.5px] ${format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"} ${i > 0 ? "border-l border-gray-200" : ""}`}>
+                      {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
                     </button>
                   ))}
                 </div>
-                {format === "reel" && (
+                {format === "reel" && singleVideoUrl && (
                   <div className="pt-1 border-t border-gray-100">
                     <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mt-3 mb-2">Thumbnail</div>
                     <ReelThumbnail videoUrl={singleVideoUrl} coverUrl={coverUrl} onCover={setCoverUrl} />
+                  </div>
+                )}
+                {format === "story" && (
+                  <div className="pt-3 border-t border-gray-100 text-[12px] leading-snug text-[#8A92A6]">
+                    Stories go out through the API, which posts the creative and nothing
+                    else — no stickers, no link, no poll, no music, and no collaborator.
+                    Anything you want on the story has to be burned into the file.
+                    It disappears after 24 hours.
                   </div>
                 )}
               </div>
@@ -3206,6 +3228,12 @@ function LinkedInLogo({ size = 34 }: { size?: number }) {
 // feed post; LinkedIn = professional post with a reaction bar. Caption binds live.
 type PreviewPlatform = "instagram" | "facebook" | "linkedin";
 type PreviewDevice = "mobile" | "tablet";
+
+const FORMAT_NOTE: Record<"post" | "reel" | "story", string> = {
+  post: "A feed post. It stays on the profile.",
+  reel: "A single video. Instagram publishes it as a reel; Facebook posts it to the Page.",
+  story: "A single image or video, full screen, gone in 24 hours.",
+};
 const PREVIEW_SURFACES: { value: PreviewPlatform; label: string }[] = [
   { value: "instagram", label: "Instagram feed" },
   { value: "facebook", label: "Facebook feed" },
