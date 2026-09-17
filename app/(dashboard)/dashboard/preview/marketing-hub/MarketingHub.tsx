@@ -341,7 +341,7 @@ function usePublishApproval(): PublishApprovalCtx {
 }
 
 function Inner({ range, setRange }: { range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void }) {
-  // Deep-link: /dashboard/marketing-hub?open=<mh_posts.id> opens that task.
+  // Deep-link: /dashboard/preview/marketing-hub?open=<mh_posts.id> opens that task.
   const openParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("open") || "" : "";
 
   // Sub-tab is driven by ?tab= so the sidebar folder (Master sheet · Team ·

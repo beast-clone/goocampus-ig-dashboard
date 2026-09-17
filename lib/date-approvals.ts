@@ -38,7 +38,7 @@ const KEY = (postId: string) => `datechg:${postId}`;
 // Deep link straight to the task's detail modal (?open=<id>) on the live site.
 // Netlify injects `URL` = the site's primary URL in prod; APP_URL overrides it.
 const APP_URL = (process.env.APP_URL || process.env.URL || "https://analytics.goocampus.in").replace(/\/+$/, "");
-const taskLink = (postId: string) => `${APP_URL}/dashboard/marketing-hub?open=${postId}`;
+const taskLink = (postId: string) => `${APP_URL}/dashboard/preview/marketing-hub?open=${postId}`;
 const nameOf = (k: string) => (k ? (MH_NAME[k] || k.charAt(0).toUpperCase() + k.slice(1)) : "Someone");
 const fmt = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "unset");
 const fmtDT = (d: string | null | undefined) => (d ? new Date(String(d)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");

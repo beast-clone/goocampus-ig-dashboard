@@ -3064,7 +3064,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                 {approvals.map((r) => (
                   <div key={r.postId} className="appr-card">
                     <div className="appr-head">
-                      <a className="appr-title" href={`/dashboard/marketing-hub?open=${r.postId}`} title="Open this task">{r.title}</a>
+                      <a className="appr-title" href={`/dashboard/preview/marketing-hub?open=${r.postId}`} title="Open this task">{r.title}</a>
                       {r.type && <span className="appr-type">{r.type}</span>}
                     </div>
                     <div className="appr-move"><IconCalendarEvent size={14} stroke={1.8} /> <b>{apprDate(r.from)}</b> <span className="arw">→</span> <b className="to">{apprDate(r.to)}</b></div>
