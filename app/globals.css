@@ -137,27 +137,28 @@ html { scrollbar-gutter: stable; }
 
 /* ────────────────────────────────────────────────────────────────────────────
    SCHEDULER DENSITY
-   Measured against Meta's own Create-reel composer, side by side, same monitor:
-   Meta fits its whole form in 803px — one screen. Ours needed 1715px, nearly two.
+   Measured against Meta's own composer, side by side on the same monitor: Meta
+   fits its whole form in 803px, one screen. Ours needed 1715px.
 
-   The scale is a `zoom` on the whole tab, not a list of shrunk classes. The first
-   attempt overrode .text-sm / .p-4 / .space-y-4 and so on, which reduced the things
-   it happened to name and left everything else — the KPI numbers, the icons, the
-   buttons, the hero — at full size. That is not a smaller tab, it is a tab with
-   inconsistent type. `zoom` takes the lot: type, padding, icons, borders, images,
-   and it reflows rather than smearing like transform: scale.
+   The scale is a `zoom` on the document root, not on .preview-scope. Two reasons.
+   It takes the sidebar, which .preview-scope does not contain, and the tab is not
+   "of that size" while the navigation beside it is not. And a fixed element inside
+   a zoomed *element* measures the viewport in zoomed units and overshoots, which
+   cost the composer backdrop a hand-written correction; at the root there is no
+   discrepancy to correct — a fixed inset-0 probe measures the true viewport
+   exactly. That matters because nine of these modals render through a portal into
+   <body>, outside .preview-scope entirely, and twenty-three more use fixed inset-0.
+   At the root they all just work.
 
-   --dense is the dial, expressed against Meta: 1 is Meta exactly, 0.9 is 10% under,
-   0.8 is 20% under. One line, nowhere else to look.
+   Gated on the body class the Scheduler sets on mount, so only that tab scales.
+   Living with it there first was the call; `:root { zoom: var(--dense) }` with the
+   :has() dropped is the whole change when it should apply everywhere.
+
+   --dense is the dial, expressed against Meta: 1 is Meta exactly, 0.9 is 10%
+   under, 0.8 is 20% under.
    ──────────────────────────────────────────────────────────────────────────── */
-body.sched-dense { --dense: 0.8; }
-body.sched-dense .preview-scope { zoom: var(--dense); }
-
-/* A fixed element inside a zoomed ancestor measures the viewport in zoomed units,
-   so `inset-0` would overshoot by 1/0.8 and the backdrop would scroll. Put the
-   overlay back to viewport scale, and scale its contents again. */
-body.sched-dense .sched-overlay { zoom: calc(1 / var(--dense)); }
-body.sched-dense .sched-overlay > * { zoom: var(--dense); }
+:root { --dense: 0.8; }
+:root:has(body.sched-dense) { zoom: var(--dense); }
 
 /* Base metrics are Meta's own, and --dense scales them from there:
    4px corners, and fields at 7px/8px padding on 14px text = 34px. */
@@ -174,13 +175,44 @@ body.sched-dense .sched-overlay > * { zoom: var(--dense); }
 
 /* Legibility floor. Nothing on this tab renders below 10px.
    The zoom is uniform, which is the point of it, but uniform means the smallest
-   type went down with everything else: 10px labels landed at 8px on screen and
+   type goes down with everything else: 10px labels landed at 8px on screen and
    12px body text at 9.6px. Scaled correctly and unreadable.
-   Expressed against --dense so the floor stays 10px on screen at any dial
-   setting — at 0.8 these resolve to a 12.5px base. */
+   Written against --dense so the floor stays 10px on screen at any dial setting. */
 body.sched-dense .preview-scope .text-xs,
 body.sched-dense .preview-scope [class*="text-[10"],
 body.sched-dense .preview-scope [class*="text-[11"],
 body.sched-dense .preview-scope [class*="text-[12"] {
   font-size: calc(10px / var(--dense)) !important;
 }
+
+/* ── ICON RAIL ──────────────────────────────────────────────────────────────
+   Business Suite keeps its full 212px nav on ordinary pages and drops to a 56px
+   icon rail on the composer — measured there: 56px wide, 20px icons in 40x40 hit
+   targets, no border, transparent. It is a mode for focused work, not a
+   breakpoint; narrowing their window to 777px left the nav expanded.
+
+   The Scheduler is our composer surface, so the rail belongs to it and the full
+   sidebar stays everywhere else.
+
+   Labels are hidden rather than removed, so every row keeps its accessible name
+   and the title attribute gives it back on hover. Group headings and folder
+   children have nowhere to go at 56px and are the one thing genuinely lost —
+   folders still open on their own page.
+   ─────────────────────────────────────────────────────────────────────────── */
+body.sched-dense .hsidebar { width: 56px; padding: 0 6px 16px; }
+body.sched-dense .hsidebar .hnavitem { justify-content: center; gap: 0; padding: 10px 0; position: relative; }
+body.sched-dense .hsidebar .hnavitem > span:not(.hnavbadge) { display: none; }
+body.sched-dense .hsidebar .hnavitem svg { width: 20px; height: 20px; }
+body.sched-dense .hsidebar .hnavgroup,
+body.sched-dense .hsidebar .hchev,
+body.sched-dense .hsidebar .hnavchildren { display: none; }
+/* A count has no room to be a number here, so it becomes the dot that says
+   "something is waiting" and the full figure is one click away. */
+body.sched-dense .hsidebar .hnavbadge {
+  position: absolute; top: 6px; right: 8px;
+  min-width: 7px; width: 7px; height: 7px; padding: 0; font-size: 0; overflow: hidden;
+}
+body.sched-dense .hsidebar .hbrand { padding: 12px 0 10px; }
+body.sched-dense .hsidebar .hlogo-img { width: 30px; }
+/* ⌘K still opens it; the box itself cannot live in 56px. */
+body.sched-dense .hsidebar .hglobalsearch { display: none; }

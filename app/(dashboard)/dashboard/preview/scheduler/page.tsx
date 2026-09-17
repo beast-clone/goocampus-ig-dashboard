@@ -1339,7 +1339,7 @@ function Scheduler() {
           reach prediction / smart time / brand picker / etc.) lives in here
           — nothing was dropped, just moved out of the primary view. */}
       {showCreateForm && (
-        <div className="sched-overlay fixed inset-0 bg-black/60 z-40 overflow-y-auto"
+        <div className="fixed inset-0 bg-black/60 z-40 overflow-y-auto"
           onClick={() => setShowCreateForm(false)}>
           <div className="min-h-screen py-6 px-4" onClick={(e) => e.stopPropagation()}>
             <div className="max-w-6xl mx-auto bg-white rounded shadow-xl p-4">

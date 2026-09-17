@@ -224,7 +224,7 @@ export function PreviewSidebar() {
   const LeafRow = ({ leaf, indent, badge }: { leaf: Leaf; indent?: boolean; badge?: number }) => {
     const Icon = leaf.icon;
     return (
-      <Link href={leaf.href} prefetch className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
+      <Link href={leaf.href} prefetch title={leaf.label} className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
         <Icon size={indent ? 15 : 16} stroke={1.8} /> <span>{leaf.label}</span>
         {badge ? <span className="hnavbadge">{badge}</span> : null}
       </Link>
@@ -240,7 +240,7 @@ export function PreviewSidebar() {
       <div>
         <div className="hnavfolder">
           {f.href ? (
-            <Link href={f.href} prefetch onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: true }))} className={`hnavitem folderlink ${(pActive || semi) ? "semi" : ""}`}>
+            <Link href={f.href} prefetch title={f.label} onClick={() => setOpenKeys((s) => ({ ...s, [f.key]: true }))} className={`hnavitem folderlink ${(pActive || semi) ? "semi" : ""}`}>
               <Icon size={16} stroke={1.8} /> <span>{f.label}</span>
             </Link>
           ) : (
@@ -267,7 +267,7 @@ export function PreviewSidebar() {
           <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
         </Link>
       </div>
-      <GlobalSearch />
+      <div className="hglobalsearch"><GlobalSearch /></div>
       {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {groups.map((g) => (
