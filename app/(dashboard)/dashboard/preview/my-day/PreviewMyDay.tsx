@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
-import { fmtDateTime } from "@/lib/date";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -163,7 +162,22 @@ const DAY_MINS = (DAY_END_H - DAY_START_H) * 60;   // 600 — the width the time
 const LUNCH_MIN = 60;                              // 1-hour lunch, never compromised
 const LUNCH_AT = (13 - DAY_START_H) * 60;          // lunch fixed at 1 PM – 2 PM
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; };
-const fmtDT = (iso?: string) => fmtDateTime(iso, "—");
+// Short form — "Thu, 23 Jul 2026, 10:05 am". The shared fmtDateTime spells the
+// weekday and month out in full, which wrapped to two lines in a sixth of the row
+// and is more than a created-on stamp needs. Local to this tab: the Scheduler and
+// the calendar still use the long one.
+const fmtDT = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  // The year is dropped for this year and kept for any other. With it, the string
+  // measures 182px in a 181px cell — one pixel over, so it wrapped "am" onto a line
+  // of its own. Without it, 140.
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const date = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+  const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${date}, ${time}`;
+};
 function durBetween(a?: string, b?: string): string {
   if (!a || !b) return "—";
   let ms = new Date(b).getTime() - new Date(a).getTime();
