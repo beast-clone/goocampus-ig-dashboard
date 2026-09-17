@@ -190,6 +190,24 @@ html { scrollbar-gutter: stable; }
 .preview-scope .rounded-2xl,
 .preview-scope .rounded-xl,
 .preview-scope .rounded-lg { border-radius: 4px !important; }
+
+/* CARD PADDING — the last piece of the density pass, and the one that was left
+   out because a blunt rule on p-5/p-6 would have hit things that are not cards.
+   It does not have to be blunt. Of the 197 elements carrying p-5 or p-6, 87 are
+   the card idiom — bg-white with the gray-100 border — and keying on that shape
+   rather than on the padding class leaves the rest alone: 85 layout wrappers,
+   grids, tinted panels and empty states, and 12 modal backdrops.
+
+   16px is Business Suite's own figure, measured for the Scheduler and already
+   used by everything that was built after it.
+
+   :not(.fixed) because .preview-scope sits on modal backdrops too, which is the
+   same trap the 1440px width cap fell into. Modal dialog panels carry shadow-xl
+   and no gray-100 border, so they keep their own padding and are not caught.
+   Cards with a coloured border — amber and emerald notices — are left at 20px:
+   they are alerts, and the extra room is doing work. */
+.preview-scope .bg-white.border-gray-100.p-5:not(.fixed),
+.preview-scope .bg-white.border-gray-100.p-6:not(.fixed) { padding: 16px !important; }
 .preview-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .preview-scope textarea,
 .preview-scope select {
