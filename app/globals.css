@@ -173,16 +173,32 @@ html { scrollbar-gutter: stable; }
   border-radius: 4px !important;
 }
 
-/* Legibility floor. Nothing on this tab renders below 10px.
-   The zoom is uniform, which is the point of it, but uniform means the smallest
-   type goes down with everything else: 10px labels landed at 8px on screen and
-   12px body text at 9.6px. Scaled correctly and unreadable.
-   Written against --dense so the floor stays 10px on screen at any dial setting. */
+/* TYPE SCALE — 12 / 14 / 16 / 20, and nothing in between.
+   Small text had drifted across 10, 10.5, 11, 11.5, 12 and 12.5 as things were
+   added one at a time, so a field label sat at a different size from the help text
+   under the field next to it. The sizes are collapsed here rather than chased
+   through sixty inline classes.
+
+   The small step carries a floor as well as a size. It reads max(12px, 10px/dense):
+   at the dial's 1 that is 12px, and at 0.8 it is 12.5px so it still lands at 10px
+   on screen. The earlier version wrote the floor as a bare 10px/dense, which was a
+   floor at 0.8 and a *cap* at 1 — it crushed every label to 10px next to a 14px
+   field, which is the mismatch that prompted this. */
 body.sched-dense .preview-scope .text-xs,
 body.sched-dense .preview-scope [class*="text-[10"],
 body.sched-dense .preview-scope [class*="text-[11"],
 body.sched-dense .preview-scope [class*="text-[12"] {
-  font-size: calc(10px / var(--dense)) !important;
+  font-size: max(12px, calc(10px / var(--dense))) !important;
+}
+body.sched-dense .preview-scope .text-sm,
+body.sched-dense .preview-scope [class*="text-[13"],
+body.sched-dense .preview-scope [class*="text-[14"] {
+  font-size: max(14px, calc(11.7px / var(--dense))) !important;
+}
+body.sched-dense .preview-scope .text-base,
+body.sched-dense .preview-scope [class*="text-[15"],
+body.sched-dense .preview-scope [class*="text-[16"] {
+  font-size: max(16px, calc(13.3px / var(--dense))) !important;
 }
 
 /* ── ICON RAIL ──────────────────────────────────────────────────────────────
