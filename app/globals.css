@@ -207,31 +207,33 @@ body.sched-dense .preview-scope [class*="text-[16"] {
    targets, no border, transparent. It is a mode for focused work, not a
    breakpoint; narrowing their window to 777px left the nav expanded.
 
-   The Scheduler is our composer surface, so the rail belongs to it and the full
-   sidebar stays everywhere else.
+   It is on a button now rather than tied to the tab — press it and the sidebar
+   collapses, press it again and it comes back, and your choice follows you around
+   and survives a reload. Before you have touched it the Scheduler opens collapsed
+   and everywhere else opens wide, which is Business Suite's own behaviour.
 
    Labels are hidden rather than removed, so every row keeps its accessible name
    and the title attribute gives it back on hover. Group headings and folder
    children have nowhere to go at 56px and are the one thing genuinely lost —
    folders still open on their own page.
    ─────────────────────────────────────────────────────────────────────────── */
-body.sched-dense .hsidebar { width: 56px; padding: 0 6px 16px; }
-body.sched-dense .hsidebar .hnavitem { justify-content: center; gap: 0; padding: 10px 0; position: relative; }
-body.sched-dense .hsidebar .hnavitem > span:not(.hnavbadge) { display: none; }
-body.sched-dense .hsidebar .hnavitem svg { width: 20px; height: 20px; }
-body.sched-dense .hsidebar .hnavgroup,
-body.sched-dense .hsidebar .hchev,
-body.sched-dense .hsidebar .hnavchildren { display: none; }
+body.nav-collapsed .hsidebar { width: 56px; padding: 0 6px 16px; }
+body.nav-collapsed .hsidebar .hnavitem { justify-content: center; gap: 0; padding: 10px 0; position: relative; }
+body.nav-collapsed .hsidebar .hnavitem > span:not(.hnavbadge) { display: none; }
+body.nav-collapsed .hsidebar .hnavitem svg { width: 20px; height: 20px; }
+body.nav-collapsed .hsidebar .hnavgroup,
+body.nav-collapsed .hsidebar .hchev,
+body.nav-collapsed .hsidebar .hnavchildren { display: none; }
 /* A count has no room to be a number here, so it becomes the dot that says
    "something is waiting" and the full figure is one click away. */
-body.sched-dense .hsidebar .hnavbadge {
+body.nav-collapsed .hsidebar .hnavbadge {
   position: absolute; top: 6px; right: 8px;
   min-width: 7px; width: 7px; height: 7px; padding: 0; font-size: 0; overflow: hidden;
 }
-body.sched-dense .hsidebar .hbrand { padding: 12px 0 10px; }
-body.sched-dense .hsidebar .hlogo-img { width: 30px; }
+body.nav-collapsed .hsidebar .hbrand { padding: 12px 0 10px; }
+body.nav-collapsed .hsidebar .hlogo-img { width: 30px; }
 /* ⌘K still opens it; the box itself cannot live in 56px. */
-body.sched-dense .hsidebar .hglobalsearch { display: none; }
+body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
 
 /* Content width.
    Meta puts a 600px form in a 2133px window and leaves the right third empty. Ours

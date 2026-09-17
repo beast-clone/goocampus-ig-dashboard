@@ -1611,7 +1611,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
           <button
             onClick={submit}
             disabled={submitting}
-            className="text-sm font-medium bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Sending…" : scheduleEnabled ? "Schedule" : "Publish"}
           </button>

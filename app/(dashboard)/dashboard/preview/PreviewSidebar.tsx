@@ -12,8 +12,12 @@ import {
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
+  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
+
+/** Remembered across tabs and reloads once the button has been used. */
+const NAV_COLLAPSED_KEY = "gc-nav-collapsed";
 import { GlobalSearch } from "./GlobalSearch";
 
 // The ONE shared dashboard sidebar — used by PreviewShell (cloned tabs) AND the
@@ -132,8 +136,31 @@ const GROUPS: Group[] = [
 export function PreviewSidebar() {
   const asideRef = useRef<HTMLElement>(null);
 
-
   const pathname = usePathname();
+
+  // Collapse to the icon rail, or open back out. null until the stored preference
+  // has been read — writing a class before then makes the sidebar jump on load.
+  //
+  // Once you have used the button your choice follows you between tabs. Before
+  // that, the Scheduler opens collapsed and everywhere else opens wide, which is
+  // what Business Suite does: the rail is for the tab you compose in.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem(NAV_COLLAPSED_KEY) : null;
+    setCollapsed(stored !== null ? stored === "1" : pathname.includes("/scheduler"));
+  }, [pathname]);
+  useEffect(() => {
+    if (collapsed === null) return;
+    document.body.classList.toggle("nav-collapsed", collapsed);
+  }, [collapsed]);
+  useEffect(() => () => document.body.classList.remove("nav-collapsed"), []);
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { window.localStorage.setItem(NAV_COLLAPSED_KEY, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
 
   // The Team page has always offered per-person tab access, but nothing ever read
   // it: every signed-in person saw the whole sidebar. /api/me has returned
@@ -266,6 +293,13 @@ export function PreviewSidebar() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
         </Link>
+        <button type="button" onClick={toggleCollapsed} className="hcollapse"
+          aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+          title={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}>
+          {collapsed
+            ? <IconLayoutSidebarLeftExpand size={17} stroke={1.8} />
+            : <IconLayoutSidebarLeftCollapse size={17} stroke={1.8} />}
+        </button>
       </div>
       <div className="hglobalsearch"><GlobalSearch /></div>
       {canOverview && <LeafRow leaf={OVERVIEW} />}
@@ -288,7 +322,9 @@ const SIDEBAR_CSS = `
 .hsidebar *{box-sizing:border-box}
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
-.hsidebar .hbrand{display:flex;align-items:center;justify-content:center;padding:16px 8px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hbrand{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:16px 4px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hcollapse{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--sb-faint);cursor:pointer;border-radius:8px}
+.hsidebar .hcollapse:hover{color:var(--sb-ink-soft);background:var(--sb-panel2)}
 .hsidebar .hlogo-link{display:inline-block;cursor:pointer;line-height:0}
 .hsidebar .hlogo-img{width:92px;max-width:100%;height:auto;object-fit:contain;display:block}
 .hsidebar .hbrandname{font-weight:600;font-size:1.05rem;color:var(--sb-ink)}
