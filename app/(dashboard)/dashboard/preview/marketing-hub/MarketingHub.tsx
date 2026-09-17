@@ -3111,11 +3111,11 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header — Themed hero band: brand-tinted, large title */}
-        <div className="relative flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
-          <span className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-brand" />
+        <div className="relative flex items-start justify-between gap-4 pt-6 pr-7 pb-5 pl-6 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-brand-light/70 via-brand-light/30 to-transparent">
+          <span className="absolute left-0 top-5 bottom-5 w-1 rounded-r-full bg-brand" />
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-[30px] font-semibold text-[#232D42] leading-[36px] tracking-[-0.02em]">{row.particulars || "(untitled)"}</h2>
+              <h2 className="text-[24px] font-semibold text-[#232D42] leading-[32px] tracking-[-0.015em]">{row.particulars || "(untitled)"}</h2>
               {row.status && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
