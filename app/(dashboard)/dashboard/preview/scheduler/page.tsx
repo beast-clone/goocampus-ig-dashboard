@@ -5,7 +5,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
@@ -2679,8 +2679,8 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
           setDragOver(false);
           if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
         }}
-        className={`flex items-center justify-center gap-3 border-2 border-dashed rounded px-4 py-3.5 cursor-pointer transition ${
-          dragOver ? "border-brand bg-brand-light/40" : "border-gray-300 hover:border-brand hover:bg-gray-50"
+        className={`flex items-center justify-center gap-3 border border-dashed rounded px-4 py-3.5 cursor-pointer transition ${
+          dragOver ? "border-brand bg-brand-light" : "border-gray-200 bg-[#FCFCFE] hover:border-brand hover:bg-brand-light/40"
         } ${uploading ? "opacity-60 pointer-events-none" : ""}`}
       >
         <input
@@ -2698,8 +2698,11 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
             </div>
           ) : (
             <>
-              <div className="text-[13px] font-medium text-gray-700">📎 Drag a file here or click to upload</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
+              <div className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#232D42]">
+                <IconPaperclip size={15} stroke={1.9} className="text-brand" />
+                Drag a file here or click to upload
+              </div>
+              <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
             </>
           )}
         </div>
@@ -3340,7 +3343,7 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
         // autoPlay alone is unreliable here: the element mounts before the source is
         // ready, and Chrome silently declines the attempt. Asking again once there
         // are frames to show is what actually starts it.
-        ? <video key={image} src={image} autoPlay muted loop playsInline controls preload="auto"
+        ? <video key={image} src={image} autoPlay muted loop playsInline preload="auto"
             style={natural ? { aspectRatio: natural } : undefined}
             onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setNatural(`${v.videoWidth} / ${v.videoHeight}`); }}
             onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }}
