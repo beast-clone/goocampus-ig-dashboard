@@ -3220,12 +3220,12 @@ const CSS = `
 .hmd .navitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;color:var(--ink-soft);cursor:pointer;margin-bottom:1px;text-decoration:none}
 .hmd .navitem:hover{background:var(--panel-2)}
 .hmd .navitem.active{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(58,87,232,.24)}
-.hmd .main{flex:1;min-width:0;padding:clamp(1rem,2.2vw,2.2rem);transition:padding-right .28s ease}
+.hmd .main{flex:1;min-width:0;padding:clamp(.75rem,1.2vw,1.25rem);transition:padding-right .28s ease}
 @media(min-width:1100px){.hmd .main.chatpad{padding-right:calc(clamp(296px,19vw,348px) + 1.6rem)}}
 .hmd .banner{font-size:14px;color:var(--muted);margin:0;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
 .hmd .banner b{color:var(--ink-soft)}
 .hmd .tagchg{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
-.hmd .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.hmd .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.55rem}
 .hmd .icons{display:flex;align-items:center;gap:.5rem;position:relative}
 .hmd .topdivider{width:1px;height:22px;background:var(--line);margin:0 .35rem;flex:none}
 .hmd .iconbtn{position:relative;width:33px;height:33px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);box-shadow:var(--shadow);transition:all .12s}
@@ -3246,8 +3246,8 @@ const CSS = `
 .hmd .claim-meta{font-size:12px;color:var(--muted);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .claim-row .btn{margin-left:auto;flex-shrink:0}
 .hmd .task.just-claimed{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
-.hmd .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
-.hmd .pad{padding:1rem 1.15rem}
+.hmd .card{background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow)}
+.hmd .pad{padding:.75rem .9rem}
 .hmd .muted{color:var(--muted)}
 .hmd .lbl{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
 .hmd .pill{display:inline-flex;align-items:center;gap:.3em;font-size:12px;font-weight:600;padding:.16em .5em;border-radius:6px;white-space:nowrap}
@@ -3257,14 +3257,14 @@ const CSS = `
 .hmd .btn.primary{background:var(--brand);color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(58,87,232,.24)}
 .hmd .btn.primary:hover{background:var(--brand-ink)}
 .hmd .btn.sm{font-size:12px;padding:.35em .7em}
-.hmd .headband{display:grid;grid-template-columns:1.1fr auto 1.6fr;gap:1.2rem;align-items:center}
+.hmd .headband{display:grid;grid-template-columns:1.1fr auto 1.6fr;gap:.9rem;align-items:center}
 @media(max-width:900px){.hmd .headband{grid-template-columns:1fr;gap:.9rem}}
 /* Day control (Start day + Pipeline) sits WITH the stats — clear gap between. */
 .hmd .stats-wrap{display:flex;align-items:center;justify-content:flex-end;gap:1.6rem;flex-wrap:wrap}
 .hmd .dayctl{display:flex;align-items:center;gap:.5rem;padding-right:1.2rem;border-right:1px solid var(--line)}
 @media(max-width:900px){.hmd .dayctl{border-right:none;padding-right:0}}
-.hmd .who .hi{font-size:1.5rem;font-weight:700;letter-spacing:-.01em;line-height:1.15}
-.hmd .who .sub{font-size:14px;color:var(--muted);margin-top:.4rem}
+.hmd .who .hi{font-size:1.25rem;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.hmd .who .sub{font-size:14px;color:var(--muted);margin-top:.2rem}
 .hmd .switch{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.2rem;gap:.15rem}
 .hmd .switch button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:.32em .7em;border-radius:7px;cursor:pointer}
 .hmd .switch button.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
@@ -3272,9 +3272,9 @@ const CSS = `
 @media(max-width:900px){.hmd .stats{justify-content:flex-start}}
 .hmd .stat .n{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
 .hmd .stat .n.g{color:var(--good)}.hmd .stat .n.w{color:var(--warn)}.hmd .stat .n.b{color:var(--brand)}
-.hmd .stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:.3rem}
-.hmd .hero{margin-top:1rem}
-.hmd .hero-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.8rem}
+.hmd .stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:.1rem}
+.hmd .hero{margin-top:.6rem}
+.hmd .hero-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.45rem}
 .hmd .hero-head h2{margin:0;font-size:16px}
 .hmd .hero-head .prog{font-size:12px;color:var(--muted)}
 .hmd .qmark{cursor:help;font-size:12px;border:1px solid var(--line);border-radius:50%;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -3289,15 +3289,15 @@ const CSS = `
 .hmd .blk.gap{background:repeating-linear-gradient(45deg,var(--panel-2),var(--panel-2) 6px,var(--line-2) 6px,var(--line-2) 12px);color:var(--muted);border:1px dashed var(--line);flex:.5}
 .hmd .blk.clickable{cursor:pointer;transition:transform .12s,box-shadow .12s}
 .hmd .blk.clickable:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(58,87,232,.28)}
-.hmd .hours{display:flex;gap:.4rem;margin-top:.4rem}
+.hmd .hours{display:flex;gap:.4rem;margin-top:.25rem}
 .hmd .hours span{flex:1;font-size:12px;color:var(--faint);font-family:var(--mono)}
 .hmd .hours span.g{flex:.5}
 /* time-proportional timeline with drag-reorder + red now-line */
-.hmd .tl-wrap{margin-top:.2rem}
-.hmd .tl-ticks{display:flex;margin-bottom:.35rem;padding:0 1px}
+.hmd .tl-wrap{margin-top:0}
+.hmd .tl-ticks{display:flex;margin-bottom:.2rem;padding:0 1px}
 .hmd .tl-ticks span{flex:1;font-size:12px;color:var(--faint);font-family:var(--mono)}
-.hmd .tl-track{position:relative;height:116px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);overflow:hidden}
-.hmd .tl-blk{position:absolute;top:0;height:100%;border-radius:0;padding:.6rem .7rem;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff;font-size:12px;transition:filter .12s;border-right:1px solid rgba(255,255,255,.16)}
+.hmd .tl-track{position:relative;height:58px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);overflow:hidden}
+.hmd .tl-blk{position:absolute;top:0;height:100%;border-radius:0;padding:.35rem .6rem;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff;font-size:12px;transition:filter .12s;border-right:1px solid rgba(255,255,255,.16)}
 .hmd .tl-blk:last-child{border-right:0}
 .hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab}
 .hmd .tl-blk.reel:hover{filter:brightness(1.05)}
@@ -3322,7 +3322,7 @@ const CSS = `
 .hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:12px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:12px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
-.hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:1rem;margin-top:1rem;align-items:start}
+.hmd .work{display:grid;grid-template-columns:1fr 1.5fr;gap:.75rem;margin-top:.6rem;align-items:start}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
 /* The task-detail card scrolls INSIDE itself so a long brief/creatives list can
    never push the page into a mile of whitespace — My tasks stays visible. */
