@@ -1173,20 +1173,22 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-8 py-5 border-b border-gray-100">
-          <div>
-            <div className="text-xl font-medium">{row.particulars || "(untitled)"}</div>
-            <div className="text-sm text-gray-500 mt-1">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
+      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 pt-8 pr-5 pb-5 pl-[66px] border-b border-gray-100 flex-shrink-0 bg-white">
+          <div className="min-w-0">
+            <h2 className="hub-modal-title">{row.particulars || "(untitled)"}</h2>
+            <div className="text-[13px] text-[#8A92A6] mt-1">
               {row.sbu || "—"} · {row.type || "—"} · Publishing {fmtDate(row.publishingDate)}
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
         </div>
 
-        <div className="flex-1 overflow-auto px-8 py-6 space-y-6">
-          <div className="grid grid-cols-4 gap-4 text-sm">
+        {/* One column of field rows, as in the preview modal. This one is
+            read-only and has no activity feed, so there is no right-hand pane. */}
+        <div className="flex-1 overflow-auto pl-[66px] pr-6 py-4">
+          <div>
             <MetaField label="Status" value={row.status} />
             <MetaField label="Owner" value={row.owner} />
             <MetaField label="Priority" value={row.priority} />
@@ -1198,15 +1200,15 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
           </div>
 
           {row.needsReview && (
-            <div className="text-sm bg-amber-50 border border-amber-200 rounded px-4 py-2 text-amber-900">Needs review</div>
+            <div className="ml-[174px] text-[13px] bg-amber-50 border border-amber-200 rounded px-3 py-1.5 text-amber-900 my-2">Needs review</div>
           )}
           {row.syncedToScheduler && (
-            <div className="text-sm bg-green-50 border border-green-200 rounded px-4 py-2 text-green-900">Synced to Scheduler</div>
+            <div className="ml-[174px] text-[13px] bg-green-50 border border-green-200 rounded px-3 py-1.5 text-green-900 my-2">Synced to Scheduler</div>
           )}
 
           {row.attachments.length > 0 && (
             <Section label="Attachments">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {row.attachments.map((a, i) => (
                   <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block border border-gray-100 rounded overflow-hidden hover:border-brand">
                     {a.type?.startsWith("image/") ? (
@@ -1225,25 +1227,25 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
 
           {row.caption && (
             <Section label="Caption">
-              <div className="text-sm whitespace-pre-wrap text-gray-800">{row.caption}</div>
+              <div className="text-[13px] whitespace-pre-wrap text-[#1D1F25]">{row.caption}</div>
             </Section>
           )}
 
           {row.content && (
             <Section label="Content brief">
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: row.content }} />
+              <div className="text-[13px] prose prose-sm max-w-none [&_*]:text-[13px]" dangerouslySetInnerHTML={{ __html: row.content }} />
             </Section>
           )}
 
           {row.additionalInfo && (
             <Section label="Additional info">
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: row.additionalInfo }} />
+              <div className="text-[13px] prose prose-sm max-w-none [&_*]:text-[13px]" dangerouslySetInnerHTML={{ __html: row.additionalInfo }} />
             </Section>
           )}
 
           {(row.outputLink || row.instagramUrl || row.facebookUrl || row.link || row.slackLink) && (
             <Section label="Links">
-              <div className="text-sm space-y-1">
+              <div className="text-[13px] space-y-1">
                 {row.outputLink && <LinkRow label="Output" href={row.outputLink} />}
                 {row.instagramUrl && <LinkRow label="Instagram" href={row.instagramUrl} />}
                 {row.facebookUrl && <LinkRow label="Facebook" href={row.facebookUrl} />}
@@ -1260,18 +1262,18 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
 
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      <div className="text-sm mt-1">{value || "—"}</div>
+    <div className="flex items-start py-2">
+      <span className="w-[174px] flex-shrink-0 text-[13px] text-[#565A62] pl-[30px] pt-[3px]">{label}</span>
+      <span className="flex-1 min-w-0 text-[13px] text-[#1D1F25]">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">{label}</div>
-      {children}
+    <div className="flex items-start py-2">
+      <div className="w-[174px] flex-shrink-0 text-[13px] text-[#565A62] pl-[30px] pt-[3px]">{label}</div>
+      <div className="flex-1 min-w-0 text-[13px] text-[#1D1F25]">{children}</div>
     </div>
   );
 }
@@ -1279,7 +1281,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 function LinkRow({ label, href }: { label: string; href: string }) {
   return (
     <div className="flex gap-2">
-      <span className="text-gray-500 w-20">{label}</span>
+      <span className="text-[#565A62] w-20 flex-shrink-0">{label}</span>
       <a href={href} target="_blank" rel="noreferrer" className="text-brand hover:underline truncate">{href}</a>
     </div>
   );
