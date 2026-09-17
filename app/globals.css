@@ -207,7 +207,11 @@ html { scrollbar-gutter: stable; }
    Cards with a coloured border — amber and emerald notices — are left at 20px:
    they are alerts, and the extra room is doing work. */
 .preview-scope .bg-white.border-gray-100.p-5:not(.fixed),
-.preview-scope .bg-white.border-gray-100.p-6:not(.fixed) { padding: 16px !important; }
+.preview-scope .bg-white.border-gray-100.p-6:not(.fixed),
+/* Tailwind emits md:p-5 as its own class, so .p-5 does not match a card written
+   "p-4 md:p-5" — six of them on SEO sat at 20px until this line was added. */
+.preview-scope .bg-white.border-gray-100.md\:p-5:not(.fixed),
+.preview-scope .bg-white.border-gray-100.md\:p-6:not(.fixed) { padding: 16px !important; }
 .preview-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .preview-scope textarea,
 .preview-scope select {
