@@ -790,10 +790,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </div>
           )}
         </div>
-      </div>
-
-      {/* Task clock — captured on create → done, so you can see how long it took */}
-      <div className="meta-grid">
+        {/* Task clock — captured on create → done, so you can see how long it took.
+            Same row as owner/collaborators/priority: they are read together. */}
         <div>
           <div className="mlbl">Created</div>
           <div className="mval">{fmtDT(task.detail.createdAt)}</div>
@@ -3474,7 +3472,8 @@ const CSS = `
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 .hmd .detail .d-sub{font-size:12px;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:12px;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.hmd .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;padding:1.15rem 0;border-top:1px solid var(--line)}
+.hmd .meta-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.9rem;padding:.8rem 0;border-top:1px solid var(--line)}
+@media(max-width:1200px){.hmd .meta-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .hmd .mlbl{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:600}
 .hmd .mval{font-size:14px;color:var(--ink-soft);font-weight:500}
 .hmd .collab{display:flex;align-items:center;gap:.4rem;margin-top:.9rem;flex-wrap:wrap}
