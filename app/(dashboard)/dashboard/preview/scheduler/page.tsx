@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -282,7 +283,10 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     channel: string | null; defaultPage: string; publishingDate: string | null;
     airtableRecordId?: string | null;
   };
-  const [schedTab, setSchedTab] = useState<"to_schedule" | "publish" | "top">("to_schedule");
+  // ?tab=calendar and ?tab=top; no tab is the queue you land on.
+  const tabParam = useSearchParams().get("tab");
+  const schedTab: "to_schedule" | "publish" | "top" =
+    tabParam === "calendar" ? "publish" : tabParam === "top" ? "top" : "to_schedule";
   // Which status the counter strip is filtering the list to. "ready" = produced content
   // awaiting scheduling (the default To-schedule master list); the rest slice the queue.
   const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "published" | "failed">("ready");
@@ -869,29 +873,9 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     // scheduler-dense: the density rules live in globals.css, scoped to this tab.
     // Meta's Create-reel composer fits one screen; ours needed 1.85 of them.
     <div className="scheduler-dense">
-      {/* Views on the left, network on the right — one line, and the network sits
-          directly above the Create post button it belongs to. */}
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-      <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-        <button
-          onClick={() => setSchedTab("to_schedule")}
-          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "to_schedule" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
-        >
-          To schedule {toSchedule.length > 0 && <span className={schedTab === "to_schedule" ? "text-white/70" : "text-gray-400"}>{toSchedule.length}</span>}
-        </button>
-        <button
-          onClick={() => setSchedTab("publish")}
-          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "publish" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
-        >
-          Calendar
-        </button>
-        <button
-          onClick={() => setSchedTab("top")}
-          className={`text-sm font-medium px-4 py-1.5 rounded transition ${schedTab === "top" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}
-        >
-          Top performers
-        </button>
-      </div>
+      {/* The three views are sidebar entries under Scheduler now, so the only thing
+          left on this row is the network, still directly above Create post. */}
+      <div className="flex items-center justify-end mb-5">
         {networkSwitch}
       </div>
 

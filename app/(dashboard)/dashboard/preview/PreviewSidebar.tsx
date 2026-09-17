@@ -12,7 +12,7 @@ import {
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
-  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
+  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -57,7 +57,10 @@ const GROUPS: Group[] = [
   { label: "Social Media", sec: "content", items: [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
     { label: "Content Review",      href: `${HUB}/content-review`,  icon: IconChecklist },
-    { label: "Scheduler",           href: `${HUB}/scheduler`,       icon: IconClockHour4 },
+    { key: "scheduler", label: "Scheduler", icon: IconClockHour4, href: `${HUB}/scheduler`, children: [
+      { label: "Published",      href: `${HUB}/scheduler?tab=calendar`, icon: IconSend },
+      { label: "Top performers", href: `${HUB}/scheduler?tab=top`,      icon: IconTrendingUp },
+    ] },
   ] },
   { label: "Analytics", sec: "analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [
