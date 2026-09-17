@@ -246,6 +246,9 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
    the content to a column makes the same elements read larger, because they stop
    being adrift. Nothing was resized to achieve it. */
 .preview-scope:not(.fixed) { max-width: 1440px; margin-inline: auto; }
+/* My Day is a three-column working screen — task list, task detail and the chat
+   pane — so the column that helps everywhere else is just a margin it cannot use. */
+.preview-scope.hmd { max-width: none; }
 
 /* Meta sets the composer's headings at 700 and it is the one measurement ours
    still missed. This is a deliberate exception to the brand book, which allows 400

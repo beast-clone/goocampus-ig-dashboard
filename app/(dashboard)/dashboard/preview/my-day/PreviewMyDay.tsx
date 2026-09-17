@@ -676,6 +676,64 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         </div>
       </div>
 
+      {(canEdit || canAssign || canDelete) && (
+        <>
+          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
+            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
+            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
+            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
+          </div>
+
+          {editing && (
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem" }}>
+              {/* Content is edited in place in the Content-brief section above; this panel
+                  handles priority + due date. Everything saves together on Save changes. */}
+              <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                <div>
+                  <div className="mlbl">Priority</div>
+                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem", flexWrap: "wrap" }}>
+                    {Object.keys(PRIO).map((k) => (
+                      <button key={k} className="btn sm" onClick={() => setPrio(k as typeof prio)} style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mlbl">Due date</div>
+                  <div style={{ marginTop: ".3rem" }}><DatePicker value={due} onChange={setDue} /></div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: ".4rem", marginTop: ".9rem" }}>
+                <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
+                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {assigning && (
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
+              <div className="mlbl" style={{ marginBottom: ".45rem" }}>Reassign to</div>
+              <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
+                {Object.entries(PPL).map(([key, p]) => (
+                  <button key={key} className="btn sm" disabled={busy} onClick={() => reassign(key)}>
+                    <span className="av av-sm" style={{ background: p.color, marginRight: ".35rem" }}>{p.av}</span>{p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {confirmDel && (
+            <div style={{ marginTop: ".5rem", border: "1px solid #F3C6CE", background: "#FDECEF", borderRadius: 10, padding: ".7rem" }}>
+              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? This removes it from the pipeline for everyone.</div>
+              <div style={{ display: "flex", gap: ".4rem" }}>
+                <button className="btn sm" style={{ background: "#C0392B", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={doDelete}>{busy ? "Deleting…" : "Yes, delete"}</button>
+                <button className="btn sm" onClick={() => setConfirmDel(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
       <div className="meta-grid" style={{ marginTop: "1.1rem" }}>
         <div>
@@ -758,7 +816,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
           scroll (the section grows; you scroll the card/page to read it all). */}
       {editing
-        ? <textarea className="nt-input nt-textarea" style={{ width: "100%", minHeight: "9rem", resize: "vertical", marginTop: ".2rem" }} value={contentEdit} onChange={(e) => setContentEdit(e.target.value)} placeholder="The write-up / brief — hook, body, CTA, specs…" />
+        ? <textarea className="nt-input nt-textarea" style={{ width: "100%", minHeight: "5rem", resize: "vertical", marginTop: ".2rem" }} value={contentEdit} onChange={(e) => setContentEdit(e.target.value)} placeholder="The write-up / brief — hook, body, CTA, specs…" />
         : <div className="brief brief-full">{task.detail.content}</div>}
 
       <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
@@ -772,64 +830,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         ))}
       </div>
 
-      {(canEdit || canAssign || canDelete) && (
-        <>
-          <div className="section-lbl" style={{ marginTop: ".9rem" }}>Actions</div>
-          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
-            {canEdit && <button className="btn sm" onClick={() => { setEditing((e) => !e); setAssigning(false); setConfirmDel(false); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
-            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
-            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
-          </div>
-
-          {editing && (
-            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem" }}>
-              {/* Content is edited in place in the Content-brief section above; this panel
-                  handles priority + due date. Everything saves together on Save changes. */}
-              <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-                <div>
-                  <div className="mlbl">Priority</div>
-                  <div style={{ display: "flex", gap: ".3rem", marginTop: ".3rem", flexWrap: "wrap" }}>
-                    {Object.keys(PRIO).map((k) => (
-                      <button key={k} className="btn sm" onClick={() => setPrio(k as typeof prio)} style={k === prio ? { background: PRIO[k as keyof typeof PRIO].bg, color: PRIO[k as keyof typeof PRIO].fg, borderColor: "transparent" } : {}}>{k}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="mlbl">Due date</div>
-                  <div style={{ marginTop: ".3rem" }}><DatePicker value={due} onChange={setDue} /></div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: ".4rem", marginTop: ".9rem" }}>
-                <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-                <button className="btn sm" onClick={() => { setEditing(false); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {assigning && (
-            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
-              <div className="mlbl" style={{ marginBottom: ".45rem" }}>Reassign to</div>
-              <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
-                {Object.entries(PPL).map(([key, p]) => (
-                  <button key={key} className="btn sm" disabled={busy} onClick={() => reassign(key)}>
-                    <span className="av av-sm" style={{ background: p.color, marginRight: ".35rem" }}>{p.av}</span>{p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {confirmDel && (
-            <div style={{ marginTop: ".5rem", border: "1px solid #F3C6CE", background: "#FDECEF", borderRadius: 10, padding: ".7rem" }}>
-              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? This removes it from the pipeline for everyone.</div>
-              <div style={{ display: "flex", gap: ".4rem" }}>
-                <button className="btn sm" style={{ background: "#C0392B", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={doDelete}>{busy ? "Deleting…" : "Yes, delete"}</button>
-                <button className="btn sm" onClick={() => setConfirmDel(false)}>Cancel</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </>
   );
 }
@@ -3339,7 +3339,7 @@ const CSS = `
 .hmd .tasklist::-webkit-scrollbar{width:6px}
 .hmd .tasklist::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 .hmd .task-tabs{display:flex;gap:.25rem;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:.2rem;margin-bottom:.7rem}
-.hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:.4em .3em;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
+.hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:.35em .3em;white-space:nowrap;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
 .hmd .task-tab.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
 .hmd .task-tab-n{font-size:12px;background:#EDEFF4;color:var(--muted);border-radius:7px;padding:0 .35em;min-width:15px;text-align:center}
 .hmd .task-tab.on .task-tab-n{background:var(--brand-soft);color:var(--brand-ink)}
@@ -3486,9 +3486,9 @@ const CSS = `
 .hmd .thumb-add:hover{border-color:var(--brand);color:var(--brand-ink)}
 .hmd .thumb-add-plus{font-size:1.25rem;line-height:1}
 .hmd .thumb-add-lbl{font-size:12px;font-weight:600}
-.hmd .upload-drop{display:flex;align-items:center;gap:.85rem;border:1.5px dashed #C7CEDD;border-radius:12px;padding:1rem 1.1rem;cursor:pointer;background:var(--panel-2);transition:border-color .12s}
+.hmd .upload-drop{display:flex;align-items:center;gap:.7rem;border:1px dashed #C7CEDD;border-radius:4px;padding:.55rem .75rem;cursor:pointer;background:var(--panel-2);transition:border-color .12s}
 .hmd .upload-drop:hover{border-color:var(--brand)}
-.hmd .upload-ic{font-size:1.35rem;color:var(--muted)}
+.hmd .upload-ic{font-size:1rem;color:var(--muted)}
 .hmd .upload-drop b{color:var(--ink);font-size:14px}
 .hmd .upload-sub{display:block;font-size:12px;color:var(--muted);margin-top:.15rem}
 .hmd .thumb-img.clk{cursor:zoom-in}
