@@ -112,7 +112,7 @@ export function CopyrightCheck({ videoUrl, page, collapseWhenClear }: {
         </span>
       ) : (
         <Strip tone="good" icon={<IconCheck size={15} stroke={2.4} />}>
-          <b className="font-medium">Your video is safe to publish.</b> No copyright issues were found.
+          <b className="font-medium">Safe to publish</b> — no copyright match.
         </Strip>
       );
     case "flagged":

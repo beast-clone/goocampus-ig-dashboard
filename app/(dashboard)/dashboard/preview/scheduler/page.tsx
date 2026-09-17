@@ -1591,7 +1591,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                 preview. Same place here — it is what you are looking at anyway, and
                 the column had dead space below the phone. */}
             {singleVideoUrl && (
-              <div className="mt-3">
+              <div className={`mt-3 mx-auto ${previewDevice === "tablet" ? "max-w-[480px]" : "max-w-sm"}`}>
                 <CopyrightCheck videoUrl={singleVideoUrl} page={publishToPage}
                   collapseWhenClear={caption.trim().length > 0} />
               </div>
