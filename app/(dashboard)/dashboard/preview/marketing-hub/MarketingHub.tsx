@@ -2821,8 +2821,8 @@ function Panel({ icon: Ic, title, right, accent, children }: {
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
       <div className={`flex items-center gap-2 px-3 py-1 border-b border-gray-100 ${accent ? "bg-brand-light/80" : "bg-brand-light/40"}`}>
-        {Ic && <Ic size={14} stroke={1.8} className="text-[#8A92A6]" />}
-        <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-[#8A92A6]">{title}</span>
+        {Ic && <Ic size={16} stroke={1.8} className="text-brand" />}
+        <span className="text-[16px] font-semibold text-[#232D42]">{title}</span>
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
       <div className="p-2.5">{children}</div>
@@ -3235,14 +3235,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
                 {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-gray-800 [&_*]:text-[14px] [&_*]:leading-[22px]" dangerouslySetInnerHTML={{ __html: content }} />
+                  : content ? <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px]" dangerouslySetInnerHTML={{ __html: content }} />
                   : loadingDetail ? <div className="text-[14px] text-gray-400">Loading content…</div>
                   : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
               </Panel>
 
               <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
                 {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-gray-800">{caption}</div>
+                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
                   : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
               </Panel>
 
