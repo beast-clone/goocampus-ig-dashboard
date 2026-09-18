@@ -935,7 +935,7 @@ const HCAL_CSS = `
 .hcal-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.15s}
 .hcal-sw.on .hcal-knob{left:16px;background:var(--brand)}
 /* title card, pulled up to overlap the hero */
-.hcal-titlecard{position:relative;z-index:2;margin:-2.3rem 1rem 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between}
+.hcal-titlecard{position:relative;z-index:2;margin:-2.3rem 4px 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between}
 .hcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--ink)}
 .hcal-refresh{display:flex;align-items:center;gap:.35rem;font-size:14px;font-weight:500;height:36px;color:#fff;background:var(--brand);border:none;border-radius:4px;padding:0 16px;box-shadow:0 4px 10px rgba(58,87,232,.24)}
 .hcal-refresh:hover{background:#2f49c9}

@@ -886,7 +886,7 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
   };
   const chipStyle = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 500, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: on ? "1px solid #3A57E8" : "1px solid #E6E8EE", background: on ? "#3A57E8" : "#fff", color: on ? "#fff" : "#232D42" });
   const S: Record<string, React.CSSProperties> = {
-    trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 8, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" },
+    trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 8, padding: "0 10px", height: 36, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" },
     pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)" },
     chips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 },
     row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
@@ -3361,7 +3361,7 @@ const CSS = `
 .hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:12px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
 .hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:12px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
-.hmd .work{display:grid;grid-template-columns:minmax(300px,.72fr) 2fr;gap:.75rem;margin-top:.6rem;align-items:start}
+.hmd .work{display:grid;grid-template-columns:minmax(300px,.72fr) 2fr;gap:.75rem;margin-top:.6rem;align-items:stretch}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
 /* The task-detail card scrolls INSIDE itself so a long brief/creatives list can
    never push the page into a mile of whitespace — My tasks stays visible. */

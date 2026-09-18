@@ -2369,7 +2369,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const headAv = curDef?.av;
 
   return (
-    <div className="flex gap-4 items-start">
+    <div className="flex gap-4 items-stretch">
       {/* Views rail */}
       <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
         <button onClick={() => newView()}

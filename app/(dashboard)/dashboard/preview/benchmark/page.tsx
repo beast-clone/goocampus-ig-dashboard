@@ -205,7 +205,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           value={customHandles}
           onChange={(e) => setCustomHandles(e.target.value)}
           placeholder="add @handle to track…"
-          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-brand min-w-[190px]"
+          className="h-9 text-xs px-3 rounded-full border border-gray-200 focus:outline-none focus:border-brand min-w-[190px]"
           onKeyDown={(e) => { if (e.key === "Enter") addTracked(); }}
         />
         {customHandles.trim() && (

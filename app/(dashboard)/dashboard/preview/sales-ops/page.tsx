@@ -859,7 +859,7 @@ function LeadsFirstContact() {
 
       {/* Filter row: counsellor · date range · status · search · export */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select value={counsellorF} onChange={(e) => setCounsellorF(e.target.value)} className="text-[12.5px] border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 bg-white focus:outline-none focus:border-brand">
+        <select value={counsellorF} onChange={(e) => setCounsellorF(e.target.value)} className="h-9 text-[12.5px] border border-gray-200 rounded-lg pl-3 pr-8 bg-white focus:outline-none focus:border-brand">
           <option value="all">All counsellors</option>
           {counsellorOpts.map((c) => <option key={c.name} value={c.name}>{c.name} ({c.n})</option>)}
         </select>

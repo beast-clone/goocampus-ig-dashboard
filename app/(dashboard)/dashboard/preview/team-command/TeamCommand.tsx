@@ -428,7 +428,7 @@ const CSS = `
 .tcmd .tc-btn.ghost{background:#fff;color:#647089;border-color:var(--line)}
 .tcmd .tc-btn.ghost:hover{color:#C0392B;border-color:#F0D0CE;background:#FDF6F5}
 .tcmd .tc-btn:disabled{opacity:.6;cursor:default;box-shadow:none}
-.tcmd .tc-layout{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-top:16px;align-items:start}
+.tcmd .tc-layout{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-top:16px;align-items:stretch}
 .tcmd .tc-rail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px}
 .tcmd .tc-rail-h{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft);font-weight:700;padding:8px 10px 6px}
 .tcmd .tc-railitem{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font-family:inherit;margin-bottom:2px}
