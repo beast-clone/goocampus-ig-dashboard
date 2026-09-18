@@ -1,4 +1,5 @@
 "use client";
+import { IconClock, IconEye, IconHeart, IconMovie, IconSparkles, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -172,7 +173,7 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
             <div className="px-5 py-3 border-b border-gray-100 text-sm font-medium flex items-center justify-between">
-              <div>🏆 Top performers <span className="text-gray-400 font-normal">by views</span></div>
+              <div className="flex items-center gap-1.5"><IconTrophy size={16} stroke={1.8} className="text-amber-500" />Top performers <span className="text-gray-400 font-normal">by views</span></div>
               {insightsProgress && (
                 <span className="text-xs text-brand">loading {insightsProgress.done}/{insightsProgress.total}</span>
               )}
@@ -250,15 +251,15 @@ function ReelCard({ reel, isTop, insightsLoaded, onClick }: {
         {reel.mediaUrl ? (
           <img src={reel.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">🎬</div>
+          <div className="w-full h-full flex items-center justify-center text-gray-400"><IconMovie size={36} stroke={1.5} /></div>
         )}
         {/* Play badge (top-left) */}
         <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-          🎬 Reel
+          <IconMovie size={12} stroke={2} /> Reel
         </div>
         {isTop && (
           <div className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-            🏆 Top
+            <IconTrophy size={12} stroke={2} className="inline -mt-px" /> Top
           </div>
         )}
         {/* Views overlay — bottom-left, IG-style */}
@@ -279,20 +280,20 @@ function ReelCard({ reel, isTop, insightsLoaded, onClick }: {
         </div>
         {/* Quick stats */}
         <div className="grid grid-cols-4 gap-1 pt-2 border-t border-gray-100 text-center">
-          <MiniQuickStat icon="⏱" label="Watch" value={insightsLoaded ? (reel.avgWatchMs ? `${Math.round(reel.avgWatchMs / 1000)}s` : "—") : dash} />
-          <MiniQuickStat icon="👁" label="Reach" value={insightsLoaded ? shortNum(reel.reach) : dash} />
-          <MiniQuickStat icon="❤" label="Likes" value={shortNum(reel.likes)} />
-          <MiniQuickStat icon="✨" label="Eng" value={insightsLoaded ? shortNum(engagement) : dash} />
+          <MiniQuickStat icon={<IconClock size={14} stroke={1.8} />} label="Watch" value={insightsLoaded ? (reel.avgWatchMs ? `${Math.round(reel.avgWatchMs / 1000)}s` : "—") : dash} />
+          <MiniQuickStat icon={<IconEye size={14} stroke={1.8} />} label="Reach" value={insightsLoaded ? shortNum(reel.reach) : dash} />
+          <MiniQuickStat icon={<IconHeart size={14} stroke={1.8} />} label="Likes" value={shortNum(reel.likes)} />
+          <MiniQuickStat icon={<IconSparkles size={14} stroke={1.8} />} label="Eng" value={insightsLoaded ? shortNum(engagement) : dash} />
         </div>
       </div>
     </button>
   );
 }
 
-function MiniQuickStat({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
+function MiniQuickStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] text-gray-500" title={label}>{icon}</div>
+      <div className="text-gray-500 h-4 flex items-center" title={label}>{icon}</div>
       <div className="text-[11px] font-semibold text-gray-900 tabular-nums leading-tight">{value}</div>
     </div>
   );
@@ -320,7 +321,7 @@ function TopReelCard({ label, reel }: { label: string; reel: ApiPost | null }) {
         {reel.mediaUrl ? (
           <img src={reel.mediaUrl} alt="" className="w-14 h-20 object-cover rounded-lg shrink-0" />
         ) : (
-          <div className="w-14 h-20 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-2xl">🎬</div>
+          <div className="w-14 h-20 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-gray-400"><IconMovie size={22} stroke={1.5} /></div>
         )}
         <div className="flex-1 min-w-0">
           <div className="text-xs text-gray-500">Reel · {fmtDateShort(reel.timestamp)}</div>
@@ -371,7 +372,7 @@ function ReelDetailModal({ reel, insightsLoaded, onClose }: {
           {reel.mediaUrl ? (
             <img src={reel.mediaUrl} alt="" className="max-w-full max-h-[80vh] object-contain" />
           ) : (
-            <div className="text-white text-6xl">🎬</div>
+            <div className="text-white/70"><IconMovie size={56} stroke={1.2} /></div>
           )}
         </div>
 

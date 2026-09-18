@@ -1,4 +1,5 @@
 "use client";
+import { IconArrowsLeftRight, IconUser } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -224,8 +225,8 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
         </div>
         {hasStats && useModernMetrics && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span title="Profile visits from this story">👤 {(s.profileVisits ?? 0).toLocaleString("en-IN")}</span>
-            <span title="Navigation events (taps / swipes / exits)">⇄ {(s.navigation ?? 0).toLocaleString("en-IN")}</span>
+            <span title="Profile visits from this story" className="inline-flex items-center gap-1"><IconUser size={13} stroke={1.8} />{(s.profileVisits ?? 0).toLocaleString("en-IN")}</span>
+            <span title="Navigation events (taps / swipes / exits)" className="inline-flex items-center gap-1"><IconArrowsLeftRight size={13} stroke={1.8} />{(s.navigation ?? 0).toLocaleString("en-IN")}</span>
           </div>
         )}
         {hasStats && !useModernMetrics && (

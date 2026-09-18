@@ -1,4 +1,5 @@
 "use client";
+import { IconCarouselHorizontal, IconEye, IconHeart, IconMessageCircle, IconMovie, IconPhoto, IconPlayerPlay, IconSparkles, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -31,11 +32,13 @@ const TYPE_LABEL: Record<string, string> = {
   REEL: "Reel",
 };
 
-const TYPE_ICON: Record<string, string> = {
-  IMAGE: "◻",
-  VIDEO: "▶",
-  CAROUSEL_ALBUM: "◫",
-  REEL: "🎬",
+// Line icons, as everywhere else in the dashboard — these were emoji and text
+// glyphs (◻ ▶ ◫ 🎬), which rendered in a different style from the rest of the UI.
+const TYPE_ICON: Record<string, React.ReactNode> = {
+  IMAGE: <IconPhoto size={14} stroke={1.8} />,
+  VIDEO: <IconPlayerPlay size={14} stroke={1.8} />,
+  CAROUSEL_ALBUM: <IconCarouselHorizontal size={14} stroke={1.8} />,
+  REEL: <IconMovie size={14} stroke={1.8} />,
 };
 
 export default function PostsPage() {
@@ -204,7 +207,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
         return (
           <div className="bg-amber-50/50 rounded-2xl border border-amber-200 overflow-hidden mb-6">
             <div className="px-5 py-3.5 border-b border-amber-100 flex items-center justify-between">
-              <div className="text-base font-medium text-[#232D42]">🏆 Top performers <span className="text-gray-500 font-normal text-sm">· by reach</span></div>
+              <div className="text-base font-medium text-[#232D42]"><IconTrophy size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-amber-500" />Top performers <span className="text-gray-500 font-normal text-sm">· by reach</span></div>
               {insightsProgress && (
                 <span className="text-xs text-brand">loading engagement {insightsProgress.done}/{insightsProgress.total}</span>
               )}
@@ -310,7 +313,7 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
         </div>
         {isTop && (
           <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-            🏆 Top
+            <IconTrophy size={12} stroke={2} /> Top
           </div>
         )}
       </div>
@@ -325,20 +328,20 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
         </div>
         {/* Quick stats — 4 columns */}
         <div className="grid grid-cols-4 gap-1 pt-2 border-t border-gray-100 text-center">
-          <Stat icon="👁" label="Reach" value={insightsLoaded ? shortNum(post.reach) : dash} />
-          <Stat icon="❤" label="Likes" value={shortNum(post.likes)} />
-          <Stat icon="💬" label="Comm" value={shortNum(post.comments)} />
-          <Stat icon="✨" label="Eng" value={insightsLoaded ? shortNum(engagement) : dash} />
+          <Stat icon={<IconEye size={14} stroke={1.8} />} label="Reach" value={insightsLoaded ? shortNum(post.reach) : dash} />
+          <Stat icon={<IconHeart size={14} stroke={1.8} />} label="Likes" value={shortNum(post.likes)} />
+          <Stat icon={<IconMessageCircle size={14} stroke={1.8} />} label="Comm" value={shortNum(post.comments)} />
+          <Stat icon={<IconSparkles size={14} stroke={1.8} />} label="Eng" value={insightsLoaded ? shortNum(engagement) : dash} />
         </div>
       </div>
     </button>
   );
 }
 
-function Stat({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs text-gray-500" title={label}>{icon}</div>
+      <div className="text-gray-500 h-4 flex items-center" title={label}>{icon}</div>
       <div className="text-xs font-semibold text-gray-900 tabular-nums leading-tight">{value}</div>
     </div>
   );

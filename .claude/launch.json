@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "ig-dashboard",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "4324"],
-      "port": 4324
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "BASE_PATH= npm run dev"],
+      "port": 3000
     }
   ]
 }
