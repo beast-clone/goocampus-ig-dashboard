@@ -230,7 +230,8 @@ export function PreviewCalendar() {
   const [selected, setSelected] = useState<ScheduledPost | null>(null);
   // Default OFF — the calendar shows only REAL scheduled/published posts. The toggle
   // can turn the sample posts back on for a fuller-looking demo if ever needed.
-  const [showDemo, setShowDemo] = useState(false);
+  // Sample posts are no longer offered — the toggle was removed; real posts only.
+  const showDemo = false;
   const samplePosts = useMemo(() => makeSamplePosts(), []);
 
   const load = () => {
@@ -387,14 +388,9 @@ export function PreviewCalendar() {
       {/* HERO band (matches the reference's iq-navbar-header) */}
       <div className="hcal-hero">
         <div className="hcal-hero-txt">
-          <h1>Publishing Calendar</h1>
+          <h1 className="preview-hero-h1">Publishing Calendar</h1>
           <p>Every scheduled &amp; published post across your accounts, month at a glance.</p>
         </div>
-        <label className="hcal-hero-demo">
-          <span className={`hcal-sw ${showDemo ? "on" : ""}`}><span className="hcal-knob" /></span>
-          Sample data
-          <input type="checkbox" checked={showDemo} onChange={(e) => setShowDemo(e.target.checked)} />
-        </label>
       </div>
 
       {/* Title card, pulled up to overlap the hero (reference's "Calendar" + Back card) */}
@@ -621,7 +617,10 @@ function EventChip({ post, onClick, block }: { post: ScheduledPost; onClick: () 
       style={{ background: st.bg, borderColor: st.dot }}
       title={`${post.particulars} — ${acct.handle} · ${st.label}`}
     >
-      <span className="hcal-evtitle" style={{ color: st.text }}>{post.particulars || "(no title)"}</span>
+      <span className="hcal-evbody">
+        <span className="hcal-evtitle" style={{ color: st.text }}>{post.particulars || "(no title)"}</span>
+        {post.primaryInterest && <span className="hcal-evsbu" style={{ color: st.text }} title="Primary interest / SBU">{post.primaryInterest}</span>}
+      </span>
       {ts && <span className="hcal-evtime" style={{ color: st.text }}>{timeShort(ts)}</span>}
     </button>
   );
@@ -980,7 +979,9 @@ const HCAL_CSS = `
 .hcal-ev{display:flex;flex-direction:row;align-items:flex-start;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:4px;padding:4px 6px;overflow:hidden}
 .hcal-ev:hover{filter:brightness(.97)}
 .hcal-evtime{font-weight:700;font-size:12px;line-height:16px;flex:0 0 auto}
-.hcal-evtitle{font-size:12px;line-height:16px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hcal-evbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.hcal-evsbu{font-size:12px;line-height:16px;font-weight:600;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hcal-evtitle{font-size:12px;line-height:16px;font-weight:500;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .hcal-ev.block .hcal-evtitle{white-space:normal}
 .hcal-more{border:none;background:none;font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:2px 6px}
 .hcal-more:hover{color:var(--brand)}
