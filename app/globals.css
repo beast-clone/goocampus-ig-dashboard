@@ -231,9 +231,12 @@ html { scrollbar-gutter: stable; }
    - calendar chips (.hcal-ev / .mhcal-ev) — they are posts, not controls
    - modal backdrops and the sidebar, as with every other rule here
    - the task modal (.hub-airtable), which is a 1:1 copy of Airtable's record and
-     keeps Airtable's ~22px chips */
-.preview-scope button[class*="border"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *),
-.preview-scope button[class*="bg-"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *) {
+     keeps Airtable's ~22px chips
+   - toggle switches — a 37x21 pill with a sliding knob. Forced to 36px tall they
+     became 36x36 circles. Caught by role="switch" (Team) or by the knob itself,
+     a child that moves with translate-x (the two Scheduler switches have no role). */
+.preview-scope button[class*="border"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *):not([role="switch"]):not(:has(> [class*="translate-x"])),
+.preview-scope button[class*="bg-"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *):not([role="switch"]):not(:has(> [class*="translate-x"])) {
   min-height: 36px;
   min-width: 36px;
 }
