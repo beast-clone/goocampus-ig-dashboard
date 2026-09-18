@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { IconCalendarEvent, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { todayIST } from "@/lib/date";
 
@@ -36,6 +36,29 @@ export function PreviewDatePicker({
   drop?: "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
+  // The calendar is positioned against the viewport, not the field. It used to be
+  // absolute inside the field's wrapper, so any ancestor with overflow-hidden — a
+  // rounded modal card, e.g. Sync from Airtable — clipped it mid-month. Fixed
+  // positioning escapes that; it opens upward when there isn't room below, stays
+  // 8px inside the viewport, and follows the field if the page scrolls.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const POP_W = 256, NEED = 340;
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom, above = r.top;
+      const up = drop === "up" ? above > 120 : below < NEED && above > below;
+      const left = Math.max(8, Math.min(align === "right" ? r.right - POP_W : r.left, window.innerWidth - POP_W - 8));
+      setPos(up ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open, align, drop]);
   const selected = value ? new Date(value + "T00:00:00") : null;
   const today = new Date();
   const [view, setView] = useState(() => {
@@ -71,21 +94,19 @@ export function PreviewDatePicker({
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)}
+      <button ref={btnRef} type="button" onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 ${
           size === "sm" ? "h-9 text-[14px] font-medium px-3" : "h-9 text-[14px] font-medium px-3"} ${selected ? "text-gray-900" : "text-gray-400"}`}>
         <IconCalendarEvent size={size === "sm" ? 14 : 16} stroke={1.8} className="text-gray-400" />
         <span className="whitespace-nowrap">{label}</span>
       </button>
 
-      {open && (
+      {open && pos && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           {/* Inline boxShadow — .preview-scope strips Tailwind shadow-* to none. */}
-          <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
-            className={`absolute z-50 bg-white border border-gray-200 rounded-xl p-3 w-64 ${
-              align === "right" ? "right-0" : "left-0"} ${
-              drop === "up" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}>
+          <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)", position: "fixed", ...pos }}
+            className="z-50 bg-white border border-gray-200 rounded-xl p-3 w-64">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-gray-900">{monthLabel}</div>
               <div className="flex items-center gap-1">
