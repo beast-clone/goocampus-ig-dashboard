@@ -17,22 +17,23 @@ export function CalendarTabs() {
     }
   }, []);
 
+  // 36px tall like every control in Business Suite, 14px/500 like its tabs.
+  // The page now sits inside .preview-scope, where --brand is bare RGB channels —
+  // the old inline background:var(--brand) went invalid there and the active tab
+  // turned white-on-white. bg-brand is the in-scope way to say the same colour.
   const pill = (active: boolean) =>
-    `inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${
-      active ? "text-white" : "text-gray-600 hover:text-gray-900"
+    `inline-flex items-center gap-1.5 h-full text-[14px] font-medium px-4 transition ${
+      active ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"
     }`;
-  // `bg-brand` is a .preview-scope-scoped utility; this page's shell renders the tab
-  // bar outside that scope, so the active background comes from --brand inline.
-  const activeStyle = { background: "var(--brand, #3A57E8)" };
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
-        <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-          <button onClick={() => setTab("calendar")} className={pill(tab === "calendar")} style={tab === "calendar" ? activeStyle : undefined}>
+        <div className="inline-flex h-9 bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <button onClick={() => setTab("calendar")} className={pill(tab === "calendar")}>
             <IconCalendarEvent size={16} /> Content calendar
           </button>
-          <button onClick={() => setTab("planner")} className={pill(tab === "planner")} style={tab === "planner" ? activeStyle : undefined}>
+          <button onClick={() => setTab("planner")} className={pill(tab === "planner")}>
             <IconWand size={16} /> AI planner
           </button>
         </div>

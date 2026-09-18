@@ -73,7 +73,7 @@ export function PreviewDatePicker({
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 ${
-          size === "sm" ? "text-xs px-2.5 py-1.5" : "text-sm px-3 py-2"} ${selected ? "text-gray-900" : "text-gray-400"}`}>
+          size === "sm" ? "h-9 text-[14px] font-medium px-3" : "h-9 text-[14px] font-medium px-3"} ${selected ? "text-gray-900" : "text-gray-400"}`}>
         <IconCalendarEvent size={size === "sm" ? 14 : 16} stroke={1.8} className="text-gray-400" />
         <span className="whitespace-nowrap">{label}</span>
       </button>

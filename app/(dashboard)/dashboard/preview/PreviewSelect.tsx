@@ -40,7 +40,7 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
   return (
     <div className="relative">
       <button type="button" onClick={() => { if (!disabled) { setOpen((o) => !o); setShowAdd(false); setAdding(""); } }} disabled={disabled}
-        className={`flex items-center gap-2 text-xs rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-gray-800 ${
+        className={`flex items-center gap-2 h-9 text-[14px] font-medium rounded-lg border border-gray-200 bg-white px-3 text-gray-800 ${
           disabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-300"} ${className || ""}`}>
         <Avatar src={current?.img} />
         <span className={`whitespace-nowrap ${isPlaceholder ? "text-gray-400" : ""}`}>{label}</span>

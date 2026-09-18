@@ -410,12 +410,12 @@ export function PreviewCalendar() {
       <div className="hcal-card">
         <div className="hcal-filters">
           <span className="hcal-flabel">Primary interest</span>
-          <PreviewSelect className="!text-[12px]" value={fSbu} onChange={setFSbu} placeholder="All brands"
+          <PreviewSelect value={fSbu} onChange={setFSbu} placeholder="All brands"
             options={[{ value: "", label: "All brands" },
                       ...sbusPresent.map((b) => ({ value: b, label: b })),
                       { value: "__none", label: "No brand set" }]} />
           <span className="hcal-flabel">Status</span>
-          <PreviewSelect className="!text-[12px]" value={fStatus} onChange={(v) => setFStatus(v as "" | EffectiveStatus)}
+          <PreviewSelect value={fStatus} onChange={(v) => setFStatus(v as "" | EffectiveStatus)}
             placeholder="Any status"
             options={[{ value: "", label: "Any status" },
                       ...(["published", "scheduled", "publishing", "failed", "draft"] as EffectiveStatus[])
@@ -621,8 +621,8 @@ function EventChip({ post, onClick, block }: { post: ScheduledPost; onClick: () 
       style={{ background: st.bg, borderColor: st.dot }}
       title={`${post.particulars} — ${acct.handle} · ${st.label}`}
     >
-      {ts && <span className="hcal-evtime" style={{ color: st.text }}>{timeShort(ts)}</span>}
       <span className="hcal-evtitle" style={{ color: st.text }}>{post.particulars || "(no title)"}</span>
+      {ts && <span className="hcal-evtime" style={{ color: st.text }}>{timeShort(ts)}</span>}
     </button>
   );
 }
@@ -913,7 +913,12 @@ function DetailModal({ post, onClose, onRetried, onReschedule }: {
 }
 
 const HCAL_CSS = `
-.hcal{color:var(--ink)}
+/* .preview-scope redefines --brand as bare RGB channels ("58 87 232") for Tailwind's
+   rgb(var(--brand) / a). This stylesheet uses --brand as a colour, so inside the scope
+   every background:var(--brand) went invalid and fell back to transparent — the nav
+   arrows, the active view, today's badge and the primary buttons all turned
+   white-on-white. Team Command (.tcmd) and Social Leads (.sl) solve it the same way. */
+.hcal{--brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;color:var(--ink)}
 .hcal button{font-family:inherit;cursor:pointer}
 /* hero band — mirrors the theme reference navbar-header */
 .hcal-hero{position:relative;background:linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%);border-radius:16px;padding:1.6rem 1.8rem 3.4rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
@@ -932,7 +937,7 @@ const HCAL_CSS = `
 /* title card, pulled up to overlap the hero */
 .hcal-titlecard{position:relative;z-index:2;margin:-2.3rem 1rem 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between}
 .hcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--ink)}
-.hcal-refresh{display:flex;align-items:center;gap:.35rem;font-size:.78rem;font-weight:600;color:#fff;background:var(--brand);border:none;border-radius:9px;padding:.5rem .95rem;box-shadow:0 4px 10px rgba(58,87,232,.24)}
+.hcal-refresh{display:flex;align-items:center;gap:.35rem;font-size:14px;font-weight:500;height:36px;color:#fff;background:var(--brand);border:none;border-radius:4px;padding:0 16px;box-shadow:0 4px 10px rgba(58,87,232,.24)}
 .hcal-refresh:hover{background:#2f49c9}
 .hcal-refresh:disabled{opacity:.7}
 .hcal-refresh .spin{animation:hcalspin 1s linear infinite}
@@ -940,7 +945,7 @@ const HCAL_CSS = `
 /* calendar card */
 .hcal-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:1.1rem}
 .hcal-filters{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .7rem;padding:.7rem 1rem;border-bottom:1px solid var(--line)}
-.hcal-flabel{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.hcal-flabel{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
 .hcal-fsel{font:inherit;font-size:.78rem;padding:.35rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);max-width:230px}
 .hcal-fclear{font-size:.74rem;font-weight:600;color:var(--brand);background:none;border:none;padding:.2rem .3rem}
 .hcal-fcount{font-size:.78rem;color:var(--muted)}
@@ -950,13 +955,13 @@ const HCAL_CSS = `
 .hcal-lg i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .hcal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;flex-wrap:wrap}
 .hcal-nav{display:flex;align-items:center;gap:.4rem}
-.hcal-navbtn{width:34px;height:34px;border-radius:9px;border:none;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
+.hcal-navbtn{width:40px;height:36px;border-radius:4px;border:none;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
 .hcal-navbtn:hover{background:#2f49c9}
-.hcal-today{border:none;background:var(--brand-soft);color:var(--brand-ink);font-weight:600;font-size:.78rem;padding:.5rem .9rem;border-radius:9px;margin-left:.2rem}
+.hcal-today{border:none;background:var(--brand-soft);color:var(--brand-ink);font-weight:500;font-size:14px;height:36px;padding:0 12px;border-radius:4px;margin-left:.2rem}
 .hcal-today:hover{background:#dfe3fa}
 .hcal-title{font-size:1.35rem;font-weight:700;color:var(--ink);text-align:center;flex:1;min-width:180px}
-.hcal-views{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
-.hcal-viewbtn{border:none;background:none;font-size:.76rem;font-weight:600;color:var(--ink-soft);padding:.38rem .75rem;border-radius:7px}
+.hcal-views{display:flex;align-items:stretch;height:36px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:0;gap:0;overflow:hidden}
+.hcal-viewbtn{border:none;background:none;font-size:12px;font-weight:500;color:var(--ink-soft);padding:0 14px;border-radius:0}
 .hcal-viewbtn:hover{color:var(--ink)}
 .hcal-viewbtn.on{background:var(--brand);color:#fff;box-shadow:0 3px 8px rgba(58,87,232,.24)}
 /* month grid */
@@ -972,12 +977,12 @@ const HCAL_CSS = `
 .hcal-cell.out .hcal-daynum{color:var(--faint)}
 .hcal-cell.today .hcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--brand);color:#fff}
 .hcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
-.hcal-ev{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:1px solid;border-radius:4px;padding:4px 6px;overflow:hidden}
+.hcal-ev{display:flex;flex-direction:row;align-items:flex-start;gap:6px;width:100%;text-align:left;border:1px solid;border-radius:4px;padding:4px 6px;overflow:hidden}
 .hcal-ev:hover{filter:brightness(.97)}
 .hcal-evtime{font-weight:700;font-size:12px;line-height:16px;flex:0 0 auto}
-.hcal-evtitle{font-size:12px;line-height:16px;font-weight:500;width:100%;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hcal-evtitle{font-size:12px;line-height:16px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .hcal-ev.block .hcal-evtitle{white-space:normal}
-.hcal-more{border:none;background:none;font-size:.64rem;color:var(--muted);text-align:left;padding:1px 5px}
+.hcal-more{border:none;background:none;font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:2px 6px}
 .hcal-more:hover{color:var(--brand)}
 /* week */
 .hcal-week{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line)}
