@@ -120,10 +120,15 @@ const str = (v: unknown): string | null => {
  */
 const PROTECTED_STATUSES = new Set(["published", "publishing"]);
 
+// The import reads one Airtable view, not the whole table: the team curates what
+// belongs in the dashboard with that view's filters (status, owner, collaborators,
+// publishing date), so changing the view in Airtable changes what gets imported.
+export const IMPORT_VIEW = { id: "viwNk7D0PPWMNh3Im", name: "Task Dashboard" };
+
 export async function importFromAirtable(opts: {
-  /** Inclusive "YYYY-MM-DD" on Airtable's Publishing Date. */
-  from: string;
-  to: string;
+  /** Optional inclusive "YYYY-MM-DD" bounds on Publishing Date, on top of the view. */
+  from?: string;
+  to?: string;
   /** Preview only — count what would happen, write nothing. */
   dryRun?: boolean;
   filters?: ImportFilters;
@@ -142,10 +147,14 @@ export async function importFromAirtable(opts: {
   // IS_AFTER/IS_BEFORE are exclusive, so the range is widened by a day at each end
   // and the exact comparison is done here — an off-by-one on a date range quietly
   // drops the first and last day of the month somebody asked for.
-  const formula = `AND(IS_AFTER({Publishing Date}, DATEADD('${opts.from}', -1, 'days')), IS_BEFORE({Publishing Date}, DATEADD('${opts.to}', 1, 'days')))`;
+  const bounds = [
+    opts.from ? `IS_AFTER({Publishing Date}, DATEADD('${opts.from}', -1, 'days'))` : "",
+    opts.to ? `IS_BEFORE({Publishing Date}, DATEADD('${opts.to}', 1, 'days'))` : "",
+  ].filter(Boolean);
 
   const all = await airtableList<CalendarFields>(CONTENT_CALENDAR_TABLE, {
-    filterByFormula: formula,
+    view: IMPORT_VIEW.id,
+    ...(bounds.length ? { filterByFormula: `AND(${bounds.join(", ")})` } : {}),
     sort: [{ field: "Publishing Date", direction: "asc" }],
   });
   out.inRange = all.length;

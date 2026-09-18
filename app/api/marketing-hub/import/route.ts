@@ -5,7 +5,7 @@ import { safeError } from "@/lib/errors";
 
 // Pull a window of Airtable's Content Calendar into the master sheet.
 //
-//   POST { from, to, dryRun?, facetsOnly?, filters? }
+//   POST { from?, to?, dryRun?, facetsOnly?, filters? } — reads the Airtable view IMPORT_VIEW
 //     → { inRange, facets, scanned, created, updated, skipped, errors }
 //   filters: { owner?, collaborators?, type?, status?, sbu? } — arrays of Airtable values.
 //
@@ -24,15 +24,16 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => ({}))) as { from?: string; to?: string; dryRun?: boolean; facetsOnly?: boolean; filters?: Record<string, unknown> };
     const from = (b.from || "").trim();
     const to = (b.to || "").trim();
-    if (!DATE.test(from) || !DATE.test(to)) {
-      return NextResponse.json({ error: "Pick a start and an end date." }, { status: 400 });
+    // Dates are optional: the Airtable view decides what's in scope; dates only narrow it.
+    if ((from && !DATE.test(from)) || (to && !DATE.test(to))) {
+      return NextResponse.json({ error: "Those dates aren't valid." }, { status: 400 });
     }
-    if (from > to) {
+    if (from && to && from > to) {
       return NextResponse.json({ error: "The start date is after the end date." }, { status: 400 });
     }
     // A whole year in one press is a long request and a lot of writes; the button
     // offers months, and this is the backstop for a hand-typed range.
-    const days = (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000;
+    const days = from && to ? (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000 : 0;
     if (days > 400) {
       return NextResponse.json({ error: "That range is over a year. Import it a few months at a time." }, { status: 400 });
     }

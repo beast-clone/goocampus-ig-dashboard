@@ -25,6 +25,8 @@ export async function airtableList<T = Record<string, unknown>>(
   tableId: string,
   params: {
     filterByFormula?: string;
+    /** Only records in this view, with the view's own filters applied. */
+    view?: string;
     fields?: string[];
     pageSize?: number;
     maxRecords?: number;
@@ -39,6 +41,7 @@ export async function airtableList<T = Record<string, unknown>>(
     const qs = new URLSearchParams();
     qs.set("pageSize", String(params.pageSize ?? 100));
     if (params.filterByFormula) qs.set("filterByFormula", params.filterByFormula);
+    if (params.view) qs.set("view", params.view);
     (params.fields || []).forEach((f) => qs.append("fields[]", f));
     (params.sort || []).forEach((s, i) => {
       qs.append(`sort[${i}][field]`, s.field);

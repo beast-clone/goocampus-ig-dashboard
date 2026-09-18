@@ -43,8 +43,9 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
   const [open, setOpen] = useState(false);
   const now = new Date();
-  const [from, setFrom] = useState(iso(new Date(now.getFullYear(), now.getMonth(), 1)));
-  const [to, setTo] = useState(iso(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+  // Empty = everything in the Airtable view; the dates only narrow it.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [filters, setFilters] = useState<Partial<Record<FacetKey, string[]>>>({});
   const [busy, setBusy] = useState<"check" | "run" | null>(null);
   const [facets, setFacets] = useState<{ inRange: number; facets: Facets; scanned: number } | null>(null);
@@ -66,7 +67,7 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
   // Filter options come from the records actually in the chosen dates, with counts,
   // and the match count updates as filters are picked.
   useEffect(() => {
-    if (!open || !from || !to || from > to) return;
+    if (!open || (from && to && from > to)) return;
     let live = true;
     setLoadingFacets(true);
     post({ facetsOnly: true })
@@ -119,9 +120,9 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
             <header className="px-5 py-4 bg-[#E9ECFB] border-b border-gray-100">
               <h3 className="text-[16px] font-medium text-[#232D42]">Sync from Airtable</h3>
               <p className="mt-1 text-[14px] leading-relaxed text-[#4A5468]">
-                Copies the Content Calendar into this sheet for the dates you choose, matching on
-                Publishing Date. Narrow it with the same fields you filter by in Airtable. Nothing is
-                written back to Airtable.
+                Imports the tasks in the Airtable view <span className="font-medium text-[#232D42]">Task Dashboard</span> (Content
+                Calendar). Change that view&apos;s filters in Airtable to change what comes in; narrow it further
+                here if you need to. Nothing is written back to Airtable.
               </p>
             </header>
 
@@ -129,11 +130,16 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="w-[160px] text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">Publishing date</span>
-                  <PreviewDatePicker value={from} onChange={(v) => { setFrom(v); reset(); }} size="sm" max={to || undefined} />
+                  <PreviewDatePicker value={from} onChange={(v) => { setFrom(v); reset(); }} size="sm" max={to || undefined} placeholder="Any date" />
                   <span className="text-[12px] text-[#A6ACBE]">to</span>
-                  <PreviewDatePicker value={to} onChange={(v) => { setTo(v); reset(); }} size="sm" min={from || undefined} />
+                  <PreviewDatePicker value={to} onChange={(v) => { setTo(v); reset(); }} size="sm" min={from || undefined} placeholder="Any date" />
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap pl-[168px]">
+                  <button onClick={() => { setFrom(""); setTo(""); reset(); }}
+                    style={!from && !to ? { borderColor: BLUE, color: BLUE } : undefined}
+                    className="h-7 text-[12px] text-[#4A5468] border border-gray-200 rounded px-2.5 hover:border-[#3A57E8] hover:text-[#3A57E8]">
+                    All dates in the view
+                  </button>
                   {[["This month", 0], ["Last month", -1], ["Next month", 1]].map(([label, back]) => (
                     <button key={label as string} onClick={() => month(back as number)}
                       className="h-7 text-[12px] text-[#4A5468] border border-gray-200 rounded px-2.5 hover:border-[#3A57E8] hover:text-[#3A57E8]">
@@ -147,7 +153,7 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
                 <div className="flex items-center gap-2">
                   <span className="text-[14px] font-medium text-[#232D42]">Filters</span>
                   <span className="text-[12px] text-[#8A92A6]">
-                    {loadingFacets ? "Reading Airtable…" : facets ? `${facets.scanned} of ${facets.inRange} records in these dates match` : ""}
+                    {loadingFacets ? "Reading Airtable…" : facets ? `${facets.scanned} of ${facets.inRange} tasks in the view match` : ""}
                   </span>
                   {activeCount > 0 && (
                     <button onClick={() => { setFilters({}); reset(); }} className="ml-auto text-[12px] text-[#8A92A6] hover:text-[#232D42]">Clear filters</button>
@@ -278,7 +284,7 @@ function MultiDropdown({ label, placeholder, options, picked, loading, onToggle,
             </div>
           )}
           <div className="overflow-y-auto py-1">
-            {shown.length === 0 && <div className="px-3 py-2 text-[14px] text-[#8A92A6]">{loading ? "Reading Airtable…" : "Nothing in these dates"}</div>}
+            {shown.length === 0 && <div className="px-3 py-2 text-[14px] text-[#8A92A6]">{loading ? "Reading Airtable…" : "None in the view"}</div>}
             {shown.map((o) => {
               const on = picked.includes(o.value);
               return (
