@@ -44,7 +44,7 @@ const SHADOW = "none"; // dashboard cards are FLAT — no drop shadow (matches t
 
 type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number };
-  deltas: { followers: number; reach: number; engagement: number; profileVisits: number };
+  deltas: { followers: number; reach: number; engagement: number | null; profileVisits: number | null };
   series: { date: string; reach: number; engagement: number }[];
   // "measured" once engagement + profile views come from Meta rather than the
   // old reach-derived guess; drives whether the cards still say EST.
@@ -60,13 +60,14 @@ const fmt = (n?: number | null) => (n ?? 0).toLocaleString("en-IN");
 const kfmt = (n?: number | null) => { const v = n ?? 0; return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "K" : String(v); };
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; };
 
-// Plain-English fallbacks (same copy the real Overview uses) until AI tips load.
+// Plain-English definitions shown until the AI tips load. No advice here: a canned
+// "growth is holding" line read as analysis whatever the numbers said.
 const PLAIN: Record<string, { detail: string; action: string }> = {
-  followers:     { detail: "Total accounts following you.",               action: "Keep the current cadence — growth is holding." },
-  reach:         { detail: "Unique people who saw your content.",         action: "Post more Reels to lift this fastest." },
-  engagement:    { detail: "Likes, comments, saves and shares combined.", action: "Ask a direct question in your next caption." },
-  profileVisits: { detail: "People who tapped your handle to see the bio.", action: "A/B test the bio link CTA." },
-  engRate:       { detail: "Of every 100 people who saw your posts, this many reacted.", action: "Above 5% is strong for education — keep the hook style." },
+  followers:     { detail: "Total accounts following you.",               action: "" },
+  reach:         { detail: "Unique people who saw your content.",         action: "" },
+  engagement:    { detail: "Likes, comments, saves and shares combined.", action: "" },
+  profileVisits: { detail: "People who tapped your handle to see the bio.", action: "" },
+  engRate:       { detail: "Of every 100 people who saw your posts, this many reacted.", action: "" },
 };
 
 function typeChip(t: string) {
@@ -198,6 +199,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
   const [chartMetric, setChartMetric] = useState<"reach" | "engagement">("reach");
   const [ins, setIns] = useState<Insights | null>(null);
+  const [insErr, setInsErr] = useState<string | null>(null);  // shown instead of a stuck "Loading…"
   const [insStored, setInsStored] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [aud, setAud] = useState<Audience | null>(null);
@@ -220,7 +222,10 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     const insUrl = useStored
       ? `/api/insights-stored?accountId=${accountId}&from=${from}&to=${to}`
       : `/api/insights?accountId=${accountId}&from=${from}&to=${insTo}`;
-    fetch(insUrl).then((r) => r.ok ? r.json() : null).then((i) => { if (alive && i) { setIns(i as Insights); setInsStored(!!i.stored); } }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
+    setInsErr(null);
+    fetch(insUrl).then(async (r) => { if (r.ok) return r.json(); const j = await r.json().catch(() => ({})); throw new Error(j.error || `HTTP ${r.status}`); })
+      .then((i) => { if (alive && i) { setIns(i as Insights); setInsStored(!!i.stored); } })
+      .catch((e) => { if (alive) { setIns(null); setInsErr((e as Error).message); } }).finally(() => { if (alive) setLoading(false); });
     fetch(`/api/posts?accountId=${accountId}&from=${from}&to=${to}&limit=10&insights=true`).then((r) => r.ok ? r.json() : { posts: [] }).then((p) => { if (alive) setPosts((p?.posts || []) as Post[]); }).catch(() => {});
     fetch(`/api/audience?accountId=${accountId}&from=${from}&to=${to}`).then((r) => r.ok ? r.json() : null).then((a) => { if (alive && a) setAud(a as Audience); }).catch(() => {});
     fetch(`/api/overview-tips?accountId=${accountId}&from=${from}&to=${insTo}`).then((r) => r.ok ? r.json() : null).then((tp) => { if (alive) setTips((tp?.tips || []) as Tip[]); }).catch(() => {});
@@ -310,8 +315,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     // Live-window engagement & profile visits come straight from Meta
     // (total_interactions / profile_views). `engEst` only turns back on if that
     // call failed and we're showing the old reach-derived estimate.
-    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? 0), badge: insStored ? "from posts" : undefined, est: engEst },
-    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? 0), badge: insStored ? "not recorded" : undefined, est: engEst },
+    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? "from posts" : undefined, est: engEst },
+    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? "not recorded" : undefined, est: engEst },
     { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true, est: engEst },
   ] : [];
 
@@ -365,9 +370,6 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
             )}
           </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E9FBEF", color: C.success, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 999 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: C.success }} /> Live
-            </span>
             <HubNotificationBell />
             <HeaderProfile />
           </div>
@@ -438,8 +440,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <HeroBanner eyebrow={`${currentAccount.handle} · ${rangeLabel}`} person={person}>
                 {t ? (insStored
                   ? <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period, reaching <b>{fmt(t.reach)}</b> — from your saved history.</>
-                  : <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period{d ? <> — reach is <b>{d.reach >= 0 ? "up" : "down"} {Math.abs(d.reach).toFixed(1)}%</b> and engagement <b>{d.engagement >= 0 ? "up" : "down"} {Math.abs(d.engagement).toFixed(1)}%</b>. Solid month.</> : "."}</>
-                ) : "Loading your latest performance…"}
+                  : <>You gained <b>{fmt(t.newFollowers)}</b> new followers this period{d ? <> — reach is <b>{d.reach >= 0 ? "up" : "down"} {Math.abs(d.reach).toFixed(1)}%</b>{d.engagement != null && <> and engagement <b>{d.engagement >= 0 ? "up" : "down"} {Math.abs(d.engagement).toFixed(1)}%</b></>}.</> : "."}</>
+                ) : insErr ? `Couldn't load Instagram right now — ${insErr}` : "Loading your latest performance…"}
               </HeroBanner>
               {insStored && (
                 <div style={{ fontSize: 12, background: "#EEF1FB", border: "1px solid #DCE3FB", color: "#2138B0", borderRadius: 10, padding: "9px 13px", marginTop: -8 }}>
@@ -703,15 +705,17 @@ function PlatformHero({ platform, accountId, range, rangeLabel, person = "" }: {
 
   let sub: React.ReactNode;
   if (!connected) {
-    sub = <>{label} is not connected for @{accountId} yet — it is live for GooCampus World.</>;
+    sub = <>{label} isn&apos;t connected for this brand.</>;
   } else if (!data) {
     sub = <>Loading your {label} performance…</>;
+  } else if (data.error) {
+    sub = <>Couldn&apos;t load {label} right now — {String(data.error)}</>;
   } else if (platform === "facebook") {
     const i = (data.insights || {}) as { engagement?: number; pageViews?: number; follows?: number };
-    sub = <>Your Facebook page drove <b>{fmt(i.engagement || 0)}</b> engagements and <b>{fmt(i.pageViews || 0)}</b> page views this period{i.follows ? <>, plus <b>{fmt(i.follows)}</b> new follows</> : null}. Solid month.</>;
+    sub = <>Your Facebook page drove <b>{fmt(i.engagement || 0)}</b> engagements and <b>{fmt(i.pageViews || 0)}</b> page views this period{i.follows ? <>, plus <b>{fmt(i.follows)}</b> new follows</> : null}.</>;
   } else if (platform === "youtube") {
     const s = (data.summary || {}) as { subscriberGain?: number; views?: number; watchHours?: number };
-    sub = <>You gained <b>{fmt(s.subscriberGain || 0)}</b> subscribers this period — <b>{fmt(s.views || 0)}</b> views and <b>{fmt(s.watchHours || 0)}</b> watch hours. Solid month.</>;
+    sub = <>You gained <b>{fmt(s.subscriberGain || 0)}</b> subscribers this period — <b>{fmt(s.views || 0)}</b> views and <b>{fmt(s.watchHours || 0)}</b> watch hours.</>;
   } else {
     const s = (data.summary || {}) as { followers?: number; followerGain?: number; engagementRate?: number; posts?: number };
     sub = <>You have <b>{fmt(s.followers || 0)}</b> followers (<b>+{s.followerGain || 0}</b> this period) with a <b>{s.engagementRate || 0}%</b> engagement rate across <b>{s.posts || 0}</b> posts.</>;

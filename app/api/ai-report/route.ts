@@ -18,7 +18,7 @@ export type ReportPeriod = "weekly" | "monthly" | "quarterly";
 
 type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number };
-  deltas: { followers: number; reach: number; engagement: number; profileVisits: number };
+  deltas: { followers: number; reach: number; engagement: number | null; profileVisits: number | null };
   series: { date: string; followers: number; reach: number; engagement: number; newFollowers: number }[];
 };
 
@@ -82,7 +82,7 @@ export type ReportPayload = {
     insight: string;
   };
   reachOverview: { total: number; deltaPct: number; insight: string };
-  engagementOverview: { total: number; deltaPct: number; engagementRatePct: number; insight: string };
+  engagementOverview: { total: number; deltaPct: number | null; engagementRatePct: number; insight: string };
   audienceInsights: {
     topCountries: { label: string; value: number }[];
     topCities: { label: string; value: number }[];
@@ -391,8 +391,8 @@ export async function GET(req: Request) {
     const highlightsMap: Record<string, { value: string; delta?: string }> = {
       "Followers gained": { value: (insights.totals.newFollowers >= 0 ? "+" : "") + insights.totals.newFollowers.toLocaleString("en-IN") },
       "Reach":            { value: insights.totals.reach.toLocaleString("en-IN"),      delta: (insights.deltas.reach >= 0 ? "+" : "") + insights.deltas.reach.toFixed(1) + "%" },
-      "Engagement":       { value: insights.totals.engagement.toLocaleString("en-IN"), delta: (insights.deltas.engagement >= 0 ? "+" : "") + insights.deltas.engagement.toFixed(1) + "%" },
-      "Profile visits":   { value: insights.totals.profileVisits.toLocaleString("en-IN"), delta: (insights.deltas.profileVisits >= 0 ? "+" : "") + insights.deltas.profileVisits.toFixed(1) + "%" },
+      "Engagement":       { value: insights.totals.engagement.toLocaleString("en-IN"), delta: insights.deltas.engagement == null ? "—" : (insights.deltas.engagement >= 0 ? "+" : "") + insights.deltas.engagement.toFixed(1) + "%" },
+      "Profile visits":   { value: insights.totals.profileVisits.toLocaleString("en-IN"), delta: insights.deltas.profileVisits == null ? "—" : (insights.deltas.profileVisits >= 0 ? "+" : "") + insights.deltas.profileVisits.toFixed(1) + "%" },
     };
     const highlights = ["Followers gained", "Reach", "Engagement", "Profile visits"].map((metric) => {
       const found = ai.highlights?.find((h) => h.metric === metric);

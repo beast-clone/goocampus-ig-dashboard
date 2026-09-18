@@ -574,16 +574,19 @@ export async function buildLive(pageKey: string, from: string, to: string) {
       engagementRate,
       ctr,
       pageViews: pageStats.totalPageViews,
-      uniqueVisitors: Math.round(pageStats.totalPageViews * 0.7), // LinkedIn doesn't split unique on org page stats
+      // LinkedIn's org page stats don't give unique visitors, so none is reported
+      // (it used to be invented as 70% of page views).
+      uniqueVisitors: null,
       posts: posts.length,
     },
     followersOverTime: growth.followersOverTime,
     posts,
     visitors: {
       totalPageViews: pageStats.totalPageViews,
-      uniqueVisitors: Math.round(pageStats.totalPageViews * 0.7),
+      uniqueVisitors: null,
       byPage: pageStats.byPage,
-      overTime: growth.followersOverTime.map((d: { date: string }) => ({ date: d.date, views: 0, unique: 0 })),
+      // No daily page-view series is fetched; an empty list, not a line of zeros.
+      overTime: [] as { date: string; views: number; unique: number }[],
     },
     demographics,
   };

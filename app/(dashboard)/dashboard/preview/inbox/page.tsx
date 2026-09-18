@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
@@ -57,30 +58,6 @@ type Lead = {
 
 const filledOf = (l: Lead) => [l.first, l.last, l.email, l.phone, l.query].filter((x) => (x || "").trim()).length;
 
-// Representative sample — GooCampus funnels (gulf webinar, MBBS abroad, AMC, PLAB, NEET, Canada PRA).
-const SAMPLE: Lead[] = [
-  { id: "s1", first: "Ananya", last: "Reddy", email: "ananya.reddy@gmail.com", phone: "+91 98450 11234",
-    query: "Eligible for DHA with an Indian MBBS?", keyword: "gulf", sourcePost: "Gulf webinar", av: "#3A57E8",
-    when: "2 Aug · 10:05", status: "Hot lead", lastMod: "3 Aug · 4:12pm", counsellor: "Robin", airtableUrl: "#", live: false },
-  { id: "s2", first: "Sneha", last: "Iyer", email: "sneha.iyer21@gmail.com", phone: "+91 90350 78120",
-    query: "MBBS Georgia fees & NEET for 2026?", keyword: "mbbs", sourcePost: "MBBS Georgia reel", av: "#079AA2",
-    when: "1 Aug · 09:03", status: "Initial discussions", lastMod: "2 Aug · 11:40am", counsellor: "Gopi", airtableUrl: "#", live: false },
-  { id: "s3", first: "Fatima", last: "Sheikh", email: "fatima.sheikh@outlook.com", phone: "+91 97410 33098",
-    query: "PLAB UK timeline and total cost?", keyword: "plab", sourcePost: "PLAB UK pathway", av: "#8B5CF6",
-    when: "31 Jul · 07:26", status: "Closed won", lastMod: "4 Aug · 6:02pm", counsellor: "Jeswin", airtableUrl: "#", live: false },
-  { id: "s4", first: "Rahul", last: "Menon", email: "rahul.menon@gmail.com", phone: "+91 99001 55221",
-    query: "AMC exam guidance", keyword: "amc", sourcePost: "AMC MCQ guide", av: "#0EA5E9",
-    when: "1 Aug · 09:46", status: "New", lastMod: null, counsellor: null, airtableUrl: "#", live: false },
-  { id: "s5", first: "Priya", last: "Nair", email: "priya.nair@gmail.com", phone: "+91 98765 43210",
-    query: "Can I attend the Gulf webinar?", keyword: "gulf", sourcePost: "Gulf webinar", av: "#1AA053",
-    when: "Just now", status: "New", lastMod: null, counsellor: null, airtableUrl: "#", live: false },
-  { id: "s6", first: "Vikram", last: "Das", email: "vikram.das@gmail.com", phone: "+91 96320 71145",
-    query: "Re-enquiry — asked about Canada PRA again", keyword: "canada", sourcePost: "Canada PRA post", av: "#D6336C",
-    when: "30 Jul · 04:09", status: "Re-Enquiry", lastMod: "28 Jul · 3:20pm", counsellor: "Robin", airtableUrl: "#", live: false },
-  { id: "s7", first: "Karthik", last: "", email: "", phone: "+91 98220 41007", query: "",
-    keyword: "neet", sourcePost: "NEET PG carousel", av: "#B7791F",
-    when: "30 Jul · 05:11", status: "", lastMod: null, counsellor: null, airtableUrl: null, live: false },
-];
 
 // A real submission from the public per-post form (mh_dm_leads) → the Lead shape.
 type LeadRow = { id: string; first_name: string; last_name: string; email: string; phone: string; query: string; source_post: string; keyword: string; ig_username: string; status: string; created_at: string };
@@ -122,15 +99,16 @@ export default function InboxPage() {
 }
 
 function LeadsLedger() {
-  const [leads, setLeads] = useState<Lead[]>(SAMPLE);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [tab, setTab] = useState<SubTab>("leads");
   const [q, setQ] = useState("");
   const [onlyFlagged, setOnlyFlagged] = useState(false);
-  const [source, setSource] = useState<"sample" | "live">("sample");
+  // loading → live (leads found) or none (nothing returned / Airtable unreachable).
+  // No sample leads: fake names and phone numbers must never show in a lead list.
+  const [source, setSource] = useState<"loading" | "live" | "none">("loading");
 
   // Real leads: Airtable Sales Hub "DM Leads" (the ledger) + any brand-new submissions
-  // from the per-post form (mh_dm_leads, not yet in Airtable) on top. Falls back to the
-  // sample layout only when neither returns anything.
+  // from the per-post form (mh_dm_leads, not yet in Airtable) on top.
   useEffect(() => {
     Promise.all([
       fetch("/api/dm-leads/airtable").then((r) => r.json()).catch(() => ({ leads: [] })),
@@ -138,11 +116,9 @@ function LeadsLedger() {
     ]).then(([at, sup]) => {
       const atLeads = ((at?.leads || []) as AtRow[]).map(atToLead);
       const supLeads = ((sup?.leads || []) as LeadRow[]).map(rowToLead);
-      if (atLeads.length || supLeads.length) {
-        setLeads([...supLeads, ...atLeads]);
-        setSource("live");
-      }
-    }).catch(() => { /* keep sample */ });
+      setLeads([...supLeads, ...atLeads]);
+      setSource(atLeads.length || supLeads.length ? "live" : "none");
+    }).catch(() => setSource("none"));
   }, []);
 
   const stats = useMemo(() => {
@@ -174,10 +150,12 @@ function LeadsLedger() {
           <IconCircleCheck size={16} className="text-emerald-600 mt-0.5 shrink-0" />
           <span><b>Connected to Airtable Sales Hub.</b> Live DM leads with their real status, counsellor and last activity — click <b>Open ↗</b> for the record. New per-post form submissions show on top with a <b>green “live” badge</b> until they reach Airtable.</span>
         </div>
+      ) : source === "loading" ? (
+        <LoadingBlock label="Loading DM leads…" />
       ) : (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12.5px] text-amber-900">
-          <IconSparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
-          <span><b>Sample layout.</b> Airtable returned no leads (or no token is set) — showing sample data. Real leads from the Sales Hub “DM Leads” table appear here once connected.</span>
+        <div className="flex items-start gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[12.5px] text-[#4A5468]">
+          <IconInbox size={16} className="text-[#8A92A6] mt-0.5 shrink-0" />
+          <span><b>No DM leads to show.</b> The Sales Hub “DM Leads” table returned nothing, or Airtable couldn&apos;t be reached. Leads appear here as soon as there are some.</span>
         </div>
       )}
 

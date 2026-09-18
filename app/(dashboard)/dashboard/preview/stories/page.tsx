@@ -1,6 +1,6 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { IconArrowsLeftRight, IconUser, IconBooks, IconCamera } from "@tabler/icons-react";
+import { IconArrowsLeftRight, IconUser, IconBooks } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -16,28 +16,7 @@ type StoryWithStats = Story & {
   tapsForward: number; tapsBack: number; exits: number;
 };
 
-// Realistic demo stories so the manager can see what the tab WILL look like once
-// n8n's story_insights webhook is wired up. Stats are typical of GooCampus's audience.
-const DEMO_STORIES: StoryWithStats[] = [
-  { id: "demo-1", caption: "AMC Part 1 prep tip 🇦🇺", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    views: 4287, reach: 4012, replies: 23, tapsForward: 1841, tapsBack: 142, exits: 287 },
-  { id: "demo-2", caption: "Behind the scenes — Bangalore ALS workshop", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    views: 3956, reach: 3742, replies: 41, tapsForward: 1623, tapsBack: 89, exits: 198 },
-  { id: "demo-3", caption: "Poll: Which pathway are you on?", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    views: 4521, reach: 4287, replies: 312, tapsForward: 1102, tapsBack: 67, exits: 145 },
-  { id: "demo-4", caption: "NZ Healthcare Handbook is OUT 📘", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
-    views: 5104, reach: 4823, replies: 89, tapsForward: 2014, tapsBack: 156, exits: 234 },
-  { id: "demo-5", caption: "Q&A: WBA vs AMC Clinical", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
-    views: 3812, reach: 3567, replies: 67, tapsForward: 1456, tapsBack: 98, exits: 213 },
-  { id: "demo-6", caption: "Student success: Dr. Aisha → AHPRA", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 17 * 60 * 60 * 1000).toISOString(),
-    views: 4673, reach: 4398, replies: 56, tapsForward: 1789, tapsBack: 112, exits: 245 },
-  { id: "demo-7", caption: "Quick fact: IMG job demand 2026", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-    views: 3247, reach: 3089, replies: 19, tapsForward: 1234, tapsBack: 78, exits: 167 },
-  { id: "demo-8", caption: "Reminder — webinar tomorrow 7 PM IST", mediaUrl: "", permalink: "#", timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
-    views: 4156, reach: 3934, replies: 124, tapsForward: 1567, tapsBack: 103, exits: 198 },
-];
-
-// Soft gradient backgrounds (no external images needed) so the demo grid looks polished.
+// Soft gradient backgrounds for story tiles that have no thumbnail.
 const DEMO_GRADIENTS = [
   "from-brand to-brand-dark",
   "from-blue-400 to-cyan-500",
@@ -75,9 +54,7 @@ function StoriesView({ accountId }: { accountId: string }) {
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   useEffect(() => { if (stories || historical) { setFetchedAt(Date.now()); setLatencyMs(null); } }, [stories, historical]);
 
-  // Always have BOTH: any real stories Meta returned (live, currently active in the 24h
-  // window) on top, AND the demo grid below so the tab is never empty and the manager can
-  // see what historical analytics will look like once the n8n story_insights webhook lands.
+  // Live stories (currently active in the 24h window) on top, saved history below.
   // Real stories now carry their real reach/replies/taps/exits from Meta's insights endpoint.
   const realStories: StoryWithStats[] = (stories ?? []).map((s) => {
     const raw = s as unknown as Partial<StoryWithStats>;
@@ -95,19 +72,17 @@ function StoriesView({ accountId }: { accountId: string }) {
   const hasReal = realStories.length > 0;
   const realHaveStats = realStories.some((s) => s.reach > 0);
 
-  // KPI tiles + the fallback grid PREFER real data (live + historical). Demo only
-  // fills in when the account has no real story data yet — so the numbers are honest
-  // on a configured env, and the tab is never empty on a fresh one.
-  const realSet = [...realStories, ...(historical ?? [])];
-  const showDemo = realSet.length === 0;
-  const statSet = showDemo ? DEMO_STORIES : realSet;
+  // KPI tiles count real stories only (live + historical). With none, they read 0 /
+  // "—" and an empty state explains why — no sample stories.
+  const statSet = [...realStories, ...(historical ?? [])];
+  const noneYet = !loading && statSet.length === 0;
   const totalDisplayed = statSet.length;
-  const demoViews = statSet.reduce((s, x) => s + (x.views || 0), 0);
-  const demoReplies = statSet.reduce((s, x) => s + (x.replies || 0), 0);
+  const totalViews = statSet.reduce((s, x) => s + (x.views || 0), 0);
+  const totalReplies = statSet.reduce((s, x) => s + (x.replies || 0), 0);
   // Completion needs exit data. Live (v25) stories don't carry taps/exits, so only
   // average over stories that actually have it — else show "—" instead of NaN%.
   const completable = statSet.filter((x) => (x.views || 0) > 0 && (x.exits || 0) > 0);
-  const demoAvgCompletion = completable.length
+  const avgCompletion = completable.length
     ? Math.round(completable.reduce((s, x) => s + ((x.views - x.exits) / x.views) * 100, 0) / completable.length)
     : null;
 
@@ -119,9 +94,9 @@ function StoriesView({ accountId }: { accountId: string }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Stories shown" value={totalDisplayed.toString()} />
-        <MetricCard label="Total views" value={demoViews.toLocaleString("en-IN")} />
-        <MetricCard label="Total replies" value={demoReplies.toLocaleString("en-IN")} />
-        <MetricCard label="Avg completion" value={demoAvgCompletion === null ? "—" : `${demoAvgCompletion}%`} />
+        <MetricCard label="Total views" value={totalViews.toLocaleString("en-IN")} />
+        <MetricCard label="Total replies" value={totalReplies.toLocaleString("en-IN")} />
+        <MetricCard label="Avg completion" value={avgCompletion === null ? "—" : `${avgCompletion}%`} />
       </div>
 
       {/* LIVE section — only renders when Meta returns active stories (last 24h on the account). */}
@@ -157,29 +132,13 @@ function StoriesView({ accountId }: { accountId: string }) {
         </div>
       )}
 
-      {/* PREVIEW / DEMO section — ONLY when the account has no real story data yet.
-          As soon as live/historical stories exist, this drops out entirely. */}
-      {showDemo && (
-        <>
-          <div className="bg-brand-light border border-brand/30 text-brand rounded-lg px-4 py-3 mb-3 text-sm">
-            <IconCamera size={13} stroke={1.8} className="inline -mt-0.5 mr-1" /><strong>Preview</strong> — {historicalNote
-              ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
-              : "No live stories in the last 24h and no snapshots yet — these demo cards show what the tab looks like. Real stories replace them automatically."}
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div className="text-base font-medium text-[#232D42]">Demo — how the tab looks</div>
-              <div className="text-xs text-gray-400">dummy data</div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
-              {DEMO_STORIES.map((s, i) => (
-                <StoryCard key={s.id} s={s} gradientIdx={i} isLive={false} />
-              ))}
-            </div>
-          </div>
-        </>
+      {noneYet && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <div className="text-base font-medium text-[#232D42] mb-1">No stories yet</div>
+          <p className="text-sm text-gray-500">{historicalNote || "Nothing live in the last 24 hours and no saved stories for this account yet. New stories show up here automatically."}</p>
+        </div>
       )}
+      {loading && statSet.length === 0 && <LoadingBlock label="Loading stories…" />}
     </>
   );
 }

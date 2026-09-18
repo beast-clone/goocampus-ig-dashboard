@@ -4,7 +4,6 @@ import { IconSpeakerphone, IconTable, IconPlus, IconCheck, IconAlertTriangle, Ic
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { AddCampaign } from "./AddCampaign";
 import { CampaignLeads } from "./CampaignLeads";
 
@@ -113,7 +112,6 @@ function Campaigns() {
         )}
       </Card>
 
-      <WhatsAppReady />
 
       {adding && (
         <AddCampaign
@@ -199,33 +197,6 @@ function SetupNeeded({ setup }: { setup: Setup }) {
 }
 
 // WhatsApp needs none of the above, so it is shown working rather than described.
-function WhatsAppReady() {
-  return (
-    <Card>
-      <Head icon={<IconCheck size={18} stroke={2} />} title="WhatsApp is already working"
-        meta={<span className="text-[11px] font-medium bg-[#E8F6F0] text-[#2F9E6F] px-2.5 py-1 rounded-full">No setup needed</span>} />
-      <div className="px-5 py-4 flex flex-col gap-3">
-        <p className="text-[13px] text-[#4A5468] max-w-[74ch] leading-relaxed">
-          Every lead here will carry this button. It opens WhatsApp with the message already written and
-          sends from whichever number that device is signed into — nothing goes out until a person presses
-          send. Try it; this one points at a test number.
-        </p>
-        <div className="flex items-center gap-3 flex-wrap">
-          <WhatsAppSend phone="+919000000000" name="Ananya" />
-          <span className="text-[12px] text-[#A6ACBE]">← a valid-looking number</span>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <WhatsAppSend phone="+912071234567" name="Test" />
-          <span className="text-[12px] text-[#A6ACBE]">← a foreign number with +91 wrongly added, which the CRM does. It warns before you can send.</span>
-        </div>
-        <p className="text-[12px] text-[#8A92A6]">
-          The wording lives in one file and is a one-line change — say what you&apos;d rather it said.
-        </p>
-      </div>
-    </Card>
-  );
-}
-
 function Card({ children }: { children: React.ReactNode }) {
   return <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">{children}</section>;
 }

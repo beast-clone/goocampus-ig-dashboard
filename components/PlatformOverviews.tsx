@@ -25,7 +25,7 @@ function Badge({ source }: { source?: string }) {
   if (source === "live") {
     return <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>;
   }
-  return <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Demo</span>;
+  return null; // the APIs no longer serve demo data, so there's nothing else to label
 }
 
 function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {

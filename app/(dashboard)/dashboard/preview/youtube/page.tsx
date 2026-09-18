@@ -109,13 +109,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
         )}
         <div className="flex items-center gap-3">
-          {/* When live, the LiveIndicator already says "Live · fetched" — don't
-              double it with a second badge. Only flag the non-live states. */}
-          {data?.source === "live" ? null : data?.liveError ? (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Live call failed · showing demo</span>
-          ) : (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="YouTube API not yet connected — showing representative sample data."><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Demo data</span>
-          )}
+          {/* Live only: the API no longer falls back to sample data, so no Demo badge. */}
           <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
         </div>
       </div>

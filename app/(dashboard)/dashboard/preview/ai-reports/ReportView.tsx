@@ -32,7 +32,7 @@ export type ReportPayload = {
     insight: string;
   };
   reachOverview: { total: number; deltaPct: number; insight: string };
-  engagementOverview: { total: number; deltaPct: number; engagementRatePct: number; insight: string };
+  engagementOverview: { total: number; deltaPct: number | null; engagementRatePct: number; insight: string };
   audienceInsights: {
     topCountries: { label: string; value: number }[];
     topCities: { label: string; value: number }[];
@@ -509,15 +509,17 @@ function MiniFact({ big, lbl }: { big: string; lbl: string }) {
   );
 }
 
-function TwoLineCard({ title, value, delta, insight, extra }: { title: string; value: string; delta: number; insight: string; extra?: string }) {
+function TwoLineCard({ title, value, delta, insight, extra }: { title: string; value: string; delta: number | null; insight: string; extra?: string }) {
   return (
     <div className="border border-gray-200 rounded-xl p-4">
       <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">{title}</div>
       <div className="flex items-baseline gap-2 mt-1">
         <div className="text-[24px] font-semibold tabular-nums tracking-tight">{value}</div>
-        <div className={`text-[12px] font-semibold ${delta < 0 ? "text-rose-700" : "text-emerald-700"}`}>
-          {delta >= 0 ? "+" : ""}{delta.toFixed(1)}%
-        </div>
+        {delta != null && (
+          <div className={`text-[12px] font-semibold ${delta < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+            {delta >= 0 ? "+" : ""}{delta.toFixed(1)}%
+          </div>
+        )}
       </div>
       {extra && <div className="text-[11.5px] text-gray-500 mt-1">{extra}</div>}
       {insight && <div className="text-[12.5px] text-gray-700 mt-2 leading-snug">{insight}</div>}

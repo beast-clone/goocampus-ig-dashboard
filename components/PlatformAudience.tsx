@@ -211,7 +211,6 @@ function PanelHeader({ title, sub, href, live }: { title: string; sub?: string; 
       </div>
       <div className="flex items-center gap-3">
         {live === true && <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">● Live</span>}
-        {live === false && <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Demo</span>}
         <Link href={v2(href)} className="text-xs font-medium text-brand hover:underline">Open deep dive →</Link>
       </div>
     </div>

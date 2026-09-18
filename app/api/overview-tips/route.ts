@@ -23,7 +23,7 @@ type PostLite = {
 
 type Insights = {
   totals: { followers: number; reach: number; engagement: number; profileVisits: number; newFollowers: number };
-  deltas: { followers: number; reach: number; engagement: number; profileVisits: number };
+  deltas: { followers: number; reach: number; engagement: number | null; profileVisits: number | null };
   series: { date: string; followers: number; reach: number; engagement: number; newFollowers: number }[];
 };
 

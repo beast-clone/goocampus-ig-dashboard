@@ -2530,10 +2530,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
           <div className="logout-card" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={logBackIn} title="Close" style={{ position: "absolute", top: ".8rem", right: ".9rem" }}>✕</button>
             <span className="logout-badge">{me.av}</span>
-            <div className="logout-h">You&apos;re logged out</div>
-            <div className="logout-p">Your day is wrapped up. Log in again to start a fresh day.</div>
-            <button className="btn primary" onClick={logBackIn}>Log back in</button>
-            <div className="logout-note">Demo — the session stays active; real sign-out comes later.</div>
+            <div className="logout-h">Day ended</div>
+            <div className="logout-p">Your day is wrapped up. See you tomorrow.</div>
+            <button className="btn primary" onClick={logBackIn}>Back to My Day</button>
           </div>
         </div>
       )}

@@ -290,18 +290,15 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   }
 
   // Current subscriber count (lifetime) — from the Data API channels.statistics.
-  let currentSubs = ch.baseSubs;
-  try {
-    if (ch.channelId) {
-      const dr = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`, {
-        headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
-      });
-      if (dr.ok) {
-        const dj = await dr.json();
-        currentSubs = Number(dj.items?.[0]?.statistics?.subscriberCount || ch.baseSubs);
-      }
-    }
-  } catch { /* keep fallback */ }
+  // No fallback: a made-up count under a Live badge is worse than an error.
+  const dr = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+  });
+  if (!dr.ok) throw new Error(`subscriber count unavailable (YouTube ${dr.status})`);
+  const dj = await dr.json();
+  const subCount = dj.items?.[0]?.statistics?.subscriberCount;
+  if (subCount == null) throw new Error("subscriber count unavailable");
+  const currentSubs = Number(subCount);
 
   let running = currentSubs - netSubs;
   const subscribersOverTime = subEvents.map((e) => {

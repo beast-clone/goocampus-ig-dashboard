@@ -29,11 +29,11 @@ type Resp = {
   summary: {
     followers: number; followerGain: number; organicGain?: number; paidGain?: number;
     impressions: number; uniqueImpressions?: number; engagementRate: number; ctr?: number;
-    pageViews: number; uniqueVisitors: number; posts: number;
+    pageViews: number; uniqueVisitors: number | null; posts: number;
   };
   followersOverTime: { date: string; followers: number; newFollowers: number }[];
   posts: Post[];
-  visitors: { totalPageViews: number; uniqueVisitors: number; byPage: { page: string; views: number }[]; overTime: { date: string; views: number; unique: number }[] };
+  visitors: { totalPageViews: number; uniqueVisitors: number | null; byPage: { page: string; views: number }[]; overTime: { date: string; views: number; unique: number }[] };
   demographics: { jobFunction: DemoRow[]; seniority: DemoRow[]; industry: DemoRow[]; location: DemoRow[]; companySize: DemoRow[] };
   error?: string;
 };
@@ -112,19 +112,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
         )}
         <div className="flex items-center gap-3">
-          {data?.source === "live" ? (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200" title={data.partial ? "Live LinkedIn data. Per-post stats are still sample — coming in a follow-up." : "Live LinkedIn data."}>
-              ● Live{data.partial ? " · post stats sample" : ""}
-            </span>
-          ) : data?.liveError ? (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}>
-              <IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Live call failed · showing demo
-            </span>
-          ) : (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="LinkedIn API not yet connected for this page — showing representative sample data.">
-              <IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Demo data
-            </span>
-          )}
           <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
         </div>
       </div>
@@ -135,7 +122,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       {data && (
         <>
           {/* Summary stat row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
             <Stat label="Followers" value={fmt(data.summary.followers)} sub={`+${fmt(data.summary.followerGain)} in range`} accent />
             <Stat label="Impressions" value={fmt(data.summary.impressions)} sub="in range" />
             <Stat label="Unique impr." value={data.summary.uniqueImpressions != null ? fmt(data.summary.uniqueImpressions) : "—"} sub="reach" />
@@ -143,7 +130,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <Stat label="Click rate" value={data.summary.ctr != null ? `${data.summary.ctr}%` : "—"} sub="all content clicks ÷ impr." />
             <Stat label="Posts" value={String(data.summary.posts)} sub="published" />
             <Stat label="Page views" value={fmt(data.summary.pageViews)} sub="in range" />
-            <Stat label="Unique visitors" value={fmt(data.summary.uniqueVisitors)} sub="in range" />
           </div>
 
           {/* Followers growth */}
@@ -558,8 +544,9 @@ function Visitors({ visitors }: { visitors: Resp["visitors"] }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Page views over time</div>
-        <div className="text-2xl font-semibold text-gray-900 mb-3">{visitors.totalPageViews.toLocaleString("en-IN")}<span className="text-xs font-normal text-gray-500 ml-2">{visitors.uniqueVisitors.toLocaleString("en-IN")} unique</span></div>
+        <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Page views</div>
+        <div className="text-2xl font-semibold text-gray-900 mb-3">{visitors.totalPageViews.toLocaleString("en-IN")}{visitors.uniqueVisitors != null && <span className="text-xs font-normal text-gray-500 ml-2">{visitors.uniqueVisitors.toLocaleString("en-IN")} unique</span>}</div>
+        {visitors.overTime.length > 0 ? (
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={visitors.overTime} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -576,6 +563,9 @@ function Visitors({ visitors }: { visitors: Resp["visitors"] }) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        ) : (
+          <div className="text-[12px] text-gray-400">Total for the selected range. LinkedIn doesn&apos;t give us a day-by-day breakdown for pages.</div>
+        )}
       </div>
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="text-xs uppercase tracking-wide text-gray-400 mb-3">Views by page section</div>

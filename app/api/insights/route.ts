@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, parseISO, eachDayOfInterval, differenceInDays, subDays } from "date-fns";
 import { getAccount, fetchBasic, fetchAccountInsights, fetchAccountReachUnique, fetchAccountEngagement, fetchRecentMedia, type IGMedia } from "@/lib/instagram";
-import { mockInsights } from "@/lib/mock";
 import { safeError } from "@/lib/errors";
 
 // Period-over-period change, or null when either side is missing or the
@@ -26,7 +25,7 @@ export async function GET(req: Request) {
 
   const account = getAccount(accountId);
   if (!account) {
-    return NextResponse.json(mockInsights(accountId, from, to));
+    return NextResponse.json({ error: "Instagram isn't connected for this account.", notConnected: true }, { status: 503 });
   }
 
   try {
@@ -153,8 +152,10 @@ export async function GET(req: Request) {
         // from reach's. Only if that comparison is unavailable do they fall
         // back to the old made-up multiples of the reach trend.
         reach: reachDelta,
-        engagement: pctChange(engagement?.interactions, prevEngagement?.interactions) ?? reachDelta * 0.9,
-        profileVisits: pctChange(engagement?.profileViews, prevEngagement?.profileViews) ?? reachDelta * 0.7,
+        // null when the previous window couldn't be measured — never a made-up
+        // multiple of the reach trend.
+        engagement: pctChange(engagement?.interactions, prevEngagement?.interactions) ?? null,
+        profileVisits: pctChange(engagement?.profileViews, prevEngagement?.profileViews) ?? null,
       },
       series,
       latestPost,
@@ -172,6 +173,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     const safe = safeError(err, "Failed to load insights");
-    return NextResponse.json({ ...safe, fallback: mockInsights(accountId, from, to) }, { status: 500 });
+    return NextResponse.json(safe, { status: 500 });
   }
 }

@@ -10,7 +10,7 @@ import { fmtDateTime } from "@/lib/date";
 // (pulled up to overlap) → a full-width calendar card with the toolbar (‹ › Today ·
 // Month YYYY · Month/Week/Day/List) and colored time-stamped event chips. NO left-rail
 // filters / drafts dock (those were the "old V1" bits). Data is still the real
-// /api/scheduler/queue posts (+ demo sample). V1 page.tsx is untouched.
+// /api/scheduler/queue posts. V1 page.tsx is untouched.
 
 export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
 
@@ -26,30 +26,6 @@ export type ScheduledPost = {
   coverUrl?: string | null;   // reel cover, when one was chosen
   igMediaId?: string | null;  // Instagram media id, recorded at publish — for insights
 };
-
-// ── Demo creatives ────────────────────────────────────────────────────────────
-// Real posts carry real media (mediaUrls from /api/scheduler/queue). The calendar
-// is mostly demo data, so we generate self-contained SVG "creatives" per type
-// (data: URIs — no network) so the preview's image / carousel / reel behaviours
-// are demonstrable. Reels get one portrait poster; carousels get 4 square slides.
-const DEMO_GRADS: [string, string][] = [
-  ["#3A57E8", "#6E8BF5"], ["#6E48F8", "#9B7BFB"], ["#0EA5E9", "#38BDF8"],
-  ["#E11D48", "#F43F5E"], ["#F59E0B", "#FBBF24"], ["#1AA053", "#34D399"],
-];
-function svgCreative(title: string, tag: string, w: number, h: number, grad: [string, string]): string {
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const t = title.length > 24 ? title.slice(0, 23) + "…" : title;
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='${grad[0]}'/><stop offset='1' stop-color='${grad[1]}'/></linearGradient></defs><rect width='${w}' height='${h}' fill='url(#g)'/><circle cx='${Math.round(w * 0.82)}' cy='${Math.round(h * 0.16)}' r='${Math.round(w * 0.3)}' fill='rgba(255,255,255,0.10)'/><text x='50%' y='47%' fill='#ffffff' font-family='Inter,Arial,sans-serif' font-size='${Math.round(w / 13)}' font-weight='700' text-anchor='middle'>${esc(t)}</text><text x='50%' y='57%' fill='rgba(255,255,255,0.82)' font-family='Inter,Arial,sans-serif' font-size='${Math.round(w / 26)}' text-anchor='middle'>${esc(tag)}</text></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-function demoMedia(type: string, seed: string): string[] {
-  const gi = Math.abs([...seed].reduce((a, c) => a + c.charCodeAt(0), 0));
-  const grad = DEMO_GRADS[gi % DEMO_GRADS.length];
-  if (/story/i.test(type)) return [svgCreative(seed, "Story", 720, 1280, grad)];
-  if (/reel/i.test(type)) return [svgCreative(seed, "Reel", 720, 1280, grad)];
-  if (/carousel/i.test(type)) return Array.from({ length: 4 }, (_, i) => svgCreative(seed, `Slide ${i + 1} / 4`, 1080, 1080, DEMO_GRADS[(gi + i) % DEMO_GRADS.length]));
-  return [svgCreative(seed, "Post", 1080, 1080, grad)];
-}
 
 // Event-chip colour. Like the reference, each event is a soft-tinted bar; we drive the
 // tint from status so the colours still MEAN something (green=published, etc.).
@@ -94,72 +70,6 @@ export function accountKeyFor(publishToPage: string): AccountKey {
   return "other";
 }
 
-// Sample posts (unchanged from V1) so the tab reads populated even when Airtable is empty.
-export function makeSamplePosts(): ScheduledPost[] {
-  const today = new Date();
-  const anchorYear = today.getMonth() > 7 ? today.getFullYear() + 1 : today.getFullYear();
-  const iso = (day: number, hour: number, minute = 0) => new Date(anchorYear, 7, day, hour, minute).toISOString();
-  const p = (
-    id: string, particulars: string, publishToPage: string, primaryInterest: string,
-    type: string, day: number, hour: number, minute: number,
-    status: EffectiveStatus = "scheduled", caption = "",
-  ): ScheduledPost => ({
-    id: `demo-${id}`, particulars, publishToPage, primaryInterest, type,
-    caption: caption || `${particulars} — sample copy for demo.`, thumbnailUrl: null,
-    scheduleTime: status === "published" ? null : iso(day, hour, minute),
-    publishedAt: status === "published" ? iso(day, hour, minute) : null,
-    status: status === "scheduled" ? "To Be Scheduled" : status.charAt(0).toUpperCase() + status.slice(1),
-    effectiveStatus: status,
-    failureReason: status === "failed" ? "Meta API rejected the media — check the source video's aspect ratio, then Retry." : null,
-    instagramUrl: null, facebookUrl: null,
-    mediaUrls: demoMedia(type, particulars),
-  });
-  return [
-    p("cv", "CV that stands out in 2026", "GooCampus Main", "Mentorship Platform", "Post", 2, 18, 59, "published"),
-    p("uae", "Exemption pathway UAE", "GooCampus Main", "Mentorship Platform", "Carousel", 3, 19, 26, "published"),
-    p("jobs", "Job portals for Gulf-bound doctors", "12Plus / GC India", "Mentorship Platform", "Post", 3, 16, 52, "published"),
-    p("nz-teaser", "NZ IMG handbook teaser", "GooCampus World", "Study Abroad", "Reel", 4, 21, 0),
-    p("als-1", "5 reasons doctors can't skip ALS", "GooCampus Main", "ALS", "Carousel", 5, 18, 0),
-    p("ir-1", "Ireland RCSI deep dive", "GooCampus World", "Study Abroad", "Reel", 5, 20, 30),
-    p("neet-1", "NEET PG cutoff projections", "12Plus / GC India", "NEET PG", "Carousel", 6, 14, 0),
-    p("amc-anki", "AMC Anki deck walk-through", "GooCampus World", "Australia-PGCP", "Reel", 8, 10, 0),
-    p("osce-draft", "OSCE 2026 changes — draft", "GooCampus Main", "Australia-PGCP", "Carousel", 9, 12, 0, "draft"),
-    p("osce-1", "OSCE 2026 additions for AMC", "GooCampus Main", "Australia-PGCP", "Carousel", 10, 20, 0),
-    p("als-hire", "Why ALS is now a hiring filter", "GooCampus Main", "ALS", "Reel", 11, 19, 0),
-    p("mrcs-1", "MRCS pathway update", "12Plus / GC India", "Mentorship Platform", "Carousel", 11, 15, 30),
-    p("ireland-full", "Ireland RCSI — full walkthrough", "GooCampus World", "Study Abroad", "Reel", 12, 21, 0),
-    p("neet-state", "NEET PG state-wise cutoffs", "12Plus / GC India", "NEET PG", "Carousel", 13, 14, 0),
-    p("amc-kit", "AMC August intake prep kit", "GooCampus Main", "Australia-PGCP", "Reel", 15, 10, 0),
-    p("neet-trends", "NEET PG cutoff trends 2026", "GooCampus Main", "NEET PG", "Carousel", 16, 20, 0),
-    p("nz-main", "NZ handbook — 8-chapter deep dive", "GooCampus Main", "Study Abroad", "Reel", 17, 21, 0),
-    p("nz-world", "NZ handbook — 8-chapter deep dive", "GooCampus World", "Study Abroad", "Reel", 17, 21, 0),
-    p("uae-repost", "Exemption pathway UAE — repost", "GooCampus Main", "Mentorship Platform", "Carousel", 18, 15, 0, "publishing"),
-    p("jobs-eu", "Job portals part 2 — Europe", "12Plus / GC India", "Mentorship Platform", "Post", 19, 16, 0),
-    p("amc-mock", "AMC Part 2 mock schedule", "GooCampus Main", "Australia-PGCP", "Reel", 20, 19, 0),
-    p("pgcp-preview", "Australia PGCP FAQ (preview)", "GooCampus World", "Australia-PGCP", "Carousel", 21, 18, 0),
-    p("pgcp-fail", "Australia PGCP FAQ", "GooCampus World", "Australia-PGCP", "Carousel", 22, 11, 0, "failed"),
-    p("als-world", "ALS — repost to World", "GooCampus World", "ALS", "Reel", 24, 19, 30),
-    p("germany", "Germany — services overview", "GooCampus Main", "Study Abroad", "Post", 25, 17, 43),
-    p("mrcs-full", "MRCS — full pathway carousel", "12Plus / GC India", "Mentorship Platform", "Carousel", 25, 14, 0),
-    p("nz-ahpra", "NZ AHPRA registration steps", "GooCampus World", "Study Abroad", "Carousel", 26, 20, 0),
-    p("mrcs-vlog", "MRCS — vlog Q&A", "12Plus / GC India", "Mentorship Platform", "Reel", 27, 17, 0),
-    p("osce-tips", "OSCE micro-tips series #4", "GooCampus Main", "Australia-PGCP", "Reel", 27, 19, 45),
-    p("osce-tips-2", "OSCE micro-tips series #5", "GooCampus Main", "Australia-PGCP", "Reel", 27, 20, 30),
-    p("osce-tips-3", "OSCE micro-tips series #6", "GooCampus Main", "Australia-PGCP", "Reel", 27, 21, 15),
-    p("amc-check", "AMC exam-week checklist", "GooCampus Main", "Australia-PGCP", "Post", 28, 9, 0),
-    p("amc-reflect", "Post-exam reflection template", "GooCampus Main", "Australia-PGCP", "Post", 30, 18, 0),
-    p("pgcp-close", "PGCP intake — final call", "GooCampus World", "Australia-PGCP", "Reel", 31, 20, 0),
-    // Stories (24-hour format) — seeded so the "By format" view has a Stories lane.
-    p("st-poll", "NEET PG — quick poll story", "GooCampus Main", "NEET PG", "Story", 3, 11, 0, "published"),
-    p("st-countdown", "AMC intake — 3 days left", "GooCampus Main", "Australia-PGCP", "Story", 6, 9, 30, "published"),
-    p("st-bts", "Behind the scenes — mentor call", "GooCampus World", "Study Abroad", "Story", 9, 17, 0),
-    p("st-quiz", "Ireland RCSI — swipe-up quiz", "GooCampus World", "Study Abroad", "Story", 12, 13, 0),
-    p("st-testi", "Student testimonial teaser", "12Plus / GC India", "Mentorship Platform", "Story", 16, 18, 30),
-    p("st-reminder", "Webinar tonight — reminder", "GooCampus Main", "Mentorship Platform", "Story", 20, 15, 0),
-    p("st-draft", "Result-day story — draft", "GooCampus Main", "NEET PG", "Story", 23, 10, 0, "draft"),
-    p("st-repost", "Repost: topper shoutout", "GooCampus World", "ALS", "Story", 27, 12, 0),
-  ];
-}
 
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -225,14 +135,9 @@ export function PreviewCalendar() {
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [view, setView] = useState<View>("month");
   // Open on the current month so real scheduled/published posts are visible on load.
-  // (The demo grid, when toggled on, still fills whatever month is in view.)
   const [anchor, setAnchor] = useState(() => new Date());
   const [selected, setSelected] = useState<ScheduledPost | null>(null);
-  // Default OFF — the calendar shows only REAL scheduled/published posts. The toggle
-  // can turn the sample posts back on for a fuller-looking demo if ever needed.
-  // Sample posts are no longer offered — the toggle was removed; real posts only.
-  const showDemo = false;
-  const samplePosts = useMemo(() => makeSamplePosts(), []);
+  // Real scheduled/published posts only — there are no sample posts.
 
   const load = () => {
     setLoading(true);
@@ -270,7 +175,7 @@ export function PreviewCalendar() {
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
 
-  const unfiltered = useMemo(() => (showDemo ? [...posts, ...samplePosts] : posts), [posts, samplePosts, showDemo]);
+  const unfiltered = posts;
   const allPosts = useMemo(
     () => unfiltered.filter((p) =>
       (!fSbu || (fSbu === "__none" ? !p.primaryInterest : p.primaryInterest === fSbu))
@@ -343,8 +248,7 @@ export function PreviewCalendar() {
     return days;
   }, [anchor, postsByDate]);
 
-  // "By format" lanes for the current month. Respects the Sample-data toggle like every
-  // other view — real scheduled posts by default, samples only when the toggle is on.
+  // "By format" lanes for the current month — real scheduled/published posts.
   const formatLanes = useMemo(() => {
     const y = anchor.getFullYear(), m = anchor.getMonth();
     const buckets: Record<LaneKey, ScheduledPost[]> = { story: [], post: [], reel: [], carousel: [] };
@@ -360,7 +264,7 @@ export function PreviewCalendar() {
       buckets[k].sort((a, b) => new Date(a.scheduleTime || a.publishedAt || 0).getTime() - new Date(b.scheduleTime || b.publishedAt || 0).getTime());
     }
     return buckets;
-  }, [anchor, showDemo, allPosts, posts, samplePosts]);
+  }, [anchor, allPosts]);
 
   const shift = (dir: number) => setAnchor((cur) => {
     const d = new Date(cur);
