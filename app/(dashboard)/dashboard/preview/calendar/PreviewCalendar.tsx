@@ -169,10 +169,13 @@ export const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug
 export function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+// "3:33 PM", not "3:33p". The short form read as a code rather than a time —
+// nobody parses a bare "p" as PM at a glance. Minutes always shown, so "5:00 PM"
+// and "5:30 PM" line up in a column instead of one reading "5p".
 export function timeShort(ts: string): string {
-  const d = new Date(ts); let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? "p" : "a";
+  const d = new Date(ts); let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? "PM" : "AM";
   h = h % 12; if (h === 0) h = 12;
-  return m ? `${h}:${String(m).padStart(2, "0")}${ap}` : `${h}${ap}`;
+  return `${h}:${String(m).padStart(2, "0")} ${ap}`;
 }
 
 type View = "month" | "week" | "day" | "list" | "format";
@@ -969,10 +972,10 @@ const HCAL_CSS = `
 .hcal-cell.out .hcal-daynum{color:var(--faint)}
 .hcal-cell.today .hcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--brand);color:#fff}
 .hcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
-.hcal-ev{display:flex;align-items:center;gap:5px;width:100%;text-align:left;border:1px solid;border-radius:5px;padding:2px 6px;overflow:hidden}
+.hcal-ev{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:1px solid;border-radius:4px;padding:4px 6px;overflow:hidden}
 .hcal-ev:hover{filter:brightness(.97)}
-.hcal-evtime{font-weight:700;font-size:.64rem;flex:0 0 auto}
-.hcal-evtitle{font-size:.68rem;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hcal-evtime{font-weight:600;font-size:12px;line-height:16px;flex:0 0 auto}
+.hcal-evtitle{font-size:12px;line-height:16px;font-weight:500;width:100%;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .hcal-ev.block .hcal-evtitle{white-space:normal}
 .hcal-more{border:none;background:none;font-size:.64rem;color:var(--muted);text-align:left;padding:1px 5px}
 .hcal-more:hover{color:var(--brand)}
