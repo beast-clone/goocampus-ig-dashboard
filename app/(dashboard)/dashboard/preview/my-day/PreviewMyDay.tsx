@@ -2692,7 +2692,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-              <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Reel</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
+              <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Task</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
             </div>
           </div>
           <div className="tl-wrap">
@@ -2710,7 +2710,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                   <span className="tl-guide-tag">{clockOf(dropAt)}</span>
                 </div>
               )}
-              {planBlocks.map((b) => (
+              {planBlocks.map((b) => {
+                // The block kind is "reel" for every task; show the task's real type.
+                const typeName = [...tasks, ...claimedTasks].find((t) => t.id === b.taskId)?.detail.typeLine || "Task";
+                return (
                 <div
                   key={`${b.kind}-${b.key || b.taskId || ""}-${b.start}`}
                   className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.samvaya ? "samvaya" : ""} ${b.kind === "reel" ? "clickable" : ""}`}
@@ -2728,9 +2731,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     </>
                   )}
                   <div className="tl-t">{b.samvaya && <span className="tl-tag">Samvaya</span>}{b.label}</div>
-                  <div className="tl-m">{b.kind === "reel" ? `${b.samvaya ? "Samvaya · " : b.high ? "High priority · " : ""}${b.samvaya ? "" : "Reel · "}${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
+                  <div className="tl-m">{b.kind === "reel" ? `${b.samvaya ? "Samvaya · " : b.high ? "High priority · " : ""}${b.samvaya ? "" : `${typeName} · `}${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
                 </div>
-              ))}
+                );
+              })}
               {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /><span className="now-tag">● now</span></div>}
             </div>
           </div>
