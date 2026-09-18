@@ -222,9 +222,26 @@ having no banner; they aren't repeated per row.
    Suite has no hero banners at all. Shrink the title to 20px and keep the
    banner, or retire the banner for a plain 20px title the way the Sales Hub
    sub-pages already do?
-2. **Compact controls.** The reference only defines a 36px full-size button.
-   Date pills, row actions and filter chips need a second, smaller standard. I can
-   measure what Business Suite uses for its compact controls rather than pick one.
+2. ~~**Compact controls.**~~ **Answered — measured in Business Suite's Planner,
+   18 Sep.** Meta has no compact size. Every control on the Planner is 36px tall:
+
+   | Control | Height | Text |
+   |---|---|---|
+   | Primary button (Create post, Start new goal) | 36 | 14 / 500, blue, 4px corners |
+   | Secondary button (Create ad, Today, Schedule, Share to story) | 36 | 14 / 500 |
+   | Dropdown filter (Content type: all, Shared to: all) | 36 | 14 / 500 |
+   | Tab, unselected (Moments, Drafts) | 36 | 14 / 400 |
+   | Tab, selected (Goals) | 36 | 14 / 700 |
+   | Segmented toggle (Week / Month) | 36 | **12 / 400** |
+   | Icon button (split-button caret) | 36 × 36 | — |
+   | Arrows either side of Today | 40 × 36 | — |
+
+   Controls are told apart by their text, not their height. So the rule for the
+   dashboard is one height, **36px**, for date pills, filters, tabs and row
+   actions alike. The 16 heights found above (18–46px) all move to 36.
+
+   Meta's calendar chips also label times as **"5:30 PM", 12px / 700**, which is
+   what the Publishing Calendar's chips now use.
 3. **KPI figures** appear in 12 different sizes across the dashboard (18, 19, 20,
    21, 21.6, 22, 23, 24, 26, 27.2, 30, 46px). They need one size.
 4. **12px card padding and gaps** — bring to 16px everywhere, or keep a compact
