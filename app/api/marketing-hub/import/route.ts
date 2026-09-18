@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import { importFromAirtable } from "@/lib/airtable-import";
+import { importFromAirtable, IMPORT_FILTER_KEYS, type ImportFilters } from "@/lib/airtable-import";
 import { safeError } from "@/lib/errors";
 
 // Pull a window of Airtable's Content Calendar into the master sheet.
 //
-//   POST { from, to, dryRun? } → { scanned, created, updated, skipped, errors }
+//   POST { from, to, dryRun?, facetsOnly?, filters? }
+//     → { inRange, facets, scanned, created, updated, skipped, errors }
+//   filters: { owner?, collaborators?, type?, status?, sbu? } — arrays of Airtable values.
 //
 // Manual, one way, and idempotent on Airtable's record id — press it twice and the
 // second press updates rather than duplicates.
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
 
   try {
-    const b = (await req.json().catch(() => ({}))) as { from?: string; to?: string; dryRun?: boolean };
+    const b = (await req.json().catch(() => ({}))) as { from?: string; to?: string; dryRun?: boolean; facetsOnly?: boolean; filters?: Record<string, unknown> };
     const from = (b.from || "").trim();
     const to = (b.to || "").trim();
     if (!DATE.test(from) || !DATE.test(to)) {
@@ -35,7 +37,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "That range is over a year. Import it a few months at a time." }, { status: 400 });
     }
 
-    const result = await importFromAirtable({ from, to, dryRun: Boolean(b.dryRun) });
+    const filters: ImportFilters = {};
+    for (const k of IMPORT_FILTER_KEYS) {
+      const v = b.filters?.[k];
+      if (Array.isArray(v)) filters[k] = v.filter((x): x is string => typeof x === "string");
+    }
+    const result = await importFromAirtable({ from, to, dryRun: Boolean(b.dryRun), facetsOnly: Boolean(b.facetsOnly), filters });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json(safeError(err, "Couldn't import from Airtable"), { status: 502 });

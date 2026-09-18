@@ -66,10 +66,32 @@ type CalendarFields = {
   "End Date & Time"?: string;
   "References"?: string;
   "Owner"?: { id?: string; email?: string; name?: string };
+  "Collaborators"?: { id?: string; email?: string; name?: string }[];
   "Attachments"?: { url?: string; type?: string }[];
 };
 
+// Optional narrowing on top of the date range, the way the team filters Airtable:
+// any of the picked values within a field, all fields together.
+export const IMPORT_FILTER_KEYS = ["owner", "collaborators", "type", "status", "sbu"] as const;
+export type ImportFilterKey = (typeof IMPORT_FILTER_KEYS)[number];
+export type ImportFilters = Partial<Record<ImportFilterKey, string[]>>;
+export type ImportFacets = Record<ImportFilterKey, { value: string; count: number }[]>;
+
+// Values a record carries per filter field, as Airtable spells them.
+function valuesOf(f: CalendarFields, key: ImportFilterKey): string[] {
+  switch (key) {
+    case "owner": return [str(f["Owner"]?.name) || "No owner"];
+    case "collaborators": { const c = (f["Collaborators"] || []).map((x) => str(x?.name)).filter((x): x is string => !!x); return c.length ? c : ["No collaborators"]; }
+    case "type": return [str(f["Type"]) || "No type"];
+    case "status": return [str(f["Status"]) || "No status"];
+    case "sbu": return [str(f["SBU"]) || "No interest"];
+  }
+}
+
 export type ImportResult = {
+  /** Records in the date range, before filters. */
+  inRange: number;
+  facets: ImportFacets;
   scanned: number;
   created: number;
   updated: number;
@@ -95,11 +117,14 @@ export async function importFromAirtable(opts: {
   to: string;
   /** Preview only — count what would happen, write nothing. */
   dryRun?: boolean;
+  filters?: ImportFilters;
+  /** Just read the range and report the filter options — no counting, no writes. */
+  facetsOnly?: boolean;
 }): Promise<ImportResult> {
   const db = getSupabase();
   if (!db) throw new Error("Supabase not configured");
 
-  const out: ImportResult = { scanned: 0, created: 0, updated: 0, skipped: [], errors: [] };
+  const out: ImportResult = { inRange: 0, facets: { owner: [], collaborators: [], type: [], status: [], sbu: [] }, scanned: 0, created: 0, updated: 0, skipped: [], errors: [] };
   const skip = (reason: string) => {
     const row = out.skipped.find((s) => s.reason === reason);
     if (row) row.count += 1; else out.skipped.push({ reason, count: 1 });
@@ -110,12 +135,20 @@ export async function importFromAirtable(opts: {
   // drops the first and last day of the month somebody asked for.
   const formula = `AND(IS_AFTER({Publishing Date}, DATEADD('${opts.from}', -1, 'days')), IS_BEFORE({Publishing Date}, DATEADD('${opts.to}', 1, 'days')))`;
 
-  const records = await airtableList<CalendarFields>(CONTENT_CALENDAR_TABLE, {
+  const all = await airtableList<CalendarFields>(CONTENT_CALENDAR_TABLE, {
     filterByFormula: formula,
     sort: [{ field: "Publishing Date", direction: "asc" }],
   });
+  out.inRange = all.length;
+  for (const key of IMPORT_FILTER_KEYS) {
+    const n = new Map<string, number>();
+    for (const r of all) for (const v of new Set(valuesOf(r.fields, key))) n.set(v, (n.get(v) || 0) + 1);
+    out.facets[key] = [...n].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  }
+  const active = IMPORT_FILTER_KEYS.filter((k) => opts.filters?.[k]?.length);
+  const records = all.filter((r) => active.every((k) => valuesOf(r.fields, k).some((v) => opts.filters![k]!.includes(v))));
   out.scanned = records.length;
-  if (records.length === 0) return out;
+  if (records.length === 0 || opts.facetsOnly) return out;
 
   // One read of everything already here, rather than a query per record.
   const ids = records.map((r) => r.id);
