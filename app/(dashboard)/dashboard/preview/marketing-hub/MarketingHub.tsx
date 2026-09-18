@@ -11,7 +11,8 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
-import { IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
+import type { TrashItem } from "@/lib/task-trash";
+import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 
 export type Row = {
@@ -2250,6 +2251,14 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color" | "group">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const [addColOpen, setAddColOpen] = useState(false);
+  // Delete → recycle bin. Only people with the delete_tasks capability see the
+  // checkboxes or the bin; the API enforces the same gate.
+  const { data: meData } = useApi<{ user?: { isAdmin?: boolean; permissions?: Record<string, boolean> } }>("/api/me");
+  const canDelete = !!(meData?.user?.isAdmin || meData?.user?.permissions?.delete_tasks);
+  const { data: binData, refresh: refreshBin } = useApi<{ items: TrashItem[]; notReady?: boolean; error?: string }>(canDelete ? "/api/marketing-hub/trash" : null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmDel, setConfirmDel] = useState(false);
+  const onPick = (ids: string[], on: boolean) => setPicked((prev) => { const n = new Set(prev); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const custom = viewsData?.views || [];
   const { data: colsData, refresh: refreshCols } = useApi<{ columns: CustomColumn[] }>("/api/marketing-hub/columns");
@@ -2284,6 +2293,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, activeId, draft, search, sorts, fields]);
   const visibleCols = columns.filter((c) => !hiddenCols.includes(c.key)).map((c) => c.key);
+  const pickedRows = rows.filter((r) => picked.has(r.id));
   const currentConfig = { filter: draft, sorts, hiddenCols, color: colorField, group: groupField, rangeDays: activeDays };
 
   const countOf = (v: MasterViewDef) => allRows.filter(v.match ? v.match : (r) => evalFilter(r, v.filter || EMPTY_FILTER, fields)).length;
@@ -2399,8 +2409,21 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
             })}
           </div>
         )}
+        {canDelete && (
+          <div className="mt-1 pt-1 border-t border-gray-100">
+            <button onClick={() => setActiveId("trash")}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${activeId === "trash" ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+              <IconTrash size={14} stroke={1.8} className="flex-shrink-0" />
+              <span className="truncate flex-1 text-left">Recycle bin</span>
+              <span className={`text-[11px] ${activeId === "trash" ? "text-brand/70" : "text-gray-400"}`}>{binData?.items.length ?? ""}</span>
+            </button>
+          </div>
+        )}
       </div>
 
+      {activeId === "trash" ? (
+        <RecycleBin items={binData?.items} notReady={binData?.notReady} error={binData?.error} onChanged={() => { refreshBin(); onSaved(); }} />
+      ) : (<>
       {/* Active view — overflow-visible so the toolbar's Filter/Sort/Columns popovers
           aren't clipped when a filter shrinks the table; corner-rounding moves to the
           table wrapper below. */}
@@ -2456,9 +2479,39 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
         </div>
 
         <div className="rounded-b-xl overflow-hidden">
-          <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} groupField={groupField} customCols={customCols} />
+          {pickedRows.length > 0 && (
+            <div className="flex items-center gap-3 px-5 py-2 bg-brand-light border-b border-gray-100 text-[14px] text-[#232D42]">
+              <span className="font-medium">{pickedRows.length} selected</span>
+              <button onClick={() => setPicked(new Set())} className="text-[12px] text-gray-500 hover:text-gray-800">Clear</button>
+              <button onClick={() => setConfirmDel(true)}
+                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-[#C0392B] hover:brightness-110">
+                <IconTrash size={16} stroke={1.8} />Delete {pickedRows.length}
+              </button>
+            </div>
+          )}
+          <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} groupField={groupField} customCols={customCols}
+            picked={canDelete ? picked : undefined} onPick={canDelete ? onPick : undefined} />
         </div>
       </div>
+      </>)}
+
+      {confirmDel && (
+        <ConfirmTrash
+          title={`Move ${pickedRows.length} task${pickedRows.length === 1 ? "" : "s"} to the recycle bin?`}
+          body="They disappear from the Master sheet, My Day and the calendars for everyone. You can put them back from Recycle bin at any time."
+          names={pickedRows.map((r) => r.particulars || "(untitled)")}
+          action="Move to recycle bin"
+          onCancel={() => setConfirmDel(false)}
+          onConfirm={async () => {
+            const res = await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: pickedRows.map((r) => r.id) }) });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) return j.error || "Delete failed.";
+            setPicked(new Set()); refreshBin(); onSaved();
+            if (j.failed?.length) return `${j.moved} moved, ${j.failed.length} couldn't be moved: ${j.failed[0].error}`;
+            setConfirmDel(false); return null;
+          }}
+        />
+      )}
 
       {newViewOpen && (
         <NewViewModal
@@ -2468,6 +2521,157 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
         />
       )}
       {addColOpen && <AddColumnModal onClose={() => setAddColOpen(false)} onCreated={() => { setAddColOpen(false); refreshCols(); onSaved(); }} />}
+    </div>
+  );
+}
+
+// Row checkbox for the Master sheet / recycle bin. A span, not an <input>, so the
+// dashboard's 36px control rule leaves it at 16px.
+function PickBox({ on, partial, label }: { on: boolean; partial?: boolean; label: string }) {
+  return (
+    <span role="checkbox" aria-checked={partial ? "mixed" : on} aria-label={label}
+      className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer ${on || partial ? "bg-brand border-brand text-white" : "border-gray-300 bg-white hover:border-gray-400"}`}>
+      {on ? <IconCheck size={11} stroke={3} /> : partial ? <span className="w-2 h-0.5 bg-white rounded" /> : null}
+    </span>
+  );
+}
+
+// Confirmation popup for moving to / deleting from the bin. onConfirm returns an
+// error message to show, or null when done (the caller closes the popup).
+function ConfirmTrash({ title, body, names, action, danger, onCancel, onConfirm }: {
+  title: string; body: string; names: string[]; action: string; danger?: boolean;
+  onCancel: () => void; onConfirm: () => Promise<string | null>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  const go = async () => { setBusy(true); setMsg(null); try { setMsg(await onConfirm()); } finally { setBusy(false); } };
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6 preview-scope" onClick={onCancel}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 px-5 pt-5">
+          <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${danger ? "bg-[#FDECEA] text-[#C0392B]" : "bg-brand-light text-brand"}`}>
+            {danger ? <IconAlertTriangle size={18} stroke={1.8} /> : <IconTrash size={18} stroke={1.8} />}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-medium text-[#232D42]">{title}</h2>
+            <p className="text-[14px] text-[#8A92A6] mt-1">{body}</p>
+          </div>
+        </div>
+        <ul className="mx-5 mt-4 max-h-40 overflow-y-auto rounded border border-gray-100 bg-[#F6F7FB] px-3 py-2 text-[14px] text-[#232D42] space-y-1">
+          {names.slice(0, 50).map((n, i) => <li key={i} className="truncate">{n}</li>)}
+          {names.length > 50 && <li className="text-[#8A92A6]">and {names.length - 50} more</li>}
+        </ul>
+        {msg && <div className="mx-5 mt-3 rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{msg}</div>}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 mt-4 border-t border-gray-100">
+          <button onClick={onCancel} className="h-9 px-3 rounded text-[14px] font-medium text-gray-600 hover:text-gray-900">{msg ? "Close" : "Cancel"}</button>
+          <button onClick={go} disabled={busy}
+            className={`h-9 px-4 rounded text-[14px] font-medium text-white disabled:opacity-50 ${danger ? "bg-[#C0392B]" : "bg-brand"} hover:brightness-110`}>
+            {busy ? "Working…" : action}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Recycle bin view: everything deleted from the Master sheet / My Day, newest first.
+// Restore puts a task back exactly as it was; Delete forever is the only real erase.
+function RecycleBin({ items, notReady, error, onChanged }: { items?: TrashItem[]; notReady?: boolean; error?: string; onChanged: () => void }) {
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<null | "restore" | "purge">(null);
+  const list = items || [];
+  const chosen = list.filter((t) => picked.has(t.id));
+  const allOn = list.length > 0 && chosen.length === list.length;
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const ownerLabel = (k: string | null) => (k && TEAM.find((m) => m.key === k)?.label) || k || "—";
+  const run = async (kind: "restore" | "purge") => {
+    const res = await fetch(`/api/marketing-hub/trash/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: chosen.map((t) => t.id) }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return j.error || "Something went wrong.";
+    setPicked(new Set()); onChanged();
+    if (j.failed?.length) return `${j.failed.length} couldn't be ${kind === "restore" ? "restored" : "deleted"}: ${j.failed[0].error}`;
+    setConfirm(null); return null;
+  };
+
+  return (
+    <div className="flex-1 min-w-0 bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
+        <IconTrash size={20} stroke={1.8} className="text-[#8A92A6]" />
+        <div>
+          <div className="text-base font-medium">Recycle bin</div>
+          <div className="text-[12px] text-gray-500">{fmtInt(list.length)} deleted tasks · restore puts a task back with its comments and history</div>
+        </div>
+        {chosen.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setConfirm("restore")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:brightness-110">
+              <IconRestore size={16} stroke={1.8} />Restore {chosen.length}
+            </button>
+            <button onClick={() => setConfirm("purge")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-[#C0392B] border border-[#F3C6CE] bg-white hover:bg-[#FDECEA]">
+              <IconTrash size={16} stroke={1.8} />Delete forever
+            </button>
+          </div>
+        )}
+      </div>
+
+      {notReady ? (
+        <div className="px-5 py-10 text-center text-[14px] text-[#8A92A6]">{error}</div>
+      ) : items === undefined ? (
+        <LoadingBlock />
+      ) : list.length === 0 ? (
+        <div className="px-5 py-10 text-center text-[14px] text-[#8A92A6]">The recycle bin is empty.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
+            <thead className="border-b border-gray-100 bg-gray-50">
+              <tr className="text-gray-500 text-left">
+                <th className="pl-4 pr-0 py-2.5 w-8 font-normal" onClick={() => setPicked(allOn ? new Set() : new Set(list.map((t) => t.id)))}>
+                  <PickBox on={allOn} partial={chosen.length > 0 && !allOn} label="Select all" />
+                </th>
+                <th className="px-4 py-2.5 font-normal">Task</th>
+                <th className="px-4 py-2.5 font-normal">Primary interest / SBU</th>
+                <th className="px-4 py-2.5 font-normal">Type</th>
+                <th className="px-4 py-2.5 font-normal">Status</th>
+                <th className="px-4 py-2.5 font-normal">Owner</th>
+                <th className="px-4 py-2.5 font-normal">Deleted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((t) => (
+                <tr key={t.id} onClick={() => toggle(t.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
+                  <td className="pl-4 pr-0 py-2.5 w-8"><PickBox on={picked.has(t.id)} label={`Select ${t.particulars || "task"}`} /></td>
+                  <td className="px-4 py-2.5"><span className="text-gray-800 block max-w-[320px] truncate">{t.particulars || "(untitled)"}</span></td>
+                  <td className="px-4 py-2.5 text-gray-600">{t.sbu || "—"}</td>
+                  <td className="px-4 py-2.5 text-gray-600">{t.type || "—"}</td>
+                  <td className="px-4 py-2.5 text-gray-600">{t.status || "—"}</td>
+                  <td className="px-4 py-2.5 text-gray-600">{ownerLabel(t.owner)}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{fmtDateTime(t.deletedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {confirm && (
+        <ConfirmTrash
+          danger={confirm === "purge"}
+          title={confirm === "restore"
+            ? `Restore ${chosen.length} task${chosen.length === 1 ? "" : "s"}?`
+            : `Delete ${chosen.length} task${chosen.length === 1 ? "" : "s"} forever?`}
+          body={confirm === "restore"
+            ? "They go back to the Master sheet exactly as they were: same owner, status, comments and history."
+            : "This can't be undone. The tasks, their comments and their history are erased for good."}
+          names={chosen.map((t) => t.particulars || "(untitled)")}
+          action={confirm === "restore" ? "Restore" : "Delete forever"}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => run(confirm)}
+        />
+      )}
     </div>
   );
 }
@@ -2563,7 +2767,8 @@ function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
   );
 }
 
-function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, groupField, customCols }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; groupField?: string; customCols?: CustomColumn[] }) {
+// `picked` + `onPick` switch on the checkbox column (only passed when the viewer may delete).
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, groupField, customCols, picked, onPick }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; groupField?: string; customCols?: CustomColumn[]; picked?: Set<string>; onPick?: (ids: string[], on: boolean) => void }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggleGroup = (k: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const allSbus = facets?.sbu || [];
@@ -2593,6 +2798,10 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
   const customByKey = new Map((customCols || []).map((c) => [c.key, c]));
   const allCols = [...MASTER_COLUMNS, ...(customCols || []).map((c) => ({ key: c.key, label: c.label }))];
   const cols = allCols.filter((c) => !visibleCols || visibleCols.includes(c.key));
+  const selectable = !!(picked && onPick);
+  const span = cols.length + (selectable ? 1 : 0);
+  const allPicked = selectable && rows.length > 0 && rows.every((r) => picked!.has(r.id));
+  const somePicked = selectable && !allPicked && rows.some((r) => picked!.has(r.id));
   const colorOf = (r: Row): string | undefined =>
     colorField === "status" ? statusColor(r.status)
     : colorField === "sbu" ? sbuColor(r.sbu, allSbus)
@@ -2634,6 +2843,11 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     const cc = colorOf(r);
     return (
       <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" style={cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
+        {selectable && (
+          <td className="pl-4 pr-0 py-2.5 w-8" onClick={(e) => { e.stopPropagation(); onPick!([r.id], !picked!.has(r.id)); }}>
+            <PickBox on={picked!.has(r.id)} label={`Select ${r.particulars || "task"}`} />
+          </td>
+        )}
         {cols.map((c) => <td key={c.key} className="px-4 py-2.5">{cell(c.key, r)}</td>)}
       </tr>
     );
@@ -2677,12 +2891,17 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       <table className="w-full text-sm whitespace-nowrap">
         <thead className="border-b border-gray-100 bg-gray-50">
           <tr className="text-gray-500 text-left">
+            {selectable && (
+              <th className="pl-4 pr-0 py-2.5 w-8 font-normal" onClick={() => onPick!(rows.map((r) => r.id), !allPicked)}>
+                <PickBox on={allPicked} partial={somePicked} label="Select all" />
+              </th>
+            )}
             {cols.map((c) => <th key={c.key} className="px-4 py-2.5 font-normal">{c.key === "attachments" ? <IconPaperclip size={14} className="text-gray-400" /> : c.label}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
-            <tr><td colSpan={cols.length} className="px-4 py-10 text-center text-gray-400">{loading ? <LoadingBlock className="!py-0" /> : "No entries match"}</td></tr>
+            <tr><td colSpan={span} className="px-4 py-10 text-center text-gray-400">{loading ? <LoadingBlock className="!py-0" /> : "No entries match"}</td></tr>
           )}
           {groupField
             ? groups.map((g) => {
@@ -2690,7 +2909,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
                 return (
                   <Fragment key={g.key || "∅"}>
                     <tr className="bg-gray-50 border-y border-gray-100 cursor-pointer select-none hover:bg-gray-100/70" onClick={() => toggleGroup(g.key)}>
-                      <td colSpan={cols.length} className="px-4 py-2">
+                      <td colSpan={span} className="px-4 py-2">
                         <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[#232D42]">
                           <IconChevronDown size={15} className={`text-gray-400 transition-transform ${isCol ? "-rotate-90" : ""}`} />
                           {g.color && <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: g.color }} />}

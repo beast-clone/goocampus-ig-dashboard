@@ -642,7 +642,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const doDelete = async () => {
     setBusy(true);
     try {
-      await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor }) });
+      const res = await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor }) });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Couldn't delete this task."); return; }
       setConfirmDel(false); (onDeleted || onSaved)?.();
     } finally { setBusy(false); }
   };
@@ -734,7 +735,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
           {confirmDel && (
             <div style={{ marginTop: ".5rem", border: "1px solid #F3C6CE", background: "#FDECEF", borderRadius: 10, padding: ".7rem" }}>
-              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? This removes it from the pipeline for everyone.</div>
+              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? It moves to the recycle bin in the Master sheet, where it can be restored.</div>
               <div style={{ display: "flex", gap: ".4rem" }}>
                 <button className="btn sm" style={{ background: "#C0392B", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={doDelete}>{busy ? "Deleting…" : "Yes, delete"}</button>
                 <button className="btn sm" onClick={() => setConfirmDel(false)}>Cancel</button>

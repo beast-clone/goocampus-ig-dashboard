@@ -4,10 +4,17 @@ import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { getSessionUserId } from "@/lib/auth";
 import { requireCapability, requireSection } from "@/lib/api-guard";
+import { trashTasks, TrashNotReady } from "@/lib/task-trash";
 
-// POST /api/marketing-hub/delete  { id, actor? }
-// Removes ONE mh_posts row. Gated in the UI by the `delete_tasks` capability
-// (Team permissions). Child rows are cleared first in case FKs aren't cascading.
+// POST /api/marketing-hub/delete  { id } | { ids: string[] }
+// Moves tasks to the recycle bin (lib/task-trash.ts) — it no longer erases them.
+// Restore and Delete forever live under /api/marketing-hub/trash. Gated by the
+// `delete_tasks` capability (Team permissions), as before.
+//
+// If the bin table doesn't exist yet this refuses outright (409) rather than
+// falling back to a hard delete: nothing is ever erased without a way back.
+const MAX = 500;
+
 export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
@@ -16,31 +23,25 @@ export async function POST(req: Request) {
     const denied = await requireCapability("delete_tasks");
     if (denied) return denied;
 
-    const body = (await req.json()) as { id?: string };
-    if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+    const body = (await req.json().catch(() => ({}))) as { id?: string; ids?: string[] };
+    const ids = [...new Set((body.ids?.length ? body.ids : body.id ? [body.id] : []).filter((x) => typeof x === "string" && x))];
+    if (!ids.length) return NextResponse.json({ error: "id or ids required" }, { status: 400 });
+    if (ids.length > MAX) return NextResponse.json({ error: `Delete at most ${MAX} at a time.` }, { status: 400 });
 
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const before = await sb.from("mh_posts").select("id, particulars").eq("id", body.id).single();
-    if (before.error) throw new Error(before.error.message);
-
     const actor = getSessionUserId() || "system";
-
-    // Clear child rows first (ignore errors — some may cascade or not exist).
-    await sb.from("mh_post_collaborators").delete().eq("post_id", body.id);
-    await sb.from("mh_attachments").delete().eq("post_id", body.id).then(() => {}, () => {});
-    await sb.from("mh_activity").delete().eq("post_id", body.id).then(() => {}, () => {});
-
-    const del = await sb.from("mh_posts").delete().eq("id", body.id);
-    if (del.error) throw new Error(del.error.message);
-
-    // Best-effort audit line (post_id now null since the row is gone).
-    await sb.from("mh_activity").insert({ actor_key: actor, action: "deleted", detail: `deleted “${before.data?.particulars || "a task"}”` }).then(() => {}, () => {});
-
-    bustMarketingHubCache();
-    return NextResponse.json({ ok: true });
+    const out = await trashTasks(sb, ids, actor);
+    if (out.done.length) {
+      await sb.from("mh_activity").insert({ actor_key: actor, action: "deleted",
+        detail: `moved ${out.done.length} task${out.done.length === 1 ? "" : "s"} to the recycle bin` }).then(() => {}, () => {});
+      bustMarketingHubCache();
+    }
+    return NextResponse.json({ ok: out.failed.length === 0, moved: out.done.length, missing: out.missing, failed: out.failed },
+      { status: out.done.length || !out.failed.length ? 200 : 502 });
   } catch (err) {
+    if (err instanceof TrashNotReady) return NextResponse.json({ error: err.message, notReady: true }, { status: 409 });
     return NextResponse.json(safeError(err, "Delete failed"), { status: 502 });
   }
 }

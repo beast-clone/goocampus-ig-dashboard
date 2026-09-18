@@ -1,0 +1,146 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Recycle bin for Marketing Hub tasks (sql/011_task_recycle_bin.sql).
+//
+// A deleted task is MOVED, not erased: its mh_posts row and every child row are
+// written to mh_posts_trash as a snapshot, and only once that write has succeeded
+// are the live rows removed. So a failure part-way leaves the task where it was —
+// never gone from both places. Restore writes the snapshot back under the same id.
+//
+// Child tables that reference a task (found by scanning the schema, 18 Sep 2026):
+//   mh_post_collaborators · mh_attachments · mh_activity · mh_comments — kept and restored
+//   mh_slack_queue — pending Slack messages; dropped, not restored (they'd be stale)
+// Attachment FILES stay in storage untouched, so they come back with the task.
+
+const KEPT = [
+  ["collaborators", "mh_post_collaborators"],
+  ["attachments", "mh_attachments"],
+  ["activity", "mh_activity"],
+  ["comments", "mh_comments"],
+] as const;
+
+export class TrashNotReady extends Error {
+  constructor() {
+    super("The recycle bin isn't set up yet — run sql/011_task_recycle_bin.sql in the Supabase SQL editor. Nothing was deleted.");
+  }
+}
+
+// PostgREST reports a missing table as PGRST205 / 42P01 / "schema cache".
+const missingTable = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "PGRST205" || e.code === "42P01" || /mh_posts_trash|schema cache/i.test(e.message || ""));
+
+export async function assertTrashReady(sb: SupabaseClient): Promise<void> {
+  const { error } = await sb.from("mh_posts_trash").select("id").limit(1);
+  if (missingTable(error)) throw new TrashNotReady();
+  if (error) throw new Error(error.message);
+}
+
+export type TrashOutcome = { done: string[]; missing: string[]; failed: { id: string; error: string }[] };
+
+export async function trashTasks(sb: SupabaseClient, ids: string[], actor: string): Promise<TrashOutcome> {
+  await assertTrashReady(sb);
+  const out: TrashOutcome = { done: [], missing: [], failed: [] };
+
+  for (const id of ids) {
+    try {
+      const post = await sb.from("mh_posts").select("*").eq("id", id).maybeSingle();
+      if (post.error) throw new Error(post.error.message);
+      if (!post.data) { out.missing.push(id); continue; }
+
+      const snap: Record<string, unknown> = {};
+      for (const [key, table] of KEPT) {
+        const r = await sb.from(table).select("*").eq("post_id", id);
+        if (r.error) throw new Error(`${table}: ${r.error.message}`);
+        snap[key] = r.data || [];
+      }
+
+      // 1) Snapshot into the bin. If this fails, stop — the task stays live.
+      const ins = await sb.from("mh_posts_trash").upsert({
+        id,
+        particulars: post.data.particulars ?? null,
+        airtable_record_id: post.data.airtable_record_id ?? null,
+        post: post.data,
+        ...snap,
+        deleted_by: actor,
+        deleted_at: new Date().toISOString(),
+      });
+      if (ins.error) throw new Error(`bin: ${ins.error.message}`);
+
+      // 2) Only now remove the live rows. Children first, in case FKs don't cascade.
+      for (const [, table] of KEPT) await sb.from(table).delete().eq("post_id", id).then(() => {}, () => {});
+      await sb.from("mh_slack_queue").delete().eq("post_id", id).then(() => {}, () => {});
+      const del = await sb.from("mh_posts").delete().eq("id", id);
+      if (del.error) throw new Error(del.error.message);
+
+      out.done.push(id);
+    } catch (e) {
+      out.failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return out;
+}
+
+export async function restoreTasks(sb: SupabaseClient, ids: string[], actor: string): Promise<TrashOutcome> {
+  await assertTrashReady(sb);
+  const out: TrashOutcome = { done: [], missing: [], failed: [] };
+
+  for (const id of ids) {
+    try {
+      const t = await sb.from("mh_posts_trash").select("*").eq("id", id).maybeSingle();
+      if (t.error) throw new Error(t.error.message);
+      if (!t.data) { out.missing.push(id); continue; }
+
+      const put = await sb.from("mh_posts").insert(t.data.post);
+      if (put.error) throw new Error(/duplicate|already exists/i.test(put.error.message)
+        ? "a task with this id already exists" : put.error.message);
+
+      for (const [key, table] of KEPT) {
+        const rows = (t.data[key] as unknown[]) || [];
+        if (rows.length) {
+          const r = await sb.from(table).insert(rows);
+          if (r.error) throw new Error(`${table}: ${r.error.message}`);
+        }
+      }
+      await sb.from("mh_activity").insert({ post_id: id, actor_key: actor, action: "restored", detail: "restored from the recycle bin" }).then(() => {}, () => {});
+      await sb.from("mh_posts_trash").delete().eq("id", id);
+      out.done.push(id);
+    } catch (e) {
+      out.failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return out;
+}
+
+// The only permanent delete. Files in storage are left alone, as before.
+export async function purgeTasks(sb: SupabaseClient, ids: string[]): Promise<TrashOutcome> {
+  await assertTrashReady(sb);
+  const del = await sb.from("mh_posts_trash").delete().in("id", ids).select("id");
+  if (del.error) throw new Error(del.error.message);
+  const done = (del.data || []).map((r: { id: string }) => r.id);
+  return { done, missing: ids.filter((i) => !done.includes(i)), failed: [] };
+}
+
+export type TrashItem = {
+  id: string; particulars: string | null; type: string | null; status: string | null;
+  owner: string | null; sbu: string | null; publishingDate: string | null;
+  deletedBy: string | null; deletedAt: string;
+};
+
+export async function listTrash(sb: SupabaseClient): Promise<TrashItem[]> {
+  await assertTrashReady(sb);
+  const r = await sb.from("mh_posts_trash")
+    .select("id, particulars, deleted_by, deleted_at, type:post->>type, status:post->>status, owner:post->>owner_key, sbu:post->>sbu, publishing_date:post->>publishing_date")
+    .order("deleted_at", { ascending: false });
+  if (r.error) throw new Error(r.error.message);
+  return (r.data || []).map((x: Record<string, string | null>) => ({
+    id: x.id as string, particulars: x.particulars, type: x.type, status: x.status, owner: x.owner,
+    sbu: x.sbu, publishingDate: x.publishing_date, deletedBy: x.deleted_by, deletedAt: x.deleted_at as string,
+  }));
+}
+
+// Airtable record ids sitting in the bin — the import skips these.
+export async function trashedAirtableIds(sb: SupabaseClient): Promise<Set<string>> {
+  const r = await sb.from("mh_posts_trash").select("airtable_record_id").not("airtable_record_id", "is", null);
+  if (r.error) return new Set(); // bin not set up yet: nothing to skip
+  return new Set((r.data || []).map((x: { airtable_record_id: string }) => x.airtable_record_id));
+}

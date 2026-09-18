@@ -13,6 +13,7 @@
 import { airtableList, CONTENT_CALENDAR_TABLE } from "@/lib/marketing-hub";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { trashedAirtableIds } from "@/lib/task-trash";
 
 // Supabase's mh_status is an enum of 8; Airtable's Status offers 11. Writing one of
 // the extra three fails the whole row with an opaque Postgres error, so they are
@@ -130,10 +131,15 @@ export async function importFromAirtable(opts: {
     }
   }
 
+  // Anything sitting in the recycle bin was deleted on purpose — don't re-import it.
+  // Restore it from the bin instead if it's wanted back.
+  const binned = await trashedAirtableIds(db);
+
   for (const rec of records) {
     const f = rec.fields;
     const particulars = str(f["Particulars"]);
     if (!particulars) { skip("no title in Airtable"); continue; }
+    if (binned.has(rec.id)) { skip("in the recycle bin"); continue; }
 
     const media = (f["Attachments"] || [])
       .map((a) => a?.url)
