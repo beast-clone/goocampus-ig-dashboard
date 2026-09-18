@@ -84,7 +84,7 @@ export default function InvitePage() {
                   Enter the code from your invite email,<br />then choose a password of your own.
                 </p>
 
-                <form onSubmit={submit} className="mt-8 space-y-4">
+                <form onSubmit={submit} className="auth-form mt-8 space-y-4">
                   <div className="relative">
                     <label className="absolute -top-2 left-3 px-1.5 bg-white text-[11px] font-medium" style={{ color: ACCENT }}>E-mail</label>
                     <input

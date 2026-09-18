@@ -368,3 +368,15 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
 .preview-scope .text-\[17px\].font-medium.text-\[\#232D42\],
 .preview-scope .text-\[18px\].font-medium.text-\[\#232D42\],
 .preview-scope .text-\[20px\].font-medium.text-\[\#232D42\] { font-weight: 700 !important; }
+
+/* Login / invite: Chrome paints autofilled fields light blue, which left the
+   floating label's white background showing as a patch on the border. Keep
+   autofilled fields white (inset shadow is the only way to beat the UA style). */
+.auth-form input:-webkit-autofill,
+.auth-form input:-webkit-autofill:hover,
+.auth-form input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: #232D42;
+  caret-color: #232D42;
+  transition: background-color 9999s ease-out 0s;
+}
