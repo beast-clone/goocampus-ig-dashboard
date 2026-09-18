@@ -2604,7 +2604,7 @@ function RecycleBin({ items, notReady, error, onChanged }: { items?: TrashItem[]
         <IconTrash size={20} stroke={1.8} className="text-[#8A92A6]" />
         <div>
           <div className="text-base font-medium">Recycle bin</div>
-          <div className="text-[12px] text-gray-500">{fmtInt(list.length)} deleted tasks · restore puts a task back with its comments and history</div>
+          <div className="text-[12px] text-gray-500">{fmtInt(list.length)} deleted task{list.length === 1 ? "" : "s"} · restore puts a task back with its comments and history</div>
         </div>
         {chosen.length > 0 && (
           <div className="ml-auto flex items-center gap-2">
