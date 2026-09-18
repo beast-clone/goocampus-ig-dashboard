@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import { importFromAirtable, IMPORT_FILTER_KEYS, type ImportFilters } from "@/lib/airtable-import";
+import { importFromAirtable, IMPORT_FILTER_KEYS, isNetworkError, LOST_CONNECTION, type ImportFilters } from "@/lib/airtable-import";
 import { safeError } from "@/lib/errors";
 
 // Pull a window of Airtable's Content Calendar into the master sheet.
@@ -46,6 +46,9 @@ export async function POST(req: Request) {
     const result = await importFromAirtable({ from, to, dryRun: Boolean(b.dryRun), facetsOnly: Boolean(b.facetsOnly), filters });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
+    // Per-record failures are caught inside the loop, so an error reaching here came
+    // before any write — "nothing was imported" is true.
+    if (isNetworkError(err)) { console.error("[import] network", err); return NextResponse.json({ error: LOST_CONNECTION }, { status: 502 }); }
     return NextResponse.json(safeError(err, "Couldn't import from Airtable"), { status: 502 });
   }
 }

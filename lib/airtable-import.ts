@@ -123,6 +123,16 @@ const PROTECTED_STATUSES = new Set(["published", "publishing"]);
 // The import reads one Airtable view, not the whole table: the team curates what
 // belongs in the dashboard with that view's filters (status, owner, collaborators,
 // publishing date), so changing the view in Airtable changes what gets imported.
+// A dropped connection surfaces from fetch as "terminated" / "fetch failed" with the
+// real reason (EHOSTUNREACH, ECONNRESET…) on err.cause — meaningless to a person.
+export const LOST_CONNECTION = "Lost connection to Airtable/Supabase. Nothing was imported — try again.";
+export function isNetworkError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  const code = (e as { cause?: { code?: string } })?.cause?.code || "";
+  return /terminated|fetch failed|socket hang up|network/i.test(msg)
+    || /^E(HOSTUNREACH|CONNRESET|CONNREFUSED|TIMEDOUT|NOTFOUND|AI_AGAIN|PIPE)$|^UND_ERR/.test(code);
+}
+
 export const IMPORT_VIEW = { id: "viwNk7D0PPWMNh3Im", name: "Task Dashboard" };
 
 export async function importFromAirtable(opts: {
@@ -264,7 +274,7 @@ export async function importFromAirtable(opts: {
       }
     } catch (e) {
       // One bad record must not abandon the other four thousand.
-      if (out.errors.length < 10) out.errors.push(`${particulars}: ${(e as Error).message}`);
+      if (out.errors.length < 10) out.errors.push(`${particulars}: ${isNetworkError(e) ? "lost connection — try again" : (e as Error).message}`);
     }
   }
 

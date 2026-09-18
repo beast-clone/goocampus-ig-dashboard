@@ -55,10 +55,12 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   const post = async (extra: Record<string, unknown>) => {
+    // If the browser can't reach the dashboard server at all, fetch throws a bare
+    // "Failed to fetch"; say what it means instead.
     const r = await fetch("/api/marketing-hub/import", {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
       body: JSON.stringify({ from, to, filters, ...extra }),
-    });
+    }).catch(() => { throw new Error("Lost connection to the dashboard server. Nothing was imported — try again."); });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
     return d as Result;
