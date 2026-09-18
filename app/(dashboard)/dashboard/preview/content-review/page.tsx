@@ -250,12 +250,12 @@ function Review() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
               <button
                 disabled={busy}
                 onClick={() => move(p.id, "Ready to Publish", "Push to Schedule", undefined, p.title)}
                 title="Approve and send to the Scheduler"
-                className="flex-1 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-2.5 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-auto whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-2 py-2 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <IconCalendarPlus size={15} stroke={1.9} className="flex-shrink-0" /> Push to Schedule
               </button>
@@ -263,7 +263,7 @@ function Review() {
                 disabled={busy}
                 onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }}
                 title="Send back to the producer with feedback"
-                className="whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-2.5 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
+                className="flex-auto whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-2 py-2 hover:border-brand hover:text-brand disabled:opacity-40"
               >
                 <IconArrowBackUp size={15} stroke={1.9} /> Send back
               </button>
