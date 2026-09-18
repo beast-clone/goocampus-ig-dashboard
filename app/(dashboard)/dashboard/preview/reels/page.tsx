@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconClock, IconEye, IconHeart, IconMovie, IconSparkles, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { useApi } from "@/lib/use-api";
@@ -97,7 +98,7 @@ function ReelsView({ accountId, range }: { accountId: string; range: { from: str
   const live = <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} error={error ? error.message : null} />;
 
   if (error) return <>{live}<div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">Couldn&apos;t load reels: {error.message}</div></>;
-  if (!posts) return <>{live}<div className="text-sm text-gray-500">Loading reels…</div></>;
+  if (!posts) return <>{live}<LoadingBlock label="Loading reels…" /></>;
 
   const reels = posts.filter((p) => p.type === "REEL");
   if (reels.length === 0) return <>{live}<div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">No reels found in the recent posts for this account in this range.</div></>;

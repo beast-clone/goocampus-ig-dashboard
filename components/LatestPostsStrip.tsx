@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconHeart, IconPencil } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useV2Href } from "@/lib/previewHref";
@@ -70,11 +71,7 @@ export function LatestPostsStrip({ accountId, range }: { accountId: string; rang
       </div>
 
       {loading && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[300px] bg-gray-100 rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <div className="h-[300px] flex items-center justify-center"><LoadingBlock label="Loading latest posts…" /></div>
       )}
 
       {!loading && posts && posts.length > 0 && (

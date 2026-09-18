@@ -409,7 +409,7 @@ export function PreviewCalendar() {
       {/* The calendar card */}
       <div className="hcal-card">
         <div className="hcal-filters">
-          <span className="hcal-flabel">Primary interest</span>
+          <span className="hcal-flabel">Primary interest / SBU</span>
           <PreviewSelect value={fSbu} onChange={setFSbu} placeholder="All brands"
             options={[{ value: "", label: "All brands" },
                       ...sbusPresent.map((b) => ({ value: b, label: b })),

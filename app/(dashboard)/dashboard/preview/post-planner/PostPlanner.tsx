@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconCalendarEvent, IconPhoto, IconPlayerPause, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -277,7 +278,7 @@ export function Planner() {
               </div>
             </div>
           </div>
-          <div className="animate-pulse space-y-3"><div className="h-16 bg-gray-100 rounded-2xl" /><div className="h-72 bg-gray-100 rounded-2xl" /></div>
+          <div className="h-[304px] bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Building your plan…" /></div>
         </div>
       )}
       {err && !data && <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">Couldn&rsquo;t build the plan — {err}</div>}
@@ -517,7 +518,7 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
 
             <div>
               <div className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-1">Caption</div>
-              {capLoading ? <div className="text-[12px] text-gray-400">Loading caption…</div>
+              {capLoading ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading caption…" />
                 : caption ? <div className="text-[12.5px] text-gray-700 whitespace-pre-wrap leading-relaxed">{caption}</div>
                 : <div className="text-[12px] text-gray-400 italic">No caption yet.</div>}
             </div>

@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import MissingFieldsModal from "../MissingFieldsModal";
 import {
@@ -156,7 +157,7 @@ export function LinkedInScheduler({ networkSwitch }: { networkSwitch?: React.Rea
       {/* Queue */}
       <div className="lg:col-span-2 bg-white border border-gray-100 rounded-2xl p-5">
         <div className="text-[13.5px] font-semibold text-[#232D42] mb-3">Scheduled &amp; posted</div>
-        {!posts ? <div className="animate-pulse h-32 bg-gray-100 rounded-xl" /> :
+        {!posts ? <div className="h-32 flex items-center justify-center"><LoadingBlock label="Loading posts…" /></div> :
           posts.length === 0 ? <div className="text-[13px] text-gray-400 py-6 text-center">Nothing scheduled yet.</div> : (
           <div className="flex flex-col gap-2 max-h-[520px] overflow-y-auto">
             {posts.map((p) => <QueueRow key={p.id} p={p} onCancel={cancel} />)}

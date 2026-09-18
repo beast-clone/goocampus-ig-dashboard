@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconArrowsLeftRight, IconUser, IconBooks, IconCamera } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -237,7 +238,7 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
           </div>
         )}
         {isLive && !hasStats && (
-          <div className="text-xs text-gray-400 italic">Fetching insights…</div>
+          <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Fetching insights…" />
         )}
       </div>
     </a>

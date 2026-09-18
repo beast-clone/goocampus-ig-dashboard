@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LI_PAGE } from "@/components/PlatformOverviews";
@@ -74,7 +75,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
   if (!pageKey) {
     return <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">This brand has no LinkedIn page connected.</div>;
   }
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading posts…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading posts…" />;
   if (!data || data.error) return <div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load posts.</div>;
 
   const posts = [...(data.posts || [])].sort((a, b) => b.impressions - a.impressions);
@@ -164,7 +165,7 @@ function DocThumb({ url, fallback }: { url: string; fallback: React.ReactNode })
   if (state === "err") return <>{fallback}</>;
   return (
     <div className="w-full h-full flex items-start justify-center bg-gray-100 overflow-hidden">
-      {state === "loading" && <div className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-400">Loading document…</div>}
+      {state === "loading" && <LoadingBlock size={24} className="!py-6" label="Loading document…" />}
       <canvas ref={canvasRef} className="w-full h-auto" />
     </div>
   );
@@ -219,7 +220,7 @@ function DocViewer({ url, fallback }: { url: string; fallback: React.ReactNode }
   if (state === "err") return <>{fallback}</>;
   return (
     <div className="relative bg-gray-100">
-      {state === "loading" && <div className="aspect-square flex items-center justify-center text-sm text-gray-400">Loading document…</div>}
+      {state === "loading" && <LoadingBlock size={24} className="!py-6" label="Loading document…" />}
       <canvas ref={canvasRef} className="w-full h-auto" />
       {total > 1 && state === "ok" && (
         <>

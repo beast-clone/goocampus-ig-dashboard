@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconCake, IconClock, IconWorld } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -142,7 +143,7 @@ function Audience({ accountId }: { accountId: string }) {
 
   const persona = useMemo(() => buildPersona(data ?? null), [data]);
 
-  if (loading && !data) return <div className="text-sm text-gray-500">Loading live audience…</div>;
+  if (loading && !data) return <LoadingBlock label="Loading live audience…" />;
   if (error) return <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-4 rounded-lg">{error.message}</div>;
   if (!data) return <div className="text-sm text-gray-500">No data.</div>;
 

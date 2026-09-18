@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconExternalLink, IconSearch, IconFileText, IconTargetArrow, IconInfoCircle } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -71,7 +72,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
       )}
       {error && !setupErr && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
-      {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading Google Search Console…</div>}
+      {!data && isLoading && <LoadingBlock label="Loading Google Search Console…" />}
 
       {data && !setupErr && (
         <>

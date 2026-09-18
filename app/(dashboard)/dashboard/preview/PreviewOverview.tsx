@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { fmtDateShort } from "@/lib/date";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import {
   IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
@@ -448,7 +449,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
               {/* Stat cards — now with description + AI action, matching the real Overview */}
               <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 18 }}>
-                {loading && !ins ? [0, 1, 2, 3, 4].map((i) => <div key={i} style={{ height: 168, background: C.card, borderRadius: 14, boxShadow: SHADOW }} />)
+                {loading && !ins ? <div style={{ gridColumn: "1 / -1", height: 168, background: C.card, borderRadius: 14, boxShadow: SHADOW, display: "flex", alignItems: "center", justifyContent: "center" }}><LoadingBlock label="Loading your numbers…" /></div>
                   : stats.map(({ key, ...rest }) => (
                     <StatCard key={key} {...rest}
                       detail={tipBy[key]?.detail || PLAIN[key]?.detail || ""}
@@ -478,7 +479,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       })}
                     </div>
                   </div>
-                  {ins && <AreaChart series={ins.series} metric={chartMetric} />}
+                  {ins ? <AreaChart series={ins.series} metric={chartMetric} /> : loading ? <LoadingBlock label="Loading the chart…" /> : null}
                 </Card>
 
                 <Card>
@@ -488,7 +489,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       ? <>Audience captured for {aud.month ? new Date(aud.month + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "this month"}</>
                       : "Audience split · current"}
                   </div>
-                  <GenderDonut gender={aud?.gender || []} />
+                  {!aud && (loading || !ins) ? <LoadingBlock label="Loading your audience…" /> : <GenderDonut gender={aud?.gender || []} />}
                   <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 9 }}>
                     {(aud?.countries || []).slice(0, 4).map((c, i) => {
                       const max = Math.max(1, ...(aud?.countries || []).slice(0, 4).map((x) => x.value));

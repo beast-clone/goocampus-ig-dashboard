@@ -528,7 +528,7 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
   }), [rows, today, weekAgo, weekStart, weekEnd]);
 
   if (loading && rows.length === 0) {
-    return <div className="bg-white border border-gray-100 rounded-lg p-10 text-center text-gray-400">Loading team…</div>;
+    return <div className="bg-white border border-gray-100 rounded-lg"><LoadingBlock label="Loading team…" /></div>;
   }
 
   const selMember = selected ? TEAM.find((m) => m.key === selected) ?? null : null;
@@ -896,7 +896,7 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
   const stageMeta = new Map(attention.perStage.map((s) => [s.key, s]));
 
   if (loading && rows.length === 0) {
-    return <div className="bg-white border border-gray-100 rounded-xl p-10 text-center text-[#8A92A6]">Loading pipeline…</div>;
+    return <div className="bg-white border border-gray-100 rounded-xl"><LoadingBlock label="Loading pipeline…" /></div>;
   }
 
   return (
@@ -3239,7 +3239,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
                 {editSection === "content" ? editBox(14, "Write the content brief…")
                   : content ? <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px]" dangerouslySetInnerHTML={{ __html: content }} />
-                  : loadingDetail ? <div className="text-[14px] text-gray-400">Loading content…</div>
+                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
                   : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
               </Panel>
 

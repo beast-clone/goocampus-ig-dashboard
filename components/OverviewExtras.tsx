@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconAlertTriangle, IconHeart, IconSparkles } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -203,7 +204,7 @@ function PostMixCard({ loading, mix }: { loading: boolean; mix: { total: number;
       </div>
 
       {loading || mix.total === 0 ? (
-        <div className="h-[240px] bg-gray-50 rounded animate-pulse" />
+        <div className="h-[240px] flex items-center justify-center"><LoadingBlock /></div>
       ) : (
         <>
           {/* Donut + counts */}
@@ -293,7 +294,7 @@ function TopHashtagsCard({ loading, entries }: { loading: boolean; entries: { ta
       </div>
 
       {loading ? (
-        <div className="h-[160px] bg-gray-50 rounded animate-pulse" />
+        <div className="h-[160px] flex items-center justify-center"><LoadingBlock /></div>
       ) : entries.length > 0 ? (
         <div className="flex flex-col">
           {entries.map((e, i) => (
@@ -549,7 +550,7 @@ function FormatComparisonCard({ accountId, defaultRange }: { accountId: string; 
       })()}
 
       {loading ? (
-        <div className="h-[220px] bg-gray-50 rounded animate-pulse" />
+        <div className="h-[220px] flex items-center justify-center"><LoadingBlock /></div>
       ) : !rows || rows.length === 0 ? (
         <div className="text-[13px] text-gray-500 italic">No posts to compare in this range.</div>
       ) : (
@@ -599,11 +600,7 @@ function FormatComparisonCard({ accountId, defaultRange }: { accountId: string; 
             </div>
 
             {adviceLoading && !advice && (
-              <div className="space-y-2">
-                <div className="h-3 w-full bg-gray-100 rounded animate-pulse" />
-                <div className="h-3 w-11/12 bg-gray-100 rounded animate-pulse" />
-                <div className="h-3 w-4/5 bg-gray-100 rounded animate-pulse" />
-              </div>
+              <LoadingBlock size={24} className="!py-3" label="Reading your numbers…" />
             )}
 
             {adviceError && !advice && (
@@ -707,9 +704,7 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[0, 1, 2, 3].map((i) => <div key={i} className="h-[220px] bg-gray-50 rounded-xl animate-pulse" />)}
-        </div>
+        <div className="h-[220px] flex items-center justify-center"><LoadingBlock /></div>
       ) : posts.length === 0 ? (
         <div className="text-[13px] text-gray-500 italic">No older posts to draw from yet.</div>
       ) : (

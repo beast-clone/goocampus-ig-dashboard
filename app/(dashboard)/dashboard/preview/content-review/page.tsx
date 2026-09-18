@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
@@ -348,7 +349,7 @@ function Review() {
       )}
 
       {loading ? (
-        <div className="text-sm text-[#8A92A6] py-16 text-center">Loading review queue…</div>
+        <LoadingBlock label="Loading review queue…" />
       ) : posts.length === 0 ? (
         <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center">
           <div className="mx-auto w-12 h-12 rounded-full bg-brand-light grid place-items-center mb-3">

@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useMemo, useState } from "react";
 
 type Post = {
@@ -99,7 +100,7 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
       </div>
 
       {loading ? (
-        <div className="h-[180px] bg-gray-50 rounded animate-pulse" />
+        <div className="h-[180px] flex items-center justify-center"><LoadingBlock /></div>
       ) : (
         <div className="space-y-4">
           {/* Row 1 — one box per week, always on a single line regardless of count */}

@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconBroadcast, IconMessageCircle, IconSparkles, IconUsers } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
@@ -72,16 +73,7 @@ export function AiTipsStrip({ accountId, range }: { accountId: string; range: { 
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm h-[140px] animate-pulse">
-              <div className="h-3 w-24 bg-gray-100 rounded mb-3" />
-              <div className="h-4 w-full bg-gray-100 rounded mb-2" />
-              <div className="h-3 w-3/4 bg-gray-100 rounded mb-2" />
-              <div className="h-3 w-1/2 bg-gray-100 rounded" />
-            </div>
-          ))}
-        </div>
+        <div className="h-[140px] bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Writing your growth tips…" /></div>
       )}
 
       {!loading && error && (

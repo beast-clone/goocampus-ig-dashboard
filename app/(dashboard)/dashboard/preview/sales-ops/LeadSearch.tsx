@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { IconSearch, IconUserShare, IconExternalLink, IconX, IconLoader2, IconUsersGroup } from "@tabler/icons-react";
@@ -310,7 +311,7 @@ function LeadDetailModal({ id, onClose, onReassign }: { id: string; onClose: () 
         </div>
         <div className="p-5">
           {err ? <div className="text-[13px] text-red-600">{err}</div>
-            : !d ? <div className="text-[13px] text-gray-400 py-8 text-center">Loading the lead…</div>
+            : !d ? <LoadingBlock size={24} className="!py-6" label="Loading the lead…" />
             : (
               <div className="space-y-5">
                 {d.groups.map((g) => (

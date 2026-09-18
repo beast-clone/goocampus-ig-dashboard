@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useRef, useState } from "react";
 import { IconX, IconCheck, IconSearch, IconAlertTriangle } from "@tabler/icons-react";
 
@@ -121,7 +122,7 @@ export function CollaboratorPicker({ value, onChange, ownAccounts }: {
               <div className="px-3 py-1.5 bg-[#FCFCFE] border-y border-gray-100 text-[10.5px] font-semibold uppercase tracking-wider text-[#A6ACBE]">
                 On Instagram
               </div>
-              {state === "checking" && <div className="px-3 py-2 text-[12px] text-[#8A92A6]">Checking Instagram…</div>}
+              {state === "checking" && <LoadingBlock size={18} className="!py-2 !px-3 !flex-row !justify-start !gap-2" label="Checking Instagram…" />}
               {state === "none" && (
                 <div className="flex items-start gap-2 px-3 py-2">
                   <IconAlertTriangle size={14} stroke={1.9} className="text-[#B7791F] shrink-0 mt-[2px]" />

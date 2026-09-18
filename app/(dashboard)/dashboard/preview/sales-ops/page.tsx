@@ -887,7 +887,7 @@ function LeadsFirstContact() {
       </div>
 
       {err && <div className="text-sm text-red-600 py-6">{err}</div>}
-      {!leads && !err && <div className="text-sm text-gray-400 py-6">Loading leads…</div>}
+      {!leads && !err && <LoadingBlock size={24} className="!py-6" label="Loading leads…" />}
       {days === "custom" && !win && <div className="text-sm text-gray-400 py-6">Pick a start and end date.</div>}
       {leads && (
         <>

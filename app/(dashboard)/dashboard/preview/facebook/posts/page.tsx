@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { format, parseISO } from "date-fns";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { useApi } from "@/lib/use-api";
@@ -35,7 +36,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
   const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to, limit: "24" }).toString();
   const { data, isLoading } = useApi<Resp>(`/api/facebook?${qs}`);
 
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading posts…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading posts…" />;
   if (!data || data.error) return <div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load posts.</div>;
   if (!data.posts.available) {
     return (

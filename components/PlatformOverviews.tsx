@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/use-api";
@@ -257,7 +258,7 @@ function regionName(code: string): string {
 export function FacebookOverview({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<FbResp>(`/api/facebook?${qs}`);
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading Facebook…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading Facebook…" />;
   if (!data || data.error) return <EmptyPlatform platform="Facebook page" brand="This brand" />;
 
   // Real derived insight from post dates: how often this page publishes.
@@ -351,7 +352,7 @@ export function LinkedInOverview({ accountId, range }: { accountId: string; rang
   const qs = new URLSearchParams({ page: pageKey ?? "", from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<LiResp>(pageKey ? `/api/linkedin?${qs}` : null);
   if (!pageKey) return <EmptyPlatform platform="LinkedIn page" brand="This brand" />;
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading LinkedIn…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading LinkedIn…" />;
   if (!data || data.error) return <EmptyPlatform platform="LinkedIn page" brand="This brand" />;
 
   const topPosts = [...(data.posts || [])].sort((a, b) => b.impressions - a.impressions).slice(0, 4);
@@ -470,7 +471,7 @@ export function YouTubeOverview({ accountId, range, enhanced }: { accountId: str
   const qs = new URLSearchParams({ channel: channel ?? "", from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<YtResp>(channel ? `/api/youtube?${qs}` : null);
   if (!channel) return <EmptyPlatform platform="YouTube channel" brand="This brand" />;
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading YouTube…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading YouTube…" />;
   if (!data || data.error) return <EmptyPlatform platform="YouTube channel" brand="This brand" />;
 
   const mins = Math.floor((data.summary.avgViewDurationSec ?? 0) / 60);

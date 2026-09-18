@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { ChartCard, PieList, regionName } from "@/components/PlatformAudience";
 import { IconExternalLink, IconFileText, IconTargetArrow, IconBolt } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -85,7 +86,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <AiInsights endpoint={`/api/website/insights?source=ga&${qs}`} accent={GA} label="Analyze this Google Analytics data with AI" />
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
-      {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading Google Analytics…</div>}
+      {!data && isLoading && <LoadingBlock label="Loading Google Analytics…" />}
 
       {data && (
         <>

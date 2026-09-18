@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { HeaderSlot } from "@/app/(dashboard)/dashboard/preview/HeaderSlot";
@@ -194,7 +195,7 @@ function Ads({ range }: { range: { from: string; to: string } }) {
     </HeaderSlot>
   );
 
-  if (loading && !data) return <>{live}<div className="text-sm text-gray-500">Loading ads data…</div></>;
+  if (loading && !data) return <>{live}<LoadingBlock label="Loading ads data…" /></>;
   if (error) return <>{live}<div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg">Error: {error.message}</div></>;
   if (!data) return <>{live}<div className="text-sm text-gray-500">No data.</div></>;
 
@@ -348,7 +349,7 @@ function titleCase(k: string) {
 function AdBreakdowns({ range, showLeads }: { range: { from: string; to: string }; showLeads: boolean }) {
   const qs = new URLSearchParams({ from: range.from, to: range.to }).toString();
   const { data } = useApi<Breakdowns>(`/api/ads/breakdowns?${qs}`);
-  if (!data) return <div className="mt-6 text-xs text-gray-400">Loading breakdowns…</div>;
+  if (!data) return <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading breakdowns…" />;
 
   const cards = [
     { title: "By platform", rows: data.platform, pretty: prettyPlatform },
@@ -1404,7 +1405,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
         </div>
 
         <div className="overflow-y-auto p-6 bg-[#F6F7FB]">
-          {loading && <div className="text-sm text-gray-500">Loading ads…</div>}
+          {loading && <LoadingBlock label="Loading ads…" />}
           {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded">{error}</div>}
           {ads && ads.length === 0 && <div className="text-sm text-gray-500">No ads in this range.</div>}
           {ads && ads.length > 0 && (

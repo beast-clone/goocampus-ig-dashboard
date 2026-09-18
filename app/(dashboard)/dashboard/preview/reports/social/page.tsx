@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -135,7 +136,7 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
         <button onClick={closeRow} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4A5468] hover:text-[#232D42] mb-4">
           <IconArrowLeft size={16} /> Back to {label} reports
         </button>
-        {openLoading && <div className="animate-pulse h-64 bg-gray-100 rounded-2xl" />}
+        {openLoading && <div className="h-64 bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Opening report…" /></div>}
         {openError && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t open report — {openError}</div>}
         {openReport && <ReportView report={openReport} regenerating={false} />}
       </div>
@@ -146,7 +147,7 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
     return <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t load — {error}</div>;
   }
   if (!reports) {
-    return <div className="animate-pulse h-40 bg-gray-100 rounded-2xl" />;
+    return <div className="h-40 bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Loading reports…" /></div>;
   }
   if (reports.length === 0) {
     return (

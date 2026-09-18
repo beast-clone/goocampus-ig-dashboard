@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconCarouselHorizontal, IconEye, IconHeart, IconMessageCircle, IconMovie, IconPhoto, IconPlayerPlay, IconSparkles, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -129,7 +130,7 @@ function PostsView({ accountId, range }: { accountId: string; range: { from: str
   if (!posts) return (
     <>
       <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={fetchData} />
-      <div className="text-sm text-gray-500">Loading posts from Instagram…</div>
+      <LoadingBlock label="Loading posts from Instagram…" />
     </>
   );
 

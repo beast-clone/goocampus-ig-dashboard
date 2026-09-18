@@ -158,7 +158,7 @@ export function CompetitorBriefing() {
               </button>
             ))}
           </div>
-        ) : <div className="text-[13px] text-gray-400">Loading rising searches…</div>}
+        ) : <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading rising searches…" />}
         <div className="text-[12px] text-gray-400 mt-4">Real rising queries around your tracked topics (Google Autocomplete + Daily Trends, free). Click one to preview; add or change topics in <b>Content Radar → Manage alerts</b>.</div>
       </Section>
 

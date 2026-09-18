@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useMemo, useState } from "react";
 
 type AudienceResponse = {
@@ -101,7 +102,7 @@ export function AudienceOnlineHeatmap({ accountId }: { accountId: string }) {
         <div className="text-[11px] text-gray-400 italic">Rolling 7-day average · Meta insights</div>
       </div>
 
-      {loading && <div className="h-[200px] bg-gray-50 rounded animate-pulse" />}
+      {loading && <div className="h-[200px] flex items-center justify-center"><LoadingBlock /></div>}
 
       {!loading && !peak && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 text-[12.5px] text-amber-900">

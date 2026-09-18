@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import Link from "next/link";
 import { useV2Href } from "@/lib/previewHref";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
@@ -237,7 +238,7 @@ type FbResp = {
 export function FacebookAudience({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
   const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<FbResp>(`/api/facebook?${qs}`);
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading Facebook audience…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading Facebook audience…" />;
   if (!data || data.error) return <EmptyPlatform platform="Facebook page" />;
 
   const countries = data.audience?.available ? data.audience.countries : [];
@@ -280,7 +281,7 @@ export function LinkedInAudience({ accountId, range }: { accountId: string; rang
   const qs = new URLSearchParams({ page: pageKey ?? "", from: range.from, to: range.to }).toString();
   const { data, isLoading } = useApi<LiResp>(pageKey ? `/api/linkedin?${qs}` : null);
   if (!pageKey) return <EmptyPlatform platform="LinkedIn page" />;
-  if (isLoading && !data) return <div className="text-sm text-gray-400 py-16 text-center">Loading LinkedIn audience…</div>;
+  if (isLoading && !data) return <LoadingBlock label="Loading LinkedIn audience…" />;
   if (!data || data.error) return <EmptyPlatform platform="LinkedIn page" />;
 
   const d = data.demographics;
@@ -368,7 +369,7 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
     </div>
   );
 
-  if (isLoading && !data) return <div className="space-y-4">{pills}<div className="text-sm text-gray-400 py-16 text-center">Loading YouTube audience…</div></div>;
+  if (isLoading && !data) return <div className="space-y-4">{pills}<LoadingBlock label="Loading YouTube audience…" /></div>;
   if (!data || data.error) return <div className="space-y-4">{pills}<EmptyPlatform platform="YouTube channel" /></div>;
 
   const t = data.traffic;

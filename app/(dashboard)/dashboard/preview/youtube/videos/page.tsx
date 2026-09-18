@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { parseISO } from "date-fns";
 import { fmtDateShort } from "@/lib/date";
@@ -132,7 +133,7 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
         </div>
       </div>
 
-      {isLoading && !data && <div className="text-sm text-gray-400 py-16 text-center">Loading your whole library…</div>}
+      {isLoading && !data && <LoadingBlock label="Loading your whole library…" />}
       {data && data.source !== "live" && <div className="text-sm text-gray-400 py-16 text-center">Couldn&apos;t load videos for this channel.</div>}
 
       {data && data.source === "live" && (
@@ -344,7 +345,7 @@ function DetailModal({ v, channel, channelName, onClose }: { v: Video; channel: 
                 <span className="text-[11px] text-gray-400">{fmt(v.comments)} total</span>
               </div>
               {comments === null ? (
-                <div className="text-sm text-gray-400 py-4">Loading comments…</div>
+                <LoadingBlock size={24} className="!py-6" label="Loading comments…" />
               ) : comments.length === 0 ? (
                 <div className="text-sm text-gray-400 py-4">{cReason || "No comments yet."}</div>
               ) : (

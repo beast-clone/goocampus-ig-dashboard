@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -889,7 +890,7 @@ function SearchDemand({ trends, refreshing, onRefresh }: {
       </div>
 
       {!trends ? (
-        <div className="px-4 py-3 text-[12px] text-[#8A92A6]">Loading rising searches…</div>
+        <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading rising searches…" />
       ) : total === 0 ? (
         <div className="px-4 py-3 text-[12px] text-[#8A92A6]">Nothing rising around your topics right now.</div>
       ) : (
@@ -1027,7 +1028,7 @@ function SeoSkeleton({ Icon, title, sub }: { Icon: TablerIcon; title: string; su
     <div className={seoCardShell}>
       <SeoHeader Icon={Icon} title={title} sub={sub} />
       <div className="p-4 space-y-2.5">
-        {[0, 1, 2, 3].map((i) => <div key={i} className="h-3.5 bg-[#F6F7FB] rounded animate-pulse" style={{ width: `${90 - i * 12}%` }} />)}
+        <LoadingBlock size={24} className="!py-4" />
       </div>
     </div>
   );
@@ -1403,8 +1404,7 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading && (
             <div className="text-center py-10">
-              <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-brand rounded-full animate-spin" />
-              <div className="text-xs text-[#8A92A6] mt-3">Loading article inside the dashboard…</div>
+              <LoadingBlock className="!py-0" label="Loading article inside the dashboard…" />
             </div>
           )}
           {!loading && error && (
@@ -1549,7 +1549,7 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
           {m.snippet && <div className="text-sm text-[#232D42] bg-[#FCFCFE] border border-gray-100 rounded-lg p-3 mb-4">{m.snippet}</div>}
 
           {/* Reddit — full thread + comments via the official API */}
-          {isReddit && rLoading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-[#8A92A6] mt-3">Loading the Reddit thread…</div></div>}
+          {isReddit && rLoading && <LoadingBlock label="Loading the Reddit thread…" />}
           {isReddit && !rLoading && thread && (
             <div>
               {thread.selftext && <p className="text-sm text-[#232D42] whitespace-pre-wrap mb-4 leading-relaxed">{thread.selftext}</p>}
@@ -1576,7 +1576,7 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
           {isQuora && <div className="text-xs text-[#4A5468] bg-brand-light/50 border border-brand/15 rounded-lg p-3">Quora has no API and requires login, so we preview the snippet here. Use <b>Open on {host}</b> to read the full answer.</div>}
 
           {/* Public sites (MouthShut / ValueMD / news) — Readability reader */}
-          {useArticle && loading && <div className="text-center py-8"><div className="inline-block w-7 h-7 border-2 border-gray-200 border-t-brand rounded-full animate-spin" /><div className="text-xs text-[#8A92A6] mt-3">Loading the full page inside the dashboard…</div></div>}
+          {useArticle && loading && <LoadingBlock label="Loading the full page inside the dashboard…" />}
           {useArticle && !loading && html && <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />}
           {useArticle && !loading && !html && (
             <div className="text-xs text-[#8A92A6]">{readErr ? `Couldn't load the full page (${readErr}). ` : ""}The preview above is what we have — use “Open on {host}” for the full text.</div>

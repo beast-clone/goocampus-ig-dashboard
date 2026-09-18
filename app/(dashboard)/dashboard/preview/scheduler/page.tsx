@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -927,7 +928,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
 
           {listFilter === "ready" ? (
             <>
-              {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
+              {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100"><LoadingBlock label="Loading produced content…" /></div>}
               {!toScheduleLoading && toSchedule.length === 0 && (
                 <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">Nothing waiting — everything produced has been scheduled.</div>
               )}
@@ -1112,7 +1113,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
               options={[{ value: "all", label: "All accounts" }, ...PAGE_OPTIONS.map((o) => ({ value: o.value, label: o.value }))]} />
           </div>
 
-          {topLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading top performers…</div>}
+          {topLoading && <div className="bg-white rounded-lg border border-gray-100"><LoadingBlock label="Loading top performers…" /></div>}
           {!topLoading && topPerformers.length === 0 && (
             <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">No posts found for this account in the last 90 days.</div>
           )}
@@ -1452,7 +1453,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                   className="w-full mt-1 mb-2 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2"
                 />
                 <div className="mb-2">
-                  <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Primary interest</label>
+                  <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Primary interest / SBU</label>
                   <div className="mt-1">
                     <PreviewSelect className="w-full justify-between" value={sbu} onChange={setSbu}
                       placeholder="Which brand or programme is this for?"
@@ -1686,7 +1687,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
       </div>
       )}
 
-      {loading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
+      {loading && <div className="bg-white rounded-lg border border-gray-100"><LoadingBlock label="Loading produced content…" /></div>}
       {!loading && items.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">
           Nothing waiting — everything produced has been scheduled.
@@ -2191,7 +2192,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
             Good times to schedule
             <span className="text-gray-400 normal-case font-normal ml-1">— based on when your audience is most active</span>
           </div>
-          {loading && <div className="text-xs text-gray-400 py-2">Loading suggestions…</div>}
+          {loading && <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading suggestions…" />}
           {!loading && suggestions.length === 0 && (
             <div className="text-xs text-gray-400 py-2">No suggestions available right now — pick a custom time below.</div>
           )}

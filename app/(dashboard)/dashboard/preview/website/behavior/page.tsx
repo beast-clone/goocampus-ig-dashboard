@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { ChartCard, PieList } from "@/components/PlatformAudience";
 import { IconExternalLink, IconAlertTriangle, IconFileText } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -85,7 +86,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       <AiInsights endpoint="/api/website/insights?source=clarity" accent={CL} label="Analyze this Clarity data with AI" />
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
-      {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading Clarity…</div>}
+      {!data && isLoading && <LoadingBlock label="Loading Clarity…" />}
 
       {data && (
         <>

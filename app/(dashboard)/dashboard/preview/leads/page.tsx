@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -114,7 +115,7 @@ function SocialLeads() {
       </div>
 
       {err && <div className="sl-err">Couldn’t load: {err} <button onClick={() => load(days, true)}>Retry</button></div>}
-      {loading && !data && <div className="sl-loading">Loading snapshot…</div>}
+      {loading && !data && <LoadingBlock label="Loading snapshot…" />}
 
       {data && tab === "dm" && <DMTab d={data} />}
       {data && tab === "ads" && <AdsTab d={data} />}

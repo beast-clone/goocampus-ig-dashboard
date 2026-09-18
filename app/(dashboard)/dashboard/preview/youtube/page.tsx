@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
@@ -120,7 +121,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
-      {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading YouTube analytics…</div>}
+      {!data && isLoading && <LoadingBlock label="Loading YouTube analytics…" />}
 
       {data && (
         <>

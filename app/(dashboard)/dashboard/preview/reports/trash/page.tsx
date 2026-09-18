@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
@@ -72,7 +73,7 @@ function TrashList() {
   };
 
   if (error) return <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t load — {error}</div>;
-  if (!reports) return <div className="animate-pulse h-40 bg-gray-100 rounded-2xl" />;
+  if (!reports) return <div className="h-40 bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Loading the bin…" /></div>;
   if (reports.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center">

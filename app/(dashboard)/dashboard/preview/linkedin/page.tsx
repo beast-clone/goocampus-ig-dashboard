@@ -1,4 +1,5 @@
 "use client";
+import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconAlertTriangle, IconMessageCircle, IconThumbUp } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useProfile } from "@/lib/profile";
@@ -129,7 +130,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
-      {!data && isLoading && <div className="text-sm text-gray-400 py-16 text-center">Loading LinkedIn analytics…</div>}
+      {!data && isLoading && <LoadingBlock label="Loading LinkedIn analytics…" />}
 
       {data && (
         <>
