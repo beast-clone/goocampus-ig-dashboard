@@ -303,7 +303,7 @@ const CLOCK = <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circl
 // Inline chrome icons (baseline-aligned) — replace emojis in buttons/labels so the
 // whole cockpit uses outline glyphs, never emoji.
 const ICLOCK = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.9" /><path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-const IWARN = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M12 3 2.5 20h19L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /><path d="M12 10v4.5M12 17.6v.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+const IWARN = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ display: "inline-block", verticalAlign: "-2px" }}><path d="M12 3 2.5 20h19L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /><path d="M12 10v4.5M12 17.6v.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
 const IHOURGLASS = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M6.5 3h11M6.5 21h11M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const IPOWER = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-2px" }}><path d="M12 3v8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /><path d="M7.5 6a7.5 7.5 0 1 0 9 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /></svg>;
 const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M15.5 5.9a3 3 0 0 1 0 5.2M16 14.2A5.5 5.5 0 0 1 19.5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
@@ -2687,7 +2687,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
               <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(Math.min(workMin, WORK_MIN))}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free
-                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600 }}>· {IWARN} {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
+                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
               </span>
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
             </div>
