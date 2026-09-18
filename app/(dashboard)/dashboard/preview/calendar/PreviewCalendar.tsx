@@ -966,14 +966,14 @@ const HCAL_CSS = `
 .hcal-viewbtn.on{background:var(--brand);color:#fff;box-shadow:0 3px 8px rgba(58,87,232,.24)}
 /* month grid */
 .hcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line);background:var(--panel-2)}
-.hcal-dow span{padding:.55rem .6rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-right:1px solid var(--line)}
+.hcal-dow span{padding:.55rem .6rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-right:1px solid var(--line)}
 .hcal-dow span:last-child{border-right:none}
 .hcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(120px,1fr)}
 .hcal-cell{border-right:1px solid var(--line);border-top:1px solid var(--line);padding:.35rem;position:relative;min-width:0}
 .hcal-cell:nth-child(7n){border-right:none}
 .hcal-cell.out{background:var(--panel-2)}
 .hcal-cell.today{background:rgba(58,87,232,.05)}
-.hcal-daynum{text-align:right;font-size:.74rem;font-weight:600;color:var(--ink-soft);padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
+.hcal-daynum{text-align:right;font-size:12px;font-weight:600;color:var(--ink-soft);padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
 .hcal-cell.out .hcal-daynum{color:var(--faint)}
 .hcal-cell.today .hcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--brand);color:#fff}
 .hcal-events{display:flex;flex-direction:column;gap:3px;clear:both}

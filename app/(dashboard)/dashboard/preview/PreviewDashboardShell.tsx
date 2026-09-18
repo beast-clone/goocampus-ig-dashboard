@@ -114,8 +114,8 @@ export function PreviewDashboardShell({
 
         {/* White control card, pulled up to overlap the band (matches the calendar). */}
         {showControls && (
-          <div className={`relative z-10 mx-1 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-5 ${
-            compact ? "-mt-8 mb-4 py-2" : "-mt-10 mb-6 py-3"}`}>
+          <div className={`relative z-10 mx-1 flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-gray-100 bg-white px-4 ${
+            compact ? "-mt-8 mb-4 py-3" : "-mt-10 mb-6 py-4"}`}>
             <div className="flex items-center gap-2 min-h-[38px]">
               {!hideRange && <span className="text-xs font-medium bg-brand-light text-brand rounded-full px-3 py-1">{rangeLabel(range)}</span>}
             </div>

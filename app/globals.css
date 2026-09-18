@@ -212,6 +212,52 @@ html { scrollbar-gutter: stable; }
    "p-4 md:p-5" — six of them on SEO sat at 20px until this line was added. */
 .preview-scope .bg-white.border-gray-100.md\:p-5:not(.fixed),
 .preview-scope .bg-white.border-gray-100.md\:p-6:not(.fixed) { padding: 16px !important; }
+
+/* CONTROL HEIGHT — Business Suite has one: 36px. Measured on its Planner (18 Sep):
+   primary and secondary buttons, dropdown filters, tabs, the Week/Month toggle and
+   icon buttons are all 36px tall, told apart by text weight and size alone. The
+   dashboard had sixteen heights between 18 and 46px.
+
+   Keyed on buttons that paint — a border or a background class — because those are
+   the ones that read as controls. Plain text actions ("Edit", "+ Add") carry neither
+   and stay the size of their text, as they do in Business Suite and Airtable.
+
+   min-height, not height: this only raises. A button taller than 36px is usually
+   holding two lines or an avatar, and squashing it would clip the content.
+   <button> centres its content vertically on its own, so no display change is needed.
+
+   Left out on purpose:
+   - overlay buttons (absolute) — the × on a thumbnail is a 24px circle over an image
+   - calendar chips (.hcal-ev / .mhcal-ev) — they are posts, not controls
+   - modal backdrops and the sidebar, as with every other rule here
+   - the task modal (.hub-airtable), which is a 1:1 copy of Airtable's record and
+     keeps Airtable's ~22px chips */
+.preview-scope button[class*="border"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *),
+.preview-scope button[class*="bg-"]:not([class*="absolute"]):not(.hcal-ev):not(.mhcal-ev):not(.fixed):not(.hub-airtable *) {
+  min-height: 36px;
+  min-width: 36px;
+}
+/* Pages with their own stylesheets name their buttons rather than using Tailwind,
+   so the class-keyed rule above can't see them. None of these set a min-height of
+   their own, so adding it here can't fight their styles. */
+.preview-scope .hmd .btn, .preview-scope.hmd .btn,
+.preview-scope.tcmd .tc-btn, .preview-scope.tcmd .tc-tab,
+.preview-scope .sl-tab, .preview-scope .fpill,
+.preview-scope .hcal-act, .preview-scope .hcal-linkbtn {
+  min-height: 36px;
+}
+/* My Day's own controls, raised to 36px (and 36px wide where they're icon-only). */
+.preview-scope.hmd :is(.iconbtn, .profchip, .teamcapbtn, .task-tab, .status-dd-btn, .sw-btn, .collab-add, .pinbtn, .closebtn) {
+  min-height: 36px;
+}
+.preview-scope.hmd :is(.iconbtn, .collab-add, .closebtn) { min-width: 36px; }
+/* Single-line buttons that were taller than 36px: fixed at 36 exactly, with the
+   vertical padding taken out so the text stays centred instead of overflowing.
+   Only named classes that never wrap — a blanket height would clip two-line buttons. */
+.preview-scope.hmd .btn, .preview-scope.hmd .tl-nudge,
+.preview-scope.tcmd .tc-btn, .preview-scope.tcmd .tc-tab {
+  height: 36px; padding-top: 0; padding-bottom: 0;
+}
 .preview-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .preview-scope textarea,
 .preview-scope select {

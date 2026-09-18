@@ -1244,18 +1244,18 @@ const MHCAL_CSS = `
 .mhcal-card{background:#fff;border:1px solid #EEF0F4;border-radius:16px;box-shadow:0 10px 30px rgba(35,45,66,.06);overflow:hidden;margin-top:.9rem}
 .mhcal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;flex-wrap:wrap}
 .mhcal-nav{display:flex;align-items:center;gap:.4rem}
-.mhcal-navbtn{width:34px;height:34px;border-radius:9px;border:none;background:#3A57E8;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
+.mhcal-navbtn{width:40px;height:36px;border-radius:4px;border:none;background:#3A57E8;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
 .mhcal-navbtn:hover{background:#2f49c9}
-.mhcal-today{border:none;background:#E9ECFB;color:#2138B0;font-weight:600;font-size:.78rem;padding:.5rem .9rem;border-radius:9px;margin-left:.2rem}
+.mhcal-today{border:none;background:#E9ECFB;color:#2138B0;font-weight:500;font-size:14px;height:36px;padding:0 12px;border-radius:4px;margin-left:.2rem}
 .mhcal-today:hover{background:#dfe3fa}
 .mhcal-title{font-size:1.35rem;font-weight:700;color:#232D42;text-align:center;flex:1;min-width:180px}
-.mhcal-views{display:flex;background:#F7F8FC;border:1px solid #EEF0F4;border-radius:10px;padding:3px;gap:2px}
-.mhcal-viewbtn{border:none;background:none;font-size:.76rem;font-weight:600;color:#4A5468;padding:.38rem .75rem;border-radius:7px}
+.mhcal-views{display:flex;align-items:stretch;height:36px;overflow:hidden;background:#F7F8FC;border:1px solid #EEF0F4;border-radius:4px;padding:0;gap:0}
+.mhcal-viewbtn{border:none;background:none;font-size:12px;font-weight:500;color:#4A5468;padding:0 14px;border-radius:0}
 .mhcal-viewbtn:hover{color:#232D42}
 .mhcal-viewbtn.on{background:#3A57E8;color:#fff;box-shadow:0 3px 8px rgba(58,87,232,.24)}
 /* month grid */
 .mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4;background:#F7F8FC}
-.mhcal-dow span{padding:.55rem .6rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A92A6;border-right:1px solid #EEF0F4}
+.mhcal-dow span{padding:.55rem .6rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A92A6;border-right:1px solid #EEF0F4}
 .mhcal-dow span:last-child{border-right:none}
 .mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(134px,1fr)}
 .mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.35rem;position:relative;min-width:0;transition:background .15s}
@@ -1263,7 +1263,7 @@ const MHCAL_CSS = `
 .mhcal-cell.out{background:#F7F8FC}
 .mhcal-cell.today{background:rgba(58,87,232,.05)}
 .mhcal-cell.over{background:rgba(58,87,232,.10);box-shadow:inset 0 0 0 2px rgba(58,87,232,.35)}
-.mhcal-daynum{text-align:right;font-size:.74rem;font-weight:600;color:#4A5468;padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
+.mhcal-daynum{text-align:right;font-size:12px;font-weight:600;color:#4A5468;padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
 .mhcal-cell.out .mhcal-daynum{color:#A6ACBE}
 .mhcal-cell.today .mhcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#3A57E8;color:#fff}
 .mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
@@ -1274,8 +1274,8 @@ const MHCAL_CSS = `
 .mhcal-ev:active{cursor:grabbing}
 .mhcal-ev.block .mhcal-evtitle{white-space:normal}
 .mhcal-evdot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
-.mhcal-evtitle{font-size:.82rem;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.006em}
-.mhcal-more{border:none;background:none;font-size:.64rem;color:#8A92A6;text-align:left;padding:1px 5px;font-weight:600}
+.mhcal-evtitle{font-size:12px;line-height:16px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;letter-spacing:-.006em}
+.mhcal-more{border:none;background:none;font-size:12px;color:#8A92A6;text-align:left;padding:2px 6px;font-weight:600}
 .mhcal-more:hover{color:#3A57E8}
 /* week */
 .mhcal-week{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4}

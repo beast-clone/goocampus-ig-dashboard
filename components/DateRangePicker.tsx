@@ -74,7 +74,7 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
               onChange({ from: daysAgoIST(p.days), to: todayIST() });
               setOpen(false);
             }}
-            className={`px-3 py-1.5 text-xs rounded-md border transition ${
+            className={`h-9 px-3 text-xs rounded-md border transition inline-flex items-center ${
               active
                 ? "bg-brand text-white border-brand shadow-sm font-medium"
                 : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -90,7 +90,7 @@ export function DateRangePicker({ value, onChange }: { value: Range; onChange: (
         <button
           onClick={() => setOpen((v) => !v)}
           title="Pick a custom date range"
-          className={`px-3 py-1.5 text-xs rounded-md border transition inline-flex items-center gap-1.5 whitespace-nowrap ${
+          className={`h-9 px-3 text-xs rounded-md border transition inline-flex items-center gap-1.5 whitespace-nowrap ${
             isCustom
               ? "bg-brand text-white border-brand shadow-sm font-medium"
               : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"

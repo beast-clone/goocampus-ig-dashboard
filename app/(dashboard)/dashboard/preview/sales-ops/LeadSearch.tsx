@@ -150,7 +150,7 @@ export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
                       <div className="text-[12px] text-gray-400">{[l.phone, l.email].filter(Boolean).join(" · ") || "—"}</div>
                     </button>
                   </td>
-                  <td className="px-3 py-2.5 text-[#3B4457]">{l.counsellor?.name || <span className="text-gray-400">Unassigned</span>}</td>
+                  <td className="px-3 py-2.5 text-[#3B4457] whitespace-nowrap">{l.counsellor?.name || <span className="text-gray-400">Unassigned</span>}</td>
                   <td className="px-3 py-2.5"><span className="text-[12px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{l.status || "—"}</span></td>
                   <td className="px-3 py-2.5 text-[#3B4457]">{l.interest || "—"}</td>
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{l.created || "—"}</td>
