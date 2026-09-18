@@ -6,6 +6,7 @@ import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { Overlay } from "../Overlay";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -639,11 +640,13 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setAssigning(false); onSaved?.();
     } finally { setBusy(false); }
   };
+  const [delError, setDelError] = useState<string | null>(null);
   const doDelete = async () => {
-    setBusy(true);
+    setBusy(true); setDelError(null);
     try {
-      const res = await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor }) });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Couldn't delete this task."); return; }
+      const res = await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor }) })
+        .catch(() => null);
+      if (!res || !res.ok) { const j = res ? await res.json().catch(() => ({})) : {}; setDelError(j.error || "Couldn't delete this task — try again."); return; }
       setConfirmDel(false); (onDeleted || onSaved)?.();
     } finally { setBusy(false); }
   };
@@ -733,14 +736,30 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </div>
           )}
 
+          {/* Confirmation popup — same wording and look as the Master sheet's. Portalled
+              to <body> (Overlay), so it sits above the task modal too. */}
           {confirmDel && (
-            <div style={{ marginTop: ".5rem", border: "1px solid #F3C6CE", background: "#FDECEF", borderRadius: 10, padding: ".7rem" }}>
-              <div style={{ fontSize: ".82rem", color: "#8a2e28", marginBottom: ".5rem" }}>Delete “{task.title}”? It moves to the recycle bin in the Master sheet, where it can be restored.</div>
-              <div style={{ display: "flex", gap: ".4rem" }}>
-                <button className="btn sm" style={{ background: "#C0392B", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={doDelete}>{busy ? "Deleting…" : "Yes, delete"}</button>
-                <button className="btn sm" onClick={() => setConfirmDel(false)}>Cancel</button>
+            <Overlay onClose={() => { if (!busy) { setConfirmDel(false); setDelError(null); } }}
+              className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-6">
+              <div onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 24px 60px rgba(35,45,66,.24)" }}
+                className="w-full max-w-md bg-white rounded-2xl overflow-hidden">
+                <div className="flex items-start gap-3 px-5 pt-5">
+                  <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-[#E9ECFB] text-[#3A57E8]"><IconTrash size={18} stroke={1.8} /></span>
+                  <div className="min-w-0">
+                    <h2 className="text-[16px] font-medium text-[#232D42]">Move this task to the recycle bin?</h2>
+                    <p className="text-[14px] text-[#8A92A6] mt-1">It disappears from My Day, the Master sheet and the calendars for everyone. You can put it back from Master sheet → Recycle bin.</p>
+                  </div>
+                </div>
+                <div className="mx-5 mt-4 rounded border border-gray-100 bg-[#F6F7FB] px-3 py-2 text-[14px] text-[#232D42] truncate">{task.title}</div>
+                {delError && <div className="mx-5 mt-3 rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{delError}</div>}
+                <div className="flex items-center justify-end gap-2 px-5 py-4 mt-4 border-t border-gray-100">
+                  <button onClick={() => { setConfirmDel(false); setDelError(null); }} disabled={busy} className="h-9 px-3 rounded text-[14px] font-medium text-gray-600 hover:text-gray-900">Cancel</button>
+                  <button onClick={doDelete} disabled={busy} className="h-9 px-4 rounded text-[14px] font-medium text-white bg-[#3A57E8] hover:brightness-110 disabled:opacity-50">
+                    {busy ? "Moving…" : "Move to recycle bin"}
+                  </button>
+                </div>
               </div>
-            </div>
+            </Overlay>
           )}
         </>
       )}
