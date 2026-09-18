@@ -19,7 +19,10 @@ type Result = {
   errors: string[];
 };
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Local calendar date, not toISOString(): that converts to UTC, and midnight on
+// the 1st in India is still the previous day in UTC — the default range opened
+// as 31 Aug – 29 Sep instead of 1 – 30 Sep, dropping the month's last day.
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
   const [open, setOpen] = useState(false);
