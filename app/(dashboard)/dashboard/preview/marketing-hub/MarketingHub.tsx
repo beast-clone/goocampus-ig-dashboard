@@ -366,7 +366,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
     // Workload's Week view looks forward to Friday, so extend the window past today
     // (the retrospective `from` still feeds the overdue/done counts).
     ? { from: range.from, to: ymd(new Date(Date.now() + 7 * 86_400_000)) }
-    : range;
+    // Master sheet / Pipeline: the range picks how far BACK to look; everything
+    // planned ahead is always included (imported Airtable tasks are mostly future).
+    : { from: range.from, to: ymd(new Date(Date.now() + 365 * 86_400_000)) };
   const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to, ...(openParam ? { open: openParam } : {}) }).toString();
   const { data, error, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
   // Stamp when data lands so the Live chip shows a real "fetched Ns ago" instead of "…".
@@ -2436,7 +2438,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
             : <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: headColor }} />}
           <div>
             <div className="text-base font-medium">{title}</div>
-            <div className="text-[11px] text-gray-500">{fmtInt(rows.length)} tasks · last {activeDays} days</div>
+            <div className="text-[11px] text-gray-500">{fmtInt(rows.length)} tasks · last {activeDays} days + upcoming</div>
           </div>
           <div className="ml-auto inline-flex bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
             {([[7, "7d"], [30, "30d"], [90, "90d"], [365, "1y"]] as [number, string][]).map(([n, lab]) => (
