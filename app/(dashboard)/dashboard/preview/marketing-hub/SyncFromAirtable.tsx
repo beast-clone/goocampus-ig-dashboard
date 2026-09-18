@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { IconRefresh, IconAlertTriangle, IconCheck } from "@tabler/icons-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { IconRefresh, IconAlertTriangle, IconCheck, IconChevronDown, IconSearch } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 
@@ -23,12 +23,12 @@ type Result = {
 };
 
 // The Airtable fields the team filters by, in the order they filter.
-const FILTERS: { key: FacetKey; label: string }[] = [
-  { key: "owner", label: "Owner" },
-  { key: "collaborators", label: "Collaborators" },
-  { key: "type", label: "Type" },
-  { key: "status", label: "Status" },
-  { key: "sbu", label: "Primary interest / SBU" },
+const FILTERS: { key: FacetKey; label: string; all: string }[] = [
+  { key: "owner", label: "Owner", all: "All owners" },
+  { key: "collaborators", label: "Collaborators", all: "All collaborators" },
+  { key: "type", label: "Type", all: "All types" },
+  { key: "status", label: "Status", all: "All statuses" },
+  { key: "sbu", label: "Primary interest / SBU", all: "All interests" },
 ];
 
 // This modal portals to <body>, outside .preview-scope, where `bg-brand` resolves
@@ -153,32 +153,13 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
                     <button onClick={() => { setFilters({}); reset(); }} className="ml-auto text-[12px] text-[#8A92A6] hover:text-[#232D42]">Clear filters</button>
                   )}
                 </div>
-                {FILTERS.map(({ key, label }) => {
-                  const picked = filters[key] || [];
-                  const opts = facets?.facets[key] || [];
-                  // Keep picked values visible even if these dates have none of them.
-                  const shown = [...opts, ...picked.filter((p) => !opts.some((o) => o.value === p)).map((value) => ({ value, count: 0 }))];
-                  return (
-                    <div key={key} className="flex items-start gap-2">
-                      <span className="w-[160px] shrink-0 pt-1 text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">{label}</span>
-                      <div className="flex flex-wrap gap-1.5 min-w-0">
-                        {shown.length === 0 && <span className="pt-1 text-[12px] text-[#A6ACBE]">{loadingFacets ? "…" : "None in these dates"}</span>}
-                        {shown.map((o) => {
-                          const on = picked.includes(o.value);
-                          return (
-                            <button key={o.value} onClick={() => toggle(key, o.value)}
-                              style={on ? { background: BLUE, borderColor: BLUE } : undefined}
-                              className={`h-7 inline-flex items-center gap-1.5 text-[12px] border rounded px-2.5 ${on ? "text-white" : "text-[#4A5468] border-gray-200 hover:border-[#3A57E8]"}`}>
-                              {on && <IconCheck size={12} stroke={2.4} />}
-                              {o.value}
-                              <span className={on ? "text-white/75" : "text-[#A6ACBE]"}>{o.count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                {FILTERS.map(({ key, label, all }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-[160px] shrink-0 text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">{label}</span>
+                    <MultiDropdown label={label} placeholder={all} options={facets?.facets[key] || []} picked={filters[key] || []} loading={loadingFacets}
+                      onToggle={(v) => toggle(key, v)} onClear={() => { setFilters((f) => ({ ...f, [key]: [] })); reset(); }} />
+                  </div>
+                ))}
               </div>
 
               {error && (
@@ -232,5 +213,95 @@ function Summary({ r, heading, bare }: { r: Result; heading: string; bare?: bool
         )}
       </div>
     </div>
+  );
+}
+
+// Multi-select dropdown (Airtable's "is any of"). The list is position:fixed so the
+// modal's scrolling body can't clip it; it closes on outside click, Escape or scroll.
+function MultiDropdown({ label, placeholder, options, picked, loading, onToggle, onClear }: {
+  label: string; placeholder: string; options: { value: string; count: number }[]; picked: string[]; loading: boolean;
+  onToggle: (v: string) => void; onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; maxH: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 12;
+    const above = r.top - 12;
+    const maxH = Math.min(320, Math.max(below, above));
+    setPos({ left: r.left, width: r.width, maxH, top: below >= 200 || below >= above ? r.bottom + 4 : r.top - 4 - maxH });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e.type === "keydown" && (e as KeyboardEvent).key !== "Escape") return;
+      if (e.type === "mousedown" && (listRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node))) return;
+      if (e.type === "scroll" && listRef.current?.contains(e.target as Node)) return;
+      if (e.type === "keydown") e.stopPropagation(); // Escape closes the list, not the modal
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", close, true);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("scroll", close, true); window.removeEventListener("keydown", close, true); };
+  }, [open]);
+
+  // Picked values stay listed even when these dates have none of them.
+  const all = [...options, ...picked.filter((p) => !options.some((o) => o.value === p)).map((value) => ({ value, count: 0 }))];
+  const shown = all.filter((o) => !q || o.value.toLowerCase().includes(q.toLowerCase()));
+  const summary = picked.length === 0 ? placeholder : picked.length === 1 ? picked[0] : `${picked[0]} +${picked.length - 1}`;
+
+  return (
+    <>
+      <button ref={btnRef} onClick={() => { setOpen((o) => !o); setQ(""); }}
+        style={open || picked.length ? { borderColor: BLUE } : undefined}
+        className="h-9 w-[340px] max-w-full inline-flex items-center gap-2 rounded border border-gray-200 bg-white px-3 text-[14px] text-left hover:border-[#3A57E8]">
+        <span className={`flex-1 truncate ${picked.length ? "text-[#232D42] font-medium" : "text-[#8A92A6]"}`}>{summary}</span>
+        {picked.length > 0 && <span className="text-[12px] text-white rounded px-1.5" style={{ background: BLUE }}>{picked.length}</span>}
+        <IconChevronDown size={16} stroke={1.8} className={`text-[#8A92A6] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && pos && (
+        <div ref={listRef} onClick={(e) => e.stopPropagation()}
+          style={{ position: "fixed", left: pos.left, top: pos.top, width: pos.width, maxHeight: pos.maxH, boxShadow: "0 12px 32px rgba(35,45,66,.18)" }}
+          className="z-[400] flex flex-col bg-white border border-gray-200 rounded overflow-hidden">
+          {all.length > 6 && (
+            <div className="relative border-b border-gray-100 p-2">
+              <IconSearch size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8A92A6]" />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
+                className="h-9 w-full rounded border border-gray-200 pl-8 pr-2 text-[14px] outline-none focus:border-[#3A57E8]" />
+            </div>
+          )}
+          <div className="overflow-y-auto py-1">
+            {shown.length === 0 && <div className="px-3 py-2 text-[14px] text-[#8A92A6]">{loading ? "Reading Airtable…" : "Nothing in these dates"}</div>}
+            {shown.map((o) => {
+              const on = picked.includes(o.value);
+              return (
+                <button key={o.value} onClick={() => onToggle(o.value)}
+                  className="w-full h-9 flex items-center gap-2.5 px-3 text-[14px] text-left text-[#232D42] hover:bg-[#F6F7FB]">
+                  <span className="w-4 h-4 shrink-0 rounded border flex items-center justify-center text-white"
+                    style={on ? { background: BLUE, borderColor: BLUE } : { borderColor: "#D1D5DB" }}>
+                    {on && <IconCheck size={11} stroke={3} />}
+                  </span>
+                  <span className="flex-1 truncate">{o.value}</span>
+                  <span className="text-[12px] text-[#A6ACBE]">{o.count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {picked.length > 0 && (
+            <div className="border-t border-gray-100 px-3 py-2 flex justify-between items-center">
+              <span className="text-[12px] text-[#8A92A6]">{picked.length} selected</span>
+              <button onClick={onClear} className="text-[12px] text-[#3A57E8] hover:underline">Clear</button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
