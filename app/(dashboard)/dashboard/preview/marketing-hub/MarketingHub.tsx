@@ -438,7 +438,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         <div className="ml-auto flex-shrink-0 flex items-center gap-2">
           {/* The plan lives in Airtable; this is how a window of it gets here. */}
           {tab === "master" && <SyncFromAirtable onImported={refresh} />}
-          <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
+          {/* Not on the Master sheet (it refreshes itself after every edit) — except the
+              red "Not live" state, so a failed load is never silent. */}
+          {(tab !== "master" || error) && <LiveIndicator fetchedAt={fetchedAt} loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />}
         </div>
       </div>
 
