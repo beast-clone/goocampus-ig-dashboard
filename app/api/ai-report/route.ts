@@ -364,7 +364,7 @@ export async function GET(req: Request) {
       "  }",
     ].join("\n");
     const t0 = Date.now();
-    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 1600 });
+    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 1600, feature: "ai-report" });
     const latencyMs = Date.now() - t0;
     type AIPart = {
       executiveSummary?: string;

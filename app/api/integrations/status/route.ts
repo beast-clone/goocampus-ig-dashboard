@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { askPerplexity } from "@/lib/ai";
 import { requireSection } from "@/lib/api-guard";
 import { usageSnapshot, callsThisMonth, callsAllTime } from "@/lib/api-usage";
 import { authPing as sendpulsePing } from "@/lib/sendpulse";
@@ -183,16 +184,12 @@ async function checkPerplexity(): Promise<Integration> {
   try {
     // Minimal sonar call just to confirm the key is live (Perplexity rejects
     // max_tokens:1, so keep it small-but-valid).
-    const r = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: "ping" }], max_tokens: 16 }),
-      cache: "no-store",
-    });
-    if (!r.ok) return { ...base, status: "error", note: `chat ${r.status}` };
+    // Goes through lib/ai so this ~$0.005 ping is counted in the usage log too.
+    await askPerplexity("Reply with OK.", "ping", { model: "sonar", maxTokens: 16, timeoutMs: 15_000, feature: "health-check" });
     return { ...base, status: "ok", detail: "Reachable · sonar" };
   } catch (e) {
-    return { ...base, status: "error", note: (e as Error).message.slice(0, 120) };
+    const code = (e as Error).message.match(/^Perplexity (\d{3})/)?.[1];
+    return { ...base, status: "error", note: code ? `chat ${code}` : (e as Error).message.slice(0, 120) };
   }
 }
 

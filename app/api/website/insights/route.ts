@@ -92,7 +92,7 @@ export async function GET(req: Request) {
       else if (source === "gsc") summary = gscSummary(hasGSCAuth() ? await buildSearchConsoleFull(from, to).catch(() => null) : null);
       else summary = gaSummary(hasGA4Auth() ? await buildGA4Traffic(from, to).catch(() => null) : null, from, to);
 
-      const { text, citations } = await askPerplexity(PROMPTS[source], summary);
+      const { text, citations } = await askPerplexity(PROMPTS[source], summary, { feature: "website-insights" });
       return { text, citations, source, window: { from, to } };
     };
     const data = force ? await compute() : await cached(`ai:website:${source}:${from}:${to}`, 30 * 60_000, compute);

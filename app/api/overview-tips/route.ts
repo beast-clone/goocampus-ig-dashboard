@@ -123,7 +123,7 @@ export async function GET(req: Request) {
       "metric ∈ {followers, reach, engagement, profileVisits}. tone: 'grow' if delta positive, 'hold' if flat, 'fix' if negative.",
     ].join("\n");
     const t0 = Date.now();
-    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 800 });
+    const { text: raw } = await askPerplexity(systemPrompt, JSON.stringify(context), { maxTokens: 800, feature: "overview-tips" });
     const latencyMs = Date.now() - t0;
 
     let parsed: { tips?: OverviewTip[] } = {};

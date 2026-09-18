@@ -3,6 +3,9 @@
 // model can ground marketing suggestions in current best practices + cite sources.
 // This is the ONLY LLM provider in the dashboard — no OpenAI anywhere.
 
+import { getSupabase } from "@/lib/supabase";
+import { getSessionUserId } from "@/lib/auth";
+
 // The key is stored as PLANNER_SEARCH_KEY in this project (Post Planner + the
 // Integrations/Diagnostics tab use it); accept either name so the shared AI layer works.
 const KEY = process.env.PERPLEXITY_API_KEY || process.env.PLANNER_SEARCH_KEY || "";
@@ -13,20 +16,43 @@ export function hasAI(): boolean {
 
 export type Usage = { prompt: number; completion: number; total: number; cost?: number };
 
+// ── Usage log ───────────────────────────────────────────────────────────────
+// Every call below writes one row to Supabase `ai_usage` (sql/012_ai_usage.sql):
+// feature, signed-in user, model, tokens and the dollar cost Perplexity reports.
+// Never throws and never delays the caller — a logging failure must not break AI.
+type CallOpts = { feature?: string };
+function recordUsage(feature: string | undefined, model: string, usage: Usage | null, error?: unknown) {
+  void (async () => {
+    try {
+      const sb = getSupabase();
+      if (!sb) return;
+      let actor: string | null = null;
+      try { actor = getSessionUserId(); } catch { /* background job: no request */ }
+      await sb.from("ai_usage").insert({
+        feature: feature || "other", actor, model,
+        prompt_tokens: usage?.prompt || 0, completion_tokens: usage?.completion || 0,
+        cost_usd: usage?.cost ?? null, ok: !error,
+        error: error ? String(error instanceof Error ? error.message : error).slice(0, 300) : null,
+      });
+    } catch { /* table missing or Supabase down — skip */ }
+  })();
+}
+
 export async function askPerplexity(
   system: string,
   user: string,
-  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number },
+  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number } & CallOpts,
 ): Promise<{ text: string; citations: string[]; usage: Usage }> {
   // Bound every call so a slow/stuck upstream can never hang a route.
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 25_000);
+  const model = opts?.model || "sonar";
   try {
     const res = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: opts?.model || "sonar",
+        model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -40,8 +66,12 @@ export async function askPerplexity(
     const j = await res.json();
     const citations: string[] = j.citations || (j.search_results || []).map((s: { url: string }) => s.url) || [];
     const u = j.usage || {};
-    const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0 };
+    const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
+    recordUsage(opts?.feature, model, usage);
     return { text: j.choices?.[0]?.message?.content || "", citations, usage };
+  } catch (e) {
+    recordUsage(opts?.feature, model, null, e);
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -56,16 +86,17 @@ export async function askPerplexity(
 export async function askClaudeViaPerplexity(
   system: string,
   user: string,
-  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number },
+  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number } & CallOpts,
 ): Promise<{ text: string; citations: string[]; usage: Usage }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 90_000);
+  const model = opts?.model || "anthropic/claude-sonnet-4-5";
   try {
     const res = await fetch("https://api.perplexity.ai/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: opts?.model || "anthropic/claude-sonnet-4-5",
+        model,
         instructions: system,
         input: user,
         max_output_tokens: opts?.maxTokens ?? 2800, // required for Anthropic models
@@ -90,7 +121,11 @@ export async function askClaudeViaPerplexity(
       .filter(Boolean);
     const u = j.usage || {};
     const usage: Usage = { prompt: u.input_tokens || 0, completion: u.output_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
+    recordUsage(opts?.feature, model, usage);
     return { text, citations, usage };
+  } catch (e) {
+    recordUsage(opts?.feature, model, null, e);
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -103,15 +138,32 @@ export async function askClaudeViaPerplexity(
 export async function askPerplexityAsync(
   system: string,
   user: string,
-  opts?: { model?: string; maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number },
+  opts?: { model?: string; maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number } & CallOpts,
 ): Promise<{ text: string; citations: string[] }> {
+  const model = opts?.model || "sonar-deep-research";
+  try {
+    const out = await askPerplexityAsyncInner(system, user, model, opts);
+    recordUsage(opts?.feature, model, out.usage);
+    return { text: out.text, citations: out.citations };
+  } catch (e) {
+    recordUsage(opts?.feature, model, null, e);
+    throw e;
+  }
+}
+
+async function askPerplexityAsyncInner(
+  system: string,
+  user: string,
+  model: string,
+  opts?: { maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number },
+): Promise<{ text: string; citations: string[]; usage: Usage }> {
   const auth = { Authorization: `Bearer ${KEY}` };
   const submit = await fetch("https://api.perplexity.ai/async/chat/completions", {
     method: "POST",
     headers: { ...auth, "Content-Type": "application/json" },
     body: JSON.stringify({
       request: {
-        model: opts?.model || "sonar-deep-research",
+        model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -131,7 +183,7 @@ export async function askPerplexityAsync(
   const started = Date.now();
   while (Date.now() - started < maxWaitMs) {
     await new Promise((r) => setTimeout(r, pollMs));
-    let j: { status?: string; error_message?: string; response?: { choices?: { message?: { content?: string } }[]; citations?: string[]; search_results?: { url: string }[] } };
+    let j: { status?: string; error_message?: string; response?: { choices?: { message?: { content?: string } }[]; citations?: string[]; search_results?: { url: string }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: { total_cost?: number } } } };
     try {
       const res = await fetch(`https://api.perplexity.ai/async/chat/completions/${id}`, { headers: auth });
       if (!res.ok) continue; // transient — keep polling
@@ -140,7 +192,9 @@ export async function askPerplexityAsync(
     if (j.status === "COMPLETED") {
       const r = j.response || {};
       const citations: string[] = r.citations || (r.search_results || []).map((s) => s.url) || [];
-      return { text: r.choices?.[0]?.message?.content || "", citations };
+      const u = r.usage || {};
+      const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
+      return { text: r.choices?.[0]?.message?.content || "", citations, usage };
     }
     if (j.status === "FAILED") throw new Error(`Perplexity async job failed${j.error_message ? `: ${j.error_message}` : ""}`);
   }
@@ -166,7 +220,7 @@ export function parseLooseJson<T>(text: string): T | null {
 export async function askPerplexityJSON<T>(
   system: string,
   user: string,
-  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number },
+  opts?: { model?: string; maxTokens?: number; temperature?: number; timeoutMs?: number } & CallOpts,
 ): Promise<T | null> {
   const sys = `${system}\n\nIMPORTANT: reply with ONLY valid JSON — no markdown, no code fences, no prose before or after.`;
   const { text } = await askPerplexity(sys, user, opts);

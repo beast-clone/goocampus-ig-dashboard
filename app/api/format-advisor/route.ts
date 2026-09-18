@@ -135,7 +135,7 @@ export async function GET(req: Request) {
             "Return JSON: { paragraphs: string[] (2-3 short paras, plain text no markdown), suggestedMix: [{type: 'Reels'|'Carousels'|'Static', pct: number, why: string (≤ 20 words)}], disclaimer?: string (only when sample is thin) }.",
             "The suggestedMix percentages must add up to exactly 100.",
     ].join("\n");
-    const parsed = (await askPerplexityJSON<Partial<FormatAdvice>>(sys, JSON.stringify(context), { temperature: 0.55 })) || {};
+    const parsed = (await askPerplexityJSON<Partial<FormatAdvice>>(sys, JSON.stringify(context), { temperature: 0.55, feature: "format-advisor" })) || {};
     const latencyMs = Date.now() - t0;
     if (!parsed.paragraphs || parsed.paragraphs.length === 0) {
       throw new Error("Advisor returned no paragraphs");

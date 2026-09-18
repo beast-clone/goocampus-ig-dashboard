@@ -3,6 +3,7 @@ import { IconAlertTriangle, IconHourglass } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
+import { useApi } from "@/lib/use-api";
 
 type Integration = {
   key: string;
@@ -128,6 +129,8 @@ function Integrations() {
           </div>
         </div>
       )}
+
+      <AiSpend />
 
       {/* Meta rate-limit meter */}
       {data.rateLimit && (
@@ -314,6 +317,91 @@ function Meter({ label, pct }: { label: string; pct: number }) {
       <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${p}%` }} />
       </div>
+    </div>
+  );
+}
+
+// ── Perplexity spend ─────────────────────────────────────────────────────────
+// Every Perplexity call is logged with the dollar cost Perplexity reports
+// (lib/ai.ts → ai_usage). Perplexity doesn't expose the account balance, so this
+// is spend against our own monthly budget, not money left.
+type Bucket = { calls: number; cost: number; errors: number };
+type AiUsage = {
+  budget: number; today: Bucket; week: Bucket; month: Bucket;
+  byFeature: (Bucket & { key: string })[]; byPerson: (Bucket & { key: string })[];
+  recentErrors: { at: string; feature: string; error: string | null }[];
+  notReady?: boolean; error?: string;
+};
+const FEATURE_LABEL: Record<string, string> = {
+  "content-studio": "Content Studio", "content-studio-research": "Content Studio · deep research", playbook: "Playbooks",
+  "post-planner": "Post Planner", "ai-report": "AI reports", "ai-insights": "AI insights", "overview-tips": "Overview tips",
+  "ads-analyst": "Ads analyst", "scheduler-caption": "Scheduler captions", "format-advisor": "Format advisor",
+  "inbox-mood": "Inbox mood", benchmark: "Benchmark", "website-insights": "Website insights", "health-check": "Health check (this tab)", other: "Other",
+};
+const usd = (n: number) => `$${n < 10 ? n.toFixed(2) : n.toFixed(0)}`;
+const person = (k: string) => (k === "background" ? "Background jobs" : k.charAt(0).toUpperCase() + k.slice(1));
+
+function AiSpend() {
+  const { data, error } = useApi<AiUsage>("/api/ai-usage");
+  if (error) return <div className="bg-white border border-gray-100 rounded-2xl p-4 text-[14px] text-rose-600">Perplexity spend: {error.message}</div>;
+  if (!data) return <div className="bg-white border border-gray-100 rounded-2xl p-4"><LoadingBlock className="!py-0" /></div>;
+  if (data.notReady) return <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[14px] text-amber-900">{data.error}</div>;
+
+  const pct = data.budget > 0 ? (data.month.cost / data.budget) * 100 : 0;
+  const tone = pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500";
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div className="text-[16px] font-medium text-[#232D42]">Perplexity spend</div>
+        <div className="text-[12px] text-[#8A92A6]">Actual cost per call, as Perplexity reports it · India time</div>
+      </div>
+      {pct >= 80 && (
+        <div className={`mb-3 rounded px-3 py-2 text-[14px] ${pct >= 100 ? "bg-[#FDECEA] text-[#8a2e28]" : "bg-amber-50 text-amber-900"}`}>
+          <IconAlertTriangle size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />
+          {pct >= 100 ? "Over" : `${pct.toFixed(0)}% of`} this month&rsquo;s {usd(data.budget)} budget{pct >= 100 ? ` — ${usd(data.month.cost)} spent` : ""}.
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {([["Today", data.today], ["This week", data.week], ["This month", data.month]] as [string, Bucket][]).map(([label, b]) => (
+          <div key={label} className="rounded bg-[#F6F7FB] px-4 py-3">
+            <div className="text-[12px] text-[#8A92A6]">{label}</div>
+            <div className="text-[20px] font-medium tabular-nums text-[#232D42] mt-0.5">{usd(b.cost)}</div>
+            <div className="text-[12px] text-[#8A92A6]">{b.calls.toLocaleString("en-IN")} call{b.calls === 1 ? "" : "s"}{b.errors ? ` · ${b.errors} failed` : ""}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4">
+        <div className="flex items-baseline justify-between mb-1">
+          <span className="text-[12px] text-[#8A92A6]">Monthly budget</span>
+          <span className="text-[12px] tabular-nums text-[#232D42]">{usd(data.month.cost)} of {usd(data.budget)}</span>
+        </div>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${tone}`} style={{ width: `${Math.min(100, Math.max(pct, data.month.cost > 0 ? 1 : 0))}%` }} /></div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        {([["This month by feature", data.byFeature, (k: string) => FEATURE_LABEL[k] || k], ["This month by person", data.byPerson, person]] as [string, (Bucket & { key: string })[], (k: string) => string][]).map(([title, rows, name]) => (
+          <div key={title}>
+            <div className="text-[12px] text-[#8A92A6] mb-1.5">{title}</div>
+            {rows.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No calls yet this month.</div> : (
+              <table className="w-full text-[14px]">
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.key} className="border-t border-gray-100">
+                      <td className="py-1.5 text-[#232D42]">{name(r.key)}</td>
+                      <td className="py-1.5 text-right tabular-nums text-[#8A92A6]">{r.calls}</td>
+                      <td className="py-1.5 text-right tabular-nums text-[#232D42] w-20">{usd(r.cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))}
+      </div>
+      {data.recentErrors.length > 0 && (
+        <div className="mt-4 text-[12px] text-rose-600">
+          Last failure: {FEATURE_LABEL[data.recentErrors[0].feature] || data.recentErrors[0].feature} — {data.recentErrors[0].error}
+        </div>
+      )}
     </div>
   );
 }

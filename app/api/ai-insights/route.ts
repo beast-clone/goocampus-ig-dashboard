@@ -179,7 +179,7 @@ Be direct. Use the actual numbers. No fluff. No emojis except where they appear 
 
     try {
       type AiJson = { headline?: string; winners?: string[]; patterns?: string[]; captionStyle?: string[]; recommendations?: string[]; nextWeekPlan?: Insight["ai"]["nextWeekPlan"] };
-      const parsed = (await askPerplexityJSON<AiJson>(sys, userMsg, { maxTokens: 1800 })) || {};
+      const parsed = (await askPerplexityJSON<AiJson>(sys, userMsg, { maxTokens: 1800, feature: "ai-insights" })) || {};
       ai = {
         headline: parsed.headline || "",
         winners: parsed.winners || [],

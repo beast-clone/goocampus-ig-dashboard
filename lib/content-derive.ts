@@ -39,7 +39,7 @@ ${specList}${customBlock}
 Return ONLY JSON in this exact shape: { "drafts": [ { "format": "<the key, e.g. carousel>", "content": "<the finished content>" } ] }`;
 
   const { text, usage } = await askPerplexity(SYSTEM, `${user}\n\nIMPORTANT: reply with ONLY valid JSON — no markdown, no code fences, no prose.`,
-    { model: "sonar-pro", maxTokens: 3400, temperature: 0.4, timeoutMs: 90_000 });
+    { model: "sonar-pro", maxTokens: 3400, temperature: 0.4, timeoutMs: 90_000, feature: "content-studio" });
 
   const raw = parseLooseJson<{ drafts?: { format: string; content: string }[] }>(text);
   const drafts = (raw?.drafts || [])

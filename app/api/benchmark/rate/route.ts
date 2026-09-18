@@ -78,7 +78,7 @@ export async function GET(req: Request) {
         + "Return level 'high' only for authoritative AND substantive pages; 'low' for competitor/promo or dead/login/expired pages; else 'medium'. "
         + "reason must be under 12 words. relevance is 0-100 (how relevant + useful to GooCampus).",
         `URL: ${target}${isPdf ? " (PDF)" : ""}\n\nPAGE:\n${material}`,
-        { model: "sonar", maxTokens: 150, temperature: 0.1, timeoutMs: 20_000 },
+        { model: "sonar", maxTokens: 150, temperature: 0.1, timeoutMs: 20_000, feature: "benchmark" },
       );
       recordApiCall("Perplexity", true, 200);
     } catch (e) {

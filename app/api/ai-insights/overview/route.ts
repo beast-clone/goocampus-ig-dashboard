@@ -83,7 +83,7 @@ export async function GET(req: Request) {
         hasGA4Auth() ? buildGA4Traffic(from, to).catch(() => null) : Promise.resolve(null),
       ]);
       const summary = buildSummary({ accountId, from, to, ig, posts: (postsJson?.posts as Post[]) || [], ads, ga });
-      const { text, citations } = await askPerplexity(SYSTEM, summary, { maxTokens: 1500 });
+      const { text, citations } = await askPerplexity(SYSTEM, summary, { maxTokens: 1500, feature: "ai-insights" });
       return { text, citations, window: { from, to }, account: accountId };
     };
     const data = force ? await compute() : await cached(`ai:overview:${accountId}:${from}:${to}`, 30 * 60_000, compute);

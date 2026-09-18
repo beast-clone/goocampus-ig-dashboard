@@ -180,7 +180,7 @@ export async function GET(req: Request) {
 - "verdict": 1–2 plain sentences on how this ONE campaign is doing and whether it is good or bad value compared with the other running campaigns.
 - "recommendations": 2 or 3 items, each {"title": the action in max 8 plain words, "detail": 1–2 sentences saying why (what the number means) and what to do}. Every item must be about THIS campaign only.`,
           `Campaign: ${c.campaign_name}\nFacts: ${JSON.stringify(stats)}\nProblems flagged: ${JSON.stringify(mine.map((d) => ({ label: d.label, evidence: d.evidence })))}`,
-          { model: "sonar", timeoutMs: 20_000 },
+          { model: "sonar", timeoutMs: 20_000, feature: "ads-analyst" },
         ).catch(() => null);
         if (fsum?.verdict && Array.isArray(fsum.recommendations) && fsum.recommendations.filter((r) => r?.title && r?.detail).length >= 2) {
           fsum.recommendations = fsum.recommendations.filter((r) => r?.title && r?.detail).slice(0, 3);
@@ -233,7 +233,7 @@ export async function GET(req: Request) {
 - "verdict": 1–2 plain sentences: how much was spent, how many leads (people who shared contact details) that got, roughly the cost per lead in rupees, and the single biggest thing to fix — explained simply.
 - "recommendations": exactly 3 items, each an object with "title" (the action in max 8 plain words, naming the real campaign). EVERY recommendation must be about a campaign that is still running — the facts only list those. Never suggest changing, pausing or rebuilding something already switched off. and "detail" (1–2 sentences explaining WHY in beginner words — what the number means — and WHAT to do). No bare metrics like "CPL" or "frequency 3.6" without explaining them.`,
         `Facts: ${JSON.stringify(facts)}`,
-        { model: "sonar", timeoutMs: 20_000 },
+        { model: "sonar", timeoutMs: 20_000, feature: "ads-analyst" },
       ).catch(() => null);
       if (summary?.verdict && Array.isArray(summary.recommendations) && summary.recommendations.filter((r) => r?.title && r?.detail).length >= 2) {
         summary.recommendations = summary.recommendations.filter((r) => r?.title && r?.detail).slice(0, 3);

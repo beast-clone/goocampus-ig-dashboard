@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     const parsed = await askPerplexityJSON<{ variants?: Array<{ kind?: string; caption?: string; hashtags?: string[] }> }>(
       "You are an Instagram caption writer for a lead-gen brand. Respond ONLY with valid JSON matching the schema described. Never wrap the JSON in markdown fences.",
       prompt,
-      { temperature: 0.7 },
+      { temperature: 0.7, feature: "scheduler-caption" },
     );
     if (!parsed?.variants || !Array.isArray(parsed.variants) || parsed.variants.length === 0) {
       throw new Error("Caption model returned no variants");

@@ -67,7 +67,7 @@ ${POSTS_SPEC}
 }`;
 
   const { text, citations } = await askPerplexity(SYSTEM, `${user}\n\nIMPORTANT: reply with ONLY valid JSON — no markdown, no code fences, no prose.`,
-    { model, maxTokens: 2400, temperature: 0.4, timeoutMs: 60_000 });
+    { model, maxTokens: 2400, temperature: 0.4, timeoutMs: 60_000, feature: "content-studio" });
   return toResult(parseLooseJson<Raw>(text), citations, model);
 }
 
@@ -83,7 +83,7 @@ export async function generateFromTopic(topic: string): Promise<GenResult> {
   const researchUser = `Research this topic thoroughly using current, credible sources: "${topic}".
 Write a factual brief (150-250 words) for our content team: the key facts, exact dates, the authorities/exam bodies involved, any recent changes, and anything uncertain or contested. Use only what the sources support — never invent numbers or dates.`;
   const research = await askPerplexityAsync(`${SYSTEM}\n\nYou are researching a topic to brief a content writer.`, researchUser,
-    { model: "sonar-deep-research", maxTokens: 4000, temperature: 0.2, maxWaitMs: 300_000 });
+    { model: "sonar-deep-research", maxTokens: 4000, temperature: 0.2, maxWaitMs: 300_000, feature: "content-studio-research" });
   const brief = (research.text || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   if (!brief) throw new Error("Deep research returned nothing to write from");
 
@@ -101,7 +101,7 @@ Return ONLY JSON in exactly this shape:
 ${POSTS_SPEC}
 }`;
   const { text } = await askPerplexity(SYSTEM, `${writeUser}\n\nIMPORTANT: reply with ONLY valid JSON — no markdown, no code fences, no prose.`,
-    { model: "sonar-pro", maxTokens: 2600, temperature: 0.4, timeoutMs: 60_000 });
+    { model: "sonar-pro", maxTokens: 2600, temperature: 0.4, timeoutMs: 60_000, feature: "content-studio" });
 
   // Report the deep-research model so the UI labels it correctly; sources come from step 1.
   return toResult(parseLooseJson<Raw>(text), research.citations || [], "sonar-deep-research");

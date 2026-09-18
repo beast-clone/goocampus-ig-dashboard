@@ -74,13 +74,13 @@ export async function runSkill(slug: string, task: string, engine: Engine = "son
 
   if (engine === "claude") {
     const { text, citations, usage } = await askClaudeViaPerplexity(system, user, {
-      model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs,
+      model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
     });
     return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine };
   }
 
   const { text, citations, usage } = await askPerplexity(system, user, {
-    model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs,
+    model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
   });
   return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine };
 }

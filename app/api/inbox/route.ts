@@ -87,7 +87,7 @@ async function classifyMood(items: { id: string; text: string }[]): Promise<Map<
 
   await Promise.all(chunks.map(async (chunk) => {
     try {
-      const parsed = await askPerplexityJSON<{ results?: { id: string; mood: Mood }[] }>(sys, JSON.stringify(chunk), { maxTokens: 1500 });
+      const parsed = await askPerplexityJSON<{ results?: { id: string; mood: Mood }[] }>(sys, JSON.stringify(chunk), { maxTokens: 1500, feature: "inbox-mood" });
       for (const r of parsed?.results ?? []) out.set(r.id, r.mood);
     } catch { /* leave as neutral default */ }
   }));
