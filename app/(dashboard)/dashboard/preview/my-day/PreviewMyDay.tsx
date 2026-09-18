@@ -243,6 +243,9 @@ function autoAssign(type: string): { owner: string; toPool: boolean; note: strin
 // A task's estimate is checked against the room left in their Today's plan: if it
 // fits it just auto-adds; if it doesn't, it surfaces through the pipeline.
 const WORK_MIN = 480;
+// The last hour of Today's plan is kept free for emergencies: routine work fills
+// 7h, and only Urgent/High tasks may use the buffer hour.
+const BUFFER_MIN = 60;
 const DAY_END_LABEL = "6:00 PM";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
@@ -1969,9 +1972,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       onTimelineFor(me.name, t.status));
     setPlan((p) => {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
+      // Earliest publishing date first (the deadline), priority breaks ties.
       const missing = mine
         .filter((t) => !keep.some((x) => x.taskId === t.id))
-        .sort((a, b) => (PRANK[a.detail.priority] - PRANK[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
+        .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (PRANK[a.detail.priority] - PRANK[b.detail.priority]));
       const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) });
       const high = missing.filter((t) => isHot(t.detail.priority)).map(entry);   // urgent → front
       const rest = missing.filter((t) => !isHot(t.detail.priority)).map(entry);   // rest → append
@@ -1982,7 +1986,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         const t = mine.find((m) => m.id === keep[at].taskId);
         if (t && t.status === "Output - In Progress") at++; else break;
       }
-      return keep.length === p.length && missing.length === 0 ? p : [...keep.slice(0, at), ...high, ...keep.slice(at), ...rest];
+      if (keep.length === p.length && missing.length === 0) return p;
+      // Routine arrivals slot in by publishing date among what's already planned
+      // (kept entries keep their order, so manual reordering survives).
+      const dueOf = (id?: string) => mine.find((m) => m.id === id)?.due || "9999";
+      const out = [...keep.slice(0, at), ...high, ...keep.slice(at)];
+      for (const r of rest) {
+        const d = dueOf(r.taskId);
+        const i = out.findIndex((x, idx) => idx >= at + high.length && dueOf(x.taskId) > d);
+        if (i === -1) out.push(r); else out.splice(i, 0, r);
+      }
+      return out;
     });
   }, [tasks, claimedTasks, samvaya, me.name]);
 
@@ -2005,12 +2019,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     const fit: typeof myPlan = [], spill: typeof myPlan = [];
     let used = 0;
     for (const p of myPlan) {
-      if (fit.length === 0 || used + p.dur <= WORK_MIN) { fit.push(p); used += p.dur; }
+      const cap = p.high ? WORK_MIN : WORK_MIN - BUFFER_MIN;
+      if (fit.length === 0 || used + p.dur <= cap) { fit.push(p); used += p.dur; }
       else spill.push(p);
     }
     return { fitPlan: fit, spillPlan: spill };
   }, [myPlan]);
-  const spillMin = spillPlan.reduce((s, p) => s + p.dur, 0);
   // Smart reminders (spec §13): Manya — content pending too long; producers — overdue.
   const nudges = useMemo(() => {
     const DAY = 86_400_000;
@@ -2062,9 +2076,20 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       if (remaining > 0) { out.push({ kind: "reel", key: p.key, taskId: p.taskId, label: p.label, start: cursor, dur: remaining, high: p.high, samvaya: p.samvaya }); cursor += remaining; }
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
+    // The reserved emergency hour sits at the end of the shift, if work hasn't used it.
+    const dayEnd = anchor + WORK_MIN + LUNCH_MIN;
+    const bufStart = Math.max(cursor, dayEnd - BUFFER_MIN);
+    if (bufStart < dayEnd) out.push({ kind: "buffer", label: "Buffer", start: bufStart, dur: dayEnd - bufStart });
     return out;
   }, [fitPlan, nowMin, dayStarted, dayStartMin, me.name]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
+  const plannedMin = fitPlan.reduce((s, p) => s + p.dur, 0);
+  // Spilled work is only a problem if it publishes today or tomorrow; the rest is
+  // simply next in line (it'll pull forward as room frees up).
+  const dueOfTask = (id?: string) => [...claimedTasks, ...tasks, ...samvaya].find((t) => t.id === id)?.due || "";
+  const tomorrowStr = todayStr ? (() => { const d = new Date(todayStr + "T00:00:00"); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "";
+  const atRisk = spillPlan.filter((p) => { const d = dueOfTask(p.taskId); return !!d && !!tomorrowStr && d <= tomorrowStr; });
+  const nextDue = spillPlan.map((p) => dueOfTask(p.taskId)).filter(Boolean).sort()[0] || "";
   // Red now-line shows only inside the working span (9 AM–7 PM, covering both shifts:
   // 9–6 and 10–7). Before 9 or after 7 PM there's simply no line — real clock, no fake.
   const showNow = nowMin !== null && !isWeekend && nowMin >= 0 && nowMin <= DAY_MINS;
@@ -2705,10 +2730,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
-              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(Math.min(workMin, WORK_MIN))}</b> of 8h work · 1h lunch · {fmtDur(Math.max(0, WORK_MIN - workMin))} free
-                {spillMin > 0 && <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {spillPlan.length} won&apos;t fit ({fmtDur(spillMin)} over) → spills to tomorrow</span>}
+              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(plannedMin)}</b> planned · 1h lunch · 1h buffer for urgent work · {fmtDur(Math.max(0, WORK_MIN - BUFFER_MIN - plannedMin))} free
+                {atRisk.length > 0
+                  ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
+                  : spillPlan.length > 0 && <span style={{ marginLeft: 8, whiteSpace: "nowrap" }}>· {spillPlan.length} more planned{nextDue ? ` · next due ${new Date(nextDue + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : ""}</span>}
               </span>
-              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Drag a task along the timeline to start it later; use ‹ › to reorder. Urgent tasks slot in automatically by priority.">?</span>
+              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Tasks are ordered by publishing date, earliest first; work due later is pulled forward whenever there's room. The last hour is kept free for urgent work — Urgent/High tasks jump to the front and may use it. Drag a task along the timeline to start it later; use ‹ › to reorder.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
               <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Task</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
@@ -2741,7 +2768,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                   onDragEnd={b.kind === "reel" ? () => { dragKey.current = null; setDropAt(null); } : undefined}
                   onClick={() => b.taskId && setPlanModalId(b.taskId)}
                   style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }}
-                  title={b.kind === "reel" ? "Drag along the timeline to start it later · click to open" : b.kind === "lunch" ? "Protected lunch" : undefined}
+                  title={b.kind === "reel" ? "Drag along the timeline to start it later · click to open" : b.kind === "lunch" ? "Protected lunch" : "Emergency buffer — only Urgent/High tasks are planned into this hour"}
                 >
                   {b.kind === "reel" && (
                     <>
@@ -2750,7 +2777,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     </>
                   )}
                   <div className="tl-t">{b.samvaya && <span className="tl-tag">Samvaya</span>}{b.label}</div>
-                  <div className="tl-m">{b.kind === "reel" ? `${b.samvaya ? "Samvaya · " : b.high ? "High priority · " : ""}${b.samvaya ? "" : `${typeName} · `}${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Buffer · ${fmtDur(b.dur)}`}</div>
+                  <div className="tl-m">{b.kind === "reel" ? `${b.samvaya ? "Samvaya · " : b.high ? "High priority · " : ""}${b.samvaya ? "" : `${typeName} · `}${fmtDur(b.dur)}` : b.kind === "lunch" ? "1h · protected" : `Kept free for urgent work`}</div>
                 </div>
                 );
               })}
