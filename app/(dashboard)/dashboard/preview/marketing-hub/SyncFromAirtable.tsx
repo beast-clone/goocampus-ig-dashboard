@@ -288,7 +288,7 @@ function MultiDropdown({ label, placeholder, options, picked, loading, onToggle,
                     style={on ? { background: BLUE, borderColor: BLUE } : { borderColor: "#D1D5DB" }}>
                     {on && <IconCheck size={11} stroke={3} />}
                   </span>
-                  <span className="flex-1 truncate">{o.value}</span>
+                  <span className={`flex-1 truncate ${o.count === 0 && !on ? "text-[#A6ACBE]" : ""}`}>{o.value}</span>
                   <span className="text-[12px] text-[#A6ACBE]">{o.count}</span>
                 </button>
               );

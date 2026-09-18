@@ -82,6 +82,10 @@ export type ImportFacets = Record<ImportFilterKey, { value: string; count: numbe
 const HIDDEN_PEOPLE = new Set(["shubhi gupta", "sramana giri"]);
 const shown = (name: string | null) => !!name && !HIDDEN_PEOPLE.has(name.toLowerCase());
 
+// The team, spelled as Airtable spells them. Always offered in the Owner and
+// Collaborators filters, with 0 when they have nothing in the chosen dates.
+const TEAM_PEOPLE = ["Praveen L", "Nandu C", "Manya B M", "NIKHI Shyamraj"];
+
 // Values a record carries per filter field, as Airtable spells them.
 function valuesOf(f: CalendarFields, key: ImportFilterKey): string[] {
   switch (key) {
@@ -147,6 +151,7 @@ export async function importFromAirtable(opts: {
   out.inRange = all.length;
   for (const key of IMPORT_FILTER_KEYS) {
     const n = new Map<string, number>();
+    if (key === "owner" || key === "collaborators") for (const p of TEAM_PEOPLE) n.set(p, 0);
     for (const r of all) for (const v of new Set(valuesOf(r.fields, key))) n.set(v, (n.get(v) || 0) + 1);
     out.facets[key] = [...n].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   }
