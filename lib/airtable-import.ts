@@ -77,11 +77,16 @@ export type ImportFilterKey = (typeof IMPORT_FILTER_KEYS)[number];
 export type ImportFilters = Partial<Record<ImportFilterKey, string[]>>;
 export type ImportFacets = Record<ImportFilterKey, { value: string; count: number }[]>;
 
+// People who are still on Airtable records but aren't on the team; left out of the
+// Owner / Collaborators filters (a record that only has them counts as "No collaborators").
+const HIDDEN_PEOPLE = new Set(["shubhi gupta", "sramana giri"]);
+const shown = (name: string | null) => !!name && !HIDDEN_PEOPLE.has(name.toLowerCase());
+
 // Values a record carries per filter field, as Airtable spells them.
 function valuesOf(f: CalendarFields, key: ImportFilterKey): string[] {
   switch (key) {
-    case "owner": return [str(f["Owner"]?.name) || "No owner"];
-    case "collaborators": { const c = (f["Collaborators"] || []).map((x) => str(x?.name)).filter((x): x is string => !!x); return c.length ? c : ["No collaborators"]; }
+    case "owner": { const o = str(f["Owner"]?.name); return [shown(o) ? o as string : "No owner"]; }
+    case "collaborators": { const c = (f["Collaborators"] || []).map((x) => str(x?.name)).filter((x): x is string => shown(x)); return c.length ? c : ["No collaborators"]; }
     case "type": return [str(f["Type"]) || "No type"];
     case "status": return [str(f["Status"]) || "No status"];
     case "sbu": return [str(f["SBU"]) || "No interest"];
