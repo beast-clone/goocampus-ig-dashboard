@@ -1,4 +1,5 @@
 "use client";
+import { IconPencil } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { REPORT_HISTORY, type HistoryTable } from "@/lib/report-history";
 import { type ManualFields } from "@/lib/report-manual";
@@ -431,7 +432,7 @@ function ManualEditable({ title, hint, value, onChange, onBlur, loaded, state }:
   return (
     <section className="rounded-xl border border-gray-200 bg-white px-4 py-3.5">
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">✍️ {title}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500"><IconPencil size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{title}</span>
         {state === "saving" && <span className="text-[10px] text-gray-400">saving…</span>}
         {state === "saved" && <span className="text-[10px] text-emerald-600">✓ notes saved</span>}
         {state === "error" && <span className="text-[10px] text-rose-600">save failed — retry</span>}

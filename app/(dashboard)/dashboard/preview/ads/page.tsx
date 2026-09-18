@@ -7,7 +7,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { useApi } from "@/lib/use-api";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
-import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown, IconPhoto } from "@tabler/icons-react";
+import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown, IconPhoto, IconBook, IconHeartHandshake, IconHeartbeat, IconHelpCircle, IconMapPin, IconPlayerPlay, IconPlayerStop, IconSchool, IconSpeakerphone, IconWorld } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 import { fmtDateShort } from "@/lib/date";
 
@@ -1176,18 +1176,18 @@ function MiniSparkline({ data }: { data: { date: string; spend: number }[] }) {
 // its name. Order matters — the FIRST matching rule wins, so put more-specific rules
 // higher. Tweak this table when you launch a new campaign theme.
 type InterestKey = "amc_australia" | "university_masters" | "mbbs_ug" | "walk_in" | "als" | "samvaya" | "traffic_boost" | "other";
-type InterestDef = { key: InterestKey; label: string; emoji: string; color: string; keywords: (string | RegExp)[] };
+type InterestDef = { key: InterestKey; label: string; emoji: React.ReactNode; color: string; keywords: (string | RegExp)[] };
 
 const INTERESTS: InterestDef[] = [
   // Coordinated palette — a restrained blue-led range (brand family + one warm, one rose)
   // so the category dots read as a considered system, not a random rainbow.
-  { key: "amc_australia",       label: "Australia AMC Pathway",    emoji: "🇦🇺", color: "bg-brand",       keywords: ["AMC", "AUS-PGCP", "AHPRA", /\bAustralia\b/i] },
-  { key: "university_masters",  label: "University / Masters",     emoji: "🎓", color: "bg-indigo-400",   keywords: ["University Programs", "Masters", "Post-Graduate", /\bPG\b/] },
-  { key: "mbbs_ug",             label: "MBBS / Undergrad",         emoji: "📚", color: "bg-sky-500",      keywords: ["MBBS", /\bUG\b/, "Study Abroad"] },
-  { key: "walk_in",             label: "Walk-in / Events",         emoji: "📍", color: "bg-amber-400",    keywords: ["Walk-in", "Walk in", "State-wise"] },
-  { key: "als",                 label: "ALS Certification",        emoji: "❤️", color: "bg-rose-400",     keywords: ["ALS"] },
-  { key: "samvaya",             label: "Samvaya Matrimony",        emoji: "💍", color: "bg-violet-400",   keywords: ["Samvaya", "Matrimony"] },
-  { key: "traffic_boost",       label: "Traffic / Boosted Posts",  emoji: "📣", color: "bg-teal-400",     keywords: ["Traffic Ads", "Instagram post:", "Boosted"] },
+  { key: "amc_australia",       label: "Australia AMC Pathway",    emoji: <IconWorld size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-brand",       keywords: ["AMC", "AUS-PGCP", "AHPRA", /\bAustralia\b/i] },
+  { key: "university_masters",  label: "University / Masters",     emoji: <IconSchool size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-indigo-400",   keywords: ["University Programs", "Masters", "Post-Graduate", /\bPG\b/] },
+  { key: "mbbs_ug",             label: "MBBS / Undergrad",         emoji: <IconBook size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-sky-500",      keywords: ["MBBS", /\bUG\b/, "Study Abroad"] },
+  { key: "walk_in",             label: "Walk-in / Events",         emoji: <IconMapPin size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-amber-400",    keywords: ["Walk-in", "Walk in", "State-wise"] },
+  { key: "als",                 label: "ALS Certification",        emoji: <IconHeartbeat size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-rose-400",     keywords: ["ALS"] },
+  { key: "samvaya",             label: "Samvaya Matrimony",        emoji: <IconHeartHandshake size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-violet-400",   keywords: ["Samvaya", "Matrimony"] },
+  { key: "traffic_boost",       label: "Traffic / Boosted Posts",  emoji: <IconSpeakerphone size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-teal-400",     keywords: ["Traffic Ads", "Instagram post:", "Boosted"] },
 ];
 
 function classifyCampaign(name: string): InterestDef {
@@ -1197,7 +1197,7 @@ function classifyCampaign(name: string): InterestDef {
       if (matched) return def;
     }
   }
-  return { key: "other", label: "Other / Unclassified", emoji: "❓", color: "bg-gray-400", keywords: [] };
+  return { key: "other", label: "Other / Unclassified", emoji: <IconHelpCircle size={13} stroke={1.8} className="inline -mt-0.5" />, color: "bg-gray-400", keywords: [] };
 }
 
 // Flat campaign table with a Category column and a Category filter dropdown at the top-right.
@@ -1267,7 +1267,7 @@ function CampaignsTable({ campaigns, onSelect, showLeads }: { campaigns: Campaig
               return (
                 <tr key={c.campaign_id} onClick={() => onSelect(c)} className="hover:bg-brand-light cursor-pointer transition">
                   <td className="px-5 py-3 max-w-xs truncate" title={c.campaign_name}>
-                    {c.campaign_id === topId && <span className="mr-1" title="Top performer">🏆</span>}
+                    {c.campaign_id === topId && <span className="mr-1" title="Top performer"><IconTrophy size={13} stroke={1.8} className="inline -mt-0.5 text-amber-500" /></span>}
                     <span className="text-brand hover:underline">{c.campaign_name}</span>
                   </td>
                   <td className="px-3 py-3">
@@ -1428,7 +1428,7 @@ function CampaignDrilldown({ campaign, range, onClose }: { campaign: Campaign; r
                     {(() => { const fl = flightLabel(ad); return fl ? (
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${fl.active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
-                          {fl.active ? "▶" : "⏹"} {fl.text}
+                          {fl.active ? <IconPlayerPlay size={12} stroke={2} className="inline -mt-0.5" /> : <IconPlayerStop size={12} stroke={2} className="inline -mt-0.5" />} {fl.text}
                         </span>
                         {ad.objective && <span className="text-[11px] text-gray-500">{OBJECTIVE_LABEL[ad.objective] || ad.objective}</span>}
                       </div>

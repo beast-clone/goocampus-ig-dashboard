@@ -7,7 +7,7 @@ import { TEAM_USERS } from "@/lib/users";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX } from "@tabler/icons-react";
+import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX, IconAlertTriangle, IconBook, IconBroadcast, IconRss, IconSettings } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -192,7 +192,7 @@ function Radar() {
             onClick={() => setSettingsOpen(true)}
             className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark"
           >
-            ⚙ Manage alerts
+            <IconSettings size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Manage alerts
           </button>
         </div>
       </div>
@@ -1091,7 +1091,7 @@ function EmptyState({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-8">
       <div className="max-w-xl mx-auto text-center">
-        <div className="text-4xl mb-3">📡</div>
+        <div className="text-4xl mb-3"><IconBroadcast size={40} stroke={1.4} className="mx-auto text-gray-300" /></div>
         <h2 className="text-base font-medium text-[#232D42] mb-2">Track your first topic</h2>
         <p className="text-sm text-[#4A5468] mb-5">
           Type in a topic — like <i>AMC exam 2026</i>, <i>DHA licensing</i>, or <i>NEET PG cutoff</i> — and
@@ -1200,7 +1200,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <div className="text-sm font-semibold">⚙ Track topics</div>
+            <div className="text-sm font-semibold"><IconSettings size={15} stroke={1.8} className="inline -mt-0.5 mr-1" />Track topics</div>
             <div className="text-xs text-[#8A92A6]">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
           </div>
           <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-xl">×</button>
@@ -1288,15 +1288,15 @@ function SettingsModal({ alerts, onClose, onChanged }: {
                     <span className="text-brand">{a.primaryInterest}</span>
                     <span className="mx-1.5">·</span>
                     {a.searchQuery ? (
-                      <span>🔍 tracking: <span className="text-[#232D42]">{a.searchQuery}</span></span>
+                      <span><IconSearch size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />tracking: <span className="text-[#232D42]">{a.searchQuery}</span></span>
                     ) : a.feedUrl ? (
-                      <span>📡 <span className="font-mono">{a.feedUrl.replace(/^https?:\/\//, "").slice(0, 60)}</span></span>
+                      <span><IconRss size={12} stroke={1.8} className="inline -mt-0.5 mr-1" /><span className="font-mono">{a.feedUrl.replace(/^https?:\/\//, "").slice(0, 60)}</span></span>
                     ) : (
                       <span className="text-rose-600">no source configured</span>
                     )}
                   </div>
                   {a.lastError && (
-                    <div className="text-xs text-rose-600 mt-1">⚠ {a.lastError}</div>
+                    <div className="text-xs text-rose-600 mt-1"><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{a.lastError}</div>
                   )}
                   {a.lastFetchedAt && !a.lastError && (
                     <div className="text-xs text-[#A6ACBE] mt-0.5">
@@ -1566,7 +1566,7 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
             </div>
           )}
           {isReddit && !rLoading && !thread && needsAuth && (
-            <div className="text-xs text-[#4A5468] bg-brand-light/50 border border-brand/15 rounded-lg p-3">📖 The full thread + all comments open on Reddit — use the button below.</div>
+            <div className="text-xs text-[#4A5468] bg-brand-light/50 border border-brand/15 rounded-lg p-3"><IconBook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />The full thread + all comments open on Reddit — use the button below.</div>
           )}
           {isReddit && !rLoading && !thread && !needsAuth && rErr && (
             <div className="text-xs text-[#8A92A6]">Couldn&apos;t load the thread ({rErr}). The snippet above is the preview — use “Open on reddit.com”.</div>
@@ -1591,8 +1591,8 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
           `}</style>
         </div>
         <div className="px-6 py-3 border-t border-gray-100 bg-[#FCFCFE] flex items-center gap-3">
-          <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark">✍ Turn into post</Link>
-          <a href={thread?.permalink || finalUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand-light text-brand border border-brand/20 px-3 py-1.5 rounded-md hover:bg-brand hover:text-white transition">{isReddit ? "📖 Read full thread on Reddit ↗" : `Open on ${host} ↗`}</a>
+          <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"><IconPencil size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Turn into post</Link>
+          <a href={thread?.permalink || finalUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand-light text-brand border border-brand/20 px-3 py-1.5 rounded-md hover:bg-brand hover:text-white transition">{isReddit ? <><IconBook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Read full thread on Reddit ↗</> : `Open on ${host} ↗`}</a>
           <button onClick={onClose} className="ml-auto text-xs text-[#8A92A6] hover:text-[#232D42]">Close</button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 "use client";
+import { IconTrophy } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 
 type Grid = (number | null)[][]; // 7 rows × 24 cols
@@ -51,7 +52,7 @@ export default function PostingHeatmap({ grid }: { grid: Grid }) {
               key={i}
               className="text-[11px] px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-100 font-mono"
             >
-              {i === 0 ? "🏆 " : ""}
+              {i === 0 ? <IconTrophy size={12} stroke={2} className="inline -mt-0.5 mr-0.5 text-amber-500" /> : null}
               {DAYS[c.day]} {String(c.hour).padStart(2, "0")}:00
             </span>
           ))}

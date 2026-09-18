@@ -1,4 +1,5 @@
 "use client";
+import { IconPrinter } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { BrandLoader } from "@/components/BrandLoader";
@@ -75,7 +76,7 @@ function AIReports({ accountId }: { accountId: string }) {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-brand-light text-brand">Saved report</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand">🖨 Export / Print</button>
+            <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand"><IconPrinter size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Export / Print</button>
             <a href="/dashboard/preview/reports/social" className="text-[12px] font-medium px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-900">← Back to Reports</a>
           </div>
         </div>
@@ -102,7 +103,7 @@ function AIReports({ accountId }: { accountId: string }) {
             </button>
           ))}
         </div>
-        <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand">🖨 Export / Print</button>
+        <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand"><IconPrinter size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Export / Print</button>
       </div>
 
       {period === "monthly" ? (

@@ -1,4 +1,5 @@
 "use client";
+import { IconClock, IconHeart, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -221,7 +222,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
                 </div>
                 <div className="text-right text-[12px] text-gray-700 tabular-nums whitespace-nowrap">
                   <div><b>{fmtNum(p.reach)}</b> reach</div>
-                  <div className="text-gray-500">{fmtNum(p.likes)} ❤ · {fmtNum(p.comments)} 💬</div>
+                  <div className="text-gray-500">{fmtNum(p.likes)} <IconHeart size={12} stroke={1.8} className="inline -mt-0.5" />· {fmtNum(p.comments)} <IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5" /></div>
                   <div className="text-gray-500">{p.engagementRate}% ER</div>
                 </div>
               </a>
@@ -290,7 +291,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
 
           {report.leadsSales.totals.firstActivityAvgHrs != null && (
             <div className="mb-4 flex items-start gap-2 text-[12px] text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
-              <span>⏱</span>
+              <span><IconClock size={14} stroke={1.8} className="inline -mt-0.5" /></span>
               <span>
                 <b className="text-[#232D42]">Avg first response: {report.leadsSales.totals.firstActivityAvgHrs} hrs</b>
                 {" "}(~{Math.round((report.leadsSales.totals.firstActivityAvgHrs / 24) * 10) / 10} days) —
@@ -459,7 +460,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
                               : <div className="w-full h-full flex items-center justify-center text-gray-300">▢</div>}
                           </div>
                           <div className="min-w-0">
-                            {isTop && <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 mb-1">🏆 Best reach</span>}
+                            {isTop && <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 mb-1"><IconTrophy size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Best reach</span>}
                             <div className="max-w-[460px] text-[12.5px] text-[#232D42] line-clamp-2 leading-snug" title={p.caption}>{p.caption}</div>
                           </div>
                         </div>

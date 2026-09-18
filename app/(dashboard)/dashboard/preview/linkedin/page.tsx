@@ -1,4 +1,5 @@
 "use client";
+import { IconAlertTriangle, IconMessageCircle, IconThumbUp } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { LI_PAGE } from "@/lib/brand-platforms";
@@ -116,11 +117,11 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </span>
           ) : data?.liveError ? (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}>
-              ⚠ Live call failed · showing demo
+              <IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Live call failed · showing demo
             </span>
           ) : (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="LinkedIn API not yet connected for this page — showing representative sample data.">
-              ⚠ Demo data
+              <IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Demo data
             </span>
           )}
           <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
@@ -474,7 +475,7 @@ function PostModal({ post, pageName, onClose }: { post: Post; pageName: string; 
               {post.text && <div className="px-3 pb-3 text-sm text-gray-800 whitespace-pre-wrap">{cleanText(post.text)}</div>}
               <PostMedia post={post} tall interactive />
               <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-500 border-t border-gray-100">
-                <span>👍💬 {fmt(post.reactions + post.comments)}</span>
+                <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5" /><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(post.reactions + post.comments)}</span>
                 <span>{fmt(post.comments)} comments · {fmt(post.shares)} shares</span>
               </div>
             </div>

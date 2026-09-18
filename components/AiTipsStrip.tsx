@@ -1,4 +1,5 @@
 "use client";
+import { IconBroadcast, IconMessageCircle, IconSparkles, IconUsers } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 type Tip = {
@@ -9,10 +10,10 @@ type Tip = {
   tone: "grow" | "hold" | "fix";
 };
 
-const METRIC_META: Record<Tip["metric"], { label: string; icon: string; hue: string }> = {
-  followers:  { label: "Followers",  icon: "👥", hue: "violet"  },
-  reach:      { label: "Reach",      icon: "📡", hue: "sky"     },
-  engagement: { label: "Engagement", icon: "💬", hue: "emerald" },
+const METRIC_META: Record<Tip["metric"], { label: string; icon: React.ReactNode; hue: string }> = {
+  followers:  { label: "Followers",  icon: <IconUsers size={13} stroke={1.8} className="inline -mt-0.5" />, hue: "violet"  },
+  reach:      { label: "Reach",      icon: <IconBroadcast size={13} stroke={1.8} className="inline -mt-0.5" />, hue: "sky"     },
+  engagement: { label: "Engagement", icon: <IconMessageCircle size={13} stroke={1.8} className="inline -mt-0.5" />, hue: "emerald" },
 };
 
 const TONE_STYLE: Record<Tip["tone"], string> = {
@@ -51,7 +52,7 @@ export function AiTipsStrip({ accountId, range }: { accountId: string; range: { 
     <section className="mb-6">
       <div className="flex items-baseline justify-between mb-2 px-1">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold text-gray-900">✨ AI Growth Tips</h2>
+          <h2 className="text-sm font-semibold text-gray-900"><IconSparkles size={14} stroke={1.8} className="inline -mt-0.5 mr-1 text-brand" />AI Growth Tips</h2>
           <span className="text-[11px] text-gray-500 italic">Data-backed next moves for this range</span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-gray-500">

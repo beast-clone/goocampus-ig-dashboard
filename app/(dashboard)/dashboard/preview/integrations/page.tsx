@@ -1,4 +1,5 @@
 "use client";
+import { IconAlertTriangle, IconHourglass } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -119,7 +120,7 @@ function Integrations() {
       {/* Token-expiry warnings up top (the whole point of the monitor) */}
       {expiringSoon.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <div className="text-xs font-semibold text-amber-900 mb-1">⏳ Tokens expiring soon</div>
+          <div className="text-xs font-semibold text-amber-900 mb-1"><IconHourglass size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Tokens expiring soon</div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-amber-900">
             {expiringSoon.map((i) => (
               <span key={i.key}><b>{i.name.split(" —")[0]}</b>: {i.daysRemaining} day{i.daysRemaining === 1 ? "" : "s"} left</span>
@@ -170,7 +171,7 @@ function Integrations() {
               )}
 
               <div className="text-[12px] text-gray-600 mt-2 leading-snug">{i.detail}</div>
-              {i.note && <div className="text-xs text-rose-600 mt-1.5">⚠ {i.note}</div>}
+              {i.note && <div className="text-xs text-rose-600 mt-1.5"><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{i.note}</div>}
               {i.expiresAt && (
                 <div className="text-xs text-gray-400 mt-2">Expires {new Date(i.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
               )}

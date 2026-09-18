@@ -1,4 +1,5 @@
 "use client";
+import { IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function AIReportButton({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
@@ -21,7 +22,7 @@ export function AIReportButton({ accountId, range }: { accountId: string; range:
   return (
     <>
       <button onClick={run} className="no-print px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark">
-        ✨ Get AI Report
+        <IconSparkles size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Get AI Report
       </button>
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setOpen(false)}>

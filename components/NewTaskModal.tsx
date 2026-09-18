@@ -1,4 +1,5 @@
 "use client";
+import { IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
@@ -341,7 +342,7 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
         {step === "done" && (
           <div className="px-8 py-10">
             <div className="text-center mb-6">
-              <div className="text-4xl mb-3">✅</div>
+              <div className="text-4xl mb-3"><IconCircleCheck size={44} stroke={1.5} className="mx-auto text-emerald-500" /></div>
               <div className="text-lg font-medium">Task created</div>
               <div className="text-sm text-gray-500 mt-1">
                 Added to Content Calendar as <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{createdId}</code>
@@ -368,7 +369,7 @@ function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose
         {step === "error" && (
           <div className="px-8 py-10">
             <div className="text-center mb-5">
-              <div className="text-4xl mb-3">⚠</div>
+              <div className="text-4xl mb-3"><IconAlertTriangle size={44} stroke={1.5} className="mx-auto text-amber-500" /></div>
               <div className="text-lg font-medium">Task creation failed</div>
               <div className="text-sm text-gray-500 mt-2 max-w-md mx-auto">{errMsg}</div>
             </div>

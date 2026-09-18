@@ -1,4 +1,5 @@
 "use client";
+import { IconHeart, IconPencil } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useV2Href } from "@/lib/previewHref";
 
@@ -100,7 +101,7 @@ export function LatestPostsStrip({ accountId, range }: { accountId: string; rang
                   <div className="text-[10.5px] text-gray-500 mb-1">{relative(p.timestamp)}</div>
                   <div className="flex items-center gap-3 text-[11.5px] text-gray-700 tabular-nums">
                     <span>{fmtNum(p.reach || 0)} reach</span>
-                    <span>{fmtNum(p.likes || 0)} ❤</span>
+                    <span>{fmtNum(p.likes || 0)} <IconHeart size={12} stroke={1.8} className="inline -mt-0.5" /></span>
                   </div>
                 </div>
               </button>
@@ -168,7 +169,7 @@ function PostModal({ post, onClose }: { post: Post; onClose: () => void }) {
             }).toString())}`)}
             className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-md hover:bg-brand-dark"
           >
-            ✍ Turn into a similar post
+            <IconPencil size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Turn into a similar post
           </a>
           <a href={post.permalink} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:text-brand">
             Open on Instagram ↗

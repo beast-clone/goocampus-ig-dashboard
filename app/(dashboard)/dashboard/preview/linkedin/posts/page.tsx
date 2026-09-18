@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LI_PAGE } from "@/components/PlatformOverviews";
 import { useApi } from "@/lib/use-api";
-import { IconEye, IconThumbUp, IconMessageCircle, IconFileText, IconPaperclip } from "@tabler/icons-react";
+import { IconEye, IconThumbUp, IconMessageCircle, IconFileText, IconPaperclip, IconTrophy } from "@tabler/icons-react";
 import { fmtDateShort } from "@/lib/date";
 
 // pdf.js renders LinkedIn document posts (carousel PDFs) exactly as they look
@@ -97,7 +97,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           {/* Highlighted TOP PERFORMERS hero — the 3 best by impressions, big + prominent */}
           <div className="bg-blue-50/50 border border-blue-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-base font-semibold text-gray-900">🏆 Top performers</span>
+              <span className="text-base font-semibold text-gray-900"><IconTrophy size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-amber-500" />Top performers</span>
               <span className="text-xs text-gray-400">· by impressions</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

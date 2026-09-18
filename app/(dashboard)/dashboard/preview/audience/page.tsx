@@ -1,4 +1,5 @@
 "use client";
+import { IconCake, IconClock, IconWorld } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -212,7 +213,7 @@ function Audience({ accountId }: { accountId: string }) {
           column and percentages sit inside the bar when they fit. */}
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
         <div className="px-6 md:px-8 py-5 border-b border-gray-100">
-          <div className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold">🎂 Age &times; gender</div>
+          <div className="text-[11px] uppercase tracking-widest text-gray-500 font-semibold"><IconCake size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Age &times; gender</div>
           <div className="text-xs text-gray-500 mt-1">Overall split first, then a full pyramid across every age band.</div>
         </div>
 
@@ -239,7 +240,7 @@ function Audience({ accountId }: { accountId: string }) {
           One panel that holds countries + cities so the geo story is unified. */}
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
         <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-brand-light">
-          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold">🌍 Where they are</div>
+          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold"><IconWorld size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Where they are</div>
           <div className="text-sm text-gray-700 mt-1">
             Followers span <b>{data.countries.length}</b> countries. Top country: <b>{COUNTRY_NAME[data.countries[0]?.label] || data.countries[0]?.label || "—"}</b>
             {data.cities[0]?.label && <> · Top city: <b>{data.cities[0].label.split(",")[0]}</b></>}
@@ -274,7 +275,7 @@ function Audience({ accountId }: { accountId: string }) {
           Peak hour headline + heatmap + hourly area chart, all one panel. */}
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
         <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-brand-light">
-          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold">⏰ When they&apos;re active</div>
+          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold"><IconClock size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />When they&apos;re active</div>
           {peakHour ? (
             <div className="text-sm text-gray-700 mt-1">
               Peak hour: <b className="text-brand">{String(peakHour.hour).padStart(2, "0")}:00</b> — <b>{peakHour.value.toLocaleString("en-IN")}</b> followers online

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
@@ -1508,7 +1508,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   const [todayStr, setTodayStr] = useState("");                       // YYYY-MM-DD for due-date sorting
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPinned, setChatPinned] = useState(false);
-  const [toast, setToast] = useState<null | { who: string; color: string; av: string; body: string; convo?: string }>(null);
+  const [toast, setToast] = useState<null | { who: string; color: string; av: React.ReactNode; body: string; convo?: string }>(null);
   // ── Undo / redo (My Day, session-scoped multi-step stack) ──────────────
   // Each entry stores the field-map to REVERSE the change (undo) and to RE-APPLY
   // it (redo). Everything goes back through the same update API. Cleared on reload.
@@ -1908,7 +1908,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     // Content-first handoff fires only the first time the writer's own task is approved.
     // Deferred (pipeline-hold) approvals skip it — ownership moves on Accept instead.
     const handoff = status === "Content - Approved" && cur.detail.owner === "Manya" && !deferHandoff ? autoAssign(cur.detail.typeLine) : null;
-    if (deferHandoff) setToast({ who: "Queued in pipeline", color: "#D97706", av: "⏳", body: `“${cur.title}” is waiting — it joins their board only when they accept.` });
+    if (deferHandoff) setToast({ who: "Queued in pipeline", color: "#D97706", av: <IconHourglass size={14} stroke={2} />, body: `“${cur.title}” is waiting — it joins their board only when they accept.` });
 
     if (handoff && handoff.toPool) {
       // Video → drop into the editors' claim pool (Nikhil / Nandu).

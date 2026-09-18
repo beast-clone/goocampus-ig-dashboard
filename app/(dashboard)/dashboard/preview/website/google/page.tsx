@@ -199,7 +199,7 @@ function QueryTable({ rows }: { rows: { query: string; clicks: number; impressio
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
       <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-4 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-400 border-b border-gray-50">
-        <div>Query</div><div className="text-right w-14">Clicks</div><div className="text-right w-16">Impr.</div><div className="text-right w-12">CTR</div><div className="text-right w-14 flex items-center justify-end gap-1">Pos.<InfoDot dir="down" align="right" text="Average Google ranking for this query. Lower is better — 1–10 is page 1, 11–20 page 2. The 🎯 marks 'striking distance' (11–20): almost on page 1, worth a push." /></div>
+        <div>Query</div><div className="text-right w-14">Clicks</div><div className="text-right w-16">Impr.</div><div className="text-right w-12">CTR</div><div className="text-right w-14 flex items-center justify-end gap-1">Pos.<InfoDot dir="down" align="right" text="Average Google ranking for this query. Lower is better — 1–10 is page 1, 11–20 page 2. The target marker flags 'striking distance' (11–20): almost on page 1, worth a push." /></div>
       </div>
       {rows.map((r, i) => {
         const pp = pos(r.position);

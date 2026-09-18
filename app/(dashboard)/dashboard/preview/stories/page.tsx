@@ -1,5 +1,5 @@
 "use client";
-import { IconArrowsLeftRight, IconUser } from "@tabler/icons-react";
+import { IconArrowsLeftRight, IconUser, IconBooks, IconCamera } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -145,7 +145,7 @@ function StoriesView({ accountId }: { accountId: string }) {
       {historical && historical.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="text-base font-medium text-[#232D42]">📚 Historical stories <span className="text-gray-400 font-normal">(from Supabase — persists forever)</span></div>
+            <div className="text-base font-medium text-[#232D42]"><IconBooks size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-gray-500" />Historical stories <span className="text-gray-400 font-normal">(from Supabase — persists forever)</span></div>
             <div className="text-xs text-gray-400">{historical.length} snapshotted</div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
@@ -161,7 +161,7 @@ function StoriesView({ accountId }: { accountId: string }) {
       {showDemo && (
         <>
           <div className="bg-brand-light border border-brand/30 text-brand rounded-lg px-4 py-3 mb-3 text-sm">
-            📸 <strong>Preview</strong> — {historicalNote
+            <IconCamera size={13} stroke={1.8} className="inline -mt-0.5 mr-1" /><strong>Preview</strong> — {historicalNote
               ? `${historicalNote}. Meanwhile these demo cards show what the tab looks like.`
               : "No live stories in the last 24h and no snapshots yet — these demo cards show what the tab looks like. Real stories replace them automatically."}
           </div>

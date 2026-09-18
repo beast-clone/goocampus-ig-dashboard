@@ -306,7 +306,7 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
             </div>
             <div className="mt-4 rounded-xl bg-[#F6F7FB] border border-gray-100 px-3 py-2.5">
               <div className="text-[13px] font-medium text-[#232D42] truncate">{ask.title}</div>
-              <div className="text-[13px] text-[#232D42] mt-1">📅 <b>{ask.from ? fmtDateShort(ask.from) : "unset"}</b> <IconArrowRight size={13} className="inline -mt-0.5 text-gray-400" /> <b className="text-brand">{ask.to ? fmtDateShort(ask.to) : "unset"}</b></div>
+              <div className="text-[13px] text-[#232D42] mt-1"><IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" /><b>{ask.from ? fmtDateShort(ask.from) : "unset"}</b> <IconArrowRight size={13} className="inline -mt-0.5 text-gray-400" /> <b className="text-brand">{ask.to ? fmtDateShort(ask.to) : "unset"}</b></div>
             </div>
             <label className="block text-[12.5px] font-medium text-[#232D42] mt-4 mb-1">Reason for the change</label>
             <textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3}

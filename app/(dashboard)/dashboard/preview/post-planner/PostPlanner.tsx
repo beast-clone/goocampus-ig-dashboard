@@ -1,4 +1,5 @@
 "use client";
+import { IconCalendarEvent, IconPhoto, IconPlayerPause, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { BrandLoader } from "@/components/BrandLoader";
@@ -251,8 +252,8 @@ export function Planner() {
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-          <button onClick={() => setTab("plan")} className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === "plan" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>✨ AI post planner</button>
-          <button onClick={() => setTab("pub")} className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === "pub" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>📅 Publishing calendar</button>
+          <button onClick={() => setTab("plan")} className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === "plan" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}><IconSparkles size={15} stroke={1.8} className="inline -mt-0.5 mr-1" />AI post planner</button>
+          <button onClick={() => setTab("pub")} className={`text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === "pub" ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}><IconCalendarEvent size={15} stroke={1.8} className="inline -mt-0.5 mr-1" />Publishing calendar</button>
         </div>
         <span className="text-[12px] font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-700">@12thplus.com</span>
         <div className="ml-auto flex items-center gap-2">
@@ -291,7 +292,7 @@ export function Planner() {
             <div className="min-w-0 flex-1">
               {data.rankedBy && /perplexity|search/.test(data.rankedBy) && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 mb-1.5">
-                  🔎 Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
+                  <IconSearch size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Ranked with live web search{/perplexity/.test(data.rankedBy) ? " · Perplexity" : ""}
                 </span>
               )}
               <p className="text-[14px] text-gray-800 leading-relaxed">{data.summary}</p>
@@ -325,7 +326,7 @@ export function Planner() {
           {/* Hold (AI tab only) */}
           {tab === "plan" && data.hold.length > 0 && (
             <div className="mt-6">
-              <div className="text-xs uppercase tracking-widest text-amber-600 font-semibold mb-2">⏸ Hold for later — would clash if posted next</div>
+              <div className="text-xs uppercase tracking-widest text-amber-600 font-semibold mb-2"><IconPlayerPause size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Hold for later — would clash if posted next</div>
               <div className="space-y-2">
                 {data.hold.map((h) => (
                   <div key={h.id} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -464,7 +465,7 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
                 : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="max-w-full max-h-full object-contain" />
             ) : (
               <div className="text-center px-4">
-                <div className="text-gray-600 text-4xl mb-2">🖼️</div>
+                <div className="text-gray-600 text-4xl mb-2"><IconPhoto size={40} stroke={1.3} className="mx-auto" /></div>
                 <div className="text-xs text-gray-400">Creative isn&rsquo;t uploaded to the dashboard yet.</div>
                 {card.assetLink && <a href={card.assetLink} target="_blank" rel="noreferrer" className="inline-block mt-2 text-xs text-brand-light hover:underline">View creative in Slack ↗</a>}
               </div>

@@ -5,7 +5,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
@@ -929,7 +929,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
             <>
               {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
               {!toScheduleLoading && toSchedule.length === 0 && (
-                <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">Nothing waiting — everything produced has been scheduled. 🎉</div>
+                <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">Nothing waiting — everything produced has been scheduled.</div>
               )}
               {!toScheduleLoading && toSchedule.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -997,11 +997,11 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                                     const dt = new Date(`${scheduleDate}T${scheduleTime}`);
                                     if (Number.isNaN(dt.getTime())) return null;
                                     const label = fmtDateTime(dt.toISOString());
-                                    return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">📅 Goes out <span className="font-medium">{label}</span></div>;
+                                    return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5"><IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Goes out <span className="font-medium">{label}</span></div>;
                                   })()}
                                   {timeSuggestions.length > 0 && (
                                     <div>
-                                      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Best time to post — when your audience is most online</div>
+                                      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5"><IconSparkles size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Best time to post — when your audience is most online</div>
                                       <div className="flex flex-wrap gap-2">
                                         {timeSuggestions.map((s, i) => {
                                           const d = new Date(s.nextOccurrenceISO);
@@ -1058,7 +1058,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
               emptyLabel={
                 listFilter === "scheduled" ? "No scheduled posts yet — schedule one from the Ready to schedule list."
                 : listFilter === "published" ? "No published posts in this window."
-                : "No failed posts — all clear. 🎉"
+                : "No failed posts — all clear."
               }
               pageHandle={pageHandle}
               onOpen={(p) => setCalItem({ kind: "scheduled", whenMs: new Date(p.scheduleTime || p.publishedAt || 0).getTime(), post: p })}
@@ -1536,7 +1536,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                 {/* Smart time suggestions */}
                 {timeSuggestions.length > 0 && (
                   <div className="mt-3">
-                    <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5">✨ Smart suggestions — when your audience is most online</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5"><IconSparkles size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Smart suggestions — when your audience is most online</div>
                     <div className="flex flex-wrap gap-2">
                       {/* The same "best time" is best for every post that day, so the
                           suggester was funnelling posts into one slot. A taken slot
@@ -1689,7 +1689,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
       {loading && <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-400">Loading produced content…</div>}
       {!loading && items.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">
-          Nothing waiting — everything produced has been scheduled. 🎉
+          Nothing waiting — everything produced has been scheduled.
         </div>
       )}
 
@@ -2007,8 +2007,8 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
   const when = post.publishedAt || post.scheduleTime;
   const whenLabel = when ? fmtDateTime(when) : "—";
 
-  const typeIcon = post.type?.toLowerCase().includes("reel") ? "🎬" :
-    post.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄";
+  const typeIcon = post.type?.toLowerCase().includes("reel") ? <IconMovie size={16} stroke={1.6} /> :
+    post.type?.toLowerCase().includes("carousel") ? <IconPhoto size={16} stroke={1.6} /> : <IconFileText size={16} stroke={1.6} />;
 
   return (
     <div className="px-4 py-3 flex items-start gap-3">
@@ -2054,7 +2054,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
         )}
         {post.failureReason && (
           <div className="text-xs text-rose-700 mt-2 bg-rose-50 border border-rose-100 rounded px-2 py-1">
-            ⚠ {post.failureReason}
+            <IconAlertTriangle size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />{post.failureReason}
           </div>
         )}
       </div>
@@ -2071,7 +2071,7 @@ function QueueRow({ post, onReschedule, onPublishNow, onEdit, onScheduleNow, bus
             disabled={busy}
             className="text-xs font-medium bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded disabled:opacity-50 whitespace-nowrap"
           >
-            📅 Schedule now
+            <IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Schedule now
           </button>
         )}
         {!readonly && post.scheduleTime && (
@@ -2139,7 +2139,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <div className="text-sm font-semibold">📅 Schedule this post</div>
+          <div className="text-sm font-semibold"><IconCalendarEvent size={16} stroke={1.8} className="inline -mt-0.5 mr-1" />Schedule this post</div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
         </div>
         <div className="text-xs text-gray-500 mb-4 line-clamp-1">{post.particulars || "(no title)"}</div>
@@ -2320,7 +2320,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
                         onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setRatio(`${i.naturalWidth} / ${i.naturalHeight}`); }} />}
                 </div>
               )
-              : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-500 text-6xl">🖼️</div>}
+              : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-400"><IconPhoto size={56} stroke={1.2} /></div>}
             {slides.length > 1 && (
               <>
                 <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)}
@@ -2523,7 +2523,7 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                             <img src={p.mediaUrl} alt="" className="w-full aspect-[3/4] object-cover" />
                           ) : (
                             <div className="w-full aspect-[3/4] bg-gray-100 flex items-center justify-center text-lg text-gray-400">
-                              {isReel ? "🎬" : p.type === "CAROUSEL_ALBUM" ? "🖼️" : "📄"}
+                              {isReel ? <IconMovie size={20} stroke={1.5} /> : p.type === "CAROUSEL_ALBUM" ? <IconPhoto size={20} stroke={1.5} /> : <IconFileText size={20} stroke={1.5} />}
                             </div>
                           )}
                           <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
@@ -2554,8 +2554,8 @@ function MiniPlanner({ posts, publishedIG, wide, onSelect }: { posts: ScheduledP
                           <img src={p.thumbnailUrl} alt="" className="w-full aspect-[3/4] object-cover" />
                         ) : (
                           <div className="w-full aspect-[3/4] bg-amber-100 flex items-center justify-center text-lg text-amber-500">
-                            {p.type?.toLowerCase().includes("reel") ? "🎬" :
-                              p.type?.toLowerCase().includes("carousel") ? "🖼️" : "📄"}
+                            {p.type?.toLowerCase().includes("reel") ? <IconMovie size={20} stroke={1.5} /> :
+                              p.type?.toLowerCase().includes("carousel") ? <IconPhoto size={20} stroke={1.5} /> : <IconFileText size={20} stroke={1.5} />}
                           </div>
                         )}
                         <div className={`absolute top-1 left-1 w-1.5 h-1.5 rounded-full ring-2 ring-white ${dot}`} />
@@ -2700,7 +2700,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
       )}
 
       {uploadError && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">⚠ {uploadError}</div>
+        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"><IconAlertTriangle size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />{uploadError}</div>
       )}
 
       {/* Thumbnails fill the full box width; drag to reorder; + tile adds more. */}
@@ -2747,7 +2747,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
               </label>
             )}
           </div>
-          <div className="text-xs text-gray-400 mt-0.5">{locked ? `🔒 ${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost` : `${metaCount}/${MAX_MEDIA} images · drag to reorder${metaCount < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{locked ? <><IconLock size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{`${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost`}</> : `${metaCount}/${MAX_MEDIA} images · drag to reorder${metaCount < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
         </div>
       )}
     </div>
@@ -2771,10 +2771,10 @@ function AISuggestBar({
   onDismiss: () => void;
 }) {
   const canFetch = contentBrief.trim().length >= 10 && !loading;
-  const kindMeta: Record<string, { emoji: string; label: string; sub: string }> = {
-    tone: { emoji: "✏️", label: "Tone-matched", sub: "matches your usual voice" },
-    seo: { emoji: "🎯", label: "SEO-optimized", sub: "search-friendly wording" },
-    punchy: { emoji: "⚡", label: "Punchier", sub: "shorter, hook-forward" },
+  const kindMeta: Record<string, { emoji: React.ReactNode; label: string; sub: string }> = {
+    tone: { emoji: <IconPencil size={16} stroke={1.8} />, label: "Tone-matched", sub: "matches your usual voice" },
+    seo: { emoji: <IconTarget size={16} stroke={1.8} />, label: "SEO-optimized", sub: "search-friendly wording" },
+    punchy: { emoji: <IconBolt size={16} stroke={1.8} />, label: "Punchier", sub: "shorter, hook-forward" },
   };
   void caption; // reserved for future "compare vs your draft" chip
 
@@ -2792,7 +2792,7 @@ function AISuggestBar({
           }`}
           title={contentBrief.trim().length < 10 ? "Fill in the 'What's this post about?' field first" : "Generate 3 caption variants"}
         >
-          {loading ? "✨ Thinking…" : "✨ Get 3 AI caption variants"}
+          <IconSparkles size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />{loading ? "Thinking…" : "Get 3 AI caption variants"}
         </button>
         {!canFetch && contentBrief.trim().length < 10 && (
           <span className="text-xs text-gray-500">Add a topic in &ldquo;What&apos;s this post about?&rdquo; to enable</span>
@@ -2813,11 +2813,11 @@ function AISuggestBar({
       {suggestions && suggestions.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {suggestions.map((v, i) => {
-            const meta = kindMeta[v.kind] || { emoji: "🪄", label: v.kind, sub: "" };
+            const meta = kindMeta[v.kind] || { emoji: <IconWand size={16} stroke={1.8} />, label: v.kind, sub: "" };
             return (
               <div key={i} className="bg-white border border-brand/30 rounded-xl p-3 flex flex-col shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-base">{meta.emoji}</span>
+                  <span className="text-brand flex">{meta.emoji}</span>
                   <div>
                     <div className="text-xs font-semibold text-gray-900">{meta.label}</div>
                     <div className="text-xs text-gray-500">{meta.sub}</div>
@@ -2833,7 +2833,7 @@ function AISuggestBar({
                 )}
                 {v.prediction && v.prediction.basis !== "no-data" && (
                   <div className="bg-brand-light rounded-lg px-2.5 py-1.5 mb-2 text-xs text-brand">
-                    📈 <b>Expected reach ~{v.prediction.avgReach.toLocaleString("en-IN")}</b>
+                    <IconTrendingUp size={14} stroke={1.8} className="inline -mt-0.5 mr-1" /><b>Expected reach ~{v.prediction.avgReach.toLocaleString("en-IN")}</b>
                     <div className="text-xs text-brand/80 leading-snug">
                       {v.prediction.basis === "hashtag-overlap" && "strong hashtag match with past posts"}
                       {v.prediction.basis === "topic-keyword" && `topic match on ${v.prediction.matchedPosts} past post${v.prediction.matchedPosts === 1 ? "" : "s"}`}
@@ -2875,7 +2875,7 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   if (loading && !prediction) {
     return (
       <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3">
-        <div className="text-xs text-brand">📊 Analyzing similar past posts…</div>
+        <div className="text-xs text-brand"><IconChartBar size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Analyzing similar past posts…</div>
       </div>
     );
   }
@@ -2883,7 +2883,7 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   if (prediction.basis === "no-data") {
     return (
       <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3">
-        <div className="text-xs text-brand">📊 No past posts yet on this account to predict from.</div>
+        <div className="text-xs text-brand"><IconChartBar size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />No past posts yet on this account to predict from.</div>
       </div>
     );
   }
@@ -2904,18 +2904,18 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   let coachingLine: React.ReactNode = null;
   if (!prediction.captionHasHashtags && liftHelps) {
     coachingLine = (
-      <>💡 Posts with hashtags average <b>{lift!.withAvgReach.toLocaleString("en-IN")}</b> reach vs <b>{lift!.withoutAvgReach.toLocaleString("en-IN")}</b> without — that&apos;s a <b>+{lift!.liftPct}%</b> lift on this account. Try adding 2-3 hashtags.</>
+      <><IconBulb size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Posts with hashtags average <b>{lift!.withAvgReach.toLocaleString("en-IN")}</b> reach vs <b>{lift!.withoutAvgReach.toLocaleString("en-IN")}</b> without — that&apos;s a <b>+{lift!.liftPct}%</b> lift on this account. Try adding 2-3 hashtags.</>
     );
   } else if (!prediction.captionHasHashtags && liftHurts) {
     coachingLine = (
-      <>💡 On this account, posts <b>without</b> hashtags average <b>{lift!.withoutAvgReach.toLocaleString("en-IN")}</b> reach vs <b>{lift!.withAvgReach.toLocaleString("en-IN")}</b> with — hashtags hurt by <b>{Math.abs(lift!.liftPct)}%</b>. Long-form caption (no hashtags) is the winning style here.</>
+      <><IconBulb size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />On this account, posts <b>without</b> hashtags average <b>{lift!.withoutAvgReach.toLocaleString("en-IN")}</b> reach vs <b>{lift!.withAvgReach.toLocaleString("en-IN")}</b> with — hashtags hurt by <b>{Math.abs(lift!.liftPct)}%</b>. Long-form caption (no hashtags) is the winning style here.</>
     );
   } else if (!prediction.captionHasHashtags && liftNeutral) {
-    coachingLine = <>💡 Hashtags don&apos;t meaningfully change reach on this account ({lift!.liftPct >= 0 ? "+" : ""}{lift!.liftPct}%). Your call.</>;
+    coachingLine = <><IconBulb size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Hashtags don&apos;t meaningfully change reach on this account ({lift!.liftPct >= 0 ? "+" : ""}{lift!.liftPct}%). Your call.</>;
   } else if (prediction.captionHasHashtags && prediction.basis === "hashtag-overlap") {
-    coachingLine = <>✅ You&apos;re using hashtags this account has hit before — strong signal for the prediction.</>;
+    coachingLine = <><IconCircleCheck size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />You&apos;re using hashtags this account has hit before — strong signal for the prediction.</>;
   } else if (prediction.captionHasHashtags && prediction.basis !== "hashtag-overlap") {
-    coachingLine = <>⚠️ These hashtags are new for this account — no past performance data on them. Prediction falls back to topic/baseline match.</>;
+    coachingLine = <><IconAlertTriangle size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />These hashtags are new for this account — no past performance data on them. Prediction falls back to topic/baseline match.</>;
   }
 
   return (

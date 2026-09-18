@@ -1,4 +1,5 @@
 "use client";
+import { IconHeart, IconMessageCircle, IconStar, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -196,7 +197,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
               niche === "__tracked__" ? "bg-brand text-white border-brand" : "bg-white text-gray-700 border-gray-200 hover:border-brand"
             }`}
           >
-            ⭐ Tracked ({tracked.length})
+            <IconStar size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Tracked ({tracked.length})
           </button>
         )}
         <span className="text-gray-300 mx-1">|</span>
@@ -246,7 +247,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       {topPostsAll.length > 0 && (
         <div className="bg-white rounded-2xl p-4 mb-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium text-[#232D42]">🏆 Top competitor posts</span>
+            <span className="text-sm font-medium text-[#232D42]"><IconTrophy size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-amber-500" />Top competitor posts</span>
             <span className="text-xs text-gray-400">across all competitors shown · ranked by engagement</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
@@ -262,11 +263,11 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
                   {i === 0 && (
-                    <span className="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-semibold px-2 h-5 grid place-items-center rounded-full shadow">🏆 Top</span>
+                    <span className="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-semibold px-2 h-5 grid place-items-center rounded-full shadow"><IconTrophy size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Top</span>
                   )}
                 </div>
                 <div className="mt-1.5 text-[12px] font-medium text-[#232D42] truncate">@{handle}</div>
-                <div className="text-[11px] text-gray-500 tabular-nums">♥ {fmt(m.like_count)} · 💬 {fmt(m.comments_count)}</div>
+                <div className="text-[11px] text-gray-500 tabular-nums"><IconHeart size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.like_count)} · <IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.comments_count)}</div>
               </a>
             ))}
           </div>
@@ -388,8 +389,8 @@ function CompetitorCard({ c, medianER, onOpen, onRemove, periodDays, category }:
                   <div className="min-w-0 flex-1">
                     <div className="text-[12px] text-gray-700 truncate">{m.caption ? m.caption.replace(/\s+/g, " ").trim() : m.media_type}</div>
                     <div className="text-[11px] text-gray-500 flex gap-3 mt-0.5 tabular-nums">
-                      <span>♥ {fmt(m.like_count)}</span>
-                      <span>💬 {fmt(m.comments_count)}</span>
+                      <span><IconHeart size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.like_count)}</span>
+                      <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.comments_count)}</span>
                       <span className="text-gray-400">{er.toFixed(2)}% ER</span>
                     </div>
                   </div>
@@ -469,14 +470,14 @@ function CompetitorDetail({ c, medianER, onBack }: { c: Competitor; medianER: nu
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
                     ) : null}
-                    <span className={`absolute top-2 left-2 rounded-full text-white text-[11px] font-semibold grid place-items-center shadow ${i === 0 ? "px-2 h-6 bg-amber-500" : "w-6 h-6 bg-brand"}`}>{i === 0 ? "🏆 Top" : i + 1}</span>
+                    <span className={`absolute top-2 left-2 rounded-full text-white text-[11px] font-semibold grid place-items-center shadow ${i === 0 ? "px-2 h-6 bg-amber-500" : "w-6 h-6 bg-brand"}`}>{i === 0 ? <><IconTrophy size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Top</> : i + 1}</span>
                     <span className={`absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${chip.cls}`}>{chip.label}</span>
                   </div>
                   <div className="p-3">
                     <div className="text-[12px] text-gray-700 line-clamp-2 h-9">{m.caption ? m.caption.replace(/\s+/g, " ").trim() : "(no caption)"}</div>
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500 tabular-nums">
-                      <span>♥ {fmt(m.like_count)}</span>
-                      <span>💬 {fmt(m.comments_count)}</span>
+                      <span><IconHeart size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.like_count)}</span>
+                      <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.comments_count)}</span>
                       <span className="ml-auto text-emerald-600 font-semibold">{er.toFixed(2)}%</span>
                     </div>
                   </div>

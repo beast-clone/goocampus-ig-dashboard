@@ -1,4 +1,5 @@
 "use client";
+import { IconAlertTriangle, IconHeart, IconSparkles } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useV2Href } from "@/lib/previewHref";
@@ -537,7 +538,7 @@ function FormatComparisonCard({ accountId, defaultRange }: { accountId: string; 
         return (
           <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 p-4">
             <div className="text-[11px] uppercase tracking-widest text-amber-800 font-semibold mb-1.5">
-              ⚠ Small sample — read with caution
+              <IconAlertTriangle size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Small sample — read with caution
             </div>
             <div className="text-[13px] text-amber-900 leading-relaxed">
               Only <b className="tabular-nums">{totalPosts}</b> post{totalPosts === 1 ? "" : "s"} in this range. That&rsquo;s not enough posts to draw a real conclusion — one lucky Reel could tip the whole picture.
@@ -594,7 +595,7 @@ function FormatComparisonCard({ accountId, defaultRange }: { accountId: string; 
           {/* Advisor block — no regenerate. The advice is stated, not offered as an option. */}
           <div className="rounded-2xl border border-brand/30 bg-gradient-to-br from-brand/5 to-white p-5">
             <div className="text-[10.5px] uppercase tracking-widest text-brand font-semibold mb-3">
-              ✨ In my opinion — marketing lead read
+              <IconSparkles size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />In my opinion — marketing lead read
             </div>
 
             {adviceLoading && !advice && (
@@ -740,7 +741,7 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
                   <div className="flex items-center gap-2 text-[11px] text-gray-500 tabular-nums mb-3">
                     <span>{fmtNum(p.reach || 0)} reach</span>
                     <span>·</span>
-                    <span>{fmtNum(p.likes || 0)} ❤</span>
+                    <span>{fmtNum(p.likes || 0)} <IconHeart size={12} stroke={1.8} className="inline -mt-0.5" /></span>
                   </div>
                   <Link
                     href={v2(`/dashboard/scheduler?draft=${encodeURIComponent(draft)}`)}

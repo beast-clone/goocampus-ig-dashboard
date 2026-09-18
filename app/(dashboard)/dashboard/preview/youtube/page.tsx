@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL } from "@/lib/brand-platforms";
 import { ChartCard, PieList, AgeGenderPies, regionName } from "@/components/PlatformAudience";
-import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
+import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy, IconAlertTriangle } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -111,9 +111,9 @@ function Inner({ range }: { range: { from: string; to: string } }) {
           {/* When live, the LiveIndicator already says "Live · fetched" — don't
               double it with a second badge. Only flag the non-live states. */}
           {data?.source === "live" ? null : data?.liveError ? (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}>⚠ Live call failed · showing demo</span>
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200" title={data.liveError}><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Live call failed · showing demo</span>
           ) : (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="YouTube API not yet connected — showing representative sample data.">⚠ Demo data</span>
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200" title="YouTube API not yet connected — showing representative sample data."><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />Demo data</span>
           )}
           <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />
         </div>

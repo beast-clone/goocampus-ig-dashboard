@@ -2,7 +2,7 @@
 import { format, parseISO } from "date-fns";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { useApi } from "@/lib/use-api";
-import { IconThumbUp, IconMessageCircle, IconShare3 } from "@tabler/icons-react";
+import { IconThumbUp, IconMessageCircle, IconShare3, IconTrophy } from "@tabler/icons-react";
 
 // Facebook content page (sidebar: Facebook → Posts) — the page's recent posts
 // with per-post likes/comments/shares, sorted by engagement.
@@ -63,7 +63,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           {/* Highlighted TOP PERFORMERS hero — the 3 best by engagement */}
           <div className="bg-blue-50/50 border border-blue-200 rounded-2xl p-5 mb-1">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-base font-semibold text-gray-900">🏆 Top performers</span>
+              <span className="text-base font-semibold text-gray-900"><IconTrophy size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-amber-500" />Top performers</span>
               <span className="text-xs text-gray-400">· by engagement</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -1,4 +1,5 @@
 "use client";
+import { IconShoppingBag } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -334,7 +335,7 @@ function CreativeMedia({
   if (isDPA) {
     return (
       <div className="bg-gradient-to-br from-amber-50 to-orange-50 px-4 py-3 flex items-center gap-3 text-xs">
-        <div className="text-xl flex-shrink-0">🛍️</div>
+        <div className="text-xl flex-shrink-0"><IconShoppingBag size={22} stroke={1.6} className="text-gray-400" /></div>
         <div>
           <div className="font-medium text-amber-700">Catalog (Dynamic Product) Ad</div>
           <div className="text-amber-600 text-[11px]">Creative is per-product — enable &ldquo;Full creative&rdquo; or open in Ad Library.</div>
