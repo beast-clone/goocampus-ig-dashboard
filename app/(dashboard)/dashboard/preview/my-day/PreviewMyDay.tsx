@@ -82,17 +82,17 @@ const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inVie
 // Per-person status tabs (MY_DAY_SPEC §5). Each tab shows exactly ONE stage and
 // lists tasks where the person is owner OR collaborator. Manya (the writer) works the
 // content stages + watches claims; producers work only their approved output.
-type TabDef = { key: string; label: string; statuses: CCStatus[]; videoOnly?: boolean; nonVideoOnly?: boolean };
+type TabDef = { key: string; label: string; short: string; statuses: CCStatus[]; videoOnly?: boolean; nonVideoOnly?: boolean };
 const MANYA_TABS: TabDef[] = [
-  { key: "pending",  label: "Content Pending",        statuses: ["Content - Pending", "Content - In Progress"] },
-  { key: "approved", label: "Content Approved",       statuses: ["Content - Approved"], nonVideoOnly: true },
-  { key: "feedback", label: "Incorporating Feedback", statuses: ["Incorporating Feedback"] },
-  { key: "claimed",  label: "Claimed Task",           statuses: ["Content - Approved"], videoOnly: true },
+  { key: "pending",  label: "Content Pending",        short: "Pending",  statuses: ["Content - Pending", "Content - In Progress"] },
+  { key: "approved", label: "Content Approved",       short: "Approved", statuses: ["Content - Approved"], nonVideoOnly: true },
+  { key: "feedback", label: "Incorporating Feedback", short: "Feedback", statuses: ["Incorporating Feedback"] },
+  { key: "claimed",  label: "Claimed Task",           short: "Claimed",  statuses: ["Content - Approved"], videoOnly: true },
 ];
 const PRODUCER_TABS: TabDef[] = [
-  { key: "approved", label: "Content Approved",       statuses: ["Content - Approved", "Output - In Progress"] },
-  { key: "feedback", label: "Incorporating Feedback", statuses: ["Incorporating Feedback"] },
-  { key: "output",   label: "Output Ready",           statuses: ["Output - Ready"] },
+  { key: "approved", label: "Content Approved",       short: "Approved", statuses: ["Content - Approved", "Output - In Progress"] },
+  { key: "feedback", label: "Incorporating Feedback", short: "Feedback", statuses: ["Incorporating Feedback"] },
+  { key: "output",   label: "Output Ready",           short: "Output",   statuses: ["Output - Ready"] },
 ];
 function tabsForPerson(name: string): TabDef[] {
   return name === "Manya" || name === "Maheen" ? MANYA_TABS : PRODUCER_TABS;
@@ -2742,8 +2742,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className="btn primary sm" onClick={() => setShowNew(true)}>+ New task</button> : <span className="lbl">by due date</span>}</div>
             <div className="task-tabs">
               {tabCounts.map((tb) => (
-                <button key={tb.key} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); }}>
-                  {tb.label}<span className="task-tab-n">{tb.n}</span>
+                // Short names: four full status names don't fit this column (the last
+                // tab was clipped). The full name is the tooltip.
+                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); }}>
+                  {tb.short}<span className="task-tab-n">{tb.n}</span>
                 </button>
               ))}
             </div>
