@@ -9,7 +9,11 @@ import { useApi } from "@/lib/use-api";
 // The pins themselves only live in the commenter's own browser; this reads the
 // server-side copy each comment also writes (lib/comments.ts). Admin only.
 
-type Comment = { id: string; path: string; text: string; author: string; ts: number; resolved?: boolean; resolvedBy?: string; resolvedAt?: number };
+type Comment = {
+  id: string; path: string; text: string; author: string; ts: number;
+  ctx?: { target?: string; section?: string; url?: string; viewport?: string };
+  resolved?: boolean; resolvedBy?: string; resolvedAt?: number; resolvedNote?: string;
+};
 type Filter = "open" | "resolved" | "all";
 
 // "/dashboard/preview/marketing-hub?tab=master" → "Marketing hub · master"
@@ -36,15 +40,18 @@ function CommentsList() {
   const [filter, setFilter] = useState<Filter>("open");
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null); // comment being resolved
+  const [note, setNote] = useState("");
   const all = useMemo(() => data?.comments || [], [data]);
   const counts = { open: all.filter((c) => !c.resolved).length, resolved: all.filter((c) => c.resolved).length, all: all.length };
   const shown = all.filter((c) => (filter === "all" ? true : filter === "open" ? !c.resolved : !!c.resolved));
 
-  const setResolved = async (c: Comment, resolved: boolean) => {
+  const setResolved = async (c: Comment, resolved: boolean, resolvedNote?: string) => {
     setBusy(c.id); setFailed(null);
     try {
-      const r = await fetch("/api/comments", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, resolved }) });
+      const r = await fetch("/api/comments", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, resolved, note: resolvedNote }) });
       if (!r.ok) { const j = await r.json().catch(() => ({})); setFailed(j.error || "Couldn't update that comment."); return; }
+      setNoteFor(null); setNote("");
       await mutate();
     } finally { setBusy(null); }
   };
@@ -86,11 +93,31 @@ function CommentsList() {
                   <span className="text-[14px] font-medium text-[#232D42]">{c.author || "Someone"}</span>
                   <span>{when(c.ts)}</span>
                   <span>·</span>
-                  <a href={c.path} className="inline-flex items-center gap-1 text-brand hover:underline">{pageLabel(c.path)}<IconExternalLink size={12} stroke={1.8} /></a>
+                  <a href={c.ctx?.url || c.path} className="inline-flex items-center gap-1 text-brand hover:underline">{pageLabel(c.ctx?.url || c.path)}<IconExternalLink size={12} stroke={1.8} /></a>
                 </div>
+                {c.ctx && (c.ctx.target || c.ctx.section) && (
+                  <div className="text-[12px] text-[#8A92A6] mt-0.5">
+                    {c.ctx.section && <>In <span className="text-[#4A5468]">{c.ctx.section}</span></>}
+                    {c.ctx.section && c.ctx.target && " · "}
+                    {c.ctx.target && <>clicked <span className="text-[#4A5468]">{c.ctx.target}</span></>}
+                    {c.ctx.viewport && <> · screen {c.ctx.viewport}</>}
+                  </div>
+                )}
                 <div className={`text-[14px] mt-1 whitespace-pre-wrap ${c.resolved ? "text-[#8A92A6]" : "text-[#232D42]"}`}>{c.text}</div>
                 {c.resolved && c.resolvedAt && (
                   <div className="text-[12px] text-[#2F9E6F] mt-1">Resolved {when(c.resolvedAt)}{c.resolvedBy ? ` by ${c.resolvedBy.charAt(0).toUpperCase()}${c.resolvedBy.slice(1)}` : ""}</div>
+                )}
+                {c.resolved && c.resolvedNote && (
+                  <div className="text-[14px] text-[#232D42] mt-1 rounded bg-[#E8F6F0] px-3 py-2"><span className="text-[12px] text-[#2F9E6F] font-medium">What was done · </span>{c.resolvedNote}</div>
+                )}
+                {noteFor === c.id && (
+                  <div className="mt-2 flex items-start gap-2">
+                    <textarea autoFocus rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What was done? (optional)"
+                      className="flex-1 rounded border border-gray-200 px-3 py-2 text-[14px] outline-none focus:border-[#3A57E8]" />
+                    <button onClick={() => setResolved(c, true, note)} disabled={busy === c.id}
+                      className="h-9 px-3 rounded bg-brand text-white text-[14px] font-medium disabled:opacity-50">{busy === c.id ? "Saving…" : "Save"}</button>
+                    <button onClick={() => { setNoteFor(null); setNote(""); }} className="h-9 px-2 text-[14px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+                  </div>
                 )}
               </div>
               {c.resolved ? (
@@ -99,7 +126,7 @@ function CommentsList() {
                   <IconArrowBackUp size={16} stroke={1.8} />Reopen
                 </button>
               ) : (
-                <button onClick={() => setResolved(c, true)} disabled={busy === c.id}
+                <button onClick={() => { setNoteFor(c.id); setNote(""); }} disabled={busy === c.id || noteFor === c.id}
                   className="h-9 px-3 rounded bg-brand text-white text-[14px] font-medium inline-flex items-center gap-1.5 hover:brightness-110 disabled:opacity-50 flex-shrink-0">
                   <IconCheck size={16} stroke={2} />{busy === c.id ? "Saving…" : "Mark resolved"}
                 </button>

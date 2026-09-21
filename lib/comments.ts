@@ -9,8 +9,11 @@ const SOURCE = "dash_comment";
 
 export type StoredComment = {
   id: string; path: string; text: string; author: string; ts: number;
+  // Where they were pointing (clicked element, its section, full URL, screen size).
+  ctx?: { target?: string; section?: string; url?: string; viewport?: string };
   // Set from the admin Comments page. Kept in the same payload (no migration).
   resolved?: boolean; resolvedBy?: string; resolvedAt?: number;
+  resolvedNote?: string; // what was done about it
 };
 
 export async function saveComment(c: StoredComment): Promise<void> {
@@ -50,7 +53,7 @@ export async function listComments(limit = 500): Promise<StoredComment[]> {
 }
 
 // Mark a comment resolved / reopen it. Returns false if it doesn't exist.
-export async function setCommentResolved(id: string, resolved: boolean, by: string): Promise<boolean> {
+export async function setCommentResolved(id: string, resolved: boolean, by: string, note?: string): Promise<boolean> {
   const sb = getSupabase();
   if (!sb) return false;
   const key = `comment:${id}`;
@@ -58,8 +61,8 @@ export async function setCommentResolved(id: string, resolved: boolean, by: stri
   if (!data) return false;
   const c = data.payload as StoredComment;
   const next: StoredComment = resolved
-    ? { ...c, resolved: true, resolvedBy: by, resolvedAt: Date.now() }
-    : { ...c, resolved: false, resolvedBy: undefined, resolvedAt: undefined };
+    ? { ...c, resolved: true, resolvedBy: by, resolvedAt: Date.now(), resolvedNote: note?.trim() || undefined }
+    : { ...c, resolved: false, resolvedBy: undefined, resolvedAt: undefined, resolvedNote: undefined };
   const { error } = await sb.from("discover_cache").update({ payload: next }).eq("cache_key", key);
   if (error) throw new Error(error.message);
   return true;

@@ -25,7 +25,62 @@ type Comment = {
   author: string;
   ts: number;
   resolved?: boolean;
+  ctx?: CommentContext;
 };
+
+// What the person was pointing at, so whoever picks the comment up (including
+// Claude working through the Comments page) knows exactly where to look.
+export type CommentContext = {
+  target: string;   // the clicked element, e.g. 'button "Start"' or 'text "NZ Ebook - Carousel"'
+  section: string;  // the card/section it sits in, by its heading
+  url: string;      // full path + query (?tab=…)
+  viewport: string; // e.g. "1366×768 @2x"
+};
+
+const clip = (s: string, n: number) => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+
+// Describe one element in plain words: its role and its visible label.
+function describeEl(el: HTMLElement): string {
+  const tag = el.tagName.toLowerCase();
+  const kind = el.getAttribute("role") || (tag === "a" ? "link" : tag === "button" ? "button" : tag === "input" || tag === "textarea" || tag === "select" ? "field" : tag === "img" ? "image" : tag === "svg" || tag === "path" ? "icon" : /^h[1-6]$/.test(tag) ? "heading" : tag === "td" || tag === "th" ? "table cell" : "text");
+  // Visible text first — a tooltip (title) describes the gesture, not the thing.
+  const label = el.getAttribute("aria-label") || el.innerText || el.getAttribute("placeholder") || (el as HTMLInputElement).value || el.getAttribute("alt") || el.getAttribute("title") || "";
+  return label ? `${kind} "${clip(label, 80)}"` : kind;
+}
+
+// The element under a point (the comment overlay made click-through for a moment)
+// plus the section-like container around it, named by its heading.
+function contextAt(overlay: HTMLElement | null, clientX: number, clientY: number): CommentContext {
+  const prev = overlay?.style.pointerEvents ?? "";
+  if (overlay) overlay.style.pointerEvents = "none";
+  let el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+  if (overlay) overlay.style.pointerEvents = prev;
+  // An icon/path inside a button reads better as the button itself.
+  const clickable = el?.closest("button, a, [role=button], input, select, textarea") as HTMLElement | null;
+  // A bare text line ("Carousel · 1h") reads better as the item it belongs to — widen
+  // to the largest ancestor that is still one short item (a task block, a card row).
+  let target = clickable || el;
+  if (!clickable) {
+    let up = el?.parentElement || null;
+    while (up && up !== document.body && (up.innerText || "").trim().length <= 120) { target = up; up = up.parentElement; }
+  }
+  let section = "";
+  let node: HTMLElement | null = el;
+  for (let d = 0; node && d < 16 && !section; d++, node = node.parentElement) {
+    const cls = typeof node.className === "string" ? node.className : "";
+    const tag = node.tagName.toLowerCase();
+    if (tag === "section" || tag === "table" || tag === "article" || /rounded-(lg|xl|2xl)|\bcard\b|\bhero\b/.test(cls)) {
+      const h = node.querySelector("h1, h2, h3, h4, [role=heading]") as HTMLElement | null;
+      section = clip(h?.innerText || node.innerText.split("\n")[0] || "", 70);
+    }
+  }
+  return {
+    target: target ? describeEl(target) : "",
+    section,
+    url: window.location.pathname + window.location.search,
+    viewport: `${window.innerWidth}×${window.innerHeight}${window.devicePixelRatio > 1 ? ` @${window.devicePixelRatio}x` : ""}`,
+  };
+}
 
 const LS_KEY = "gc-dash:comments:v1";
 const HIDE_ON = ["/login"]; // never show the tool here
@@ -67,7 +122,7 @@ export function CommentMode() {
   const [mounted, setMounted] = useState(false);
   const [on, setOn] = useState(false);
   const [all, setAll] = useState<Comment[]>([]);
-  const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
+  const [draft, setDraft] = useState<{ x: number; y: number; ctx?: CommentContext } | null>(null);
   const [draftText, setDraftText] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [author, setAuthor] = useState("You");
@@ -171,8 +226,10 @@ export function CommentMode() {
   const onCapture = (e: React.MouseEvent) => {
     const x = e.clientX + window.scrollX;
     const y = e.clientY + window.scrollY;
+    let ctx: CommentContext | undefined;
+    try { ctx = contextAt(overlayRef.current, e.clientX, e.clientY); } catch { /* context is a bonus */ }
     setOpenId(null);
-    setDraft({ x, y });
+    setDraft({ x, y, ctx });
     setDraftText("");
     setHi(null);
   };
@@ -184,12 +241,12 @@ export function CommentMode() {
       setDraft(null);
       return;
     }
-    const c: Comment = { id: newId(), path: pathname || "/", x: draft.x, y: draft.y, text, author, ts: Date.now() };
+    const c: Comment = { id: newId(), path: pathname || "/", x: draft.x, y: draft.y, text, author, ts: Date.now(), ctx: draft.ctx };
     persist([...all, c]);
     // Also log it server-side (best-effort) so it lands in the daily digest email.
     fetch("/api/comments", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: c.id, path: c.path, text: c.text, author: c.author, ts: c.ts }),
+      body: JSON.stringify({ id: c.id, path: c.path, text: c.text, author: c.author, ts: c.ts, ctx: c.ctx }),
     }).catch(() => {});
     setDraft(null);
     setDraftText("");

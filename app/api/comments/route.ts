@@ -12,7 +12,11 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   if (!getSessionUserId()) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   try {
-    const b = (await req.json()) as { id?: string; path?: string; text?: string; author?: string; ts?: number };
+    const b = (await req.json()) as { id?: string; path?: string; text?: string; author?: string; ts?: number; ctx?: Record<string, unknown> };
+    const s = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);
+    const ctx = b.ctx && typeof b.ctx === "object"
+      ? { target: s(b.ctx.target, 200), section: s(b.ctx.section, 160), url: s(b.ctx.url, 400), viewport: s(b.ctx.viewport, 40) }
+      : undefined;
     const text = (b.text || "").trim();
     if (!text) return NextResponse.json({ error: "empty comment" }, { status: 400 });
     await saveComment({
@@ -21,6 +25,7 @@ export async function POST(req: Request) {
       text: text.slice(0, 4000),
       author: (b.author || "Someone").slice(0, 80),
       ts: typeof b.ts === "number" ? b.ts : Date.now(),
+      ...(ctx ? { ctx } : {}),
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -40,14 +45,16 @@ export async function GET() {
   }
 }
 
-// PATCH /api/comments { id, resolved } — admin marks a comment resolved or reopens it.
+// PATCH /api/comments { id, resolved, note? } — admin marks a comment resolved (with an
+// optional "what was done" note) or reopens it.
 export async function PATCH(req: Request) {
   const denied = await requireSection("system");
   if (denied) return denied;
   try {
-    const b = (await req.json().catch(() => ({}))) as { id?: string; resolved?: boolean };
+    const b = (await req.json().catch(() => ({}))) as { id?: string; resolved?: boolean; note?: string };
     if (!b.id || typeof b.resolved !== "boolean") return NextResponse.json({ error: "id and resolved required" }, { status: 400 });
-    const ok = await setCommentResolved(b.id, b.resolved, getSessionUserId() || "admin");
+    const note = typeof b.note === "string" ? b.note.slice(0, 1000) : undefined;
+    const ok = await setCommentResolved(b.id, b.resolved, getSessionUserId() || "admin", note);
     return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "Comment not found" }, { status: 404 });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not update the comment"), { status: 502 });
