@@ -60,7 +60,7 @@ export const SECTIONS: { key: Section; label: string; tabs: string; adminOnly?: 
   { key: "ads", label: "Ads", tabs: "Ads, Competitor Ads, Benchmark" },
   { key: "sales", label: "Sales", tabs: "Marketing Campaigns, Social Leads, Sales Hub" },
   { key: "ai", label: "AI", tabs: "AI Insights, AI Reports" },
-  { key: "system", label: "System", tabs: "Integrations, Diagnostics, Tools, Team", adminOnly: true },
+  { key: "system", label: "System", tabs: "Integrations, Diagnostics, Tools, Team, Comments", adminOnly: true },
 ];
 // Sections a non-admin can be granted (system excluded).
 export const GRANTABLE_SECTIONS = SECTIONS.filter((s) => !s.adminOnly);
@@ -73,7 +73,7 @@ export const TAB_SECTION: Record<string, Section> = {
   ads: "ads", competitors: "ads", benchmark: "ads",
   leads: "sales", sales: "sales", campaigns: "sales",
   "ai-insights": "ai", "ai-reports": "ai",
-  integrations: "system", diagnostics: "system", tools: "system", team: "system",
+  integrations: "system", diagnostics: "system", tools: "system", team: "system", comments: "system",
 };
 
 export type Sections = Partial<Record<Section, boolean>>;

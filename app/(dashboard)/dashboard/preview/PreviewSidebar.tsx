@@ -7,7 +7,7 @@ import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles,
   IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
-  IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconActivityHeartbeat,
+  IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
@@ -124,6 +124,7 @@ const GROUPS: Group[] = [
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
     { label: "Team",         href: `${HUB}/team`,         icon: IconUsersGroup },
+    { label: "Comments",     href: `${HUB}/comments`,     icon: IconMessageCircle },
   ] },
 ];
 

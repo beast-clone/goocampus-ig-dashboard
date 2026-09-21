@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSessionUserId } from "@/lib/auth";
-import { saveComment } from "@/lib/comments";
+import { listComments, saveComment, setCommentResolved } from "@/lib/comments";
+import { requireSection } from "@/lib/api-guard";
 
 // Log a dashboard comment server-side (for the daily digest email). Any signed-in
 // user can post; the widget keeps its own localStorage copy for the pins.
@@ -24,5 +25,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not log the comment"), { status: 502 });
+  }
+}
+
+// GET /api/comments → { comments } — every dashboard comment, newest first.
+// Admin only (the System section), like Team and Integrations.
+export async function GET() {
+  const denied = await requireSection("system");
+  if (denied) return denied;
+  try {
+    return NextResponse.json({ comments: await listComments() });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Could not load comments"), { status: 502 });
+  }
+}
+
+// PATCH /api/comments { id, resolved } — admin marks a comment resolved or reopens it.
+export async function PATCH(req: Request) {
+  const denied = await requireSection("system");
+  if (denied) return denied;
+  try {
+    const b = (await req.json().catch(() => ({}))) as { id?: string; resolved?: boolean };
+    if (!b.id || typeof b.resolved !== "boolean") return NextResponse.json({ error: "id and resolved required" }, { status: 400 });
+    const ok = await setCommentResolved(b.id, b.resolved, getSessionUserId() || "admin");
+    return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "Comment not found" }, { status: 404 });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Could not update the comment"), { status: 502 });
   }
 }
