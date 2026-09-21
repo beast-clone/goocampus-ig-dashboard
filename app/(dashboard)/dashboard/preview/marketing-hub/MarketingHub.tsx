@@ -598,7 +598,14 @@ type PlanBlk = { kind: "task" | "lunch" | "free"; label: string; dur: number; ro
 // span around the pinned 1–2 PM lunch. Used by both the Today row (all pending work)
 // and each Week mini-day (that day's tasks). A task running into lunch splits around
 // it; anything past 7 PM overflows (spills to another day).
-function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
+// Today's first login per person (minutes after 9 AM), shared by every Workload row.
+// The day is planned from max(shift start, login) — same rule as My Day.
+function useTodayLogins(): Record<string, number> {
+  const { data } = useApi<{ logins: Record<string, number> }>("/api/my-day/logins", { refreshInterval: 5 * 60_000 });
+  return data?.logins || {};
+}
+
+function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
   const queue = queueRows
     .filter((r) => !DONE_STATUSES.includes(r.status))
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
@@ -606,7 +613,7 @@ function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]
   const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
   const dayEnd = shiftEnd(member);
-  let cur = shiftStart(member), lunchDone = false, overflow = 0;
+  let cur = Math.max(shiftStart(member), loginMin ?? shiftStart(member)), lunchDone = false, overflow = 0;
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
   for (const q of queue) {
     if (cur >= dayEnd) { overflow++; continue; }
@@ -636,7 +643,8 @@ function buildDayPlan(queueRows: Row[], member: TeamMember): { blocks: PlanBlk[]
 function MiniDayTimeline({ date, rows, member, isToday, isPast }: { date: Date; rows: Row[]; member: TeamMember; isToday: boolean; isPast: boolean }) {
   const key = ymd(date);
   const dayRows = rows.filter((r) => ((r.publishingDate || r.dueDate || "").slice(0, 10)) === key && !DONE_STATUSES.includes(r.status));
-  const { blocks, taskBlocks, free, overflow } = buildDayPlan(dayRows, member);
+  const logins = useTodayLogins();
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(dayRows, member, isToday ? logins[member.key] : undefined);
   const booked = taskBlocks.length;
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
@@ -700,8 +708,10 @@ function PersonTimelineRow({ card }: {
 }) {
   const { member, mine, today, week, overdue, done, roleHighlight } = card;
 
-  // Lay all pending work into today's plan (9 AM–7 PM around the pinned 1–2 PM lunch).
-  const { blocks, taskBlocks, free, overflow } = buildDayPlan(mine, member);
+  // Lay all pending work into today's plan, from when they logged in (never before
+  // their shift), around the pinned 1–2 PM lunch.
+  const logins = useTodayLogins();
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(mine, member, logins[member.key]);
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();

@@ -252,6 +252,14 @@ const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per wee
 // Per-person shift start (minutes after 9 AM). Nandu works the LATE shift 10 AM–7 PM,
 // so his day lays out from 10 AM; everyone else starts at 9 AM.
 const shiftStartOf = (name: string) => (name === "Nandu" ? 60 : 0);
+// Working minutes left in a shift when the day actually starts at `start` (minutes
+// after 9 AM) — the shift still ends at its usual time and lunch never counts.
+function workAvailFrom(start: number, shift: number): number {
+  const end = shift + WORK_MIN + LUNCH_MIN;
+  if (start >= end) return 0;
+  const lunch = Math.max(0, Math.min(end, LUNCH_AT + LUNCH_MIN) - Math.max(start, LUNCH_AT));
+  return end - start - lunch;
+}
 // Whose TIMELINE a task belongs on, by status. Manya (writer) keeps only her
 // pre-approval work — the moment she marks it Content-Approved her part is done, so
 // it leaves her timeline and lands on the producer's side. Producers get everything
@@ -1274,7 +1282,7 @@ type CapBlock = { k: string; l: string; f: number; s?: "done" | "now"; start?: n
 // REAL data: each producer's day is laid out from their actual in-production tasks
 // (duration = estimate by type), sequential from 9 AM around the fixed 1 PM lunch.
 // done/now flags come from the real clock. No fabricated schedules.
-function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks: Task[]; nowMin: number | null }) {
+function TeamCapacityPage({ onBack, tasks, nowMin, logins }: { onBack: () => void; tasks: Task[]; nowMin: number | null; logins: Record<string, number> }) {
   const PRODUCERS = [
     { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
     { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
@@ -1299,9 +1307,13 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
       .filter((t) => span === "week" || !t.due || t.due <= todayStr)
       .map((t) => ({ label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine), video: /reel|short|video|long-form/i.test(t.detail.typeLine), due: t.due }));
     const committed = mine.reduce((s, t) => s + t.dur, 0);
-    const freeMin = capacity - committed;
+    // Today's day starts at max(shift, login) — a 10 AM login leaves less room.
+    const shift = shiftStartOf(p.name);
+    const dayFrom = Math.max(shift, logins[p.key] ?? shift);
+    const rowCap = span === "today" ? workAvailFrom(dayFrom, shift) : capacity;
+    const freeMin = rowCap - committed;
     const blocks: CapBlock[] = [];
-    let cursor = shiftStartOf(p.name), lunchDone = false, current: { label: string; endsIn: number } | null = null;
+    let cursor = dayFrom, lunchDone = false, current: { label: string; endsIn: number } | null = null;
     // Week view buckets these into Mon–Fri columns (below). todayCol = live column.
     const todayW = (d0.getDay() + 6) % 7;                 // Mon=0 … Sun=6
     const todayCol = todayW <= 4 ? todayW : 0;            // weekend viewer → Mon
@@ -1346,7 +1358,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin }: { onBack: () => void; tasks
         weekDays[col].tasks.push({ label: t.label, dur: t.dur, video: t.video });
       }
     }
-    const badge: "free" | "some" | "full" = freeMin >= capacity / 4 ? "free" : freeMin > 0 ? "some" : "full";
+    const badge: "free" | "some" | "full" = freeMin >= rowCap / 4 ? "free" : freeMin > 0 ? "some" : "full";
     // (cast: TS can't see the closure assignment inside pushTask)
     const cur = current as { label: string; endsIn: number } | null;
     const next = cur || (mine.length ? { label: mine[0].label, endsIn: 0 } : null);
@@ -1561,6 +1573,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
   const [dayStartAt, setDayStartAt] = useState("");
   const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
+  // Today's first login per person (mh_attendance) — plans start at max(shift, login).
+  const [teamLogins, setTeamLogins] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let live = true;
+    const load = () => fetch("/api/my-day/logins", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (live && j?.logins) setTeamLogins(j.logins); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => { live = false; clearInterval(t); };
+  }, []);
   const [loggedOut, setLoggedOut] = useState(false);    // End day → demo logout overlay (no real session end)
   const [profileOpen, setProfileOpen] = useState(false); // header profile chip dropdown
   const [showEod, setShowEod] = useState(false);        // End-today wrap-up modal
@@ -2015,16 +2037,24 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   }, [plan, tasks, claimedTasks, samvaya, me.name]);
   // Capacity cap (spec §9, fixes Bug 3): only what fits the 8h shift lands on the
   // timeline; the rest SPILLS OVER (shown separately) instead of cramming 28h into 8h.
+  // The day starts at login, never before the shift: log in at 10:05 and the plan
+  // starts at 10:05; log in at 8:45 and it starts at 9:00. Admins (whose own logins
+  // aren't recorded) viewing a teammate use that teammate's recorded login; if it
+  // isn't in yet, the plan starts at the shift.
+  const shiftStart = shiftStartOf(me.name);
+  const loginMin = teamLogins[person] ?? (viewerIsAdmin ? undefined : (dayStarted ? dayStartMin : undefined));
+  const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
+  const availMin = workAvailFrom(planStart, shiftStart);
   const { fitPlan, spillPlan } = useMemo(() => {
     const fit: typeof myPlan = [], spill: typeof myPlan = [];
     let used = 0;
     for (const p of myPlan) {
-      const cap = p.high ? WORK_MIN : WORK_MIN - BUFFER_MIN;
+      const cap = p.high ? availMin : Math.max(0, availMin - BUFFER_MIN);
       if (fit.length === 0 || used + p.dur <= cap) { fit.push(p); used += p.dur; }
       else spill.push(p);
     }
     return { fitPlan: fit, spillPlan: spill };
-  }, [myPlan]);
+  }, [myPlan, availMin]);
   // Smart reminders (spec §13): Manya — content pending too long; producers — overdue.
   const nudges = useMemo(() => {
     const DAY = 86_400_000;
@@ -2049,11 +2079,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean; samvaya?: boolean };
     const out: Blk[] = [];
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
-    // Anchor the plan to the SHIFT START (9 AM, or 10 AM for Nandu's late shift), the
-    // same reference the Workload timeline uses — so a person's plan reads identically
-    // in My Day and Workload. The now-line still marks the live time; work before it
-    // simply shows as already-elapsed rather than shifting the whole plan later.
-    const anchor = shiftStartOf(me.name);
+    // Anchor the plan to when the day actually started — max(shift start, today's
+    // login) — the same rule the Workload timeline uses, so both read identically.
+    const anchor = planStart;
     let cursor = anchor;
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
@@ -2077,11 +2105,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     }
     if (!lunchDone) pushLunch(); // no task reached lunch → still park it at 1 PM
     // The reserved emergency hour sits at the end of the shift, if work hasn't used it.
-    const dayEnd = anchor + WORK_MIN + LUNCH_MIN;
+    const dayEnd = shiftStart + WORK_MIN + LUNCH_MIN; // the shift still ends on time
     const bufStart = Math.max(cursor, dayEnd - BUFFER_MIN);
     if (bufStart < dayEnd) out.push({ kind: "buffer", label: "Buffer", start: bufStart, dur: dayEnd - bufStart });
     return out;
-  }, [fitPlan, nowMin, dayStarted, dayStartMin, me.name]);
+  }, [fitPlan, planStart, shiftStart]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const plannedMin = fitPlan.reduce((s, p) => s + p.dur, 0);
   // Spilled work is only a problem if it publishes today or tomorrow; the rest is
@@ -2631,7 +2659,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         </div>
 
         {screen === "team" ? (
-          <TeamCapacityPage onBack={() => setScreen("myday")} tasks={tasks} nowMin={nowMin} />
+          <TeamCapacityPage onBack={() => setScreen("myday")} tasks={tasks} nowMin={nowMin} logins={teamLogins} />
         ) : (
         <>
         {/* 1 · HEADER BAND */}
@@ -2729,7 +2757,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
               <h2>Today’s plan</h2>
-              <span className="prog"><b style={{ color: "#232D42" }}>{fmtDur(plannedMin)}</b> planned · 1h lunch · 1h buffer for urgent work · {fmtDur(Math.max(0, WORK_MIN - BUFFER_MIN - plannedMin))} free
+              <span className="prog">{planStart > shiftStart && <>Started {clockOf(planStart)} · </>}<b style={{ color: "#232D42" }}>{fmtDur(plannedMin)}</b> planned · 1h lunch · 1h buffer for urgent work · {fmtDur(Math.max(0, availMin - BUFFER_MIN - plannedMin))} free
                 {atRisk.length > 0
                   ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
                   : spillPlan.length > 0 && <span style={{ marginLeft: 8, whiteSpace: "nowrap" }}>· {spillPlan.length} more planned{nextDue ? ` · next due ${new Date(nextDue + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : ""}</span>}
