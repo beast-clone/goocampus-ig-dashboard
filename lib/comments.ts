@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { fetchRoster } from "@/lib/team-db";
 
 // Server-side log of dashboard comments (the bottom-right Comment widget), so the
 // day's feedback can be emailed as one digest. The widget still keeps its own
@@ -9,6 +10,7 @@ const SOURCE = "dash_comment";
 
 export type StoredComment = {
   id: string; path: string; text: string; author: string; ts: number;
+  authorId?: string; // the commenter's username (e.g. "nandu") — opens the page as they see it
   // Where they were pointing (clicked element, its section, full URL, screen size).
   ctx?: { target?: string; section?: string; url?: string; viewport?: string };
   // Set from the admin Comments page. Kept in the same payload (no migration).
@@ -49,7 +51,31 @@ export async function listComments(limit = 500): Promise<StoredComment[]> {
     .order("last_fetched", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data || []).map((r) => r.payload as StoredComment).filter((c) => c && c.text);
+  const comments = (data || []).map((r) => r.payload as StoredComment).filter((c) => c && c.text);
+  // Older comments predate authorId — match their display name to the roster.
+  if (comments.some((c) => !c.authorId)) {
+    const roster = await fetchRoster().catch(() => []);
+    const norm = (s: string) => s.trim().toLowerCase();
+    for (const c of comments) {
+      if (c.authorId || !c.author) continue;
+      const a = norm(c.author);
+      c.authorId = roster.find((u) => norm(u.first || "") === a || norm(u.name || "") === a || u.id === a)?.id;
+    }
+  }
+  return comments;
+}
+
+// The page as the commenter saw it, where the page has a per-person view:
+// My Day (?person=) and Account (?user=). Other pages look the same for everyone.
+export function commenterUrl(c: StoredComment): string {
+  const raw = c.ctx?.url || c.path;
+  if (!c.authorId) return raw;
+  const [p, q] = raw.split("?");
+  const qs = new URLSearchParams(q || "");
+  if (/\/my-day(\/|$)/.test(p)) qs.set("person", c.authorId);
+  else if (/\/account(\/|$)/.test(p)) qs.set("user", c.authorId);
+  else return raw;
+  return `${p}?${qs.toString()}`;
 }
 
 // Mark a comment resolved / reopen it. Returns false if it doesn't exist.

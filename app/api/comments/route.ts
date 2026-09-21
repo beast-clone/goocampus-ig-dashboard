@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       text: text.slice(0, 4000),
       author: (b.author || "Someone").slice(0, 80),
       ts: typeof b.ts === "number" ? b.ts : Date.now(),
+      authorId: getSessionUserId() || undefined, // from the session, not the client
       ...(ctx ? { ctx } : {}),
     });
     return NextResponse.json({ ok: true });

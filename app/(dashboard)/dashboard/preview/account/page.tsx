@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
-  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck,
+  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye,
 } from "@tabler/icons-react";
 
 type Me = { name?: string; first?: string; initials?: string; role?: string; email?: string; id?: string; isAdmin?: boolean } | null;
@@ -23,27 +23,98 @@ export default function AccountPage() {
 
 function Inner() {
   const [me, setMe] = useState<Me>(null);
+  // Admins can open a teammate's account as they see it: /account?user=nandu (used by
+  // the Comments page so a comment opens on the commenter's own view).
+  const [viewing, setViewing] = useState<Me>(null);
+  const [viewErr, setViewErr] = useState<string | null>(null);
+  const load = () => fetch("/api/me", { cache: "no-store" }).then((r) => r.json()).then((d) => d?.user ?? null);
   useEffect(() => {
     let alive = true;
-    fetch("/api/me", { cache: "no-store" }).then((r) => r.json()).then((d) => { if (alive) setMe(d?.user ?? null); }).catch(() => {});
+    load().then(async (u) => {
+      if (!alive) return;
+      setMe(u);
+      const want = new URLSearchParams(window.location.search).get("user");
+      if (!want || !u?.isAdmin || want === u.id) return;
+      try {
+        const j = await (await fetch("/api/admin/team", { cache: "no-store" })).json();
+        const t = (j.team || []).find((x: { id: string }) => x.id === want);
+        if (alive) (t ? setViewing(t) : setViewErr(`No team member "${want}".`));
+      } catch { if (alive) setViewErr("Couldn't load that account."); }
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
+  const shown = viewing || me;
   return (
     <div className="max-w-2xl space-y-5">
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="grid place-items-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconUser size={17} stroke={1.8} /></span>
-          <h2 className="text-sm font-semibold text-[#232D42]">Profile</h2>
-          {me?.isAdmin && <span className="ml-auto text-[11px] font-medium bg-brand-light text-brand rounded-full px-2.5 py-1">Admin</span>}
+      {viewing && (
+        <div className="flex items-center gap-2 rounded-xl border border-brand/20 bg-brand-light px-4 py-2.5 text-[14px] text-[#232D42]">
+          <IconEye size={16} stroke={1.8} className="text-brand" />
+          Viewing <b className="font-medium">{viewing.name}</b>&apos;s account as they see it (admin view). <a href="?" className="ml-auto text-brand hover:underline text-[12px]">Back to mine</a>
         </div>
-        <Row icon={IconUser} label="Name" value={me?.name} />
-        <Row icon={IconMail} label="Email" value={me?.email} />
-        <Row icon={IconId} label="Username" value={me?.id} />
-        <Row icon={IconBriefcase} label="Role" value={me?.role} />
-      </div>
+      )}
+      {viewErr && <div className="rounded-xl bg-[#FDECEA] text-[#8a2e28] text-[14px] px-4 py-2.5">{viewErr}</div>}
+      <Profile me={shown} editable={!viewing} onSaved={(u) => setMe((m) => (m ? { ...m, ...u } : m))} />
+      {!viewing && <ChangePassword hasEmail={!!me?.email} />}
+    </div>
+  );
+}
 
-      <ChangePassword hasEmail={!!me?.email} />
+// Name and job title are the person's own to edit; email, username and access are
+// set by an admin on the Team page (email/username are what they sign in with).
+function Profile({ me, editable, onSaved }: { me: Me; editable: boolean; onSaved: (u: { name?: string; role?: string }) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const start = () => { setName(me?.name || ""); setRole(me?.role || ""); setErr(null); setEditing(true); };
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/account/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, role }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "Couldn't save."); return; }
+      onSaved({ name: j.name, role: j.role }); setEditing(false);
+    } finally { setBusy(false); }
+  };
+  const field = "mt-1 w-full h-9 border border-gray-200 rounded px-3 text-[14px] outline-none focus:border-brand";
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="grid place-items-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconUser size={17} stroke={1.8} /></span>
+        <h2 className="text-sm font-semibold text-[#232D42]">Profile</h2>
+        {me?.isAdmin && <span className="text-[11px] font-medium bg-brand-light text-brand rounded-full px-2.5 py-1">Admin</span>}
+        {editable && !editing && (
+          <button onClick={start} className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand">
+            <IconPencil size={15} stroke={1.8} />Edit
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-3">
+          <label className="block text-[12px] text-[#8A92A6]">Name
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} className={field} autoFocus />
+          </label>
+          <label className="block text-[12px] text-[#8A92A6]">Job title
+            <input value={role} onChange={(e) => setRole(e.target.value)} maxLength={60} placeholder="e.g. Senior Video Editor" className={field} />
+          </label>
+          <p className="text-[12px] text-[#8A92A6]">Email and username are set by an admin — they&apos;re what you sign in with.</p>
+          {err && <div className="rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{err}</div>}
+          <div className="flex items-center gap-2">
+            <button onClick={save} disabled={busy || name.trim().length < 2}
+              className="h-9 px-4 rounded bg-brand text-white text-[14px] font-medium hover:bg-[#2138B0] disabled:opacity-40">{busy ? "Saving…" : "Save"}</button>
+            <button onClick={() => setEditing(false)} className="h-9 px-3 text-[14px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Row icon={IconUser} label="Name" value={me?.name} />
+          <Row icon={IconMail} label="Email" value={me?.email} />
+          <Row icon={IconId} label="Username" value={me?.id} />
+          <Row icon={IconBriefcase} label="Job title" value={me?.role} />
+        </>
+      )}
     </div>
   );
 }

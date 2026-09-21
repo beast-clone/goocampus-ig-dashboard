@@ -10,7 +10,7 @@ import { useApi } from "@/lib/use-api";
 // server-side copy each comment also writes (lib/comments.ts). Admin only.
 
 type Comment = {
-  id: string; path: string; text: string; author: string; ts: number;
+  id: string; path: string; text: string; author: string; ts: number; authorId?: string;
   ctx?: { target?: string; section?: string; url?: string; viewport?: string };
   resolved?: boolean; resolvedBy?: string; resolvedAt?: number; resolvedNote?: string;
 };
@@ -24,6 +24,18 @@ function pageLabel(path: string): string {
   const tab = q ? new URLSearchParams(q).get("tab") : null;
   const label = name.charAt(0).toUpperCase() + name.slice(1);
   return tab ? `${label} · ${tab}` : label;
+}
+// Open the page the way the commenter saw it, where the page supports a per-person
+// view: My Day (?person=) and Account (?user=). Other pages look the same for everyone.
+function asCommenter(c: Comment): string {
+  const raw = c.ctx?.url || c.path;
+  if (!c.authorId) return raw;
+  const [p, q] = raw.split("?");
+  const qs = new URLSearchParams(q || "");
+  if (/\/my-day(\/|$)/.test(p)) qs.set("person", c.authorId);
+  else if (/\/account(\/|$)/.test(p)) qs.set("user", c.authorId);
+  else return raw;
+  return `${p}?${qs.toString()}`;
 }
 const when = (ts: number) => new Date(ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
@@ -93,7 +105,7 @@ function CommentsList() {
                   <span className="text-[14px] font-medium text-[#232D42]">{c.author || "Someone"}</span>
                   <span>{when(c.ts)}</span>
                   <span>·</span>
-                  <a href={c.ctx?.url || c.path} className="inline-flex items-center gap-1 text-brand hover:underline">{pageLabel(c.ctx?.url || c.path)}<IconExternalLink size={12} stroke={1.8} /></a>
+                  <a href={asCommenter(c)} title="Opens the page as they see it" className="inline-flex items-center gap-1 text-brand hover:underline">{pageLabel(c.ctx?.url || c.path)}<IconExternalLink size={12} stroke={1.8} /></a>
                 </div>
                 {c.ctx && (c.ctx.target || c.ctx.section) && (
                   <div className="text-[12px] text-[#8A92A6] mt-0.5">

@@ -5,7 +5,7 @@
 //   npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/comments.ts list --all
 //   npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/comments.ts resolve <id> "what was done"
 //   npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/comments.ts reopen <id>
-import { listComments, setCommentResolved } from "@/lib/comments";
+import { commenterUrl, listComments, setCommentResolved } from "@/lib/comments";
 
 const ist = (ts: number) => new Date(ts).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
@@ -18,6 +18,7 @@ const ist = (ts: number) => new Date(ts).toLocaleString("en-IN", { timeZone: "As
     for (const c of rows) {
       console.log(`[${c.id}] ${c.resolved ? "RESOLVED" : "OPEN"} · ${c.author} · ${ist(c.ts)}`);
       console.log(`  page:    ${c.ctx?.url || c.path}`);
+      console.log(`  open as: ${commenterUrl(c)}   (the commenter's own view)`);
       if (c.ctx?.section) console.log(`  section: ${c.ctx.section}`);
       if (c.ctx?.target) console.log(`  clicked: ${c.ctx.target}`);
       if (c.ctx?.viewport) console.log(`  screen:  ${c.ctx.viewport}`);
