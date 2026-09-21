@@ -4,6 +4,8 @@
 //   • app/api/marketing-hub/update/route.ts  (decides the approval handoff)
 //   • app/api/my-day/route.ts                (builds the editors' claim pool)
 //   • app/api/my-day/notifications/route.ts  (routes handoff notifications)
+// ALSO mirrored in the database trigger sql/013_design_work_owner.sql (non-video work at
+// Content Approved+ is forced to Praveen) — change both together.
 // Keeping it in one place prevents the three from drifting out of sync (which would
 // mis-route a task/notification, e.g. "Meta Ads - Video").
 export const VIDEO_TYPES = new Set<string>([
