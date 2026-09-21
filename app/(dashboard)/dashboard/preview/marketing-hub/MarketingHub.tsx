@@ -22,6 +22,7 @@ export type Row = {
   status: string;
   sbu: string;
   owner: string;
+  createdBy?: string;
   collaborators: string[];
   platforms: string[];
   publishTo: string;
@@ -1779,6 +1780,7 @@ const FILTER_FIELDS: FilterFieldDef[] = [
   { key: "status", label: "Status", type: "select", get: (r) => r.status || "" },
   { key: "type", label: "Type", type: "select", get: (r) => r.type || "" },
   { key: "sbu", label: "SBU / interest", type: "select", get: (r) => r.sbu || "" },
+  { key: "createdBy", label: "Created by", type: "owner", get: (r) => r.createdBy || "" },
   { key: "owner", label: "Owner", type: "owner", get: (r) => r.owner || "" },
   { key: "priority", label: "Priority", type: "select", get: (r) => r.priority || "" },
   { key: "publishingDate", label: "Publishing date", type: "date", get: (r) => (r.publishingDate || "").slice(0, 10) },
@@ -1871,6 +1873,7 @@ const MASTER_COLUMNS: { key: string; label: string }[] = [
   { key: "type", label: "Type" },
   { key: "status", label: "Status" },
   { key: "owner", label: "Owner" },
+  { key: "createdBy", label: "Created by" },
   { key: "priority", label: "Priority" },
   { key: "publishingDate", label: "Publishing" },
   { key: "dueDate", label: "Due date" },
@@ -2844,6 +2847,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">Unassigned</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
       case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
       case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { done(); await changeDate(r.id, e.target.value || null); }} />)} />;
+      case "createdBy": return r.createdBy ? <span className="text-gray-600">{r.createdBy}</span> : <span className="text-gray-300">—</span>;
       case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDateShort(r.dueDate) : "—"}</span>;
       case "platforms": return <PlatformIcons platforms={r.platforms} />;
       case "attachments": return r.attachments.length ? <span className="inline-flex items-center gap-0.5 text-gray-400"><IconPaperclip size={13} />{r.attachments.length}</span> : <span className="text-gray-300">—</span>;

@@ -75,6 +75,7 @@ type Row = {
   created_at: string | null; start_at: string | null; end_at: string | null;
   duration_min: number | null;
   custom: Record<string, unknown> | null;
+  created_by: string | null; instagram_url: string | null; facebook_url: string | null;
 };
 type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 type Creative = { name: string; type: "image" | "video" | "doc"; url: string; attId?: string };
@@ -127,6 +128,9 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
       startAt: r.start_at || "",
       endAt: r.end_at || "",
       duration: r.duration_min ?? undefined,
+      createdBy: r.created_by || "",               // username of whoever created it
+      ownerKey: r.owner_key || "",
+      liveUrl: r.instagram_url || r.facebook_url || "", // once published
     },
   };
 }
@@ -140,12 +144,16 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
     const cols =
-      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, output_link, created_at, start_at, end_at, duration_min, custom";
+      "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, output_link, created_at, start_at, end_at, duration_min, custom, created_by, instagram_url, facebook_url";
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
-    const [working, doneRecent] = await Promise.all([
+    const createdSince = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    const [working, doneRecent, createdRes] = await Promise.all([
       sb.from("mh_posts").select(cols).in("status", WORKING).limit(800),
       sb.from("mh_posts").select(cols).eq("status", "Published/Scheduled").gte("updated_at", since).limit(400),
+      // "Created by me": everything anyone created in the last 60 days, any status
+      // (incl. published) — the client keeps the viewed person's own.
+      sb.from("mh_posts").select(cols).not("created_by", "is", null).gte("created_at", createdSince).order("created_at", { ascending: false }).limit(500),
     ]);
     if (working.error) throw new Error(working.error.message);
     if (doneRecent.error) throw new Error(doneRecent.error.message);
@@ -212,7 +220,9 @@ export async function GET() {
     // Nandu's Samvaya / other-platform tasks — separate, Nandu-only.
     const samvaya = rows.filter((r) => isSamvayaRow(r) && (r.owner_key || "").toLowerCase() === "nandu").map(mk);
 
-    return NextResponse.json({ tasks, pool, samvaya, count: tasks.length });
+    if (createdRes.error) throw new Error(createdRes.error.message);
+    const created = ((createdRes.data || []) as Row[]).map((r) => mk(r));
+    return NextResponse.json({ tasks, pool, samvaya, created, count: tasks.length });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load My Day"), { status: 502 });
   }

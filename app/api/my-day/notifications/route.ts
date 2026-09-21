@@ -164,7 +164,41 @@ export async function GET(req: Request) {
       notifs.push({ id: `a${e.id}`, ...n });
     }
 
-    return NextResponse.json({ notifs: notifs.slice(0, 12) });
+    // "Created by me" — the task someone made is moving through other hands. Read from
+    // mh_status_log, which the DATABASE writes on every status change (dashboard,
+    // Sync from Airtable, n8n…), so a publish made outside the dashboard still counts.
+    const STAGE: Record<string, { emoji: string; title: string }> = {
+      "Content - Approved":     { emoji: "✅", title: "approved" },
+      "Output - In Progress":   { emoji: "🎨", title: "being made" },
+      "Output - Ready":         { emoji: "📦", title: "ready for review" },
+      "Incorporating Feedback": { emoji: "↩️", title: "back for changes" },
+      "Ready to Publish":       { emoji: "📅", title: "scheduled to publish" },
+      "Published/Scheduled":    { emoji: "🎉", title: "published" },
+    };
+    const createdNotifs: Notif[] = [];
+    const { data: mine } = await sb.from("mh_posts").select("id, particulars, owner_key").eq("created_by", person).limit(500);
+    const mineById = new Map(((mine || []) as { id: string; particulars: string | null; owner_key: string | null }[]).map((p) => [p.id, p]));
+    if (mineById.size) {
+      const { data: log } = await sb.from("mh_status_log").select("id, post_id, to_status, changed_at")
+        .in("post_id", [...mineById.keys()]).gte("changed_at", since).order("changed_at", { ascending: false }).limit(60);
+      const seenCreated = new Set<string>();
+      for (const l of (log || []) as { id: number; post_id: string; to_status: string; changed_at: string }[]) {
+        const post = mineById.get(l.post_id);
+        const stage = STAGE[l.to_status];
+        if (!post || !stage) continue;
+        if ((post.owner_key || "").toLowerCase() === person) continue; // their own work: covered above
+        if (seenCreated.has(l.post_id)) continue; // newest stage per task only
+        seenCreated.add(l.post_id);
+        const t = post.particulars || "a task";
+        const short = t.length > 46 ? `${t.slice(0, 44)}…` : t;
+        // No postId: in My Day a notification with a postId acts as "Accept" (takeover).
+        createdNotifs.push({ id: `s${l.id}`, kind: "message", emoji: stage.emoji, title: `Your task is ${stage.title}`,
+          sub: `"${short}"${post.owner_key ? ` · with ${nameOf(post.owner_key)}` : ""}.` });
+      }
+    }
+
+    // Creator updates first (a few), then the usual feed — so "published" isn't cut off.
+    return NextResponse.json({ notifs: [...createdNotifs.slice(0, 5), ...notifs].slice(0, 12) });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load notifications"), { status: 502 });
   }

@@ -26,7 +26,20 @@ type Comment = {
   ts: number;
   resolved?: boolean;
   ctx?: CommentContext;
+  editedTs?: number;
 };
+
+// Keep a popover (width w, height ~h) fully inside the visible window: open to the
+// right of the pin, flip to its left near the right edge, and clamp top/bottom.
+function placeBox(x: number, y: number, w: number, h: number): { left: number; top: number } {
+  const minX = window.scrollX + 12, maxX = window.scrollX + window.innerWidth - w - 12;
+  const minY = window.scrollY + 12, maxY = window.scrollY + window.innerHeight - h - 12;
+  let left = x + 18;
+  if (left > maxX) left = x - w - 18;
+  left = Math.max(minX, Math.min(left, maxX));
+  const top = Math.max(minY, Math.min(y - 20, maxY));
+  return { left, top };
+}
 
 // What the person was pointing at, so whoever picks the comment up (including
 // Claude working through the Comments page) knows exactly where to look.
@@ -123,6 +136,8 @@ export function CommentMode() {
   const [on, setOn] = useState(false);
   const [all, setAll] = useState<Comment[]>([]);
   const [draft, setDraft] = useState<{ x: number; y: number; ctx?: CommentContext } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [draftText, setDraftText] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [author, setAuthor] = useState("You");
@@ -252,6 +267,21 @@ export function CommentMode() {
     setDraftText("");
   };
 
+  // Edit your own comment: update the pin and re-send it, so the admin Comments page
+  // (and whoever picks it up) sees the new text. Re-sending reopens it if resolved.
+  const saveEdit = (id: string) => {
+    const text = editText.trim();
+    const c = all.find((x) => x.id === id);
+    if (!c || !text) return;
+    const next: Comment = { ...c, text, editedTs: Date.now(), resolved: false };
+    persist(all.map((x) => (x.id === id ? next : x)));
+    fetch("/api/comments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: c.id, path: c.path, text, author: c.author, ts: c.ts, ctx: c.ctx }),
+    }).catch(() => {});
+    setEditingId(null);
+  };
+
   const removeComment = (id: string) => {
     persist(all.filter((c) => c.id !== id));
     setOpenId(null);
@@ -335,7 +365,7 @@ export function CommentMode() {
           {/* Open pin popover */}
           {openComment && (
             <div
-              style={{ zIndex: Z.pop, position: "absolute", left: openComment.x + 18, top: openComment.y - 30, width: 260 }}
+              style={{ zIndex: Z.pop, position: "absolute", ...placeBox(openComment.x, openComment.y, 260, editingId === openComment.id ? 230 : 180), width: 260 }}
               className="bg-white rounded-xl shadow-xl border border-gray-200 p-3"
               onClick={(e) => e.stopPropagation()}
             >
@@ -351,8 +381,23 @@ export function CommentMode() {
                 </div>
                 {openComment.resolved && <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Resolved</span>}
               </div>
-              <p className="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap break-words">{openComment.text}</p>
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
+              {editingId === openComment.id ? (
+                <>
+                  <textarea autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} rows={3}
+                    onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit(openComment.id); if (e.key === "Escape") { e.stopPropagation(); setEditingId(null); } }}
+                    className="w-full text-[13px] rounded-lg border border-gray-200 px-2.5 py-2 outline-none focus:border-brand resize-none" />
+                  <div className="flex items-center justify-end gap-2 mt-2">
+                    <button onClick={() => setEditingId(null)} className="text-[12px] font-medium text-gray-500 hover:text-gray-800 px-2 py-1">Cancel</button>
+                    <button onClick={() => saveEdit(openComment.id)} disabled={!editText.trim()} className="text-[12px] font-semibold text-white bg-brand rounded-lg px-3 py-1.5 disabled:opacity-40">Save</button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap break-words">{openComment.text}{openComment.editedTs ? <span className="text-[11px] text-gray-400"> (edited)</span> : null}</p>
+              )}
+              {editingId !== openComment.id && <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
+                <button onClick={() => { setEditingId(openComment.id); setEditText(openComment.text); }} className="text-[12px] font-medium text-gray-700 hover:text-brand">
+                  Edit
+                </button>
                 <button onClick={() => toggleResolved(openComment.id)} className="text-[12px] font-medium text-gray-700 hover:text-brand">
                   {openComment.resolved ? "Reopen" : "Resolve"}
                 </button>
@@ -362,14 +407,14 @@ export function CommentMode() {
                 <button onClick={() => setOpenId(null)} className="text-[12px] font-medium text-gray-400 hover:text-gray-700">
                   Close
                 </button>
-              </div>
+              </div>}
             </div>
           )}
 
           {/* Draft (new comment) popover */}
           {draft && (
             <div
-              style={{ zIndex: Z.pop, position: "absolute", left: draft.x + 18, top: draft.y - 12, width: 260 }}
+              style={{ zIndex: Z.pop, position: "absolute", ...placeBox(draft.x, draft.y, 260, 200), width: 260 }}
               className="bg-white rounded-xl shadow-xl border border-gray-200 p-3"
               onClick={(e) => e.stopPropagation()}
             >

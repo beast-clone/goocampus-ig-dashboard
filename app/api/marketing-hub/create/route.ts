@@ -3,6 +3,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { requireCapability, requireSection } from "@/lib/api-guard";
+import { getSessionUserId } from "@/lib/auth";
 
 // POST /api/marketing-hub/create
 // Creates ONE row in mh_posts (Supabase).
@@ -84,6 +85,8 @@ export async function POST(req: Request) {
       content: body.content || null,
       caption: body.caption || null,
       needs_review: body.needsReview === true,
+      // Who made it — fixed forever, whoever owns it later ("Created by me" in My Day).
+      created_by: getSessionUserId() || null,
       // NOTE: do NOT stamp start_at here. start_at is the producer's "on the clock"
       // marker — the update route sets it when a task moves to "Output - In Progress"
       // (guarded by !start_at). Stamping it at creation made that guard always false,
@@ -104,7 +107,7 @@ export async function POST(req: Request) {
     try {
       await sb.from("mh_activity").insert({
         post_id: data.id,
-        actor_key: normalizeOwner(body.owner),
+        actor_key: getSessionUserId() || normalizeOwner(body.owner),
         action: "created",
         to_value: "Content - Pending",
         detail: { source: "dashboard-form" },

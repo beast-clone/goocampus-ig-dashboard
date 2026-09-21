@@ -67,6 +67,7 @@ type CalendarFields = {
   "References"?: string;
   "Owner"?: { id?: string; email?: string; name?: string };
   "Collaborators"?: { id?: string; email?: string; name?: string }[];
+  "Created by"?: { id?: string; email?: string; name?: string };
   "Attachments"?: { url?: string; type?: string }[];
 };
 
@@ -181,15 +182,15 @@ export async function importFromAirtable(opts: {
 
   // One read of everything already here, rather than a query per record.
   const ids = records.map((r) => r.id);
-  const existing = new Map<string, { id: string; publish_status: string | null; custom: Record<string, unknown> | null }>();
+  const existing = new Map<string, { id: string; publish_status: string | null; custom: Record<string, unknown> | null; created_by: string | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await db
       .from("mh_posts")
-      .select("id, airtable_record_id, publish_status, custom")
+      .select("id, airtable_record_id, publish_status, custom, created_by")
       .in("airtable_record_id", ids.slice(i, i + 200));
     if (error) throw new Error(`Reading existing rows failed: ${error.message}`);
     for (const row of data || []) {
-      if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom });
+      if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom, created_by: row.created_by });
     }
   }
 
@@ -248,6 +249,11 @@ export async function importFromAirtable(opts: {
     };
 
     const hit = existing.get(rec.id);
+    // Creator = Airtable's "Created by", set once: on insert, or to fill a row that has
+    // none. Never overwrites a creator the dashboard already recorded.
+    const creatorName = str(f["Created by"]?.name);
+    const creator = creatorName ? OWNER_ALIASES[creatorName.toLowerCase()] || null : null;
+    if (creator && !hit?.created_by) row.created_by = creator;
     // Keep Airtable's own wording when it had no Supabase equivalent, and never
     // clobber the rest of an existing row's custom object.
     row.custom = {

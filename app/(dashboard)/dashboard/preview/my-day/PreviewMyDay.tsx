@@ -125,6 +125,7 @@ type Task = {
     typeLine: string; publishes: string; owner: string;
     priority: "Urgent" | "High" | "Medium" | "Low"; brand: string;
     duration?: number;                                  // minutes — the producer sets how long it'll take → feeds Today's plan
+    createdBy?: string; ownerKey?: string; liveUrl?: string; // "Tasks I created" tracking
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string }[]; // post media + uploaded assets
     references?: RefItem[];                             // links + images the team adds for context
@@ -1517,6 +1518,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
+  const [created, setCreated] = useState<Task[]>([]);                 // tasks anyone created (last 60 days) — filtered to the viewed person below
+  const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("open");
   const [samvaya, setSamvaya] = useState<Task[]>([]);                 // Nandu's Samvaya / other-platform tasks (spec §14, kept separate)
   const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("approved");                  // status tab (per-person)
@@ -1729,6 +1732,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         setTasks(fetched);
         setClaimPool((d.pool as Task[]) || []);
         setSamvaya((d.samvaya as Task[]) || []);
+        setCreated((d.created as Task[]) || []);
         // Reconcile the optimistic claim buffer against server truth: drop a claim once
         // the server confirms I own it (it now shows via `tasks`, so keeping it would
         // duplicate the row) or the row is gone — but KEEP a claim the server hasn't yet
@@ -2895,6 +2899,56 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             )}
           </div>
         </div>
+
+        {/* Tasks I created — follow work you asked for after it moves to someone else
+            (e.g. Nandu's 12th Plus carousels, owned by Praveen once approved). */}
+        {(() => {
+          const mineCreated = created.filter((t) => t.detail.createdBy === person);
+          if (!mineCreated.length) return null;
+          const isPub = (t: Task) => t.status === "Published/Scheduled";
+          const list = mineCreated.filter((t) => createdFilter === "all" || (createdFilter === "published" ? isPub(t) : !isPub(t)));
+          const STEPS = ["Content", "Approved", "Making", "Ready", "Published"];
+          const stepOf = (s: string) => s === "Published/Scheduled" ? 4 : s === "Output - Ready" || s === "Ready to Publish" ? 3
+            : s === "Output - In Progress" || s === "Incorporating Feedback" ? 2 : s === "Content - Approved" ? 1 : 0;
+          const counts = { open: mineCreated.filter((t) => !isPub(t)).length, published: mineCreated.filter(isPub).length, all: mineCreated.length };
+          return (
+            <div className="card pad" style={{ marginTop: "1rem" }}>
+              <div className="colhead">
+                <h3>Tasks I created</h3>
+                <div className="task-tabs" style={{ marginBottom: 0 }}>
+                  {(["open", "published", "all"] as const).map((f) => (
+                    <button key={f} className={`task-tab ${createdFilter === f ? "on" : ""}`} onClick={() => setCreatedFilter(f)}>
+                      {f === "open" ? "In progress" : f === "published" ? "Published" : "All"}<span className="task-tab-n">{counts[f]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {list.length === 0 ? <div className="empty">Nothing here.</div> : (
+                <div className="tasklist">
+                  {list.map((t) => {
+                    const step = stepOf(t.status);
+                    const withWho = t.detail.ownerKey && t.detail.ownerKey !== person ? t.detail.owner : "you";
+                    return (
+                      <div key={t.id} className="task">
+                        <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{t.detail.publishes}</span></div>
+                        <div className="mm">{t.detail.typeLine} · {t.detail.brand} · with {withWho}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                          {STEPS.map((label, i) => (
+                            <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: i <= step ? (i === 4 ? "#2F9E6F" : "#3A57E8") : "#A6ACBE", fontWeight: i === step ? 600 : 400 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 99, background: i <= step ? (i === 4 ? "#2F9E6F" : "#3A57E8") : "#E3E5EE" }} />{label}
+                              {i < STEPS.length - 1 && <span style={{ width: 14, height: 1, background: i < step ? "#3A57E8" : "#E3E5EE" }} />}
+                            </span>
+                          ))}
+                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Nandu's Samvaya / other-platform tasks (spec §14) — a separate, clearly
             labelled section, only on Nandu's board, never mixed with GooCampus. */}

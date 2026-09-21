@@ -19,6 +19,7 @@ type Row = {
   status: string;
   sbu: string;
   owner: string;
+  createdBy: string; // who created the task (display name), fixed forever
   collaborators: string[];
   platforms: string[];
   publishTo: string;
@@ -82,6 +83,7 @@ type PostRow = {
   status: string;
   sbu: string | null;
   owner_key: string | null;
+  created_by?: string | null;
   collaborators?: { member_key: string }[]; // populated via join if we add it later
   platforms: string[] | null;
   publish_to: string | null;
@@ -118,6 +120,7 @@ function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
     status: p.status || "",
     sbu: p.sbu || "",
     owner: p.owner_key ? teamByKey.get(p.owner_key) || p.owner_key : "",
+    createdBy: p.created_by ? teamByKey.get(p.created_by) || p.created_by : "",
     collaborators: [], // filled in Phase B.2 when we join mh_post_collaborators
     platforms: p.platforms || [],
     publishTo: p.publish_to || "",
