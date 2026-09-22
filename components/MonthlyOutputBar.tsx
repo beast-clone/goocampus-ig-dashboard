@@ -103,7 +103,10 @@ export function MonthlyOutputBar({ accountId, range, months }: { accountId: stri
       // A month the range only clips into (a 60-day window starts mid-month) must
       // not read as a full month's output.
       const mStart = k + "-01";
-      const mEnd = new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0).toISOString().slice(0, 10);
+      // Last day of this month, formatted locally — toISOString() here would
+      // shift east-of-UTC dates back a day (31 Aug 00:00 IST is 30 Aug in UTC).
+      const mLast = new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0);
+      const mEnd = `${mLast.getFullYear()}-${String(mLast.getMonth() + 1).padStart(2, "0")}-${String(mLast.getDate()).padStart(2, "0")}`;
       byMonth.set(k, {
         key: k,
         label: monthLabel(k),
