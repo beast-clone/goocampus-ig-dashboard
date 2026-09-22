@@ -232,7 +232,7 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
                     title={`${r.accounts} account${r.accounts === 1 ? "" : "s"} · avg ${fmt(r.avgEngagement)} ${engLabel(platform)}${r.oursPosts ? ` · we used it in ${r.oursPosts}` : " · we haven't used it"}`}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[14px] transition ${on ? "border-brand bg-brand-light text-brand" : "border-gray-200 bg-white text-[#232D42] hover:border-brand"}`}>
                     {on && <IconCheck size={13} stroke={2.2} />}{r.keyword}
-                    {!r.oursPosts && <span className="w-1.5 h-1.5 rounded-full bg-[#E0791F]" title="We haven't used this yet" />}
+                    {!r.oursPosts && <span className="w-1.5 h-1.5 rounded-full bg-[#B7791F]" title="We haven't used this yet" />}
                   </button>
                 );
               })}
@@ -270,7 +270,7 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmt(r.avgEngagement)}</td>
                         <td className="px-3 py-2">
-                          {r.oursList.length === 0 ? <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309]">Not used yet</span> : (
+                          {r.oursList.length === 0 ? <span className="text-[12px] px-2 py-0.5 rounded bg-[#FDF6E7] text-[#B7791F]">Not used yet</span> : (
                             // One button per post: date + engagement, opens the post; the
                             // caption's opening line is the tooltip, not row clutter.
                             <div className="flex flex-wrap gap-1.5">
@@ -295,7 +295,7 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
           </div>
         ))}
       </div>
-      <div className="text-[12px] text-[#8A92A6] mt-3 inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#E0791F]" />= we haven&apos;t used it yet. Hover a keyword for its numbers.</div>
+      <div className="text-[12px] text-[#8A92A6] mt-3 inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#B7791F]" />= we haven&apos;t used it yet. Hover a keyword for its numbers.</div>
     </Card>
   );
 }
@@ -528,14 +528,14 @@ function AccountDetail({ a, ours, ourKws, onRemove }: { a: Account; ours: boolea
         )}
       </div>
 
-      {a.stale && <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5">Couldn&apos;t refresh just now — showing the last read. {limitHit(a.stale) ? "Instagram's hourly limit is used up; it resets within an hour." : a.stale}</div>}
-      {a.error ? <div className="text-[14px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-2">Couldn&apos;t read this account. {readError(a.error)}</div> : (
+      {a.stale && <div className="text-[12px] text-[#B7791F] bg-[#FDF6E7] rounded px-3 py-1.5">Couldn&apos;t refresh just now — showing the last read. {limitHit(a.stale) ? "Instagram's hourly limit is used up; it resets within an hour." : a.stale}</div>}
+      {a.error ? <div className="text-[14px] text-[#B7791F] bg-[#FDF6E7] rounded px-3 py-2">Couldn&apos;t read this account. {readError(a.error)}</div> : (
         <>
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="text-[14px] font-medium text-[#232D42]">Keywords used <span className="text-[#8A92A6] font-normal">({kws.length})</span></div>
               <span className="text-[12px] text-[#8A92A6]">Click one to show only its posts · the number is how many posts use it
-                {!ours && <> · <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E0791F] align-middle" /> = we don&apos;t use it</>}</span>
+                {!ours && <> · <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#B7791F] align-middle" /> = we don&apos;t use it</>}</span>
               <span className="ml-auto flex items-center gap-2">
                 {notOurs.length > 0 && <CopyButton text={joinForPost(notOurs)} label={`Copy ones we don't use (${notOurs.length})`} />}
                 {kws.length > 0 && <CopyButton text={joinForPost(kws.map(([k]) => k))} label="Copy all" />}
@@ -547,7 +547,7 @@ function AccountDetail({ a, ours, ourKws, onRemove }: { a: Account; ours: boolea
                   <span key={k} className={`inline-flex items-center rounded border text-[13px] ${only === k ? "border-brand bg-brand-light" : "border-gray-200 bg-white"}`}>
                     <button onClick={() => setOnly(only === k ? null : k)} className="pl-2.5 pr-1.5 py-1 text-[#232D42] hover:text-brand">
                       {k} <span className="text-[#8A92A6]">{n}</span>
-                      {!ours && !ourKws.has(k.toLowerCase()) && <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-[#E0791F] align-middle" title="We don't use this" />}
+                      {!ours && !ourKws.has(k.toLowerCase()) && <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-[#B7791F] align-middle" title="We don't use this" />}
                     </button>
                     <MiniCopy text={k} />
                   </span>
@@ -710,7 +710,7 @@ function Ranking({ data }: { data: Data }) {
   const ourCols: Col<OurRow>[] = yt
     ? [{ key: "posts", label: "Videos" }, { key: "views", label: "Avg views" }, { key: "likes", label: "Avg likes" }, { key: "comments", label: "Avg comments" }, { key: "rate", label: "Eng. rate", rate: true }]
     : [{ key: "posts", label: "Posts" }, { key: "reach", label: "Avg reach" }, { key: "views", label: "Avg views" }, { key: "engagement", label: "Avg likes + comments" }, { key: "saves", label: "Avg saves" }, { key: "shares", label: "Avg shares" }, { key: "rate", label: "Eng. rate", rate: true }];
-  const unused = (r: AllRow) => (r.oursPosts ? <span className="text-[12px] text-[#8A92A6]">We use it ({r.oursPosts})</span> : <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309] whitespace-nowrap">Not used yet</span>);
+  const unused = (r: AllRow) => (r.oursPosts ? <span className="text-[12px] text-[#8A92A6]">We use it ({r.oursPosts})</span> : <span className="text-[12px] px-2 py-0.5 rounded bg-[#FDF6E7] text-[#B7791F] whitespace-nowrap">Not used yet</span>);
 
   return (
     <div className="space-y-4">
@@ -733,7 +733,7 @@ function Ranking({ data }: { data: Data }) {
             {(() => {
               const total = ours?.posts?.length || 0, same = ourShown.filter((r) => total && r.posts >= total * 0.8).map((r) => r.keyword);
               return same.length > 0 && (
-                <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5 mb-2">
+                <div className="text-[12px] text-[#B7791F] bg-[#FDF6E7] rounded px-3 py-1.5 mb-2">
                   {same.join(", ")} {same.length === 1 ? "is" : "are"} on almost every one of our {yt ? "videos" : "posts"} (usually boilerplate tags), so {same.length === 1 ? "its" : "their"} numbers are just our average. Use tags that match each {yt ? "video" : "post"} to see what really works.
                 </div>
               );
