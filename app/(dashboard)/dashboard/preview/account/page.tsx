@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { ThemeToggle } from "@/components/Theme";
 import {
-  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye, IconCamera,
+  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye, IconCamera, IconPalette,
 } from "@tabler/icons-react";
 
 type Me = { name?: string; first?: string; initials?: string; role?: string; email?: string; id?: string; isAdmin?: boolean; photoUrl?: string | null } | null;
@@ -57,6 +58,18 @@ function Inner() {
       <Profile me={shown} editable={!viewing} onSaved={(u) => setMe((m) => (m ? { ...m, ...u } : m))}
         // Photo: your own, or anyone's when an admin is viewing their account.
         photo={<PhotoPicker person={shown} forUser={viewing?.id} onChanged={(url) => (viewing ? setViewing((v) => (v ? { ...v, photoUrl: url } : v)) : setMe((m) => (m ? { ...m, photoUrl: url } : m)))} />} />
+      {!viewing && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="grid place-items-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconPalette size={17} stroke={1.8} /></span>
+            <h2 className="text-sm font-semibold text-[#232D42]">Appearance</h2>
+          </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[13px] text-[#8A92A6]">System follows your computer&apos;s light/dark setting. Saved to your account, so it follows you to any device.</p>
+            <ThemeToggle />
+          </div>
+        </div>
+      )}
       {!viewing && <ChangePassword hasEmail={!!me?.email} />}
     </div>
   );

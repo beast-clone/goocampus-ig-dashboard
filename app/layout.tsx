@@ -15,7 +15,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.className}>
+    // suppressHydrationWarning: the inline script below sets data-theme before React loads.
+    <html lang="en" className={inter.className} suppressHydrationWarning>
+      <head>
+        {/* Paint the saved theme (components/Theme.tsx) before first render — no white flash. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('gc.theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();` }} />
+      </head>
       <body className="min-h-screen antialiased">
         <FetchBasePathPatch />
         {children}

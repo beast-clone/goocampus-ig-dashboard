@@ -380,3 +380,137 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
   caret-color: #232D42;
   transition: background-color 9999s ease-out 0s;
 }
+
+/* ── DARK THEME (components/Theme.tsx sets html[data-theme]) ─────────────────────
+   Phase 1: one remap of the dashboard's palette — the Tailwind greys/white and the
+   hard-coded theme hexes used across the V2 pages — to the theme's dark palette.
+   Colours written inline in components (My Day, calendars, Scheduler…) are handled
+   page by page in phase 2. !important so it also beats the light overrides above. */
+html[data-theme="dark"] {
+  --d-canvas:#151824; --d-card:#1F2332; --d-panel:#191D2A; --d-raised:#272C3E;
+  --d-line:#2C3246; --d-line2:#383F57; --d-ink:#E8EBF3; --d-ink2:#C2C8D6; --d-muted:#959DB1; --d-faint:#6F778C;
+  --d-brand-text:#8497FF;
+}
+html[data-theme="dark"], html[data-theme="dark"] body { background:var(--d-canvas) !important; color:var(--d-ink2); }
+html[data-theme="dark"] .preview-scope { --brand-light: 44 54 102; color:var(--d-muted); }
+html[data-theme="dark"] .preview-scope h1, html[data-theme="dark"] .preview-scope h2, html[data-theme="dark"] .preview-scope h3,
+html[data-theme="dark"] .preview-scope h4, html[data-theme="dark"] .preview-scope h5, html[data-theme="dark"] .preview-scope h6 { color:var(--d-ink); }
+
+/* surfaces */
+html[data-theme="dark"] .bg-white, html[data-theme="dark"] .hover\:bg-white:hover { background-color:var(--d-card) !important; }
+html[data-theme="dark"] .bg-gray-50, html[data-theme="dark"] .bg-\[\#F6F7FB\], html[data-theme="dark"] .bg-\[\#F3F5FA\],
+html[data-theme="dark"] .bg-\[\#FCFCFE\], html[data-theme="dark"] .bg-\[\#F7F8FC\], html[data-theme="dark"] .bg-\[\#F7F7FA\] { background-color:var(--d-panel) !important; }
+html[data-theme="dark"] .bg-gray-100, html[data-theme="dark"] .hover\:bg-gray-50:hover, html[data-theme="dark"] .hover\:bg-\[\#F6F7FB\]:hover,
+html[data-theme="dark"] .hover\:bg-gray-100:hover { background-color:var(--d-raised) !important; }
+html[data-theme="dark"] .bg-gray-200 { background-color:var(--d-line2) !important; }
+
+/* borders */
+html[data-theme="dark"] .border-gray-50, html[data-theme="dark"] .border-gray-100, html[data-theme="dark"] .border-gray-200,
+html[data-theme="dark"] .divide-gray-50 > * + *, html[data-theme="dark"] .divide-gray-100 > * + *,
+html[data-theme="dark"] .border-\[\#EEF0F4\] { border-color:var(--d-line) !important; }
+html[data-theme="dark"] .border-gray-300, html[data-theme="dark"] .hover\:border-gray-300:hover { border-color:var(--d-line2) !important; }
+html[data-theme="dark"] .preview-scope table tbody td { border-bottom-color:var(--d-line) !important; }
+
+/* text */
+html[data-theme="dark"] .text-\[\#232D42\], html[data-theme="dark"] .text-gray-900, html[data-theme="dark"] .text-gray-800,
+html[data-theme="dark"] .text-\[\#3B4457\], html[data-theme="dark"] .text-\[\#1D1F25\], html[data-theme="dark"] .text-black,
+html[data-theme="dark"] .hover\:text-\[\#232D42\]:hover, html[data-theme="dark"] .hover\:text-gray-900:hover { color:var(--d-ink) !important; }
+html[data-theme="dark"] .text-gray-700, html[data-theme="dark"] .text-gray-600, html[data-theme="dark"] .text-\[\#4A5468\],
+html[data-theme="dark"] .text-\[\#5A6478\], html[data-theme="dark"] .hover\:text-gray-700:hover, html[data-theme="dark"] .hover\:text-gray-800:hover { color:var(--d-ink2) !important; }
+html[data-theme="dark"] .text-gray-500, html[data-theme="dark"] .text-\[\#8A92A6\] { color:var(--d-muted) !important; }
+html[data-theme="dark"] .text-gray-400, html[data-theme="dark"] .text-\[\#A6ACBE\], html[data-theme="dark"] .text-\[\#B4BAC6\] { color:var(--d-faint) !important; }
+html[data-theme="dark"] .text-gray-300, html[data-theme="dark"] .text-\[\#C9CDD8\] { color:#555D73 !important; }
+html[data-theme="dark"] .text-brand, html[data-theme="dark"] .hover\:text-brand:hover, html[data-theme="dark"] .text-\[\#2138B0\],
+html[data-theme="dark"] .text-\[\#3A57E8\] { color:var(--d-brand-text) !important; }
+
+/* status tints: amber / red / green */
+html[data-theme="dark"] .bg-amber-50, html[data-theme="dark"] .bg-\[\#FDF6E7\], html[data-theme="dark"] .bg-\[\#FCF0DA\], html[data-theme="dark"] .bg-yellow-50 { background-color:rgba(183,121,31,.16) !important; }
+html[data-theme="dark"] .text-amber-600, html[data-theme="dark"] .text-amber-700, html[data-theme="dark"] .text-amber-800, html[data-theme="dark"] .text-amber-900,
+html[data-theme="dark"] .text-\[\#B7791F\], html[data-theme="dark"] .text-\[\#B45309\] { color:#E2B366 !important; }
+html[data-theme="dark"] .border-amber-200 { border-color:rgba(183,121,31,.4) !important; }
+html[data-theme="dark"] .bg-rose-50, html[data-theme="dark"] .bg-red-50, html[data-theme="dark"] .bg-\[\#FDECEA\], html[data-theme="dark"] .hover\:bg-rose-50:hover { background-color:rgba(192,57,43,.16) !important; }
+html[data-theme="dark"] .text-rose-500, html[data-theme="dark"] .text-rose-600, html[data-theme="dark"] .text-rose-700, html[data-theme="dark"] .text-rose-800,
+html[data-theme="dark"] .text-red-600, html[data-theme="dark"] .text-red-700, html[data-theme="dark"] .text-\[\#C0392B\], html[data-theme="dark"] .text-\[\#8a2e28\],
+html[data-theme="dark"] .hover\:text-rose-600:hover { color:#F2907F !important; }
+html[data-theme="dark"] .border-rose-200, html[data-theme="dark"] .border-red-200, html[data-theme="dark"] .border-\[\#F5C6C0\], html[data-theme="dark"] .hover\:border-rose-300:hover { border-color:rgba(192,57,43,.45) !important; }
+html[data-theme="dark"] .bg-emerald-50, html[data-theme="dark"] .bg-\[\#E8F6F0\], html[data-theme="dark"] .bg-green-50 { background-color:rgba(47,158,111,.16) !important; }
+html[data-theme="dark"] .text-emerald-600, html[data-theme="dark"] .text-emerald-700, html[data-theme="dark"] .text-emerald-800,
+html[data-theme="dark"] .text-green-700, html[data-theme="dark"] .text-\[\#2F9E6F\] { color:#61CE9C !important; }
+html[data-theme="dark"] .border-emerald-200, html[data-theme="dark"] .border-\[\#BFE6D4\] { border-color:rgba(47,158,111,.4) !important; }
+
+/* form controls + native widgets */
+html[data-theme="dark"] .preview-scope input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-theme="dark"] .preview-scope textarea, html[data-theme="dark"] .preview-scope select {
+  background-color:var(--d-panel); color:var(--d-ink); border-color:var(--d-line2);
+}
+html[data-theme="dark"] .preview-scope input::placeholder, html[data-theme="dark"] .preview-scope textarea::placeholder { color:var(--d-faint); }
+
+/* sidebar (its own variables) */
+html[data-theme="dark"] .hsidebar { --sb-brand-soft:#2C3666; --sb-brand-ink:#8497FF; --sb-ink:#E8EBF3; --sb-ink-soft:#C2C8D6; --sb-faint:#6F778C; --sb-line:#2C3246; --sb-panel:#1F2332; --sb-panel2:#272C3E; }
+/* The shell's own variables (PreviewShell SHELL_CSS) — pages styled with var(--panel),
+   var(--ink)… (My Day, Workload, calendars) follow these. */
+html[data-theme="dark"] .preview-root {
+  --bg:#151824; --panel:#1F2332; --panel-2:#191D2A;
+  --ink:#E8EBF3; --ink-soft:#C2C8D6; --muted:#959DB1; --faint:#6F778C;
+  --line:#2C3246; --line-2:#262B3C;
+  --brand-soft:#2C3666; --brand-ink:#8497FF;
+  --good-soft:rgba(26,160,83,.16); --warn-soft:rgba(217,119,6,.16); --rose-soft:rgba(225,29,72,.16);
+  --sky-soft:rgba(14,165,233,.16); --violet-soft:rgba(110,72,248,.18);
+  --shadow:none;
+}
+/* Sidebar logo: the white GooCampus logo in dark. */
+.hsidebar .hlogo-dark { display: none !important; }
+html[data-theme="dark"] .hsidebar .hlogo-light { display: none !important; }
+html[data-theme="dark"] .hsidebar .hlogo-dark { display: block !important; }
+/* Colours written inline (style={{ background: "#fff" }} …) — matched on the
+   serialised style attribute, same trick as the brand remap at the top of this file.
+   "; color:" / ^"color:" so background-color doesn't match the text rules. */
+html[data-theme="dark"] .preview-root [style*="background: rgb(255, 255, 255)"],
+html[data-theme="dark"] .preview-root [style*="background-color: rgb(255, 255, 255)"],
+html[data-theme="dark"] .preview-root [style*="background: white"] { background-color:var(--panel) !important; }
+html[data-theme="dark"] .preview-root [style*="background: rgb(246, 247, 251)"], html[data-theme="dark"] .preview-root [style*="background-color: rgb(246, 247, 251)"],
+html[data-theme="dark"] .preview-root [style*="background: rgb(247, 248, 252)"], html[data-theme="dark"] .preview-root [style*="background: rgb(243, 245, 249)"],
+html[data-theme="dark"] .preview-root [style*="background: rgb(245, 246, 250)"], html[data-theme="dark"] .preview-root [style*="background: rgb(250, 250, 252)"] { background-color:var(--panel-2) !important; }
+html[data-theme="dark"] .preview-root [style^="color: rgb(35, 45, 66)"], html[data-theme="dark"] .preview-root [style*="; color: rgb(35, 45, 66)"],
+html[data-theme="dark"] .preview-root [style^="color: rgb(26, 26, 31)"], html[data-theme="dark"] .preview-root [style*="; color: rgb(26, 26, 31)"] { color:var(--ink) !important; }
+html[data-theme="dark"] .preview-root [style^="color: rgb(74, 84, 104)"], html[data-theme="dark"] .preview-root [style*="; color: rgb(74, 84, 104)"] { color:var(--ink-soft) !important; }
+html[data-theme="dark"] .preview-root [style*="solid rgb(238, 240, 244)"], html[data-theme="dark"] .preview-root [style*="solid rgb(243, 245, 249)"],
+html[data-theme="dark"] .preview-root [style*="solid rgb(233, 236, 251)"] { border-color:var(--line) !important; }
+
+/* Same, for inline styles still written as hex (server-rendered style attributes keep
+   the original spelling, e.g. "background:#FFFFFF"). */
+html[data-theme="dark"] .preview-root [style*="background:#fff;" i],
+html[data-theme="dark"] .preview-root [style*="background: #fff;" i],
+html[data-theme="dark"] .preview-root [style*="background:#ffffff" i],
+html[data-theme="dark"] .preview-root [style*="background: #ffffff" i],
+html[data-theme="dark"] .preview-root [style*="background:white;" i],
+html[data-theme="dark"] .preview-root [style*="background: white;" i],
+html[data-theme="dark"] .preview-root [style*="background-color:#fff;" i],
+html[data-theme="dark"] .preview-root [style*="background-color: #fff;" i],
+html[data-theme="dark"] .preview-root [style*="background-color:#ffffff" i],
+html[data-theme="dark"] .preview-root [style*="background-color: #ffffff" i],
+html[data-theme="dark"] .preview-root [style$="background:#fff" i],
+html[data-theme="dark"] .preview-root [style$="background: #fff" i],
+html[data-theme="dark"] .preview-root [style$="background:white" i],
+html[data-theme="dark"] .preview-root [style$="background: white" i] { background-color:var(--panel) !important; }
+html[data-theme="dark"] .preview-root [style*="background:#F6F7FB" i],
+html[data-theme="dark"] .preview-root [style*="background: #F6F7FB" i],
+html[data-theme="dark"] .preview-root [style*="background:#F7F8FC" i],
+html[data-theme="dark"] .preview-root [style*="background: #F7F8FC" i],
+html[data-theme="dark"] .preview-root [style*="background:#F3F5F9" i],
+html[data-theme="dark"] .preview-root [style*="background: #F3F5F9" i],
+html[data-theme="dark"] .preview-root [style*="background:#F5F6FA" i],
+html[data-theme="dark"] .preview-root [style*="background: #F5F6FA" i],
+html[data-theme="dark"] .preview-root [style*="background:#F0F2F8" i],
+html[data-theme="dark"] .preview-root [style*="background: #F0F2F8" i],
+html[data-theme="dark"] .preview-root [style*="background:#FAFAFC" i],
+html[data-theme="dark"] .preview-root [style*="background: #FAFAFC" i] { background-color:var(--panel-2) !important; }
+html[data-theme="dark"] .preview-root [style^="color:#232D42" i], html[data-theme="dark"] .preview-root [style*=";color:#232D42" i], html[data-theme="dark"] .preview-root [style*="; color:#232D42" i],
+html[data-theme="dark"] .preview-root [style^="color: #232D42" i], html[data-theme="dark"] .preview-root [style*=";color: #232D42" i], html[data-theme="dark"] .preview-root [style*="; color: #232D42" i],
+html[data-theme="dark"] .preview-root [style^="color:#1A1A1F" i], html[data-theme="dark"] .preview-root [style*=";color:#1A1A1F" i], html[data-theme="dark"] .preview-root [style*="; color:#1A1A1F" i],
+html[data-theme="dark"] .preview-root [style^="color: #1A1A1F" i], html[data-theme="dark"] .preview-root [style*=";color: #1A1A1F" i], html[data-theme="dark"] .preview-root [style*="; color: #1A1A1F" i] { color:var(--ink) !important; }
+html[data-theme="dark"] .preview-root [style^="color:#4A5468" i], html[data-theme="dark"] .preview-root [style*=";color:#4A5468" i], html[data-theme="dark"] .preview-root [style*="; color:#4A5468" i],
+html[data-theme="dark"] .preview-root [style^="color: #4A5468" i], html[data-theme="dark"] .preview-root [style*=";color: #4A5468" i], html[data-theme="dark"] .preview-root [style*="; color: #4A5468" i] { color:var(--ink-soft) !important; }
+html[data-theme="dark"] .preview-root [style*="solid #EEF0F4" i],
+html[data-theme="dark"] .preview-root [style*="solid #F3F5F9" i],
+html[data-theme="dark"] .preview-root [style*="solid #E9ECFB" i] { border-color:var(--line) !important; }

@@ -1,4 +1,5 @@
 "use client";
+import { ThemeToggle } from "@/components/Theme";
 import { canAccessSection, type Section, type Sections } from "@/lib/permissions";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -295,7 +296,10 @@ export function PreviewSidebar() {
         {/* Logo → Overview (the main page). */}
         <Link href={OVERVIEW.href} aria-label="Go to Overview" className="hlogo-link">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img" />
+          <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img hlogo-light" />
+          {/* White logo for the dark theme (globals.css swaps them). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/goocampus-logo-white.png" alt="GooCampus" className="hlogo-img hlogo-dark" />
         </Link>
         <button type="button" onClick={toggleCollapsed} className="hcollapse"
           aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
@@ -314,6 +318,8 @@ export function PreviewSidebar() {
           {g.items.map((it) => (isFolder(it) ? <FolderRow key={it.key} f={it} /> : <LeafRow key={it.href} leaf={it} />))}
         </div>
       ))}
+      {/* Light / Dark / System (also on the Account page). */}
+      <div className="htheme"><span className="hnavgroup" style={{ padding: 0 }}>Theme</span><ThemeToggle compact /></div>
     </aside>
   );
 }
@@ -324,6 +330,8 @@ const SIDEBAR_CSS = `
 .hsidebar{--sb-brand:#3A57E8;--sb-brand-soft:#E9ECFB;--sb-brand-ink:#2138B0;--sb-ink:#232D42;--sb-ink-soft:#4A5468;--sb-faint:#A6ACBE;--sb-line:#EEF0F4;--sb-panel:#FFFFFF;--sb-panel2:#F7F8FC;
   width:236px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--sb-panel);border-right:1px solid var(--sb-line);padding:0 11px 16px;font-family:Inter,system-ui,sans-serif}
 .hsidebar *{box-sizing:border-box}
+.hsidebar .htheme{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 4px 0;padding:12px 6px 0;border-top:1px solid var(--sb-line)}
+body.nav-collapsed .hsidebar .htheme{display:none}
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
 .hsidebar .hbrand{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:16px 4px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
