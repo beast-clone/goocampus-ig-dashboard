@@ -330,7 +330,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   function scheduleFromTask(t: ToScheduleItem) {
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setComposePages([t.defaultPage]);
+    setComposePages(t.defaultPage ? [t.defaultPage] : []);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setShowCreateForm(true);
@@ -342,7 +342,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; return; }
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setComposePages([t.defaultPage]);
+    setComposePages(t.defaultPage ? [t.defaultPage] : []);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setScheduleEnabled(false);

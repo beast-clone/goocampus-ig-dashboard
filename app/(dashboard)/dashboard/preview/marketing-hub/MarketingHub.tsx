@@ -16,6 +16,7 @@ import type { TrashItem } from "@/lib/task-trash";
 import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 
 export type Row = {
   id: string;
@@ -1348,8 +1349,8 @@ const MHCAL_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
 type CalView = "month" | "week" | "day" | "list";
 
 // ── Channels (docs/CALENDAR_SPEC.md) ──
-// Each Instagram account, worked out from the SBU: 12thPlus.com → @12thplusdotcom;
-// mentorship SBUs → @goocampusworld; everything else → @goocampus.
+// Each Instagram account, worked out from the SBU via lib/sbu-pages (the same list the
+// Scheduler uses). Samvaya is on none of ours, so it shows only under "All accounts".
 type CalChannel = "all" | "goocampus" | "goocampusworld" | "12thplusdotcom";
 const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
   { value: "all", label: "All accounts" },
@@ -1357,7 +1358,8 @@ const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
   { value: "goocampusworld", label: "GooCampus World" },
   { value: "12thplusdotcom", label: "12th Plus" },
 ];
-const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> => (/^12th\s*plus/i.test(sbu) ? "12thplusdotcom" : /mentorship/i.test(sbu) ? "goocampusworld" : "goocampus");
+const PAGE_CHANNEL: Record<SbuPage, Exclude<CalChannel, "all">> = { "GooCampus Main": "goocampus", "GooCampus World": "goocampusworld", "12Plus / GC India": "12thplusdotcom" };
+const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const p = pageForSbu(sbu); return p ? PAGE_CHANNEL[p] : null; };
 
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
@@ -1511,7 +1513,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
           <div style={{ width: 230 }}>
             {/* Every SBU, always (user) — picking one switches the account to the one it
                 belongs to, so the pick never lands on an empty calendar. */}
-            <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v)); }}
+            <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v) ?? "all"); }}
               options={[{ value: "", label: `All SBUs (${channelRows.length})` },
                 ...Array.from(new Set([...allSbus, ...SBU_OPTIONS])).sort((a, b) => a.localeCompare(b))
                   .map((x) => ({ value: x, label: `${x} (${rows.filter((r) => r.sbu === x).length})` }))]} />

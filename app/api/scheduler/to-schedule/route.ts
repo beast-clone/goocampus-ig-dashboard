@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { pageForSbu } from "@/lib/sbu-pages";
 
 // GET /api/scheduler/to-schedule
 // The "To schedule" tab: content that has cleared Content Review and is awaiting a
@@ -16,15 +17,6 @@ import { getSupabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 const READY_STATUSES = ["Ready to Publish"];
-
-// Best-effort default IG/FB account from the content's SBU (interest). The person
-// can override + cross-post; this just pre-selects the obvious one.
-function defaultPageForSbu(sbu: string | null): string {
-  const s = (sbu || "").toLowerCase();
-  if (/india|neet|12th|12plus/.test(s)) return "12Plus / GC India"; // MUST match PAGE_OPTIONS value in scheduler (was "GooCampus India" → no checkbox matched, schedule-multi rejected it)
-  if (/study abroad|world|australia|middle east|uae|ireland|germany|nz|new zealand/.test(s)) return "GooCampus World";
-  return "GooCampus Main";
-}
 
 export async function GET() {
   const __denied = await requireSection("content");
@@ -87,7 +79,8 @@ export async function GET() {
       mediaUrls: [...((r.media_urls as string[] | null) || []), ...(attByPost.get(r.id) || [])],
       assetLink: r.output_link || null,
       channel: r.publish_to || null,
-      defaultPage: r.publish_to_page || defaultPageForSbu(r.sbu),
+      // the page from the primary interest (lib/sbu-pages); "" for Samvaya, which has none of ours
+      defaultPage: r.publish_to_page || pageForSbu(r.sbu) || "",
       publishingDate: r.publishing_date,
       priority: r.priority,
       updatedAt: r.updated_at,
