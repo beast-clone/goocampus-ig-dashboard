@@ -9,7 +9,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { NewTaskButton } from "@/components/NewTaskModal";
+import { NewTaskButton, NewTaskModal } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
 import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
@@ -1226,6 +1226,11 @@ function calStatusStyle(s: string): { bg: string; text: string; border: string }
 // the card (‹ › Today · title · Month/Week/Day/List), taller cells. Tokens hardcoded to the
 // PreviewShell values since the Marketing Hub renders under PreviewDashboardShell.
 const MHCAL_CSS = `
+.mhcal-daynum{display:flex;align-items:center;justify-content:space-between}
+.mhcal-add{opacity:0;width:20px;height:20px;border-radius:6px;border:1px solid #E9ECFB;background:#fff;color:#3A57E8;font-size:14px;line-height:1;display:inline-grid;place-items:center;cursor:pointer;transition:opacity .12s}
+.mhcal-cell:hover .mhcal-add,.mhcal-weekcol:hover .mhcal-add{opacity:1}
+.mhcal-add:hover{background:#E9ECFB}
+.mhcal-out{background:#F6F7FB !important;border:1px dashed #C9CED9 !important;color:#8A92A6 !important;display:flex;align-items:center;gap:4px;text-decoration:none}
 .mhcal{color:#232D42}
 .mhcal button{font-family:inherit;cursor:pointer}
 /* Hero band — indigo→violet ramp, distinct from the publishing calendar's blue */
@@ -1335,10 +1340,54 @@ const MHCAL_DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
 const MHCAL_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 type CalView = "month" | "week" | "day" | "list";
 
+// ── Channels + "posted outside" (docs/CALENDAR_SPEC.md) ──
+// Channel comes from the SBU: 12thPlus.com → 12th Plus; any "Mentorship" SBU →
+// Mentorship; everything else → Main channel.
+type CalChannel = "all" | "main" | "mentorship" | "12plus";
+const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
+  { value: "all", label: "All channels" }, { value: "main", label: "Main channel" },
+  { value: "mentorship", label: "Mentorship" }, { value: "12plus", label: "12th Plus" },
+];
+const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> => (/^12th\s*plus/i.test(sbu) ? "12plus" : /mentorship/i.test(sbu) ? "mentorship" : "main");
+// Instagram posts that went live without the dashboard, from the three accounts.
+const CAL_IG_ACCOUNTS = [
+  { id: "goocampus", page: "GooCampus Main", channel: "main" as const },
+  { id: "goocampusworld", page: "GooCampus World", channel: "main" as const },
+  { id: "12thplusdotcom", page: "12Plus / GC India", channel: "12plus" as const },
+];
+type OutsidePost = { id: string; title: string; day: string; url: string; page: string; channel: Exclude<CalChannel, "all"> };
+const normUrl = (u: string) => u.replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
   const [activeBrand, setActiveBrand] = useState<string>("");
+  const [channel, setChannel] = useState<CalChannel>("all");
+  const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
+  const me = useApi<{ user?: { isAdmin?: boolean; permissions?: Record<string, boolean> } }>("/api/me");
+  const canCreate = !!(me.data?.user?.isAdmin || me.data?.user?.permissions?.create_tasks);
+  // "Posted outside": live IG posts from the last 150 days not already tied to a task.
+  const [outside, setOutside] = useState<OutsidePost[]>([]);
+  // Published tasks rarely carry their Instagram link (Airtable/n8n/manual publishing),
+  // so we can't tell which live post is which task — hence "Live on Instagram", not
+  // "posted outside", and a switch to hide them (~80 a month).
+  const [showLive, setShowLive] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    const to = ymd(new Date()), from = ymd(new Date(Date.now() - 150 * 86_400_000));
+    Promise.all(CAL_IG_ACCOUNTS.map((a) =>
+      fetch(`/api/posts?accountId=${a.id}&from=${from}&to=${to}&limit=60`)
+        .then((r) => (r.ok ? r.json() : { posts: [] }))
+        .then((d: { posts?: { id: string; caption?: string; permalink?: string; timestamp?: string; type?: string }[] }) =>
+          (d.posts || []).filter((m) => m.timestamp && m.permalink).map((m): OutsidePost => ({
+            id: `ig-${m.id}`, url: m.permalink!, page: a.page, channel: a.channel,
+            day: ymd(new Date(m.timestamp!)),
+            title: (m.caption || "").split("\n")[0].slice(0, 60) || `${/REEL/i.test(m.type || "") ? "Reel" : "Post"} on Instagram`,
+          })))
+        .catch(() => [] as OutsidePost[]),
+    )).then((all) => { if (alive) setOutside(all.flat()); });
+    return () => { alive = false; };
+  }, []);
   const [view, setView] = useState<CalView>("month");
   // Anchor date drives every view; ‹ › shifts by month/week/day, Today resets it.
   const [anchor, setAnchor] = useState(() => new Date());
@@ -1364,8 +1413,19 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     setFailure({ kind: "error", message: "couldn't move that task — try again." });
   };
 
-  // Filter by active brand first, then bucket by yyyy-mm-dd.
-  const filteredRows = useMemo(() => activeBrand ? rows.filter((r) => r.sbu === activeBrand) : rows, [rows, activeBrand]);
+  // Channel first, then the brand chip, then bucket by yyyy-mm-dd.
+  const channelRows = useMemo(() => channel === "all" ? rows : rows.filter((r) => channelOfSbu(r.sbu) === channel), [rows, channel]);
+  const filteredRows = useMemo(() => activeBrand ? channelRows.filter((r) => r.sbu === activeBrand) : channelRows, [channelRows, activeBrand]);
+  const outByDay = useMemo(() => {
+    const m = new Map<string, OutsidePost[]>();
+    if (activeBrand || !showLive) return m; // a brand chip isolates tasks; live posts have no SBU
+    const linked = new Set(rows.map((r) => r.instagramUrl).filter(Boolean).map(normUrl));
+    for (const p of outside) {
+      if (linked.has(normUrl(p.url)) || (channel !== "all" && p.channel !== channel)) continue;
+      m.set(p.day, [...(m.get(p.day) || []), p]);
+    }
+    return m;
+  }, [outside, rows, channel, activeBrand, showLive]);
   const byDay = useMemo(() => {
     const m = new Map<string, Row[]>();
     for (const r of filteredRows) {
@@ -1381,9 +1441,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   // Per-brand counts across the current (unfiltered) range — powers the chip badges.
   const brandCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of rows) m.set(r.sbu, (m.get(r.sbu) || 0) + 1);
+    for (const r of channelRows) m.set(r.sbu, (m.get(r.sbu) || 0) + 1);
     return m;
-  }, [rows]);
+  }, [channelRows]);
 
   // Which statuses actually exist in the current view — legend only surfaces those.
   const statusesInView = useMemo(() => {
@@ -1418,10 +1478,10 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     for (let day = 1; day <= 31; day++) {
       const d = new Date(y, m, day); if (d.getMonth() !== m) break;
       const items = byDay.get(ymd(d)) || [];
-      if (items.length) days.push({ date: d, items });
+      if (items.length || outByDay.get(ymd(d))?.length) days.push({ date: d, items });
     }
     return days;
-  }, [anchor, byDay]);
+  }, [anchor, byDay, outByDay]);
 
   const shift = (dir: number) => setAnchor((cur) => {
     const d = new Date(cur);
@@ -1463,6 +1523,17 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       </button>
     );
   };
+  // A post that went live on Instagram without the dashboard — opens the post.
+  const OutBar = (p: OutsidePost, block?: boolean) => (
+    <a key={p.id} href={p.url} target="_blank" rel="noreferrer" title={`Live on Instagram · ${p.page} — opens the post`}
+      className={`mhcal-ev mhcal-out${block ? " block" : ""}`}>
+      <IconBrandInstagram size={12} stroke={1.8} style={{ flexShrink: 0 }} />
+      <span className="mhcal-evtitle">{p.title}</span>
+    </a>
+  );
+  const AddBtn = (key: string) => canCreate && (
+    <button className="mhcal-add" title="Create a task on this date" onClick={(e) => { e.stopPropagation(); setCreateDate(key); }}>+</button>
+  );
 
   return (
     <div className="mhcal">
@@ -1473,6 +1544,13 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       <div className="mhcal-titlecard">
         <h4>Calendar</h4>
         <div className="mhcal-tc-right">
+          <div style={{ width: 170 }}>
+            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setActiveBrand(""); }} options={CAL_CHANNELS} />
+          </div>
+          <label className="mhcal-tc-count" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }} title="Posts already live on our Instagram accounts (grey, dashed)">
+            <input type="checkbox" checked={showLive} onChange={(e) => setShowLive(e.target.checked)} className="accent-[#3A57E8]" />Live Instagram posts
+          </label>
+          <a href="/dashboard/preview/calendar?tab=planner" className="mhcal-tc-count" style={{ textDecoration: "underline" }}>AI planner</a>
           <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>
           <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
         </div>
@@ -1483,7 +1561,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         <div className="mhcal-brands">
           <span className="mhcal-brands-lbl">Brand</span>
           <button className={`mhcal-brand ${activeBrand === "" ? "on" : ""}`} onClick={() => setActiveBrand("")}>
-            All <span className="bcount">{rows.length}</span>
+            All <span className="bcount">{channelRows.length}</span>
           </button>
           {allSbus.map((s) => {
             const n = brandCounts.get(s) || 0;
@@ -1525,18 +1603,20 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
               {monthGrid.map((cell) => {
                 const key = ymd(cell.date);
                 const list = byDay.get(key) || [];
+                const outs = outByDay.get(key) || [];
+                const bars = [...list.map((r) => EvBar(r)), ...outs.map((p) => OutBar(p))];
                 const cls = `mhcal-cell${cell.inMonth ? "" : " out"}${cell.isToday ? " today" : ""}${dragOver === key ? " over" : ""}`;
                 return (
                   <div key={key} className={cls}
                     onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
                     onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
                     onDrop={(e) => dropOn(e, key)}>
-                    <div className="mhcal-daynum">{cell.date.getDate()}</div>
+                    <div className="mhcal-daynum">{cell.date.getDate()}{AddBtn(key)}</div>
                     <div className="mhcal-events">
-                      {list.slice(0, 4).map((r) => EvBar(r))}
-                      {list.length > 4 && (
-                        <button className="mhcal-more" onClick={() => { const first = list[4]; if (first) onOpen(first.id); }}>
-                          +{list.length - 4} more
+                      {bars.slice(0, 4)}
+                      {bars.length > 4 && (
+                        <button className="mhcal-more" onClick={() => { setAnchor(cell.date); setView("day"); }}>
+                          +{bars.length - 4} more
                         </button>
                       )}
                     </div>
@@ -1560,10 +1640,11 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                   onDrop={(e) => dropOn(e, key)}>
                   <div className="mhcal-weekhead">
                     <span className="mhcal-weekdow">{MHCAL_DAY_LABELS[d.getDay()]}</span>
-                    <span className={`mhcal-weeknum${isToday ? " today" : ""}`}>{d.getDate()}</span>
+                    <span className={`mhcal-weeknum${isToday ? " today" : ""}`}>{d.getDate()}</span>{AddBtn(key)}
                   </div>
                   <div className="mhcal-weekbody">
-                    {list.length === 0 ? <span className="mhcal-empty">—</span> : list.map((r) => EvBar(r, true))}
+                    {list.length === 0 && !(outByDay.get(key) || []).length ? <span className="mhcal-empty">—</span>
+                      : [...list.map((r) => EvBar(r, true)), ...(outByDay.get(key) || []).map((p) => OutBar(p, true))]}
                   </div>
                 </div>
               );
@@ -1575,8 +1656,10 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
           <div className="mhcal-day">
             {(() => {
               const list = byDay.get(ymd(anchor)) || [];
-              if (list.length === 0) return <div className="mhcal-dayempty">No tasks scheduled for this day.</div>;
-              return list.map((r) => <div key={r.id} className="mhcal-dayrow">{EvBar(r, true)}</div>);
+              const outs = outByDay.get(ymd(anchor)) || [];
+              const add = canCreate && <button className="mhcal-today" style={{ marginBottom: ".5rem" }} onClick={() => setCreateDate(ymd(anchor))}>+ New task on this day</button>;
+              if (list.length === 0 && outs.length === 0) return <>{add}<div className="mhcal-dayempty">No tasks scheduled for this day.</div></>;
+              return <>{add}{list.map((r) => <div key={r.id} className="mhcal-dayrow">{EvBar(r, true)}</div>)}{outs.map((p) => <div key={p.id} className="mhcal-dayrow">{OutBar(p, true)}</div>)}</>;
             })()}
           </div>
         )}
@@ -1603,6 +1686,14 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                         </button>
                       );
                     })}
+                    {(outByDay.get(ymd(date)) || []).map((p) => (
+                      <a key={p.id} className="mhcal-arow" href={p.url} target="_blank" rel="noreferrer">
+                        <span className="mhcal-abar" style={{ background: "#C9CED9" }} />
+                        <span className="mhcal-atitle">{p.title}</span>
+                        <span className="mhcal-apill" style={{ background: "#F6F7FB", color: "#8A92A6" }}>Live on Instagram</span>
+                        <span className="mhcal-aowner">{p.page}</span>
+                      </a>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -1625,6 +1716,10 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         </div>
       )}
       <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />
+      {createDate && (
+        <NewTaskModal facets={facets} onClose={() => setCreateDate(null)} onCreated={onSaved}
+          initial={{ publishingDate: createDate, sbu: channel === "12plus" ? "12thPlus.com" : undefined }} />
+      )}
     </div>
   );
 }

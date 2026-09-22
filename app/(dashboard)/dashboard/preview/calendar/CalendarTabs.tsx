@@ -1,44 +1,37 @@
 "use client";
 import { useEffect, useState } from "react";
 import { IconCalendarEvent, IconWand } from "@tabler/icons-react";
-import { PreviewCalendar } from "./PreviewCalendar";
+import { useRouter } from "next/navigation";
 import { Planner } from "../post-planner/PostPlanner";
 
-// Publishing Calendar = two tabs:
-//   • Content calendar — the real, all-sections publishing calendar (PreviewCalendar).
-//   • AI planner       — the @12thplus AI post planner (relocated from its own nav item).
-// Deep-link ?tab=planner opens straight to the AI planner (used by the old
-// /post-planner route, which now redirects here).
+// Publishing Calendar → the ONE calendar (docs/CALENDAR_SPEC.md): the Marketing Hub
+// content calendar now shows every task + channels + posts made outside the dashboard,
+// so this page only keeps the AI planner (?tab=planner) and sends everything else there.
+// (PreviewCalendar.tsx is the old publishing calendar, no longer routed.)
+const MERGED = "/dashboard/preview/marketing-hub?tab=calendar";
 export function CalendarTabs() {
-  const [tab, setTab] = useState<"calendar" | "planner">("calendar");
+  const router = useRouter();
+  const [planner, setPlanner] = useState<boolean | null>(null);
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "planner") {
-      setTab("planner");
-    }
-  }, []);
+    const isPlanner = new URLSearchParams(window.location.search).get("tab") === "planner";
+    if (!isPlanner) router.replace(MERGED);
+    setPlanner(isPlanner);
+  }, [router]);
+  if (!planner) return null;
 
-  // 36px tall like every control in Business Suite, 14px/500 like its tabs.
-  // The page now sits inside .preview-scope, where --brand is bare RGB channels —
-  // the old inline background:var(--brand) went invalid there and the active tab
-  // turned white-on-white. bg-brand is the in-scope way to say the same colour.
   const pill = (active: boolean) =>
     `inline-flex items-center gap-1.5 h-full text-[14px] font-medium px-4 transition ${
       active ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"
     }`;
-
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
         <div className="inline-flex h-9 bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <button onClick={() => setTab("calendar")} className={pill(tab === "calendar")}>
-            <IconCalendarEvent size={16} /> Content calendar
-          </button>
-          <button onClick={() => setTab("planner")} className={pill(tab === "planner")}>
-            <IconWand size={16} /> AI planner
-          </button>
+          <a href={MERGED} className={pill(false)}><IconCalendarEvent size={16} /> Content calendar</a>
+          <span className={pill(true)}><IconWand size={16} /> AI planner</span>
         </div>
       </div>
-      {tab === "calendar" ? <PreviewCalendar /> : <Planner />}
+      <Planner />
     </div>
   );
 }

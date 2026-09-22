@@ -62,14 +62,15 @@ export function NewTaskButton({ facets, onCreated, variant = "floating", label =
   );
 }
 
-function NewTaskModal({ facets, onClose, onCreated }: { facets?: Facets; onClose: () => void; onCreated?: () => void }) {
+// `initial` pre-fills the form — e.g. the calendar's + on a date sets the publishing date.
+export function NewTaskModal({ facets, onClose, onCreated, initial }: { facets?: Facets; onClose: () => void; onCreated?: () => void; initial?: { publishingDate?: string; sbu?: string } }) {
   const sbus = (facets?.sbu && facets.sbu.length > 0) ? facets.sbu : FALLBACK_SBUS;
 
   const [title, setTitle] = useState("");
-  const [sbu, setSbu] = useState("");
+  const [sbu, setSbu] = useState(initial?.sbu || "");
   const [type, setType] = useState("");
   const [owner, setOwner] = useState("Manya B M"); // writer owns content at creation
-  const [publishingDate, setPublishingDate] = useState("");
+  const [publishingDate, setPublishingDate] = useState(initial?.publishingDate || "");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [platforms, setPlatforms] = useState<string[]>([]);
