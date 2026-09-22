@@ -715,11 +715,11 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <FormatWins rows={formatRows} cardStyle={{ minWidth: 0 }} footer={<YourRead mix={postMix} />} />
               </div>
 
-              {/* Posting cadence */}
-              <SectionHeader icon={IconCalendarEvent} title="Posting cadence" sub="How often you post, by week" />
+              {/* Output — monthly totals first, then the weekly rhythm */}
+              <SectionHeader icon={IconCalendarEvent} title="What you published" sub="Monthly totals, then the weekly rhythm" />
               <div className="preview-scope" style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "8px 12px" }}>
-                <PostingCadenceBar accountId={accountId} range={range} smartCadence />
                 <MonthlyOutputBar accountId={accountId} range={range} months={monthlyMonths} />
+                <PostingCadenceBar accountId={accountId} range={range} smartCadence />
               </div>
 
             </>
