@@ -98,30 +98,35 @@ export type FBAudience = {
   available: boolean;
   reason?: string;
   countries: { code: string; count: number; pct: number }[];
+  cities: { label: string; count: number }[];   // top cities ("City, State, Country"), Meta's page_follows_city
+  total: number;                                 // followers across countries
 };
 
 export async function fetchPageAudience(acc: IGAccountConfig): Promise<FBAudience> {
-  if (!acc.pageId) return { available: false, reason: "no pageId", countries: [] };
+  if (!acc.pageId) return { available: false, reason: "no pageId", countries: [], cities: [], total: 0 };
   try {
     type Metric = { name: string; values?: { value?: Record<string, number> }[] };
-    const r = await fbGet<{ data?: Metric[] }>(`${acc.pageId}/insights`, {
-      metric: "page_follows_country",
-      period: "day",
-      access_token: acc.pageAccessToken,
-    });
+    const [r, rc] = await Promise.all([
+      fbGet<{ data?: Metric[] }>(`${acc.pageId}/insights`, { metric: "page_follows_country", period: "day", access_token: acc.pageAccessToken }),
+      fbGet<{ data?: Metric[] }>(`${acc.pageId}/insights`, { metric: "page_follows_city", period: "day", access_token: acc.pageAccessToken }).catch(() => null),
+    ]);
+    const cv = rc?.data?.[0]?.values ?? [];
+    const cityObj = cv[cv.length - 1]?.value || {};
+    const cities = Object.entries(cityObj).filter(([, n]) => typeof n === "number" && n > 0)
+      .map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
     const vals = r.data?.[0]?.values ?? [];
     const latest = vals[vals.length - 1]?.value;
     if (!latest || typeof latest !== "object") {
-      return { available: false, reason: "no country data returned", countries: [] };
+      return { available: false, reason: "no country data returned", countries: [], cities, total: 0 };
     }
     const entries = Object.entries(latest).filter(([, n]) => typeof n === "number" && n > 0);
     const total = entries.reduce((s, [, n]) => s + n, 0) || 1;
     const countries = entries
       .map(([code, count]) => ({ code, count, pct: Math.round((count / total) * 1000) / 10 }))
       .sort((a, b) => b.count - a.count);
-    return { available: true, countries };
+    return { available: true, countries, cities, total: entries.reduce((s, [, n]) => s + n, 0) };
   } catch (e) {
-    return { available: false, reason: (e as Error).message, countries: [] };
+    return { available: false, reason: (e as Error).message, countries: [], cities: [], total: 0 };
   }
 }
 

@@ -547,8 +547,10 @@ export async function fetchAudience(acc: IGAccountConfig): Promise<AudienceDemog
   return {
     age: toEntries(age),
     gender: toEntries(gender),
-    cities: toEntries(cities).slice(0, 10),
-    countries: toEntries(countries).slice(0, 10),
+    // All of Meta's top cities/countries (≤45) — the Audience page's lists and maps take
+    // their own top-N; the State/City card (LocationCard) needs the full list.
+    cities: toEntries(cities),
+    countries: toEntries(countries),
     ageGender: ageGenderMatrix,
     onlineFollowers: online.avg,
     onlineGrid: online.grid,

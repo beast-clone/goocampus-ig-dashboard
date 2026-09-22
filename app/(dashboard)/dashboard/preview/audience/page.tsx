@@ -1,4 +1,5 @@
 "use client";
+import { LocationCard } from "@/app/(dashboard)/dashboard/preview/LocationCard";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconCake, IconClock, IconWorld } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -271,6 +272,11 @@ function Audience({ accountId }: { accountId: string }) {
           </div>
         </div>
       </section>
+
+      {/* State → its cities, all 45 cities, and countries (Nandu: "I want to see the state/town also"). */}
+      <div className="mb-6">
+        <LocationCard platform="Instagram" cities={data.cities} countries={data.countries} totalFollowers={data.account.followers} />
+      </div>
 
       {/* ═════════════════════ SECTION 3 — WHEN ═════════════════════
           Peak hour headline + heatmap + hourly area chart, all one panel. */}
