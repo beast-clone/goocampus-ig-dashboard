@@ -1,5 +1,5 @@
 "use client";
-import { IconPrinter } from "@tabler/icons-react";
+import { IconBuilding, IconPrinter } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { BrandLoader } from "@/components/BrandLoader";
@@ -7,24 +7,29 @@ import { ReportView, PERIOD_META, type ReportPayload, type Period } from "./Repo
 import { MonthlyReportView } from "./MonthlyReportView";
 
 export default function AIReportsPage() {
+  // Lifted so the shell can hide the account picker on Monthly: the monthly report is
+  // the company report for the main GooCampus accounts and ignores the picker.
+  const [period, setPeriod] = useState<Period>("monthly");
   return (
-    <PreviewDashboardShell active="ai-reports" title="Monthly Reports" subtitle="The full monthly report in the team's format — live data + imported history. Weekly & quarterly rollups available too; generated reports are stored under Reports." hideRange>
-      {({ accountId }) => <AIReports accountId={accountId} />}
+    <PreviewDashboardShell active="ai-reports" title="Monthly Reports" subtitle="The full monthly report in the team's format — live data + imported history. Weekly & quarterly rollups available too; generated reports are stored under Reports." hideRange
+      hideAccountPicker={period === "monthly"}>
+      {({ accountId }) => <AIReports accountId={accountId} period={period} setPeriod={setPeriod} />}
     </PreviewDashboardShell>
   );
 }
 
-function AIReports({ accountId }: { accountId: string }) {
+function AIReports({ accountId, period, setPeriod }: { accountId: string; period: Period; setPeriod: (p: Period) => void }) {
   // "monthly" = the full-format template report (default). weekly/quarterly = the
   // live single-account generator (ReportView). savedMode = opened from the archive.
-  const [period, setPeriod] = useState<Period>("monthly");
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loading, setLoading] = useState<Period | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedMode, setSavedMode] = useState(false);
   const autoedFor = useRef<string | null>(null);
 
+  const reqId = useRef(0); // only the latest request may set the report (quick account switches)
   const generate = async (p: Period, force = false) => {
+    const id = ++reqId.current;
     setLoading(p);
     setError(null);
     setPeriod(p);
@@ -32,12 +37,13 @@ function AIReports({ accountId }: { accountId: string }) {
       const qs = new URLSearchParams({ accountId, period: p, ...(force ? { force: "1" } : {}) }).toString();
       const r = await fetch(`/api/ai-report?${qs}`);
       const d = await r.json();
+      if (id !== reqId.current) return;
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
       setReport(d as ReportPayload);
     } catch (e) {
-      setError((e as Error).message);
+      if (id === reqId.current) setError((e as Error).message);
     } finally {
-      setLoading(null);
+      if (id === reqId.current) setLoading(null);
     }
   };
 
@@ -61,7 +67,16 @@ function AIReports({ accountId }: { accountId: string }) {
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(null));
-  }, []);
+  }, [setPeriod]); // setPeriod is a stable useState setter from the page
+
+  // Weekly / quarterly follow the account picker: switching accounts regenerates.
+  const lastAccount = useRef(accountId);
+  useEffect(() => {
+    if (lastAccount.current === accountId) return;
+    lastAccount.current = accountId;
+    if (!savedMode && period !== "monthly") generate(period);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   const pick = (p: Period) => {
     setError(null);
@@ -103,7 +118,14 @@ function AIReports({ accountId }: { accountId: string }) {
             </button>
           ))}
         </div>
-        <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand"><IconPrinter size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Export / Print</button>
+        <div className="flex items-center gap-2">
+          {period === "monthly" && (
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-brand-light text-brand" title="The monthly report doesn't change with the account picker. Weekly and Quarterly follow it.">
+              <IconBuilding size={14} stroke={1.8} />Company report · main GooCampus accounts
+            </span>
+          )}
+          <button onClick={() => window.print()} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-brand"><IconPrinter size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Export / Print</button>
+        </div>
       </div>
 
       {period === "monthly" ? (
