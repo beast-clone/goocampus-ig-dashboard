@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
+import { useConfirm } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
   IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconPencil, IconInfoCircle, IconChartBar, IconArrowDown,
@@ -99,28 +100,32 @@ export default function SeoPage() {
 function Inner() {
   const [key, setKey] = useState("/api/seo/social");
   const { data, error, isLoading } = useApi<Data>(key);
-  const [kwPlatform, setKwPlatform] = useState<Platform>("instagram"); // one switch for topics + what works + gaps
+  const [platform, setPlatform] = useState<Platform>("instagram"); // ONE switch for the whole page
   const [tab, setTab] = useState<"keywords" | "ranking">("keywords");
   return (
     <div className="preview-scope space-y-4">
-      <div className="inline-flex bg-white border border-gray-100 rounded-xl p-1 gap-1">
-        {([["keywords", "Keywords", <IconSparkles key="k" size={16} stroke={1.8} />], ["ranking", "Ranking", <IconChartBar key="r" size={16} stroke={1.8} />]] as const).map(([k, label, icon]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`h-9 px-4 rounded-lg text-[14px] font-medium inline-flex items-center gap-1.5 ${tab === k ? "bg-brand-light text-brand" : "text-[#8A92A6] hover:text-[#232D42]"}`}>{icon}{label}</button>
-        ))}
+      {/* Tabs on the left; ONE Instagram/YouTube switch for everything below. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex bg-white border border-gray-100 rounded-xl p-1 gap-1">
+          {([["keywords", "Keywords", <IconSparkles key="k" size={16} stroke={1.8} />], ["ranking", "Ranking", <IconChartBar key="r" size={16} stroke={1.8} />]] as const).map(([k, label, icon]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`h-9 px-4 rounded-lg text-[14px] font-medium inline-flex items-center gap-1.5 ${tab === k ? "bg-brand-light text-brand" : "text-[#8A92A6] hover:text-[#232D42]"}`}>{icon}{label}</button>
+          ))}
+        </div>
+        <PlatformToggle value={platform} onChange={setPlatform} />
       </div>
-      {tab === "keywords" && <Generator />}
+      {tab === "keywords" && <Generator platform={platform} />}
       {error ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-rose-600">Couldn&apos;t load keyword data: {error.message}</div>
       ) : !data ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label={isLoading ? "Reading our posts and 9 competitors' — this takes a moment the first time…" : undefined} /></div>
-      ) : tab === "ranking" ? <Ranking data={data} /> : (
+      ) : tab === "ranking" ? <Ranking data={data} platform={platform} /> : (
         <>
-          <Competitors data={data} updating={isLoading} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
+          <Competitors data={data} platform={platform} updating={isLoading} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
           {/* Topics on the left; what works for us + gaps beside them, so nothing sits far below. */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-4 items-start">
-            <Trending data={data} platform={kwPlatform} setPlatform={setKwPlatform} />
-            <OursAndGaps data={data} platform={kwPlatform} />
+            <Trending data={data} platform={platform} />
+            <OursAndGaps data={data} platform={platform} />
           </div>
         </>
       )}
@@ -129,11 +134,11 @@ function Inner() {
 }
 
 // ── 1. Generate ────────────────────────────────────────────────────────────
-function Generator() {
-  const [platform, setPlatform] = useState<Platform>("instagram");
+function Generator({ platform }: { platform: Platform }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Gen | null>(null);
+  useEffect(() => { setOut(null); }, [platform]);
   const [err, setErr] = useState<string | null>(null);
   const run = async () => {
     setBusy(true); setErr(null); setOut(null);
@@ -152,8 +157,7 @@ function Generator() {
   ].filter((g) => g.items.length) : [];
   return (
     <Card icon={<IconSparkles size={17} stroke={1.8} />} title="Generate keywords"
-      sub="Paste an Instagram caption or a YouTube script — get keywords and hashtags to copy into the post."
-      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setOut(null); }} />}>
+      sub="Paste an Instagram caption or a YouTube script — get keywords and hashtags to copy into the post.">
       <Explainer>
         <b className="font-medium">AI suggestions for one post.</b> Paste the caption or script you&apos;re writing and get keywords and hashtags for it
         {" "}(about half a cent each). For the keywords doctor accounts <i>actually use</i>, see <b className="font-medium">Keywords by topic</b> below.
@@ -255,10 +259,11 @@ function TopicForm({ initial, onDone }: { initial?: Topic; onDone: (saved: boole
   );
 }
 
-function Trending({ data, platform, setPlatform }: { data: Data; platform: Platform; setPlatform: (p: Platform) => void }) {
+function Trending({ data, platform }: { data: Data; platform: Platform }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]); // groups showing all keywords, not just the top 8
+  useEffect(() => { setPicked([]); setOpen(null); setExpanded([]); }, [platform]);
   const tracked = data.accounts.filter((a) => a.platform === platform && a.analysed > 0).length;
   const topicsApi = useApi<{ topics: Topic[] }>("/api/seo/topics");
   const custom = useMemo(() => topicsApi.data?.topics || [], [topicsApi.data]);
@@ -274,8 +279,9 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
       ...TOPIC_ORDER.filter((t) => g.has(t)).map((t) => ({ topic: t, rows: g.get(t)!.slice(0, 20), custom: undefined as Topic | undefined })),
     ];
   }, [data, platform, custom]);
+  const [ask, dialog] = useConfirm();
   const removeTopic = async (t: Topic) => {
-    if (!confirm(`Delete the topic "${t.name}"?`)) return;
+    if (!(await ask({ title: `Delete the topic "${t.name}"?`, body: "Its group and any AI suggestions saved on it are removed for everyone. The keywords themselves stay in the other groups.", action: "Delete topic", danger: true }))) return;
     await fetch("/api/seo/topics", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id }) });
     topicsApi.refresh();
   };
@@ -290,8 +296,8 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
   const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   return (
     <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Keywords by topic"
-      sub="Grouped by topic, best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set."
-      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); setExpanded([]); }} />}>
+      sub="Grouped by topic, best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.">
+      {dialog}
       {/* Selection bar — stays visible while picking across groups */}
       <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 flex-wrap">
         <span className="text-[14px] text-[#232D42]">{picked.length ? <><b className="font-medium">{picked.length}</b> selected</> : <span className="text-[#8A92A6]">Tap keywords below to select them</span>}</span>
@@ -492,24 +498,25 @@ const profileUrl = (a: Account) => (a.platform === "youtube" ? `https://www.yout
 const PlatformIcon = ({ p, size = 18 }: { p: Platform; size?: number }) =>
   p === "instagram" ? <IconBrandInstagram size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" /> : <IconBrandYoutube size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />;
 
-function Competitors({ data, updating, onRefresh }: { data: Data; updating: boolean; onRefresh: () => void }) {
+function Competitors({ data, platform, updating, onRefresh }: { data: Data; platform: Platform; updating: boolean; onRefresh: () => void }) {
   const when = new Date(data.fetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-  const [platform, setPlatform] = useState<Platform>("instagram");
   const list = data.accounts.filter((a) => a.platform === platform);
   const isOurs = (a: Account) => handleOf(a).toLowerCase() === "goocampus";
   const ourAcc = list.find(isOurs), others = list.filter((a) => !isOurs(a));
   const ourKws = useMemo(() => new Set((ourAcc?.posts || []).flatMap((p) => p.keywords.map((k) => k.toLowerCase()))), [ourAcc]);
   const [sel, setSel] = useState("");
   const picked = list.find((a) => `${a.platform}:${a.account}` === sel) || list[0];
+  const [ask, dialog] = useConfirm();
   const remove = async (a: Account) => {
-    if (!confirm(`Stop tracking @${handleOf(a)}?`)) return;
+    if (!(await ask({ title: `Stop tracking @${handleOf(a)}?`, body: "Its posts drop out of the keyword counts for everyone. You can add it back any time.", action: "Remove", danger: true }))) return;
     const r = await fetch("/api/seo/accounts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform: a.platform, handle: a.account }) });
-    if (r.ok) onRefresh(); else alert(((await r.json().catch(() => ({}))) as { error?: string }).error || "Couldn't remove it.");
+    if (r.ok) onRefresh();
+    else await ask({ title: "Couldn't remove it", body: ((await r.json().catch(() => ({}))) as { error?: string }).error || "Try again.", notice: true });
   };
   return (
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
-      sub={`Our account and the doctor-education accounts we compare with — latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes by itself daily.`}
-      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setSel(""); }} />}>
+      sub={`Our account and the doctor-education accounts we compare with — latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes by itself daily.`}>
+      {dialog}
       {/* Re-reading every account takes ~a minute; the old list stays up meanwhile. */}
       {updating && (
         <div className="mb-3 flex items-center gap-2 rounded bg-brand-light px-3 py-2 text-[13px] text-brand">
@@ -796,8 +803,7 @@ function SortTable<T extends { keyword: string }>({ rows, cols, initial, baselin
 type OurRow = { keyword: string; posts: number; reach: number | null; views: number | null; engagement: number | null; likes: number | null; comments: number | null; saves: number | null; shares: number | null; rate: number | null };
 type AllRow = { keyword: string; per1k: number | null; accounts: number; posts: number; oursPosts: number };
 
-function Ranking({ data }: { data: Data }) {
-  const [platform, setPlatform] = useState<Platform>("instagram");
+function Ranking({ data, platform }: { data: Data; platform: Platform }) {
   const [showOnes, setShowOnes] = useState(false);
   const yt = platform === "youtube";
   const accs = data.accounts.filter((a) => a.platform === platform && (a.posts || []).length);
@@ -853,7 +859,6 @@ function Ranking({ data }: { data: Data }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <PlatformToggle value={platform} onChange={setPlatform} />
         <label className="inline-flex items-center gap-2 text-[14px] text-[#4A5468] cursor-pointer">
           <input type="checkbox" checked={showOnes} onChange={(e) => setShowOnes(e.target.checked)} className="accent-[#3A57E8]" />
           Include keywords from just one post {showOnes ? "" : "(hidden — one post proves little)"}
