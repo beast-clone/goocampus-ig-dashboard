@@ -30,8 +30,10 @@ function clampToTodayISO(d: string): string {
 }
 
 // Brands you can switch between on the analytics tabs. Samvaya is a separate
-// business and excluded from the GooCampus marketing view.
-const SWITCHABLE_ACCOUNTS = ACCOUNTS.filter((a) => a.id !== "samvaya_matrimony");
+// business but is included on request (comments, 22 Sep) — it carries its own
+// `platforms` whitelist in lib/accounts.ts, so only the channels it really has
+// are offered.
+const SWITCHABLE_ACCOUNTS = ACCOUNTS;
 
 // Exact dashboard theme tokens (pulled from the live theme — primary #3A57E8, Inter).
 const C = {
@@ -159,10 +161,21 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
   const [brandOpen, setBrandOpen] = useState(false);
   const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
+  // Only offer the platforms this brand actually has. No `platforms` list = all
+  // four, which is how every GooCampus brand behaves.
+  const availablePlatforms = useMemo(
+    () => (currentAccount?.platforms ? PLATFORMS.filter((p) => currentAccount.platforms!.includes(p.key)) : PLATFORMS.slice()),
+    [currentAccount],
+  );
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [selMonthKey, setSelMonthKey] = useState<string | null>(null);
   const [platform, setPlatform] = useState<PlatformKey>("instagram");
+  // Switching to a brand that doesn't have the current platform (e.g. YouTube →
+  // Samvaya) must not leave a dead tab selected showing another brand's shape.
+  useEffect(() => {
+    if (!availablePlatforms.some((p) => p.key === platform)) setPlatform(availablePlatforms[0]?.key ?? "instagram");
+  }, [availablePlatforms, platform]);
   const now = useMemo(() => new Date(), []);
   const todayStr = ymdLocal(now);
   // Instagram's account insights (follower_count) refuse the current day, so the
@@ -400,7 +413,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
           {/* Platform toggle + date-range filter — the filter drives every tab */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
             <div style={{ background: C.card, borderRadius: 12, boxShadow: SHADOW, padding: 6, display: "inline-flex", gap: 4 }}>
-              {PLATFORMS.map((p) => {
+              {availablePlatforms.map((p) => {
                 const on = platform === p.key;
                 return (
                   <button key={p.key} onClick={() => setPlatform(p.key)}
@@ -445,7 +458,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
 
           {platform !== "instagram" ? (
             <>
-              <PlatformHero platform={platform} accountId={accountId} range={range} rangeLabel={rangeLabel} person={person} />
+              <PlatformHero platform={platform} accountId={accountId} range={range} rangeLabel={rangeLabel} brandLabel={currentAccount?.label ?? "GooCampus"} person={person} />
               <div className="preview-scope">
                 <Card>
                   <div style={{ fontSize: 14, color: C.muted, marginBottom: 10 }}>{PLATFORMS.find((p) => p.key === platform)?.label} overview</div>
@@ -706,7 +719,7 @@ function HeroBanner({ eyebrow, person = "", children }: { eyebrow: string; perso
 
 // Same banner for Facebook / LinkedIn / YouTube, with that platform's real
 // headline metrics (fetched the same way the panel below it fetches).
-function PlatformHero({ platform, accountId, range, rangeLabel, person = "" }: { platform: PlatformKey; accountId: string; range: { from: string; to: string }; rangeLabel: string; person?: string }) {
+function PlatformHero({ platform, accountId, range, rangeLabel, brandLabel, person = "" }: { platform: PlatformKey; accountId: string; range: { from: string; to: string }; rangeLabel: string; brandLabel: string; person?: string }) {
   const label = platform === "facebook" ? "Facebook" : platform === "linkedin" ? "LinkedIn" : "YouTube";
   const connected = platform === "facebook" ? true : platform === "linkedin" ? !!LI_PAGE[accountId] : !!YT_CHANNEL[accountId];
   const url = useMemo(() => {
@@ -744,7 +757,7 @@ function PlatformHero({ platform, accountId, range, rangeLabel, person = "" }: {
     sub = <>You have <b>{fmt(s.followers || 0)}</b> followers (<b>+{s.followerGain || 0}</b> this period) with a <b>{s.engagementRate || 0}%</b> engagement rate across <b>{s.posts || 0}</b> posts.</>;
   }
 
-  return <HeroBanner eyebrow={`GooCampus on ${label} · ${rangeLabel}`} person={person}>{sub}</HeroBanner>;
+  return <HeroBanner eyebrow={`${brandLabel} on ${label} · ${rangeLabel}`} person={person}>{sub}</HeroBanner>;
 }
 
 
