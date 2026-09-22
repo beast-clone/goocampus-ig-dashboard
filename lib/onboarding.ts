@@ -106,7 +106,7 @@ export const TAB_INTRO: Record<string, Intro> = {
   youtube: { title: "YouTube performance", body: "Views, watch time and subscriber movement across your channels, with every video listed underneath." },
   facebook: { title: "Facebook performance", body: "Page reach, engagement and post performance for the Facebook pages." },
   website: { title: "Who visits the website", body: "Traffic, where people come from and what they do once they arrive, from Google Analytics and Search Console." },
-  seo: { title: "How you rank on Google", body: "The searches people use to find you, where you rank for them, and which ones are close to page one." },
+  seo: { title: "Keywords for Instagram & YouTube", body: "Paste a caption or script to get keywords and hashtags, see which doctor keywords competitors use and how they perform, and spot the ones we're missing." },
   audience: { title: "Who your followers are", body: "Age, gender, country and the hours they're online — useful for deciding when to post." },
   ads: {
     title: "What your ad money is doing",

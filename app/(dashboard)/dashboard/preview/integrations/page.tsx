@@ -336,7 +336,7 @@ const FEATURE_LABEL: Record<string, string> = {
   "content-studio": "Content Studio", "content-studio-research": "Content Studio · deep research", playbook: "Playbooks",
   "post-planner": "Post Planner", "ai-report": "AI reports", "ai-insights": "AI insights", "overview-tips": "Overview tips",
   "ads-analyst": "Ads analyst", "scheduler-caption": "Scheduler captions", "format-advisor": "Format advisor",
-  "inbox-mood": "Inbox mood", benchmark: "Benchmark", "website-insights": "Website insights", "health-check": "Health check (this tab)", other: "Other",
+  "inbox-mood": "Inbox mood", benchmark: "Benchmark", "seo-keywords": "SEO keywords", "website-insights": "Website insights", "health-check": "Health check (this tab)", other: "Other",
 };
 const usd = (n: number) => `$${n < 10 ? n.toFixed(2) : n.toFixed(0)}`;
 const person = (k: string) => (k === "background" ? "Background jobs" : k.charAt(0).toUpperCase() + k.slice(1));

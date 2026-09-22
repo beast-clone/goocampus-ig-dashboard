@@ -444,3 +444,14 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     traffic: { sources: trafficSources, geography, cities, devices, ageGroups, genderSplit, ageGender },
   };
 }
+
+// Read PUBLIC YouTube Data API resources (any channel's details/uploads/videos),
+// authorised with our own channel's OAuth token. Used by the SEO keyword tab to look
+// at competitor channels. `path` is everything after /youtube/v3/.
+export async function youtubeGet<T>(path: string): Promise<T> {
+  const token = await freshAccessToken("goocampus");
+  const r = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/${path}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.error?.message || `YouTube ${r.status}`);
+  return j as T;
+}
