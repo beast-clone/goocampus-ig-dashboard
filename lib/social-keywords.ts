@@ -128,7 +128,11 @@ export const DOCTOR_KEYWORDS: { keyword: string; match: RegExp }[] = [
 // same boilerplate, which made every video "mention" PLAB/AMC/USMLE).
 type Item = { text: string; tagText?: string; engagement: number; source: "ours" | "competitor"; account: string; url?: string; date?: string };
 // One post/video as shown in the SEO tab's account grid.
-export type AccountPost = { url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[] };
+export type AccountPost = {
+  url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[];
+  likes?: number; comments?: number; views?: number;
+  reach?: number; saves?: number; shares?: number; // our Instagram posts only (insights)
+};
 export type AccountSummary = {
   platform: "instagram" | "youtube"; account: string; name?: string; followers?: number; analysed: number; error?: string;
   pic?: string; posts?: AccountPost[];
@@ -193,17 +197,26 @@ function fallback(key: string, error: string, custom?: boolean): { items: Item[]
 }
 
 // ── Instagram ──────────────────────────────────────────────────────────────
-type IgMedia = { caption?: string; like_count?: number; comments_count?: number; permalink?: string; timestamp?: string; media_type?: string; media_url?: string; thumbnail_url?: string };
+type IgMedia = {
+  caption?: string; like_count?: number; comments_count?: number; permalink?: string; timestamp?: string; media_type?: string; media_url?: string; thumbnail_url?: string;
+  insights?: { data?: { name: string; values?: { value?: number }[] }[] };
+};
+// Our own posts also carry insights (other accounts' insights aren't shared).
+const OWN_MEDIA_FIELDS = "caption,like_count,comments_count,permalink,timestamp,media_type,media_url,thumbnail_url,insights.metric(reach,views,saved,shares)";
 const IG_MEDIA_FIELDS = "caption,like_count,comments_count,permalink,timestamp,media_type,media_url,thumbnail_url";
 // Hashtags + doctor keywords found in one post (same rules as the scoring below).
 function keywordsIn(text: string, tagText = text): string[] {
   const tags = [...new Set((tagText.match(HASHTAG) || []).map((h) => h.toLowerCase()))];
   return [...DOCTOR_KEYWORDS.filter((k) => k.match.test(text)).map((k) => k.keyword), ...tags];
 }
-const igPost = (m: IgMedia, eng: number): AccountPost => ({
-  url: m.permalink, image: m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url,
-  caption: (m.caption || "").slice(0, 400), date: m.timestamp, engagement: eng, keywords: keywordsIn(m.caption || ""),
-});
+const igPost = (m: IgMedia, eng: number): AccountPost => {
+  const ins = (n: string) => m.insights?.data?.find((d) => d.name === n)?.values?.[0]?.value;
+  return {
+    url: m.permalink, image: m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url,
+    caption: (m.caption || "").slice(0, 400), date: m.timestamp, engagement: eng, keywords: keywordsIn(m.caption || ""),
+    likes: m.like_count, comments: m.comments_count, reach: ins("reach"), views: ins("views"), saves: ins("saved"), shares: ins("shares"),
+  };
+};
 async function igGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const r = await fetchWithTimeout(`https://graph.facebook.com/v25.0/${path}?${new URLSearchParams(params)}`, { cache: "no-store" });
   const j = await r.json();
@@ -218,7 +231,7 @@ async function instagramItems(extra: string[], hidden: Set<string>): Promise<{ i
 
   try {
     const [own, me] = await Promise.all([
-      igGet<{ data: IgMedia[] }>(`${acc.igUserId}/media`, { fields: IG_MEDIA_FIELDS, limit: "60", access_token: acc.pageAccessToken }),
+      igGet<{ data: IgMedia[] }>(`${acc.igUserId}/media`, { fields: OWN_MEDIA_FIELDS, limit: "60", access_token: acc.pageAccessToken }),
       igGet<{ name?: string; followers_count?: number; profile_picture_url?: string }>(acc.igUserId, { fields: "name,followers_count,profile_picture_url", access_token: acc.pageAccessToken }).catch(() => null),
     ]);
     for (const m of own.data || []) if (m.caption) items.push({ text: m.caption, engagement: eng(m), source: "ours", account: acc.handle || "goocampus", url: m.permalink, date: m.timestamp });
@@ -252,7 +265,7 @@ async function instagramItems(extra: string[], hidden: Set<string>): Promise<{ i
 
 // ── YouTube ────────────────────────────────────────────────────────────────
 type YtThumbs = { default?: { url?: string }; medium?: { url?: string }; high?: { url?: string } };
-async function channelVideos(handle: string): Promise<{ name: string; subs: number; pic?: string; videos: { text: string; tagText: string; views: number; url: string; title: string; image?: string; date?: string }[] } | null> {
+async function channelVideos(handle: string): Promise<{ name: string; subs: number; pic?: string; videos: { text: string; tagText: string; views: number; likes: number; comments: number; url: string; title: string; image?: string; date?: string }[] } | null> {
   const ch = await youtubeGet<{ items?: { snippet?: { title?: string; thumbnails?: YtThumbs }; statistics?: { subscriberCount?: string }; contentDetails?: { relatedPlaylists?: { uploads?: string } } }[] }>(
     `channels?part=snippet,statistics,contentDetails&forHandle=${encodeURIComponent(handle)}`);
   const c = ch.items?.[0];
@@ -262,7 +275,7 @@ async function channelVideos(handle: string): Promise<{ name: string; subs: numb
   const ids = (pl.items || []).map((i) => i.contentDetails?.videoId).filter(Boolean).join(",");
   const pic = c.snippet?.thumbnails?.medium?.url || c.snippet?.thumbnails?.default?.url;
   if (!ids) return { name: c.snippet?.title || handle, subs: Number(c.statistics?.subscriberCount || 0), pic, videos: [] };
-  const vr = await youtubeGet<{ items?: { id?: string; snippet?: { title?: string; tags?: string[]; description?: string; publishedAt?: string; thumbnails?: YtThumbs }; statistics?: { viewCount?: string } }[] }>(`videos?part=snippet,statistics&id=${ids}`);
+  const vr = await youtubeGet<{ items?: { id?: string; snippet?: { title?: string; tags?: string[]; description?: string; publishedAt?: string; thumbnails?: YtThumbs }; statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }[] }>(`videos?part=snippet,statistics&id=${ids}`);
   return {
     name: c.snippet?.title || handle,
     subs: Number(c.statistics?.subscriberCount || 0), pic,
@@ -270,7 +283,7 @@ async function channelVideos(handle: string): Promise<{ name: string; subs: numb
     videos: (vr.items || []).map((v) => ({
       text: `${v.snippet?.title || ""} ${(v.snippet?.tags || []).join(" ")}`,
       tagText: `${v.snippet?.title || ""} ${(v.snippet?.description || "").slice(0, 400)}`,
-      views: Number(v.statistics?.viewCount || 0),
+      views: Number(v.statistics?.viewCount || 0), likes: Number(v.statistics?.likeCount || 0), comments: Number(v.statistics?.commentCount || 0),
       url: `https://www.youtube.com/watch?v=${v.id}`, title: v.snippet?.title || "", date: v.snippet?.publishedAt,
       image: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.medium?.url,
     })),
@@ -286,7 +299,7 @@ async function youtubeItems(extra: string[], hidden: Set<string>): Promise<{ ite
       if (!r) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: "Channel not found", custom }); continue; }
       const mine: Item[] = r.videos.map((v) => ({ text: v.text, tagText: v.tagText, engagement: v.views, source: ours ? "ours" as const : "competitor" as const, account: handle, url: v.url, date: v.date }));
       const summary: AccountSummary = { platform: "youtube", account: handle, name: r.name, followers: r.subs, pic: r.pic, analysed: r.videos.length,
-        posts: r.videos.map((v) => ({ url: v.url, image: v.image, caption: v.title, date: v.date, engagement: v.views, keywords: keywordsIn(v.text, v.tagText) })), custom };
+        posts: r.videos.map((v) => ({ url: v.url, image: v.image, caption: v.title, date: v.date, engagement: v.views, views: v.views, likes: v.likes, comments: v.comments, keywords: keywordsIn(v.text, v.tagText) })), custom };
       items.push(...mine); accounts.push(summary); keep(`youtube:${handle}`, mine, summary);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 120), fb = fallback(`youtube:${handle}`, msg, extra.includes(handle) || undefined);
@@ -353,6 +366,6 @@ export function getSocialKeywords(refresh = false): Promise<SocialKeywords> {
   // 24h — and not retried on every page load, which would only keep the limit hit.
   if (degraded && Date.now() - degraded.at < 15 * 60_000) return Promise.resolve(degraded.data);
   const ok = (d: SocialKeywords) => d.instagram.length + d.youtube.length > 0 && !d.accounts.some((x) => x.error || x.stale);
-  return cached("social-keywords:v3", 24 * 60 * 60_000, build, ok).then((d) => { if (!ok(d)) degraded = { at: Date.now(), data: d }; return d; });
+  return cached("social-keywords:v4", 24 * 60 * 60_000, build, ok).then((d) => { if (!ok(d)) degraded = { at: Date.now(), data: d }; return d; });
 }
 let degraded: { at: number; data: SocialKeywords } | null = null;

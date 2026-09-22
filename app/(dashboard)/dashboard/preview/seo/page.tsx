@@ -5,7 +5,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
-  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash,
+  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconChartBar, IconArrowDown,
 } from "@tabler/icons-react";
 
 // SEO for Instagram & YouTube — doctors only. Replaces the old website/Google SEO tab.
@@ -21,7 +21,10 @@ type Row = {
   posts: number; avgEngagement: number; oursPosts: number; oursAvgEngagement: number | null;
   oursList: { url: string; snippet: string; engagement: number; date?: string }[]; topic: string;
 };
-type Post = { url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[] };
+type Post = {
+  url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[];
+  likes?: number; comments?: number; views?: number; reach?: number; saves?: number; shares?: number;
+};
 type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string; pic?: string; posts?: Post[]; custom?: boolean; stale?: string };
 type Data = { instagram: Row[]; youtube: Row[]; accounts: Account[]; oursAvg: { instagram: number | null; youtube: number | null }; fetchedAt: string; error?: string };
 type Gen = { platform: Platform; keywords: string[]; hashtags: string[]; tags?: string[]; titles?: string[]; error?: string };
@@ -97,14 +100,21 @@ function Inner() {
   const [key, setKey] = useState("/api/seo/social");
   const { data, error, isLoading } = useApi<Data>(key);
   const [kwPlatform, setKwPlatform] = useState<Platform>("instagram"); // one switch for topics + what works + gaps
+  const [tab, setTab] = useState<"keywords" | "ranking">("keywords");
   return (
     <div className="preview-scope space-y-4">
-      <Generator />
+      <div className="inline-flex bg-white border border-gray-100 rounded-xl p-1 gap-1">
+        {([["keywords", "Keywords", <IconSparkles key="k" size={16} stroke={1.8} />], ["ranking", "Ranking", <IconChartBar key="r" size={16} stroke={1.8} />]] as const).map(([k, label, icon]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`h-9 px-4 rounded-lg text-[14px] font-medium inline-flex items-center gap-1.5 ${tab === k ? "bg-brand-light text-brand" : "text-[#8A92A6] hover:text-[#232D42]"}`}>{icon}{label}</button>
+        ))}
+      </div>
+      {tab === "keywords" && <Generator />}
       {error ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-rose-600">Couldn&apos;t load keyword data: {error.message}</div>
       ) : !data ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label={isLoading ? "Reading our posts and 9 competitors' — this takes a moment the first time…" : undefined} /></div>
-      ) : (
+      ) : tab === "ranking" ? <Ranking data={data} /> : (
         <>
           <Competitors data={data} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
           {/* Topics on the left; what works for us + gaps beside them, so nothing sits far below. */}
@@ -549,5 +559,157 @@ function MiniCopy({ text }: { text: string }) {
       className="pr-2 pl-1 py-1 border-l border-gray-100 text-[#8A92A6] hover:text-brand">
       {done ? <IconCheck size={13} stroke={2} className="text-[#2F9E6F]" /> : <IconCopy size={13} stroke={1.8} />}
     </button>
+  );
+}
+
+// ── Ranking tab ────────────────────────────────────────────────────────────
+// 1. Our keywords ranked by what our posts using them got (reach, views, saves…).
+// 2. Keywords across every account, by engagement per 1,000 followers so big
+//    accounts don't win just by being big. Other accounts only share likes +
+//    comments (Instagram) or views (YouTube), so that's all section 2 can use.
+type Col<T> = { key: keyof T & string; label: string; rate?: boolean };
+const avgOf = (xs: (number | undefined)[]) => { const v = xs.filter((x): x is number => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const pct = (n: number | null) => (n == null ? "—" : `${n.toFixed(1)}%`);
+
+function SortTable<T extends { keyword: string }>({ rows, cols, initial, baseline, extra }: {
+  rows: T[]; cols: Col<T>[]; initial: keyof T & string; baseline?: Partial<T>; extra?: (r: T) => React.ReactNode;
+}) {
+  const [sort, setSort] = useState<keyof T & string>(initial);
+  const sorted = [...rows].sort((a, b) => ((b[sort] as number | null) ?? -1) - ((a[sort] as number | null) ?? -1));
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[14px]">
+        <thead className="bg-gray-50">
+          <tr className="text-left text-[#8A92A6]">
+            <th className="px-3 py-2 font-normal w-8">#</th>
+            <th className="px-3 py-2 font-normal">Keyword</th>
+            {cols.map((c) => (
+              <th key={c.key} className="px-3 py-2 font-normal text-right whitespace-nowrap">
+                <button onClick={() => setSort(c.key)} className={`inline-flex items-center gap-1 hover:text-brand ${sort === c.key ? "text-brand font-medium" : ""}`}>
+                  {c.label}{sort === c.key && <IconArrowDown size={13} stroke={2} />}
+                </button>
+              </th>
+            ))}
+            {extra && <th className="px-3 py-2 font-normal" />}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r, i) => (
+            <tr key={r.keyword} className="border-t border-gray-50">
+              <td className="px-3 py-2 text-[#8A92A6] tabular-nums">{i + 1}</td>
+              <td className="px-3 py-2 text-[#232D42] font-medium whitespace-nowrap">
+                <span className="inline-flex items-center rounded border border-gray-200 bg-white"><span className="pl-2 pr-1 py-0.5">{r.keyword}</span><MiniCopy text={r.keyword} /></span>
+              </td>
+              {cols.map((c) => {
+                const v = r[c.key] as number | null, b = baseline?.[c.key] as number | null | undefined;
+                const tone = b == null || v == null || c.key === "posts" || c.key === "accounts" ? "text-[#232D42]" : v > b ? "text-[#2F9E6F]" : "text-[#8A92A6]";
+                return <td key={c.key} className={`px-3 py-2 text-right tabular-nums ${sort === c.key ? "font-medium" : ""} ${tone}`}>{c.rate ? pct(v) : fmt(v == null ? null : Math.round(v))}</td>;
+              })}
+              {extra && <td className="px-3 py-2">{extra(r)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type OurRow = { keyword: string; posts: number; reach: number | null; views: number | null; engagement: number | null; likes: number | null; comments: number | null; saves: number | null; shares: number | null; rate: number | null };
+type AllRow = { keyword: string; per1k: number | null; accounts: number; posts: number; oursPosts: number };
+
+function Ranking({ data }: { data: Data }) {
+  const [platform, setPlatform] = useState<Platform>("instagram");
+  const [showOnes, setShowOnes] = useState(false);
+  const yt = platform === "youtube";
+  const accs = data.accounts.filter((a) => a.platform === platform && (a.posts || []).length);
+  const ours = accs.find((a) => handleOf(a).toLowerCase() === "goocampus");
+
+  // 1. Our keywords.
+  const { ourRows, ourBase } = useMemo(() => {
+    const posts = ours?.posts || [];
+    const eng = (p: Post) => (p.likes ?? 0) + (p.comments ?? 0) + (yt ? 0 : (p.saves ?? 0) + (p.shares ?? 0));
+    // Engagement rate: interactions ÷ reach (Instagram) or ÷ views (YouTube).
+    const rateOf = (ps: Post[]) => {
+      const den = ps.reduce((s, p) => s + ((yt ? p.views : p.reach) ?? 0), 0);
+      return den ? (ps.reduce((s, p) => s + eng(p), 0) / den) * 100 : null;
+    };
+    const row = (keyword: string, ps: Post[]): OurRow => ({
+      keyword, posts: ps.length, reach: avgOf(ps.map((p) => p.reach)), views: avgOf(ps.map((p) => p.views)),
+      engagement: avgOf(ps.map((p) => (p.likes ?? 0) + (p.comments ?? 0))), likes: avgOf(ps.map((p) => p.likes)), comments: avgOf(ps.map((p) => p.comments)),
+      saves: avgOf(ps.map((p) => p.saves)), shares: avgOf(ps.map((p) => p.shares)), rate: rateOf(ps),
+    });
+    const by = new Map<string, Post[]>();
+    for (const p of posts) for (const k of p.keywords) by.set(k, [...(by.get(k) || []), p]);
+    return { ourRows: [...by.entries()].map(([k, ps]) => row(k, ps)), ourBase: row("all", posts) };
+  }, [ours, yt]);
+
+  // 2. Across every account, per 1,000 followers.
+  const allRows = useMemo(() => {
+    const by = new Map<string, { vals: number[]; accounts: Set<string>; ours: number }>();
+    for (const a of accs) {
+      if (!a.followers) continue;
+      const us = handleOf(a).toLowerCase() === "goocampus";
+      for (const p of a.posts || []) {
+        const v = (p.engagement / a.followers) * 1000;
+        for (const k of p.keywords) {
+          const e = by.get(k) || { vals: [], accounts: new Set<string>(), ours: 0 };
+          e.vals.push(v); e.accounts.add(a.account); if (us) e.ours += 1;
+          by.set(k, e);
+        }
+      }
+    }
+    return [...by.entries()].map(([keyword, e]): AllRow => ({ keyword, per1k: avgOf(e.vals), accounts: e.accounts.size, posts: e.vals.length, oursPosts: e.ours }));
+  }, [accs]);
+
+  const ourShown = ourRows.filter((r) => showOnes || r.posts >= 2);
+  const allShown = allRows.filter((r) => showOnes || (r.posts >= 3 && r.accounts >= 2));
+  const topOurs = [...ourShown].sort((a, b) => ((yt ? b.views : b.reach) ?? 0) - ((yt ? a.views : a.reach) ?? 0)).slice(0, 10).map((r) => r.keyword);
+  const topAll = [...allShown].sort((a, b) => (b.per1k ?? 0) - (a.per1k ?? 0)).slice(0, 10).map((r) => r.keyword);
+
+  const ourCols: Col<OurRow>[] = yt
+    ? [{ key: "posts", label: "Videos" }, { key: "views", label: "Avg views" }, { key: "likes", label: "Avg likes" }, { key: "comments", label: "Avg comments" }, { key: "rate", label: "Eng. rate", rate: true }]
+    : [{ key: "posts", label: "Posts" }, { key: "reach", label: "Avg reach" }, { key: "views", label: "Avg views" }, { key: "engagement", label: "Avg likes + comments" }, { key: "saves", label: "Avg saves" }, { key: "shares", label: "Avg shares" }, { key: "rate", label: "Eng. rate", rate: true }];
+  const unused = (r: AllRow) => (r.oursPosts ? <span className="text-[12px] text-[#8A92A6]">We use it ({r.oursPosts})</span> : <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309] whitespace-nowrap">Not used yet</span>);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <PlatformToggle value={platform} onChange={setPlatform} />
+        <label className="inline-flex items-center gap-2 text-[14px] text-[#4A5468] cursor-pointer">
+          <input type="checkbox" checked={showOnes} onChange={(e) => setShowOnes(e.target.checked)} className="accent-[#3A57E8]" />
+          Include keywords from just one post {showOnes ? "" : "(hidden — one post proves little)"}
+        </label>
+      </div>
+
+      <Card icon={<IconTrophy size={17} stroke={1.8} />} title="Our keywords, ranked"
+        sub={`Average per ${yt ? "video" : "post"} for our ${yt ? "YouTube videos" : "Instagram posts"} using each keyword (last ${ours?.posts?.length ?? 0}). Green = beats our average ${yt ? "video" : "post"}. Click a column to sort. Eng. rate = ${yt ? "likes + comments ÷ views" : "likes, comments, saves and shares ÷ reach"}.`}
+        right={topOurs.length > 0 && <CopyButton text={joinForPost(topOurs)} label={`Copy top ${topOurs.length}`} />}>
+        {ourShown.length === 0 ? <div className="text-[14px] text-[#8A92A6]">{ours ? "No keyword appears in two or more of our posts yet." : "Couldn't read our account."}</div> : (
+          <>
+            <div className="text-[12px] text-[#8A92A6] mb-2">
+              Our average {yt ? "video" : "post"}: {yt ? `${fmt(ourBase.views == null ? null : Math.round(ourBase.views))} views` : `${fmt(ourBase.reach == null ? null : Math.round(ourBase.reach))} reach · ${fmt(ourBase.views == null ? null : Math.round(ourBase.views))} views · ${fmt(ourBase.saves == null ? null : Math.round(ourBase.saves))} saves`} · {pct(ourBase.rate)} eng. rate
+            </div>
+            {(() => {
+              const total = ours?.posts?.length || 0, same = ourShown.filter((r) => total && r.posts >= total * 0.8).map((r) => r.keyword);
+              return same.length > 0 && (
+                <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5 mb-2">
+                  {same.join(", ")} {same.length === 1 ? "is" : "are"} on almost every one of our {yt ? "videos" : "posts"} (usually boilerplate tags), so {same.length === 1 ? "its" : "their"} numbers are just our average. Use tags that match each {yt ? "video" : "post"} to see what really works.
+                </div>
+              );
+            })()}
+            <SortTable key={`ours-${platform}`} rows={ourShown} cols={ourCols} initial={yt ? "views" : "reach"} baseline={ourBase} />
+          </>
+        )}
+      </Card>
+
+      <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Across all accounts"
+        sub={`How each keyword does on every account we track, as ${yt ? "views" : "likes + comments"} per 1,000 ${yt ? "subscribers" : "followers"} — so a big account doesn't win just by being big. ${showOnes ? "" : "Showing keywords used in 3+ posts by 2+ accounts. "}Other accounts don't share reach, so this is the fairest comparison possible.`}
+        right={topAll.length > 0 && <CopyButton text={joinForPost(topAll)} label={`Copy top ${topAll.length}`} />}>
+        {allShown.length === 0 ? <div className="text-[14px] text-[#8A92A6]">Not enough shared keywords yet{accs.length < 3 ? " — some accounts couldn't be read right now" : ""}.</div> : (
+          <SortTable key={`all-${platform}`} rows={allShown} initial="per1k" extra={unused}
+            cols={[{ key: "per1k", label: `Avg per 1K ${yt ? "subs" : "followers"}` }, { key: "accounts", label: "Accounts" }, { key: "posts", label: yt ? "Videos" : "Posts" }]} />
+        )}
+      </Card>
+    </div>
   );
 }
