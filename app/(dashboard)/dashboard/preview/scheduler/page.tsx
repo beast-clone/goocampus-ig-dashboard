@@ -6,7 +6,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
@@ -16,7 +16,7 @@ import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
-import { alertDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -296,6 +296,23 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
       .finally(() => setToScheduleLoading(false));
   };
   useEffect(() => { loadToSchedule(); }, []);
+  // Take a post out of the Scheduler without deleting it: back to "Output - Ready",
+  // which is where Content Review picks it up again (for fixes, not removal).
+  const sendBackToReview = async (t: ToScheduleItem) => {
+    const ok = await confirmDialog({
+      title: "Send back to Content Review?",
+      body: <>“{t.title}” leaves the Scheduler and goes back to Content Review, where it can be fixed and pushed to schedule again. Nothing is deleted.</>,
+      action: "Send back",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/marketing-hub/update", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: t.id, fields: { status: "Output - Ready" } }),
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alertDialog("Couldn't send it back", (d as { error?: string }).error || `HTTP ${res.status}`); return; }
+    if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; }
+    loadToSchedule();
+  };
   // Hand-off from the Overview "Old winners worth refreshing" cards: ?draft=title=…&brief=…
   // opens the composer prefilled with the old post's copy as an EDITABLE starting point
   // (GooCampus reworks + redesigns old content — never a locked raw repost).
@@ -941,7 +958,8 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                       const open = selectedTaskId === t.id;
                       return (
                         <div key={t.id} className={`bg-white rounded-xl border ${open ? "border-brand" : "border-gray-200"}`}>
-                          <button onClick={() => selectTask(t)} className={`w-full flex items-center gap-3 px-3.5 py-3 text-left ${open ? "bg-brand-light/30 rounded-t-xl" : "hover:bg-gray-50 rounded-xl"}`}>
+                          <div className={`flex items-center ${open ? "bg-brand-light/30 rounded-t-xl" : "hover:bg-gray-50 rounded-xl"}`}>
+                          <button onClick={() => selectTask(t)} className="min-w-0 flex-1 flex items-center gap-3 pl-3.5 pr-2 py-3 text-left">
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium text-gray-900 truncate">{t.title}</div>
                               <div className="text-xs text-gray-500 truncate">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</div>
@@ -957,6 +975,11 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                               <IconChevronRight size={16} stroke={2.2} className={`transition-transform ${open ? "text-brand rotate-90" : "text-gray-400"}`} />
                             </div>
                           </button>
+                          <button onClick={() => sendBackToReview(t)} title="Take it out of the Scheduler and send it back to Content Review"
+                            className="mr-2.5 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-gray-500 hover:text-brand hover:bg-white border border-transparent hover:border-gray-200 flex-shrink-0">
+                            <IconArrowBackUp size={14} stroke={1.8} />Send back
+                          </button>
+                          </div>
 
                           {open && (
                             <div className="border-t border-gray-100 px-3 py-3 space-y-3">
