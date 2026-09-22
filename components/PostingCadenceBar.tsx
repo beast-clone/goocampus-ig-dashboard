@@ -8,12 +8,16 @@ type Post = {
   timestamp: string;
 };
 
-// Reels and plain videos are VIDEOS; images and carousels are POSTS. The team
-// tracks the two separately because they cost completely different effort, so
-// they are never added into a single "posts" number (Manya, comments 22 Sep).
-function isVideo(type: string): boolean {
+// The three formats the team actually produces, each a different piece of work:
+// a carousel, a single static image, and a reel. They are never added into one
+// "posts" number (Manya, comments 22 Sep). /api/posts sets type to REEL for
+// anything whose media_product_type is REELS, otherwise Meta's media_type.
+type Kind = "carousel" | "static" | "reel";
+function kindOf(type: string): Kind {
   const t = (type || "").toUpperCase();
-  return t === "REEL" || t === "REELS" || t === "VIDEO";
+  if (t === "REEL" || t === "REELS" || t === "VIDEO") return "reel";
+  if (t === "CAROUSEL_ALBUM" || t === "CAROUSEL") return "carousel";
+  return "static";
 }
 
 function ymd(d: Date): string {
@@ -40,26 +44,26 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
       .finally(() => setLoading(false));
   }, [accountId, range.from, range.to]);
 
-  const { weeks, totalPosts, totalStatic, totalVideos, activeDays, silentDays, cmp } = useMemo(() => {
-    const empty = { weeks: [] as { label: string; count: number; posts: number; videos: number; days: number }[], totalPosts: 0, totalStatic: 0, totalVideos: 0, activeDays: 0, silentDays: 0, cmp: null as null | { curr: number; prev: number; deltaPct: number; mode: string; days: number; label: string } };
+  const { weeks, totalPosts, totalCarousels, totalStatic, totalReels, activeDays, silentDays, cmp } = useMemo(() => {
+    const empty = { weeks: [] as { label: string; count: number; carousel: number; static: number; reel: number; days: number }[], totalPosts: 0, totalCarousels: 0, totalStatic: 0, totalReels: 0, activeDays: 0, silentDays: 0, cmp: null as null | { curr: number; prev: number; deltaPct: number; mode: string; days: number; label: string } };
     if (!posts) return empty;
     const from = new Date(range.from);
     const to = new Date(range.to);
-    const dayMap = new Map<string, { posts: number; videos: number }>();
+    const dayMap = new Map<string, { carousel: number; static: number; reel: number }>();
     for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-      dayMap.set(ymd(d), { posts: 0, videos: 0 });
+      dayMap.set(ymd(d), { carousel: 0, static: 0, reel: 0 });
     }
     for (const p of posts) {
       const key = ymd(new Date(p.timestamp));
       const cell = dayMap.get(key);
       if (!cell) continue;
-      if (isVideo(p.type)) cell.videos += 1; else cell.posts += 1;
+      cell[kindOf(p.type)] += 1;
     }
 
     // Group into weeks. Label each with a "Jun 4 – 10" date range so it reads
     // like a calendar, not a jargon-y "Week of…" string.
-    const days = Array.from(dayMap.entries()).map(([date, v]) => ({ date, posts: v.posts, videos: v.videos, count: v.posts + v.videos }));
-    const weeks: { label: string; count: number; posts: number; videos: number; days: number }[] = [];
+    const days = Array.from(dayMap.entries()).map(([date, v]) => ({ date, carousel: v.carousel, static: v.static, reel: v.reel, count: v.carousel + v.static + v.reel }));
+    const weeks: { label: string; count: number; carousel: number; static: number; reel: number; days: number }[] = [];
     for (let i = 0; i < days.length; i += 7) {
       const chunk = days.slice(i, i + 7);
       const start = new Date(chunk[0].date);
@@ -72,15 +76,17 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
       weeks.push({
         label,
         count: chunk.reduce((s, d) => s + d.count, 0),
-        posts: chunk.reduce((s, d) => s + d.posts, 0),
-        videos: chunk.reduce((s, d) => s + d.videos, 0),
+        carousel: chunk.reduce((s, d) => s + d.carousel, 0),
+        static: chunk.reduce((s, d) => s + d.static, 0),
+        reel: chunk.reduce((s, d) => s + d.reel, 0),
         days: chunk.length,
       });
     }
 
     const totalPosts = days.reduce((s, d) => s + d.count, 0);
-    const totalStatic = days.reduce((s, d) => s + d.posts, 0);
-    const totalVideos = days.reduce((s, d) => s + d.videos, 0);
+    const totalCarousels = days.reduce((s, d) => s + d.carousel, 0);
+    const totalStatic = days.reduce((s, d) => s + d.static, 0);
+    const totalReels = days.reduce((s, d) => s + d.reel, 0);
     const activeDays = days.filter((d) => d.count > 0).length;
     const silentDays = days.length - activeDays;
 
@@ -103,7 +109,7 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
     }
     const deltaPct = prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
 
-    return { weeks, totalPosts, totalStatic, totalVideos, activeDays, silentDays, cmp: { curr, prev, deltaPct, mode, days: dcount, label } };
+    return { weeks, totalPosts, totalCarousels, totalStatic, totalReels, activeDays, silentDays, cmp: { curr, prev, deltaPct, mode, days: dcount, label } };
   }, [posts, range.from, range.to, smartCadence]);
 
   const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
@@ -113,7 +119,7 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <div>
           <h2 className="text-[15px] font-semibold text-gray-900">Posting cadence</h2>
-          <div className="text-[12px] text-gray-500 mt-0.5">Posts and videos you published each week, counted separately.</div>
+          <div className="text-[12px] text-gray-500 mt-0.5">Carousels, static posts and reels you published each week, counted separately.</div>
         </div>
       </div>
 
@@ -133,33 +139,28 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
                   <div className="text-[10.5px] uppercase tracking-widest font-semibold text-gray-500 mb-2">
                     {w.label}
                   </div>
-                  <div className="flex items-baseline gap-3 mb-2">
-                    <div>
-                      <div className={`text-[26px] font-semibold leading-none tabular-nums tracking-tight ${isLast ? "text-brand" : "text-gray-900"}`}>
-                        {w.posts}
+                  <div className="flex items-baseline gap-2.5 mb-2">
+                    {([
+                      { n: w.carousel, label: w.carousel === 1 ? "carousel" : "carousels", color: isLast ? "text-brand" : "text-gray-900" },
+                      { n: w.static, label: w.static === 1 ? "static" : "statics", color: "text-amber-700" },
+                      { n: w.reel, label: w.reel === 1 ? "reel" : "reels", color: "text-violet-700" },
+                    ]).map((c, ci) => (
+                      <div key={c.label + ci} className="flex items-baseline gap-2.5">
+                        {ci > 0 && <div className="w-px self-stretch bg-gray-200" />}
+                        <div>
+                          <div className={`text-[22px] font-semibold leading-none tabular-nums tracking-tight ${c.color}`}>{c.n}</div>
+                          <div className="text-[10px] text-gray-500 mt-0.5">{c.label}</div>
+                        </div>
                       </div>
-                      <div className="text-[10.5px] text-gray-500 mt-0.5">{w.posts === 1 ? "post" : "posts"}</div>
-                    </div>
-                    <div className="w-px self-stretch bg-gray-200" />
-                    <div>
-                      <div className="text-[26px] font-semibold leading-none tabular-nums tracking-tight text-violet-700">
-                        {w.videos}
-                      </div>
-                      <div className="text-[10.5px] text-gray-500 mt-0.5">{w.videos === 1 ? "video" : "videos"}</div>
-                    </div>
+                    ))}
                   </div>
-                  {/* Split bar — the two kinds sit side by side and are never merged
-                      into one length, so a heavy video week can't read as a heavy
-                      posting week. */}
+                  {/* One segment per format, side by side. The three are never merged
+                      into a single length, so a reel-heavy week can't read as a
+                      carousel-heavy one. */}
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
-                    <div
-                      className={`h-full ${isLast ? "bg-brand" : "bg-brand/50"}`}
-                      style={{ width: `${(w.posts / (maxWeek || 1)) * 100}%` }}
-                    />
-                    <div
-                      className={`h-full ${isLast ? "bg-violet-600" : "bg-violet-400"}`}
-                      style={{ width: `${(w.videos / (maxWeek || 1)) * 100}%` }}
-                    />
+                    <div className={`h-full ${isLast ? "bg-brand" : "bg-brand/50"}`} style={{ width: `${(w.carousel / (maxWeek || 1)) * 100}%` }} />
+                    <div className={`h-full ${isLast ? "bg-amber-500" : "bg-amber-300"}`} style={{ width: `${(w.static / (maxWeek || 1)) * 100}%` }} />
+                    <div className={`h-full ${isLast ? "bg-violet-600" : "bg-violet-400"}`} style={{ width: `${(w.reel / (maxWeek || 1)) * 100}%` }} />
                   </div>
                   {isLast && (
                     <div className="text-[10px] text-brand font-medium uppercase tracking-widest mt-2">
@@ -177,13 +178,14 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
               const perWeek = weeks.length > 0 ? (totalPosts / weeks.length).toFixed(1) : "0";
               return (
                 <Sentence
-                  big={`${totalStatic} + ${totalVideos}`}
+                  big={`${totalCarousels} · ${totalStatic} · ${totalReels}`}
                   text={
                     <>
-                      post{totalStatic === 1 ? "" : "s"} and video{totalVideos === 1 ? "" : "s"} across {weeks.length} week{weeks.length === 1 ? "" : "s"}.
+                      carousels, static posts and reels across {weeks.length} week{weeks.length === 1 ? "" : "s"}.
                       <span className="block text-gray-500 mt-1">
-                        That&rsquo;s <b className="tabular-nums text-gray-700">{(totalStatic / (weeks.length || 1)).toFixed(1)}</b> posts and{" "}
-                        <b className="tabular-nums text-violet-700">{(totalVideos / (weeks.length || 1)).toFixed(1)}</b> videos per week
+                        Per week that&rsquo;s <b className="tabular-nums text-gray-700">{(totalCarousels / (weeks.length || 1)).toFixed(1)}</b> carousels,{" "}
+                        <b className="tabular-nums text-amber-700">{(totalStatic / (weeks.length || 1)).toFixed(1)}</b> statics and{" "}
+                        <b className="tabular-nums text-violet-700">{(totalReels / (weeks.length || 1)).toFixed(1)}</b> reels
                         (<b className="tabular-nums text-gray-700">{perWeek}</b> pieces in all).
                       </span>
                     </>

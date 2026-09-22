@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
-import { fetchPostsInRange, readPostsForRangeStored } from "@/lib/post-history";
+import { fetchPostsInRange, readPostsForRangeStored, readPostsForRangeHybrid } from "@/lib/post-history";
 
 // Posts for a date range, with per-post insights. One Meta call per post, so a cold
 // month is 15–30s — cached per {account, range, limit, insights} for an hour, with
@@ -48,6 +48,16 @@ export async function GET(req: Request) {
   const key = `${accountId}|${from || ""}|${to || ""}|${cap}|${withInsights ? "ins" : "raw"}`;
 
   const build = async (): Promise<PostsPayload> => {
+    // A range that ends today still contains frozen past months. Read those from
+    // the monthly snapshots and fetch live only what's genuinely missing — a cold
+    // 60/90-day window was costing 20-40s by re-fetching every month live, one
+    // Meta call per post.
+    if (withInsights && from && to) {
+      const h = await readPostsForRangeHybrid(acct!, from, to, { withInsights, cap });
+      if (h.storedMonths.length) {
+        return { live: h.liveMonths.length > 0, stored: true, count: h.posts.length, posts: h.posts, range: { from, to } };
+      }
+    }
     const posts = await fetchPostsInRange(acct!, from, to, { withInsights, cap });
     return { live: true, count: posts.length, posts, range: { from, to } };
   };

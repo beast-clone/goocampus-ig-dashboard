@@ -22,12 +22,38 @@ export type AccountSnapshot = {
 async function fetchDayMetric(acc: IGAccountConfig, metric: string, date: string): Promise<number> {
   const since = Math.floor(new Date(date + "T00:00:00Z").getTime() / 1000);
   const until = Math.floor(new Date(date + "T23:59:59Z").getTime() / 1000);
-  // Try "day" period first; some metrics on newer accounts need metric_type=total_value
-  try {
-    const url = `${GRAPH}/${acc.igUserId}/insights?metric=${metric}&period=day&since=${since}&until=${until}&access_token=${acc.pageAccessToken}`;
+  const base = `${GRAPH}/${acc.igUserId}/insights?metric=${metric}&period=day&since=${since}&until=${until}&access_token=${acc.pageAccessToken}`;
+
+  // Meta splits these metrics across two shapes:
+  //   reach, follower_count  → period=day, read data[0].values[0].value
+  //   profile_views, website_clicks, total_interactions
+  //                          → ALSO need metric_type=total_value, read total_value
+  // Asking the wrong way returns a 400 with an error BODY rather than throwing, so
+  // the old try/catch never saw it and quietly banked a 0. That is why every
+  // snapshot written before 22 Sep 2026 has profileVisits / totalInteractions /
+  // websiteClicks at zero. Ask the plain way, then retry with metric_type on
+  // exactly that error. follower_count is incompatible with metric_type, and it
+  // never triggers the retry because it answers the plain call fine.
+  type MetricBody = {
+    data?: { values?: { value: number }[]; total_value?: { value: number } }[];
+    error?: { message?: string };
+  };
+  const read = async (url: string): Promise<{ value: number; needsTotalValue: boolean }> => {
     const r = await fetchWithTimeout(url, { cache: "no-store" });
-    const j = (await r.json()) as { data?: { values?: { value: number }[] }[] };
-    return Number(j.data?.[0]?.values?.[0]?.value || 0);
+    const j = (await r.json()) as MetricBody;
+    if (j.error) {
+      const msg = j.error.message || "";
+      return { value: 0, needsTotalValue: /metric_type=total_value/.test(msg) };
+    }
+    const row = j.data?.[0];
+    return { value: Number(row?.total_value?.value ?? row?.values?.[0]?.value ?? 0), needsTotalValue: false };
+  };
+
+  try {
+    const first = await read(base);
+    if (!first.needsTotalValue) return first.value;
+    const second = await read(`${base}&metric_type=total_value`);
+    return second.value;
   } catch {
     return 0;
   }

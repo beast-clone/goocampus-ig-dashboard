@@ -208,3 +208,65 @@ export async function readPostsForRangeStored(accountId: string, from: string, t
   out.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
   return out;
 }
+
+// Serve a range that ENDS TODAY without re-fetching months we already hold.
+//
+// /api/posts used to be all-or-nothing: a range ending today went live for its
+// whole span, and one Meta call per post meant a 60- or 90-day window took
+// 20–40s every time the cache went cold. Anything older than the current month
+// is frozen — its posts and their insights can't change — so those months are
+// read from the monthly snapshots and only the months we genuinely lack (plus
+// the current, still-growing one) are fetched live.
+//
+// Returns the merged, de-duplicated, newest-first list clipped to [from, to],
+// along with which months came from where so the caller can report it.
+export async function readPostsForRangeHybrid(
+  acc: IGAccountConfig,
+  from: string,
+  to: string,
+  opts: { withInsights?: boolean; cap?: number } = {},
+): Promise<{ posts: HistPost[]; storedMonths: string[]; liveMonths: string[] }> {
+  const months = monthsInRange(from, to);
+  const thisMonth = currentMonth();
+
+  // A stored month is only usable if it is fully in the past; the current month
+  // keeps growing, so it always goes live.
+  const snaps = await Promise.all(
+    months.map(async (mo) => (mo === thisMonth ? null : await readPostsMonthSnapshot(acc.id, mo))),
+  );
+
+  const storedMonths: string[] = [];
+  const liveMonths: string[] = [];
+  const out: HistPost[] = [];
+  const seen = new Set<string>();
+  const push = (p: HistPost) => {
+    const ts = new Date(p.timestamp).getTime();
+    if (ts < fromTs || ts > toTs || seen.has(p.id)) return;
+    seen.add(p.id);
+    out.push(p);
+  };
+  const fromTs = new Date(from + "T00:00:00Z").getTime();
+  const toTs = new Date(to + "T23:59:59Z").getTime();
+
+  // Live months are fetched as one contiguous span per run of adjacent months,
+  // so a gap in storage doesn't turn into a burst of tiny Meta calls.
+  const liveRuns: { from: string; to: string }[] = [];
+  months.forEach((mo, idx) => {
+    if (snaps[idx]) { storedMonths.push(mo); return; }
+    liveMonths.push(mo);
+    const b = monthBounds(mo);
+    const lo = b.from < from ? from : b.from;
+    const hi = b.to > to ? to : b.to;
+    const last = liveRuns[liveRuns.length - 1];
+    if (last && new Date(lo).getTime() - new Date(last.to).getTime() <= 86_400_000) last.to = hi;
+    else liveRuns.push({ from: lo, to: hi });
+  });
+
+  for (const s of snaps) if (s) for (const p of s.posts) push(p);
+  const fetched = await Promise.all(liveRuns.map((r) => fetchPostsInRange(acc, r.from, r.to, opts)));
+  for (const list of fetched) for (const p of list) push(p);
+
+  out.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  const cap = opts.cap && opts.cap > 0 ? opts.cap : 500;
+  return { posts: out.slice(0, cap), storedMonths, liveMonths };
+}

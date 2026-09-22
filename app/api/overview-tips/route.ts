@@ -61,9 +61,18 @@ export async function GET(req: Request) {
     const origin = url.origin;
     const cookie = req.headers.get("cookie") || "";
 
+    // Meta's account insights only reach back ~30 days, and follower_count hard
+    // errors beyond that — so a 60/90-day range made this whole route 500 and the
+    // per-KPI advice silently never appeared. Read the same stored snapshots the
+    // Overview itself falls back to when the window starts before that cutoff.
+    const liveCutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const insightsUrl = from < liveCutoff
+      ? `${origin}/api/insights-stored?accountId=${accountId}&from=${from}&to=${to}`
+      : `${origin}/api/insights?accountId=${accountId}&from=${from}&to=${to}`;
+
     // Fetch KPI deltas + last N posts in parallel.
     const [insightsRes, postsRes] = await Promise.all([
-      fetch(`${origin}/api/insights?accountId=${accountId}&from=${from}&to=${to}`, { headers: { cookie }, cache: "no-store" }),
+      fetch(insightsUrl, { headers: { cookie }, cache: "no-store" }),
       fetch(`${origin}/api/posts?accountId=${accountId}&from=${from}&to=${to}&limit=60&insights=false`, { headers: { cookie }, cache: "no-store" }),
     ]);
     if (!insightsRes.ok) throw new Error(`insights ${insightsRes.status}`);

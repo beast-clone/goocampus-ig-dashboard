@@ -155,7 +155,7 @@ const PLATFORMS = [
   { key: "youtube", label: "YouTube", icon: IconBrandYoutube },
 ] as const;
 type PlatformKey = (typeof PLATFORMS)[number]["key"];
-type RangeKey = "7d" | "30d" | "90d" | "months" | "1y" | "custom";
+type RangeKey = "7d" | "30d" | "60d" | "90d" | "1y" | "custom";
 
 export function PreviewOverview({ person = "" }: { person?: string }) {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
@@ -187,15 +187,16 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   // ≤31 days → real & native). Facebook / LinkedIn / YouTube keep full history,
   // so their long ranges query the whole span at once — no switcher, no toggle.
   const customSpanDays = custom.from && custom.to ? Math.round((new Date(custom.to).getTime() - new Date(custom.from).getTime()) / 86_400_000) : 0;
-  const spanIsLong = rangeKey === "90d" || rangeKey === "months" || rangeKey === "1y" || (rangeKey === "custom" && customSpanDays > 31);
-  // "90 days" is deliberately a SINGLE combined period — one set of totals for the
-  // whole quarter, never month-by-month (team request, 22 Sep). Month-by-month
-  // still lives under its own "Months" option, and on 1y / long custom ranges.
-  const isMonthly = platform === "instagram" && spanIsLong && rangeKey !== "90d";
+  const spanIsLong = rangeKey === "60d" || rangeKey === "90d" || rangeKey === "1y" || (rangeKey === "custom" && customSpanDays > 31);
+  // 60 and 90 days are deliberately SINGLE combined periods — one set of totals for
+  // the two or three months, never split month-by-month (team request, 22 Sep).
+  // Month-by-month survives only where a combined total would be meaningless:
+  // 1 year, and custom ranges longer than a month.
+  const isMonthly = platform === "instagram" && spanIsLong && rangeKey !== "60d" && rangeKey !== "90d";
   const months = useMemo(() => {
     if (!isMonthly) return [] as MonthOpt[];
     const ny = now.getFullYear(), nm = now.getMonth();
-    if (rangeKey === "months") { const s = new Date(ny, nm - 2, 1); return buildMonths(s.getFullYear(), s.getMonth(), ny, nm, now); }
+
     if (rangeKey === "1y") { const s = new Date(ny, nm - 11, 1); return buildMonths(s.getFullYear(), s.getMonth(), ny, nm, now); }
     const [fy, fm] = custom.from.split("-").map(Number);
     const [ty, tm] = custom.to.split("-").map(Number);
@@ -209,13 +210,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     if (rangeKey === "custom" && custom.from && custom.to) return { from: custom.from, to: custom.to };
     // Rolling window. For FB/LI/YT (non-monthly) 60d and 1y resolve to the whole
     // span at once; Instagram never reaches here for those (it's monthly).
-    const days = rangeKey === "7d" ? 7 : rangeKey === "90d" ? 90 : rangeKey === "1y" ? 365 : 30;
+    const days = rangeKey === "7d" ? 7 : rangeKey === "60d" ? 60 : rangeKey === "90d" ? 90 : rangeKey === "1y" ? 365 : 30;
     return { from: ymdLocal(new Date(now.getTime() - days * 86_400_000)), to: todayStr };
   }, [isMonthly, selFrom, selTo, rangeKey, custom, now, todayStr]);
   const rangeLabel = isMonthly && selectedMonth
     ? `${selectedMonth.full}${selectedMonth.isCurrent ? " (so far)" : ""}`
     : rangeKey === "custom" ? (custom.from && custom.to ? `${custom.from} → ${custom.to}` : "custom range")
     : rangeKey === "1y" ? "last 12 months"
+    : rangeKey === "60d" ? "last 60 days"
     : rangeKey === "90d" ? "last 90 days"
     : `last ${rangeKey.replace("d", "")} days`;
 
@@ -322,11 +324,15 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     (a, p) => ({ likes: a.likes + (p.likes || 0), comments: a.comments + (p.comments || 0), saves: a.saves + (p.saves || 0), shares: a.shares + (p.shares || 0) }),
     { likes: 0, comments: 0, saves: 0, shares: 0 },
   ), [rangePosts]);
-  const engVal = insStored ? postEngagement : (t?.engagement ?? 0);
+  // Stored ranges: prefer the snapshot's own total_interactions. It is instant and
+  // covers the whole span. Snapshots written before the collector was fixed
+  // (22 Sep 2026) carry 0 there, so those fall back to summing the period's posts.
+  const storedEng = t?.engagement ?? 0;
+  const engVal = insStored ? (storedEng > 0 ? storedEng : postEngagement) : storedEng;
   // On stored ranges engagement is summed from the period's posts, and that fetch
   // is slow over a long span. Until it lands, show a dash — a confident "0" reads
   // as "no engagement" rather than "still counting".
-  const engPending = insStored && rangePosts === null;
+  const engPending = insStored && storedEng === 0 && rangePosts === null;
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
   // Engagement + profile views are real now (Meta's total_interactions and
   // profile_views), so drop the EST badge — unless that call fell back to the
@@ -349,8 +355,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     // Live-window engagement & profile visits come straight from Meta
     // (total_interactions / profile_views). `engEst` only turns back on if that
     // call failed and we're showing the old reach-derived estimate.
-    { key: "engagement", label: "Engagement", value: engPending ? "…" : fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? (engPending ? "counting…" : "from posts") : undefined, est: engEst },
-    { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? "not recorded" : undefined, est: engEst },
+    { key: "engagement", label: "Engagement", value: engPending ? "…" : fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? (engPending ? "counting…" : storedEng > 0 ? "saved" : "from posts") : undefined, est: engEst },
+    { key: "profileVisits", label: "Profile Visits", value: insStored && !t.profileVisits ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? (t.profileVisits ? "saved" : "not recorded") : undefined, est: engEst },
     { key: "engRate", label: "Eng. Rate", value: engPending ? "…" : `${engRate}%`, delta: null, flat: true, est: engEst },
   ] : [];
 
@@ -860,12 +866,12 @@ function FormatWins({ rows, cardStyle, footer }: { rows: { type: string; count: 
   );
 }
 
-// Date-range filter shown on every tab: 7d / 30d / 90d / 1y / Custom.
+// Date-range filter shown on every tab: 7d / 30d / 60d / 90d / 1y / Custom.
 function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
   rangeKey: RangeKey; setRangeKey: (k: RangeKey) => void;
   custom: { from: string; to: string }; setCustom: (c: { from: string; to: string }) => void;
 }) {
-  const OPTS: [RangeKey, string][] = [["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["months", "Months"], ["1y", "1 year"], ["custom", "Custom"]];
+  const OPTS: [RangeKey, string][] = [["7d", "7 days"], ["30d", "30 days"], ["60d", "60 days"], ["90d", "90 days"], ["1y", "1 year"], ["custom", "Custom"]];
   const inputStyle: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 8px", fontSize: 12, color: C.heading, outline: "none", fontFamily: "inherit" };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
