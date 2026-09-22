@@ -1,5 +1,6 @@
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { pageForSbu } from "@/lib/sbu-pages";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
 // (app/api/marketing-hub/create) and the Claude connector (app/api/mcp), so both
@@ -24,6 +25,17 @@ const OWNER_ALIASES: Record<string, string> = {
 export function normalizeOwner(v: string | undefined): string | null {
   if (!v) return null;
   return OWNER_ALIASES[v.toLowerCase().trim()] || null;
+}
+
+// Who is attached to a new task besides its owner (agreed 22 Sep).
+//   · every task        → Manya
+//   · 12thPlus / GC India tasks → Nandu instead; Manya is NOT on these
+// Nobody is ever both owner and collaborator, so when the default IS the owner
+// the task simply starts with none. The claim flow adds the other editor on top
+// of this when a video is shot by one person and cut by another.
+export function defaultCollaboratorFor(sbu: string | null | undefined, ownerKey: string | null): string | null {
+  const key = pageForSbu(sbu) === "12Plus / GC India" ? "nandu" : "manya";
+  return key === ownerKey ? null : key;
 }
 
 export function missingForCreate(t: TaskInput): string[] {
@@ -55,6 +67,13 @@ export async function createTask(t: TaskInput, actorId: string | null, source: s
     // NOTE: do NOT stamp start_at here — the update route sets it when work starts.
   }).select("id, particulars, status, owner_key, publishing_date, created_at").single();
   if (error) throw new Error(error.message);
+  // Attach the default collaborator. Best-effort for the same reason as the
+  // activity row below: the task is already committed, and a task missing a
+  // collaborator is fixable by hand — a duplicate task is not.
+  try {
+    const collab = defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key);
+    if (collab) await sb.from("mh_post_collaborators").insert({ post_id: data.id, member_key: collab });
+  } catch { /* the + control can add them by hand */ }
   // Best-effort: the task is committed; a logging hiccup must not fail the create
   // (the caller would retry → duplicate task).
   try {
