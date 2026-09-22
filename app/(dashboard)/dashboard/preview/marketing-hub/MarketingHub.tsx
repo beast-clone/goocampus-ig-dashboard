@@ -1226,7 +1226,7 @@ function calStatusStyle(s: string): { bg: string; text: string; border: string }
 // the card (‹ › Today · title · Month/Week/Day/List), taller cells. Tokens hardcoded to the
 // PreviewShell values since the Marketing Hub renders under PreviewDashboardShell.
 const MHCAL_CSS = `
-.mhcal-daynum{display:flex;align-items:center;justify-content:space-between}
+.mhcal-daynum{display:flex;align-items:center;justify-content:space-between;min-height:22px}
 .mhcal-add{opacity:0;width:20px;height:20px;border-radius:6px;border:1px solid #E9ECFB;background:#fff;color:#3A57E8;font-size:14px;line-height:1;display:inline-grid;place-items:center;cursor:pointer;transition:opacity .12s}
 .mhcal-cell:hover .mhcal-add,.mhcal-weekcol:hover .mhcal-add{opacity:1}
 .mhcal-add:hover{background:#E9ECFB}
@@ -1287,7 +1287,7 @@ const MHCAL_CSS = `
 .mhcal-cell.over{background:rgba(58,87,232,.10);box-shadow:inset 0 0 0 2px rgba(58,87,232,.35)}
 .mhcal-daynum{text-align:right;font-size:12px;font-weight:600;color:#4A5468;padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
 .mhcal-cell.out .mhcal-daynum{color:#A6ACBE}
-.mhcal-cell.today .mhcal-daynum{display:inline-flex;float:right;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#3A57E8;color:#fff}
+.mhcal-cell.today .mhcal-dnum{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#3A57E8;color:#fff}
 .mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
 /* Event bar — soft-tinted fill + matching border + DARK readable text (matches the
    reference exactly). SBU shows as a small left dot; brand lives in the filter chips. */
@@ -1611,7 +1611,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                     onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
                     onDragLeave={() => setDragOver((prev) => (prev === key ? null : prev))}
                     onDrop={(e) => dropOn(e, key)}>
-                    <div className="mhcal-daynum">{cell.date.getDate()}{AddBtn(key)}</div>
+                    <div className="mhcal-daynum"><span className="mhcal-dnum">{cell.date.getDate()}</span>{AddBtn(key)}</div>
                     <div className="mhcal-events">
                       {bars.slice(0, 4)}
                       {bars.length > 4 && (
