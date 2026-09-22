@@ -24,6 +24,14 @@ export async function GET(req: Request) {
   const totalInteractions = snaps.reduce((s, x) => s + (x.totalInteractions || 0), 0);
   const followers = snaps.length ? snaps[snaps.length - 1].followers : 0;
 
+  // Per-metric coverage. The collector only started recording profile views,
+  // interactions and website clicks on 22 Sep 2026 (it was asking Meta the wrong
+  // way before that — see lib/snapshot.ts), so on a long range these cover far
+  // fewer days than reach does. Report the counts so the UI can say so instead of
+  // presenting a part-period total as a whole-period one.
+  const daysWithProfileVisits = snaps.filter((x) => (x.profileVisits || 0) > 0).length;
+  const daysWithEngagement = snaps.filter((x) => (x.totalInteractions || 0) > 0).length;
+
   const series = snaps.map((x) => {
     const d = new Date(x.date + "T00:00:00Z");
     return {
@@ -38,6 +46,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     stored: true,
     daysStored: snaps.length,
+    daysWithProfileVisits,
+    daysWithEngagement,
     coverageFrom: snaps.length ? snaps[0].date : null,
     coverageTo: snaps.length ? snaps[snaps.length - 1].date : null,
     totals: { followers, reach, engagement: totalInteractions, profileVisits, newFollowers, avgDailyGain: 0 },

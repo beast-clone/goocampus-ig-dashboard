@@ -55,6 +55,8 @@ type Insights = {
   // span we actually hold, so a combined total can state its own coverage.
   stored?: boolean;
   daysStored?: number;
+  daysWithProfileVisits?: number;
+  daysWithEngagement?: number;
   coverageFrom?: string | null;
   coverageTo?: string | null;
 };
@@ -324,15 +326,31 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     (a, p) => ({ likes: a.likes + (p.likes || 0), comments: a.comments + (p.comments || 0), saves: a.saves + (p.saves || 0), shares: a.shares + (p.shares || 0) }),
     { likes: 0, comments: 0, saves: 0, shares: 0 },
   ), [rangePosts]);
+  // Snapshot coverage for a combined (non-monthly) stored period. Daily snapshots
+  // have gaps, so a 90-day total can silently under-report — say what it is built
+  // from rather than presenting a short number as complete.
+  const spanDays = Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86_400_000) + 1;
+  const daysHeld = ins?.daysStored ?? 0;
+  const coverageShort = insStored && !isMonthly && daysHeld > 0 && daysHeld < spanDays - 1;
+  // Profile visits and engagement were only recorded from 22 Sep 2026, so on a
+  // long stored range they cover fewer days than reach. Label the tile with the
+  // days it actually covers rather than letting a part-period sum pass as a total.
+  const pvDays = ins?.daysWithProfileVisits ?? 0;
+  const engDays = ins?.daysWithEngagement ?? 0;
+  const pvPartial = insStored && pvDays > 0 && pvDays < daysHeld;
+  const engPartial = insStored && engDays > 0 && engDays < daysHeld;
   // Stored ranges: prefer the snapshot's own total_interactions. It is instant and
   // covers the whole span. Snapshots written before the collector was fixed
   // (22 Sep 2026) carry 0 there, so those fall back to summing the period's posts.
   const storedEng = t?.engagement ?? 0;
-  const engVal = insStored ? (storedEng > 0 ? storedEng : postEngagement) : storedEng;
+  // Only trust the snapshot sum when it covers the whole stored range. Where it
+  // is partial (the collector started recording interactions on 22 Sep 2026) the
+  // slower per-post sum is the more complete number, so that wins.
+  const engVal = insStored ? (storedEng > 0 && !engPartial ? storedEng : postEngagement) : storedEng;
   // On stored ranges engagement is summed from the period's posts, and that fetch
   // is slow over a long span. Until it lands, show a dash — a confident "0" reads
   // as "no engagement" rather than "still counting".
-  const engPending = insStored && storedEng === 0 && rangePosts === null;
+  const engPending = insStored && (storedEng === 0 || engPartial) && rangePosts === null;
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
   // Engagement + profile views are real now (Meta's total_interactions and
   // profile_views), so drop the EST badge — unless that call fell back to the
@@ -343,20 +361,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   const pastMonthLabel = insStored
     ? (isMonthly ? new Date(range.from + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : rangeLabel)
     : null;
-  // Snapshot coverage for a combined (non-monthly) stored period. Daily snapshots
-  // have gaps, so a 90-day total can silently under-report — say what it is built
-  // from rather than presenting a short number as complete.
-  const spanDays = Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86_400_000) + 1;
-  const daysHeld = ins?.daysStored ?? 0;
-  const coverageShort = insStored && !isMonthly && daysHeld > 0 && daysHeld < spanDays - 1;
   const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string; est?: boolean }[] = t ? [
     { key: "followers", label: "Followers", value: fmt(t.followers), delta: insStored ? null : (d?.followers ?? 0), badge: insStored ? "saved" : undefined },
     { key: "reach", label: "Reach", value: fmt(t.reach), delta: insStored ? null : (d?.reach ?? 0), badge: insStored ? "saved" : undefined },
     // Live-window engagement & profile visits come straight from Meta
     // (total_interactions / profile_views). `engEst` only turns back on if that
     // call failed and we're showing the old reach-derived estimate.
-    { key: "engagement", label: "Engagement", value: engPending ? "…" : fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? (engPending ? "counting…" : storedEng > 0 ? "saved" : "from posts") : undefined, est: engEst },
-    { key: "profileVisits", label: "Profile Visits", value: insStored && !t.profileVisits ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? (t.profileVisits ? "saved" : "not recorded") : undefined, est: engEst },
+    { key: "engagement", label: "Engagement", value: engPending ? "…" : fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? (engPending ? "counting…" : storedEng > 0 && !engPartial ? "saved" : "from posts") : undefined, est: engEst },
+    { key: "profileVisits", label: "Profile Visits", value: insStored && !t.profileVisits ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? (!t.profileVisits ? "not recorded" : pvPartial ? `${pvDays} of ${daysHeld} days` : "saved") : undefined, est: engEst },
     { key: "engRate", label: "Eng. Rate", value: engPending ? "…" : `${engRate}%`, delta: null, flat: true, est: engEst },
   ] : [];
 
@@ -487,7 +499,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                 <div style={{ fontSize: 12, background: "#EEF1FB", border: "1px solid #DCE3FB", color: "#2138B0", borderRadius: 10, padding: "9px 13px", marginTop: -8 }}>
                   {isMonthly
                     ? <>This month is older than Instagram&rsquo;s 30-day window, so its KPIs are read from your <b>saved snapshots</b>. Reach &amp; follower growth are real; engagement is summed from this month&rsquo;s posts; profile visits weren&rsquo;t recorded before today.</>
-                    : <><b>{rangeLabel}</b>, combined into one period. Instagram only serves the last 30 days live, so these totals are added up from your <b>saved daily snapshots</b> ({daysHeld} of {spanDays} days recorded{ins?.coverageFrom ? <> · {fmtNice(ins.coverageFrom)} → {fmtNice(ins.coverageTo || range.to)}</> : null}). Reach &amp; follower growth are real; engagement is summed from the period&rsquo;s posts; profile visits weren&rsquo;t recorded before today.{coverageShort ? <> <b>Days with no snapshot are missing from these totals</b>, so the real figures are higher.</> : null}</>}
+                    : <><b>{rangeLabel}</b>, combined into one period. Instagram only serves the last 30 days live, so these totals are added up from your <b>saved daily snapshots</b> ({daysHeld} of {spanDays} days recorded{ins?.coverageFrom ? <> · {fmtNice(ins.coverageFrom)} → {fmtNice(ins.coverageTo || range.to)}</> : null}). Reach &amp; follower growth are real. Engagement and profile visits only began recording on 22 Sep 2026, so on a longer window they cover fewer days than reach — each tile says how many.{coverageShort ? <> <b>Days with no snapshot are missing from these totals</b>, so the real figures are higher.</> : null}</>}
                 </div>
               )}
 

@@ -127,8 +127,8 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
         <div className="h-[180px] flex items-center justify-center"><LoadingBlock /></div>
       ) : (
         <div className="space-y-4">
-          {/* Row 1 — one box per week, always on a single line regardless of count */}
-          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+          {/* Row 1 — one box per week; wraps once a long range has more weeks than fit */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(158px, 1fr))" }}>
             {weeks.map((w, i) => {
               const isLast = i === weeks.length - 1;
               return (
@@ -139,23 +139,20 @@ export function PostingCadenceBar({ accountId, range, smartCadence }: { accountI
                   <div className="text-[10.5px] uppercase tracking-widest font-semibold text-gray-500 mb-2">
                     {w.label}
                   </div>
-                  <div className="flex items-baseline gap-2.5 mb-2">
+                  <div className="space-y-1 mb-2.5">
                     {([
-                      { n: w.carousel, label: w.carousel === 1 ? "carousel" : "carousels", color: isLast ? "text-brand" : "text-gray-900" },
-                      { n: w.static, label: w.static === 1 ? "static" : "statics", color: "text-amber-700" },
-                      { n: w.reel, label: w.reel === 1 ? "reel" : "reels", color: "text-violet-700" },
-                    ]).map((c, ci) => (
-                      <div key={c.label + ci} className="flex items-baseline gap-2.5">
-                        {ci > 0 && <div className="w-px self-stretch bg-gray-200" />}
-                        <div>
-                          <div className={`text-[22px] font-semibold leading-none tabular-nums tracking-tight ${c.color}`}>{c.n}</div>
-                          <div className="text-[10px] text-gray-500 mt-0.5">{c.label}</div>
-                        </div>
+                      { n: w.carousel, label: w.carousel === 1 ? "carousel" : "carousels", color: isLast ? "text-brand" : "text-gray-900", bar: isLast ? "bg-brand" : "bg-brand/50" },
+                      { n: w.static, label: w.static === 1 ? "static" : "statics", color: "text-amber-700", bar: isLast ? "bg-amber-500" : "bg-amber-300" },
+                      { n: w.reel, label: w.reel === 1 ? "reel" : "reels", color: "text-violet-700", bar: isLast ? "bg-violet-600" : "bg-violet-400" },
+                    ]).map((c) => (
+                      <div key={c.label} className="flex items-baseline justify-between gap-2">
+                        <span className="text-[11px] text-gray-500">{c.label}</span>
+                        <span className={`text-[19px] font-semibold leading-none tabular-nums tracking-tight ${c.n === 0 ? "text-gray-300" : c.color}`}>{c.n}</span>
                       </div>
                     ))}
                   </div>
-                  {/* One segment per format, side by side. The three are never merged
-                      into a single length, so a reel-heavy week can't read as a
+                  {/* One segment per format, side by side — never merged into a
+                      single length, so a reel-heavy week can't read as a
                       carousel-heavy one. */}
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
                     <div className={`h-full ${isLast ? "bg-brand" : "bg-brand/50"}`} style={{ width: `${(w.carousel / (maxWeek || 1)) * 100}%` }} />
