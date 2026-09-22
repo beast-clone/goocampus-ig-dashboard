@@ -5,7 +5,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
-  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconChartBar, IconArrowDown,
+  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconPencil, IconInfoCircle, IconChartBar, IconArrowDown,
 } from "@tabler/icons-react";
 
 // SEO for Instagram & YouTube — doctors only. Replaces the old website/Google SEO tab.
@@ -154,6 +154,10 @@ function Generator() {
     <Card icon={<IconSparkles size={17} stroke={1.8} />} title="Generate keywords"
       sub="Paste an Instagram caption or a YouTube script — get keywords and hashtags to copy into the post."
       right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setOut(null); }} />}>
+      <Explainer>
+        <b className="font-medium">AI suggestions for one post.</b> Paste the caption or script you&apos;re writing and get keywords and hashtags for it
+        {" "}(about half a cent each). For the keywords doctor accounts <i>actually use</i>, see <b className="font-medium">Keywords by topic</b> below.
+      </Explainer>
       {/* Caption on the left, results on the right. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="flex flex-col">
@@ -204,20 +208,89 @@ const joinForPost = (ks: string[]) => {
 };
 const TOPIC_ORDER = ["NEET PG & INI-CET", "FMGE & NExT", "UK — PLAB, GMC, NHS", "Australia — AMC, AHPRA", "USA — USMLE", "Gulf — DHA, HAAD, Prometric", "English tests — OET, IELTS", "Working abroad", "General medical"];
 
+// A short "what is this / how is it different" line at the top of a section.
+function Explainer({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg bg-brand-light px-3 py-2 mb-4 text-[13px] text-[#232D42]">
+      <IconInfoCircle size={16} stroke={1.8} className="text-brand flex-shrink-0 mt-px" /><div>{children}</div>
+    </div>
+  );
+}
+
+type Topic = { id: string; name: string; words: string[]; suggestions?: { instagram?: string[]; youtube?: string[] } };
+const matchesTopic = (keyword: string, t: Topic) => { const k = keyword.toLowerCase().replace(/^#/, ""); return t.words.some((w) => k.includes(w)); };
+
+// Add / edit a custom topic: a name + the words that identify it.
+function TopicForm({ initial, onDone }: { initial?: Topic; onDone: (saved: boolean) => void }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [words, setWords] = useState(initial?.words.join(", ") || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const save = async () => {
+    setBusy(true); setErr("");
+    const r = await fetch("/api/seo/topics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: initial?.id, name, words }) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!r.ok) { setErr(j.error || "Couldn't save it."); return; }
+    onDone(true);
+  };
+  return (
+    <div className="rounded-lg border border-brand p-3 flex flex-col gap-2.5">
+      <div className="text-[14px] font-medium text-[#232D42]">{initial ? "Edit topic" : "New topic"}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-2.5">
+        <label className="flex flex-col gap-1 text-[12px] text-[#8A92A6]">Topic name
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ireland — IMC" className="h-9 px-2.5 rounded border border-gray-200 text-[14px] text-[#232D42] outline-none focus:border-brand" />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] text-[#8A92A6]">Words that identify it (comma-separated)
+          <input value={words} onChange={(e) => setWords(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); }} placeholder="e.g. ireland, irish, imc" className="h-9 px-2.5 rounded border border-gray-200 text-[14px] text-[#232D42] outline-none focus:border-brand" />
+        </label>
+      </div>
+      <div className="text-[12px] text-[#8A92A6]">Any tracked keyword or hashtag containing one of these words goes in this group — e.g. &ldquo;ireland&rdquo; picks up #irelanddoctors.</div>
+      {err && <div className="text-[12px] text-rose-600">{err}</div>}
+      <div className="flex items-center gap-2 justify-end">
+        <button onClick={() => onDone(false)} className="h-8 px-3 rounded text-[13px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+        <button onClick={save} disabled={busy || !name.trim() || !words.trim()} className="h-8 px-3 rounded bg-brand text-white text-[13px] disabled:opacity-50">{busy ? "Saving…" : "Save topic"}</button>
+      </div>
+    </div>
+  );
+}
+
 function Trending({ data, platform, setPlatform }: { data: Data; platform: Platform; setPlatform: (p: Platform) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]); // groups showing all keywords, not just the top 8
   const tracked = data.accounts.filter((a) => a.platform === platform && a.analysed > 0).length;
+  const topicsApi = useApi<{ topics: Topic[] }>("/api/seo/topics");
+  const custom = useMemo(() => topicsApi.data?.topics || [], [topicsApi.data]);
+  const [editing, setEditing] = useState<Topic | "new" | null>(null);
+  const [suggesting, setSuggesting] = useState("");
+  const [topicErr, setTopicErr] = useState("");
+  // The team's own topics first, then the built-in ones.
   const groups = useMemo(() => {
     const g = new Map<string, Row[]>();
     for (const r of data[platform]) g.set(r.topic, [...(g.get(r.topic) || []), r]);
-    return TOPIC_ORDER.filter((t) => g.has(t)).map((t) => ({ topic: t, rows: g.get(t)!.slice(0, 20) }));
-  }, [data, platform]);
+    return [
+      ...custom.map((t) => ({ topic: t.name, rows: data[platform].filter((r) => matchesTopic(r.keyword, t)).slice(0, 20), custom: t as Topic | undefined })),
+      ...TOPIC_ORDER.filter((t) => g.has(t)).map((t) => ({ topic: t, rows: g.get(t)!.slice(0, 20), custom: undefined as Topic | undefined })),
+    ];
+  }, [data, platform, custom]);
+  const removeTopic = async (t: Topic) => {
+    if (!confirm(`Delete the topic "${t.name}"?`)) return;
+    await fetch("/api/seo/topics", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id }) });
+    topicsApi.refresh();
+  };
+  const suggest = async (t: Topic) => {
+    setSuggesting(t.id); setTopicErr("");
+    const r = await fetch("/api/seo/topics/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id, platform }) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    setSuggesting("");
+    if (!r.ok) setTopicErr(j.error || "Couldn't get suggestions.");
+    topicsApi.refresh();
+  };
   const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   return (
     <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Keywords by topic"
-      sub={`What the ${tracked} accounts we track use, grouped by topic — best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.`}
+      sub="Grouped by topic, best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set."
       right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); setExpanded([]); }} />}>
       {/* Selection bar — stays visible while picking across groups */}
       <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 flex-wrap">
@@ -225,17 +298,40 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
         {picked.length > 0 && <button onClick={() => setPicked([])} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Clear</button>}
         <span className="ml-auto">{picked.length > 0 && <CopyButton text={joinForPost(picked)} label={`Copy selected (${picked.length})`} />}</span>
       </div>
+      <Explainer>
+        <b className="font-medium">Real keywords, no AI.</b> Counted from the latest posts of the {tracked} accounts we track and updated daily — best first.
+        {" "}Different from <b className="font-medium">Generate keywords</b> above, which uses AI to suggest keywords for one caption you paste.
+        {" "}Add your own topic to group the keywords you care about.
+      </Explainer>
       <div className="space-y-4">
-        {groups.map(({ topic, rows }) => (
-          <div key={topic} className="rounded-lg border border-gray-100">
+        {editing === "new" ? <TopicForm onDone={(ok) => { setEditing(null); if (ok) topicsApi.refresh(); }} /> : (
+          <button onClick={() => setEditing("new")} className="w-full flex items-center justify-center gap-1.5 h-10 rounded-lg border border-dashed border-gray-300 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand">
+            <IconPlus size={15} stroke={2} />Add topic
+          </button>
+        )}
+        {topicErr && <div className="rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{topicErr}</div>}
+        {groups.map(({ topic, rows, custom: ct }) => ct && editing !== "new" && editing?.id === ct.id
+          ? <TopicForm key={ct.id} initial={ct} onDone={(ok) => { setEditing(null); if (ok) topicsApi.refresh(); }} />
+          : (
+          <div key={ct ? `c:${ct.id}` : topic} className={`rounded-lg border ${ct ? "border-brand/40" : "border-gray-100"}`}>
             <div className="flex items-center gap-3 px-3 py-2 bg-[#F6F7FB] border-b border-gray-100 rounded-t-lg">
               <span className="text-[14px] font-medium text-[#232D42]">{topic}</span>
               <span className="text-[12px] text-[#8A92A6]">{rows.length}</span>
-              <button onClick={() => setOpen(open === topic ? null : topic)} className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 hover:underline">
-                {open === topic ? "Hide details" : "Show details"}<IconChevronDown size={14} className={open === topic ? "rotate-180" : ""} />
-              </button>
-              <CopyButton text={joinForPost(rows.map((r) => r.keyword))} label="Copy all" />
+              {ct && <span className="px-1.5 py-px rounded bg-brand-light text-brand text-[11px]">Custom · {ct.words.join(", ")}</span>}
+              {ct && (
+                <span className="flex items-center gap-0.5">
+                  <button title="Edit topic" onClick={() => setEditing(ct)} className="w-7 h-7 grid place-items-center rounded text-[#8A92A6] hover:text-brand hover:bg-white"><IconPencil size={14} stroke={1.8} /></button>
+                  <button title="Delete topic" onClick={() => removeTopic(ct)} className="w-7 h-7 grid place-items-center rounded text-[#8A92A6] hover:text-rose-600 hover:bg-white"><IconTrash size={14} stroke={1.8} /></button>
+                </span>
+              )}
+              {rows.length > 0 ? <>
+                <button onClick={() => setOpen(open === topic ? null : topic)} className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 hover:underline">
+                  {open === topic ? "Hide details" : "Show details"}<IconChevronDown size={14} className={open === topic ? "rotate-180" : ""} />
+                </button>
+                <CopyButton text={joinForPost(rows.map((r) => r.keyword))} label="Copy all" />
+              </> : <span className="ml-auto" />}
             </div>
+            {rows.length === 0 && <div className="px-3 pt-3 text-[13px] text-[#8A92A6]">None of the accounts we track use these words on {platform === "youtube" ? "YouTube" : "Instagram"} yet — ask AI for suggestions below.</div>}
             <div className="p-3 flex flex-wrap gap-2">
               {(expanded.includes(topic) || open === topic ? rows : rows.slice(0, 8)).map((r) => {
                 const on = picked.includes(r.keyword);
@@ -255,6 +351,36 @@ function Trending({ data, platform, setPlatform }: { data: Data; platform: Platf
                 </button>
               )}
             </div>
+            {/* Custom topics: AI suggestions, kept on the topic once asked for. */}
+            {ct && (() => {
+              const sugg = ct.suggestions?.[platform];
+              return (
+                <div className="mx-3 mb-3 rounded-lg bg-[#F6F7FB] px-3 py-2.5">
+                  {sugg?.length ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <IconSparkles size={14} stroke={1.8} className="text-brand" />
+                        <span className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">Suggested by AI</span>
+                        <span className="text-[12px] text-[#8A92A6]">— not from real posts</span>
+                        <span className="ml-auto flex items-center gap-2">
+                          <button onClick={() => suggest(ct)} disabled={suggesting === ct.id} className="text-[12px] text-brand hover:underline disabled:opacity-50">{suggesting === ct.id ? "Suggesting…" : "Suggest again"}</button>
+                          <CopyButton text={joinForPost(sugg)} label="Copy all" />
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">{sugg.map((x) => <Chip key={x} text={x} />)}</div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[13px] text-[#8A92A6]">Want more for this topic?</span>
+                      <button onClick={() => suggest(ct)} disabled={suggesting === ct.id}
+                        className="ml-auto h-8 px-3 rounded bg-brand text-white text-[13px] inline-flex items-center gap-1.5 disabled:opacity-50">
+                        <IconSparkles size={14} stroke={1.8} />{suggesting === ct.id ? "Suggesting…" : "Suggest keywords with AI"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {open === topic && (
               <div className="border-t border-gray-100 overflow-x-auto">
                 <table className="w-full text-[14px]">
