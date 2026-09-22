@@ -10,6 +10,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskButton, NewTaskModal } from "@/components/NewTaskModal";
+import { SBU_OPTIONS } from "@/lib/sbus";
 import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
 import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
@@ -1346,9 +1347,9 @@ type CalView = "month" | "week" | "day" | "list";
 type CalChannel = "all" | "goocampus" | "goocampusworld" | "12thplusdotcom";
 const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
   { value: "all", label: "All accounts" },
-  { value: "goocampus", label: "@goocampus · Main" },
-  { value: "goocampusworld", label: "@goocampusworld · Mentorship" },
-  { value: "12thplusdotcom", label: "@12thplusdotcom · 12th Plus" },
+  { value: "goocampus", label: "GooCampus" },
+  { value: "goocampusworld", label: "GooCampus World" },
+  { value: "12thplusdotcom", label: "12th Plus" },
 ];
 const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> => (/^12th\s*plus/i.test(sbu) ? "12thplusdotcom" : /mentorship/i.test(sbu) ? "goocampusworld" : "goocampus");
 
@@ -1498,12 +1499,16 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       <div className="mhcal-titlecard">
         <h4>Calendar</h4>
         <div className="mhcal-tc-right">
-          <div style={{ width: 250 }}>
+          <div style={{ width: 190 }}>
             <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setActiveBrand(""); }} options={CAL_CHANNELS} />
           </div>
           <div style={{ width: 230 }}>
-            <PreviewSelect value={activeBrand} onChange={setActiveBrand}
-              options={[{ value: "", label: `All SBUs (${channelRows.length})` }, ...allSbus.filter((x) => brandCounts.get(x)).map((x) => ({ value: x, label: `${x} (${brandCounts.get(x)})` }))]} />
+            {/* Every SBU, always (user) — picking one switches the account to the one it
+                belongs to, so the pick never lands on an empty calendar. */}
+            <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v)); }}
+              options={[{ value: "", label: `All SBUs (${channelRows.length})` },
+                ...Array.from(new Set([...allSbus, ...SBU_OPTIONS])).sort((a, b) => a.localeCompare(b))
+                  .map((x) => ({ value: x, label: `${x} (${rows.filter((r) => r.sbu === x).length})` }))]} />
           </div>
           <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>
           <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>

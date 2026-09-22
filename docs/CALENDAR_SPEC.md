@@ -15,10 +15,11 @@ Source: Manya's three comments (21 Sep) + the user's decisions.
   the publishing view. (The first build redirected one to the other — undone.)
 - **Account dropdown** on the Content calendar, named by the real Instagram accounts, worked out
   from the SBU (no new field):
-  - `@goocampus · Main` — every SBU not below
-  - `@goocampusworld · Mentorship` — SBUs `Mentorship Platform`, `10K Mentorship`
-  - `@12thplusdotcom · 12th Plus` — SBU `12thPlus.com`
-- **SBU dropdown** beside it (with counts), replacing the scrolling brand chips.
+  - **GooCampus** (@goocampus) — every SBU not below
+  - **GooCampus World** (@goocampusworld, mentorship) — SBUs `Mentorship Platform`, `10K Mentorship`
+  - **12th Plus** (@12thplusdotcom) — SBU `12thPlus.com`
+- **SBU dropdown** beside it (with counts), replacing the scrolling brand chips. It always lists
+  **every** SBU; picking one switches the account dropdown to the account it belongs to.
 - **No live Instagram posts** on the Content calendar — they belong on the Publishing Calendar.
   (Tried: published tasks rarely store their Instagram link, so live posts couldn't be matched to
   tasks and crowded the grid.)
