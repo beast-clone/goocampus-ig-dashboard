@@ -334,7 +334,8 @@ const SIDEBAR_CSS = `
 body.nav-collapsed .hsidebar .htheme{display:none}
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
-.hsidebar .hbrand{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:16px 4px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hbrand{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 4px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}
+.hsidebar .hbrand .hcollapse{position:absolute;right:4px;top:50%;transform:translateY(-50%)}
 .hsidebar .hcollapse{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--sb-faint);cursor:pointer;border-radius:8px}
 .hsidebar .hcollapse:hover{color:var(--sb-ink-soft);background:var(--sb-panel2)}
 .hsidebar .hlogo-link{display:inline-block;cursor:pointer;line-height:0}

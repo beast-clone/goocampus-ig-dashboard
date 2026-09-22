@@ -326,7 +326,8 @@ body.nav-collapsed .hsidebar .hnavbadge {
   position: absolute; top: 6px; right: 8px;
   min-width: 7px; width: 7px; height: 7px; padding: 0; font-size: 0; overflow: hidden;
 }
-body.nav-collapsed .hsidebar .hbrand { padding: 12px 0 10px; }
+body.nav-collapsed .hsidebar .hbrand { padding: 12px 0 10px; flex-direction: column; }
+body.nav-collapsed .hsidebar .hbrand .hcollapse { position: static; transform: none; }
 body.nav-collapsed .hsidebar .hlogo-img { width: 30px; }
 /* ⌘K still opens it; the box itself cannot live in 56px. */
 body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
