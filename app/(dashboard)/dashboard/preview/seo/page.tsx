@@ -6,7 +6,7 @@ import { useApi } from "@/lib/use-api";
 import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
-  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconPencil, IconInfoCircle, IconChartBar, IconArrowDown,
+  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconBrandGoogle, IconSearch, IconHelpCircle, IconListSearch, IconPencil, IconInfoCircle, IconChartBar, IconArrowDown,
 } from "@tabler/icons-react";
 
 // SEO for Instagram & YouTube — doctors only. Replaces the old website/Google SEO tab.
@@ -101,21 +101,22 @@ function Inner() {
   const [key, setKey] = useState("/api/seo/social");
   const { data, error, isLoading } = useApi<Data>(key);
   const [platform, setPlatform] = useState<Platform>("instagram"); // ONE switch for the whole page
-  const [tab, setTab] = useState<"keywords" | "ranking">("keywords");
+  const [tab, setTab] = useState<"keywords" | "ranking" | "google">("keywords");
   return (
     <div className="preview-scope space-y-4">
       {/* Tabs on the left; ONE Instagram/YouTube switch for everything below. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="inline-flex bg-white border border-gray-100 rounded-xl p-1 gap-1">
-          {([["keywords", "Keywords", <IconSparkles key="k" size={16} stroke={1.8} />], ["ranking", "Ranking", <IconChartBar key="r" size={16} stroke={1.8} />]] as const).map(([k, label, icon]) => (
+          {([["keywords", "Keywords", <IconSparkles key="k" size={16} stroke={1.8} />], ["ranking", "Ranking", <IconChartBar key="r" size={16} stroke={1.8} />], ["google", "Google research", <IconBrandGoogle key="g" size={16} stroke={1.8} />]] as const).map(([k, label, icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`h-9 px-4 rounded-lg text-[14px] font-medium inline-flex items-center gap-1.5 ${tab === k ? "bg-brand-light text-brand" : "text-[#8A92A6] hover:text-[#232D42]"}`}>{icon}{label}</button>
           ))}
         </div>
-        <PlatformToggle value={platform} onChange={setPlatform} />
+        {tab !== "google" && <PlatformToggle value={platform} onChange={setPlatform} />}
       </div>
+      {tab === "google" && <GoogleResearch />}
       {tab === "keywords" && <Generator platform={platform} />}
-      {error ? (
+      {tab === "google" ? null : error ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-rose-600">Couldn&apos;t load keyword data: {error.message}</div>
       ) : !data ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label={isLoading ? "Reading our posts and 9 competitors' — this takes a moment the first time…" : undefined} /></div>
@@ -890,6 +891,121 @@ function Ranking({ data, platform }: { data: Data; platform: Platform }) {
             cols={[{ key: "per1k", label: `Avg per 1K ${yt ? "subs" : "followers"}` }, { key: "accounts", label: "Accounts" }, { key: "posts", label: yt ? "Videos" : "Posts" }]} />
         )}
       </Card>
+    </div>
+  );
+}
+
+// ── Google research tab ────────────────────────────────────────────────────
+// Website/Google keyword research (Nandu, with Ahrefs' keyword tutorial). Free data
+// only: Google India suggestions, questions, the top 10 + where we rank (Serper), and
+// our real searches from Search Console. No search volume / difficulty (paid sources).
+type Research = {
+  seed: string; error?: string;
+  ideas: { keyword: string; from: "autocomplete" | "related" }[];
+  questions: string[];
+  serp: { organic: { position: number; title: string; link: string; domain: string; ours: boolean }[]; bestPosition: number | null; error?: string };
+  ours: { rows: { query: string; clicks: number; impressions: number; ctr: number; position: number }[]; from: string; to: string; error?: string };
+};
+
+function GoogleResearch() {
+  const [q, setQ] = useState("");
+  const [seed, setSeed] = useState("");
+  const { data, error, isLoading } = useApi<Research>(seed ? `/api/seo/research?q=${encodeURIComponent(seed)}` : null);
+  const run = (k: string) => { const t = k.trim(); if (t.length >= 2) { setQ(t); setSeed(t); } };
+  const r = data && !data.error ? data : null;
+  return (
+    <div className="space-y-4">
+      <Card icon={<IconBrandGoogle size={17} stroke={1.8} />} title="Google keyword research"
+        sub="Type a topic — get the searches Google suggests, the questions people ask, who ranks for it and where GooCampus stands. Click any idea to research it next.">
+        <Explainer>
+          <b className="font-medium">Free data from Google (India) and our Search Console.</b> Search volume and keyword difficulty aren&apos;t included
+          {" "}— those need a paid tool (Ahrefs / Semrush / DataForSEO). Use our Search Console impressions as the demand signal we do have.
+        </Explainer>
+        <form onSubmit={(e) => { e.preventDefault(); run(q); }} className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A92A6]" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. AMC exam, PLAB 2, NEET PG counselling"
+              className="w-full h-10 pl-9 pr-3 rounded border border-gray-200 text-[14px] outline-none focus:border-brand" />
+          </div>
+          <button type="submit" disabled={q.trim().length < 2 || isLoading} className="h-10 px-4 rounded bg-brand text-white text-[14px] font-medium disabled:opacity-40">
+            {isLoading ? "Researching…" : "Research"}
+          </button>
+        </form>
+      </Card>
+
+      {seed && (error || data?.error) && <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-rose-600">{error?.message || data?.error}</div>}
+      {seed && isLoading && !data && <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label="Asking Google…" /></div>}
+
+      {r && (
+        <>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+            <Card icon={<IconListSearch size={17} stroke={1.8} />} title={`Keyword ideas (${r.ideas.length})`}
+              sub="What Google suggests and relates to your topic — real searches people make. Click one to research it."
+              right={r.ideas.length > 0 && <CopyButton text={r.ideas.map((i) => i.keyword).join(", ")} label="Copy all" />}>
+              {r.ideas.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No suggestions from Google for this one.</div> : (
+                <div className="flex flex-wrap gap-2">
+                  {r.ideas.map((i) => (
+                    <span key={i.keyword} className="inline-flex items-center rounded border border-gray-200 bg-white text-[13px]">
+                      <button onClick={() => run(i.keyword)} className="pl-2.5 pr-1.5 py-1 text-[#232D42] hover:text-brand" title={i.from === "autocomplete" ? "Google autocomplete" : "Google related search"}>{i.keyword}</button>
+                      <MiniCopy text={i.keyword} />
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Card>
+            <Card icon={<IconHelpCircle size={17} stroke={1.8} />} title="Questions people ask"
+              sub="What Google completes when people start a question about it — good headings for a blog post or an FAQ section.">
+              {r.questions.length === 0 ? <div className="text-[14px] text-[#8A92A6]">Google suggested no questions for this topic.</div> : (
+                <ul className="space-y-2">
+                  {r.questions.map((x) => (
+                    <li key={x} className="flex items-center gap-2 text-[14px] text-[#232D42]"><span className="flex-1">{x}</span><MiniCopy text={x} /></li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+
+          <Card icon={<IconTrophy size={17} stroke={1.8} />} title={`Who ranks for “${r.seed}” on Google (India)`}
+            sub={r.serp.bestPosition ? `GooCampus is #${r.serp.bestPosition}.` : "GooCampus isn't in the top 10 for this search."}>
+            {r.serp.error ? <div className="text-[14px] text-rose-600">{r.serp.error}</div> : (
+              <ol className="space-y-2">
+                {r.serp.organic.map((o) => (
+                  <li key={o.position + o.link} className={`flex items-start gap-3 rounded-lg px-3 py-2 ${o.ours ? "bg-brand-light" : ""}`}>
+                    <span className="w-6 text-right text-[13px] text-[#8A92A6] tabular-nums">{o.position}</span>
+                    <div className="min-w-0 flex-1">
+                      <a href={o.link} target="_blank" rel="noreferrer" className="text-[14px] text-[#232D42] hover:text-brand line-clamp-1">{o.title}</a>
+                      <div className="text-[12px] text-[#8A92A6]">{o.domain}{o.ours && <span className="ml-1.5 px-1.5 py-px rounded bg-brand text-white text-[11px]">Us</span>}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Card>
+
+          <Card icon={<IconChartBar size={17} stroke={1.8} />} title="Our searches from Search Console"
+            sub={`What people actually typed when our pages showed up on Google, containing “${r.seed}” — ${r.ours.from} to ${r.ours.to}. Impressions = how often we were shown.`}>
+            {r.ours.error ? <div className="text-[14px] text-[#8A92A6]">{r.ours.error}</div>
+              : r.ours.rows.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No searches containing “{r.seed}” brought up our pages in the last 90 days — a gap worth writing for.</div> : (
+                <div className="overflow-x-auto -mx-4 -mb-4">
+                  <table className="w-full text-[13px]">
+                    <thead><tr className="text-left"><th className="px-4 py-2 font-normal">Search</th><th className="px-4 py-2 font-normal text-right">Impressions</th><th className="px-4 py-2 font-normal text-right">Clicks</th><th className="px-4 py-2 font-normal text-right">CTR</th><th className="px-4 py-2 font-normal text-right">Avg position</th></tr></thead>
+                    <tbody>
+                      {r.ours.rows.map((x) => (
+                        <tr key={x.query}>
+                          <td className="px-4 py-2 text-[#232D42]">{x.query}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{x.impressions.toLocaleString("en-IN")}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{x.clicks.toLocaleString("en-IN")}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{x.ctr}%</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{x.position}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -107,6 +107,27 @@ async function gscQuery(from: string, to: string, dimensions: string[], rowLimit
   return (json.rows || []) as RawRow[];
 }
 
+// Our real Google searches that contain `term` (SEO tab → Google research): what
+// people typed when our pages showed up, with impressions / clicks / position.
+export async function searchConsoleQueriesContaining(term: string, from: string, to: string, limit = 50): Promise<SeoKeyword[]> {
+  const siteUrl = await resolveSiteUrl();
+  const token = await googleAccessToken(SCOPE);
+  const res = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      startDate: from, endDate: to, dimensions: ["query"], rowLimit: 500, dataState: "all",
+      dimensionFilterGroups: [{ filters: [{ dimension: "query", operator: "contains", expression: term.toLowerCase() }] }],
+    }),
+  });
+  const json = await res.json();
+  if (json.error) throw classifyGscError(json, siteUrl);
+  return ((json.rows || []) as RawRow[])
+    .map((r) => ({ query: r.keys[0], clicks: r.clicks, impressions: r.impressions, ctr: pct(r.ctr), position: r1(r.position) }))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, limit);
+}
+
 // Full analytics payload for the Website · Google Search Console sub-tab — same
 // shape the Bing tab renders (summary + over-time + top queries + top pages).
 export async function buildSearchConsoleFull(from: string, to: string) {
