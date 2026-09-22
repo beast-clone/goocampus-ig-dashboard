@@ -6,6 +6,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { MetricCard } from "@/components/MetricCard";
 import { useApi } from "@/lib/use-api";
+import { PostDetailModal } from "@/components/PostDetailModal";
 
 type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string };
 type StoryWithStats = Story & {
@@ -144,6 +145,10 @@ function StoriesView({ accountId }: { accountId: string }) {
 }
 
 function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx: number; isLive: boolean }) {
+  // Stories used to open Instagram in a new tab, but a story permalink dies after
+  // 24 hours — for anything historical that link went nowhere. The stored image
+  // lives in Supabase, so show it here instead.
+  const [open, setOpen] = useState(false);
   const denom = s.views || s.reach || 0;
   const replyRate = denom ? ((s.replies / denom) * 100).toFixed(1) : "0.0";
   const hasStats = s.reach > 0 || s.views > 0;   // real live stories carry insights from Meta now
@@ -151,7 +156,9 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
   // Real (v25) stories have the modern metric bundle; demo entries still use the legacy taps/exits set.
   const useModernMetrics = isLive || typeof s.follows === "number";
   return (
-    <a href={s.permalink} target="_blank" rel="noopener noreferrer" className="group block">
+    <div role="button" tabIndex={0} onClick={() => setOpen(true)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); } }}
+      className="group block cursor-pointer">
       <div className={`aspect-[9/16] rounded-xl overflow-hidden ${s.mediaUrl ? "bg-gray-100" : `bg-gradient-to-br ${DEMO_GRADIENTS[gradientIdx % DEMO_GRADIENTS.length]}`} relative ring-1 ring-gray-200 group-hover:ring-2 group-hover:ring-brand transition`}>
         {s.mediaUrl ? (
           <img src={s.mediaUrl} alt="" className="w-full h-full object-cover" />
@@ -200,7 +207,33 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
           <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Fetching insights…" />
         )}
       </div>
-    </a>
+      {open && (
+        <PostDetailModal
+          post={{
+            id: s.id, caption: s.caption, mediaUrl: s.mediaUrl, permalink: s.permalink,
+            type: "STORY", timestamp: s.timestamp, likes: 0, comments: 0, reach: s.reach,
+          }}
+          typeLabel="Story"
+          metrics={hasStats ? [
+            { label: "Views", value: s.views.toLocaleString("en-IN") },
+            { label: "Reach", value: s.reach.toLocaleString("en-IN") },
+            { label: "Replies", value: `${s.replies} (${replyRate}%)` },
+            ...(useModernMetrics
+              ? [
+                  { label: "Follows", value: (s.follows ?? 0).toLocaleString("en-IN") },
+                  { label: "Profile visits", value: (s.profileVisits ?? 0).toLocaleString("en-IN") },
+                  { label: "Navigation", value: (s.navigation ?? 0).toLocaleString("en-IN") },
+                ]
+              : [
+                  { label: "Taps forward", value: s.tapsForward.toLocaleString("en-IN") },
+                  { label: "Taps back", value: s.tapsBack.toLocaleString("en-IN") },
+                  { label: "Exits", value: s.exits.toLocaleString("en-IN") },
+                ]),
+          ] : [{ label: "Insights", value: <span className="text-gray-300">not available</span> }]}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 

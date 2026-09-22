@@ -44,9 +44,14 @@ export const POST_TYPE_ICON: Record<string, React.ReactNode> = {
 // `insightsLoaded` tells the modal whether the reach/shares/saves numbers have
 // actually arrived. When they haven't, those rows show a dash rather than a 0 —
 // a zero would read as "this post got nothing".
-export function PostDetailModal({ post, insightsLoaded = true, onClose }: {
+export function PostDetailModal({ post, insightsLoaded = true, metrics, typeLabel, linkLabel = "Open on Instagram", onClose }: {
   post: ModalPost;
   insightsLoaded?: boolean;
+  // Surfaces whose numbers aren't the post set (Stories, Facebook) pass their own
+  // rows instead, so they share this shell rather than growing another modal.
+  metrics?: { label: string; value: React.ReactNode }[];
+  typeLabel?: string;
+  linkLabel?: string;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -96,7 +101,7 @@ export function PostDetailModal({ post, insightsLoaded = true, onClose }: {
         <div className="md:w-[380px] md:shrink-0 flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{POST_TYPE_LABEL[post.type] ?? post.type}</span>
+              <span className="text-xs uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{typeLabel ?? POST_TYPE_LABEL[post.type] ?? post.type}</span>
               <span className="text-xs text-gray-500">{fmtDateTime(post.timestamp)}</span>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
@@ -115,22 +120,30 @@ export function PostDetailModal({ post, insightsLoaded = true, onClose }: {
             <div>
               <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Performance</div>
               <div className="grid grid-cols-2 gap-3">
-                <MetricRow label="Reach" value={insightsLoaded ? num(post.reach) : dash} />
-                <MetricRow label="Engagement" value={insightsLoaded ? num(engagement) : dash} />
-                <MetricRow label="Likes" value={num(post.likes)} />
-                <MetricRow label="Comments" value={num(post.comments)} />
-                <MetricRow label="Shares" value={insightsLoaded ? num(post.shares) : dash} />
-                <MetricRow label="Saves" value={insightsLoaded ? num(post.saves) : dash} />
-                {post.views !== undefined && <MetricRow label="Views" value={insightsLoaded ? num(post.views) : dash} />}
-                <MetricRow label="Engagement rate" value={insightsLoaded ? `${engRate}%` : dash} />
+                {metrics
+                  ? metrics.map((m) => <MetricRow key={m.label} label={m.label} value={m.value} />)
+                  : (
+                    <>
+                      <MetricRow label="Reach" value={insightsLoaded ? num(post.reach) : dash} />
+                      <MetricRow label="Engagement" value={insightsLoaded ? num(engagement) : dash} />
+                      <MetricRow label="Likes" value={num(post.likes)} />
+                      <MetricRow label="Comments" value={num(post.comments)} />
+                      <MetricRow label="Shares" value={insightsLoaded ? num(post.shares) : dash} />
+                      <MetricRow label="Saves" value={insightsLoaded ? num(post.saves) : dash} />
+                      {post.views !== undefined && <MetricRow label="Views" value={insightsLoaded ? num(post.views) : dash} />}
+                      <MetricRow label="Engagement rate" value={insightsLoaded ? `${engRate}%` : dash} />
+                    </>
+                  )}
               </div>
             </div>
 
             {/* Open on Instagram */}
-            <a href={post.permalink} target="_blank" rel="noopener noreferrer"
-              className="block w-full text-center px-4 py-2.5 bg-brand text-white rounded-lg hover:bg-brand-dark text-sm font-medium transition">
-              Open on Instagram ↗
-            </a>
+            {post.permalink && (
+              <a href={post.permalink} target="_blank" rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-2.5 bg-brand text-white rounded-lg hover:bg-brand-dark text-sm font-medium transition">
+                {linkLabel} ↗
+              </a>
+            )}
           </div>
         </div>
       </div>

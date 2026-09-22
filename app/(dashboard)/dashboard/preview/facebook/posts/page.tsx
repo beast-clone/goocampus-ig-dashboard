@@ -4,6 +4,8 @@ import { format, parseISO } from "date-fns";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { useApi } from "@/lib/use-api";
 import { IconThumbUp, IconMessageCircle, IconShare3, IconTrophy } from "@tabler/icons-react";
+import { useState } from "react";
+import { PostDetailModal } from "@/components/PostDetailModal";
 
 // Facebook content page (sidebar: Facebook → Posts) — the page's recent posts
 // with per-post likes/comments/shares, sorted by engagement.
@@ -33,6 +35,9 @@ export default function FacebookPostsPage() {
 }
 
 function Inner({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+  // Facebook posts used to open facebook.com in a new tab; they now open the same
+  // in-dashboard modal the Instagram surfaces use.
+  const [open, setOpen] = useState<Post | null>(null);
   const qs = new URLSearchParams({ account: accountId, from: range.from, to: range.to, limit: "24" }).toString();
   const { data, isLoading } = useApi<Resp>(`/api/facebook?${qs}`);
 
@@ -69,7 +74,9 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {posts.slice(0, 3).map((p) => (
-                <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="flex gap-4 rounded-xl bg-white border border-gray-100 p-3 hover:border-gray-300 hover:shadow-sm">
+                <div key={p.id} role="button" tabIndex={0} onClick={() => setOpen(p)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(p); } }}
+                  className="flex gap-4 rounded-xl bg-white border border-gray-100 p-3 hover:border-gray-300 hover:shadow-sm cursor-pointer">
                   <div className="w-32 aspect-square rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                     {p.fullPicture
                       ? <img src={p.fullPicture} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -84,7 +91,7 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                       <div><div className="text-lg font-bold text-gray-900 tabular-nums">{fmt(p.shares)}</div><div className="text-[12px] uppercase text-gray-500">Shares</div></div>
                     </div>
                   </div>
-                </a>
+                </div>
               ))}
             </div>
           </div>
@@ -92,7 +99,9 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">All posts · {posts.length}</div>
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
           {posts.map((p, i) => (
-            <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="block bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300">
+            <div key={p.id} role="button" tabIndex={0} onClick={() => setOpen(p)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(p); } }}
+              className="block bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300 cursor-pointer">
               <div className="relative">
                 {p.fullPicture
                   ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
@@ -108,9 +117,26 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
                   <span className="text-gray-400 ml-auto">{(() => { try { return format(parseISO(p.createdTime), "d MMM"); } catch { return ""; } })()}</span>
                 </div>
               </div>
-            </a>
+            </div>
           ))}
           </div>
+      {open && (
+        <PostDetailModal
+          post={{
+            id: open.id, caption: open.message || "", mediaUrl: open.fullPicture || "",
+            permalink: open.permalink || "", type: "IMAGE", timestamp: open.createdTime,
+            likes: open.likes ?? 0, comments: open.comments ?? 0, reach: 0,
+          }}
+          typeLabel="Facebook post"
+          linkLabel="Open on Facebook"
+          metrics={[
+            { label: "Likes", value: fmt(open.likes) },
+            { label: "Comments", value: fmt(open.comments) },
+            { label: "Shares", value: fmt(open.shares) },
+          ]}
+          onClose={() => setOpen(null)}
+        />
+      )}
         </>
       )}
     </div>
