@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles,
-  IconClockHour4, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
+  IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
@@ -105,6 +105,7 @@ const GROUPS: Group[] = [
       { label: "By interest",   href: `${HUB}/sales-ops/interests`,   icon: IconChartPie },
       { label: "Counsellors",   href: `${HUB}/sales-ops/counsellors`, icon: IconUsers },
       { label: "Leads tracker", href: `${HUB}/sales-ops/tracker`,     icon: IconTimeline },
+      { label: "Revenue",       href: `${HUB}/sales-ops/revenue`,     icon: IconCurrencyRupee },
       { label: "Unassigned leads", href: `${HUB}/sales-ops/unassigned`, icon: IconInbox },
       { label: "Transfer",      href: `${HUB}/sales-ops/transfer`,    icon: IconArrowsExchange },
       { label: "Roles",         href: `${HUB}/sales-ops/roles`,       icon: IconIdBadge2 },
