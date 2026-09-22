@@ -16,3 +16,11 @@ export const VIDEO_TYPES = new Set<string>([
   "Story (Video)",
   "Meta Ads - Video",
 ]);
+
+// Every Content Calendar "Type" a task can have — the New task form and the Claude
+// connector (/api/mcp) both offer exactly this list.
+export const CONTENT_TYPES = [
+  "Post", "Carousel", "Reel - Original", "Reel - Cut", "Reel Thumbnail",
+  "YouTube Long-Form", "YouTube Shorts", "YouTube Thumbnail",
+  "Meta Ads", "Meta Ads - Video", "Story (Image)", "Story (Video)", "Atomic Essay",
+] as const;

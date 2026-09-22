@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { ThemeToggle } from "@/components/Theme";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
-  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye, IconCamera, IconPalette,
+  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye, IconCamera, IconPalette, IconSparkles, IconCopy,
 } from "@tabler/icons-react";
 
 type Me = { name?: string; first?: string; initials?: string; role?: string; email?: string; id?: string; isAdmin?: boolean; photoUrl?: string | null } | null;
@@ -70,6 +71,7 @@ function Inner() {
           </div>
         </div>
       )}
+      {!viewing && <ConnectClaude />}
       {!viewing && <ChangePassword hasEmail={!!me?.email} />}
     </div>
   );
@@ -182,6 +184,67 @@ function PhotoPicker({ person, forUser, onChanged }: { person: Me; forUser?: str
         <span className="text-[12px] text-[#8A92A6]">Shown next to your name around the dashboard. Square photos work best.</span>
         {err && <span className="text-[12px] text-rose-600">{err}</span>}
       </div>
+    </div>
+  );
+}
+
+// Connect Claude (Claude Code): a personal key so Claude can create tasks here
+// (/api/mcp). Only shown with the "Connect Claude" permission (Team page) or for admins.
+function ConnectClaude() {
+  const [st, setSt] = useState<{ allowed: boolean; connected: boolean; createdAt?: string; lastUsedAt?: string } | null>(null);
+  const [key, setKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const load = () => fetch("/api/account/claude-key", { cache: "no-store" }).then((r) => r.json()).then(setSt).catch(() => setSt(null));
+  useEffect(() => { load(); }, []);
+  if (!st?.allowed) return null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const cmd = key ? `claude mcp add --transport http --scope user goocampus ${origin}/api/mcp --header "Authorization: Bearer ${key}"` : "";
+  const when = (iso?: string) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "never");
+  const create = async () => {
+    setBusy(true);
+    const r = await fetch("/api/account/claude-key", { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (r.ok) { setKey(j.key); setCopied(false); load(); }
+  };
+  const disconnect = async () => {
+    if (!(await confirmDialog({ title: "Disconnect Claude?", body: "Claude will no longer be able to create tasks for you until you create a new key.", action: "Disconnect", danger: true }))) return;
+    await fetch("/api/account/claude-key", { method: "DELETE" });
+    setKey(null); load();
+  };
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="grid place-items-center w-8 h-8 rounded-lg bg-brand-light text-brand"><IconSparkles size={17} stroke={1.8} /></span>
+        <h2 className="text-sm font-semibold text-[#232D42]">Connect Claude</h2>
+        {st.connected && <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 rounded-full px-2.5 py-1">Connected</span>}
+      </div>
+      <p className="text-[13px] text-[#8A92A6] mb-3">
+        Lets Claude Code create tasks here for you: finalise the content with Claude, then say <i>&ldquo;create a task…&rdquo;</i>.
+        Claude asks for the primary interest and content type if you don&apos;t say them. Tasks are created as you, and Claude can&apos;t edit or delete anything.
+      </p>
+      {key ? (
+        <div className="space-y-2">
+          <div className="text-[13px] text-[#232D42] font-medium">Run this once in your terminal — the key is shown only now:</div>
+          <div className="flex items-start gap-2">
+            <code className="flex-1 min-w-0 break-all rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-2 text-[12px] text-[#232D42]">{cmd}</code>
+            <button onClick={async () => { try { await navigator.clipboard.writeText(cmd); setCopied(true); } catch { /* ignore */ } }}
+              className="h-9 px-3 rounded border border-gray-200 text-[13px] text-[#4A5468] hover:border-brand hover:text-brand flex-shrink-0 inline-flex items-center gap-1.5">
+              {copied ? <IconCheck size={15} stroke={2} /> : <IconCopy size={15} stroke={1.8} />}{copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <div className="text-[12px] text-[#8A92A6]">Then restart Claude Code. Keep this key private — anyone with it can create tasks as you.</div>
+        </div>
+      ) : st.connected ? (
+        <div className="flex items-center gap-3 flex-wrap text-[13px] text-[#8A92A6]">
+          <span>Key created {when(st.createdAt)} · last used {when(st.lastUsedAt)}</span>
+          <button onClick={create} disabled={busy} className="ml-auto h-9 px-3 rounded border border-gray-200 text-[13px] text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">Replace key</button>
+          <button onClick={disconnect} className="h-9 px-3 rounded text-[13px] text-[#8A92A6] hover:text-rose-600">Disconnect</button>
+        </div>
+      ) : (
+        <button onClick={create} disabled={busy} className="h-9 px-4 rounded bg-brand text-white text-[14px] font-medium disabled:opacity-50">{busy ? "Creating…" : "Create my key"}</button>
+      )}
     </div>
   );
 }

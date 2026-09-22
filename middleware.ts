@@ -15,6 +15,7 @@ const PUBLIC_API_ROUTES = new Set<string>([
   "/api/lead-form/submit", // public: leads submit the per-post capture form without a login
   "/api/account/accept-invite", // public: a new member sets their password from an emailed code
   "/api/facebook/data-deletion", // public: Meta POSTs here; authenticates via HMAC signed_request, not a cookie
+  "/api/mcp", // Claude connector: authenticates with a personal Bearer key (lib/claude-connector), not a cookie
 ]);
 
 // CRON routes that auth themselves via x-cron-secret header — middleware should NOT gate them

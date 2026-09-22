@@ -1,6 +1,7 @@
 "use client";
 import { IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { CONTENT_TYPES } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
 
@@ -24,11 +25,7 @@ const OWNER_OPTIONS = [
   { label: "Nandu", value: "Nandu C" },
 ];
 
-const TYPE_OPTIONS = [
-  "Post", "Carousel", "Reel - Original", "Reel - Cut", "Reel Thumbnail",
-  "YouTube Long-Form", "YouTube Shorts", "YouTube Thumbnail",
-  "Meta Ads", "Meta Ads - Video", "Story (Image)", "Story (Video)", "Atomic Essay",
-];
+const TYPE_OPTIONS = CONTENT_TYPES; // shared with the Claude connector (lib/mh-content-types)
 
 // Only these get a companion thumbnail task (→ Praveen): reels make a Reel
 // Thumbnail, YouTube long-form makes a YouTube Thumbnail. Shorts have no

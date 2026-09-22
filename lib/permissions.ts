@@ -10,7 +10,8 @@ export type Capability =
   | "approve_content"
   | "reschedule"
   | "view_analytics"
-  | "manage_team";
+  | "manage_team"
+  | "claude_connector";
 
 export const CAPABILITIES: { key: Capability; label: string; desc: string }[] = [
   { key: "create_tasks", label: "Create tasks/posts", desc: "Add new items to the pipeline" },
@@ -21,6 +22,7 @@ export const CAPABILITIES: { key: Capability; label: string; desc: string }[] = 
   { key: "reschedule", label: "Reschedule / calendar", desc: "Change publish dates" },
   { key: "view_analytics", label: "View analytics", desc: "Open the Analytics tabs" },
   { key: "manage_team", label: "Manage team + permissions", desc: "Admin — edit these toggles" },
+  { key: "claude_connector", label: "Connect Claude", desc: "Create tasks from Claude Code with a personal key (My Account)" },
 ];
 
 // One-click starting points; the admin can then tick/untick individual boxes.
