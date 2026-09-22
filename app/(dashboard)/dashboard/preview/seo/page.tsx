@@ -4,7 +4,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import {
-  IconSparkles, IconCopy, IconCheck, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
+  IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
   IconTrophy, IconTargetArrow, IconUsers, IconRefresh, IconAlertTriangle,
 } from "@tabler/icons-react";
 
@@ -19,6 +19,7 @@ type Platform = "instagram" | "youtube";
 type Row = {
   keyword: string; kind: "hashtag" | "keyword"; platform: Platform; accounts: number; competitors: string[];
   posts: number; avgEngagement: number; oursPosts: number; oursAvgEngagement: number | null;
+  oursList: { url: string; snippet: string; engagement: number; date?: string }[]; topic: string;
 };
 type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string };
 type Data = { instagram: Row[]; youtube: Row[]; accounts: Account[]; oursAvg: { instagram: number | null; youtube: number | null }; fetchedAt: string; error?: string };
@@ -167,56 +168,104 @@ function Generator() {
   );
 }
 
-// ── 2. Trending doctor keywords ────────────────────────────────────────────
+// ── 2. Doctor keywords by topic ────────────────────────────────────────────
+// Grouped so a whole topic can be copied in one go; tap chips to build your own set.
+// Hashtags copy space-separated (ready for a caption), keywords comma-separated.
+const joinForPost = (ks: string[]) => {
+  const tags = ks.filter((k) => k.startsWith("#")), words = ks.filter((k) => !k.startsWith("#"));
+  return [words.join(", "), tags.join(" ")].filter(Boolean).join("\n\n");
+};
+const TOPIC_ORDER = ["NEET PG & INI-CET", "FMGE & NExT", "UK — PLAB, GMC, NHS", "Australia — AMC, AHPRA", "USA — USMLE", "Gulf — DHA, HAAD, Prometric", "English tests — OET, IELTS", "Working abroad", "General medical"];
+
 function Trending({ data }: { data: Data }) {
   const [platform, setPlatform] = useState<Platform>("instagram");
-  const [kind, setKind] = useState<"all" | "hashtag" | "keyword">("all");
-  const competitorCount = data.accounts.filter((a) => a.platform === platform && a.analysed > 0).length;
-  const rows = data[platform].filter((r) => kind === "all" || r.kind === kind).slice(0, 30);
-  const topHashtags = data[platform].filter((r) => r.kind === "hashtag").slice(0, 20).map((r) => r.keyword);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const tracked = data.accounts.filter((a) => a.platform === platform && a.analysed > 0).length;
+  const groups = useMemo(() => {
+    const g = new Map<string, Row[]>();
+    for (const r of data[platform]) g.set(r.topic, [...(g.get(r.topic) || []), r]);
+    return TOPIC_ORDER.filter((t) => g.has(t)).map((t) => ({ topic: t, rows: g.get(t)!.slice(0, 20) }));
+  }, [data, platform]);
+  const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   return (
-    <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Trending doctor keywords"
-      sub={`Ranked by how many of the ${competitorCount} accounts we track use them, then by how well those posts do (${engLabel(platform)}).`}
-      right={<PlatformToggle value={platform} onChange={setPlatform} />}>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {(["all", "hashtag", "keyword"] as const).map((k) => (
-          <button key={k} onClick={() => setKind(k)}
-            className={`h-9 px-3 rounded border text-[14px] ${kind === k ? "border-brand text-brand bg-brand-light" : "border-gray-200 text-[#4A5468] hover:border-brand"}`}>
-            {k === "all" ? "All" : k === "hashtag" ? "Hashtags" : "Keywords"}
-          </button>
-        ))}
-        {topHashtags.length > 0 && <span className="ml-auto"><CopyButton text={topHashtags.join(" ")} label="Copy top 20 hashtags" /></span>}
+    <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Doctor keywords by topic"
+      sub={`What the ${tracked} accounts we track use, grouped by topic — best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.`}
+      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); }} />}>
+      {/* Selection bar — stays visible while picking across groups */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 flex-wrap">
+        <span className="text-[14px] text-[#232D42]">{picked.length ? <><b className="font-medium">{picked.length}</b> selected</> : <span className="text-[#8A92A6]">Tap keywords below to select them</span>}</span>
+        {picked.length > 0 && <button onClick={() => setPicked([])} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Clear</button>}
+        <span className="ml-auto">{picked.length > 0 && <CopyButton text={joinForPost(picked)} label={`Copy selected (${picked.length})`} />}</span>
       </div>
-      {rows.length === 0 ? <div className="text-[14px] text-[#8A92A6] py-6 text-center">No data for this platform yet.</div> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-gray-100 bg-gray-50">
-              <tr className="text-left text-[#8A92A6]">
-                <th className="px-3 py-2 font-normal">Keyword</th>
-                <th className="px-3 py-2 font-normal">Used by</th>
-                <th className="px-3 py-2 font-normal text-right">Avg {platform === "youtube" ? "views" : "engagement"}</th>
-                <th className="px-3 py-2 font-normal">Us</th>
-                <th className="px-3 py-2 font-normal w-24" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.keyword} className="border-b border-gray-50">
-                  <td className="px-3 py-2 text-[#232D42] font-medium">{r.keyword}<span className="ml-2 text-[12px] font-normal text-[#8A92A6]">{r.kind === "hashtag" ? "hashtag" : "keyword"}</span></td>
-                  <td className="px-3 py-2 text-[#4A5468]" title={r.competitors.join(", ")}>{r.accounts} account{r.accounts === 1 ? "" : "s"}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-[#232D42]">{fmt(r.avgEngagement)}</td>
-                  <td className="px-3 py-2">
-                    {r.oursPosts > 0
-                      ? <span className="text-[12px] text-[#2F9E6F]">Used in {r.oursPosts} · avg {fmt(r.oursAvgEngagement)}</span>
-                      : <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309]">Not used yet</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right"><CopyButton text={r.keyword} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="space-y-4">
+        {groups.map(({ topic, rows }) => (
+          <div key={topic} className="rounded-lg border border-gray-100">
+            <div className="flex items-center gap-3 px-3 py-2 bg-[#F6F7FB] border-b border-gray-100 rounded-t-lg">
+              <span className="text-[14px] font-medium text-[#232D42]">{topic}</span>
+              <span className="text-[12px] text-[#8A92A6]">{rows.length}</span>
+              <button onClick={() => setOpen(open === topic ? null : topic)} className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 hover:underline">
+                {open === topic ? "Hide details" : "Show details"}<IconChevronDown size={14} className={open === topic ? "rotate-180" : ""} />
+              </button>
+              <CopyButton text={joinForPost(rows.map((r) => r.keyword))} label="Copy all" />
+            </div>
+            <div className="p-3 flex flex-wrap gap-2">
+              {rows.map((r) => {
+                const on = picked.includes(r.keyword);
+                return (
+                  <button key={r.keyword} onClick={() => toggle(r.keyword)}
+                    title={`${r.accounts} account${r.accounts === 1 ? "" : "s"} · avg ${fmt(r.avgEngagement)} ${engLabel(platform)}${r.oursPosts ? ` · we used it in ${r.oursPosts}` : " · we haven't used it"}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[14px] transition ${on ? "border-brand bg-brand-light text-brand" : "border-gray-200 bg-white text-[#232D42] hover:border-brand"}`}>
+                    {on && <IconCheck size={13} stroke={2.2} />}{r.keyword}
+                    {!r.oursPosts && <span className="w-1.5 h-1.5 rounded-full bg-[#E0791F]" title="We haven't used this yet" />}
+                  </button>
+                );
+              })}
+            </div>
+            {open === topic && (
+              <div className="border-t border-gray-100 overflow-x-auto">
+                <table className="w-full text-[14px]">
+                  <thead className="bg-gray-50">
+                    <tr className="text-left text-[#8A92A6]">
+                      <th className="px-3 py-2 font-normal">Keyword</th>
+                      <th className="px-3 py-2 font-normal">Which accounts use it</th>
+                      <th className="px-3 py-2 font-normal text-right">Avg {platform === "youtube" ? "views" : "engagement"}</th>
+                      <th className="px-3 py-2 font-normal">Our posts using it</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.keyword} className="border-t border-gray-50 align-top">
+                        <td className="px-3 py-2 text-[#232D42] font-medium whitespace-nowrap">{r.keyword}</td>
+                        <td className="px-3 py-2 text-[12px] text-[#4A5468]">
+                          {r.competitors.length ? r.competitors.map((c) => `@${c}`).join(", ") : <span className="text-[#8A92A6]">Only us</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(r.avgEngagement)}</td>
+                        <td className="px-3 py-2">
+                          {r.oursList.length === 0 ? <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309]">Not used yet</span> : (
+                            <ul className="space-y-1">
+                              {r.oursList.slice(0, 3).map((p) => (
+                                <li key={p.url} className="text-[12px]">
+                                  <a href={p.url} target="_blank" rel="noreferrer" className="text-brand hover:underline inline-flex items-center gap-1">
+                                    {p.date ? new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Post"}<IconExternalLink size={11} stroke={1.8} />
+                                  </a>
+                                  <span className="text-[#8A92A6]"> · {fmt(p.engagement)} {platform === "youtube" ? "views" : "engagement"} · {p.snippet}…</span>
+                                </li>
+                              ))}
+                              {r.oursPosts > 3 && <li className="text-[12px] text-[#8A92A6]">+{r.oursPosts - 3} more</li>}
+                            </ul>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="text-[12px] text-[#8A92A6] mt-3 inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#E0791F]" />= we haven&apos;t used it yet. Hover a keyword for its numbers.</div>
     </Card>
   );
 }
