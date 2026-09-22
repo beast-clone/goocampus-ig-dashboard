@@ -52,7 +52,7 @@ export function NewTaskButton({ facets, onCreated, variant = "floating", label =
         className={
           variant === "inline"
             ? "bg-brand text-white rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90 transition flex items-center gap-2 shadow-sm"
-            : "fixed bottom-8 right-8 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
+            : "fixed bottom-20 right-5 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
         }
       >
         <span className="text-lg leading-none">+</span> {label}
