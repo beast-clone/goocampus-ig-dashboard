@@ -343,6 +343,13 @@ body.nav-collapsed .hsidebar .hglobalsearch { display: none; }
    the content to a column makes the same elements read larger, because they stop
    being adrift. Nothing was resized to achieve it. */
 .preview-scope:not(.fixed) { max-width: 1440px; margin-inline: auto; }
+/* ...but only the page shell. A NESTED .preview-scope (used to borrow the theme
+   tokens for a component dropped inside a page) would otherwise re-apply the page
+   column: as a flex/grid child, max-width + margin-inline:auto makes it shrink to
+   its content and centre, so the Hashtags card came out 231px wide and indented
+   next to a 485px Post mix card in the same column. Nested scopes fill their
+   parent instead. */
+.preview-scope .preview-scope { max-width: none; margin-inline: 0; width: 100%; }
 /* My Day is a three-column working screen — task list, task detail and the chat
    pane — so the column that helps everywhere else is just a margin it cannot use. */
 .preview-scope.hmd { max-width: none; }
