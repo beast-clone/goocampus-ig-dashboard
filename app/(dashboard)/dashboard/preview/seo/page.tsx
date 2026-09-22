@@ -5,7 +5,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
-  IconTrophy, IconTargetArrow, IconUsers, IconRefresh, IconAlertTriangle, IconPlus, IconX,
+  IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash,
 } from "@tabler/icons-react";
 
 // SEO for Instagram & YouTube — doctors only. Replaces the old website/Google SEO tab.
@@ -348,6 +348,9 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
   const when = new Date(data.fetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   const [platform, setPlatform] = useState<Platform>("instagram");
   const list = data.accounts.filter((a) => a.platform === platform);
+  const isOurs = (a: Account) => handleOf(a).toLowerCase() === "goocampus";
+  const ourAcc = list.find(isOurs), others = list.filter((a) => !isOurs(a));
+  const ourKws = useMemo(() => new Set((ourAcc?.posts || []).flatMap((p) => p.keywords.map((k) => k.toLowerCase()))), [ourAcc]);
   const [sel, setSel] = useState("");
   const picked = list.find((a) => `${a.platform}:${a.account}` === sel) || list[0];
   const remove = async (a: Account) => {
@@ -357,14 +360,21 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
   };
   return (
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
-      sub={`Doctor-education accounts, their latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes daily.`}
-      right={<div className="flex items-center gap-2 flex-wrap justify-end"><PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setSel(""); }} /><button onClick={onRefresh} className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand"><IconRefresh size={15} stroke={1.8} />Refresh now</button></div>}>
+      sub={`Our account and the doctor-education accounts we compare with — latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes by itself daily.`}
+      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setSel(""); }} />}>
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
         <div className="flex flex-col gap-1.5 lg:max-h-[860px] lg:overflow-y-auto lg:pr-1">
-          <AddAccount platform={platform} onAdded={onRefresh} />
-          {list.map((a) => {
+          <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide px-1">Our account</div>
+          {[ourAcc, "divider" as const, ...others].map((a) => {
+            if (a === "divider") return (
+              <div key="divider" className="flex flex-col gap-1.5 mt-3">
+                <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide px-1">Compared with ({others.length})</div>
+                <AddAccount platform={platform} onAdded={onRefresh} />
+              </div>
+            );
+            if (!a) return null;
             const key = `${a.platform}:${a.account}`, on = picked && key === `${picked.platform}:${picked.account}`;
-            const ours = handleOf(a).toLowerCase() === "goocampus";
+            const ours = isOurs(a);
             return (
               <div key={key} role="button" tabIndex={0} onClick={() => setSel(key)} onKeyDown={(e) => { if (e.key === "Enter") setSel(key); }}
                 className={`group flex items-center gap-3 rounded border px-3 py-2 text-left transition cursor-pointer ${on ? "border-brand bg-brand-light" : "border-gray-100 hover:border-gray-300"}`}>
@@ -382,13 +392,14 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
                   : null}
                 {!ours && (
                   <button title="Stop tracking this account" onClick={(e) => { e.stopPropagation(); remove(a); }}
-                    className="w-6 h-6 -mr-1 grid place-items-center rounded text-[#8A92A6] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-600 hover:bg-rose-50 flex-shrink-0"><IconX size={14} stroke={2} /></button>
+                    className="w-6 h-6 -mr-1 grid place-items-center rounded text-[#8A92A6] hover:text-rose-600 hover:bg-rose-50 flex-shrink-0"><IconX size={14} stroke={2} /></button>
                 )}
               </div>
             );
           })}
         </div>
-        {picked && <AccountDetail key={`${picked.platform}:${picked.account}`} a={picked} />}
+        {picked && <AccountDetail key={`${picked.platform}:${picked.account}`} a={picked} ours={isOurs(picked)} ourKws={ourKws}
+          onRemove={isOurs(picked) ? undefined : () => remove(picked)} />}
       </div>
     </Card>
   );
@@ -431,7 +442,8 @@ function AddAccount({ platform, onAdded }: { platform: Platform; onAdded: () => 
   );
 }
 
-function AccountDetail({ a }: { a: Account }) {
+// For a competitor, keywords we've never used are marked, so it reads as a comparison.
+function AccountDetail({ a, ours, ourKws, onRemove }: { a: Account; ours: boolean; ourKws: Set<string>; onRemove?: () => void }) {
   const posts = useMemo(() => a.posts || [], [a]);
   const [only, setOnly] = useState<string | null>(null);
   const [showPosts, setShowPosts] = useState(true);
@@ -441,6 +453,7 @@ function AccountDetail({ a }: { a: Account }) {
     for (const p of posts) for (const k of p.keywords) m.set(k, (m.get(k) || 0) + 1);
     return [...m.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
   }, [posts]);
+  const notOurs = ours ? [] : kws.filter(([k]) => !ourKws.has(k.toLowerCase())).map(([k]) => k);
   const shown = only ? posts.filter((p) => p.keywords.includes(only)) : posts;
   const unit = a.platform === "youtube" ? "views" : "eng.";
   return (
@@ -457,6 +470,11 @@ function AccountDetail({ a }: { a: Account }) {
         <a href={profileUrl(a)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 bg-white text-[14px] text-[#4A5468] hover:border-brand hover:text-brand flex-shrink-0">
           Open profile<IconExternalLink size={14} stroke={1.8} />
         </a>
+        {onRemove && (
+          <button onClick={onRemove} className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 bg-white text-[14px] text-[#4A5468] hover:border-rose-300 hover:text-rose-600 flex-shrink-0">
+            <IconTrash size={14} stroke={1.8} />Remove
+          </button>
+        )}
       </div>
 
       {a.stale && <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5">Couldn&apos;t refresh just now — showing the last read. {limitHit(a.stale) ? "Instagram's hourly limit is used up; it resets within an hour." : a.stale}</div>}
@@ -465,8 +483,12 @@ function AccountDetail({ a }: { a: Account }) {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="text-[14px] font-medium text-[#232D42]">Keywords used <span className="text-[#8A92A6] font-normal">({kws.length})</span></div>
-              <span className="text-[12px] text-[#8A92A6]">Click one to show only its posts · the number is how many posts use it</span>
-              <span className="ml-auto">{kws.length > 0 && <CopyButton text={joinForPost(kws.map(([k]) => k))} label="Copy all" />}</span>
+              <span className="text-[12px] text-[#8A92A6]">Click one to show only its posts · the number is how many posts use it
+                {!ours && <> · <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E0791F] align-middle" /> = we don&apos;t use it</>}</span>
+              <span className="ml-auto flex items-center gap-2">
+                {notOurs.length > 0 && <CopyButton text={joinForPost(notOurs)} label={`Copy ones we don't use (${notOurs.length})`} />}
+                {kws.length > 0 && <CopyButton text={joinForPost(kws.map(([k]) => k))} label="Copy all" />}
+              </span>
             </div>
             {kws.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No hashtags or doctor keywords in these posts.</div> : (
               <div className="flex flex-wrap gap-1.5 max-h-[168px] overflow-y-auto">
@@ -474,6 +496,7 @@ function AccountDetail({ a }: { a: Account }) {
                   <span key={k} className={`inline-flex items-center rounded border text-[13px] ${only === k ? "border-brand bg-brand-light" : "border-gray-200 bg-white"}`}>
                     <button onClick={() => setOnly(only === k ? null : k)} className="pl-2.5 pr-1.5 py-1 text-[#232D42] hover:text-brand">
                       {k} <span className="text-[#8A92A6]">{n}</span>
+                      {!ours && !ourKws.has(k.toLowerCase()) && <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-[#E0791F] align-middle" title="We don't use this" />}
                     </button>
                     <MiniCopy text={k} />
                   </span>
