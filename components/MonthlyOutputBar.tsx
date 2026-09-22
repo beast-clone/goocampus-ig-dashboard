@@ -18,12 +18,26 @@ const monthKey = (iso: string) => (iso || "").slice(0, 7);
 const monthLabel = (key: string) =>
   new Date(key + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
-type Row = { key: string; label: string; carousel: number; static: number; reel: number; stories: number | null; total: number; partial: boolean };
+type Row = { key: string; label: string; carousel: number; static: number; reel: number; stories: number | null; total: number; partial: boolean; current: boolean };
 
 // Month-by-month totals of everything published: carousels, static posts, reels
 // and stories. The weekly cadence above answers "is the rhythm holding"; this
 // answers "what did we actually ship in September".
-export function MonthlyOutputBar({ accountId, range }: { accountId: string; range: { from: string; to: string } }) {
+export function MonthlyOutputBar({ accountId, range, months }: { accountId: string; range: { from: string; to: string }; months?: number }) {
+  // A preset range is a ROLLING window — "30 days" runs 23 Aug → 22 Sep and so
+  // straddles two calendar months, which made August look like a bad month when
+  // only its last nine days were counted. A section headed "Monthly output"
+  // should talk in whole calendar months, so `months` says how many to show
+  // (30d → 1, 60d → 2, 90d → 3, 1y → 12) and this window starts at the 1st of
+  // the earliest of them. Custom ranges pass nothing and keep exact clipping,
+  // because there the user picked the dates deliberately.
+  const win = useMemo(() => {
+    if (!months) return range;
+    const end = new Date(range.to + "T00:00:00");
+    const first = new Date(end.getFullYear(), end.getMonth() - (months - 1), 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return { from: `${first.getFullYear()}-${pad(first.getMonth() + 1)}-01`, to: range.to };
+  }, [months, range]);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [stories, setStories] = useState<Story[] | null>(null);
 
@@ -31,18 +45,18 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
     let alive = true;
     setPosts(null);
     setStories(null);
-    const qs = new URLSearchParams({ accountId, from: range.from, to: range.to, limit: "500", insights: "false" }).toString();
+    const qs = new URLSearchParams({ accountId, from: win.from, to: win.to, limit: "500", insights: "false" }).toString();
     fetch(`/api/posts?${qs}`)
       .then((r) => (r.ok ? r.json() : { posts: [] }))
       .then((d) => { if (alive) setPosts((d.posts || []) as Post[]); })
       .catch(() => { if (alive) setPosts([]); });
-    const sqs = new URLSearchParams({ accountId, from: range.from, to: range.to, limit: "500" }).toString();
+    const sqs = new URLSearchParams({ accountId, from: win.from, to: win.to, limit: "500" }).toString();
     fetch(`/api/stories/historical?${sqs}`)
       .then((r) => (r.ok ? r.json() : { stories: [] }))
       .then((d) => { if (alive) setStories((d.stories || []) as Story[]); })
       .catch(() => { if (alive) setStories([]); });
     return () => { alive = false; };
-  }, [accountId, range.from, range.to]);
+  }, [accountId, win.from, win.to]);
 
   const { rows, totals, storiesPartial } = useMemo(() => {
     const empty = { rows: [] as Row[], totals: null as Row | null, storiesPartial: false };
@@ -51,8 +65,8 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
     // Every calendar month the range touches, so a month with nothing published
     // still shows as a zero rather than silently vanishing from the table.
     const keys: string[] = [];
-    const start = new Date(range.from + "T00:00:00");
-    const end = new Date(range.to + "T00:00:00");
+    const start = new Date(win.from + "T00:00:00");
+    const end = new Date(win.to + "T00:00:00");
     for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= end; d.setMonth(d.getMonth() + 1)) {
       keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
@@ -78,7 +92,9 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
         carousel: 0, static: 0, reel: 0,
         stories: firstStoryMonth && k < firstStoryMonth ? null : 0,
         total: 0,
-        partial: range.from > mStart || range.to < mEnd,
+        // The month in progress is "so far", not clipped — it just hasn't ended.
+        current: k === win.to.slice(0, 7),
+        partial: win.from > mStart || win.to < mEnd,
       });
     }
     for (const p of posts) {
@@ -94,7 +110,8 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
 
     const built = keys.map((k) => byMonth.get(k)!).reverse(); // newest month first
     const sum: Row = {
-      partial: built.some((r) => r.partial),
+      current: false,
+      partial: built.some((r) => r.partial && !r.current),
       key: "total",
       label: `All ${built.length} month${built.length === 1 ? "" : "s"}`,
       carousel: built.reduce((s, r) => s + r.carousel, 0),
@@ -104,7 +121,7 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
       total: built.reduce((s, r) => s + r.total, 0),
     };
     return { rows: built, totals: sum, storiesPartial: built.some((r) => r.stories === null) };
-  }, [posts, stories, range.from, range.to]);
+  }, [posts, stories, win.from, win.to]);
 
   const loading = !posts || !stories;
 
@@ -138,7 +155,9 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
                   <tr key={r.key} className="border-t border-gray-100">
                     <td className="py-2.5 text-gray-900 font-medium">
                       {r.label}
-                      {r.partial && <span className="ml-1.5 text-[10.5px] font-normal text-gray-400">part month</span>}
+                      {r.current
+                        ? <span className="ml-1.5 text-[10.5px] font-normal text-gray-400">so far</span>
+                        : r.partial && <span className="ml-1.5 text-[10.5px] font-normal text-gray-400">part month</span>}
                     </td>
                     <Cell n={r.carousel} tone="text-brand" />
                     <Cell n={r.static} tone="text-amber-700" />
@@ -162,7 +181,7 @@ export function MonthlyOutputBar({ accountId, range }: { accountId: string; rang
           </div>
           <div className="text-[11.5px] text-gray-500 mt-3 space-y-1">
             <div>Feed total counts carousels, static posts and reels. Stories are counted apart because they expire after 24 hours.</div>
-            {rows.some((r) => r.partial) && <div>A month marked <b className="font-medium">part month</b> is only covered in part by the selected range.</div>}
+            {rows.some((r) => r.partial && !r.current) && <div>A month marked <b className="font-medium">part month</b> is only covered in part by the selected range.</div>}
             {storiesPartial && <div>A dash means stories weren&rsquo;t being recorded yet that month — not that none were posted.</div>}
           </div>
         </>

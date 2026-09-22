@@ -224,6 +224,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     : rangeKey === "90d" ? "last 90 days"
     : `last ${rangeKey.replace("d", "")} days`;
 
+  // How many whole calendar months the Monthly output section should show. The
+  // preset ranges are rolling windows, so "30 days" would otherwise straddle two
+  // part-months. A custom range passes undefined and keeps its exact dates.
+  const monthlyMonths = rangeKey === "custom" ? undefined
+    : rangeKey === "7d" || rangeKey === "30d" ? 1
+    : rangeKey === "60d" ? 2
+    : rangeKey === "90d" ? 3
+    : 12;
   const [chartMetric, setChartMetric] = useState<"reach" | "engagement">("reach");
   const [ins, setIns] = useState<Insights | null>(null);
   const [insErr, setInsErr] = useState<string | null>(null);  // shown instead of a stuck "Loading…"
@@ -701,7 +709,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <SectionHeader icon={IconCalendarEvent} title="Posting cadence" sub="How often you post, by week" />
               <div className="preview-scope" style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "8px 12px" }}>
                 <PostingCadenceBar accountId={accountId} range={range} smartCadence />
-                <MonthlyOutputBar accountId={accountId} range={range} />
+                <MonthlyOutputBar accountId={accountId} range={range} months={monthlyMonths} />
               </div>
 
             </>
