@@ -48,7 +48,7 @@ async function isQuiet(sb: NonNullable<ReturnType<typeof getSupabase>>, person: 
   return !!data?.logout_at;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
@@ -96,7 +96,11 @@ export async function GET() {
       .eq("recipient_key", person).is("deleted_at", null)
       .order("created_at", { ascending: false }).limit(500);
     if (error) throw new Error(error.message);
-    return NextResponse.json({ items: (data || []) as Row[], quiet: await isQuiet(sb, person) });
+    // Local testing only: ?ignoreQuiet=1 shows pop-ups outside shift hours so the
+    // flow can be checked in the evening. Ignored in production — the live site
+    // always honours quiet hours.
+    const bypass = process.env.NODE_ENV === "development" && new URL(req.url).searchParams.get("ignoreQuiet") === "1";
+    return NextResponse.json({ items: (data || []) as Row[], quiet: bypass ? false : await isQuiet(sb, person) });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load notifications"), { status: 502 });
   }
