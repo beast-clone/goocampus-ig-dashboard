@@ -15,6 +15,7 @@ import { HeaderProfile } from "@/components/HeaderProfile";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
 import { MonthlyOutputBar } from "@/components/MonthlyOutputBar";
+import { PostDetailModal } from "@/components/PostDetailModal";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
@@ -232,6 +233,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     : rangeKey === "60d" ? 2
     : rangeKey === "90d" ? 3
     : 12;
+  // Clicking a card in "Top performing posts" or "Latest posts" opens the same
+  // detail modal the Posts tab uses, rather than leaving the dashboard.
+  const [openPost, setOpenPost] = useState<Post | null>(null);
   const [chartMetric, setChartMetric] = useState<"reach" | "engagement">("reach");
   const [ins, setIns] = useState<Insights | null>(null);
   const [insErr, setInsErr] = useState<string | null>(null);  // shown instead of a stuck "Loading…"
@@ -584,7 +588,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                     const chip = typeChip(post.type);
                     const er = post.reach > 0 ? ((post.totalInteractions || (post.likes + post.comments)) / post.reach * 100).toFixed(1) : "0";
                     return (
-                      <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
+                      <div key={post.id} onClick={() => setOpenPost(post)} role="button" tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPost(post); } }}
+                        style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, cursor: "pointer" }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
                           <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 12, fontWeight: 600, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
@@ -617,7 +623,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                     if (!post) return <div key={i} style={{ height: 210, background: C.bg, borderRadius: 12 }} />;
                     const chip = typeChip(post.type);
                     return (
-                      <div key={post.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card }}>
+                      <div key={post.id} onClick={() => setOpenPost(post)} role="button" tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPost(post); } }}
+                        style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, cursor: "pointer" }}>
                         <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
                           {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
                           <span style={{ position: "absolute", top: 8, left: 8, fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
@@ -635,6 +643,8 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   })}
                 </div>
               </Card>
+
+              {openPost && <PostDetailModal post={openPost} onClose={() => setOpenPost(null)} />}
 
               {/* ══ Sections carried over from the real Overview so NOTHING is removed ══ */}
 

@@ -3,6 +3,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { IconCarouselHorizontal, IconEye, IconHeart, IconMessageCircle, IconMovie, IconPhoto, IconPlayerPlay, IconSparkles, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { PostDetailModal } from "@/components/PostDetailModal";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -354,103 +355,6 @@ function shortNum(n: number): string {
   return n.toLocaleString("en-IN");
 }
 
-// Full-detail modal shown when a card is clicked. Big thumbnail on the left, full
-// caption + every metric on the right. Also has a "View on Instagram" link that opens
-// the actual post so the user can see comments / do actions there.
-function PostDetailModal({ post, insightsLoaded, onClose }: {
-  post: ApiPost;
-  insightsLoaded: boolean;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const engagement = post.totalInteractions || (post.likes + post.comments);
-  const engRate = post.reach > 0 ? ((engagement / post.reach) * 100).toFixed(2) : "0.00";
-  const dash = <span className="text-gray-300">—</span>;
-  // Carousels carry all slides in mediaUrls; everything else is a single "slide".
-  const [idx, setIdx] = useState(0);
-  const slides = post.mediaUrls?.length ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
-        {/* LEFT — media (carousel gets a slider) */}
-        <div className="md:w-1/2 bg-black flex items-center justify-center min-h-[300px] relative">
-          {slides.length ? (
-            <img src={slides[Math.min(idx, slides.length - 1)]} alt="" className="max-w-full max-h-[80vh] object-contain" />
-          ) : (
-            <div className="text-white text-6xl">{TYPE_ICON[post.type] ?? "?"}</div>
-          )}
-          {slides.length > 1 && (
-            <>
-              <span className="absolute top-3 left-3 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/90 text-gray-700">{idx + 1}/{slides.length}</span>
-              <button type="button" onClick={() => setIdx((i) => (i - 1 + slides.length) % slides.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-gray-700 flex items-center justify-center text-xl leading-none" aria-label="Previous slide">‹</button>
-              <button type="button" onClick={() => setIdx((i) => (i + 1) % slides.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-gray-700 flex items-center justify-center text-xl leading-none" aria-label="Next slide">›</button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {slides.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === idx ? "bg-white" : "bg-white/50"}`} />)}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* RIGHT — details */}
-        <div className="md:w-1/2 flex flex-col overflow-y-auto">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{TYPE_LABEL[post.type] ?? post.type}</span>
-              <span className="text-xs text-gray-500">{fmtDateTime(post.timestamp)}</span>
-            </div>
-            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
-          </div>
-
-          <div className="px-5 py-4 space-y-4">
-            {/* Full caption */}
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">Caption</div>
-              <div className="text-sm text-gray-900 whitespace-pre-wrap break-words leading-relaxed">
-                {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
-              </div>
-            </div>
-
-            {/* Metrics grid */}
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Performance</div>
-              <div className="grid grid-cols-2 gap-3">
-                <MetricRow label="Reach" value={insightsLoaded ? post.reach.toLocaleString("en-IN") : dash} />
-                <MetricRow label="Engagement" value={insightsLoaded ? engagement.toLocaleString("en-IN") : dash} />
-                <MetricRow label="Likes" value={post.likes.toLocaleString("en-IN")} />
-                <MetricRow label="Comments" value={post.comments.toLocaleString("en-IN")} />
-                <MetricRow label="Shares" value={insightsLoaded ? post.shares.toLocaleString("en-IN") : dash} />
-                <MetricRow label="Saves" value={insightsLoaded ? post.saves.toLocaleString("en-IN") : dash} />
-                {post.views !== undefined && <MetricRow label="Views" value={insightsLoaded ? post.views.toLocaleString("en-IN") : dash} />}
-                <MetricRow label="Engagement rate" value={insightsLoaded ? `${engRate}%` : dash} />
-              </div>
-            </div>
-
-            {/* Open on Instagram */}
-            <a href={post.permalink} target="_blank" rel="noopener noreferrer"
-              className="block w-full text-center px-4 py-2.5 bg-brand text-white rounded-lg hover:bg-brand-dark text-sm font-medium transition">
-              Open on Instagram ↗
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="bg-gray-50 rounded-lg px-3 py-2">
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="text-base font-semibold text-gray-900 tabular-nums leading-tight mt-0.5">{value}</div>
-    </div>
-  );
-}
 
 // One card = the top post for a rolling window (Today / This week / This month).
 // Renders a compact preview so three fit side-by-side without scrolling on desktop.

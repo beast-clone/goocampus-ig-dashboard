@@ -209,6 +209,41 @@ export async function readPostsForRangeStored(accountId: string, from: string, t
   return out;
 }
 
+// Instagram's CDN links are SIGNED and expire — every slide URL in the August
+// snapshot (captured 14 Sep) was returning 403 by 22 Sep. A stored month therefore
+// carries good numbers but dead images, which shows up as black frames in the post
+// modal. Re-ask Meta for just the media URLs, batched 50 ids per call: one request
+// refreshes a whole month's images, versus one-per-post for the insights we are
+// deliberately NOT re-fetching. Numbers still come from the snapshot.
+async function refreshMediaUrls(acc: IGAccountConfig, posts: HistPost[]): Promise<void> {
+  const CHUNK = 50;
+  const chunks: HistPost[][] = [];
+  for (let i = 0; i < posts.length; i += CHUNK) chunks.push(posts.slice(i, i + CHUNK));
+  await Promise.all(chunks.map(async (slice) => {
+    const ids = slice.map((p) => p.id).join(",");
+    const url = `${GRAPH}/?ids=${ids}&fields=media_url,thumbnail_url,children{media_url,thumbnail_url}&access_token=${acc.pageAccessToken}`;
+    try {
+      const res = await metaLimiter(() => fetchWithTimeout(url, { cache: "no-store" }));
+      const body = (await res.json()) as Record<string, {
+        media_url?: string;
+        thumbnail_url?: string;
+        children?: { data?: { media_url?: string; thumbnail_url?: string }[] };
+        error?: unknown;
+      }>;
+      for (const post of slice) {
+        const fresh = body[post.id];
+        if (!fresh || fresh.error) continue;   // deleted post → keep what we stored
+        const main = fresh.thumbnail_url || fresh.media_url;
+        if (main) post.mediaUrl = main;
+        const kids = (fresh.children?.data ?? [])
+          .map((c) => c.thumbnail_url || c.media_url || "")
+          .filter(Boolean);
+        if (kids.length) post.mediaUrls = kids;
+      }
+    } catch { /* leave the stored URLs — stale images beat no post at all */ }
+  }));
+}
+
 // Serve a range that ENDS TODAY without re-fetching months we already hold.
 //
 // /api/posts used to be all-or-nothing: a range ending today went live for its
@@ -262,11 +297,16 @@ export async function readPostsForRangeHybrid(
     else liveRuns.push({ from: lo, to: hi });
   });
 
-  for (const s of snaps) if (s) for (const p of s.posts) push(p);
+  const storedIds = new Set<string>();
+  for (const s of snaps) if (s) for (const p of s.posts) { storedIds.add(p.id); push(p); }
   const fetched = await Promise.all(liveRuns.map((r) => fetchPostsInRange(acc, r.from, r.to, opts)));
   for (const list of fetched) for (const p of list) push(p);
 
   out.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
   const cap = opts.cap && opts.cap > 0 ? opts.cap : 500;
-  return { posts: out.slice(0, cap), storedMonths, liveMonths };
+  const page = out.slice(0, cap);
+  // Only the ones that came from storage need new links; the live fetch's are fresh.
+  const stale = page.filter((p) => storedIds.has(p.id));
+  if (stale.length) await refreshMediaUrls(acc, stale);
+  return { posts: page, storedMonths, liveMonths };
 }
