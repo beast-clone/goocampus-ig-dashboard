@@ -5,7 +5,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
-  IconTrophy, IconTargetArrow, IconUsers, IconRefresh, IconAlertTriangle,
+  IconTrophy, IconTargetArrow, IconUsers, IconRefresh, IconAlertTriangle, IconPlus, IconX,
 } from "@tabler/icons-react";
 
 // SEO for Instagram & YouTube — doctors only. Replaces the old website/Google SEO tab.
@@ -22,7 +22,7 @@ type Row = {
   oursList: { url: string; snippet: string; engagement: number; date?: string }[]; topic: string;
 };
 type Post = { url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[] };
-type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string; pic?: string; posts?: Post[] };
+type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string; pic?: string; posts?: Post[]; custom?: boolean; stale?: string };
 type Data = { instagram: Row[]; youtube: Row[]; accounts: Account[]; oursAvg: { instagram: number | null; youtube: number | null }; fetchedAt: string; error?: string };
 type Gen = { platform: Platform; keywords: string[]; hashtags: string[]; tags?: string[]; titles?: string[]; error?: string };
 
@@ -96,6 +96,7 @@ export default function SeoPage() {
 function Inner() {
   const [key, setKey] = useState("/api/seo/social");
   const { data, error, isLoading } = useApi<Data>(key);
+  const [kwPlatform, setKwPlatform] = useState<Platform>("instagram"); // one switch for topics + what works + gaps
   return (
     <div className="preview-scope space-y-4">
       <Generator />
@@ -105,9 +106,12 @@ function Inner() {
         <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label={isLoading ? "Reading our posts and 9 competitors' — this takes a moment the first time…" : undefined} /></div>
       ) : (
         <>
-          <Trending data={data} />
-          <OursAndGaps data={data} />
           <Competitors data={data} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
+          {/* Topics on the left; what works for us + gaps beside them, so nothing sits far below. */}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-4 items-start">
+            <Trending data={data} platform={kwPlatform} setPlatform={setKwPlatform} />
+            <OursAndGaps data={data} platform={kwPlatform} />
+          </div>
         </>
       )}
     </div>
@@ -178,10 +182,10 @@ const joinForPost = (ks: string[]) => {
 };
 const TOPIC_ORDER = ["NEET PG & INI-CET", "FMGE & NExT", "UK — PLAB, GMC, NHS", "Australia — AMC, AHPRA", "USA — USMLE", "Gulf — DHA, HAAD, Prometric", "English tests — OET, IELTS", "Working abroad", "General medical"];
 
-function Trending({ data }: { data: Data }) {
-  const [platform, setPlatform] = useState<Platform>("instagram");
+function Trending({ data, platform, setPlatform }: { data: Data; platform: Platform; setPlatform: (p: Platform) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]); // groups showing all keywords, not just the top 8
   const tracked = data.accounts.filter((a) => a.platform === platform && a.analysed > 0).length;
   const groups = useMemo(() => {
     const g = new Map<string, Row[]>();
@@ -192,7 +196,7 @@ function Trending({ data }: { data: Data }) {
   return (
     <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Keywords by topic"
       sub={`What the ${tracked} accounts we track use, grouped by topic — best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.`}
-      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); }} />}>
+      right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); setExpanded([]); }} />}>
       {/* Selection bar — stays visible while picking across groups */}
       <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 flex-wrap">
         <span className="text-[14px] text-[#232D42]">{picked.length ? <><b className="font-medium">{picked.length}</b> selected</> : <span className="text-[#8A92A6]">Tap keywords below to select them</span>}</span>
@@ -211,7 +215,7 @@ function Trending({ data }: { data: Data }) {
               <CopyButton text={joinForPost(rows.map((r) => r.keyword))} label="Copy all" />
             </div>
             <div className="p-3 flex flex-wrap gap-2">
-              {rows.map((r) => {
+              {(expanded.includes(topic) || open === topic ? rows : rows.slice(0, 8)).map((r) => {
                 const on = picked.includes(r.keyword);
                 return (
                   <button key={r.keyword} onClick={() => toggle(r.keyword)}
@@ -222,6 +226,12 @@ function Trending({ data }: { data: Data }) {
                   </button>
                 );
               })}
+              {rows.length > 8 && open !== topic && (
+                <button onClick={() => setExpanded((e) => (e.includes(topic) ? e.filter((t) => t !== topic) : [...e, topic]))}
+                  className="px-2.5 py-1 rounded text-[13px] text-brand hover:underline">
+                  {expanded.includes(topic) ? "Show less" : `Show all ${rows.length}`}
+                </button>
+              )}
             </div>
             {open === topic && (
               <div className="border-t border-gray-100 overflow-x-auto">
@@ -281,18 +291,16 @@ function Trending({ data }: { data: Data }) {
 }
 
 // ── 3. Working for us + gaps ───────────────────────────────────────────────
-function OursAndGaps({ data }: { data: Data }) {
-  const [platform, setPlatform] = useState<Platform>("instagram");
+function OursAndGaps({ data, platform }: { data: Data; platform: Platform }) {
   const rows = data[platform];
   const ourAvg = data.oursAvg[platform];
   const best = useMemo(() => rows.filter((r) => r.oursPosts >= 2 && r.oursAvgEngagement != null)
     .sort((a, b) => (b.oursAvgEngagement || 0) - (a.oursAvgEngagement || 0)).slice(0, 8), [rows]);
   const gaps = useMemo(() => rows.filter((r) => r.oursPosts === 0 && r.competitors.length >= 3).slice(0, 12), [rows]);
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="flex flex-col gap-4">
       <Card icon={<IconTrophy size={17} stroke={1.8} />} title="What works for us"
-        sub={`Our keywords by how our posts using them perform. Our average: ${fmt(ourAvg)} ${engLabel(platform)}.`}
-        right={<PlatformToggle value={platform} onChange={setPlatform} />}>
+        sub={`${platform === "youtube" ? "YouTube" : "Instagram"}: our keywords by how our posts using them perform. Our average: ${fmt(ourAvg)} ${engLabel(platform)}.`}>
         {best.length === 0 ? <div className="text-[14px] text-[#8A92A6]">Not enough of our posts share a keyword yet.</div> : (
           <ul className="space-y-2">
             {best.map((r) => {
@@ -335,28 +343,45 @@ const PlatformIcon = ({ p, size = 18 }: { p: Platform; size?: number }) =>
 
 function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void }) {
   const when = new Date(data.fetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-  const [sel, setSel] = useState(`${data.accounts[0]?.platform}:${data.accounts[0]?.account}`);
-  const picked = data.accounts.find((a) => `${a.platform}:${a.account}` === sel) || data.accounts[0];
+  const [platform, setPlatform] = useState<Platform>("instagram");
+  const list = data.accounts.filter((a) => a.platform === platform);
+  const [sel, setSel] = useState("");
+  const picked = list.find((a) => `${a.platform}:${a.account}` === sel) || list[0];
+  const remove = async (a: Account) => {
+    if (!confirm(`Stop tracking @${handleOf(a)}?`)) return;
+    const r = await fetch("/api/seo/accounts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform: a.platform, handle: a.account }) });
+    if (r.ok) onRefresh(); else alert(((await r.json().catch(() => ({}))) as { error?: string }).error || "Couldn't remove it.");
+  };
   return (
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
-      sub={`Doctor-education accounts on Instagram and YouTube, their latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes daily.`}
-      right={<button onClick={onRefresh} className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand"><IconRefresh size={15} stroke={1.8} />Refresh now</button>}>
+      sub={`Doctor-education accounts, their latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes daily.`}
+      right={<div className="flex items-center gap-2 flex-wrap justify-end"><PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setSel(""); }} /><button onClick={onRefresh} className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand"><IconRefresh size={15} stroke={1.8} />Refresh now</button></div>}>
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
         <div className="flex flex-col gap-1.5 lg:max-h-[860px] lg:overflow-y-auto lg:pr-1">
-          {data.accounts.map((a) => {
+          <AddAccount platform={platform} onAdded={onRefresh} />
+          {list.map((a) => {
             const key = `${a.platform}:${a.account}`, on = picked && key === `${picked.platform}:${picked.account}`;
+            const ours = handleOf(a).toLowerCase() === "goocampus";
             return (
-              <button key={key} onClick={() => setSel(key)}
-                className={`flex items-center gap-3 rounded border px-3 py-2 text-left transition ${on ? "border-brand bg-brand-light" : "border-gray-100 hover:border-gray-300"}`}>
-                <PlatformIcon p={a.platform} />
+              <div key={key} role="button" tabIndex={0} onClick={() => setSel(key)} onKeyDown={(e) => { if (e.key === "Enter") setSel(key); }}
+                className={`group flex items-center gap-3 rounded border px-3 py-2 text-left transition cursor-pointer ${on ? "border-brand bg-brand-light" : "border-gray-100 hover:border-gray-300"}`}>
+                {a.pic ? <img src={a.pic} alt="" referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover bg-[#F6F7FB] flex-shrink-0" /> : <span className="w-8 h-8 rounded-full bg-[#F6F7FB] grid place-items-center flex-shrink-0"><PlatformIcon p={a.platform} size={16} /></span>}
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] text-[#232D42] truncate">{a.name || handleOf(a)}</div>
-                  <div className="text-[12px] text-[#8A92A6] truncate">@{handleOf(a)}{a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""}</div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[14px] text-[#232D42] truncate">{a.name || handleOf(a)}</span>
+                    {ours && <span className="px-1.5 py-px rounded bg-brand text-white text-[11px] flex-shrink-0">Us</span>}
+                    {a.custom && <span className="px-1.5 py-px rounded bg-[#F6F7FB] border border-gray-200 text-[#8A92A6] text-[11px] flex-shrink-0">Added</span>}
+                  </div>
+                  <div className="text-[12px] text-[#8A92A6] truncate">{a.followers != null ? `${fmt(a.followers)} ${a.platform === "youtube" ? "subs" : "followers"} · ` : ""}{a.analysed} posts</div>
                 </div>
                 {a.error
                   ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />Couldn&apos;t read</span>
-                  : <span className="text-[12px] text-[#8A92A6] flex-shrink-0">{a.analysed} posts</span>}
-              </button>
+                  : null}
+                {!ours && (
+                  <button title="Stop tracking this account" onClick={(e) => { e.stopPropagation(); remove(a); }}
+                    className="w-6 h-6 -mr-1 grid place-items-center rounded text-[#8A92A6] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-600 hover:bg-rose-50 flex-shrink-0"><IconX size={14} stroke={2} /></button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -366,9 +391,47 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
   );
 }
 
+// "+ Add account": checks the handle can be read, saves it, then the data refreshes.
+function AddAccount({ platform, onAdded }: { platform: Platform; onAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [handle, setHandle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    if (!handle.trim()) return;
+    setBusy(true); setErr("");
+    const r = await fetch("/api/seo/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform, handle }) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!r.ok) { setErr(j.error || "Couldn't add it."); return; }
+    setHandle(""); setOpen(false); onAdded();
+  };
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="flex items-center justify-center gap-1.5 h-10 rounded border border-dashed border-gray-300 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand">
+      <IconPlus size={15} stroke={2} />Add {platform === "youtube" ? "YouTube channel" : "Instagram account"}
+    </button>
+  );
+  return (
+    <div className="rounded border border-brand p-2.5 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <PlatformIcon p={platform} size={16} />
+        <input autoFocus value={handle} onChange={(e) => setHandle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }}
+          placeholder={platform === "youtube" ? "@channelhandle" : "@username"} className="flex-1 min-w-0 h-9 px-2.5 rounded border border-gray-200 text-[14px] outline-none focus:border-brand" />
+      </div>
+      {err && <div className="text-[12px] text-rose-600">{err}</div>}
+      {platform === "instagram" && !err && <div className="text-[12px] text-[#8A92A6]">Business or creator accounts only — Instagram doesn&apos;t share personal ones.</div>}
+      <div className="flex items-center gap-2 justify-end">
+        <button onClick={() => { setOpen(false); setErr(""); }} className="h-8 px-3 rounded text-[13px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+        <button onClick={submit} disabled={busy || !handle.trim()} className="h-8 px-3 rounded bg-brand text-white text-[13px] disabled:opacity-50">{busy ? "Checking…" : "Add"}</button>
+      </div>
+    </div>
+  );
+}
+
 function AccountDetail({ a }: { a: Account }) {
   const posts = useMemo(() => a.posts || [], [a]);
   const [only, setOnly] = useState<string | null>(null);
+  const [showPosts, setShowPosts] = useState(true);
   // Every keyword this account used, most-used first.
   const kws = useMemo(() => {
     const m = new Map<string, number>();
@@ -393,6 +456,7 @@ function AccountDetail({ a }: { a: Account }) {
         </a>
       </div>
 
+      {a.stale && <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5">Couldn&apos;t refresh just now ({a.stale}) — showing the last read.</div>}
       {a.error ? <div className="text-[14px] text-rose-600">Couldn&apos;t read this account: {a.error}</div> : (
         <>
           <div>
@@ -417,11 +481,15 @@ function AccountDetail({ a }: { a: Account }) {
 
           <div>
             <div className="flex items-center gap-2 mb-2 text-[14px] font-medium text-[#232D42]">
+              <button onClick={() => setShowPosts((v) => !v)} title={showPosts ? "Hide posts" : "Show posts"}
+                className="w-6 h-6 -ml-1 grid place-items-center rounded text-[#8A92A6] hover:text-brand hover:bg-brand-light">
+                <IconChevronDown size={16} stroke={2} className={`transition ${showPosts ? "" : "-rotate-90"}`} />
+              </button>
               {only ? <>Posts using <span className="text-brand">{only}</span> <span className="text-[#8A92A6] font-normal">({shown.length})</span>
                 <button onClick={() => setOnly(null)} className="ml-1 text-[12px] font-normal text-[#8A92A6] hover:text-brand underline">show all</button></>
                 : <>All posts <span className="text-[#8A92A6] font-normal">({posts.length})</span></>}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
+            {showPosts && <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
               {shown.map((p, i) => (
                 <a key={p.url || i} href={p.url} target="_blank" rel="noreferrer"
                   className="group relative aspect-square rounded-lg overflow-hidden border border-gray-100 bg-[#F6F7FB]">
@@ -439,7 +507,7 @@ function AccountDetail({ a }: { a: Account }) {
                   </div>
                 </a>
               ))}
-            </div>
+            </div>}
           </div>
         </>
       )}

@@ -10,10 +10,11 @@
 // volume here — none of these APIs give one — so nothing pretends to be one.
 // Cached 24h: competitor data changes slowly and every read costs API quota.
 
-import { cached } from "@/lib/api-cache";
+import { cached, clearCache } from "@/lib/api-cache";
 import { getAccount } from "@/lib/instagram";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { youtubeGet } from "@/lib/youtube";
+import { getSupabase } from "@/lib/supabase";
 
 // Doctor-education accounts (checked 22 Sep 2026 via Business Discovery).
 export const IG_COMPETITORS = [
@@ -24,6 +25,72 @@ export const IG_COMPETITORS = [
 export const YT_COMPETITORS = [
   "hellomentor_hm", "MokshAcademy", "DocTutorials", "prepladdermedpg", "MarrowMed", "DAMSDelhi", "CerebellumAcademy",
 ];
+
+// Accounts the team adds from the SEO tab ("+ Add account"). Stored in discover_cache
+// (no migration), one row each, alongside the built-in lists above. Removing a
+// built-in account stores a "hidden" row instead; adding it again un-hides it.
+const EXTRA_SOURCE = "seo_account";
+const HIDDEN_SOURCE = "seo_account_hidden";
+const hiddenKey = (p: string, h: string) => `seo-hidden:${p}:${h.toLowerCase()}`;
+const builtInFor = (p: string) => (p === "instagram" ? IG_COMPETITORS : YT_COMPETITORS);
+async function listHidden(): Promise<Set<string>> {
+  const sb = getSupabase();
+  if (!sb) return new Set();
+  const { data } = await sb.from("discover_cache").select("cache_key").eq("source", HIDDEN_SOURCE);
+  return new Set((data || []).map((r) => r.cache_key as string));
+}
+export type ExtraAccount = { platform: "instagram" | "youtube"; handle: string; addedBy?: string; addedAt: string };
+const extraKey = (p: string, h: string) => `seo-account:${p}:${h.toLowerCase()}`;
+export const cleanHandle = (h: string) => h.trim().replace(/^https?:\/\/(www\.)?(instagram\.com|youtube\.com)\//i, "").replace(/^@+/, "").replace(/[/?#].*$/, "");
+
+export async function listExtraAccounts(): Promise<ExtraAccount[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  const { data } = await sb.from("discover_cache").select("payload").eq("source", EXTRA_SOURCE).order("last_fetched", { ascending: true });
+  return (data || []).map((r) => r.payload as ExtraAccount).filter((a) => a?.handle);
+}
+// Checks the account can be read before saving it; returns its display name.
+export async function addExtraAccount(platform: "instagram" | "youtube", handle: string, addedBy?: string): Promise<string> {
+  const sb0 = getSupabase();
+  const builtIn = builtInFor(platform).find((h) => h.toLowerCase() === handle.toLowerCase());
+  if (builtIn) {
+    const hidden = await listHidden();
+    if (!hidden.has(hiddenKey(platform, builtIn))) throw new Error("That account is already tracked.");
+    await sb0?.from("discover_cache").delete().eq("cache_key", hiddenKey(platform, builtIn)).eq("source", HIDDEN_SOURCE);
+    return builtIn;
+  }
+  if (handle.toLowerCase() === "goocampus") throw new Error("That's us — already tracked.");
+  let name: string;
+  if (platform === "instagram") {
+    const acc = getAccount("goocampus");
+    if (!acc) throw new Error("Instagram isn't connected.");
+    try {
+      const j = await igGet<{ business_discovery?: { name?: string; username?: string } }>(acc.igUserId, { fields: `business_discovery.username(${handle}){name,username}`, access_token: acc.pageAccessToken });
+      if (!j.business_discovery) throw new Error("x");
+      name = j.business_discovery.name || handle;
+    } catch { throw new Error(`Couldn't read @${handle} on Instagram. Check the handle — only business or creator accounts can be read.`); }
+  } else {
+    const ch = await youtubeGet<{ items?: { snippet?: { title?: string } }[] }>(`channels?part=snippet&forHandle=${encodeURIComponent(handle)}`);
+    if (!ch.items?.length) throw new Error(`No YouTube channel found for @${handle}.`);
+    name = ch.items[0].snippet?.title || handle;
+  }
+  const sb = getSupabase();
+  if (!sb) throw new Error("Database isn't configured.");
+  const row: ExtraAccount = { platform, handle, addedBy, addedAt: new Date().toISOString() };
+  const { error } = await sb.from("discover_cache").upsert({ cache_key: extraKey(platform, handle), source: EXTRA_SOURCE, last_fetched: row.addedAt, payload: row }, { onConflict: "cache_key" });
+  if (error) throw new Error(error.message);
+  return name;
+}
+export async function removeExtraAccount(platform: string, handle: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  if (handle.toLowerCase() === "goocampus") throw new Error("Our own account can't be removed.");
+  const builtIn = builtInFor(platform).find((h) => h.toLowerCase() === handle.toLowerCase());
+  const { error } = builtIn
+    ? await sb.from("discover_cache").upsert({ cache_key: hiddenKey(platform, builtIn), source: HIDDEN_SOURCE, last_fetched: new Date().toISOString(), payload: { platform, handle: builtIn } }, { onConflict: "cache_key" })
+    : await sb.from("discover_cache").delete().eq("cache_key", extraKey(platform, handle)).eq("source", EXTRA_SOURCE);
+  if (error) throw new Error(error.message);
+}
 
 // Doctor-career topics GooCampus works in. A post "uses" a keyword when its text
 // contains any of the variants (case-insensitive).
@@ -65,6 +132,8 @@ export type AccountPost = { url?: string; image?: string; caption: string; date?
 export type AccountSummary = {
   platform: "instagram" | "youtube"; account: string; name?: string; followers?: number; analysed: number; error?: string;
   pic?: string; posts?: AccountPost[];
+  custom?: boolean; // added by the team from the SEO tab (can be removed)
+  stale?: string;   // this read failed; showing the last good one (the error)
 };
 export type KeywordRow = {
   keyword: string; kind: "hashtag" | "keyword"; platform: "instagram" | "youtube";
@@ -94,6 +163,15 @@ const topicOf = (k: string) => TOPICS.find((t) => t.match.test(k))?.topic || "Ge
 
 const HASHTAG = /#[\p{L}\p{N}_]{3,40}/gu;
 
+// Last good read per account. When a read fails (Instagram's hourly request limit,
+// a blip) the account keeps its previous posts instead of dropping out of the counts.
+const lastGood = new Map<string, { items: Item[]; summary: AccountSummary }>();
+function keep(key: string, items: Item[], summary: AccountSummary) { lastGood.set(key, { items, summary }); }
+function fallback(key: string, error: string, custom?: boolean): { items: Item[]; summary: AccountSummary } | null {
+  const g = lastGood.get(key);
+  return g ? { items: g.items, summary: { ...g.summary, custom, stale: error } } : null;
+}
+
 // ── Instagram ──────────────────────────────────────────────────────────────
 type IgMedia = { caption?: string; like_count?: number; comments_count?: number; permalink?: string; timestamp?: string; media_type?: string; media_url?: string; thumbnail_url?: string };
 const IG_MEDIA_FIELDS = "caption,like_count,comments_count,permalink,timestamp,media_type,media_url,thumbnail_url";
@@ -112,7 +190,7 @@ async function igGet<T>(path: string, params: Record<string, string>): Promise<T
   if (!r.ok || j.error) throw new Error(j.error?.message || `Instagram ${r.status}`);
   return j as T;
 }
-async function instagramItems(): Promise<{ items: Item[]; accounts: AccountSummary[] }> {
+async function instagramItems(extra: string[], hidden: Set<string>): Promise<{ items: Item[]; accounts: AccountSummary[] }> {
   const acc = getAccount("goocampus");
   if (!acc) return { items: [], accounts: [{ platform: "instagram", account: "goocampus", analysed: 0, error: "Instagram not connected" }] };
   const items: Item[] = [], accounts: AccountSummary[] = [];
@@ -128,7 +206,7 @@ async function instagramItems(): Promise<{ items: Item[]; accounts: AccountSumma
       analysed: (own.data || []).length, posts: (own.data || []).map((m) => igPost(m, eng(m))) });
   } catch (e) { accounts.push({ platform: "instagram", account: acc.handle || "goocampus", analysed: 0, error: (e as Error).message.slice(0, 120) }); }
 
-  for (const u of IG_COMPETITORS) {
+  for (const u of [...IG_COMPETITORS.filter((h) => !hidden.has(hiddenKey("instagram", h))), ...extra]) {
     try {
       const j = await igGet<{ business_discovery?: { name?: string; followers_count?: number; profile_picture_url?: string; media?: { data: IgMedia[] } } }>(acc.igUserId, {
         fields: `business_discovery.username(${u}){name,followers_count,profile_picture_url,media.limit(40){${IG_MEDIA_FIELDS}}}`,
@@ -136,10 +214,15 @@ async function instagramItems(): Promise<{ items: Item[]; accounts: AccountSumma
       });
       const bd = j.business_discovery;
       const media = bd?.media?.data || [];
-      for (const m of media) if (m.caption) items.push({ text: m.caption, engagement: eng(m), source: "competitor", account: u });
-      accounts.push({ platform: "instagram", account: u, name: bd?.name, followers: bd?.followers_count, pic: bd?.profile_picture_url,
-        analysed: media.length, posts: media.map((m) => igPost(m, eng(m))) });
-    } catch (e) { accounts.push({ platform: "instagram", account: u, analysed: 0, error: (e as Error).message.slice(0, 120) }); }
+      const mine: Item[] = media.filter((m) => m.caption).map((m) => ({ text: m.caption!, engagement: eng(m), source: "competitor" as const, account: u }));
+      const summary: AccountSummary = { platform: "instagram", account: u, name: bd?.name, followers: bd?.followers_count, pic: bd?.profile_picture_url,
+        analysed: media.length, posts: media.map((m) => igPost(m, eng(m))), custom: extra.includes(u) || undefined };
+      items.push(...mine); accounts.push(summary); keep(`instagram:${u}`, mine, summary);
+    } catch (e) {
+      const msg = (e as Error).message.slice(0, 120), fb = fallback(`instagram:${u}`, msg, extra.includes(u) || undefined);
+      if (fb) { items.push(...fb.items); accounts.push(fb.summary); }
+      else accounts.push({ platform: "instagram", account: u, analysed: 0, error: msg, custom: extra.includes(u) || undefined });
+    }
   }
   return { items, accounts };
 }
@@ -170,17 +253,23 @@ async function channelVideos(handle: string): Promise<{ name: string; subs: numb
     })),
   };
 }
-async function youtubeItems(): Promise<{ items: Item[]; accounts: AccountSummary[] }> {
+async function youtubeItems(extra: string[], hidden: Set<string>): Promise<{ items: Item[]; accounts: AccountSummary[] }> {
   const items: Item[] = [], accounts: AccountSummary[] = [];
-  const all = [{ handle: "goocampus", ours: true }, ...YT_COMPETITORS.map((h) => ({ handle: h, ours: false }))];
+  const all = [{ handle: "goocampus", ours: true }, ...[...YT_COMPETITORS.filter((h) => !hidden.has(hiddenKey("youtube", h))), ...extra].map((h) => ({ handle: h, ours: false }))];
   for (const { handle, ours } of all) {
     try {
       const r = await channelVideos(handle);
-      if (!r) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: "Channel not found" }); continue; }
-      for (const v of r.videos) items.push({ text: v.text, tagText: v.tagText, engagement: v.views, source: ours ? "ours" : "competitor", account: handle, url: v.url, date: v.date });
-      accounts.push({ platform: "youtube", account: handle, name: r.name, followers: r.subs, pic: r.pic, analysed: r.videos.length,
-        posts: r.videos.map((v) => ({ url: v.url, image: v.image, caption: v.title, date: v.date, engagement: v.views, keywords: keywordsIn(v.text, v.tagText) })) });
-    } catch (e) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: (e as Error).message.slice(0, 120) }); }
+      const custom = extra.includes(handle) || undefined;
+      if (!r) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: "Channel not found", custom }); continue; }
+      const mine: Item[] = r.videos.map((v) => ({ text: v.text, tagText: v.tagText, engagement: v.views, source: ours ? "ours" as const : "competitor" as const, account: handle, url: v.url, date: v.date }));
+      const summary: AccountSummary = { platform: "youtube", account: handle, name: r.name, followers: r.subs, pic: r.pic, analysed: r.videos.length,
+        posts: r.videos.map((v) => ({ url: v.url, image: v.image, caption: v.title, date: v.date, engagement: v.views, keywords: keywordsIn(v.text, v.tagText) })), custom };
+      items.push(...mine); accounts.push(summary); keep(`youtube:${handle}`, mine, summary);
+    } catch (e) {
+      const msg = (e as Error).message.slice(0, 120), fb = fallback(`youtube:${handle}`, msg, extra.includes(handle) || undefined);
+      if (fb) { items.push(...fb.items); accounts.push(fb.summary); }
+      else accounts.push({ platform: "youtube", account: handle, analysed: 0, error: msg, custom: extra.includes(handle) || undefined });
+    }
   }
   return { items, accounts };
 }
@@ -222,7 +311,9 @@ export type SocialKeywords = {
 
 export function getSocialKeywords(fresh = false): Promise<SocialKeywords> {
   const build = async (): Promise<SocialKeywords> => {
-    const [ig, yt] = await Promise.all([instagramItems(), youtubeItems()]);
+    const [extra, hidden] = await Promise.all([listExtraAccounts().catch(() => []), listHidden().catch(() => new Set<string>())]);
+    const of = (p: string) => extra.filter((a) => a.platform === p).map((a) => a.handle);
+    const [ig, yt] = await Promise.all([instagramItems(of("instagram"), hidden), youtubeItems(of("youtube"), hidden)]);
     const avg = (xs: Item[]) => (xs.length ? Math.round(xs.reduce((s, x) => s + x.engagement, 0) / xs.length) : null);
     return {
       instagram: score(ig.items, "instagram"),
@@ -232,5 +323,9 @@ export function getSocialKeywords(fresh = false): Promise<SocialKeywords> {
       fetchedAt: new Date().toISOString(),
     };
   };
-  return fresh ? build() : cached("social-keywords:v3", 24 * 60 * 60_000, build, (d) => d.instagram.length + d.youtube.length > 0);
+  // A refresh replaces the cached copy, so the next normal load sees it too.
+  if (fresh) clearCache("social-keywords:");
+  return cached("social-keywords:v3", 24 * 60 * 60_000, build, (d) => d.instagram.length + d.youtube.length > 0 && d.accounts.filter((x) => x.error).length <= 2);
+  // ^ a read where several accounts failed (e.g. Instagram's hourly limit) isn't kept for
+  //   24h — the next load tries again.
 }
