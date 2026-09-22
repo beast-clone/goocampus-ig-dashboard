@@ -49,6 +49,12 @@ type Insights = {
   // "measured" once engagement + profile views come from Meta rather than the
   // old reach-derived guess; drives whether the cards still say EST.
   meta?: { engagementBasis?: "measured" | "estimated" };
+  // Present only on stored (snapshot) reads — how many days of the requested
+  // span we actually hold, so a combined total can state its own coverage.
+  stored?: boolean;
+  daysStored?: number;
+  coverageFrom?: string | null;
+  coverageTo?: string | null;
 };
 type Post = { id: string; caption: string; mediaUrl: string; mediaUrls?: string[]; permalink: string; type: string; timestamp: string; likes: number; comments: number; reach: number; totalInteractions: number; saves?: number; shares?: number };
 type Audience = { gender?: { label: string; value: number }[]; countries?: { label: string; value: number }[]; stored?: boolean; month?: string };
@@ -147,7 +153,7 @@ const PLATFORMS = [
   { key: "youtube", label: "YouTube", icon: IconBrandYoutube },
 ] as const;
 type PlatformKey = (typeof PLATFORMS)[number]["key"];
-type RangeKey = "7d" | "30d" | "60d" | "1y" | "custom";
+type RangeKey = "7d" | "30d" | "90d" | "months" | "1y" | "custom";
 
 export function PreviewOverview({ person = "" }: { person?: string }) {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
@@ -168,12 +174,15 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   // ≤31 days → real & native). Facebook / LinkedIn / YouTube keep full history,
   // so their long ranges query the whole span at once — no switcher, no toggle.
   const customSpanDays = custom.from && custom.to ? Math.round((new Date(custom.to).getTime() - new Date(custom.from).getTime()) / 86_400_000) : 0;
-  const spanIsLong = rangeKey === "60d" || rangeKey === "1y" || (rangeKey === "custom" && customSpanDays > 31);
-  const isMonthly = platform === "instagram" && spanIsLong;
+  const spanIsLong = rangeKey === "90d" || rangeKey === "months" || rangeKey === "1y" || (rangeKey === "custom" && customSpanDays > 31);
+  // "90 days" is deliberately a SINGLE combined period — one set of totals for the
+  // whole quarter, never month-by-month (team request, 22 Sep). Month-by-month
+  // still lives under its own "Months" option, and on 1y / long custom ranges.
+  const isMonthly = platform === "instagram" && spanIsLong && rangeKey !== "90d";
   const months = useMemo(() => {
     if (!isMonthly) return [] as MonthOpt[];
     const ny = now.getFullYear(), nm = now.getMonth();
-    if (rangeKey === "60d") { const s = new Date(ny, nm - 2, 1); return buildMonths(s.getFullYear(), s.getMonth(), ny, nm, now); }
+    if (rangeKey === "months") { const s = new Date(ny, nm - 2, 1); return buildMonths(s.getFullYear(), s.getMonth(), ny, nm, now); }
     if (rangeKey === "1y") { const s = new Date(ny, nm - 11, 1); return buildMonths(s.getFullYear(), s.getMonth(), ny, nm, now); }
     const [fy, fm] = custom.from.split("-").map(Number);
     const [ty, tm] = custom.to.split("-").map(Number);
@@ -187,14 +196,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     if (rangeKey === "custom" && custom.from && custom.to) return { from: custom.from, to: custom.to };
     // Rolling window. For FB/LI/YT (non-monthly) 60d and 1y resolve to the whole
     // span at once; Instagram never reaches here for those (it's monthly).
-    const days = rangeKey === "7d" ? 7 : rangeKey === "60d" ? 60 : rangeKey === "1y" ? 365 : 30;
+    const days = rangeKey === "7d" ? 7 : rangeKey === "90d" ? 90 : rangeKey === "1y" ? 365 : 30;
     return { from: ymdLocal(new Date(now.getTime() - days * 86_400_000)), to: todayStr };
   }, [isMonthly, selFrom, selTo, rangeKey, custom, now, todayStr]);
   const rangeLabel = isMonthly && selectedMonth
     ? `${selectedMonth.full}${selectedMonth.isCurrent ? " (so far)" : ""}`
     : rangeKey === "custom" ? (custom.from && custom.to ? `${custom.from} → ${custom.to}` : "custom range")
     : rangeKey === "1y" ? "last 12 months"
-    : rangeKey === "60d" ? "last 60 days"
+    : rangeKey === "90d" ? "last 90 days"
     : `last ${rangeKey.replace("d", "")} days`;
 
   const [chartMetric, setChartMetric] = useState<"reach" | "engagement">("reach");
@@ -301,6 +310,10 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     { likes: 0, comments: 0, saves: 0, shares: 0 },
   ), [rangePosts]);
   const engVal = insStored ? postEngagement : (t?.engagement ?? 0);
+  // On stored ranges engagement is summed from the period's posts, and that fetch
+  // is slow over a long span. Until it lands, show a dash — a confident "0" reads
+  // as "no engagement" rather than "still counting".
+  const engPending = insStored && rangePosts === null;
   const engRate = t && t.reach > 0 ? Math.round((engVal / t.reach) * 1000) / 10 : 0;
   // Engagement + profile views are real now (Meta's total_interactions and
   // profile_views), so drop the EST badge — unless that call fell back to the
@@ -308,16 +321,24 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   const engEst = !insStored && ins?.meta?.engagementBasis !== "measured";
   // Past (stored) ranges are a specific month — label the post sections with it so
   // "Latest" reads as that month's, not the current one.
-  const pastMonthLabel = insStored ? new Date(range.from + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
+  const pastMonthLabel = insStored
+    ? (isMonthly ? new Date(range.from + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : rangeLabel)
+    : null;
+  // Snapshot coverage for a combined (non-monthly) stored period. Daily snapshots
+  // have gaps, so a 90-day total can silently under-report — say what it is built
+  // from rather than presenting a short number as complete.
+  const spanDays = Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86_400_000) + 1;
+  const daysHeld = ins?.daysStored ?? 0;
+  const coverageShort = insStored && !isMonthly && daysHeld > 0 && daysHeld < spanDays - 1;
   const stats: { key: string; label: string; value: string; delta: number | null; flat?: boolean; badge?: string; est?: boolean }[] = t ? [
     { key: "followers", label: "Followers", value: fmt(t.followers), delta: insStored ? null : (d?.followers ?? 0), badge: insStored ? "saved" : undefined },
     { key: "reach", label: "Reach", value: fmt(t.reach), delta: insStored ? null : (d?.reach ?? 0), badge: insStored ? "saved" : undefined },
     // Live-window engagement & profile visits come straight from Meta
     // (total_interactions / profile_views). `engEst` only turns back on if that
     // call failed and we're showing the old reach-derived estimate.
-    { key: "engagement", label: "Engagement", value: fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? "from posts" : undefined, est: engEst },
+    { key: "engagement", label: "Engagement", value: engPending ? "…" : fmt(engVal), delta: insStored ? null : (d?.engagement ?? null), badge: insStored ? (engPending ? "counting…" : "from posts") : undefined, est: engEst },
     { key: "profileVisits", label: "Profile Visits", value: insStored ? "—" : fmt(t.profileVisits), delta: insStored ? null : (d?.profileVisits ?? null), badge: insStored ? "not recorded" : undefined, est: engEst },
-    { key: "engRate", label: "Eng. Rate", value: `${engRate}%`, delta: null, flat: true, est: engEst },
+    { key: "engRate", label: "Eng. Rate", value: engPending ? "…" : `${engRate}%`, delta: null, flat: true, est: engEst },
   ] : [];
 
   return (
@@ -445,7 +466,9 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               </HeroBanner>
               {insStored && (
                 <div style={{ fontSize: 12, background: "#EEF1FB", border: "1px solid #DCE3FB", color: "#2138B0", borderRadius: 10, padding: "9px 13px", marginTop: -8 }}>
-                  This month is older than Instagram&rsquo;s 30-day window, so its KPIs are read from your <b>saved snapshots</b>. Reach &amp; follower growth are real; engagement is summed from this month&rsquo;s posts; profile visits weren&rsquo;t recorded before today.
+                  {isMonthly
+                    ? <>This month is older than Instagram&rsquo;s 30-day window, so its KPIs are read from your <b>saved snapshots</b>. Reach &amp; follower growth are real; engagement is summed from this month&rsquo;s posts; profile visits weren&rsquo;t recorded before today.</>
+                    : <><b>{rangeLabel}</b>, combined into one period. Instagram only serves the last 30 days live, so these totals are added up from your <b>saved daily snapshots</b> ({daysHeld} of {spanDays} days recorded{ins?.coverageFrom ? <> · {fmtNice(ins.coverageFrom)} → {fmtNice(ins.coverageTo || range.to)}</> : null}). Reach &amp; follower growth are real; engagement is summed from the period&rsquo;s posts; profile visits weren&rsquo;t recorded before today.{coverageShort ? <> <b>Days with no snapshot are missing from these totals</b>, so the real figures are higher.</> : null}</>}
                 </div>
               )}
 
@@ -829,7 +852,7 @@ function RangeFilter({ rangeKey, setRangeKey, custom, setCustom }: {
   rangeKey: RangeKey; setRangeKey: (k: RangeKey) => void;
   custom: { from: string; to: string }; setCustom: (c: { from: string; to: string }) => void;
 }) {
-  const OPTS: [RangeKey, string][] = [["7d", "7 days"], ["30d", "30 days"], ["60d", "60 days"], ["1y", "1 year"], ["custom", "Custom"]];
+  const OPTS: [RangeKey, string][] = [["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["months", "Months"], ["1y", "1 year"], ["custom", "Custom"]];
   const inputStyle: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 8px", fontSize: 12, color: C.heading, outline: "none", fontFamily: "inherit" };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
