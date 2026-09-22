@@ -230,30 +230,39 @@ function Trending({ data }: { data: Data }) {
                       <th className="px-3 py-2 font-normal">Keyword</th>
                       <th className="px-3 py-2 font-normal">Which accounts use it</th>
                       <th className="px-3 py-2 font-normal text-right">Avg {platform === "youtube" ? "views" : "engagement"}</th>
-                      <th className="px-3 py-2 font-normal">Our posts using it</th>
+                      <th className="px-3 py-2 font-normal">Our posts using it <span className="text-[12px]">(hover for the caption, click to open)</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.keyword} className="border-t border-gray-50 align-top">
                         <td className="px-3 py-2 text-[#232D42] font-medium whitespace-nowrap">{r.keyword}</td>
-                        <td className="px-3 py-2 text-[12px] text-[#4A5468]">
-                          {r.competitors.length ? r.competitors.map((c) => `@${c}`).join(", ") : <span className="text-[#8A92A6]">Only us</span>}
+                        <td className="px-3 py-2">
+                          {r.competitors.length ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {r.competitors.map((c) => (
+                                <a key={c} href={platform === "youtube" ? `https://www.youtube.com/@${c}` : `https://www.instagram.com/${c}/`} target="_blank" rel="noreferrer"
+                                  className="px-2 py-0.5 rounded-full bg-[#F6F7FB] border border-gray-100 text-[12px] text-[#4A5468] hover:border-brand hover:text-brand">@{c}</a>
+                              ))}
+                            </div>
+                          ) : <span className="text-[12px] text-[#8A92A6]">Only us</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmt(r.avgEngagement)}</td>
                         <td className="px-3 py-2">
                           {r.oursList.length === 0 ? <span className="text-[12px] px-2 py-0.5 rounded bg-[#FCF0DA] text-[#B45309]">Not used yet</span> : (
-                            <ul className="space-y-1">
-                              {r.oursList.slice(0, 3).map((p) => (
-                                <li key={p.url} className="text-[12px]">
-                                  <a href={p.url} target="_blank" rel="noreferrer" className="text-brand hover:underline inline-flex items-center gap-1">
-                                    {p.date ? new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Post"}<IconExternalLink size={11} stroke={1.8} />
-                                  </a>
-                                  <span className="text-[#8A92A6]"> · {fmt(p.engagement)} {platform === "youtube" ? "views" : "engagement"} · {p.snippet}…</span>
-                                </li>
+                            // One button per post: date + engagement, opens the post; the
+                            // caption's opening line is the tooltip, not row clutter.
+                            <div className="flex flex-wrap gap-1.5">
+                              {r.oursList.slice(0, 4).map((p) => (
+                                <a key={p.url} href={p.url} target="_blank" rel="noreferrer" title={`${p.snippet}…`}
+                                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded border border-gray-200 bg-white text-[12px] text-[#232D42] hover:border-brand hover:text-brand">
+                                  {p.date ? new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Post"}
+                                  <span className="text-[#8A92A6]">· {fmt(p.engagement)} {platform === "youtube" ? "views" : "eng."}</span>
+                                  <IconExternalLink size={12} stroke={1.8} className="text-[#8A92A6]" />
+                                </a>
                               ))}
-                              {r.oursPosts > 3 && <li className="text-[12px] text-[#8A92A6]">+{r.oursPosts - 3} more</li>}
-                            </ul>
+                              {r.oursPosts > 4 && <span className="inline-flex items-center h-7 px-2.5 rounded bg-[#F6F7FB] text-[12px] text-[#8A92A6]">+{r.oursPosts - 4} more</span>}
+                            </div>
                           )}
                         </td>
                       </tr>
