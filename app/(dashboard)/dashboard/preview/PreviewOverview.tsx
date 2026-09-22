@@ -14,6 +14,7 @@ import HubNotificationBell from "@/components/HubNotificationBell";
 import { HeaderProfile } from "@/components/HeaderProfile";
 import { OverviewExtras } from "@/components/OverviewExtras";
 import { PostingCadenceBar } from "@/components/PostingCadenceBar";
+import { MonthlyOutputBar } from "@/components/MonthlyOutputBar";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
 import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
@@ -700,6 +701,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <SectionHeader icon={IconCalendarEvent} title="Posting cadence" sub="How often you post, by week" />
               <div className="preview-scope" style={{ background: C.card, borderRadius: 16, boxShadow: SHADOW, padding: "8px 12px" }}>
                 <PostingCadenceBar accountId={accountId} range={range} smartCadence />
+                <MonthlyOutputBar accountId={accountId} range={range} />
               </div>
 
             </>
