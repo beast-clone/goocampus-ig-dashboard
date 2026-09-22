@@ -11,6 +11,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX, IconAlertTriangle, IconBook, IconBroadcast, IconRss, IconSettings } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type Alert = {
   id: string;
@@ -1176,7 +1177,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
   }
 
   async function del(id: string) {
-    if (!confirm("Delete this alert and all its cached items?")) return;
+    if (!await confirmDialog({ title: "Delete this alert?", body: "Its cached items are deleted too.", action: "Delete", danger: true })) return;
     setRowBusy(id);
     try {
       await fetch(`/api/radar/alerts/${id}`, { method: "DELETE" });

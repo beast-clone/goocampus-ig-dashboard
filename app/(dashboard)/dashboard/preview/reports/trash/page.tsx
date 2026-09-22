@@ -7,6 +7,7 @@ import {
   IconTrash, IconRestore, IconTrashX,
 } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type SavedReportMeta = {
   key: string; platform: string; accountId: string;
@@ -64,7 +65,7 @@ function TrashList() {
     } finally { setBusyKey(null); }
   };
   const purge = async (r: SavedReportMeta) => {
-    if (!window.confirm(`Permanently delete this ${cap(r.platform)} report (${fmtDateShort(r.from)} – ${fmtDateShort(r.to)})? This cannot be undone.`)) return;
+    if (!await confirmDialog({ title: `Permanently delete this ${cap(r.platform)} report?`, body: `${fmtDateShort(r.from)} – ${fmtDateShort(r.to)}. This cannot be undone.`, action: "Delete forever", danger: true })) return;
     setBusyKey(r.key);
     try {
       const res = await fetch(`/api/reports?key=${encodeURIComponent(r.key)}&permanent=1`, { method: "DELETE", credentials: "same-origin" });

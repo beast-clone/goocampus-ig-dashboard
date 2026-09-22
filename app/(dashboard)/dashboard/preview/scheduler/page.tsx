@@ -16,6 +16,7 @@ import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { alertDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -835,7 +836,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
         body: JSON.stringify({ recordId, scheduleTime: iso }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) alert(`Reschedule failed: ${d.error || "HTTP " + r.status}`);
+      if (!r.ok || d.error) alertDialog(`Reschedule failed: ${d.error || "HTTP " + r.status}`);
       else loadQueue();
     } finally { setRowActionId(null); }
   }
@@ -852,7 +853,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
         body: JSON.stringify({ recordId }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) alert(`Publish failed: ${d.error || "HTTP " + r.status}`);
+      if (!r.ok || d.error) alertDialog(`Publish failed: ${d.error || "HTTP " + r.status}`);
       else loadQueue();
     } finally { setRowActionId(null); }
   }
@@ -865,7 +866,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
         body: JSON.stringify({ recordId }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) alert(`Delete failed: ${d.error || "HTTP " + r.status}`);
+      if (!r.ok || d.error) alertDialog(`Delete failed: ${d.error || "HTTP " + r.status}`);
       else { loadQueue(); loadToSchedule(); }   // it drops back into the backlog
     } finally { setRowActionId(null); }
   }
@@ -879,7 +880,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
         body: JSON.stringify({ recordId: editingCaptionId, caption: editingCaptionText }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) alert(`Caption update failed: ${d.error || "HTTP " + r.status}`);
+      if (!r.ok || d.error) alertDialog(`Caption update failed: ${d.error || "HTTP " + r.status}`);
       else { setEditingCaptionId(null); setEditingCaptionText(""); loadQueue(); }
     } finally { setCaptionSaving(false); }
   }
@@ -1170,7 +1171,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                     body: JSON.stringify({ recordId: post.id, scheduleTime: iso, pages }),
                   });
                   const d = await r.json();
-                  if (!r.ok || d.error) alert(`Cross-post failed: ${d.error || "HTTP " + r.status}`);
+                  if (!r.ok || d.error) alertDialog(`Cross-post failed: ${d.error || "HTTP " + r.status}`);
                   else loadQueue();
                 } finally { setRowActionId(null); }
               }
@@ -1658,7 +1659,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
         const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
         const d = await r.json();
         if (r.ok && d.url) urls.push(d.url);
-        else alert(`Upload failed: ${d.error || r.status}`);
+        else alertDialog(`Upload failed: ${d.error || r.status}`);
       }
       if (urls.length) {
         await fetch("/api/scheduler/set-media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, mediaUrls: urls }) });
@@ -2131,7 +2132,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
   }, [post.publishToPage]);
 
   async function pickAndConfirm(iso: string) {
-    if (selectedPages.length === 0) { alert("Pick at least one page to publish to."); return; }
+    if (selectedPages.length === 0) { alertDialog("Pick at least one page to publish to."); return; }
     setSaving(true);
     try { await onConfirm(iso, selectedPages); } finally { setSaving(false); }
   }

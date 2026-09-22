@@ -4,6 +4,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskButton } from "@/components/NewTaskModal";
 import { useApi } from "@/lib/use-api";
 import { IconPin, IconClipboardList, IconMovie, IconUsers, IconPaperclip, IconCloudUpload, IconCheck, IconTrash, IconMessageCircle, IconCalendar, IconSun, IconCloud, IconCloudRain, IconMoon, IconNote, IconClipboardText, IconClockHour4, IconPlus, IconSend } from "@tabler/icons-react";
+import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 // The per-person day view — greeting, stat cards, reminders, task list + detail panel.
 // Used in TWO places:
@@ -638,7 +639,7 @@ function AcceptModal({ row, person, onChatPush, onClose, onDone }: { row: Row; p
   }
   async function acceptOnly() {
     setBusy("accept");
-    try { await takeover(); onDone(); } catch (e) { alert(`Failed: ${(e as Error).message}`); setBusy(null); }
+    try { await takeover(); onDone(); } catch (e) { alertDialog(`Failed: ${(e as Error).message}`); setBusy(null); }
   }
   async function acceptAndAsk() {
     setBusy("ask");
@@ -646,7 +647,7 @@ function AcceptModal({ row, person, onChatPush, onClose, onDone }: { row: Row; p
       await takeover();
       onChatPush({ who: person.label, init: (person.label[0] || "?").toUpperCase(), color: person.color, bg: person.color + "22", text: msg });
       onDone();
-    } catch (e) { alert(`Failed: ${(e as Error).message}`); setBusy(null); }
+    } catch (e) { alertDialog(`Failed: ${(e as Error).message}`); setBusy(null); }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ background: "rgba(20,21,28,.45)" }} onClick={onClose}>
@@ -1216,7 +1217,7 @@ function ClaimRowButton({ postId, personKey, onDone }: { postId: string; personK
         body: JSON.stringify({ postId, newOwnerKey: personKey }),
       });
       const j = await r.json();
-      if (!r.ok || j.error) alert(`Failed: ${j.error || r.status}`);
+      if (!r.ok || j.error) alertDialog(`Failed: ${j.error || r.status}`);
       else onDone();
     } finally { setBusy(false); }
   }
@@ -1242,7 +1243,7 @@ function TakeOverButton({ row, personKey, onDone }: { row: Row; personKey: strin
   if (!showButton) return null;
 
   async function claim() {
-    if (!confirm(`Take over this task from ${row.owner}?`)) return;
+    if (!await confirmDialog({ title: `Take over this task from ${row.owner}?`, action: "Take over" })) return;
     setBusy(true);
     try {
       const r = await fetch("/api/marketing-hub/takeover", {
@@ -1251,7 +1252,7 @@ function TakeOverButton({ row, personKey, onDone }: { row: Row; personKey: strin
         body: JSON.stringify({ postId: row.id, newOwnerKey: personKey }),
       });
       const j = await r.json();
-      if (!r.ok || j.error) alert(`Failed: ${j.error || r.status}`);
+      if (!r.ok || j.error) alertDialog(`Failed: ${j.error || r.status}`);
       else onDone();
     } finally { setBusy(false); }
   }
@@ -1297,7 +1298,7 @@ function CommentsThread({ postId, comments, personKey, accent, onAdded }: {
         body: JSON.stringify({ postId, authorKey: personKey, body: draft.trim() }),
       });
       const j = await r.json();
-      if (!r.ok || j.error) { alert(`Failed: ${j.error || r.status}`); return; }
+      if (!r.ok || j.error) { alertDialog(`Failed: ${j.error || r.status}`); return; }
       setDraft("");
       onAdded();
     } finally {
@@ -1542,7 +1543,7 @@ function CreativeFiles({ postId, personRow, attachments, personKey, accent, onCh
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this file?")) return;
+    if (!await confirmDialog({ title: "Delete this file?", action: "Delete", danger: true })) return;
     const r = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
     if (r.ok) onChanged();
   }

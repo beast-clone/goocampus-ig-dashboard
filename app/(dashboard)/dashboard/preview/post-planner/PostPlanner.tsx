@@ -4,6 +4,7 @@ import { IconCalendarEvent, IconPhoto, IconPlayerPause, IconSearch, IconSparkles
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { BrandLoader } from "@/components/BrandLoader";
+import { alertDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
@@ -183,7 +184,7 @@ export function Planner() {
         body: JSON.stringify({ id: card.id, dateISO: targetISO }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) { alert(`Move failed: ${d.error || r.status}`); setPubOverride((o) => { const n = { ...o }; delete n[card.id]; return n; }); }
+      if (!r.ok || d.error) { alertDialog(`Move failed: ${d.error || r.status}`); setPubOverride((o) => { const n = { ...o }; delete n[card.id]; return n; }); }
     } finally { setBusy(false); }
   }
 
@@ -211,7 +212,7 @@ export function Planner() {
         body: JSON.stringify({ id: card.id, dateISO: targetISO, note: "Added from AI plan" }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) { alert(`Couldn't add: ${d.error || r.status}`); setAccepted((s) => { const n = new Set(s); n.delete(card.id); return n; }); }
+      if (!r.ok || d.error) { alertDialog(`Couldn't add: ${d.error || r.status}`); setAccepted((s) => { const n = new Set(s); n.delete(card.id); return n; }); }
     } finally { setBusy(false); }
   }
 
@@ -241,7 +242,7 @@ export function Planner() {
         body: JSON.stringify({ items }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) { alert(`Apply failed: ${d.error || r.status}`); }
+      if (!r.ok || d.error) { alertDialog(`Apply failed: ${d.error || r.status}`); }
       else { await load(); setTab("pub"); }
     } finally { setApplying(false); }
   }

@@ -6,6 +6,7 @@ import {
   IconBrandLinkedin, IconCalendarClock, IconPhoto, IconTrash, IconExternalLink,
   IconCircleCheck, IconCircleDashed, IconAlertTriangle, IconClock, IconSend,
 } from "@tabler/icons-react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 // Self-contained LinkedIn scheduler. Writes to its own queue (linkedin_scheduled_posts
 // via /api/scheduler/linkedin); a cron worker (/api/cron/publish-linkedin) publishes
@@ -88,7 +89,7 @@ export function LinkedInScheduler({ networkSwitch }: { networkSwitch?: React.Rea
   };
 
   const cancel = async (id: string) => {
-    if (!window.confirm("Cancel this scheduled post?")) return;
+    if (!await confirmDialog({ title: "Cancel this scheduled post?", body: "It won't be published.", action: "Cancel post", danger: true })) return;
     await fetch(`/api/scheduler/linkedin?id=${id}`, { method: "DELETE", credentials: "same-origin" });
     load();
   };

@@ -14,6 +14,7 @@ import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
 import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 export type Row = {
   id: string;
@@ -2212,7 +2213,7 @@ function AddColumnModal({ onClose, onCreated }: { onClose: () => void; onCreated
     try {
       const options = type === "select" ? optionsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) : [];
       const res = await fetch("/api/marketing-hub/columns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: label.trim(), type, options }) });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not add column."); return; }
+      if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not add column."); return; }
       onCreated();
     } finally { setSaving(false); }
   };
@@ -2332,14 +2333,14 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const saveView = () => setNewViewOpen(true);
   const deleteView = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete view."); return; }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not delete view."); return; }
     if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); setGroupField(""); }
     await refreshViews();
   };
   const deleteColumn = async (id: string, label: string) => {
-    if (!window.confirm(`Delete the column "${label}"? Its values are removed from the sheet for everyone.`)) return;
+    if (!await confirmDialog({ title: `Delete the column "${label}"?`, body: "Its values are removed from the sheet for everyone.", action: "Delete column", danger: true })) return;
     const res = await fetch(`/api/marketing-hub/columns?id=${id}`, { method: "DELETE" });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not delete column."); return; }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not delete column."); return; }
     await refreshCols();
   };
 
@@ -2349,15 +2350,15 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
     const res = await fetch("/api/marketing-hub/views", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }),
     });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not update view."); return; }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not update view."); return; }
     await refreshViews();
   };
   const rowsForConfig = (cfg: SavedView["config"]) => allRows.filter((r) => evalFilter(r, cfg.filter || legacyToFilter(cfg.filters), fields));
   const doViewAction = async (action: string, v: SavedView, payload?: string) => {
     switch (action) {
       case "access": await patchView(v.id, { access: payload }); break;
-      case "rename": { const n = window.prompt("Rename view", v.name); if (n && n.trim()) await patchView(v.id, { name: n.trim() }); break; }
-      case "description": { const d = window.prompt("View description", v.description || ""); if (d !== null) await patchView(v.id, { description: d }); break; }
+      case "rename": { const n = await promptDialog({ title: "Rename view", defaultValue: v.name }); if (n && n.trim()) await patchView(v.id, { name: n.trim() }); break; }
+      case "description": { const d = await promptDialog({ title: "View description", defaultValue: v.description || "" }); if (d !== null) await patchView(v.id, { description: d }); break; }
       case "duplicate":
         await fetch("/api/marketing-hub/views", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: `${v.name} copy`, config: v.config, description: v.description, access: "personal" }) });
@@ -2367,7 +2368,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
       case "reassign": await patchView(v.id, { createdBy: payload }); break;
       case "csv": downloadText(`${v.name.replace(/[^a-z0-9]+/gi, "-")}.csv`, viewRowsToCsv(rowsForConfig(v.config))); break;
       case "print": selectCustom(v); setTimeout(() => window.print(), 150); break;
-      case "delete": if (window.confirm(`Delete view "${v.name}"?`)) await deleteView(v.id); break;
+      case "delete": if (await confirmDialog({ title: `Delete view "${v.name}"?`, action: "Delete view", danger: true })) await deleteView(v.id); break;
     }
   };
 
@@ -2723,7 +2724,7 @@ function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, access, config }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || "Could not create view."); return; }
+      if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not create view."); return; }
       onCreated();
     } finally { setSaving(false); }
   };

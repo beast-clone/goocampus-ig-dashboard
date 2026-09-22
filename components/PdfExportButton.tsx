@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { alertDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 const TAB_LABELS: Record<string, string> = {
   "": "Overview",
@@ -201,7 +202,7 @@ export function PdfExportButton({ accountId, range }: { accountId: string; range
       pdf.save(`GooCampus-${tabLabel}-${safeAcct}-${safeRange}.pdf`);
     } catch (err) {
       console.error("[pdf] export failed:", err);
-      alert(`PDF export failed: ${(err as Error).message}`);
+      alertDialog(`PDF export failed: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }

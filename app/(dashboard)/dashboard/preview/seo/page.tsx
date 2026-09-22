@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
-import { useConfirm } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
   IconSparkles, IconCopy, IconCheck, IconChevronDown, IconExternalLink, IconBrandInstagram, IconBrandYoutube, IconTrendingUp,
   IconTrophy, IconTargetArrow, IconUsers, IconAlertTriangle, IconPlus, IconX, IconTrash, IconPencil, IconInfoCircle, IconChartBar, IconArrowDown,
@@ -279,9 +279,8 @@ function Trending({ data, platform }: { data: Data; platform: Platform }) {
       ...TOPIC_ORDER.filter((t) => g.has(t)).map((t) => ({ topic: t, rows: g.get(t)!.slice(0, 20), custom: undefined as Topic | undefined })),
     ];
   }, [data, platform, custom]);
-  const [ask, dialog] = useConfirm();
   const removeTopic = async (t: Topic) => {
-    if (!(await ask({ title: `Delete the topic "${t.name}"?`, body: "Its group and any AI suggestions saved on it are removed for everyone. The keywords themselves stay in the other groups.", action: "Delete topic", danger: true }))) return;
+    if (!(await confirmDialog({ title: `Delete the topic "${t.name}"?`, body: "Its group and any AI suggestions saved on it are removed for everyone. The keywords themselves stay in the other groups.", action: "Delete topic", danger: true }))) return;
     await fetch("/api/seo/topics", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id }) });
     topicsApi.refresh();
   };
@@ -297,7 +296,6 @@ function Trending({ data, platform }: { data: Data; platform: Platform }) {
   return (
     <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Keywords by topic"
       sub="Grouped by topic, best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.">
-      {dialog}
       {/* Selection bar — stays visible while picking across groups */}
       <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 flex-wrap">
         <span className="text-[14px] text-[#232D42]">{picked.length ? <><b className="font-medium">{picked.length}</b> selected</> : <span className="text-[#8A92A6]">Tap keywords below to select them</span>}</span>
@@ -506,17 +504,15 @@ function Competitors({ data, platform, updating, onRefresh }: { data: Data; plat
   const ourKws = useMemo(() => new Set((ourAcc?.posts || []).flatMap((p) => p.keywords.map((k) => k.toLowerCase()))), [ourAcc]);
   const [sel, setSel] = useState("");
   const picked = list.find((a) => `${a.platform}:${a.account}` === sel) || list[0];
-  const [ask, dialog] = useConfirm();
   const remove = async (a: Account) => {
-    if (!(await ask({ title: `Stop tracking @${handleOf(a)}?`, body: "Its posts drop out of the keyword counts for everyone. You can add it back any time.", action: "Remove", danger: true }))) return;
+    if (!(await confirmDialog({ title: `Stop tracking @${handleOf(a)}?`, body: "Its posts drop out of the keyword counts for everyone. You can add it back any time.", action: "Remove", danger: true }))) return;
     const r = await fetch("/api/seo/accounts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform: a.platform, handle: a.account }) });
     if (r.ok) onRefresh();
-    else await ask({ title: "Couldn't remove it", body: ((await r.json().catch(() => ({}))) as { error?: string }).error || "Try again.", notice: true });
+    else alertDialog("Couldn't remove it", ((await r.json().catch(() => ({}))) as { error?: string }).error || "Try again.");
   };
   return (
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
       sub={`Our account and the doctor-education accounts we compare with — latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes by itself daily.`}>
-      {dialog}
       {/* Re-reading every account takes ~a minute; the old list stays up meanwhile. */}
       {updating && (
         <div className="mb-3 flex items-center gap-2 rounded bg-brand-light px-3 py-2 text-[13px] text-brand">

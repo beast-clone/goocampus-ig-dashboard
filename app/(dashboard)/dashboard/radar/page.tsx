@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type Alert = {
   id: string;
@@ -373,7 +374,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
   }
 
   async function del(id: string) {
-    if (!confirm("Delete this alert and all its cached items?")) return;
+    if (!await confirmDialog({ title: "Delete this alert?", body: "Its cached items are deleted too.", action: "Delete", danger: true })) return;
     setRowBusy(id);
     try {
       await fetch(`/api/radar/alerts/${id}`, { method: "DELETE" });

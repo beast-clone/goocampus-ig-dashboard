@@ -8,6 +8,7 @@ import {
   IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconChevronRight, IconArrowLeft, IconTrash,
 } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 type Headline = { label: string; value: string; delta?: string };
 type SavedReportMeta = {
@@ -91,7 +92,7 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
   // the click here.
   const trash = async (r: SavedReportMeta, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Move this ${label} report (${fmtDateShort(r.from)} – ${fmtDateShort(r.to)}) to the Recycle Bin? You can restore it later.`)) return;
+    if (!await confirmDialog({ title: `Move this ${label} report to the Recycle Bin?`, body: `${fmtDateShort(r.from)} – ${fmtDateShort(r.to)}. You can restore it later.`, action: "Move to Recycle Bin" })) return;
     setBusyKey(r.key);
     try {
       const res = await fetch(`/api/reports?key=${encodeURIComponent(r.key)}`, { method: "DELETE", credentials: "same-origin" });
