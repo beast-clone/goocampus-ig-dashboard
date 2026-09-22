@@ -252,6 +252,9 @@ const WORK_MIN = 480;
 // The last hour of Today's plan is kept free for emergencies: routine work fills
 // 7h, and only Urgent/High tasks may use the buffer hour.
 const BUFFER_MIN = 60;
+// How long before the end of the day a task due TODAY starts nudging its owner.
+// Early enough to still finish it, late enough not to nag all morning.
+const REMIND_BEFORE_END_MIN = 180;                 // 3 hours
 const DAY_END_LABEL = "6:00 PM";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
@@ -2102,10 +2105,19 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     }
     return { fitPlan: fit, spillPlan: spill };
   }, [myPlan, availMin]);
-  // Smart reminders (spec §13): Manya — content pending too long; producers — overdue.
+  // Smart reminders (spec §13, revised per Manya's comment 22 Sep).
+  //
+  // A reminder's job is to get a task FINISHED IN TIME. Producers used to be
+  // nudged only once a task was already overdue — by then the publish date had
+  // passed and nothing could be saved, so it wasn't a reminder, it was a pending
+  // task, which the list already shows as overdue. Producers are now nudged a few
+  // hours BEFORE the end of the day a task is due, while there's still time to act.
   const nudges = useMemo(() => {
     const DAY = 86_400_000;
     const today = new Date(todayStr + "T00:00:00").getTime();
+    // Shift end in timeline minutes (the plan's own clock: 0 = 9 AM).
+    const dayEnd = shiftStartOf(me.name) + WORK_MIN + LUNCH_MIN;
+    const minsLeft = nowMin === null ? null : dayEnd - nowMin;
     const out: { id: string; title: string; text: string }[] = [];
     // Drive reminders off workingTasks — the SAME set the task list shows — so a
     // reminder is always a task the person can actually find and act on (a producer's
@@ -2116,12 +2128,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         const age = t.detail.createdAt ? Math.floor((today - new Date(t.detail.createdAt).getTime()) / DAY) : 0;
         if (age >= 2) out.push({ id: t.id, title: t.title, text: `pending ${age} days — why still open?` });
       } else if (me.name !== "Manya" && t.due && STATUS[t.status].inView) {
-        const over = Math.floor((today - new Date(t.due + "T00:00:00").getTime()) / DAY);
-        if (over >= 1) out.push({ id: t.id, title: t.title, text: `overdue ${over} day${over > 1 ? "s" : ""} — needs work` });
+        const dueIn = Math.floor((new Date(t.due + "T00:00:00").getTime() - today) / DAY);
+        // Due today and the day is nearly out — the one moment a nudge still helps.
+        if (dueIn === 0 && minsLeft !== null && minsLeft > 0 && minsLeft <= REMIND_BEFORE_END_MIN) {
+          const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
+          const left = h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+          out.push({ id: t.id, title: t.title, text: `due today — ${left} left in your day` });
+        }
       }
     }
     return out;
-  }, [workingTasks, me.name, todayStr]);
+  }, [workingTasks, me.name, todayStr, nowMin]);
   const planBlocks = useMemo(() => {
     type Blk = { kind: "reel" | "lunch" | "buffer"; key?: string; taskId?: string; label: string; start: number; dur: number; high?: boolean; samvaya?: boolean };
     const out: Blk[] = [];
