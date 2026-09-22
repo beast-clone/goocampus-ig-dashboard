@@ -14,7 +14,18 @@ function kindOf(type: string): Kind {
   return "static";
 }
 
-const monthKey = (iso: string) => (iso || "").slice(0, 7);
+// Month buckets are drawn in LOCAL time, not UTC. Meta returns timestamps as
+// +0000, so slicing "YYYY-MM" off the raw string put anything published after
+// 18:30 IST on the last day of a month into the previous month — e.g. a post at
+// 2025-12-31T23:50Z is 1 January to the team that published it. The weekly
+// cadence already buckets in local time; this keeps the two in step and makes a
+// month mean the 1st to the 30th/31st, as the monthly report does.
+const monthKey = (iso: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
 const monthLabel = (key: string) =>
   new Date(key + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
@@ -32,11 +43,18 @@ export function MonthlyOutputBar({ accountId, range, months }: { accountId: stri
   // the earliest of them. Custom ranges pass nothing and keep exact clipping,
   // because there the user picked the dates deliberately.
   const win = useMemo(() => {
-    if (!months) return range;
+    if (!months) return { ...range, fetchFrom: range.from };
     const end = new Date(range.to + "T00:00:00");
-    const first = new Date(end.getFullYear(), end.getMonth() - (months - 1), 1);
     const pad = (n: number) => String(n).padStart(2, "0");
-    return { from: `${first.getFullYear()}-${pad(first.getMonth() + 1)}-01`, to: range.to };
+    const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const first = new Date(end.getFullYear(), end.getMonth() - (months - 1), 1);
+    // fetchFrom reaches one day further back than the months we display. The API
+    // filters on UTC timestamps, so a post made late on the last day of the
+    // previous month UTC is the 1st locally and would otherwise never arrive to
+    // be bucketed into it. The extra day is fetched, never shown as its own row.
+    const fetchStart = new Date(first);
+    fetchStart.setDate(fetchStart.getDate() - 1);
+    return { from: ymd(first), to: range.to, fetchFrom: ymd(fetchStart) };
   }, [months, range]);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [stories, setStories] = useState<Story[] | null>(null);
@@ -45,18 +63,18 @@ export function MonthlyOutputBar({ accountId, range, months }: { accountId: stri
     let alive = true;
     setPosts(null);
     setStories(null);
-    const qs = new URLSearchParams({ accountId, from: win.from, to: win.to, limit: "500", insights: "false" }).toString();
+    const qs = new URLSearchParams({ accountId, from: win.fetchFrom, to: win.to, limit: "500", insights: "false" }).toString();
     fetch(`/api/posts?${qs}`)
       .then((r) => (r.ok ? r.json() : { posts: [] }))
       .then((d) => { if (alive) setPosts((d.posts || []) as Post[]); })
       .catch(() => { if (alive) setPosts([]); });
-    const sqs = new URLSearchParams({ accountId, from: win.from, to: win.to, limit: "500" }).toString();
+    const sqs = new URLSearchParams({ accountId, from: win.fetchFrom, to: win.to, limit: "500" }).toString();
     fetch(`/api/stories/historical?${sqs}`)
       .then((r) => (r.ok ? r.json() : { stories: [] }))
       .then((d) => { if (alive) setStories((d.stories || []) as Story[]); })
       .catch(() => { if (alive) setStories([]); });
     return () => { alive = false; };
-  }, [accountId, win.from, win.to]);
+  }, [accountId, win.fetchFrom, win.to]);
 
   const { rows, totals, storiesPartial } = useMemo(() => {
     const empty = { rows: [] as Row[], totals: null as Row | null, storiesPartial: false };
