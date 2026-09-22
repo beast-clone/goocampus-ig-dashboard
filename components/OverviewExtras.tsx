@@ -4,12 +4,16 @@ import { IconAlertTriangle, IconHeart, IconSparkles } from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useV2Href } from "@/lib/previewHref";
+import { PostDetailModal } from "@/components/PostDetailModal";
 
 type Post = {
   id: string;
   caption: string;
   permalink: string;
   mediaUrl: string;
+  // /api/posts already returns carousel slides; declaring it lets the modal
+  // slider work here instead of showing only the cover.
+  mediaUrls?: string[];
   type: string;
   timestamp: string;
   reach: number;
@@ -694,6 +698,9 @@ function MiniStat({ n, l, hint }: { n: string; l: string; hint?: string }) {
 
 function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: Post[] }) {
   const v2 = useV2Href();
+  // The thumbnail opens the post; "Send to Scheduler" keeps its own job, so
+  // clicking to look at a post cannot fire the repost action by accident.
+  const [open, setOpen] = useState<Post | null>(null);
   return (
     <section className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-6">
       <div className="mb-4">
@@ -718,7 +725,9 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
             }).toString();
             return (
               <div key={p.id} className="border border-gray-100 rounded-xl overflow-hidden bg-white flex flex-col">
-                <div className="aspect-[4/5] bg-gray-100 relative">
+                <div role="button" tabIndex={0} onClick={() => setOpen(p)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(p); } }}
+                  className="aspect-[4/5] bg-gray-100 relative cursor-pointer group">
                   {p.mediaUrl ? (
                     <img src={p.mediaUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
@@ -750,6 +759,7 @@ function RepostOpportunitiesCard({ loading, posts }: { loading: boolean; posts: 
           })}
         </div>
       )}
+      {open && <PostDetailModal post={open} onClose={() => setOpen(null)} />}
     </section>
   );
 }
