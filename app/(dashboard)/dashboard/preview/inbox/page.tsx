@@ -20,15 +20,16 @@ import {
 // (There is a second, coarser "DM Status" on the DM Leads table — Pending / In
 // Progress / Converted … — used by the n8n pipeline; we mirror the richer CRM one.)
 
-// Airtable colour name → {bg,fg} for our pills.
+// Airtable colour name → {bg,fg} for our pills. Light = Airtable's colours; dark = the
+// dashboard's matching status tint (vars set only in the dark theme, globals.css).
 const AT: Record<string, { bg: string; fg: string }> = {
-  blueBright: { bg: "#E1F0FB", fg: "#0C447C" }, blueDark1: { bg: "#DCE6FA", fg: "#274BB5" },
-  greenBright: { bg: "#E3F5EA", fg: "#137A3E" }, greenLight1: { bg: "#EAF7EF", fg: "#2F8F52" },
-  greenLight2: { bg: "#EFF8F2", fg: "#3C9A5F" }, greenDark1: { bg: "#CDEED9", fg: "#0F6B36" },
-  redBright: { bg: "#FDE7E7", fg: "#C0342E" }, redDark1: { bg: "#FBE4E4", fg: "#B02A24" },
-  redLight1: { bg: "#FCECEC", fg: "#C85A54" }, grayDark1: { bg: "#EEF0F4", fg: "#5A6273" },
-  grayLight1: { bg: "#F3F5F9", fg: "#8A92A6" }, orangeDark1: { bg: "#FDEBD9", fg: "#B4661E" },
-  pinkBright: { bg: "#FBE4EF", fg: "#B83280" },
+  blueBright: { bg: "var(--st-ready-bg, #E1F0FB)", fg: "var(--st-ready-fg, #0C447C)" }, blueDark1: { bg: "var(--st-ready-bg, #DCE6FA)", fg: "var(--st-ready-fg, #274BB5)" },
+  greenBright: { bg: "var(--tone-good-bg, #E3F5EA)", fg: "var(--tone-good-fg, #137A3E)" }, greenLight1: { bg: "var(--tone-good-bg, #EAF7EF)", fg: "var(--tone-good-fg, #2F8F52)" },
+  greenLight2: { bg: "var(--tone-good-bg, #EFF8F2)", fg: "var(--tone-good-fg, #3C9A5F)" }, greenDark1: { bg: "var(--tone-good-bg, #CDEED9)", fg: "var(--tone-good-fg, #0F6B36)" },
+  redBright: { bg: "var(--tone-bad-bg, #FDE7E7)", fg: "var(--tone-bad-fg, #C0342E)" }, redDark1: { bg: "var(--tone-bad-bg, #FBE4E4)", fg: "var(--tone-bad-fg, #B02A24)" },
+  redLight1: { bg: "var(--tone-bad-bg, #FCECEC)", fg: "var(--tone-bad-fg, #C85A54)" }, grayDark1: { bg: "var(--tone-muted-bg, #EEF0F4)", fg: "var(--tone-muted-fg, #5A6273)" },
+  grayLight1: { bg: "var(--tone-muted-bg, #F3F5F9)", fg: "var(--tone-muted-fg, #8A92A6)" }, orangeDark1: { bg: "var(--tone-warn-bg, #FDEBD9)", fg: "var(--tone-warn-fg, #B4661E)" },
+  pinkBright: { bg: "var(--st-feedback-bg, #FBE4EF)", fg: "var(--st-feedback-fg, #B83280)" },
 };
 // Airtable status → colour. Two vocabularies live in Sales Hub and both mirror here:
 //  · DM Leads "DM Status" — what a DM lead carries on its own record (used now)
