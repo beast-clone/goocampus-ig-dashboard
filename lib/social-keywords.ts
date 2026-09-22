@@ -60,7 +60,12 @@ export const DOCTOR_KEYWORDS: { keyword: string; match: RegExp }[] = [
 // YouTube: keywords come from the title + tags only (our video descriptions carry the
 // same boilerplate, which made every video "mention" PLAB/AMC/USMLE).
 type Item = { text: string; tagText?: string; engagement: number; source: "ours" | "competitor"; account: string; url?: string; date?: string };
-export type AccountSummary = { platform: "instagram" | "youtube"; account: string; name?: string; followers?: number; analysed: number; error?: string };
+// One post/video as shown in the SEO tab's account grid.
+export type AccountPost = { url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[] };
+export type AccountSummary = {
+  platform: "instagram" | "youtube"; account: string; name?: string; followers?: number; analysed: number; error?: string;
+  pic?: string; posts?: AccountPost[];
+};
 export type KeywordRow = {
   keyword: string; kind: "hashtag" | "keyword"; platform: "instagram" | "youtube";
   accounts: number;          // how many accounts (ours + competitors) use it
@@ -90,7 +95,17 @@ const topicOf = (k: string) => TOPICS.find((t) => t.match.test(k))?.topic || "Ge
 const HASHTAG = /#[\p{L}\p{N}_]{3,40}/gu;
 
 // ── Instagram ──────────────────────────────────────────────────────────────
-type IgMedia = { caption?: string; like_count?: number; comments_count?: number };
+type IgMedia = { caption?: string; like_count?: number; comments_count?: number; permalink?: string; timestamp?: string; media_type?: string; media_url?: string; thumbnail_url?: string };
+const IG_MEDIA_FIELDS = "caption,like_count,comments_count,permalink,timestamp,media_type,media_url,thumbnail_url";
+// Hashtags + doctor keywords found in one post (same rules as the scoring below).
+function keywordsIn(text: string, tagText = text): string[] {
+  const tags = [...new Set((tagText.match(HASHTAG) || []).map((h) => h.toLowerCase()))];
+  return [...DOCTOR_KEYWORDS.filter((k) => k.match.test(text)).map((k) => k.keyword), ...tags];
+}
+const igPost = (m: IgMedia, eng: number): AccountPost => ({
+  url: m.permalink, image: m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url,
+  caption: (m.caption || "").slice(0, 400), date: m.timestamp, engagement: eng, keywords: keywordsIn(m.caption || ""),
+});
 async function igGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const r = await fetchWithTimeout(`https://graph.facebook.com/v25.0/${path}?${new URLSearchParams(params)}`, { cache: "no-store" });
   const j = await r.json();
@@ -104,46 +119,54 @@ async function instagramItems(): Promise<{ items: Item[]; accounts: AccountSumma
   const eng = (m: IgMedia) => (m.like_count || 0) + (m.comments_count || 0);
 
   try {
-    const own = await igGet<{ data: (IgMedia & { permalink?: string; timestamp?: string })[] }>(`${acc.igUserId}/media`, { fields: "caption,like_count,comments_count,permalink,timestamp", limit: "60", access_token: acc.pageAccessToken });
+    const [own, me] = await Promise.all([
+      igGet<{ data: IgMedia[] }>(`${acc.igUserId}/media`, { fields: IG_MEDIA_FIELDS, limit: "60", access_token: acc.pageAccessToken }),
+      igGet<{ name?: string; followers_count?: number; profile_picture_url?: string }>(acc.igUserId, { fields: "name,followers_count,profile_picture_url", access_token: acc.pageAccessToken }).catch(() => null),
+    ]);
     for (const m of own.data || []) if (m.caption) items.push({ text: m.caption, engagement: eng(m), source: "ours", account: acc.handle || "goocampus", url: m.permalink, date: m.timestamp });
-    accounts.push({ platform: "instagram", account: acc.handle || "goocampus", analysed: (own.data || []).length });
+    accounts.push({ platform: "instagram", account: acc.handle || "goocampus", name: me?.name, followers: me?.followers_count, pic: me?.profile_picture_url,
+      analysed: (own.data || []).length, posts: (own.data || []).map((m) => igPost(m, eng(m))) });
   } catch (e) { accounts.push({ platform: "instagram", account: acc.handle || "goocampus", analysed: 0, error: (e as Error).message.slice(0, 120) }); }
 
   for (const u of IG_COMPETITORS) {
     try {
-      const j = await igGet<{ business_discovery?: { name?: string; followers_count?: number; media?: { data: IgMedia[] } } }>(acc.igUserId, {
-        fields: `business_discovery.username(${u}){name,followers_count,media.limit(40){caption,like_count,comments_count}}`,
+      const j = await igGet<{ business_discovery?: { name?: string; followers_count?: number; profile_picture_url?: string; media?: { data: IgMedia[] } } }>(acc.igUserId, {
+        fields: `business_discovery.username(${u}){name,followers_count,profile_picture_url,media.limit(40){${IG_MEDIA_FIELDS}}}`,
         access_token: acc.pageAccessToken,
       });
       const bd = j.business_discovery;
       const media = bd?.media?.data || [];
       for (const m of media) if (m.caption) items.push({ text: m.caption, engagement: eng(m), source: "competitor", account: u });
-      accounts.push({ platform: "instagram", account: u, name: bd?.name, followers: bd?.followers_count, analysed: media.length });
+      accounts.push({ platform: "instagram", account: u, name: bd?.name, followers: bd?.followers_count, pic: bd?.profile_picture_url,
+        analysed: media.length, posts: media.map((m) => igPost(m, eng(m))) });
     } catch (e) { accounts.push({ platform: "instagram", account: u, analysed: 0, error: (e as Error).message.slice(0, 120) }); }
   }
   return { items, accounts };
 }
 
 // ── YouTube ────────────────────────────────────────────────────────────────
-async function channelVideos(handle: string): Promise<{ name: string; subs: number; videos: { text: string; tagText: string; views: number; url: string; title: string; date?: string }[] } | null> {
-  const ch = await youtubeGet<{ items?: { snippet?: { title?: string }; statistics?: { subscriberCount?: string }; contentDetails?: { relatedPlaylists?: { uploads?: string } } }[] }>(
+type YtThumbs = { default?: { url?: string }; medium?: { url?: string }; high?: { url?: string } };
+async function channelVideos(handle: string): Promise<{ name: string; subs: number; pic?: string; videos: { text: string; tagText: string; views: number; url: string; title: string; image?: string; date?: string }[] } | null> {
+  const ch = await youtubeGet<{ items?: { snippet?: { title?: string; thumbnails?: YtThumbs }; statistics?: { subscriberCount?: string }; contentDetails?: { relatedPlaylists?: { uploads?: string } } }[] }>(
     `channels?part=snippet,statistics,contentDetails&forHandle=${encodeURIComponent(handle)}`);
   const c = ch.items?.[0];
   const uploads = c?.contentDetails?.relatedPlaylists?.uploads;
   if (!c || !uploads) return null;
   const pl = await youtubeGet<{ items?: { contentDetails?: { videoId?: string } }[] }>(`playlistItems?part=contentDetails&maxResults=40&playlistId=${uploads}`);
   const ids = (pl.items || []).map((i) => i.contentDetails?.videoId).filter(Boolean).join(",");
-  if (!ids) return { name: c.snippet?.title || handle, subs: Number(c.statistics?.subscriberCount || 0), videos: [] };
-  const vr = await youtubeGet<{ items?: { id?: string; snippet?: { title?: string; tags?: string[]; description?: string; publishedAt?: string }; statistics?: { viewCount?: string } }[] }>(`videos?part=snippet,statistics&id=${ids}`);
+  const pic = c.snippet?.thumbnails?.medium?.url || c.snippet?.thumbnails?.default?.url;
+  if (!ids) return { name: c.snippet?.title || handle, subs: Number(c.statistics?.subscriberCount || 0), pic, videos: [] };
+  const vr = await youtubeGet<{ items?: { id?: string; snippet?: { title?: string; tags?: string[]; description?: string; publishedAt?: string; thumbnails?: YtThumbs }; statistics?: { viewCount?: string } }[] }>(`videos?part=snippet,statistics&id=${ids}`);
   return {
     name: c.snippet?.title || handle,
-    subs: Number(c.statistics?.subscriberCount || 0),
+    subs: Number(c.statistics?.subscriberCount || 0), pic,
     // Title + tags carry the keywords; title + the description's opening lines the hashtags.
     videos: (vr.items || []).map((v) => ({
       text: `${v.snippet?.title || ""} ${(v.snippet?.tags || []).join(" ")}`,
       tagText: `${v.snippet?.title || ""} ${(v.snippet?.description || "").slice(0, 400)}`,
       views: Number(v.statistics?.viewCount || 0),
       url: `https://www.youtube.com/watch?v=${v.id}`, title: v.snippet?.title || "", date: v.snippet?.publishedAt,
+      image: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.medium?.url,
     })),
   };
 }
@@ -155,7 +178,8 @@ async function youtubeItems(): Promise<{ items: Item[]; accounts: AccountSummary
       const r = await channelVideos(handle);
       if (!r) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: "Channel not found" }); continue; }
       for (const v of r.videos) items.push({ text: v.text, tagText: v.tagText, engagement: v.views, source: ours ? "ours" : "competitor", account: handle, url: v.url, date: v.date });
-      accounts.push({ platform: "youtube", account: handle, name: r.name, followers: r.subs, analysed: r.videos.length });
+      accounts.push({ platform: "youtube", account: handle, name: r.name, followers: r.subs, pic: r.pic, analysed: r.videos.length,
+        posts: r.videos.map((v) => ({ url: v.url, image: v.image, caption: v.title, date: v.date, engagement: v.views, keywords: keywordsIn(v.text, v.tagText) })) });
     } catch (e) { accounts.push({ platform: "youtube", account: handle, analysed: 0, error: (e as Error).message.slice(0, 120) }); }
   }
   return { items, accounts };
@@ -208,5 +232,5 @@ export function getSocialKeywords(fresh = false): Promise<SocialKeywords> {
       fetchedAt: new Date().toISOString(),
     };
   };
-  return fresh ? build() : cached("social-keywords:v2", 24 * 60 * 60_000, build, (d) => d.instagram.length + d.youtube.length > 0);
+  return fresh ? build() : cached("social-keywords:v3", 24 * 60 * 60_000, build, (d) => d.instagram.length + d.youtube.length > 0);
 }

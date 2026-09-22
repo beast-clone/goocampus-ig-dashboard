@@ -21,7 +21,8 @@ type Row = {
   posts: number; avgEngagement: number; oursPosts: number; oursAvgEngagement: number | null;
   oursList: { url: string; snippet: string; engagement: number; date?: string }[]; topic: string;
 };
-type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string };
+type Post = { url?: string; image?: string; caption: string; date?: string; engagement: number; keywords: string[] };
+type Account = { platform: Platform; account: string; name?: string; followers?: number; analysed: number; error?: string; pic?: string; posts?: Post[] };
 type Data = { instagram: Row[]; youtube: Row[]; accounts: Account[]; oursAvg: { instagram: number | null; youtube: number | null }; fetchedAt: string; error?: string };
 type Gen = { platform: Platform; keywords: string[]; hashtags: string[]; tags?: string[]; titles?: string[]; error?: string };
 
@@ -325,26 +326,134 @@ function OursAndGaps({ data }: { data: Data }) {
 }
 
 // ── 4. Who we compare with ─────────────────────────────────────────────────
+// Left: the accounts. Right: the picked one's profile, every keyword it used (copy
+// one or all; click to show only the posts using it) and its posts in a grid.
+const handleOf = (a: Account) => a.account.replace(/^@/, "");
+const profileUrl = (a: Account) => (a.platform === "youtube" ? `https://www.youtube.com/@${handleOf(a)}` : `https://www.instagram.com/${handleOf(a)}/`);
+const PlatformIcon = ({ p, size = 18 }: { p: Platform; size?: number }) =>
+  p === "instagram" ? <IconBrandInstagram size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" /> : <IconBrandYoutube size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />;
+
 function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void }) {
   const when = new Date(data.fetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const [sel, setSel] = useState(`${data.accounts[0]?.platform}:${data.accounts[0]?.account}`);
+  const picked = data.accounts.find((a) => `${a.platform}:${a.account}` === sel) || data.accounts[0];
   return (
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
-      sub={`Doctor-education accounts on Instagram and YouTube, their latest 40 posts each. Updated ${when}; refreshes daily.`}
+      sub={`Doctor-education accounts on Instagram and YouTube, their latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes daily.`}
       right={<button onClick={onRefresh} className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand"><IconRefresh size={15} stroke={1.8} />Refresh now</button>}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-        {data.accounts.map((a) => (
-          <div key={`${a.platform}:${a.account}`} className="flex items-center gap-3 rounded border border-gray-100 px-3 py-2">
-            {a.platform === "instagram" ? <IconBrandInstagram size={18} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" /> : <IconBrandYoutube size={18} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />}
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] text-[#232D42] truncate">{a.name || a.account}</div>
-              <div className="text-[12px] text-[#8A92A6] truncate">@{a.account.replace(/^@/, "")}{a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""}</div>
-            </div>
-            {a.error
-              ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />Couldn&apos;t read</span>
-              : <span className="text-[12px] text-[#8A92A6]">{a.analysed} posts</span>}
-          </div>
-        ))}
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
+        <div className="flex flex-col gap-1.5 lg:max-h-[860px] lg:overflow-y-auto lg:pr-1">
+          {data.accounts.map((a) => {
+            const key = `${a.platform}:${a.account}`, on = picked && key === `${picked.platform}:${picked.account}`;
+            return (
+              <button key={key} onClick={() => setSel(key)}
+                className={`flex items-center gap-3 rounded border px-3 py-2 text-left transition ${on ? "border-brand bg-brand-light" : "border-gray-100 hover:border-gray-300"}`}>
+                <PlatformIcon p={a.platform} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] text-[#232D42] truncate">{a.name || handleOf(a)}</div>
+                  <div className="text-[12px] text-[#8A92A6] truncate">@{handleOf(a)}{a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""}</div>
+                </div>
+                {a.error
+                  ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />Couldn&apos;t read</span>
+                  : <span className="text-[12px] text-[#8A92A6] flex-shrink-0">{a.analysed} posts</span>}
+              </button>
+            );
+          })}
+        </div>
+        {picked && <AccountDetail key={`${picked.platform}:${picked.account}`} a={picked} />}
       </div>
     </Card>
+  );
+}
+
+function AccountDetail({ a }: { a: Account }) {
+  const posts = useMemo(() => a.posts || [], [a]);
+  const [only, setOnly] = useState<string | null>(null);
+  // Every keyword this account used, most-used first.
+  const kws = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of posts) for (const k of p.keywords) m.set(k, (m.get(k) || 0) + 1);
+    return [...m.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+  }, [posts]);
+  const shown = only ? posts.filter((p) => p.keywords.includes(only)) : posts;
+  const unit = a.platform === "youtube" ? "views" : "eng.";
+  return (
+    <div className="min-w-0 flex flex-col gap-4">
+      <div className="flex items-center gap-3 rounded-xl bg-brand-light px-4 py-3">
+        {a.pic ? <img src={a.pic} alt="" referrerPolicy="no-referrer" className="w-12 h-12 rounded-full object-cover bg-white flex-shrink-0" /> : <span className="w-12 h-12 rounded-full bg-white grid place-items-center flex-shrink-0"><PlatformIcon p={a.platform} size={22} /></span>}
+        <div className="min-w-0 flex-1">
+          <div className="text-[16px] font-medium text-[#232D42] truncate">{a.name || handleOf(a)}</div>
+          <div className="text-[13px] text-[#4A5468] truncate">
+            @{handleOf(a)} · {a.platform === "youtube" ? "YouTube" : "Instagram"}
+            {a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""} · {posts.length} {a.platform === "youtube" ? "videos" : "posts"} read
+          </div>
+        </div>
+        <a href={profileUrl(a)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 bg-white text-[14px] text-[#4A5468] hover:border-brand hover:text-brand flex-shrink-0">
+          Open profile<IconExternalLink size={14} stroke={1.8} />
+        </a>
+      </div>
+
+      {a.error ? <div className="text-[14px] text-rose-600">Couldn&apos;t read this account: {a.error}</div> : (
+        <>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-[14px] font-medium text-[#232D42]">Keywords used <span className="text-[#8A92A6] font-normal">({kws.length})</span></div>
+              <span className="text-[12px] text-[#8A92A6]">Click one to show only its posts · the number is how many posts use it</span>
+              <span className="ml-auto">{kws.length > 0 && <CopyButton text={joinForPost(kws.map(([k]) => k))} label="Copy all" />}</span>
+            </div>
+            {kws.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No hashtags or doctor keywords in these posts.</div> : (
+              <div className="flex flex-wrap gap-1.5 max-h-[168px] overflow-y-auto">
+                {kws.map(([k, n]) => (
+                  <span key={k} className={`inline-flex items-center rounded border text-[13px] ${only === k ? "border-brand bg-brand-light" : "border-gray-200 bg-white"}`}>
+                    <button onClick={() => setOnly(only === k ? null : k)} className="pl-2.5 pr-1.5 py-1 text-[#232D42] hover:text-brand">
+                      {k} <span className="text-[#8A92A6]">{n}</span>
+                    </button>
+                    <MiniCopy text={k} />
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-2 text-[14px] font-medium text-[#232D42]">
+              {only ? <>Posts using <span className="text-brand">{only}</span> <span className="text-[#8A92A6] font-normal">({shown.length})</span>
+                <button onClick={() => setOnly(null)} className="ml-1 text-[12px] font-normal text-[#8A92A6] hover:text-brand underline">show all</button></>
+                : <>All posts <span className="text-[#8A92A6] font-normal">({posts.length})</span></>}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
+              {shown.map((p, i) => (
+                <a key={p.url || i} href={p.url} target="_blank" rel="noreferrer"
+                  className="group relative aspect-square rounded-lg overflow-hidden border border-gray-100 bg-[#F6F7FB]">
+                  {p.image
+                    ? <img src={p.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover" />
+                    : <div className="absolute inset-0 p-2.5 text-[12px] leading-snug text-[#4A5468] overflow-hidden">{p.caption || "No caption"}</div>}
+                  {/* Hover: caption + keywords found in it. */}
+                  <div className="absolute inset-0 bg-[#232D42]/90 text-white p-2.5 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition overflow-hidden">
+                    <div className="text-[12px] leading-snug line-clamp-4">{p.caption || "No caption"}</div>
+                    {p.keywords.length > 0 && <div className="text-[11px] leading-snug text-[#C9D2FF] line-clamp-4">{p.keywords.join(" ")}</div>}
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 px-2 py-1 bg-gradient-to-t from-black/70 to-transparent text-white text-[11px] flex items-center gap-1 group-hover:opacity-0 transition">
+                    {p.date && <span>{new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>}
+                    <span className="ml-auto">{fmt(p.engagement)} {unit}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Small copy icon beside a keyword.
+function MiniCopy({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button title="Copy" onClick={async () => { if (await copyText(text)) { setDone(true); setTimeout(() => setDone(false), 1200); } }}
+      className="pr-2 pl-1 py-1 border-l border-gray-100 text-[#8A92A6] hover:text-brand">
+      {done ? <IconCheck size={13} stroke={2} className="text-[#2F9E6F]" /> : <IconCopy size={13} stroke={1.8} />}
+    </button>
   );
 }
