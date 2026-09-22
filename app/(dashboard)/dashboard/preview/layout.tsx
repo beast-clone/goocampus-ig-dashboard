@@ -1,6 +1,7 @@
 import { PreviewSidebar } from "./PreviewSidebar";
 import { SHELL_CSS } from "./PreviewShell";
 import { NavProgress } from "./NavProgress";
+import { NotificationHost, NOTIF_CSS } from "./NotificationHost";
 
 // Every Version-2 page shares this chrome — the theme root, the flex shell and the
 // sidebar. It lives in the layout so React keeps it mounted across navigation:
@@ -13,8 +14,11 @@ import { NavProgress } from "./NavProgress";
 export default function PreviewLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="preview-root">
-      <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: SHELL_CSS + NOTIF_CSS }} />
       <NavProgress />
+      {/* Notification pop-ups — here, not in a page, so they show on every page
+          and survive navigation (docs/NOTIFICATIONS_SPEC.md). */}
+      <NotificationHost />
       <div className="hshell">
         <PreviewSidebar />
         {children}

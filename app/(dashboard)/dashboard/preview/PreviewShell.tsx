@@ -6,7 +6,7 @@ export type PreviewTab =
   | "my-day" | "my-workspace" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "inbox" | "sales" | "organic-sales" | "campaigns" | "ai-insights" | "ai-reports"
-  | "integrations" | "diagnostics" | "tools" | "team" | "comments" | "account" | "reports" | "assistant";
+  | "integrations" | "diagnostics" | "tools" | "team" | "comments" | "account" | "reports" | "assistant" | "notifications";
 
 export function PreviewShell({
   active, title, subtitle, children, headerRight, hideTopbar,

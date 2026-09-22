@@ -4,8 +4,9 @@ import { canAccessSection, type Section, type Sections } from "@/lib/permissions
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { NOTIF_COUNT } from "./NotificationHost";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
@@ -40,6 +41,9 @@ const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 // Admin-only cockpit — rendered right under Overview when the viewer is an admin.
 // Carries the approvals notification badge (approvals live inside this page).
 const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
+// Everyone's notifications (docs/NOTIFICATIONS_SPEC.md). Deliberately outside the
+// section-gated groups: every member gets notifications, whatever pages they can see.
+const NOTIFICATIONS: Leaf = { label: "Notifications", href: `${HUB}/notifications`, icon: IconBell };
 
 const GROUPS: Group[] = [
   { label: "Content", sec: "content", items: [
@@ -191,6 +195,14 @@ export function PreviewSidebar() {
   // notification badge on the Approvals tab. Admin-only; polls so a new request shows
   // up without a reload.
   const [apprCount, setApprCount] = useState(0);
+  // Unread notifications — pushed by NotificationHost (mounted beside this sidebar in
+  // the layout), so the badge costs no extra polling.
+  const [notifUnread, setNotifUnread] = useState(0);
+  useEffect(() => {
+    const on = (e: Event) => setNotifUnread((e as CustomEvent<{ unread: number }>).detail?.unread || 0);
+    window.addEventListener(NOTIF_COUNT, on);
+    return () => window.removeEventListener(NOTIF_COUNT, on);
+  }, []);
   useEffect(() => {
     if (!me?.isAdmin) return;
     let alive = true;
@@ -313,6 +325,7 @@ export function PreviewSidebar() {
       <div className="hglobalsearch"><GlobalSearch /></div>
       {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
+      {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} />}
       {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}

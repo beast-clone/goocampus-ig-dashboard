@@ -18,8 +18,9 @@ three parts:
 3. **Re-pop** — an ignored **action-needed** item pops again after ~90 seconds,
    and keeps doing so until the person responds.
 
-The existing top-bar **bell stays**, becomes dashboard-wide (it is currently only
-on Overview), shows the unread count and opens the tab.
+The dashboard-wide entry point is the **Notifications item in the sidebar**,
+with an unread badge — shown to every member regardless of which sections they
+can open. The unread count also goes into the browser tab title.
 
 ## 2. Categories
 
@@ -36,11 +37,16 @@ one claiming it resolves it for the other. Flip it here if that changes.
 
 ## 3. Pop-up
 
-- Small card, bottom-right, on **every page** of `/dashboard/preview/*`.
+- Small card, **top-right** (bottom-right is taken by the Comment and New task
+  buttons), on **every page** of `/dashboard/preview/*`.
 - Shows emoji, title, one line of detail.
 - Buttons: **Go to notification center** · **Dismiss**.
 - Clicking the card body opens the exact task it is about.
-- Several at once stack (newest on top, max 3 visible, "+N more").
+- Several at once stack (action items first, max 3 visible, "+N more").
+- Each pop-up hides itself after ~15 s (not while hovered). Hidden is not
+  handled: an ignored action item comes back on a later check.
+- An FYI only pops if it is under 12 h old, so a person's first sync (30 days of
+  history) doesn't arrive as dozens of pop-ups. Action items pop at any age.
 
 ## 4. States and what each button does
 
@@ -67,7 +73,7 @@ one claiming it resolves it for the other. Flip it here if that changes.
 |---|---|
 | Date change to approve | the request is approved or rejected (`lib/date-approvals.ts`) |
 | Waiting in your pipeline | the person starts the task, or it is reassigned away |
-| Swap request | a task is picked — ⚠️ **no resolution event is logged today; the build adds one** |
+| Swap request | the task now belongs to the person who asked (the existing resolved-check the feed already used) |
 | Sent back for changes | the task's status leaves *Incorporating Feedback* |
 
 ## 6. Quiet hours
@@ -113,5 +119,20 @@ unlimited history are stored rather than recomputed.
 - ❌ No pop-up, no re-pop.
 - ❌ No categories or filters.
 - ❌ No Notifications page in the sidebar.
-- ❌ Swap requests have no resolution event.
+- ✅ Swap requests: resolved-check already existed (owner becomes the requester) — reused.
 - ⚠️ Polls every 60 s — a pop-up can arrive up to a minute after the event.
+
+## 10. Build notes (22 Sep 2026)
+
+- `lib/notifications.ts` — the generation rules, lifted verbatim out of
+  `/api/my-day/notifications`, now also tagging each item with its category,
+  event time and `taskId`. The old route is a thin wrapper and returns what it
+  did before (checked for all five people).
+- `taskId` is separate from `postId` on purpose: My Day treats a `postId` as
+  "show an Accept button", so reusing it would put Accept on every notification.
+- `/api/notifications` — GET syncs + resolves done + returns; PATCH read /
+  dismiss / popped / delete. Scoped to the **session user**, never a `?person=`.
+  Quiet hours are computed there in IST.
+- `NotificationHost` — mounted once in the preview layout; polls every 30 s and
+  on window focus; re-pop after 90 s.
+- `/dashboard/preview/notifications` — the tab.
