@@ -1756,12 +1756,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   // PIPELINE — tasks queued for THIS person, waiting for their accept. Data-derived
   // and persistent, so it doubles as the history the transient bell doesn't keep.
   //   Praveen: deferred design handoffs (approved, design-type, not his yet).
-  //   Editors: the claim pool (approved videos, unclaimed).
+  //   Editors: videos queued for THEM ("Waiting in your pipeline" handoffs, sent
+  //   when their day was full). NOT the claim pool — that's the Claim pool button;
+  //   showing it here too made both buttons list the same tasks (Nandu, 21 Sep).
   const pipelineTasks = useMemo(() => {
     if (person === "praveen") return tasks.filter((t) => t.status === "Content - Approved" && !(VIDEO_TYPES as readonly string[]).includes(t.detail.typeLine) && t.detail.owner !== me.name);
-    if (isEditor) return claimPool;
+    if (isEditor) {
+      const queued = new Set(notifs.filter((n) => n.accept && n.postId).map((n) => n.postId!));
+      const seen = new Set<string>();
+      return [...tasks, ...claimPool].filter((t) => queued.has(t.id) && !seen.has(t.id) && !!seen.add(t.id));
+    }
     return [];
-  }, [tasks, claimPool, person, isEditor, me.name]);
+  }, [tasks, claimPool, notifs, person, isEditor, me.name]);
   const [pipeOpen, setPipeOpen] = useState(false);
 
   // ── Publish-date approvals — Maheen's own portal ────────────────────────────
