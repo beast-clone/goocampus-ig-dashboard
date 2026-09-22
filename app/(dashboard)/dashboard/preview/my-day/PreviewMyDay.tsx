@@ -697,6 +697,16 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setAddingCollab(false); onSaved?.();
     } finally { setBusy(false); }
   };
+  // Remove a collaborator. Defaults get added automatically (Manya on every task,
+  // Nandu on every 12thPlus one), so a wrong or accidental one has to come off
+  // again — the DELETE route already existed, nothing exposed it.
+  const removeCollab = async (key: string) => {
+    setBusy(true);
+    try {
+      await fetch(`/api/marketing-hub/collaborators?postId=${encodeURIComponent(task.id)}&memberKey=${encodeURIComponent(key)}`, { method: "DELETE" });
+      onSaved?.();
+    } finally { setBusy(false); }
+  };
   const tone = TONE[STATUS[task.status].tone];
   // Collaborators = the writer(s)/helpers on the task — kept separate from Owner
   // (the single person who claimed / does it), mirroring the Airtable model.
@@ -824,10 +834,19 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div>
           <div className="mlbl">Collaborators{editing && addable.length > 0 && <span className="fld-hint" title="Use the + to add one">＋</span>}</div>
           <div className="collab-cell" style={{ position: "relative" }}>
-            {collabs.map((c, i) => <Avatar key={i} p={c} />)}
-            {collabs.length ? (
-              <span className="collab-names">{collabs.map((c) => c.name).join(", ")}</span>
-            ) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
+            {collabs.length ? collabs.map((c, i) => {
+              const ckey = Object.entries(PPL).find(([, pp]) => pp.name === c.name)?.[0];
+              return (
+                <span key={i} className="collab-chip">
+                  <Avatar p={c} />
+                  <span className="collab-names">{c.name}</span>
+                  {ckey && (
+                    <button type="button" className="collab-del" title={`Remove ${c.name}`} disabled={busy}
+                      onClick={() => removeCollab(ckey)}>×</button>
+                  )}
+                </span>
+              );
+            }) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
             {addable.length > 0 && (
               <button
                 type="button"
@@ -3700,6 +3719,13 @@ const CSS = `
 .hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid var(--cD5DCF8);border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:14px;font-weight:700;white-space:nowrap}
 .hmd .cap-timer.over{background:var(--warn-soft);border-color:var(--cF3D9AE);color:var(--c8A5A00)}
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+/* Each collaborator is its own chip so it can carry a remove control. The × only
+   shows on hover/focus, keeping the row calm when you are just reading it. */
+.hmd .collab-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.1rem .1rem .1rem 0;border-radius:999px}
+.hmd .collab-del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;padding:0 .2rem;border-radius:999px;opacity:0;transition:opacity .12s,color .12s,background .12s}
+.hmd .collab-chip:hover .collab-del,.hmd .collab-del:focus-visible{opacity:1}
+.hmd .collab-del:hover{color:#C03221;background:rgba(192,50,33,.1)}
+.hmd .collab-del:disabled{cursor:default;opacity:.35}
 .hmd .detail .d-sub{font-size:12px;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:12px;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 .hmd .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.9rem;padding:.8rem 0;border-top:1px solid var(--line-2)}
