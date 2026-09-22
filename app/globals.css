@@ -515,3 +515,7 @@ html[data-theme="dark"] .preview-root [style^="color: #4A5468" i], html[data-the
 html[data-theme="dark"] .preview-root [style*="solid #EEF0F4" i],
 html[data-theme="dark"] .preview-root [style*="solid #F3F5F9" i],
 html[data-theme="dark"] .preview-root [style*="solid #E9ECFB" i] { border-color:var(--line) !important; }
+/* My Day's wrapper is also .preview-scope — keep its own body text colour (not muted). */
+html[data-theme="dark"] .hmd { color: var(--ink) !important; }
+/* My Day top bar: "Started" chip and "End day" button the same size (36px, same padding). */
+.preview-scope.hmd .daychip, .preview-scope.hmd .btn.endbtn { height: 36px; padding: 0 .85em; border-radius: 9px; font-size: 12px; box-sizing: border-box; }
