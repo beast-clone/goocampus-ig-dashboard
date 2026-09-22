@@ -539,3 +539,11 @@ html[data-theme="dark"] {
   --st-topublish-bg:rgba(52,168,122,.16); --st-topublish-fg:#72D2A8;--st-topublish-bd:rgba(52,168,122,.34);
   --st-published-bg:rgba(124,112,232,.18);--st-published-fg:#ABA2F5;--st-published-bd:rgba(124,112,232,.36);
 }
+html[data-theme="dark"] .tcmd { color: var(--ink) !important; }
+/* Shared status tones (My Day, Team Command pills) — dark only; light uses each fallback. */
+html[data-theme="dark"] {
+  --tone-good-bg:rgba(26,160,83,.18);--tone-good-fg:#61CE9C;--tone-info-bg:rgba(7,154,162,.2);--tone-info-fg:#4FD1D8;
+  --tone-brand-bg:#2C3666;--tone-brand-fg:#8497FF;--tone-warn-bg:rgba(217,119,6,.18);--tone-warn-fg:#E9A23B;
+  --tone-bad-bg:rgba(192,50,33,.2);--tone-bad-fg:#F2907F;--tone-muted-bg:#272C3E;--tone-muted-fg:#959DB1;
+  --tone-urgent-bg:rgba(176,32,58,.24);--tone-urgent-fg:#F58CA0;
+}
