@@ -165,8 +165,28 @@ const HASHTAG = /#[\p{L}\p{N}_]{3,40}/gu;
 
 // Last good read per account. When a read fails (Instagram's hourly request limit,
 // a blip) the account keeps its previous posts instead of dropping out of the counts.
-const lastGood = new Map<string, { items: Item[]; summary: AccountSummary }>();
-function keep(key: string, items: Item[], summary: AccountSummary) { lastGood.set(key, { items, summary }); }
+// Kept in discover_cache (source seo_account_data) so it survives restarts and is
+// shared by every server instance; loaded once per read, saved once at the end.
+const DATA_SOURCE = "seo_account_data";
+let lastGood = new Map<string, { items: Item[]; summary: AccountSummary }>();
+let fresh: { key: string; items: Item[]; summary: AccountSummary }[] = [];
+function keep(key: string, items: Item[], summary: AccountSummary) { lastGood.set(key, { items, summary }); fresh.push({ key, items, summary }); }
+async function loadLastGood() {
+  fresh = [];
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data } = await sb.from("discover_cache").select("cache_key,payload").eq("source", DATA_SOURCE);
+  lastGood = new Map((data || []).map((r) => [String(r.cache_key).replace(/^seo-data:/, ""), r.payload as { items: Item[]; summary: AccountSummary }]));
+}
+async function saveLastGood() {
+  const sb = getSupabase();
+  if (!sb || !fresh.length) return;
+  const now = new Date().toISOString();
+  await sb.from("discover_cache").upsert(fresh.map((f) => ({ cache_key: `seo-data:${f.key}`, source: DATA_SOURCE, last_fetched: now, payload: { items: f.items, summary: f.summary } })), { onConflict: "cache_key" });
+}
+// Once Instagram says the app is over its hourly limit, every further call fails too
+// and only extends it — so stop asking for the rest of this read.
+const isRateLimit = (m: string) => /request limit|rate limit|\(#4\)|\(#32\)|\(#613\)/i.test(m);
 function fallback(key: string, error: string, custom?: boolean): { items: Item[]; summary: AccountSummary } | null {
   const g = lastGood.get(key);
   return g ? { items: g.items, summary: { ...g.summary, custom, stale: error } } : null;
@@ -206,8 +226,10 @@ async function instagramItems(extra: string[], hidden: Set<string>): Promise<{ i
       analysed: (own.data || []).length, posts: (own.data || []).map((m) => igPost(m, eng(m))) });
   } catch (e) { accounts.push({ platform: "instagram", account: acc.handle || "goocampus", analysed: 0, error: (e as Error).message.slice(0, 120) }); }
 
+  let limited = "";
   for (const u of [...IG_COMPETITORS.filter((h) => !hidden.has(hiddenKey("instagram", h))), ...extra]) {
     try {
+      if (limited) throw new Error(limited);
       const j = await igGet<{ business_discovery?: { name?: string; followers_count?: number; profile_picture_url?: string; media?: { data: IgMedia[] } } }>(acc.igUserId, {
         fields: `business_discovery.username(${u}){name,followers_count,profile_picture_url,media.limit(40){${IG_MEDIA_FIELDS}}}`,
         access_token: acc.pageAccessToken,
@@ -220,6 +242,7 @@ async function instagramItems(extra: string[], hidden: Set<string>): Promise<{ i
       items.push(...mine); accounts.push(summary); keep(`instagram:${u}`, mine, summary);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 120), fb = fallback(`instagram:${u}`, msg, extra.includes(u) || undefined);
+      if (isRateLimit(msg)) limited = msg;
       if (fb) { items.push(...fb.items); accounts.push(fb.summary); }
       else accounts.push({ platform: "instagram", account: u, analysed: 0, error: msg, custom: extra.includes(u) || undefined });
     }
@@ -309,11 +332,12 @@ export type SocialKeywords = {
   oursAvg: { instagram: number | null; youtube: number | null }; fetchedAt: string;
 };
 
-export function getSocialKeywords(fresh = false): Promise<SocialKeywords> {
+export function getSocialKeywords(refresh = false): Promise<SocialKeywords> {
   const build = async (): Promise<SocialKeywords> => {
-    const [extra, hidden] = await Promise.all([listExtraAccounts().catch(() => []), listHidden().catch(() => new Set<string>())]);
+    const [extra, hidden] = await Promise.all([listExtraAccounts().catch(() => []), listHidden().catch(() => new Set<string>()), loadLastGood().catch(() => {})]);
     const of = (p: string) => extra.filter((a) => a.platform === p).map((a) => a.handle);
     const [ig, yt] = await Promise.all([instagramItems(of("instagram"), hidden), youtubeItems(of("youtube"), hidden)]);
+    await saveLastGood().catch(() => {});
     const avg = (xs: Item[]) => (xs.length ? Math.round(xs.reduce((s, x) => s + x.engagement, 0) / xs.length) : null);
     return {
       instagram: score(ig.items, "instagram"),
@@ -324,8 +348,11 @@ export function getSocialKeywords(fresh = false): Promise<SocialKeywords> {
     };
   };
   // A refresh replaces the cached copy, so the next normal load sees it too.
-  if (fresh) clearCache("social-keywords:");
-  return cached("social-keywords:v3", 24 * 60 * 60_000, build, (d) => d.instagram.length + d.youtube.length > 0 && d.accounts.filter((x) => x.error).length <= 2);
-  // ^ a read where several accounts failed (e.g. Instagram's hourly limit) isn't kept for
-  //   24h — the next load tries again.
+  if (refresh) { clearCache("social-keywords:"); degraded = null; }
+  // A read where accounts failed (e.g. Instagram's hourly limit) is kept 15 min, not
+  // 24h — and not retried on every page load, which would only keep the limit hit.
+  if (degraded && Date.now() - degraded.at < 15 * 60_000) return Promise.resolve(degraded.data);
+  const ok = (d: SocialKeywords) => d.instagram.length + d.youtube.length > 0 && !d.accounts.some((x) => x.error || x.stale);
+  return cached("social-keywords:v3", 24 * 60 * 60_000, build, ok).then((d) => { if (!ok(d)) degraded = { at: Date.now(), data: d }; return d; });
 }
+let degraded: { at: number; data: SocialKeywords } | null = null;

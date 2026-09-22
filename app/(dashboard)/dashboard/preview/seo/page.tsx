@@ -336,6 +336,9 @@ function OursAndGaps({ data, platform }: { data: Data; platform: Platform }) {
 // ── 4. Who we compare with ─────────────────────────────────────────────────
 // Left: the accounts. Right: the picked one's profile, every keyword it used (copy
 // one or all; click to show only the posts using it) and its posts in a grid.
+// Instagram caps how often other accounts can be read per hour; say so plainly.
+const limitHit = (m?: string) => !!m && /request limit|\(#4\)/i.test(m);
+const readError = (m: string) => (limitHit(m) ? "Instagram's hourly limit for reading other accounts is used up. It resets within an hour — press Refresh now then." : m);
 const handleOf = (a: Account) => a.account.replace(/^@/, "");
 const profileUrl = (a: Account) => (a.platform === "youtube" ? `https://www.youtube.com/@${handleOf(a)}` : `https://www.instagram.com/${handleOf(a)}/`);
 const PlatformIcon = ({ p, size = 18 }: { p: Platform; size?: number }) =>
@@ -375,7 +378,7 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
                   <div className="text-[12px] text-[#8A92A6] truncate">{a.followers != null ? `${fmt(a.followers)} ${a.platform === "youtube" ? "subs" : "followers"} · ` : ""}{a.analysed} posts</div>
                 </div>
                 {a.error
-                  ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />Couldn&apos;t read</span>
+                  ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />{limitHit(a.error) ? "Try later" : "Couldn\u2019t read"}</span>
                   : null}
                 {!ours && (
                   <button title="Stop tracking this account" onClick={(e) => { e.stopPropagation(); remove(a); }}
@@ -456,8 +459,8 @@ function AccountDetail({ a }: { a: Account }) {
         </a>
       </div>
 
-      {a.stale && <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5">Couldn&apos;t refresh just now ({a.stale}) — showing the last read.</div>}
-      {a.error ? <div className="text-[14px] text-rose-600">Couldn&apos;t read this account: {a.error}</div> : (
+      {a.stale && <div className="text-[12px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-1.5">Couldn&apos;t refresh just now — showing the last read. {limitHit(a.stale) ? "Instagram's hourly limit is used up; it resets within an hour." : a.stale}</div>}
+      {a.error ? <div className="text-[14px] text-[#B45309] bg-[#FCF0DA] rounded px-3 py-2">Couldn&apos;t read this account. {readError(a.error)}</div> : (
         <>
           <div>
             <div className="flex items-center gap-3 mb-2">
