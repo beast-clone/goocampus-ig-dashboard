@@ -1,4 +1,5 @@
 "use client";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
@@ -610,6 +611,23 @@ function ExtendPicker({ onExtend }: { onExtend: (mins: number) => void }) {
       )}
     </span>
   );
+}
+
+// ── My tasks sort ──
+type TaskSort = "date" | "priority" | "status" | "recent";
+const TASK_SORTS: Record<TaskSort, string> = { date: "Publishing date", priority: "Priority", status: "Status", recent: "Recently added" };
+const PRIO_RANK: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+const STATUS_RANK = Object.keys(STATUS) as CCStatus[];
+function taskComparator(by: TaskSort) {
+  const due = (a: Task, b: Task) => (a.due || "9999").localeCompare(b.due || "9999");
+  const hot = (t: Task) => (t.detail.priority === "Urgent" || t.detail.priority === "High" ? 0 : 1);
+  return (a: Task, b: Task) => {
+    if (by === "priority") return (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]) || due(a, b);
+    if (by === "status") return (STATUS_RANK.indexOf(a.status) - STATUS_RANK.indexOf(b.status)) || due(a, b);
+    if (by === "recent") return (b.detail.createdAt || "").localeCompare(a.detail.createdAt || "") || due(a, b);
+    // Publishing date: Urgent/High jump the queue (as on Today's plan), then earliest date first.
+    return (hot(a) - hot(b)) || due(a, b) || (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]);
+  };
 }
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
@@ -1829,14 +1847,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     };
   }, [tasks, claimedTasks, me.name]);
   const curTab = myTabs.find((t) => t.key === taskTab) || myTabs[0];
-  // Tasks in the current tab, sorted by due date (overdue first → today → later).
+  // My tasks sort (Nandu's "Sort" comment). Default = publishing date with Urgent/High
+  // first — so "Due today" sits above "Due in 3 days". Applies to claimable videos too.
+  const [sortBy, setSortBy] = useState<TaskSort>("date");
+  useEffect(() => {
+    try { const v = window.localStorage.getItem("myday.sort"); if (v && v in TASK_SORTS) setSortBy(v as TaskSort); } catch { /* ignore */ }
+  }, []);
+  const pickSort = (v: TaskSort) => { setSortBy(v); try { window.localStorage.setItem("myday.sort", v); } catch { /* ignore */ } };
+  const cmpTasks = useMemo(() => taskComparator(sortBy), [sortBy]);
   const shownTasks = useMemo(() => {
-    const PR: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
-    // Priority first (so an urgent task tops the list, matching its red block on the
-    // plan), then by due date (overdue → today → later).
-    return workingTasks.filter((t) => matchesTab(t, curTab))
-      .sort((a, b) => (PR[a.detail.priority] - PR[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
-  }, [workingTasks, taskTab]);
+    return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
+  }, [workingTasks, taskTab, cmpTasks]);
   const task = shownTasks[sel] || shownTasks[0] || null;
   // A claimable video opened for a look before claiming (Nandu: "I want to open and
   // see the task"). Shown in the detail panel, read-only, with a Claim button.
@@ -1844,8 +1865,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   // Claimable videos show INLINE in each editor's Content-Approved tab (spec §8) —
   // both Nandu and Nikhil see the same pool; first to claim owns it.
   const claimableHere = useMemo(
-    () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)) : [],
-    [isEditor, curTab.key, claimPool, claimedTasks],
+    () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)).sort(cmpTasks) : [],
+    [isEditor, curTab.key, claimPool, claimedTasks, cmpTasks],
   );
   const planModalTask = planModalId ? [...tasks, ...claimedTasks, ...samvaya].find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
@@ -2829,7 +2850,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
         {/* 3 · WORK ROW — My tasks | Up next detail (wider now) */}
         <div className="work">
           <div className="card pad">
-            <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className="btn primary sm" onClick={() => setShowNew(true)}>+ New task</button> : <span className="lbl">by due date</span>}</div>
+            <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className="btn primary sm" onClick={() => setShowNew(true)}>+ New task</button> : null}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: ".5rem", margin: "-.2rem 0 .6rem" }}>
+              <span className="lbl" style={{ whiteSpace: "nowrap" }}>Sort by</span>
+              <PreviewSelect className="flex-1" value={sortBy} onChange={(v) => { pickSort(v as TaskSort); setSel(0); }}
+                options={(Object.keys(TASK_SORTS) as TaskSort[]).map((k) => ({ value: k, label: TASK_SORTS[k] }))} />
+            </div>
             <div className="task-tabs">
               {tabCounts.map((tb) => (
                 // Short names: four full status names don't fit this column (the last
@@ -2841,7 +2867,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
             </div>
             <div className="tasklist">
               {shownTasks.length === 0 && claimableHere.length === 0 && <div className="empty" style={{ padding: "1.6rem 0" }}>Nothing in “{curTab.label}” right now ✓</div>}
-              {shownTasks.map((t, i) => {
+              {/* One list, one order: my tasks and claimable videos sorted together. */}
+              {[...shownTasks.map((t) => ({ t, claim: false })), ...claimableHere.map((t) => ({ t, claim: true }))]
+                .sort((x, y) => cmpTasks(x.t, y.t))
+                .map(({ t: rowTask, claim }) => !claim ? ((t: Task, i: number) => {
                 const claimed = claimedTasks.some((c) => c.id === t.id);
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
@@ -2859,10 +2888,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     </div>
                   </div>
                 );
-              })}
-              {/* Claimable videos (spec §8) — inline in BOTH editors' Content-Approved
-                  tab; first to claim owns it. Nikhil also picks how he'll work it. */}
-              {claimableHere.map((v) => {
+              })(rowTask, shownTasks.indexOf(rowTask)) : ((v: Task) => {
+                // Claimable videos (spec §8) — inline in BOTH editors' Content-Approved
+                // tab; first to claim owns it. Nikhil also picks how he'll work it.
                 const confirming = claimConfirm === v.id;
                 return (
                   <div key={v.id} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={() => setPeekId(v.id)} title="Open to see the task"
@@ -2897,7 +2925,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     </div>
                   </div>
                 );
-              })}
+              })(rowTask))}
             </div>
           </div>
 
