@@ -14,6 +14,8 @@ export type RosterUser = TeamUser & {
   passwordHash: string | null;
   permissions: Permissions;
   sections: Sections;
+  photoUrl: string | null;              // profile picture (null = initials)
+  theme: "light" | "dark" | "system";   // saved per account (sql/015)
 };
 
 type IndUserRow = {
@@ -28,6 +30,8 @@ type IndUserRow = {
   password_hash?: string | null;
   permissions?: unknown;
   sections?: unknown;
+  photo_url?: string | null;
+  theme?: string | null;
 };
 
 function fromRow(r: IndUserRow): RosterUser {
@@ -44,11 +48,13 @@ function fromRow(r: IndUserRow): RosterUser {
     passwordHash: r.password_hash ?? null,
     permissions: cleanPermissions(r.permissions),
     sections: cleanSections(r.sections),
+    photoUrl: r.photo_url || null,
+    theme: r.theme === "light" || r.theme === "dark" ? r.theme : "system",
   };
 }
 
 function fromCode(u: TeamUser): RosterUser {
-  return { ...u, active: true, hasPassword: false, passwordHash: null, permissions: {}, sections: {} };
+  return { ...u, active: true, hasPassword: false, passwordHash: null, permissions: {}, sections: {}, photoUrl: null, theme: "system" };
 }
 
 // Small cache so /api/me etc. don't hit Supabase on every request.

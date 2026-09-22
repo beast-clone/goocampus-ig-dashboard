@@ -44,9 +44,12 @@ type Person = { name: string; av: string; color: string; photo?: string };
 
 // Shared avatar chip — photo when available, coloured initial otherwise. One place
 // so every owner/collaborator/picker chip picks up profile photos the same way.
+// Profile pictures by user id (= lower-cased first name), filled once from /api/team-photos.
+const PHOTOS: Record<string, string> = {};
 function Avatar({ p, cls = "av av-sm" }: { p: { name?: string; av: string; color: string; photo?: string }; cls?: string }) {
-  if (p.photo) {
-    return <span className={cls} title={p.name} style={{ backgroundImage: `url(${p.photo})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
+  const photo = p.photo || PHOTOS[(p.name || "").split(" ")[0].toLowerCase()];
+  if (photo) {
+    return <span className={cls} title={p.name} style={{ backgroundImage: `url(${photo})`, backgroundSize: "cover", backgroundPosition: "center" }} />;
   }
   return <span className={cls} title={p.name} style={{ background: p.color }}>{p.av}</span>;
 }
@@ -759,7 +762,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
                 {Object.entries(PPL).map(([key, p]) => (
                   <button key={key} className="btn sm" disabled={busy} onClick={() => reassign(key)}>
-                    <span className="av av-sm" style={{ background: p.color, marginRight: ".35rem" }}>{p.av}</span>{p.name}
+                    <span style={{ marginRight: ".35rem", display: "inline-flex" }}><Avatar p={p} /></span>{p.name}
                   </button>
                 ))}
               </div>
@@ -802,7 +805,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             <div className="fld-edit">
               {Object.entries(PPL).map(([key, pp]) => (
                 <button key={key} className="btn sm" disabled={busy} onClick={() => { reassign(key); setEditField(null); }}>
-                  <span className="av av-sm" style={{ background: pp.color, marginRight: ".35rem" }}>{pp.av}</span>{pp.name}
+                  <span style={{ marginRight: ".35rem", display: "inline-flex" }}><Avatar p={pp} /></span>{pp.name}
                 </button>
               ))}
             </div>
@@ -1396,7 +1399,7 @@ function TeamCapacityPage({ onBack, tasks, nowMin, logins }: { onBack: () => voi
       {rows.map((p) => (
         <div key={p.key} className="card pad tcp-card">
           <div className="tcp-top">
-            <span className="av" style={{ background: p.color }}>{p.av}</span>
+            <Avatar p={p} cls="av" />
             <div><div className="tcp-n">{p.name}</div><div className="tcp-r">{p.role}</div></div>
             <div className="tcp-status">
               <span className="st-badge working">{fmtMins(p.committed)} committed</span>
@@ -1507,6 +1510,15 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
 export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { initialPerson?: string; isAdmin?: boolean } = {}) {
+  // Profile pictures (Account page) → PHOTOS, so every <Avatar> shows them.
+  const [, setPhotosVer] = useState(0);
+  useEffect(() => {
+    fetch("/api/team-photos").then((r) => (r.ok ? r.json() : null)).then((d: { photos?: Record<string, string> } | null) => {
+      if (!d?.photos) return;
+      Object.assign(PHOTOS, d.photos);
+      setPhotosVer((v) => v + 1);
+    }).catch(() => {});
+  }, []);
   // `person` = whose day is shown. Seeded from the logged-in user (server-passed);
   // producers are locked to themselves, only admins can switch via the header tabs.
   const [person, setPerson] = useState(initialPerson || "manya");
@@ -3053,7 +3065,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     const last = c.msgs[c.msgs.length - 1];
                     return (
                       <button key={c.id} className="chat-list-row" onClick={() => openConvo(c.id)}>
-                        <span className="av" style={{ background: c.group ? "var(--brand)" : c.color }}>{c.group ? IUSERS : c.av}</span>
+                        {c.group ? <span className="av" style={{ background: "var(--brand)" }}>{IUSERS}</span> : <Avatar p={{ name: c.name, av: c.av || c.name.slice(0, 1), color: c.color || "#8A92A6" }} cls="av" />}
                         <div className="cl-mid">
                           <div className="cl-name">{c.name}{c.online && <span className="cl-dot" />}</div>
                           <div className="cl-last">{last ? (last.me ? "You: " : "") + last.body : "No messages yet"}</div>

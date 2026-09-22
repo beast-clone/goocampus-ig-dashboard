@@ -3,14 +3,14 @@ import { getSessionUserId } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { invalidateRosterCache } from "@/lib/team-db";
 
-// PATCH /api/account/profile { name?, role? } — anyone edits their OWN full name and
-// job title. Email, username and access stay admin-only (Team page): email and
+// PATCH /api/account/profile { name?, role?, theme? } — anyone edits their OWN full
+// name, job title and theme (light | dark | system). Email, username and access stay admin-only (Team page): email and
 // username are what people sign in with. The short first name (`first`), which the
 // dashboard uses to match people to their tasks, is deliberately left alone.
 export async function PATCH(req: Request) {
   const uid = getSessionUserId();
   if (!uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const b = (await req.json().catch(() => ({}))) as { name?: unknown; role?: unknown };
+  const b = (await req.json().catch(() => ({}))) as { name?: unknown; role?: unknown; theme?: unknown };
 
   const updates: Record<string, string> = {};
   if (b.name !== undefined) {
@@ -22,6 +22,10 @@ export async function PATCH(req: Request) {
     const role = typeof b.role === "string" ? b.role.trim().replace(/\s+/g, " ") : "";
     if (role.length > 60) return NextResponse.json({ error: "Job title must be 60 characters or fewer." }, { status: 400 });
     updates.role = role;
+  }
+  if (b.theme !== undefined) {
+    if (b.theme !== "light" && b.theme !== "dark" && b.theme !== "system") return NextResponse.json({ error: "Theme must be light, dark or system." }, { status: 400 });
+    updates.theme = b.theme;
   }
   if (!Object.keys(updates).length) return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
 

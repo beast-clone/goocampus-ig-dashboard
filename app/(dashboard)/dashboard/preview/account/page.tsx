@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
-  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye,
+  IconUser, IconMail, IconId, IconBriefcase, IconLock, IconShieldCheck, IconSend, IconCheck, IconPencil, IconEye, IconCamera,
 } from "@tabler/icons-react";
 
-type Me = { name?: string; first?: string; initials?: string; role?: string; email?: string; id?: string; isAdmin?: boolean } | null;
+type Me = { name?: string; first?: string; initials?: string; role?: string; email?: string; id?: string; isAdmin?: boolean; photoUrl?: string | null } | null;
 
 export default function AccountPage() {
   return (
@@ -54,7 +54,9 @@ function Inner() {
         </div>
       )}
       {viewErr && <div className="rounded-xl bg-[#FDECEA] text-[#8a2e28] text-[14px] px-4 py-2.5">{viewErr}</div>}
-      <Profile me={shown} editable={!viewing} onSaved={(u) => setMe((m) => (m ? { ...m, ...u } : m))} />
+      <Profile me={shown} editable={!viewing} onSaved={(u) => setMe((m) => (m ? { ...m, ...u } : m))}
+        // Photo: your own, or anyone's when an admin is viewing their account.
+        photo={<PhotoPicker person={shown} forUser={viewing?.id} onChanged={(url) => (viewing ? setViewing((v) => (v ? { ...v, photoUrl: url } : v)) : setMe((m) => (m ? { ...m, photoUrl: url } : m)))} />} />
       {!viewing && <ChangePassword hasEmail={!!me?.email} />}
     </div>
   );
@@ -62,7 +64,7 @@ function Inner() {
 
 // Name and job title are the person's own to edit; email, username and access are
 // set by an admin on the Team page (email/username are what they sign in with).
-function Profile({ me, editable, onSaved }: { me: Me; editable: boolean; onSaved: (u: { name?: string; role?: string }) => void }) {
+function Profile({ me, editable, onSaved, photo }: { me: Me; editable: boolean; onSaved: (u: { name?: string; role?: string }) => void; photo?: React.ReactNode }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
@@ -91,6 +93,7 @@ function Profile({ me, editable, onSaved }: { me: Me; editable: boolean; onSaved
           </button>
         )}
       </div>
+      {photo}
       {editing ? (
         <div className="space-y-3">
           <label className="block text-[12px] text-[#8A92A6]">Name
@@ -115,6 +118,57 @@ function Profile({ me, editable, onSaved }: { me: Me; editable: boolean; onSaved
           <Row icon={IconBriefcase} label="Job title" value={me?.role} />
         </>
       )}
+    </div>
+  );
+}
+
+// Profile picture: shown wherever initials were. Picked here, cropped to a centred
+// square and resized to 256×256 JPEG in the browser, then uploaded.
+function PhotoPicker({ person, forUser, onChanged }: { person: Me; forUser?: string; onChanged: (url: string | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setErr(null);
+    if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type) && !/\.(jpe?g|png|webp)$/i.test(file.name)) { setErr("Pick a JPG, PNG or WebP image."); return; }
+    setBusy(true);
+    try {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await img.decode();
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement("canvas"); c.width = c.height = 256;
+      c.getContext("2d")!.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+      URL.revokeObjectURL(img.src);
+      const r = await fetch("/api/account/photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: c.toDataURL("image/jpeg", 0.85), userId: forUser }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "Couldn't upload it."); return; }
+      onChanged(j.photoUrl);
+    } catch { setErr("Couldn't read that image — try a JPG or PNG."); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    setBusy(true); setErr(null);
+    const r = await fetch("/api/account/photo", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: forUser }) });
+    setBusy(false);
+    if (r.ok) onChanged(null); else setErr("Couldn't remove it.");
+  };
+  return (
+    <div className="flex items-center gap-4 pb-4 mb-2 border-b border-gray-100">
+      {person?.photoUrl
+        ? <img src={person.photoUrl} alt="" className="w-16 h-16 rounded-full object-cover bg-[#F6F7FB]" />
+        : <span className="w-16 h-16 rounded-full bg-brand-light text-brand grid place-items-center text-[20px] font-medium">{person?.initials || "?"}</span>}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <label className={`inline-flex items-center gap-1.5 h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand cursor-pointer ${busy ? "opacity-50 pointer-events-none" : ""}`}>
+            <IconCamera size={15} stroke={1.8} />{busy ? "Uploading…" : person?.photoUrl ? "Change photo" : "Add photo"}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {person?.photoUrl && <button onClick={remove} disabled={busy} className="h-9 px-3 text-[14px] text-[#8A92A6] hover:text-rose-600 disabled:opacity-50">Remove</button>}
+        </div>
+        <span className="text-[12px] text-[#8A92A6]">Shown next to your name around the dashboard. Square photos work best.</span>
+        {err && <span className="text-[12px] text-rose-600">{err}</span>}
+      </div>
     </div>
   );
 }

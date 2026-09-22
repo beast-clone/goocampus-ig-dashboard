@@ -7,7 +7,7 @@ import { IconLogout, IconChevronDown, IconUserCog } from "@tabler/icons-react";
 // a small menu with Log out (POST /api/logout — same endpoint the V1 sidebar uses).
 // Previously the Overview header hard-coded "Maheen Ejaz" with no click handler, and
 // the V2 sidebar has no logout, so there was no way to sign out of the dashboard.
-type Me = { name?: string; initials?: string; role?: string } | null;
+type Me = { name?: string; initials?: string; role?: string; photoUrl?: string | null } | null;
 
 export function HeaderProfile() {
   const [me, setMe] = useState<Me>(null);
@@ -41,7 +41,9 @@ export function HeaderProfile() {
         aria-label="Account menu"
         style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: 0 }}
       >
-        <span style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#3A57E8,#079AA2)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 600, fontSize: 14 }}>{initials}</span>
+        {me?.photoUrl
+          ? <img src={me.photoUrl} alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover" }} />
+          : <span style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#3A57E8,#079AA2)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 600, fontSize: 14 }}>{initials}</span>}
         <div style={{ lineHeight: 1.2, textAlign: "left" }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#232D42" }}>{name}</div>
           <div style={{ fontSize: 12, color: "#8A92A6" }}>{role}</div>

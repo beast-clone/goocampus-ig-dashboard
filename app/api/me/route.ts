@@ -17,6 +17,8 @@ export async function GET() {
       isAdmin: user.isAdmin,
       permissions: user.permissions, // per-capability toggles (gate action buttons)
       sections: user.sections,       // per-section page access (gate sidebar tabs)
+      photoUrl: user.photoUrl,       // profile picture, or null → initials
+      theme: user.theme,             // light | dark | system
     },
   });
 }

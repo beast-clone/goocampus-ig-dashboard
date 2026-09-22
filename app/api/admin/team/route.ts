@@ -56,6 +56,7 @@ export async function GET() {
       hasPassword: u.hasPassword,
       permissions: u.permissions,
       sections: u.sections,
+      photoUrl: u.photoUrl,
     })),
   });
 }
