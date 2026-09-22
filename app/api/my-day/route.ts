@@ -119,6 +119,9 @@ function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = []
         if (c) keys.add(c);
         return [...keys].filter((k) => PPL_META[k]).map((k) => PPL_META[k]);
       })(),
+      // Who will be on camera, when someone registered for that without claiming
+      // the task (the editor claims it and owns it; the presenter collaborates).
+      presenter: typeof r.custom?.presenter_key === "string" ? (r.custom.presenter_key as string) : "",
       // Feedback notes shown highlighted on the producer's Incorporating-Feedback task.
       feedback: typeof r.custom?.incorporating_feedback === "string" ? (r.custom.incorporating_feedback as string) : "",
       activity: [] as unknown[],

@@ -138,6 +138,7 @@ type Task = {
     activity: { who: string; text: string; time: string }[];
     createdAt?: string; modifiedAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
     feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
+    presenter?: string;                                   // member key of whoever registered to present it
   };
 };
 
@@ -2558,10 +2559,24 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       })
       .catch((e) => rollback(String(e)));
   };
-  // Inline claim confirm (spec §8). Nikhil picks how he'll work it (present / edit /
-  // both); Nandu just confirms. The role is best-effort persisted to custom.claim_role.
+  // Inline claim confirm (spec §8), with the owner/collaborator rule agreed 22 Sep.
+  //
+  // The OWNER is whoever edits. So "Present on camera" is NOT a claim: it records
+  // that this person will shoot it and leaves the task in the pool for an editor,
+  // who then owns it with the presenter as a collaborator. "Edit video" and "Both"
+  // do claim it. Both editors get the choice — Nandu takes "Both" on a text reel
+  // that needs no presenter, exactly as Nikhil does.
   const confirmClaim = (v: Task, role?: "present" | "edit" | "both") => {
     setClaimConfirm(null);
+    if (role === "present") {
+      // Register as presenter; ownership stays open.
+      setToast({ who: "You're presenting", color: me.color, av: me.av, body: `Noted — you're on camera for “${v.title}”. It stays open for an editor to claim.` });
+      fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { presenter_key: person, claim_role: "present" } } }) })
+        .then(() => load())
+        .catch(() => {});
+      return;
+    }
     if (role) {
       fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { claim_role: role } } }) }).catch(() => {});
@@ -2946,24 +2961,23 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     style={{ borderStyle: "dashed", borderColor: peekId === v.id ? undefined : "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem", cursor: "pointer" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="tt">{v.title}</div>
-                      <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
+                      <div className="mm">
+                        {v.detail.typeLine} · {v.detail.presenter && PPL[v.detail.presenter]
+                          ? <><b>{PPL[v.detail.presenter].name} is presenting</b> — needs an editor</>
+                          : "up for grabs — Nandu or Nikhil"}
+                      </div>
                       {!confirming ? (
                         <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C", display: "inline-block", marginTop: ".45rem" }}>Claimable</span>
-                      ) : person === "nikhil" ? (
+                      ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".45rem" }} onClick={(e) => e.stopPropagation()}>
                           <span className="lbl">How will you work it?</span>
                           <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
-                            <button className="btn primary sm" onClick={() => confirmClaim(v, "present")}>Present on camera</button>
-                            <button className="btn primary sm" onClick={() => confirmClaim(v, "edit")}>Edit video</button>
-                            <button className="btn primary sm" onClick={() => confirmClaim(v, "both")}>Both</button>
+                            {/* Present ≠ claim: the editor owns it, the presenter collaborates. */}
+                            <button className="btn sm" onClick={() => confirmClaim(v, "present")} title="You'll shoot it — an editor still claims it">Present on camera</button>
+                            <button className="btn primary sm" onClick={() => confirmClaim(v, "edit")} title="You'll cut it — you become the owner">Edit video</button>
+                            <button className="btn primary sm" onClick={() => confirmClaim(v, "both")} title="You'll shoot and cut it — you become the owner">Both</button>
                             <button className="btn sm" onClick={() => setClaimConfirm(null)}>Cancel</button>
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".45rem" }} onClick={(e) => e.stopPropagation()}>
-                          <span className="lbl">Claim this?</span>
-                          <button className="btn primary sm" onClick={() => confirmClaim(v)}>Yes, it&apos;s mine</button>
-                          <button className="btn sm" onClick={() => setClaimConfirm(null)}>No</button>
                         </div>
                       )}
                     </div>
