@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
@@ -116,7 +116,7 @@ function Inner() {
         <div className="bg-white border border-gray-100 rounded-xl p-6"><LoadingBlock label={isLoading ? "Reading our posts and 9 competitors' — this takes a moment the first time…" : undefined} /></div>
       ) : tab === "ranking" ? <Ranking data={data} /> : (
         <>
-          <Competitors data={data} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
+          <Competitors data={data} updating={isLoading} onRefresh={() => setKey(`/api/seo/social?fresh=1&t=${Date.now()}`)} />
           {/* Topics on the left; what works for us + gaps beside them, so nothing sits far below. */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-4 items-start">
             <Trending data={data} platform={kwPlatform} setPlatform={setKwPlatform} />
@@ -348,13 +348,13 @@ function OursAndGaps({ data, platform }: { data: Data; platform: Platform }) {
 // one or all; click to show only the posts using it) and its posts in a grid.
 // Instagram caps how often other accounts can be read per hour; say so plainly.
 const limitHit = (m?: string) => !!m && /request limit|\(#4\)/i.test(m);
-const readError = (m: string) => (limitHit(m) ? "Instagram's hourly limit for reading other accounts is used up. It resets within an hour — press Refresh now then." : m);
+const readError = (m: string) => (limitHit(m) ? "Instagram's hourly limit for reading other accounts is used up. It resets within an hour — try again then." : m);
 const handleOf = (a: Account) => a.account.replace(/^@/, "");
 const profileUrl = (a: Account) => (a.platform === "youtube" ? `https://www.youtube.com/@${handleOf(a)}` : `https://www.instagram.com/${handleOf(a)}/`);
 const PlatformIcon = ({ p, size = 18 }: { p: Platform; size?: number }) =>
   p === "instagram" ? <IconBrandInstagram size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" /> : <IconBrandYoutube size={size} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />;
 
-function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void }) {
+function Competitors({ data, updating, onRefresh }: { data: Data; updating: boolean; onRefresh: () => void }) {
   const when = new Date(data.fetchedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   const [platform, setPlatform] = useState<Platform>("instagram");
   const list = data.accounts.filter((a) => a.platform === platform);
@@ -372,6 +372,13 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
     <Card icon={<IconUsers size={17} stroke={1.8} />} title="Accounts we compare with"
       sub={`Our account and the doctor-education accounts we compare with — latest 40 posts each. Click one to see its keywords and posts. Updated ${when}; refreshes by itself daily.`}
       right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setSel(""); }} />}>
+      {/* Re-reading every account takes ~a minute; the old list stays up meanwhile. */}
+      {updating && (
+        <div className="mb-3 flex items-center gap-2 rounded bg-brand-light px-3 py-2 text-[13px] text-brand">
+          <span className="w-3.5 h-3.5 rounded-full border-2 border-brand border-t-transparent animate-spin" />
+          Reading the accounts again — this takes about a minute. Changes appear here when it&apos;s done.
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
         <div className="flex flex-col gap-1.5 lg:max-h-[860px] lg:overflow-y-auto lg:pr-1">
           <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide px-1">Our account</div>
@@ -379,7 +386,7 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
             if (a === "divider") return (
               <div key="divider" className="flex flex-col gap-1.5 mt-3">
                 <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide px-1">Compared with ({others.length})</div>
-                <AddAccount platform={platform} onAdded={onRefresh} />
+                <AddAccount platform={platform} onAdded={(h) => { setSel(`${platform}:${h}`); onRefresh(); }} />
               </div>
             );
             if (!a) return null;
@@ -415,44 +422,78 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
   );
 }
 
-// "+ Add account": checks the handle can be read, saves it, then the data refreshes.
-function AddAccount({ platform, onAdded }: { platform: Platform; onAdded: () => void }) {
+// "+ Add account": type a handle (or name, on YouTube) → pick the matching account
+// from the dropdown to confirm it's the right one → it's saved and read.
+type Match = { handle: string; name: string; pic?: string; followers?: number; posts?: number };
+function AddAccount({ platform, onAdded }: { platform: Platform; onAdded: (handle: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [handle, setHandle] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  const [matches, setMatches] = useState<Match[] | null>(null); // null = not searched yet
+  const [searching, setSearching] = useState(false);
+  const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const submit = async () => {
-    if (!handle.trim()) return;
-    setBusy(true); setErr("");
-    const r = await fetch("/api/seo/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform, handle }) });
-    const j = (await r.json().catch(() => ({}))) as { error?: string };
-    setBusy(false);
-    if (!r.ok) { setErr(j.error || "Couldn't add it."); return; }
-    setHandle(""); setOpen(false); onAdded();
+  const yt = platform === "youtube";
+  const term = q.trim().replace(/^@/, "");
+  const lookup = async (t: string) => {
+    setSearching(true);
+    const r = await fetch(`/api/seo/accounts?platform=${platform}&q=${encodeURIComponent(t)}`);
+    const j = (await r.json().catch(() => ({}))) as { matches?: Match[]; error?: string };
+    setMatches(j.matches || []); setErr(j.error ? readError(j.error) : ""); setSearching(false);
   };
+  // YouTube searches as they type. Instagram only on Enter / "Look up": every
+  // Instagram lookup counts against its tight hourly limit, so no half-typed names.
+  useEffect(() => {
+    setMatches(null); setErr("");
+    if (!yt || term.length < 3) return;
+    const t = setTimeout(() => lookup(term), 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term, yt]);
+  const add = async (m: Match) => {
+    setBusy(m.handle); setErr("");
+    const r = await fetch("/api/seo/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform, handle: m.handle }) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    setBusy("");
+    if (!r.ok) { setErr(j.error || "Couldn't add it."); return; }
+    setQ(""); setMatches(null); setOpen(false); onAdded(m.handle);
+  };
+  const close = () => { setOpen(false); setQ(""); setMatches(null); setErr(""); };
   if (!open) return (
     <button onClick={() => setOpen(true)} className="flex items-center justify-center gap-1.5 h-10 rounded border border-dashed border-gray-300 text-[14px] text-[#4A5468] hover:border-brand hover:text-brand">
-      <IconPlus size={15} stroke={2} />Add {platform === "youtube" ? "YouTube channel" : "Instagram account"}
+      <IconPlus size={15} stroke={2} />Add {yt ? "YouTube channel" : "Instagram account"}
     </button>
   );
   return (
     <div className="rounded border border-brand p-2.5 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <PlatformIcon p={platform} size={16} />
-        <input autoFocus value={handle} onChange={(e) => setHandle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }}
-          placeholder={platform === "youtube" ? "@channelhandle" : "@username"} className="flex-1 min-w-0 h-9 px-2.5 rounded border border-gray-200 text-[14px] outline-none focus:border-brand" />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") close(); if (e.key === "Enter") { if (matches?.length === 1) add(matches[0]); else if (!yt && term.length >= 3) lookup(term); } }}
+          placeholder={yt ? "Channel name or @handle" : "Exact username, e.g. academically.global"} className="flex-1 min-w-0 h-9 px-2.5 rounded border border-gray-200 text-[14px] outline-none focus:border-brand" />
+        {!yt && <button onClick={() => lookup(term)} disabled={term.length < 3 || searching} className="h-9 px-3 rounded bg-brand text-white text-[13px] disabled:opacity-50 flex-shrink-0">Look up</button>}
+        <button onClick={close} title="Cancel" className="w-7 h-7 grid place-items-center rounded text-[#8A92A6] hover:text-[#232D42]"><IconX size={15} stroke={2} /></button>
       </div>
-      {err && <div className="text-[12px] text-rose-600">{err}</div>}
-      {platform === "instagram" && !err && <div className="text-[12px] text-[#8A92A6]">Business or creator accounts only — Instagram doesn&apos;t share personal ones.</div>}
-      <div className="flex items-center gap-2 justify-end">
-        <button onClick={() => { setOpen(false); setErr(""); }} className="h-8 px-3 rounded text-[13px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
-        <button onClick={submit} disabled={busy || !handle.trim()} className="h-8 px-3 rounded bg-brand text-white text-[13px] disabled:opacity-50">{busy ? "Checking…" : "Add"}</button>
-      </div>
+      {(searching || matches !== null || err) && (
+        <div className="rounded border border-gray-100 bg-white divide-y divide-gray-50 max-h-[260px] overflow-y-auto">
+          {searching ? <div className="px-3 py-2 text-[13px] text-[#8A92A6]">Looking up…</div>
+            : err ? <div className="px-3 py-2 text-[12px] text-rose-600">{err}</div>
+            : !matches?.length ? <div className="px-3 py-2 text-[12px] text-[#8A92A6]">{yt ? "No channels found." : `No business or creator account called @${q.trim().replace(/^@/, "")}. Instagram needs the exact username, and personal accounts can't be read.`}</div>
+            : matches.map((m) => (
+              <button key={m.handle} onClick={() => add(m)} disabled={!!busy} className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-brand-light disabled:opacity-60">
+                {m.pic ? <img src={m.pic} alt="" referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover bg-[#F6F7FB] flex-shrink-0" /> : <span className="w-8 h-8 rounded-full bg-[#F6F7FB] flex-shrink-0" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] text-[#232D42] truncate">{m.name}</span>
+                  <span className="block text-[12px] text-[#8A92A6] truncate">@{m.handle}{m.followers != null ? ` · ${fmt(m.followers)} ${yt ? "subs" : "followers"}` : ""}{m.posts != null ? ` · ${fmt(m.posts)} ${yt ? "videos" : "posts"}` : ""}</span>
+                </span>
+                <span className="text-[12px] text-brand flex-shrink-0">{busy === m.handle ? "Adding…" : "Add"}</span>
+              </button>
+            ))}
+        </div>
+      )}
+      {!yt && matches === null && !searching && !err && <div className="text-[12px] text-[#8A92A6]">Type the exact username and press Look up — Instagram only finds business or creator accounts.</div>}
     </div>
   );
 }
 
-// For a competitor, keywords we've never used are marked, so it reads as a comparison.
 function AccountDetail({ a, ours, ourKws, onRemove }: { a: Account; ours: boolean; ourKws: Set<string>; onRemove?: () => void }) {
   const posts = useMemo(() => a.posts || [], [a]);
   const [only, setOnly] = useState<string | null>(null);

@@ -81,6 +81,33 @@ export async function addExtraAccount(platform: "instagram" | "youtube", handle:
   if (error) throw new Error(error.message);
   return name;
 }
+// "+ Add account" lookup, so the right account is picked before it's added.
+// Instagram can only look up an exact username (no search); YouTube can search.
+export type AccountMatch = { handle: string; name: string; pic?: string; followers?: number; posts?: number };
+export async function lookupAccounts(platform: "instagram" | "youtube", q: string): Promise<AccountMatch[]> {
+  if (platform === "instagram") {
+    const acc = getAccount("goocampus");
+    if (!acc) return [];
+    try {
+      const j = await igGet<{ business_discovery?: { username?: string; name?: string; profile_picture_url?: string; followers_count?: number; media_count?: number } }>(acc.igUserId,
+        { fields: `business_discovery.username(${q}){username,name,profile_picture_url,followers_count,media_count}`, access_token: acc.pageAccessToken });
+      const b = j.business_discovery;
+      return b ? [{ handle: b.username || q, name: b.name || q, pic: b.profile_picture_url, followers: b.followers_count, posts: b.media_count }] : [];
+    } catch (e) {
+      if (isRateLimit((e as Error).message)) throw e;
+      return []; // not found / personal account
+    }
+  }
+  const sr = await youtubeGet<{ items?: { snippet?: { channelId?: string } }[] }>(`search?part=snippet&type=channel&maxResults=5&q=${encodeURIComponent(q)}`);
+  const ids = (sr.items || []).map((i) => i.snippet?.channelId).filter(Boolean).join(",");
+  if (!ids) return [];
+  const ch = await youtubeGet<{ items?: { snippet?: { title?: string; customUrl?: string; thumbnails?: YtThumbs }; statistics?: { subscriberCount?: string; videoCount?: string } }[] }>(`channels?part=snippet,statistics&id=${ids}`);
+  return (ch.items || []).filter((c) => c.snippet?.customUrl).map((c) => ({
+    handle: c.snippet!.customUrl!.replace(/^@/, ""), name: c.snippet?.title || "", pic: c.snippet?.thumbnails?.default?.url,
+    followers: Number(c.statistics?.subscriberCount || 0), posts: Number(c.statistics?.videoCount || 0),
+  }));
+}
+
 export async function removeExtraAccount(platform: string, handle: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
@@ -182,11 +209,21 @@ async function loadLastGood() {
   const { data } = await sb.from("discover_cache").select("cache_key,payload").eq("source", DATA_SOURCE);
   lastGood = new Map((data || []).map((r) => [String(r.cache_key).replace(/^seo-data:/, ""), r.payload as { items: Item[]; summary: AccountSummary }]));
 }
+// Cutting a caption mid-emoji leaves half a surrogate pair, which Postgres rejects
+// as invalid JSON — drop any such halves before saving.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const wellFormed = <T,>(x: T): T => JSON.parse(JSON.stringify(x, (_k, v) => (typeof v === "string" ? v.replace(LONE_SURROGATE, "") : v)));
 async function saveLastGood() {
   const sb = getSupabase();
   if (!sb || !fresh.length) return;
   const now = new Date().toISOString();
-  await sb.from("discover_cache").upsert(fresh.map((f) => ({ cache_key: `seo-data:${f.key}`, source: DATA_SOURCE, last_fetched: now, payload: { items: f.items, summary: f.summary } })), { onConflict: "cache_key" });
+  // One row per account (a single upsert of every account's posts was too big and failed).
+  await Promise.all(fresh.map(async (f) => {
+    const { error } = await sb.from("discover_cache").upsert(
+      { cache_key: `seo-data:${f.key}`, source: DATA_SOURCE, last_fetched: now, payload: wellFormed({ items: f.items.map((i) => ({ ...i, text: i.text.slice(0, 1500) })), summary: f.summary }) },
+      { onConflict: "cache_key" });
+    if (error) console.error(`[seo] couldn't save last read of ${f.key}:`, error.message);
+  }));
 }
 // Once Instagram says the app is over its hourly limit, every further call fails too
 // and only extends it — so stop asking for the rest of this read.
