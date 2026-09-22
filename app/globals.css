@@ -519,3 +519,23 @@ html[data-theme="dark"] .preview-root [style*="solid #E9ECFB" i] { border-color:
 html[data-theme="dark"] .hmd { color: var(--ink) !important; }
 /* My Day top bar: "Started" chip and "End day" button the same size (36px, same padding). */
 .preview-scope.hmd .daychip, .preview-scope.hmd .btn.endbtn { height: 36px; padding: 0 .85em; border-radius: 9px; font-size: 12px; box-sizing: border-box; }
+/* Table headers (light: #F7F8FC !important above). */
+html[data-theme="dark"] .preview-scope table thead th { background: var(--d-panel) !important; color: var(--d-muted) !important; border-bottom-color: var(--d-line) !important; }
+html[data-theme="dark"] .preview-scope table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+/* Tint classes with an opacity suffix (bg-amber-50/50 …) and the -100 borders/dividers. */
+html[data-theme="dark"] [class*="bg-amber-50/"], html[data-theme="dark"] .bg-amber-100 { background-color: rgba(183,121,31,.12) !important; }
+html[data-theme="dark"] [class*="bg-rose-50/"], html[data-theme="dark"] [class*="bg-red-50/"], html[data-theme="dark"] .bg-rose-100, html[data-theme="dark"] .bg-red-100 { background-color: rgba(192,57,43,.12) !important; }
+html[data-theme="dark"] [class*="bg-emerald-50/"], html[data-theme="dark"] [class*="bg-green-50/"], html[data-theme="dark"] .bg-emerald-100 { background-color: rgba(47,158,111,.12) !important; }
+html[data-theme="dark"] [class*="bg-gray-50/"], html[data-theme="dark"] [class*="bg-white/"] { background-color: var(--d-panel) !important; }
+html[data-theme="dark"] .border-amber-100, html[data-theme="dark"] .divide-amber-100 > * + * { border-color: rgba(183,121,31,.25) !important; }
+html[data-theme="dark"] .border-rose-100, html[data-theme="dark"] .border-red-100, html[data-theme="dark"] .border-emerald-100 { border-color: var(--d-line) !important; }
+/* Marketing Hub status pills + calendar chips (STATUS_TINT in MarketingHub.tsx). */
+html[data-theme="dark"] {
+  --st-pending-bg:rgba(148,160,184,.16);  --st-pending-fg:#C2C8D6;  --st-pending-bd:rgba(148,160,184,.3);
+  --st-approved-bg:rgba(214,158,46,.16);  --st-approved-fg:#E7BD6E; --st-approved-bd:rgba(214,158,46,.34);
+  --st-inprog-bg:rgba(226,112,84,.16);    --st-inprog-fg:#F0A28C;   --st-inprog-bd:rgba(226,112,84,.34);
+  --st-feedback-bg:rgba(221,82,116,.16);  --st-feedback-fg:#F29AB0; --st-feedback-bd:rgba(221,82,116,.34);
+  --st-ready-bg:rgba(77,142,222,.18);     --st-ready-fg:#8DB9F0;    --st-ready-bd:rgba(77,142,222,.36);
+  --st-topublish-bg:rgba(52,168,122,.16); --st-topublish-fg:#72D2A8;--st-topublish-bd:rgba(52,168,122,.34);
+  --st-published-bg:rgba(124,112,232,.18);--st-published-fg:#ABA2F5;--st-published-bd:rgba(124,112,232,.36);
+}

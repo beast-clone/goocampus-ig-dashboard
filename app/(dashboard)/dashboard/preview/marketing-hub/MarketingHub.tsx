@@ -168,15 +168,16 @@ const PIPELINE_STAGES = [
 // tinted from its PIPELINE_STAGES dot, so a status reads identically in the
 // Pipeline (dot), Master sheet (pill) and Calendar (bar). Was 3 separate maps.
 const STATUS_TINT: Record<string, { bg: string; text: string; border: string }> = {
-  "Content - Pending":    { bg: "#EEF1F5", text: "#46505F", border: "#DCE1E8" }, // slate
-  "Content - Approved":   { bg: "#FBF3E6", text: "#8A5D1E", border: "#EFDFC2" }, // amber
-  "Output - In Progress": { bg: "#FBEEEA", text: "#9B4A36", border: "#F1D6CD" }, // coral
-  "Incorporating Feedback": { bg: "#FCEAEE", text: "#9B2D45", border: "#F3D2DA" }, // rose — rework
-  "Output - Ready":       { bg: "#EBF2FA", text: "#244D82", border: "#D2E0F1" }, // blue
-  "Ready to Publish":     { bg: "#E9F6F0", text: "#1F7256", border: "#CCEADD" }, // green
-  "Published/Scheduled":  { bg: "#EFEEFA", text: "#423B94", border: "#DAD7F2" }, // purple
+  "Content - Pending":    { bg: "var(--st-pending-bg, #EEF1F5)", text: "var(--st-pending-fg, #46505F)", border: "var(--st-pending-bd, #DCE1E8)" }, // slate
+  "Content - Approved":   { bg: "var(--st-approved-bg, #FBF3E6)", text: "var(--st-approved-fg, #8A5D1E)", border: "var(--st-approved-bd, #EFDFC2)" }, // amber
+  "Output - In Progress": { bg: "var(--st-inprog-bg, #FBEEEA)", text: "var(--st-inprog-fg, #9B4A36)", border: "var(--st-inprog-bd, #F1D6CD)" }, // coral
+  "Incorporating Feedback": { bg: "var(--st-feedback-bg, #FCEAEE)", text: "var(--st-feedback-fg, #9B2D45)", border: "var(--st-feedback-bd, #F3D2DA)" }, // rose — rework
+  "Output - Ready":       { bg: "var(--st-ready-bg, #EBF2FA)", text: "var(--st-ready-fg, #244D82)", border: "var(--st-ready-bd, #D2E0F1)" }, // blue
+  "Ready to Publish":     { bg: "var(--st-topublish-bg, #E9F6F0)", text: "var(--st-topublish-fg, #1F7256)", border: "var(--st-topublish-bd, #CCEADD)" }, // green
+  "Published/Scheduled":  { bg: "var(--st-published-bg, #EFEEFA)", text: "var(--st-published-fg, #423B94)", border: "var(--st-published-bd, #DAD7F2)" }, // purple
 };
-const STATUS_TINT_FALLBACK = { bg: "#F1F3F8", text: "#5B6472", border: "#D3D8E1" };
+const STATUS_TINT_FALLBACK = { bg: "var(--st-pending-bg, #F1F3F8)", text: "var(--st-pending-fg, #5B6472)", border: "var(--st-pending-bd, #D3D8E1)" };
+// (bg/text/border read --st-* vars, set only in the dark theme — globals.css.)
 
 export function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -1227,12 +1228,17 @@ function calStatusStyle(s: string): { bg: string; text: string; border: string }
 // the card (‹ › Today · title · Month/Week/Day/List), taller cells. Tokens hardcoded to the
 // PreviewShell values since the Marketing Hub renders under PreviewDashboardShell.
 const MHCAL_CSS = `
-.mhcal-daynum{display:flex;align-items:center;justify-content:space-between;min-height:22px}
-.mhcal-add{opacity:0;width:20px;height:20px;border-radius:6px;border:1px solid #E9ECFB;background:#fff;color:#3A57E8;font-size:14px;line-height:1;display:inline-grid;place-items:center;cursor:pointer;transition:opacity .12s}
-.mhcal-cell:hover .mhcal-add,.mhcal-weekcol:hover .mhcal-add{opacity:1}
-.mhcal-add:hover{background:#E9ECFB}
+.mhcal{--cal-panel:#fff;--cal-panel2:#F7F8FC;--cal-raised:#EDEFF5;--cal-line:#EEF0F4;--cal-line2:#F3F5F9;--cal-line3:#D3D8E1;
+  --cal-ink:#232D42;--cal-ink2:#4A5468;--cal-muted:#8A92A6;--cal-faint:#A6ACBE;--cal-brandsoft:#E9ECFB;--cal-brandsoft2:#DFE3FA}
+html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-raised:#272C3E;--cal-line:#2C3246;--cal-line2:#262B3C;--cal-line3:#3A4159;
+  --cal-ink:#E8EBF3;--cal-ink2:#C2C8D6;--cal-muted:#959DB1;--cal-faint:#6F778C;--cal-brandsoft:#2C3666;--cal-brandsoft2:#2C3666}
 
-.mhcal{color:#232D42}
+.mhcal-daynum{display:flex;align-items:center;justify-content:space-between;min-height:22px}
+.mhcal-add{opacity:0;width:20px;height:20px;border-radius:6px;border:1px solid var(--cal-brandsoft);background:var(--cal-panel);color:#3A57E8;font-size:14px;line-height:1;display:inline-grid;place-items:center;cursor:pointer;transition:opacity .12s}
+.mhcal-cell:hover .mhcal-add,.mhcal-weekcol:hover .mhcal-add{opacity:1}
+.mhcal-add:hover{background:var(--cal-brandsoft)}
+
+.mhcal{color:var(--cal-ink)}
 .mhcal button{font-family:inherit;cursor:pointer}
 /* Hero band — indigo→violet ramp, distinct from the publishing calendar's blue */
 .mhcal-hero{position:relative;background:linear-gradient(115deg,#4C4CE2 0%,#6F5BEA 50%,#8B6DF2 100%);border-radius:16px;padding:1.35rem 1.7rem 3.2rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
@@ -1246,48 +1252,48 @@ const MHCAL_CSS = `
 .mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
 .mhcal-hero-statl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.82)}
 /* Title card, pulled up to overlap the hero — mirrors the reference's "Calendar" card */
-.mhcal-titlecard{position:relative;z-index:2;margin:0;background:#fff;border:1px solid #EEF0F4;border-radius:14px;padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.mhcal-titlecard{position:relative;z-index:2;margin:0;background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:14px;padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .mhcal-tc-right{display:flex;align-items:center;gap:1rem}
-.mhcal-tc-count{font-size:.8rem;font-weight:600;color:#8A92A6}
-.mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:#232D42;letter-spacing:-.012em}
-.mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:#8A92A6}
+.mhcal-tc-count{font-size:.8rem;font-weight:600;color:var(--cal-muted)}
+.mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--cal-ink);letter-spacing:-.012em}
+.mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:var(--cal-muted)}
 .mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
 /* Brand filter — pill chips, one-click SBU isolate */
-.mhcal-brands{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;padding:.65rem .8rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;overflow-x:auto;scrollbar-width:thin}
+.mhcal-brands{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;padding:.65rem .8rem;background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:12px;overflow-x:auto;scrollbar-width:thin}
 .mhcal-brands::-webkit-scrollbar{height:6px}
-.mhcal-brands::-webkit-scrollbar-thumb{background:#D3D8E1;border-radius:3px}
-.mhcal-brands-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:#A6ACBE;font-weight:700;padding-right:.5rem;flex:0 0 auto}
-.mhcal-brand{display:inline-flex;align-items:center;gap:.42rem;padding:.4rem .78rem;border-radius:99px;background:#F7F8FC;color:#4A5468;font-size:.75rem;font-weight:500;border:1px solid transparent;flex:0 0 auto;transition:.15s;white-space:nowrap}
-.mhcal-brand:hover{background:#EDEFF5;color:#232D42}
-.mhcal-brand.on{background:#232D42;color:#fff}
+.mhcal-brands::-webkit-scrollbar-thumb{background:var(--cal-line3);border-radius:3px}
+.mhcal-brands-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:var(--cal-faint);font-weight:700;padding-right:.5rem;flex:0 0 auto}
+.mhcal-brand{display:inline-flex;align-items:center;gap:.42rem;padding:.4rem .78rem;border-radius:99px;background:var(--cal-panel2);color:var(--cal-ink2);font-size:.75rem;font-weight:500;border:1px solid transparent;flex:0 0 auto;transition:.15s;white-space:nowrap}
+.mhcal-brand:hover{background:var(--cal-raised);color:var(--cal-ink)}
+.mhcal-brand.on{background:var(--cal-ink);color:#fff}
 .mhcal-brand .bdot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
 .mhcal-brand .bcount{opacity:.7;font-weight:500;font-size:.68rem;font-variant-numeric:tabular-nums}
 .mhcal-brand.on .bcount{opacity:.85}
 /* Calendar card + toolbar (toolbar INSIDE the card, like the reference) */
-.mhcal-card{background:#fff;border:1px solid #EEF0F4;border-radius:16px;box-shadow:0 10px 30px rgba(35,45,66,.06);overflow:hidden;margin-top:.9rem}
+.mhcal-card{background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:16px;box-shadow:0 10px 30px rgba(35,45,66,.06);overflow:hidden;margin-top:.9rem}
 .mhcal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;flex-wrap:wrap}
 .mhcal-nav{display:flex;align-items:center;gap:.4rem}
 .mhcal-navbtn{width:40px;height:36px;border-radius:4px;border:none;background:#3A57E8;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(58,87,232,.22)}
 .mhcal-navbtn:hover{background:#2f49c9}
-.mhcal-today{border:none;background:#E9ECFB;color:#2138B0;font-weight:500;font-size:14px;height:36px;padding:0 12px;border-radius:4px;margin-left:.2rem}
-.mhcal-today:hover{background:#dfe3fa}
-.mhcal-title{font-size:1.35rem;font-weight:700;color:#232D42;text-align:center;flex:1;min-width:180px}
-.mhcal-views{display:flex;align-items:stretch;height:36px;overflow:hidden;background:#F7F8FC;border:1px solid #EEF0F4;border-radius:4px;padding:0;gap:0}
-.mhcal-viewbtn{border:none;background:none;font-size:12px;font-weight:500;color:#4A5468;padding:0 14px;border-radius:0}
-.mhcal-viewbtn:hover{color:#232D42}
+.mhcal-today{border:none;background:var(--cal-brandsoft);color:#2138B0;font-weight:500;font-size:14px;height:36px;padding:0 12px;border-radius:4px;margin-left:.2rem}
+.mhcal-today:hover{background:var(--cal-brandsoft2)}
+.mhcal-title{font-size:1.35rem;font-weight:700;color:var(--cal-ink);text-align:center;flex:1;min-width:180px}
+.mhcal-views{display:flex;align-items:stretch;height:36px;overflow:hidden;background:var(--cal-panel2);border:1px solid var(--cal-line);border-radius:4px;padding:0;gap:0}
+.mhcal-viewbtn{border:none;background:none;font-size:12px;font-weight:500;color:var(--cal-ink2);padding:0 14px;border-radius:0}
+.mhcal-viewbtn:hover{color:var(--cal-ink)}
 .mhcal-viewbtn.on{background:#3A57E8;color:#fff;box-shadow:0 3px 8px rgba(58,87,232,.24)}
 /* month grid */
-.mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4;background:#F7F8FC}
-.mhcal-dow span{padding:.55rem .6rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A92A6;border-right:1px solid #EEF0F4}
+.mhcal-dow{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--cal-line);background:var(--cal-panel2)}
+.mhcal-dow span{padding:.55rem .6rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--cal-muted);border-right:1px solid var(--cal-line)}
 .mhcal-dow span:last-child{border-right:none}
 .mhcal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(134px,1fr)}
-.mhcal-cell{border-right:1px solid #EEF0F4;border-top:1px solid #EEF0F4;padding:.35rem;position:relative;min-width:0;transition:background .15s}
+.mhcal-cell{border-right:1px solid var(--cal-line);border-top:1px solid var(--cal-line);padding:.35rem;position:relative;min-width:0;transition:background .15s}
 .mhcal-cell:nth-child(7n){border-right:none}
-.mhcal-cell.out{background:#F7F8FC}
+.mhcal-cell.out{background:var(--cal-panel2)}
 .mhcal-cell.today{background:rgba(58,87,232,.05)}
 .mhcal-cell.over{background:rgba(58,87,232,.10);box-shadow:inset 0 0 0 2px rgba(58,87,232,.35)}
-.mhcal-daynum{text-align:right;font-size:12px;font-weight:600;color:#4A5468;padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
-.mhcal-cell.out .mhcal-daynum{color:#A6ACBE}
+.mhcal-daynum{text-align:right;font-size:12px;font-weight:600;color:var(--cal-ink2);padding:.05rem .25rem .2rem;font-variant-numeric:tabular-nums}
+.mhcal-cell.out .mhcal-daynum{color:var(--cal-faint)}
 .mhcal-cell.today .mhcal-dnum{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#3A57E8;color:#fff}
 .mhcal-events{display:flex;flex-direction:column;gap:3px;clear:both}
 /* Event bar — soft-tinted fill + matching border + DARK readable text (matches the
@@ -1298,41 +1304,41 @@ const MHCAL_CSS = `
 .mhcal-ev.block .mhcal-evtitle{white-space:normal}
 .mhcal-evdot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
 .mhcal-evtitle{font-size:12px;line-height:16px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;letter-spacing:-.006em}
-.mhcal-more{border:none;background:none;font-size:12px;color:#8A92A6;text-align:left;padding:2px 6px;font-weight:600}
+.mhcal-more{border:none;background:none;font-size:12px;color:var(--cal-muted);text-align:left;padding:2px 6px;font-weight:600}
 .mhcal-more:hover{color:#3A57E8}
 /* week */
-.mhcal-week{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #EEF0F4}
-.mhcal-weekcol{border-right:1px solid #EEF0F4;min-height:360px;transition:background .15s}
+.mhcal-week{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--cal-line)}
+.mhcal-weekcol{border-right:1px solid var(--cal-line);min-height:360px;transition:background .15s}
 .mhcal-weekcol:last-child{border-right:none}
 .mhcal-weekcol.today{background:rgba(58,87,232,.04)}
 .mhcal-weekcol.over{background:rgba(58,87,232,.09);box-shadow:inset 0 0 0 2px rgba(58,87,232,.3)}
-.mhcal-weekhead{display:flex;flex-direction:column;align-items:center;gap:2px;padding:.5rem;border-bottom:1px solid #EEF0F4}
-.mhcal-weekdow{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8A92A6}
-.mhcal-weeknum{font-size:1rem;font-weight:700;color:#232D42}
+.mhcal-weekhead{display:flex;flex-direction:column;align-items:center;gap:2px;padding:.5rem;border-bottom:1px solid var(--cal-line)}
+.mhcal-weekdow{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--cal-muted)}
+.mhcal-weeknum{font-size:1rem;font-weight:700;color:var(--cal-ink)}
 .mhcal-weeknum.today{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#3A57E8;color:#fff}
 .mhcal-weekbody{display:flex;flex-direction:column;gap:4px;padding:.45rem}
-.mhcal-empty{color:#A6ACBE;font-size:.78rem;text-align:center;padding-top:.6rem}
+.mhcal-empty{color:var(--cal-faint);font-size:.78rem;text-align:center;padding-top:.6rem}
 /* day */
-.mhcal-day{border-top:1px solid #EEF0F4;padding:.7rem 1rem 1rem}
-.mhcal-dayrow{display:flex;align-items:center;gap:.8rem;width:100%;text-align:left;border-bottom:1px solid #F3F5F9;padding:.55rem .2rem}
-.mhcal-dayempty{padding:2.5rem 1rem;text-align:center;color:#8A92A6;font-size:.85rem}
+.mhcal-day{border-top:1px solid var(--cal-line);padding:.7rem 1rem 1rem}
+.mhcal-dayrow{display:flex;align-items:center;gap:.8rem;width:100%;text-align:left;border-bottom:1px solid var(--cal-line2);padding:.55rem .2rem}
+.mhcal-dayempty{padding:2.5rem 1rem;text-align:center;color:var(--cal-muted);font-size:.85rem}
 /* list / agenda */
-.mhcal-agenda{border-top:1px solid #EEF0F4;padding:.4rem 0}
-.mhcal-agroup{display:flex;gap:1rem;padding:.7rem 1.1rem;border-bottom:1px solid #F3F5F9}
+.mhcal-agenda{border-top:1px solid var(--cal-line);padding:.4rem 0}
+.mhcal-agroup{display:flex;gap:1rem;padding:.7rem 1.1rem;border-bottom:1px solid var(--cal-line2)}
 .mhcal-adate{display:flex;flex-direction:column;align-items:center;flex:0 0 46px;padding-top:.2rem}
-.mhcal-adow{font-size:.6rem;font-weight:700;text-transform:uppercase;color:#8A92A6}
-.mhcal-aday{font-size:1.25rem;font-weight:800;color:#232D42;line-height:1.1}
-.mhcal-amon{font-size:.6rem;color:#A6ACBE;text-transform:uppercase}
+.mhcal-adow{font-size:.6rem;font-weight:700;text-transform:uppercase;color:var(--cal-muted)}
+.mhcal-aday{font-size:1.25rem;font-weight:800;color:var(--cal-ink);line-height:1.1}
+.mhcal-amon{font-size:.6rem;color:var(--cal-faint);text-transform:uppercase}
 .mhcal-aitems{flex:1;display:flex;flex-direction:column;gap:.35rem}
 .mhcal-arow{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:none;padding:.3rem .1rem;border-radius:8px}
-.mhcal-arow:hover{background:#F7F8FC}
+.mhcal-arow:hover{background:var(--cal-panel2)}
 .mhcal-abar{width:4px;height:26px;border-radius:2px;flex:0 0 4px}
-.mhcal-atitle{font-size:.86rem;font-weight:500;color:#232D42;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mhcal-atitle{font-size:.86rem;font-weight:500;color:var(--cal-ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mhcal-apill{font-size:.62rem;font-weight:600;padding:.1rem .45rem;border-radius:20px;flex:0 0 auto}
-.mhcal-aowner{font-size:.68rem;color:#8A92A6;flex:0 0 auto}
+.mhcal-aowner{font-size:.68rem;color:var(--cal-muted);flex:0 0 auto}
 @media(max-width:640px){.mhcal-apill,.mhcal-aowner{display:none}}
 /* Status legend — compact strip so the bar colour→meaning is obvious */
-.mhcal-slegend{margin-top:.75rem;padding:.7rem 1rem;background:#fff;border:1px solid #EEF0F4;border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;font-size:.72rem;color:#4A5468;font-weight:500}
+.mhcal-slegend{margin-top:.75rem;padding:.7rem 1rem;background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;font-size:.72rem;color:var(--cal-ink2);font-weight:500}
 .mhcal-slegend-item{display:inline-flex;align-items:center;gap:.45rem}
 .mhcal-slegend-chip{width:14px;height:14px;border-radius:4px;border:1px solid;flex:0 0 14px}
 `;
