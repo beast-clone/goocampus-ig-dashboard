@@ -154,31 +154,43 @@ function Generator() {
     <Card icon={<IconSparkles size={17} stroke={1.8} />} title="Generate keywords"
       sub="Paste an Instagram caption or a YouTube script — get keywords and hashtags to copy into the post."
       right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setOut(null); }} />}>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5}
-        placeholder={platform === "youtube" ? "Paste the video script or description…" : "Paste the post caption…"}
-        className="w-full rounded border border-gray-200 px-3 py-2 text-[14px] outline-none focus:border-brand resize-y" />
-      <div className="flex items-center gap-3 mt-3">
-        <button onClick={run} disabled={busy || text.trim().length < 20}
-          className="h-9 px-4 rounded bg-brand text-white text-[14px] font-medium inline-flex items-center gap-1.5 hover:brightness-110 disabled:opacity-40">
-          <IconSparkles size={16} stroke={1.8} />{busy ? "Generating…" : "Generate keywords"}
-        </button>
-        <span className="text-[12px] text-[#8A92A6]">Uses what&apos;s working on doctor-education {platform === "youtube" ? "YouTube" : "Instagram"} today.</span>
-      </div>
-      {err && <div className="mt-3 rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{err}</div>}
-      {groups.length > 0 && (
-        <div className="mt-4 space-y-4">
-          {groups.map((g) => (
-            <div key={g.label}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">{g.label}</div>
-                <CopyButton text={g.items.join(g.join)} label="Copy all" />
-              </div>
-              <div className="flex flex-wrap gap-2">{g.items.map((x) => <Chip key={x} text={x} />)}</div>
-            </div>
-          ))}
-          <div className="text-[12px] text-[#8A92A6]">Click any chip to copy just that one.</div>
+      {/* Caption on the left, results on the right. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="flex flex-col">
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12}
+            placeholder={platform === "youtube" ? "Paste the video script or description…" : "Paste the post caption…"}
+            className="w-full flex-1 min-h-[260px] rounded border border-gray-200 px-3 py-2 text-[14px] outline-none focus:border-brand resize-y" />
+          <div className="flex items-center gap-3 mt-3">
+            <button onClick={run} disabled={busy || text.trim().length < 20}
+              className="h-9 px-4 rounded bg-brand text-white text-[14px] font-medium inline-flex items-center gap-1.5 hover:brightness-110 disabled:opacity-40 flex-shrink-0">
+              <IconSparkles size={16} stroke={1.8} />{busy ? "Generating…" : "Generate keywords"}
+            </button>
+            <span className="text-[12px] text-[#8A92A6]">Uses what&apos;s working on doctor-education {platform === "youtube" ? "YouTube" : "Instagram"} today.</span>
+          </div>
         </div>
-      )}
+        <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-4 min-h-[260px]">
+          {err ? <div className="rounded bg-[#FDECEA] text-[#8a2e28] text-[14px] px-3 py-2">{err}</div>
+            : busy ? <div className="h-full grid place-items-center text-[14px] text-[#8A92A6]">Generating keywords…</div>
+            : groups.length === 0 ? (
+              <div className="h-full grid place-items-center text-center text-[14px] text-[#8A92A6] px-6">
+                <div><IconSparkles size={22} stroke={1.6} className="mx-auto mb-2 text-brand" />Paste a {platform === "youtube" ? "script" : "caption"} on the left and press Generate — keywords{platform === "youtube" ? ", tags and title ideas" : " and hashtags"} show up here.</div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {groups.map((g) => (
+                  <div key={g.label}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[12px] font-medium text-[#8A92A6] uppercase tracking-wide">{g.label}</div>
+                      <CopyButton text={g.items.join(g.join)} label="Copy all" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">{g.items.map((x) => <Chip key={x} text={x} />)}</div>
+                  </div>
+                ))}
+                <div className="text-[12px] text-[#8A92A6]">Click any chip to copy just that one.</div>
+              </div>
+            )}
+        </div>
+      </div>
     </Card>
   );
 }
