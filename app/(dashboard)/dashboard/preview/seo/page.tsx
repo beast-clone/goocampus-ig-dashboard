@@ -189,7 +189,7 @@ function Trending({ data }: { data: Data }) {
   }, [data, platform]);
   const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   return (
-    <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Doctor keywords by topic"
+    <Card icon={<IconTrendingUp size={17} stroke={1.8} />} title="Keywords by topic"
       sub={`What the ${tracked} accounts we track use, grouped by topic — best first (more accounts using it, better-performing posts). Copy a whole group, or tap keywords to build your own set.`}
       right={<PlatformToggle value={platform} onChange={(p) => { setPlatform(p); setPicked([]); setOpen(null); }} />}>
       {/* Selection bar — stays visible while picking across groups */}
@@ -337,7 +337,7 @@ function Competitors({ data, onRefresh }: { data: Data; onRefresh: () => void })
             {a.platform === "instagram" ? <IconBrandInstagram size={18} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" /> : <IconBrandYoutube size={18} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />}
             <div className="min-w-0 flex-1">
               <div className="text-[14px] text-[#232D42] truncate">{a.name || a.account}</div>
-              <div className="text-[12px] text-[#8A92A6] truncate">@{a.account}{a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""}</div>
+              <div className="text-[12px] text-[#8A92A6] truncate">@{a.account.replace(/^@/, "")}{a.followers != null ? ` · ${fmt(a.followers)} ${a.platform === "youtube" ? "subscribers" : "followers"}` : ""}</div>
             </div>
             {a.error
               ? <span className="text-[12px] text-rose-600 inline-flex items-center gap-1" title={a.error}><IconAlertTriangle size={14} stroke={1.8} />Couldn&apos;t read</span>
