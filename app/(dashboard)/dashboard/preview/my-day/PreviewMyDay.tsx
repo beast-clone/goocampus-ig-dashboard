@@ -1838,6 +1838,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       .sort((a, b) => (PR[a.detail.priority] - PR[b.detail.priority]) || (a.due || "9999").localeCompare(b.due || "9999"));
   }, [workingTasks, taskTab]);
   const task = shownTasks[sel] || shownTasks[0] || null;
+  // A claimable video opened for a look before claiming (Nandu: "I want to open and
+  // see the task"). Shown in the detail panel, read-only, with a Claim button.
+  const [peekId, setPeekId] = useState<string | null>(null);
   // Claimable videos show INLINE in each editor's Content-Approved tab (spec §8) —
   // both Nandu and Nikhil see the same pool; first to claim owns it.
   const claimableHere = useMemo(
@@ -2831,7 +2834,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
               {tabCounts.map((tb) => (
                 // Short names: four full status names don't fit this column (the last
                 // tab was clipped). The full name is the tooltip.
-                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); }}>
+                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); setPeekId(null); }}>
                   {tb.short}<span className="task-tab-n">{tb.n}</span>
                 </button>
               ))}
@@ -2843,7 +2846,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={() => setSel(i)}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={() => { setSel(i); setPeekId(null); }}>
                     <div className="task-top">
                       <div className="tt">{t.title}</div>
                       <DueChip due={t.due} today={todayStr} />
@@ -2862,14 +2865,15 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
               {claimableHere.map((v) => {
                 const confirming = claimConfirm === v.id;
                 return (
-                  <div key={v.id} className="task" style={{ borderStyle: "dashed", borderColor: "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem" }}>
+                  <div key={v.id} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={() => setPeekId(v.id)} title="Open to see the task"
+                    style={{ borderStyle: "dashed", borderColor: peekId === v.id ? undefined : "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem", cursor: "pointer" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="tt">{v.title}</div>
                       <div className="mm">{v.detail.typeLine} · up for grabs — Nandu or Nikhil</div>
                       {!confirming ? (
                         <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C", display: "inline-block", marginTop: ".45rem" }}>Claimable</span>
                       ) : person === "nikhil" ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".45rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: ".4rem", marginTop: ".45rem" }} onClick={(e) => e.stopPropagation()}>
                           <span className="lbl">How will you work it?</span>
                           <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
                             <button className="btn primary sm" onClick={() => confirmClaim(v, "present")}>Present on camera</button>
@@ -2879,7 +2883,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".45rem" }}>
+                        <div style={{ display: "flex", gap: ".35rem", alignItems: "center", marginTop: ".45rem" }} onClick={(e) => e.stopPropagation()}>
                           <span className="lbl">Claim this?</span>
                           <button className="btn primary sm" onClick={() => confirmClaim(v)}>Yes, it&apos;s mine</button>
                           <button className="btn sm" onClick={() => setClaimConfirm(null)}>No</button>
@@ -2889,7 +2893,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
                     {/* Due + Claim stacked on the RIGHT so the action is clear (user request). */}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: ".55rem", flexShrink: 0 }}>
                       <DueChip due={v.due} today={todayStr} />
-                      {!confirming && <button className="btn primary sm" onClick={() => setClaimConfirm(v.id)}>Claim</button>}
+                      {!confirming && <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); setClaimConfirm(v.id); }}>Claim</button>}
                     </div>
                   </div>
                 );
@@ -2898,11 +2902,19 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
           </div>
 
           <div className="card pad detail">
-            {task ? (
+            {(() => { const peek = peekId ? claimableHere.find((v) => v.id === peekId) : null; return peek ? (
+              <>
+                <div className="nt-assign" style={{ marginBottom: ".8rem", justifyContent: "space-between" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: ".5rem" }}><span className="status-dot" style={{ background: "#1AA053" }} />Up for grabs — not yours yet. Claim it to start working on it.</span>
+                  {claimConfirm !== peek.id && <button className="btn primary sm" onClick={() => setClaimConfirm(peek.id)}>Claim</button>}
+                </div>
+                <TaskBody task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
+              </>
+            ) : null; })() || (task ? (
               <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(0); load(); }} />
             ) : (
               <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
-            )}
+            ))}
           </div>
         </div>
 
