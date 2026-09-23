@@ -154,6 +154,15 @@ function blockColor(type: string): { bg: string; fg: string } {
   return { bg: "#E1F5EE", fg: "#0F6E56" };                                   // teal — writing/other
 }
 
+// Every status a task can be moved to. PIPELINE_STAGES is the BOARD (the columns
+// people drag between); this list is what /api/marketing-hub/update will accept,
+// which also includes "Content - In Progress" — a real stage that has no column.
+// Anything outside this set is rejected by the API with a 400.
+const STATUS_CHOICES = [
+  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
+  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+];
+
 // Muted, cohesive stage palette (all one tone — no neon, no harsh navy).
 const PIPELINE_STAGES = [
   { key: "Content - Pending",     label: "Content Pending",     color: "#94A3B8" },
@@ -1304,6 +1313,16 @@ html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-ra
 .mhcal-ev:active{cursor:grabbing}
 .mhcal-ev.block .mhcal-evtitle{white-space:normal}
 .mhcal-evdot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
+/* Hover card. The browser's own title tooltip is a black bar in the OS font that
+   ignores the theme — and since the chips lost their brand square it is the only
+   place the brand shows, so it had to look like the rest of the dashboard. */
+.mhcal-tip{position:fixed;z-index:60;width:264px;background:var(--cal-panel,#fff);border:1px solid var(--cal-line,#EEF0F4);border-radius:12px;padding:10px 12px;pointer-events:none;font-size:12px;line-height:17px}
+.mhcal-tip-title{font-size:13px;font-weight:500;color:var(--cal-ink,#232D42);margin-bottom:6px}
+.mhcal-tip-row{display:flex;gap:8px;align-items:baseline}
+.mhcal-tip-k{width:56px;flex:0 0 56px;color:var(--cal-muted,#8A92A6)}
+.mhcal-tip-v{flex:1;min-width:0;color:var(--cal-ink2,#4A5468)}
+.mhcal-tip-status{display:inline-block;border:1px solid;border-radius:999px;padding:0 7px;font-size:11px;line-height:17px}
+.mhcal-tip-hint{margin-top:7px;padding-top:6px;border-top:1px solid var(--cal-line,#EEF0F4);color:var(--cal-muted,#8A92A6)}
 .mhcal-evtitle{font-size:12px;line-height:16px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;letter-spacing:-.006em}
 .mhcal-more{border:none;background:none;font-size:12px;color:var(--cal-muted);text-align:left;padding:2px 6px;font-weight:600}
 .mhcal-more:hover{color:#3A57E8}
@@ -1367,6 +1386,11 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const [activeBrand, setActiveBrand] = useState<string>("");
   const [channel, setChannel] = useState<CalChannel>("all");
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
+  // A day showing every task instead of the first four. Creating a task on a busy
+  // day used to file it behind "+1 more", so it looked like nothing was added
+  // ("I am creating a task in the calendar it doesn't show up" — Manya, 23 Sep).
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [tip, setTip] = useState<{ r: Row; x: number; y: number } | null>(null);
   const me = useApi<{ user?: { isAdmin?: boolean; permissions?: Record<string, boolean> } }>("/api/me");
   const canCreate = !!(me.data?.user?.isAdmin || me.data?.user?.permissions?.create_tasks);
   const [view, setView] = useState<CalView>("month");
@@ -1485,11 +1509,16 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         draggable
         onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
         onClick={() => onOpen(r.id)}
-        title={`${r.particulars} · ${r.type} · ${r.sbu} · ${r.owner || "—"} — drag to reschedule`}
+        onMouseEnter={(e) => { const b = e.currentTarget.getBoundingClientRect(); setTip({ r, x: b.left, y: b.bottom + 6 }); }}
+        onMouseLeave={() => setTip((t) => (t?.r.id === r.id ? null : t))}
+        onDragEnd={() => setTip(null)}
         className={`mhcal-ev${block ? " block" : ""}`}
         style={{ background: st.bg, borderColor: st.border, color: st.text }}
       >
-        <span className="mhcal-evdot" style={{ background: sbuColor(r.sbu, allSbus) }} />
+        {/* Just the title. The chip is already tinted by status (with a legend
+            below), so a second brand-coloured square only made the grid busy
+            — "no need for the coloured tiny boxes ... it is looking a bit messy"
+            (Manya, 23 Sep). Brand is still in the hover tooltip and the SBU filter. */}
         <span className="mhcal-evtitle">{r.particulars || "(untitled)"}</span>
       </button>
     );
@@ -1557,10 +1586,10 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                     onDrop={(e) => dropOn(e, key)}>
                     <div className="mhcal-daynum"><span className="mhcal-dnum">{cell.date.getDate()}</span>{AddBtn(key)}</div>
                     <div className="mhcal-events">
-                      {bars.slice(0, 4)}
+                      {expandedDay === key ? bars : bars.slice(0, 4)}
                       {bars.length > 4 && (
-                        <button className="mhcal-more" onClick={() => { setAnchor(cell.date); setView("day"); }}>
-                          +{bars.length - 4} more
+                        <button className="mhcal-more" onClick={() => setExpandedDay(expandedDay === key ? null : key)}>
+                          {expandedDay === key ? "Show less" : `+${bars.length - 4} more`}
                         </button>
                       )}
                     </div>
@@ -1649,9 +1678,34 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
           })}
         </div>
       )}
+      {tip && (() => {
+        // Keep the card on screen: flip left near the right edge, above near the bottom.
+        const W = 264, H = 150;
+        const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+        const vh = typeof window === "undefined" ? 800 : window.innerHeight;
+        const left = Math.max(8, Math.min(tip.x, vw - W - 8));
+        const top = tip.y + H > vh ? Math.max(8, tip.y - H - 14) : tip.y;
+        const st = calStatusStyle(tip.r.status);
+        return (
+          <div className="mhcal-tip" style={{ left, top }} role="tooltip">
+            <div className="mhcal-tip-title">{tip.r.particulars || "(untitled)"}</div>
+            {tip.r.status && (
+              <div className="mhcal-tip-row" style={{ marginBottom: 5 }}>
+                <span className="mhcal-tip-k">Status</span>
+                <span className="mhcal-tip-status" style={{ background: st.bg, borderColor: st.border, color: st.text }}>{tip.r.status}</span>
+              </div>
+            )}
+            <div className="mhcal-tip-row"><span className="mhcal-tip-k">Brand</span><span className="mhcal-tip-v">{tip.r.sbu || "—"}</span></div>
+            <div className="mhcal-tip-row"><span className="mhcal-tip-k">Format</span><span className="mhcal-tip-v">{tip.r.type || "—"}</span></div>
+            <div className="mhcal-tip-row"><span className="mhcal-tip-k">Owner</span><span className="mhcal-tip-v">{tip.r.owner || "—"}</span></div>
+            <div className="mhcal-tip-hint">Click to open · drag to reschedule</div>
+          </div>
+        );
+      })()}
       <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />
       {createDate && (
-        <NewTaskModal facets={facets} onClose={() => setCreateDate(null)} onCreated={onSaved}
+        <NewTaskModal facets={facets} onClose={() => setCreateDate(null)}
+          onCreated={() => { setExpandedDay(createDate); onSaved(); }}
           initial={{ publishingDate: createDate, sbu: activeBrand || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
       )}
     </div>
@@ -2994,6 +3048,7 @@ type DetailAttachment = { id: string; filename: string; storage_path: string; mi
 type TaskDetail = {
   content: string; caption: string; notes: string;
   instagramUrl?: string; facebookUrl?: string; linkedinUrl?: string; outputLink?: string; platforms?: string[]; referenceLinks?: string[];
+  status?: string | null;
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string; author_key: string }[];
@@ -3220,8 +3275,12 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [detail, feedFilter, showResolved]);
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
-  const isDone = DONE_STATUSES.includes(row.status) || !!row.completionTime;
-  const sp = statusPill(row.status);
+  // The SAVED status once the detail has loaded, falling back to the board row.
+  // Reading row.status directly left the pill showing the old stage after a change
+  // — it looked like nothing had happened (Manya, 23 Sep).
+  const statusCur = detail?.status ?? row.status;
+  const isDone = DONE_STATUSES.includes(statusCur) || !!row.completionTime;
+  const sp = statusPill(statusCur);
   const pp = priorityPill(row.priority);
   const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
   // Account-specific: every comment + edit is stamped with the LOGGED-IN user
@@ -3237,6 +3296,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const fbUrl = detail?.facebookUrl ?? row.facebookUrl ?? "";
   const liUrl = detail?.linkedinUrl ?? row.linkedinUrl ?? "";
   const platformsCur = detail?.platforms ?? row.platforms ?? [];
+  const [statusEdit, setStatusEdit] = useState(false);
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
   const saveOne = async (field: string, value: unknown) => {
@@ -3386,9 +3446,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="hub-modal-title">{row.particulars || "(untitled)"}</h2>
-              {row.status && (
+              {statusCur && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
-                  {isDone && <IconCheck size={12} stroke={2.5} />}{row.status}
+                  {isDone && <IconCheck size={12} stroke={2.5} />}{statusCur}
                 </span>
               )}
               {row.needsReview && <span className="text-[11px] font-medium bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">Needs review</span>}
@@ -3524,7 +3584,23 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
             </div>
 
-                {detailRow("Status", row.status ? <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: sp.bg, color: sp.text }}>{isDone && <IconCheck size={11} stroke={2.5} />}{row.status}</span> : null)}
+                {/* Status is the field people come here to change, and it was display-only —
+                    "I can't change the content status, options are not showing" (Manya, 23 Sep).
+                    Click the pill to pick a stage; saveOne already surfaces the completeness
+                    gates ("can't approve yet — X missing") and logs the change to Activity. */}
+                {detailRow("Status", statusEdit ? (
+                  <select autoFocus defaultValue={statusCur || ""} onBlur={() => setStatusEdit(false)}
+                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value); }}
+                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
+                    {Array.from(new Set([...(statusCur ? [statusCur] : []), ...STATUS_CHOICES])).map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <button onClick={() => setStatusEdit(true)} title="Change the status"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
+                    style={statusCur ? { background: sp.bg, color: sp.text } : { background: "#F1F3F8", color: "#8A92A6" }}>
+                    {isDone && <IconCheck size={11} stroke={2.5} />}{statusCur || "— set"}
+                  </button>
+                ))}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
                 {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
                 {detailRow("Publish to page", row.publishToPage)}
