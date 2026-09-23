@@ -6,8 +6,9 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandWhatsapp } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
+import { WhatsAppScheduler } from "./WhatsAppScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
 import { CopyrightCheck } from "./CopyrightCheck";
@@ -146,17 +147,18 @@ export default function SchedulerPage() {
   );
 }
 
-// Two engines under one tab: the Meta (Instagram/Facebook) composer, and the
-// self-contained LinkedIn scheduler (its own queue + cron worker).
+// Three engines under one tab: the Meta (Instagram/Facebook) composer, the
+// self-contained LinkedIn scheduler, and Community Broadcast — WhatsApp, whose
+// queue is drained by n8n + WAHA on the VPS (the dashboard can't reach WhatsApp).
 function SchedulerTabs() {
-  const [tab, setTab] = useState<"meta" | "linkedin">("meta");
+  const [tab, setTab] = useState<"meta" | "linkedin" | "whatsapp">("meta");
 
   // Same segmented control as the To schedule / Calendar / Top performers row
   // below it. Two switches doing the same job in two different shapes and two
   // different sizes read as an accident, because that is what it was.
   const networkSwitch = (
     <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-      {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin]] as const).map(([id, label, Icon]) => (
+      {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin], ["whatsapp", "Community Broadcast", IconBrandWhatsapp]] as const).map(([id, label, Icon]) => (
         <button key={id} onClick={() => setTab(id)}
           className={`inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === id ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
           <Icon size={15} /> {label}
@@ -166,7 +168,9 @@ function SchedulerTabs() {
   );
   return (
     <div>
-      {tab === "meta" ? <Scheduler networkSwitch={networkSwitch} /> : <LinkedInScheduler networkSwitch={networkSwitch} />}
+      {tab === "meta" ? <Scheduler networkSwitch={networkSwitch} />
+        : tab === "linkedin" ? <LinkedInScheduler networkSwitch={networkSwitch} />
+        : <WhatsAppScheduler networkSwitch={networkSwitch} />}
     </div>
   );
 }

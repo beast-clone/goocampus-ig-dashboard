@@ -16,6 +16,10 @@ const PUBLIC_API_ROUTES = new Set<string>([
   "/api/account/accept-invite", // public: a new member sets their password from an emailed code
   "/api/facebook/data-deletion", // public: Meta POSTs here; authenticates via HMAC signed_request, not a cookie
   "/api/mcp", // Claude connector: authenticates with a personal Bearer key (lib/claude-connector), not a cookie
+  // WhatsApp broadcast: n8n on the VPS polls these with x-cron-secret (the routes
+  // check it themselves) — it has no dashboard session to send.
+  "/api/scheduler/whatsapp/due",
+  "/api/scheduler/whatsapp/status",
 ]);
 
 // CRON routes that auth themselves via x-cron-secret header — middleware should NOT gate them
