@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { TEAM_USERS } from "@/lib/users";
+import type { Sbu } from "@/lib/sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -294,20 +295,24 @@ function Radar() {
   );
 }
 
-// Radar tracks interests; the board files work by brand. Two of the three names
-// already match, so only the odd one needs mapping — and the picker shows the
-// result, so a wrong guess is one click to fix rather than a silent mis-file.
-const SBU_OPTIONS = [
-  "NEET PG", "India NEET UG Consulting", "Australia-PGCP",
+// Radar tracks interests; the board files work by brand. These are the brands
+// radar stories land under — a curated shortlist, but every entry is typed as a
+// real SBU, because a name that isn't one shows up as a SECOND "NEET PG" in every
+// brand dropdown on the board (Manya, 23 Sep). The picker shows the result, so a
+// wrong guess is one click to fix rather than a silent mis-file.
+const RADAR_SBUS: readonly Sbu[] = [
+  "India NEET PG Consulting", "India NEET UG Consulting", "Australia-PGCP",
   "Standard Consulting Program - Australia", "Middle East", "Study Abroad",
   "Mentorship Platform", "10K Mentorship", "General Content",
 ];
-function sbuFor(interest: string): string {
+function sbuFor(interest: string): Sbu {
   const i = (interest || "").toLowerCase();
-  if (SBU_OPTIONS.some((o) => o.toLowerCase() === i)) return SBU_OPTIONS.find((o) => o.toLowerCase() === i)!;
+  const exact = RADAR_SBUS.find((o) => o.toLowerCase() === i);
+  if (exact) return exact;
   if (i.includes("uae") || i.includes("gulf")) return "Middle East";
   if (i.includes("australia")) return "Australia-PGCP";
-  if (i.includes("neet")) return "NEET PG";
+  // UG and PG are different brands — "neet" alone used to send both to PG.
+  if (i.includes("neet")) return i.includes("ug") ? "India NEET UG Consulting" : "India NEET PG Consulting";
   return "General Content";
 }
 
@@ -434,7 +439,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
-  const [sbu, setSbu] = useState(sbuFor(item.primaryInterest));
+  const [sbu, setSbu] = useState<string>(sbuFor(item.primaryInterest));
   const [madeId, setMadeId] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -525,7 +530,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
               <label className="block">
                 <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Which brand</span>
                 <PreviewSelect value={sbu} onChange={setSbu}
-                  options={SBU_OPTIONS.map((x) => ({ value: x, label: x }))} />
+                  options={RADAR_SBUS.map((x) => ({ value: x, label: x }))} />
               </label>
 
               {failed && (

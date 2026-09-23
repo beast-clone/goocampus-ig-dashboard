@@ -13,4 +13,9 @@ export const SBU_OPTIONS = [
   "Mentorship Platform", "Middle East", "Portfolio Plus", "Samvaya", "Special Days", "SSAHE",
   "Standard Consulting Program - Australia", "Standard Consulting Program - UK", "Standard Consulting Program - USA",
   "Study Abroad", "UK ALS Course", "UK-PGCP", "University Programs",
-];
+] as const;
+
+/** A brand that actually exists. Typing the list stops a fourth surface
+ * inventing its own name (Content Radar filed stories under a "NEET PG" that was
+ * not an SBU, so every brand dropdown on the board showed it twice — Manya, 23 Sep). */
+export type Sbu = (typeof SBU_OPTIONS)[number];
