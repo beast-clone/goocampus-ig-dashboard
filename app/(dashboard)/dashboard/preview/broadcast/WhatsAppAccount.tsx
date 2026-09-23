@@ -29,6 +29,24 @@ const DOT: Record<string, string> = {
   UNKNOWN: "bg-gray-300",
 };
 
+/**
+ * Live status, at the end of the row.
+ *
+ * A connected number breathes — the ring is the only moving thing on the page, so
+ * it reads as "this is live right now" rather than a colour you have to decode.
+ * Anything not connected sits still, which is the point: stillness is the warning.
+ */
+function StatusDot({ status }: { status: string }) {
+  const colour = DOT[status] || DOT.UNKNOWN;
+  const live = status === "WORKING";
+  return (
+    <span className="relative flex w-2.5 h-2.5 flex-shrink-0" title={live ? "Connected" : status.toLowerCase().replace(/_/g, " ")}>
+      {live && <span className={`absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping ${colour}`} />}
+      <span className={`relative inline-flex w-2.5 h-2.5 rounded-full ${colour}`} />
+    </span>
+  );
+}
+
 export function WhatsAppAccount() {
   const [accounts, setAccounts] = useState<WaAccount[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "idle" });
@@ -116,7 +134,10 @@ export function WhatsAppAccount() {
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white mb-2">
-      {accounts === null && <div className="px-3 py-2.5 text-[12.5px] text-[#8A92A6]">Checking accounts…</div>}
+      <div className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">
+        Connected numbers
+      </div>
+      {accounts === null && <div className="px-3 pb-2.5 text-[12.5px] text-[#8A92A6]">Checking…</div>}
 
       {accounts?.length === 0 && phase.at === "idle" && (
         <div className="px-3 py-2.5">
@@ -126,21 +147,19 @@ export function WhatsAppAccount() {
       )}
 
       {accounts?.map((a, i) => (
-        <div key={a.name} className={`flex items-center gap-2 px-2.5 py-2.5 ${i ? "border-t border-gray-100" : ""}`}>
-          <span className="w-7 h-7 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
-            <IconBrandWhatsapp size={18} className="text-[#25D366]" stroke={2} />
+        <div key={a.name} className={`flex items-center gap-2.5 px-3 py-3 ${i ? "border-t border-gray-100" : ""}`}>
+          <span className="w-9 h-9 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
+            <IconBrandWhatsapp size={22} className="text-[#25D366]" stroke={2} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[a.status] || DOT.UNKNOWN}`} />
-              <span className="text-[12.5px] font-medium text-[#232D42] truncate">
-                {prettyPhone(a.phone) || a.name}
-              </span>
+            <div className="text-[14px] font-medium text-[#232D42] truncate leading-tight">
+              {prettyPhone(a.phone) || a.name}
             </div>
-            <div className="text-[11.5px] text-[#8A92A6] truncate">
+            <div className="text-[12.5px] text-[#8A92A6] truncate">
               {a.label || (a.status === "WORKING" ? "Linked" : a.status.toLowerCase().replace(/_/g, " "))}
             </div>
           </div>
+          <StatusDot status={a.status} />
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* A working account needs no button — unlink it, or use Add a number.
                 A dropped one does: relinking here keeps its name, so anything already
