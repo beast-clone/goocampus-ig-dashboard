@@ -11,6 +11,59 @@ export const STATUS_CHAT = "status@broadcast";
 
 export type WaPoll = { name: string; options: string[]; multipleAnswers: boolean };
 
+/** How often a message repeats. "none" and a missing rule mean the same thing. */
+export type WaRepeatRule = "none" | "daily" | "weekly" | "monthly";
+export type WaRepeat = {
+  rule: WaRepeatRule;
+  until: string | null;
+  /**
+   * The day of the month the series was created on, for monthly repeats.
+   *
+   * Without it a monthly series drifts: the 31st clamps to 28 in February and
+   * then every later month is computed from the 28th, so "the 31st of every
+   * month" quietly becomes "the 28th" forever. Anchoring on the original day
+   * keeps Jan 31 → Feb 28 → Mar 31.
+   */
+  anchorDay?: number | null;
+};
+
+export const REPEAT_LABEL: Record<WaRepeatRule, string> = {
+  none: "Does not repeat", daily: "Every day", weekly: "Every week", monthly: "Every month",
+};
+
+/**
+ * When the next one goes out.
+ *
+ * Monthly keeps the day of the month, and JS rolls 31 Feb into March — so a
+ * monthly message set for the 31st would drift forward a few days every time.
+ * Clamp it to the last day of the shorter month instead, which is what a person
+ * means by "the 31st, every month".
+ */
+export function nextOccurrence(iso: string, rule: WaRepeatRule, anchorDay?: number | null): Date | null {
+  if (!rule || rule === "none") return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const next = new Date(d);
+  if (rule === "daily") next.setDate(next.getDate() + 1);
+  else if (rule === "weekly") next.setDate(next.getDate() + 7);
+  else {
+    // Always aim at the day the series started on, not the day this one landed on.
+    const day = anchorDay && anchorDay >= 1 && anchorDay <= 31 ? anchorDay : d.getDate();
+    next.setDate(1);                       // avoid rolling over while changing month
+    next.setMonth(next.getMonth() + 1);
+    const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    next.setDate(Math.min(day, lastDay));  // February gets the 28th, March gets the 31st back
+  }
+  return next;
+}
+
+/** The repeat on a message, whatever shape the row is in. */
+export function repeatOf(payload: { repeat?: WaRepeat } | null | undefined): WaRepeat | null {
+  const r = payload?.repeat;
+  if (!r || !r.rule || r.rule === "none") return null;
+  return { rule: r.rule, until: r.until || null, anchorDay: r.anchorDay ?? null };
+}
+
 export const WA_STATUSES: WaStatus[] = ["scheduled", "sending", "sent", "delivered", "failed", "canceled"];
 
 export type WaMessage = {
@@ -22,7 +75,7 @@ export type WaMessage = {
   schedule_time: string;
   status: WaStatus;
   kind: WaKind;
-  payload: { poll?: WaPoll } | null;
+  payload: { poll?: WaPoll; repeat?: WaRepeat } | null;
   wa_message_id: string | null;
   error: string | null;
   created_by: string | null;

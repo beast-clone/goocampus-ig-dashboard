@@ -3,7 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
-import { normalizeChatId, STATUS_CHAT, WA_COLS, type WaKind, type WaPoll } from "@/lib/whatsapp";
+import { normalizeChatId, STATUS_CHAT, WA_COLS, type WaKind, type WaPoll, type WaRepeat, type WaRepeatRule } from "@/lib/whatsapp";
 
 // WhatsApp broadcast queue — its own table (whatsapp_scheduled_messages), fully
 // separate from the Meta/n8n post pipeline and from the LinkedIn queue it copies.
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
     const b = (await req.json()) as {
       kind?: string; chats?: { id?: string; label?: string }[];
       body?: string; imageUrl?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
+      repeat?: { rule?: string; until?: string | null };
     };
     const kind: WaKind = b.kind === "poll" ? "poll" : b.kind === "status" ? "status" : "message";
 
@@ -74,6 +75,14 @@ export async function POST(req: Request) {
     const when = b.scheduleTimeISO ? new Date(b.scheduleTimeISO) : new Date();
     if (isNaN(when.getTime())) return NextResponse.json({ error: "invalid schedule time" }, { status: 400 });
 
+    // The repeat rides in payload — the next occurrence is queued when this one
+    // completes, so exactly one row is ever pending per series.
+    const rule = (b.repeat?.rule || "none") as WaRepeatRule;
+    const repeat: WaRepeat | null =
+      rule === "daily" || rule === "weekly" || rule === "monthly"
+        ? { rule, until: b.repeat?.until || null, anchorDay: when.getDate() }
+        : null;
+
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
@@ -82,7 +91,7 @@ export async function POST(req: Request) {
         chat_id: c.id, chat_label: c.label,
         body: text || null, image_url: imageUrl,
         schedule_time: when.toISOString(), status: "scheduled",
-        kind, payload: poll ? { poll } : null,
+        kind, payload: poll || repeat ? { ...(poll ? { poll } : {}), ...(repeat ? { repeat } : {}) } : null,
         created_by: getSessionUserId() || null,
       })))
       .select(WA_COLS);

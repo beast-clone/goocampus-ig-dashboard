@@ -3,14 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconSearch, IconFilter, IconChevronLeft, IconChevronRight, IconPlus, IconTrash,
   IconCircleCheck, IconCircleDashed, IconClock, IconAlertTriangle, IconChecks, IconChartBar,
-  IconMessage, IconBrandWhatsapp, IconPhoto,
+  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { ComposeModal, renderWa } from "./ComposeModal";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
-import { chatDisplay, type WaMessage, type WaStatus } from "@/lib/whatsapp";
+import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
 
 // Community Broadcast — the whole WhatsApp workspace, laid out like the tool it
 // replaces: every scheduled message down the left, a month of sends in the middle,
@@ -198,7 +198,8 @@ function RailGroup({ title, rows, selected, onSelect, onCancel }: {
               <span className="block text-[12.5px] font-medium text-[#232D42] truncate">{m.chat_label || chatDisplay(m.chat_id)}</span>
               <span className="block text-[11.5px] text-[#8A92A6] truncate">{m.body || (m.kind === "poll" ? m.payload?.poll?.name || "Poll" : "Image")}</span>
               <span className="flex items-center gap-1.5 mt-1">
-                <span className="text-[11px] text-[#8A92A6]">{relative(m.schedule_time)} · {timeOf(m.schedule_time)}</span>
+                <span className="text-[11px] text-[#8A92A6]">{relative(m.schedule_time)} · {timeOf(m.schedule_time)}
+                {repeatOf(m.payload) && <IconRepeat size={11} className="inline ml-1 -mt-0.5 text-[#8A92A6]" />}</span>
                 <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.pill}`}>{st.label}</span>
               </span>
             </span>
@@ -320,6 +321,7 @@ function MessageDetail({ m, onClose, onCancel }: {
   const st = STATUS_STYLE[m.status];
   const when = new Date(m.schedule_time);
   const poll = m.kind === "poll" ? m.payload?.poll : null;
+  const repeat = repeatOf(m.payload);
   const stamp = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString(IST, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
 
@@ -387,6 +389,11 @@ function MessageDetail({ m, onClose, onCancel }: {
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12.5px] mb-4">
         <dt className="text-[#8A92A6]">Type</dt>
         <dd className="text-[#232D42] capitalize">{m.kind}{m.image_url ? " with an image" : ""}</dd>
+        {repeat && (<><dt className="text-[#8A92A6]">Repeats</dt>
+          <dd className="text-[#232D42]">
+            {REPEAT_LABEL[repeat.rule]}
+            {repeat.until ? ` until ${stamp(repeat.until)}` : " — until you cancel it"}
+          </dd></>)}
         <dt className="text-[#8A92A6]">Scheduled for</dt>
         <dd className="text-[#232D42]">{stamp(m.schedule_time)} · {relative(m.schedule_time)}</dd>
         {m.sent_at && (<><dt className="text-[#8A92A6]">Sent</dt><dd className="text-[#232D42]">{stamp(m.sent_at)}</dd></>)}
@@ -400,7 +407,7 @@ function MessageDetail({ m, onClose, onCancel }: {
         {m.status === "scheduled" && (
           <button onClick={onCancel}
             className="inline-flex items-center gap-1 text-[13px] text-[#C03221] rounded-xl border border-gray-200 px-3 py-2 hover:border-[#C03221]">
-            <IconTrash size={14} /> Cancel this message
+            <IconTrash size={14} /> {repeat ? "Stop this message repeating" : "Cancel this message"}
           </button>
         )}
           <button onClick={onClose} className="ml-auto text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Close</button>

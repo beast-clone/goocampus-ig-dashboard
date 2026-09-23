@@ -3,12 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks,
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { RecipientPicker, type Recipient } from "./RecipientPicker";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
-import type { WaKind } from "@/lib/whatsapp";
+import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
 
 // The compose popup, built to match the tool this replaces: tabs across the top,
 // recipients, the message, when to send, and a live WhatsApp preview beside it.
@@ -75,6 +75,8 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
   const [pollMulti, setPollMulti] = useState(false);
   const [date, setDate] = useState(initialDate || new Date().toLocaleDateString("en-CA"));
   const [time, setTime] = useState(() => { const d = new Date(Date.now() + 30 * 60000); return d.toTimeString().slice(0, 5); });
+  const [repeatRule, setRepeatRule] = useState<WaRepeatRule>("none");
+  const [repeatUntil, setRepeatUntil] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[] | null>(null);
@@ -166,6 +168,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
           body: body.trim(), imageUrl: imageUrl.trim() || undefined,
           poll: kind === "poll" ? { name: pollName.trim(), options: pollOptions.map((o) => o.trim()).filter(Boolean), multipleAnswers: pollMulti } : undefined,
           scheduleTimeISO: at!.toISOString(),
+          repeat: repeatRule === "none" ? undefined : { rule: repeatRule, until: repeatUntil || null },
         }),
       });
       const d = await res.json();
@@ -318,6 +321,34 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                     className="outline-none text-[13px] text-[#232D42] bg-transparent" />
                 </span>
                 <span className="text-[11.5px] text-[#8A92A6]">IST</span>
+              </div>
+
+              {/* Repeat. The next run is queued only once this one has gone out, so a
+                  daily message never fills the calendar months ahead. */}
+              <div className="flex flex-wrap gap-2 mt-2 items-center">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
+                  <IconRepeat size={14} className="text-[#8A92A6]" />
+                  <select value={repeatRule} onChange={(e) => setRepeatRule(e.target.value as WaRepeatRule)}
+                    className="outline-none text-[13px] text-[#232D42] bg-transparent">
+                    {(["none", "daily", "weekly", "monthly"] as WaRepeatRule[]).map((r) => (
+                      <option key={r} value={r}>{REPEAT_LABEL[r]}</option>
+                    ))}
+                  </select>
+                </span>
+                {repeatRule !== "none" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
+                    <span className="text-[12.5px] text-[#8A92A6]">until</span>
+                    <input type="date" value={repeatUntil} onChange={(e) => setRepeatUntil(e.target.value)}
+                      className="outline-none text-[13px] text-[#232D42] bg-transparent" />
+                    {repeatUntil && (
+                      <button type="button" onClick={() => setRepeatUntil("")}
+                        className="text-[#8A92A6] hover:text-[#232D42]" title="No end date"><IconX size={13} /></button>
+                    )}
+                  </span>
+                )}
+                {repeatRule !== "none" && !repeatUntil && (
+                  <span className="text-[11.5px] text-[#8A92A6]">Keeps going until you cancel it.</span>
+                )}
               </div>
             </div>
           </div>
