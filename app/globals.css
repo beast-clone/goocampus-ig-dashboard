@@ -766,3 +766,20 @@ html[data-theme="dark"] [class*="text-brand/"] { color: var(--d-brand-text) !imp
 /* Hover wash that was white-at-60% — on dark, a faint light wash instead. */
 html[data-theme="dark"] .hover\:bg-white\/60:hover, html[data-theme="dark"] .hover\:bg-white\/70:hover, html[data-theme="dark"] .hover\:bg-white\/80:hover { background-color: rgba(255,255,255,.08) !important; }
 html[data-theme="dark"] .text-brand-dark, html[data-theme="dark"] .hover\:text-brand-dark:hover { color: var(--d-brand-text) !important; }
+
+/* ── WhatsApp preview (Community Broadcast composer) ─────────────────────────
+   The preview imitates a real WhatsApp chat, so it wears WhatsApp's palette
+   rather than the dashboard's. It still has to follow the dashboard theme:
+   WhatsApp's light colours on a light dashboard, its dark ones on dark. */
+:root {
+  --wa-bg:#EFEAE2; --wa-border:#DDD8D0; --wa-title:#111B21;
+  --wa-pill-bg:#FFFFFF; --wa-pill-ink:#54656F;
+  --wa-bubble:#D9FDD3; --wa-ink:#111B21; --wa-meta:#667781;
+  --wa-tick:#34B7F1; --wa-foot:#667781; --wa-optline:rgba(17,27,33,.14);
+}
+html[data-theme="dark"] {
+  --wa-bg:#111B21; --wa-border:#2A3942; --wa-title:#FFFFFF;
+  --wa-pill-bg:#1D282F; --wa-pill-ink:#8696A0;
+  --wa-bubble:#005C4B; --wa-ink:#E9EDEF; --wa-meta:#8696A0;
+  --wa-tick:#53BDEB; --wa-foot:#8696A0; --wa-optline:rgba(255,255,255,.25);
+}

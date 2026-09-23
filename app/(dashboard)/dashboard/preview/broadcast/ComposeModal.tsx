@@ -347,23 +347,23 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
         </div>
 
         {/* Right — WhatsApp preview */}
-        <div className="bg-[#111B21] rounded-2xl border border-[#2A3942] p-4 max-h-[86vh] overflow-y-auto">
-          <div className="text-[13.5px] font-semibold text-white text-center mb-3">WhatsApp preview</div>
+        <div className="rounded-2xl border p-4 max-h-[86vh] overflow-y-auto" style={{ background: "var(--wa-bg)", borderColor: "var(--wa-border)" }}>
+          <div className="text-[13.5px] font-semibold text-center mb-3" style={{ color: "var(--wa-title)" }}>WhatsApp preview</div>
           <div className="text-center mb-3">
-            <span className="inline-block rounded-md bg-[#1D282F] text-[#8696A0] text-[11px] px-2.5 py-1">
+            <span className="inline-block rounded-md text-[11px] px-2.5 py-1" style={{ background: "var(--wa-pill-bg)", color: "var(--wa-pill-ink)" }}>
               {at && !isNaN(at.getTime()) ? at.toLocaleDateString(IST, { day: "numeric", month: "long", year: "numeric" }) : "Today"}
             </span>
           </div>
-          <div className="ml-auto max-w-[260px] rounded-xl rounded-tr-sm px-2 pt-2 pb-1.5" style={{ background: "#005C4B" }}>
+          <div className="ml-auto max-w-[260px] rounded-xl rounded-tr-sm px-2 pt-2 pb-1.5" style={{ background: "var(--wa-bubble)" }}>
             {kind === "poll" ? (
-              <div className="text-[13px] text-white">
+              <div className="text-[13px]" style={{ color: "var(--wa-ink)" }}>
                 <div className="font-medium mb-1.5">{pollName.trim() || "Your poll question"}</div>
                 <div className="flex flex-col gap-1.5">
                   {pollOptions.map((o, i) => (
-                    <div key={i} className="rounded-lg border border-white/25 px-2 py-1 text-[12.5px] text-white/90">{o.trim() || `Option ${i + 1}`}</div>
+                    <div key={i} className="rounded-lg border px-2 py-1 text-[12.5px]" style={{ borderColor: "var(--wa-optline)", color: "var(--wa-ink)" }}>{o.trim() || `Option ${i + 1}`}</div>
                   ))}
                 </div>
-                <div className="text-[10.5px] text-white/60 mt-1.5">{pollMulti ? "Select one or more" : "Select one"}</div>
+                <div className="text-[10.5px] mt-1.5" style={{ color: "var(--wa-meta)" }}>{pollMulti ? "Select one or more" : "Select one"}</div>
               </div>
             ) : (
               <>
@@ -372,17 +372,17 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                   <img src={imageUrl} alt="" className="w-full rounded-lg mb-1.5 block"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 )}
-                <div className="text-[13px] text-[#E9EDEF] whitespace-pre-wrap break-words leading-snug">
-                  {body.trim() ? renderWa(body) : <span className="text-[#8696A0] italic">Your message will appear here</span>}
+                <div className="text-[13px] whitespace-pre-wrap break-words leading-snug" style={{ color: "var(--wa-ink)" }}>
+                  {body.trim() ? renderWa(body) : <span className="italic" style={{ color: "var(--wa-meta)" }}>Your message will appear here</span>}
                 </div>
               </>
             )}
-            <div className="flex items-center justify-end gap-1 text-[10.5px] text-[#8696A0] mt-0.5">
+            <div className="flex items-center justify-end gap-1 text-[10.5px] mt-0.5" style={{ color: "var(--wa-meta)" }}>
               {at && !isNaN(at.getTime()) ? at.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit" }) : ""}
-              <IconChecks size={13} className="text-[#53BDEB]" />
+              <IconChecks size={13} style={{ color: "var(--wa-tick)" }} />
             </div>
           </div>
-          <div className="text-[11px] text-[#8696A0] mt-3 text-center">
+          <div className="text-[11px] mt-3 text-center" style={{ color: "var(--wa-foot)" }}>
             {kind === "status" ? "Posted as your Status" : kind === "poll" ? "Sent as a WhatsApp poll" : "Sent from the GooCampus WhatsApp Business number"}
           </div>
         </div>
