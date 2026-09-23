@@ -404,9 +404,16 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
 
           {/* Footer — recipients, when it goes, what is missing */}
           <div className="border-t border-gray-100 px-5 py-3">
-            <div className="flex items-center gap-2 text-[12.5px] text-[#232D42]"><IconUsers size={14} className="text-[#8A92A6]" /> {recipientLine}</div>
+            <div className={`flex items-center gap-2 text-[12.5px] ${chats.length || kind === "status" ? "text-[#232D42] font-medium" : "text-[#8A92A6]"}`}>
+              <IconUsers size={14} className={chats.length || kind === "status" ? "text-brand" : "text-[#8A92A6]"} /> {recipientLine}
+            </div>
             {at && !isNaN(at.getTime()) && !inPast && (
-              <div className="flex items-center gap-2 text-[12.5px] text-[#4A5468] mt-1"><IconClock size={14} className="text-[#8A92A6]" /> This message will be sent on {fmtLong(at)}.</div>
+              <div className="flex items-center gap-2 text-[12.5px] text-[#4A5468] mt-1">
+                <IconClock size={14} className="text-[#8A92A6] shrink-0" />
+                {/* One flex item: the bold date was a second one, so the row gap
+                    opened a space either side of it. */}
+                <span>This message will be sent on <b className="font-medium text-[#232D42]">{fmtLong(at)}</b>.</span>
+              </div>
             )}
             {selfChats.length > 0 && (
               <div className="flex items-start gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
@@ -430,7 +437,11 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                 <button onClick={setToNow} className="ml-auto inline-flex items-center gap-1 rounded-lg bg-white border border-amber-200 px-2.5 py-1 font-medium hover:border-amber-300"><IconClock size={13} /> Set to now</button>
               </div>
             )}
-            {problem && !inPast && <div className="text-[12px] text-[#8A92A6] mt-1.5">{problem}</div>}
+            {problem && !inPast && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
+                <IconAlertTriangle size={15} className="shrink-0" /> {problem}
+              </div>
+            )}
             {err && <div className="text-[12.5px] rounded-lg px-3 py-2 mt-2 bg-rose-50 text-rose-700 border border-rose-100">{err}</div>}
             <div className="flex justify-end gap-2 mt-3">
               <button onClick={onClose} className="text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Cancel</button>
