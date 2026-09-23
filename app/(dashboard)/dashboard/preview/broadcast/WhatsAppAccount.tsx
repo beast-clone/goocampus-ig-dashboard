@@ -40,9 +40,9 @@ function StatusDot({ status }: { status: string }) {
   const colour = DOT[status] || DOT.UNKNOWN;
   const live = status === "WORKING";
   return (
-    <span className="relative flex w-2.5 h-2.5 flex-shrink-0" title={live ? "Connected" : status.toLowerCase().replace(/_/g, " ")}>
+    <span className="relative flex w-3 h-3 flex-shrink-0" title={live ? "Connected" : status.toLowerCase().replace(/_/g, " ")}>
       {live && <span className={`absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping ${colour}`} />}
-      <span className={`relative inline-flex w-2.5 h-2.5 rounded-full ${colour}`} />
+      <span className={`relative inline-flex w-3 h-3 rounded-full ${colour}`} />
     </span>
   );
 }
@@ -134,7 +134,7 @@ export function WhatsAppAccount() {
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white mb-2">
-      <div className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">
+      <div className="px-3 pt-3 pb-1 text-[11.5px] uppercase tracking-wide text-[#8A92A6] font-semibold">
         Connected numbers
       </div>
       {accounts === null && <div className="px-3 pb-2.5 text-[12.5px] text-[#8A92A6]">Checking…</div>}
@@ -147,41 +147,39 @@ export function WhatsAppAccount() {
       )}
 
       {accounts?.map((a, i) => (
-        <div key={a.name} className={`flex items-center gap-2.5 px-3 py-3 ${i ? "border-t border-gray-100" : ""}`}>
-          <span className="w-9 h-9 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
-            <IconBrandWhatsapp size={22} className="text-[#25D366]" stroke={2} />
+        <div key={a.name} className={`group relative flex items-center gap-3 px-3 py-3.5 ${i ? "border-t border-gray-100" : ""}`}>
+          <span className="w-10 h-10 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
+            <IconBrandWhatsapp size={25} className="text-[#25D366]" stroke={2} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-medium text-[#232D42] truncate leading-tight">
+            <div className="text-[15px] font-medium text-[#232D42] truncate leading-tight">
               {prettyPhone(a.phone) || a.name}
             </div>
-            <div className="text-[12.5px] text-[#8A92A6] truncate">
+            <div className="text-[13px] text-[#8A92A6] truncate">
               {a.label || (a.status === "WORKING" ? "Linked" : a.status.toLowerCase().replace(/_/g, " "))}
             </div>
           </div>
           <StatusDot status={a.status} />
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* A working account needs no button — unlink it, or use Add a number.
-                A dropped one does: relinking here keeps its name, so anything already
-                queued from it still knows where to go. */}
-            {a.status !== "WORKING" && (
-              <button onClick={() => openPanel(a.name)}
-                className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
-                Link
-              </button>
-            )}
-            <button onClick={() => disconnect(a)} disabled={busy} title="Unlink this number"
-              className="w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
-              <IconPlugConnectedX size={13} />
+          {/* A dropped account keeps its Link button in the flow — you need to see it.
+              Unlink does not: it is rare, and its 24px is the difference between the
+              number fitting and being cut off. */}
+          {a.status !== "WORKING" && (
+            <button onClick={() => openPanel(a.name)}
+              className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand flex-shrink-0">
+              Link
             </button>
-          </div>
+          )}
+          <button onClick={() => disconnect(a)} disabled={busy} title="Unlink this number"
+            className="absolute right-8 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-md bg-white text-[#8A92A6] opacity-0 group-hover:opacity-100 focus:opacity-100 transition hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
+            <IconPlugConnectedX size={15} />
+          </button>
         </div>
       ))}
 
       {accounts !== null && phase.at === "idle" && (
         <div className="border-t border-gray-100 px-2.5 py-2 flex items-center gap-2">
-          <button onClick={() => openPanel()} className="inline-flex items-center gap-1 text-[12px] text-brand hover:underline">
-            <IconPlus size={13} /> Add a number
+          <button onClick={() => openPanel()} className="inline-flex items-center gap-1 text-[12.5px] text-brand hover:underline">
+            <IconPlus size={14} /> Add a number
           </button>
           <button onClick={() => load()} title="Re-check"
             className="ml-auto w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#232D42] hover:bg-[#F6F7FB]">
