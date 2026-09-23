@@ -6,6 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
+import { resolveSendFrom, setSendFrom, SEND_FROM_CHANGED } from "./sendFrom";
 
 // Which WhatsApp number Community Broadcast sends from, and how to change it.
 //
@@ -132,6 +133,16 @@ export function WhatsAppAccount() {
 
   const openPanel = (session?: string) => { setPhase({ at: "asking", session }); setInput(""); };
 
+  // Which of these numbers new messages go out from. Re-read on change so the
+  // pill follows a switch made in the composer too.
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const on = () => bump((n) => n + 1);
+    window.addEventListener(SEND_FROM_CHANGED, on);
+    return () => window.removeEventListener(SEND_FROM_CHANGED, on);
+  }, []);
+  const sending = resolveSendFrom(accounts || []);
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white mb-2">
       <div className="px-3 pt-3 pb-1 text-[11.5px] uppercase tracking-wide text-[#8A92A6] font-semibold">
@@ -147,13 +158,25 @@ export function WhatsAppAccount() {
       )}
 
       {accounts?.map((a, i) => (
-        <div key={a.name} className={`group relative flex items-center gap-2.5 px-3 py-3.5 ${i ? "border-t border-gray-100" : ""}`}>
-          <span className="w-10 h-10 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
+        <div key={a.name} onClick={() => a.status === "WORKING" && setSendFrom(a.name)}
+          title={a.status === "WORKING" ? (sending?.name === a.name ? "Messages are sent from this number" : "Send from this number instead") : undefined}
+          className={`group relative flex items-center gap-2.5 px-3 py-3.5 ${i ? "border-t border-gray-100" : ""} ${a.status === "WORKING" && sending?.name !== a.name ? "cursor-pointer hover:bg-[#F6F7FB]" : ""}`}>
+          <span className="relative w-10 h-10 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
             <IconBrandWhatsapp size={25} className="text-[#25D366]" stroke={2} />
+            {/* Which number sends. A badge on the avatar: in the row itself it
+               took width and truncated the number (Praveen, 23 Sep). */}
+            {sending?.name === a.name && (
+              <span title="Messages are sent from this number"
+                className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-brand text-white grid place-items-center ring-2 ring-white">
+                <IconCheck size={10} stroke={3} />
+              </span>
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-medium text-[#232D42] truncate leading-tight">
               {prettyPhone(a.phone) || a.name}
+              {/* Which number sends. A tick, not a pill — a badge on every row
+                  made the panel unreadable. Clicking a linked row moves it. */}
             </div>
             <div className="text-[13px] text-[#8A92A6] truncate">
               {a.label || (a.status === "WORKING" ? "Linked" : a.status.toLowerCase().replace(/_/g, " "))}

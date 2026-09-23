@@ -11,6 +11,7 @@ import { ComposeModal, renderWa } from "./ComposeModal";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
 import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
+import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 
 // Community Broadcast — the whole WhatsApp workspace, laid out like the tool it
 // replaces: every scheduled message down the left, a month of sends in the middle,
@@ -52,6 +53,19 @@ export function BroadcastWorkspace() {
   const [cursor, setCursor] = useState(() => new Date());
   const [compose, setCompose] = useState<{ open: boolean; date?: string } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // With two numbers linked, a row that just says "Pandey Ji" does not tell you
+  // which of your numbers it leaves from (Praveen, 23 Sep). Only shown when there
+  // is more than one — with a single number it is noise.
+  const [accounts, setAccounts] = useState<WaAccount[]>([]);
+  useEffect(() => {
+    fetch("/api/scheduler/whatsapp/session", { cache: "no-store" })
+      .then((r) => r.json()).then((d) => setAccounts((d.accounts || []) as WaAccount[])).catch(() => {});
+  }, []);
+  const fromLabel = (m: WaMessage): string | null => {
+    if (accounts.length < 2) return null;
+    const a = accounts.find((x) => x.name === (m.payload?.session || "default")) || null;
+    return a ? (a.label || prettyPhone(a.phone) || a.name) : null;
+  };
 
   const load = () => fetch("/api/scheduler/whatsapp", { cache: "no-store" })
     .then((r) => r.json()).then((d) => setRows(d.messages || [])).catch(() => setRows([]));
@@ -151,8 +165,8 @@ export function BroadcastWorkspace() {
               : listed.length === 0 ? <div className="px-4 py-10 text-center text-[13px] text-[#8A92A6]">{all.length ? "Nothing matches that search." : "Nothing scheduled yet."}</div>
               : (
                 <>
-                  {upcoming.length > 0 && <RailGroup title="Upcoming" rows={upcoming} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
-                  {earlier.length > 0 && <RailGroup title="Earlier" rows={earlier} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
+                  {upcoming.length > 0 && <RailGroup fromLabel={fromLabel} title="Upcoming" rows={upcoming} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
+                  {earlier.length > 0 && <RailGroup fromLabel={fromLabel} title="Earlier" rows={earlier} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
                 </>
               )}
           </div>
@@ -194,7 +208,7 @@ export function BroadcastWorkspace() {
       {/* Clicking anything in the rail or the calendar opens it in full — the preview
           is short and a tooltip cannot show an image, a poll or a failure reason. */}
       {selectedRow && (
-        <MessageDetail m={selectedRow} onClose={() => setSelected(null)}
+        <MessageDetail m={selectedRow} fromLabel={fromLabel} onClose={() => setSelected(null)}
           onCancel={() => { cancel(selectedRow); setSelected(null); }}
           onDelete={() => { removeOne(selectedRow); setSelected(null); }} />
       )}
@@ -202,9 +216,10 @@ export function BroadcastWorkspace() {
   );
 }
 
-function RailGroup({ title, rows, selected, onSelect, onDelete }: {
+function RailGroup({ title, rows, selected, onSelect, onDelete, fromLabel }: {
   title: string; rows: WaMessage[]; selected: string | null;
   onSelect: (id: string) => void; onDelete: (m: WaMessage) => void;
+  fromLabel: (m: WaMessage) => string | null;
 }) {
   return (
     <div>
@@ -223,6 +238,7 @@ function RailGroup({ title, rows, selected, onSelect, onDelete }: {
               <span className="flex items-center gap-1.5 mt-1">
                 <span className="text-[11px] text-[#8A92A6]">{relative(m.schedule_time)} · {timeOf(m.schedule_time)}
                 {repeatOf(m.payload) && <IconRepeat size={11} className="inline ml-1 -mt-0.5 text-[#8A92A6]" />}</span>
+                {fromLabel(m) && <span className="text-[10px] text-[#8A92A6] truncate" title={`Goes out from ${fromLabel(m)}`}>· from {fromLabel(m)}</span>}
                 <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.pill}`}>{st.label}</span>
               </span>
             </span>
@@ -343,8 +359,9 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd, onOpenDay }: {
 // One scheduled message, in full. Reached by clicking it in the rail or on the
 // calendar — the list only has room for a truncated line, and a tooltip cannot
 // show an image, poll options, or why a send failed.
-function MessageDetail({ m, onClose, onCancel, onDelete }: {
+function MessageDetail({ m, onClose, onCancel, onDelete, fromLabel }: {
   m: WaMessage; onClose: () => void; onCancel: () => void; onDelete: () => void;
+  fromLabel?: (m: WaMessage) => string | null;
 }) {
   const st = STATUS_STYLE[m.status];
   const when = new Date(m.schedule_time);
@@ -367,6 +384,9 @@ function MessageDetail({ m, onClose, onCancel, onDelete }: {
             {m.chat_label || chatDisplay(m.chat_id)}
           </div>
           <div className="text-[12px] text-[#8A92A6] truncate">{chatDisplay(m.chat_id)}</div>
+          {fromLabel?.(m) && (
+            <div className="text-[12px] text-[#8A92A6] truncate mt-0.5">Goes out from <span className="text-[#4A5468]">{fromLabel(m)}</span></div>
+          )}
         </div>
         <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium rounded-full px-2 py-0.5 flex-shrink-0 ${st.pill}`}>
           {st.icon} {st.label}

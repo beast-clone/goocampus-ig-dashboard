@@ -75,7 +75,8 @@ export type WaMessage = {
   schedule_time: string;
   status: WaStatus;
   kind: WaKind;
-  payload: { poll?: WaPoll; repeat?: WaRepeat } | null;
+  // session = which linked WhatsApp number it goes out from.
+  payload: { poll?: WaPoll; repeat?: WaRepeat; session?: string } | null;
   wa_message_id: string | null;
   error: string | null;
   created_by: string | null;

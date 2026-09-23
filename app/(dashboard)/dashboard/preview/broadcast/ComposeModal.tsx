@@ -3,12 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp,
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { RecipientPicker, type Recipient } from "./RecipientPicker";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
+import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
 
@@ -146,6 +147,16 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
     setTemplates((list) => (list || []).filter((x) => x.id !== t.id));
   };
 
+  // A recipient that IS the sending number lands in that account's own
+  // "Message yourself" chat, not in someone else's. It looks like a failed send —
+  // it cost an evening of testing on 23 Sep — so say it before the send, not after.
+  const sendingFrom = accounts.find((a) => a.name === session) || accounts[0] || null;
+  const selfChats = sendingFrom?.phone
+    ? chats.filter((c) => c.id === `${sendingFrom.phone}@c.us`)
+    : [];
+  // Another connected number to send from instead, if there is one.
+  const otherAccount = accounts.find((a) => a.name !== sendingFrom?.name && a.status === "WORKING") || null;
+
   // What the footer says, in the same order the old tool said it.
   const recipientLine =
     kind === "status" ? "Posted to your WhatsApp Status — everyone in your contacts sees it."
@@ -168,7 +179,8 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
       .then((d) => {
         const list = (d.accounts || []) as WaAccount[];
         setAccounts(list);
-        setSession((cur) => cur || list.find((a) => a.status === "WORKING")?.name || list[0]?.name || "");
+        // The number chosen on the Connected numbers panel, so the two agree.
+        setSession((cur) => cur || resolveSendFrom(list)?.name || "");
       })
       .catch(() => setAccounts([]));
   }, []);
@@ -393,6 +405,22 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
             <div className="flex items-center gap-2 text-[12.5px] text-[#232D42]"><IconUsers size={14} className="text-[#8A92A6]" /> {recipientLine}</div>
             {at && !isNaN(at.getTime()) && !inPast && (
               <div className="flex items-center gap-2 text-[12.5px] text-[#4A5468] mt-1"><IconClock size={14} className="text-[#8A92A6]" /> This message will be sent on {fmtLong(at)}.</div>
+            )}
+            {selfChats.length > 0 && (
+              <div className="flex items-start gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
+                <IconAlertTriangle size={15} className="mt-[1px] shrink-0" />
+                <span>
+                  {selfChats.length === 1 ? <><b>{selfChats[0].label}</b> is the number you&apos;re sending from</> : <><b>{selfChats.length} of these</b> are the number you&apos;re sending from</>}
+                  {" "}({prettyPhone(sendingFrom?.phone || null)}), so it will arrive in that account&apos;s own
+                  {" "}&ldquo;Message yourself&rdquo; chat rather than reaching anyone else.
+                </span>
+                {otherAccount && (
+                  <button onClick={() => { setSession(otherAccount.name); setSendFrom(otherAccount.name); }}
+                    className="ml-auto inline-flex items-center gap-1 rounded-lg bg-white border border-amber-200 px-2.5 py-1 font-medium hover:border-amber-300 whitespace-nowrap">
+                    Send from {otherAccount.label || prettyPhone(otherAccount.phone)} instead
+                  </button>
+                )}
+              </div>
             )}
             {inPast && (
               <div className="flex items-center gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
