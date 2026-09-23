@@ -4,6 +4,7 @@
 // PreviewDashboardShell) so all V2 pages share one identical shell chrome.
 export type PreviewTab =
   | "my-day" | "my-workspace" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
+  | "broadcast"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "inbox" | "sales" | "organic-sales" | "campaigns" | "ai-insights" | "ai-reports"
   | "integrations" | "diagnostics" | "tools" | "team" | "comments" | "account" | "reports" | "assistant" | "notifications";

@@ -3,14 +3,16 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
-import { normalizeChatId, WA_COLS } from "@/lib/whatsapp";
+import { normalizeChatId, STATUS_CHAT, WA_COLS, type WaKind, type WaPoll } from "@/lib/whatsapp";
 
 // WhatsApp broadcast queue — its own table (whatsapp_scheduled_messages), fully
 // separate from the Meta/n8n post pipeline and from the LinkedIn queue it copies.
 // The dashboard never calls WAHA: it has no public port. n8n on the same VPS polls
 // /api/scheduler/whatsapp/due, sends, and posts back to .../status.
 //   GET  /api/scheduler/whatsapp   -> recent messages for the UI
-//   POST /api/scheduler/whatsapp   { chats:[{id,label?}], body?, imageUrl?, scheduleTimeISO? }
+//   POST /api/scheduler/whatsapp   { kind?, chats:[{id,label?}], body?, imageUrl?, poll?, scheduleTimeISO? }
+// kind: "message" (default) | "poll" | "status". A status goes to status@broadcast
+// and needs no recipient — WhatsApp sends it to the account's contacts.
 // A send to several recipients becomes one row each, so one failure never hides
 // the rest (and it is what Blueticks does: "scheduled individually for each one").
 export const dynamic = "force-dynamic";
@@ -40,9 +42,10 @@ export async function POST(req: Request) {
 
   try {
     const b = (await req.json()) as {
-      chats?: { id?: string; label?: string }[];
-      body?: string; imageUrl?: string; scheduleTimeISO?: string;
+      kind?: string; chats?: { id?: string; label?: string }[];
+      body?: string; imageUrl?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
     };
+    const kind: WaKind = b.kind === "poll" ? "poll" : b.kind === "status" ? "status" : "message";
 
     const seen = new Set<string>();
     const chats = (b.chats || [])
@@ -52,8 +55,20 @@ export async function POST(req: Request) {
     const text = (b.body || "").trim();
     const imageUrl = (b.imageUrl || "").trim() || null;
 
-    if (!chats.length) return NextResponse.json({ error: "pick at least one recipient (a number, group id or channel id)" }, { status: 400 });
-    if (!text && !imageUrl) return NextResponse.json({ error: "nothing to send (a message or an image is required)" }, { status: 400 });
+    // A status has no recipient to pick — it goes to the account's contacts.
+    const targets = kind === "status" ? [{ id: STATUS_CHAT, label: "My Status" }] : chats;
+
+    let poll: WaPoll | null = null;
+    if (kind === "poll") {
+      const name = (b.poll?.name || "").trim();
+      const options = (b.poll?.options || []).map((o) => (o || "").trim()).filter(Boolean).slice(0, 12);
+      if (!name) return NextResponse.json({ error: "the poll needs a question" }, { status: 400 });
+      if (options.length < 2) return NextResponse.json({ error: "a poll needs at least two options" }, { status: 400 });
+      poll = { name, options, multipleAnswers: !!b.poll?.multipleAnswers };
+    }
+
+    if (!targets.length) return NextResponse.json({ error: "pick at least one recipient (a number, group id or channel id)" }, { status: 400 });
+    if (kind !== "poll" && !text && !imageUrl) return NextResponse.json({ error: "nothing to send (a message or an image is required)" }, { status: 400 });
 
     // No time → send on the worker's next tick, same as the LinkedIn queue.
     const when = b.scheduleTimeISO ? new Date(b.scheduleTimeISO) : new Date();
@@ -63,10 +78,11 @@ export async function POST(req: Request) {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
       .from("whatsapp_scheduled_messages")
-      .insert(chats.map((c) => ({
+      .insert(targets.map((c) => ({
         chat_id: c.id, chat_label: c.label,
         body: text || null, image_url: imageUrl,
         schedule_time: when.toISOString(), status: "scheduled",
+        kind, payload: poll ? { poll } : null,
         created_by: getSessionUserId() || null,
       })))
       .select(WA_COLS);

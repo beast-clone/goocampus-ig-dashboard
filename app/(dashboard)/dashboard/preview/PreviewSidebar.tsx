@@ -14,7 +14,7 @@ import {
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
-  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend,
+  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -66,6 +66,7 @@ const GROUPS: Group[] = [
       { label: "Published",      href: `${HUB}/scheduler?tab=calendar`, icon: IconSend },
       { label: "Top performers", href: `${HUB}/scheduler?tab=top`,      icon: IconTrendingUp },
     ] },
+    { label: "Community Broadcast", href: `${HUB}/broadcast`, icon: IconBrandWhatsapp },
   ] },
   { label: "Analytics", sec: "analytics", items: [
     { key: "instagram", label: "Instagram", icon: IconBrandInstagram, children: [

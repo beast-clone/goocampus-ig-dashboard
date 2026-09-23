@@ -7,7 +7,8 @@ import { safeError } from "@/lib/errors";
 // What n8n asks for every minute: the messages whose time has come. Each row is
 // claimed ("sending") as it is handed over, so a slow run can't hand the same
 // message to a second run — the same guard the IG/FB publisher needed.
-// The reply carries everything the WAHA node needs and nothing else.
+// The reply carries everything the WAHA node needs and nothing else — including
+// `kind` (message | poll | status) so the workflow knows which WAHA call to make.
 export const dynamic = "force-dynamic";
 
 const BATCH = 20; // bounded, so one tick can never run away with the whole queue
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
 
     const { data: due, error } = await sb
       .from("whatsapp_scheduled_messages")
-      .select("id, chat_id, chat_label, body, image_url, schedule_time")
+      .select("id, chat_id, chat_label, body, image_url, schedule_time, kind, payload")
       .eq("status", "scheduled")
       .lte("schedule_time", new Date().toISOString())
       .order("schedule_time", { ascending: true })

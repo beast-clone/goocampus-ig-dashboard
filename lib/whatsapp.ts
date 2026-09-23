@@ -3,6 +3,14 @@
 
 export type WaStatus = "scheduled" | "sending" | "sent" | "delivered" | "failed" | "canceled";
 
+/** What the worker should send. All three ride in the same queue. */
+export type WaKind = "message" | "poll" | "status";
+
+/** WhatsApp's own chat id for a Status (story) — not a real chat. */
+export const STATUS_CHAT = "status@broadcast";
+
+export type WaPoll = { name: string; options: string[]; multipleAnswers: boolean };
+
 export const WA_STATUSES: WaStatus[] = ["scheduled", "sending", "sent", "delivered", "failed", "canceled"];
 
 export type WaMessage = {
@@ -13,6 +21,8 @@ export type WaMessage = {
   image_url: string | null;
   schedule_time: string;
   status: WaStatus;
+  kind: WaKind;
+  payload: { poll?: WaPoll } | null;
   wa_message_id: string | null;
   error: string | null;
   created_by: string | null;
@@ -21,13 +31,14 @@ export type WaMessage = {
 };
 
 export const WA_COLS =
-  "id, chat_id, chat_label, body, image_url, schedule_time, status, wa_message_id, error, created_by, created_at, sent_at";
+  "id, chat_id, chat_label, body, image_url, schedule_time, status, kind, payload, wa_message_id, error, created_by, created_at, sent_at";
 
 export type ChatKind = "contact" | "group" | "channel";
 
 /** What a chat id is, read off its suffix — that is all WhatsApp gives us. */
 export function chatKind(chatId: string): ChatKind {
   const id = (chatId || "").toLowerCase();
+  if (id === STATUS_CHAT) return "channel";           // Status behaves like a broadcast
   if (id.endsWith("@g.us")) return "group";          // groups, incl. a community's Announcements group
   if (id.endsWith("@newsletter")) return "channel";  // WhatsApp Channels
   return "contact";
@@ -52,6 +63,7 @@ export function normalizeChatId(raw: string): string | null {
 
 /** The number/id to show when there is no saved name. */
 export function chatDisplay(chatId: string): string {
+  if (chatId === STATUS_CHAT) return "My Status";
   const [left] = (chatId || "").split("@");
   if (chatKind(chatId) === "contact" && /^[0-9]+$/.test(left)) return `+${left}`;
   return chatId;

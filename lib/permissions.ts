@@ -57,7 +57,7 @@ export type Section = "overview" | "content" | "analytics" | "ads" | "sales" | "
 // The 7 sections + the tabs inside each (system is admin-only, never grantable via UI).
 export const SECTIONS: { key: Section; label: string; tabs: string; adminOnly?: boolean }[] = [
   { key: "overview", label: "Overview", tabs: "Overview" },
-  { key: "content", label: "Content", tabs: "Marketing Hub, My Day, Content Radar, Calendar, Review, Scheduler, Post Planner" },
+  { key: "content", label: "Content", tabs: "Marketing Hub, My Day, Content Radar, Calendar, Review, Scheduler, Community Broadcast, Post Planner" },
   { key: "analytics", label: "Analytics", tabs: "Instagram, LinkedIn, YouTube, Facebook, Website, All platforms" },
   { key: "ads", label: "Ads", tabs: "Ads, Competitor Ads, Benchmark" },
   { key: "sales", label: "Sales", tabs: "Marketing Campaigns, Social Leads, Sales Hub" },
@@ -70,7 +70,7 @@ export const GRANTABLE_SECTIONS = SECTIONS.filter((s) => !s.adminOnly);
 // Each PreviewTab -> its section, so the sidebar can filter what a person sees.
 export const TAB_SECTION: Record<string, Section> = {
   overview: "overview",
-  "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", "post-planner": "content",
+  "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", broadcast: "content", "post-planner": "content",
   instagram: "analytics", linkedin: "analytics", youtube: "analytics", facebook: "analytics", website: "analytics", audience: "analytics",
   ads: "ads", competitors: "ads", benchmark: "ads",
   leads: "sales", sales: "sales", campaigns: "sales",
