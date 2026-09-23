@@ -3,13 +3,18 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { chatKind, normalizeChatId } from "@/lib/whatsapp";
+import { readChats } from "@/lib/whatsapp-session";
 
-// Saved recipients for the Community Broadcast picker.
+// Recipients for the Community Broadcast picker: the live WhatsApp list, plus
+// anything saved by hand.
 //
-// The live WhatsApp contact/group list isn't available yet — WAHA's /api/contacts/all
-// needs the session re-paired with its store enabled. Until then people save the
-// chats they send to, and the picker reads THIS. When the synced list arrives it
-// becomes a second source behind the same picker; nothing above here changes.
+// The synced list comes from WhatsApp itself and carries the real contact and group
+// names, so it wins on labels. Saved entries survive alongside it, because you can
+// schedule to a number that is not in your contacts — typing one in saves it here,
+// and it would otherwise vanish from the picker.
+//
+// If the sync is unreachable the picker still works off the saved list and says so,
+// rather than showing an empty box.
 //
 // Stored in discover_cache (source "whatsapp_recipient"), the project's key-value
 // table, so this needs no migration of its own.
@@ -32,12 +37,31 @@ export async function GET() {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb.from("discover_cache").select("payload").eq("source", SOURCE).limit(500);
     if (error) throw new Error(error.message);
-    const recipients = (data || [])
+    const saved = (data || [])
       .map((r) => r.payload as Saved)
-      .filter((r) => r && r.id)
+      .filter((r) => r && r.id);
+
+    // The live list is a nicety, not a dependency — never let it break the picker.
+    let synced = false;
+    const byId = new Map<string, Saved>();
+    try {
+      const live = await readChats();
+      for (const c of live.recipients || []) {
+        byId.set(c.id, { id: c.id, label: c.label || c.id, kind: c.kind });
+      }
+      synced = byId.size > 0;
+    } catch {
+      /* fall through to the saved list alone */
+    }
+    for (const r of saved) {
+      const live = byId.get(r.id);
+      // A name from WhatsApp beats a placeholder, but a name someone typed beats both.
+      byId.set(r.id, { ...r, label: r.label && r.label !== r.id ? r.label : live?.label || r.label });
+    }
+
+    const recipients = [...byId.values()]
       .sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
-    // `synced: false` tells the UI the live WhatsApp list isn't wired up yet.
-    return NextResponse.json({ recipients, synced: false });
+    return NextResponse.json({ recipients, synced });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to load saved recipients"), { status: 502 });
   }

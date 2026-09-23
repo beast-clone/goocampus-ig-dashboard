@@ -30,13 +30,17 @@ const HOOK =
   process.env.WAHA_SESSION_WEBHOOK ||
   "https://n8n.srv1046538.hstgr.cloud/webhook/waha-session";
 
-async function relay<T>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
+const READ_HOOK =
+  process.env.WAHA_READ_WEBHOOK ||
+  "https://n8n.srv1046538.hstgr.cloud/webhook/waha-read";
+
+async function relay<T>(action: string, extra: Record<string, unknown> = {}, hook = HOOK): Promise<T> {
   const secret = process.env.CRON_SECRET;
   if (!secret) throw new Error("CRON_SECRET is not configured");
 
   let res: Response;
   try {
-    res = await fetch(HOOK, {
+    res = await fetch(hook, {
       method: "POST",
       headers: { "content-type": "application/json", "x-cron-secret": secret },
       body: JSON.stringify({ action, ...extra }),
@@ -62,6 +66,21 @@ async function relay<T>(action: string, extra: Record<string, unknown> = {}): Pr
 export const readSession = () => relay<WaSession>("status");
 export const requestPairingCode = (phone: string) => relay<{ code: string }>("connect", { phone });
 export const disconnectSession = () => relay<{ ok: true }>("disconnect");
+
+/** One synced chat from WhatsApp. `label` is null when the contact has no saved name. */
+export type SyncedChat = { id: string; label: string | null; kind: "contact" | "group" | "channel" };
+export type WaAccount = { name: string; status: string; phone: string | null; label: string | null };
+
+/**
+ * The live contact / group / channel list, and every linked account.
+ *
+ * Read-only, and it goes to its own relay rather than the session one — that
+ * workflow returns the lists as TEXT on purpose. WAHA replies with arrays, and
+ * n8n turns an array into one item per element and stores each as execution
+ * data; ~2000 items ran n8n out of heap and took it down. Keep it that way.
+ */
+export const readChats = (session = "default") =>
+  relay<{ session: string; recipients: SyncedChat[]; accounts: WaAccount[] }>("chats", { session }, READ_HOOK);
 
 /**
  * Digits only, no "+" — the form WhatsApp wants.
