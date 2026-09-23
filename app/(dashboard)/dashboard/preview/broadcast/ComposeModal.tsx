@@ -246,7 +246,9 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                   <IconBrandWhatsapp size={17} className="text-[#25D366] flex-shrink-0" stroke={2} />
                   <PreviewSelect
                     value={session}
-                    onChange={(v) => { setSession(v); setChats([]); }}
+                    // Changing it here also moves the tick on Connected numbers and
+                    // becomes the default for the next message — one choice, not two.
+                    onChange={(v) => { setSession(v); setSendFrom(v); setChats([]); }}
                     className="h-8 text-[13px]"
                     options={accounts.map((a) => ({
                       value: a.name,
