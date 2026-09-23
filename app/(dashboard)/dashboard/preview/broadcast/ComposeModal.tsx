@@ -6,6 +6,7 @@ import {
   IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { RecipientPicker, type Recipient } from "./RecipientPicker";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -230,18 +231,16 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               {accounts.length > 1 && (
                 <div className="flex items-center gap-2 mb-3">
                   <label className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">Send from</label>
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5">
-                    <IconBrandWhatsapp size={14} className="text-[#25D366]" />
-                    <select value={session} onChange={(e) => { setSession(e.target.value); setChats([]); }}
-                      className="outline-none text-[13px] text-[#232D42] bg-transparent">
-                      {accounts.map((a) => (
-                        <option key={a.name} value={a.name}>
-                          {prettyPhone(a.phone) || a.name}{a.label ? ` — ${a.label}` : ""}
-                          {a.status === "WORKING" ? "" : " (not linked)"}
-                        </option>
-                      ))}
-                    </select>
-                  </span>
+                  <IconBrandWhatsapp size={15} className="text-[#25D366] flex-shrink-0" />
+                  <PreviewSelect
+                    value={session}
+                    onChange={(v) => { setSession(v); setChats([]); }}
+                    className="h-8 text-[13px]"
+                    options={accounts.map((a) => ({
+                      value: a.name,
+                      label: `${prettyPhone(a.phone) || a.name}${a.label ? ` — ${a.label}` : ""}${a.status === "WORKING" ? "" : " (not linked)"}`,
+                    }))}
+                  />
                   <span className="text-[11.5px] text-[#8A92A6]">Contacts and groups are this number&apos;s.</span>
                 </div>
               )}
@@ -362,15 +361,15 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               {/* Repeat. The next run is queued only once this one has gone out, so a
                   daily message never fills the calendar months ahead. */}
               <div className="flex flex-wrap gap-2 mt-2 items-center">
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
-                  <IconRepeat size={14} className="text-[#8A92A6]" />
-                  <select value={repeatRule} onChange={(e) => setRepeatRule(e.target.value as WaRepeatRule)}
-                    className="outline-none text-[13px] text-[#232D42] bg-transparent">
-                    {(["none", "daily", "weekly", "monthly"] as WaRepeatRule[]).map((r) => (
-                      <option key={r} value={r}>{REPEAT_LABEL[r]}</option>
-                    ))}
-                  </select>
-                </span>
+                <IconRepeat size={15} className="text-[#8A92A6] flex-shrink-0" />
+                <PreviewSelect
+                  value={repeatRule}
+                  onChange={(v) => setRepeatRule(v as WaRepeatRule)}
+                  className="h-8 text-[13px]"
+                  dropUp
+                  options={(["none", "daily", "weekly", "monthly"] as WaRepeatRule[])
+                    .map((r) => ({ value: r, label: REPEAT_LABEL[r] }))}
+                />
                 {repeatRule !== "none" && (
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
                     <span className="text-[12.5px] text-[#8A92A6]">until</span>

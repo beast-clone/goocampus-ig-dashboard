@@ -4,13 +4,21 @@ import { IconChevronDown, IconCheck, IconPlus, IconX } from "@tabler/icons-react
 
 // Themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, addOption, onRemoveOption }: {
+export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, dropUp, addOption, onRemoveOption }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; img?: string }[];
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Open the menu upwards.
+   *
+   * The menu is absolutely positioned, so a scrolling ancestor clips it. A picker
+   * sitting near the bottom of a scrollable panel (the repeat control in the
+   * broadcast composer) would otherwise drop its options behind the footer.
+   */
+  dropUp?: boolean;
   /**
    * Optional "add your own" row at the foot of the menu. The campaign lead list
    * needs it: its choices are whatever values already exist in the sheet column,
@@ -52,7 +60,7 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
           {/* Inline boxShadow — .preview-scope strips Tailwind shadow-* to none, so the
               menu would otherwise render flat. Inline styles survive the strip. */}
           <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
-            className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto">
+            className={`absolute left-0 ${dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto`}>
             {options.map((o) => (
               <div key={o.value} className={`group flex items-center rounded-lg ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
                 <button type="button" onClick={() => { onChange(o.value); setOpen(false); }}
