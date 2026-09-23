@@ -351,7 +351,7 @@ function MessageDetail({ m, onClose, onCancel, onDelete }: {
   const poll = m.kind === "poll" ? m.payload?.poll : null;
   const repeat = repeatOf(m.payload);
   const stamp = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(IST, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+    iso ? new Date(iso).toLocaleString(IST, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }) : "—";
 
   return (
     <Overlay onClose={onClose}>
@@ -400,7 +400,7 @@ function MessageDetail({ m, onClose, onCancel, onDelete }: {
             </div>
           )}
           <div className="flex items-center justify-end gap-1 text-[10.5px] mt-0.5" style={{ color: "var(--wa-meta)" }}>
-            {when.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit" })}
+            {when.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit", hour12: true })}
             <IconChecks size={13} style={{ color: "var(--wa-tick)" }} />
           </div>
         </div>

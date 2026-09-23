@@ -126,8 +126,10 @@ export function WhatsAppAccount() {
       )}
 
       {accounts?.map((a, i) => (
-        <div key={a.name} className={`flex items-center gap-1.5 px-2.5 py-2.5 ${i ? "border-t border-gray-100" : ""}`}>
-          <IconBrandWhatsapp size={16} className="text-[#25D366] flex-shrink-0" />
+        <div key={a.name} className={`flex items-center gap-2 px-2.5 py-2.5 ${i ? "border-t border-gray-100" : ""}`}>
+          <span className="w-7 h-7 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
+            <IconBrandWhatsapp size={18} className="text-[#25D366]" stroke={2} />
+          </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[a.status] || DOT.UNKNOWN}`} />

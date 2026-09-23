@@ -20,7 +20,7 @@ type Template = { id: string; name: string; body: string; imageUrl: string | nul
 
 const fmtLong = (d: Date) =>
   d.toLocaleDateString(IST, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) +
-  " at " + d.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit" });
+  " at " + d.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit", hour12: true });
 
 /** WhatsApp's markup, as far as the preview needs it. */
 export function renderWa(text: string): React.ReactNode[] {
@@ -231,7 +231,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               {accounts.length > 1 && (
                 <div className="flex items-center gap-2 mb-3">
                   <label className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">Send from</label>
-                  <IconBrandWhatsapp size={15} className="text-[#25D366] flex-shrink-0" />
+                  <IconBrandWhatsapp size={17} className="text-[#25D366] flex-shrink-0" stroke={2} />
                   <PreviewSelect
                     value={session}
                     onChange={(v) => { setSession(v); setChats([]); }}
@@ -444,7 +444,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               </>
             )}
             <div className="flex items-center justify-end gap-1 text-[10.5px] mt-0.5" style={{ color: "var(--wa-meta)" }}>
-              {at && !isNaN(at.getTime()) ? at.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit" }) : ""}
+              {at && !isNaN(at.getTime()) ? at.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit", hour12: true }) : ""}
               <IconChecks size={13} style={{ color: "var(--wa-tick)" }} />
             </div>
           </div>
