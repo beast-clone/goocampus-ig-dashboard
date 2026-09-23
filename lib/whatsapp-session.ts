@@ -30,6 +30,15 @@ const HOOK =
   process.env.WAHA_SESSION_WEBHOOK ||
   "https://n8n.srv1046538.hstgr.cloud/webhook/waha-session";
 
+/**
+ * The first account, and the fallback everywhere.
+ *
+ * A WAHA "session" IS a linked WhatsApp number. This one is literally named
+ * "default", and every message queued before multi-account has no account on it,
+ * so it resolves here. Renaming it would strand all of those and force a re-pair.
+ */
+export const DEFAULT_ACCOUNT = "default";
+
 const READ_HOOK =
   process.env.WAHA_READ_WEBHOOK ||
   "https://n8n.srv1046538.hstgr.cloud/webhook/waha-read";
@@ -63,9 +72,10 @@ async function relay<T>(action: string, extra: Record<string, unknown> = {}, hoo
   return body as T;
 }
 
-export const readSession = () => relay<WaSession>("status");
-export const requestPairingCode = (phone: string) => relay<{ code: string }>("connect", { phone });
-export const disconnectSession = () => relay<{ ok: true }>("disconnect");
+export const readSession = (session = DEFAULT_ACCOUNT) => relay<WaSession>("status", { session });
+export const requestPairingCode = (phone: string, session = DEFAULT_ACCOUNT) =>
+  relay<{ code: string }>("connect", { phone, session });
+export const disconnectSession = (session = DEFAULT_ACCOUNT) => relay<{ ok: true }>("disconnect", { session });
 
 /** One synced chat from WhatsApp. `label` is null when the contact has no saved name. */
 export type SyncedChat = { id: string; label: string | null; kind: "contact" | "group" | "channel" };
@@ -81,6 +91,35 @@ export type WaAccount = { name: string; status: string; phone: string | null; la
  */
 export const readChats = (session = "default") =>
   relay<{ session: string; recipients: SyncedChat[]; accounts: WaAccount[] }>("chats", { session }, READ_HOOK);
+
+/**
+ * Does the n8n relay actually honour the account we ask for?
+ *
+ * The session-control workflow hardcoded "default" until multi-account, and a
+ * published n8n workflow only changes when someone clicks Publish. If we asked
+ * an old one to link a NEW account it would cheerfully relink the LIVE one
+ * instead — unlinking the number that is currently sending.
+ *
+ * So probe first: ask for a session name that cannot exist. A session-aware
+ * relay reports nothing linked; an old one hands back the default account.
+ */
+export async function relayHonoursAccount(): Promise<boolean> {
+  try {
+    const probe = await readSession("__probe_does_not_exist__");
+    return !probe?.phone;
+  } catch {
+    return false;   // cannot tell — treat as unsafe
+  }
+}
+
+/** A name for a new account's session: safe characters only, and never blank. */
+export function accountSlug(label: string, taken: string[] = []): string {
+  const base = (label || "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "account";
+  if (!taken.includes(base)) return base;
+  for (let i = 2; i < 100; i++) if (!taken.includes(`${base}-${i}`)) return `${base}-${i}`;
+  return `${base}-${Date.now()}`;
+}
 
 /**
  * Digits only, no "+" — the form WhatsApp wants.

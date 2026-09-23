@@ -29,9 +29,11 @@ function Avatar({ r }: { r: Recipient }) {
   );
 }
 
-export function RecipientPicker({ selected, onChange }: {
+export function RecipientPicker({ selected, onChange, session }: {
   selected: Recipient[];
   onChange: (next: Recipient[]) => void;
+  /** Whose contacts to show — each linked number has its own. */
+  session?: string;
 }) {
   const [list, setList] = useState<Recipient[] | null>(null);
   const [synced, setSynced] = useState(false);
@@ -42,11 +44,13 @@ export function RecipientPicker({ selected, onChange }: {
   const [newLabel, setNewLabel] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
-  const load = () => fetch("/api/scheduler/whatsapp/recipients", { cache: "no-store" })
+  const load = () => fetch(`/api/scheduler/whatsapp/recipients${session ? `?session=${encodeURIComponent(session)}` : ""}`, { cache: "no-store" })
     .then((r) => r.json())
     .then((d) => { setList(d.recipients || []); setSynced(!!d.synced); })
     .catch(() => setList([]));
-  useEffect(() => { load(); }, []);
+  // Switching account swaps the whole list — they are different address books.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setList(null); load(); }, [session]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();

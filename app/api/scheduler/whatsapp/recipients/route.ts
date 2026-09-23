@@ -28,7 +28,7 @@ const KEY = (chatId: string) => `wa-recipient:${chatId}`;
 
 type Saved = { id: string; label: string; kind: ReturnType<typeof chatKind> };
 
-export async function GET() {
+export async function GET(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
@@ -45,7 +45,7 @@ export async function GET() {
     let synced = false;
     const byId = new Map<string, Saved>();
     try {
-      const live = await readChats();
+      const live = await readChats(new URL(req.url).searchParams.get("session") || undefined);
       for (const c of live.recipients || []) {
         byId.set(c.id, { id: c.id, label: c.label || c.id, kind: c.kind });
       }

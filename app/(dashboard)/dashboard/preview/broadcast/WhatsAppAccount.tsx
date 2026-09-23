@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   IconBrandWhatsapp, IconAlertTriangle, IconClock,
-  IconPlugConnectedX, IconRefresh, IconCopy, IconCheck,
+  IconPlugConnectedX, IconRefresh, IconCopy, IconCheck, IconPlus,
 } from "@tabler/icons-react";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
-import { prettyPhone, type WaSession } from "@/lib/whatsapp-session";
+import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 
 // Which WhatsApp number Community Broadcast sends from, and how to change it.
 //
@@ -15,8 +15,9 @@ import { prettyPhone, type WaSession } from "@/lib/whatsapp-session";
 
 type Phase =
   | { at: "idle" }
-  | { at: "asking" }                                  // typing the number
-  | { at: "pairing"; code: string; phone: string }    // code issued, waiting on the phone
+  // `session` is the account being (re)linked; undefined means a brand new one.
+  | { at: "asking"; session?: string }
+  | { at: "pairing"; code: string; phone: string; session: string }
   | { at: "error"; message: string };
 
 const DOT: Record<string, string> = {
@@ -29,8 +30,7 @@ const DOT: Record<string, string> = {
 };
 
 export function WhatsAppAccount() {
-  const [session, setSession] = useState<WaSession | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [accounts, setAccounts] = useState<WaAccount[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "idle" });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,61 +41,60 @@ export function WhatsAppAccount() {
     try {
       const r = await fetch("/api/scheduler/whatsapp/session", { cache: "no-store" });
       const d = await r.json();
-      if (!r.ok) throw new Error(d?.error || "Could not read the account");
-      setSession(d.session as WaSession);
-      return d.session as WaSession;
+      if (!r.ok) throw new Error(d?.error || "Could not read the accounts");
+      const list = (d.accounts || []) as WaAccount[];
+      setAccounts(list);
+      return list;
     } catch (e) {
-      setSession({ status: "UNKNOWN", phone: null, name: null });
+      setAccounts([]);
       setPhase({ at: "error", message: (e as Error).message });
-      return null;
-    } finally {
-      setLoading(false);
+      return [];
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   // While a code is outstanding, keep asking — the moment the phone accepts it the
-  // status flips to WORKING and the panel should say so without anyone refreshing.
+  // account turns green without anyone refreshing.
   useEffect(() => {
     if (phase.at !== "pairing") return;
+    const target = phase.session;
     const tick = async () => {
-      const s = await load();
-      if (s?.status === "WORKING") { setPhase({ at: "idle" }); return; }
+      const list = await load();
+      if (list.some((a) => a.name === target && a.status === "WORKING")) { setPhase({ at: "idle" }); return; }
       pollRef.current = setTimeout(tick, 4000);
     };
     pollRef.current = setTimeout(tick, 4000);
     return () => { if (pollRef.current) clearTimeout(pollRef.current); };
   }, [phase, load]);
 
-  const connect = async () => {
+  const connect = async (session?: string) => {
     setBusy(true);
     try {
       const r = await fetch("/api/scheduler/whatsapp/session", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ action: "connect", phone: input }),
+        body: JSON.stringify({ action: "connect", phone: input, session }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Could not start linking");
-      setPhase({ at: "pairing", code: d.code, phone: d.phone });
+      setPhase({ at: "pairing", code: d.code, phone: d.phone, session: d.session });
     } catch (e) {
       setPhase({ at: "error", message: (e as Error).message });
     } finally { setBusy(false); }
   };
 
-  const disconnect = async () => {
+  const disconnect = async (a: WaAccount) => {
     const ok = await confirmDialog({
-      title: "Unlink this WhatsApp number?",
-      body: "Scheduled messages will stop going out until another number is linked. Nothing already sent is affected, and nothing in the queue is deleted.",
-      action: "Unlink",
-      danger: true,
+      title: `Unlink ${prettyPhone(a.phone) || a.name}?`,
+      body: "Messages queued from this number stop going out until it is linked again. Nothing already sent is affected, and nothing in the queue is deleted.",
+      action: "Unlink", danger: true,
     });
     if (!ok) return;
     setBusy(true);
     try {
       const r = await fetch("/api/scheduler/whatsapp/session", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ action: "disconnect" }),
+        body: JSON.stringify({ action: "disconnect", session: a.name }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Could not unlink");
@@ -109,71 +108,84 @@ export function WhatsAppAccount() {
   const copy = () => {
     if (phase.at !== "pairing") return;
     navigator.clipboard?.writeText(phase.code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setCopied(true); setTimeout(() => setCopied(false), 1800);
     }).catch(() => {});
   };
 
-  const linked = session?.status === "WORKING";
-  const open = phase.at === "asking" || phase.at === "pairing";
+  const openPanel = (session?: string) => { setPhase({ at: "asking", session }); setInput(""); };
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white mb-2">
-      {/* Resting state: who we send as. Calm — no destructive action on show. */}
-      <div className="flex items-center gap-1.5 px-2.5 py-2.5">
-        <IconBrandWhatsapp size={16} className="text-[#25D366] flex-shrink-0" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[session?.status || "UNKNOWN"]}`} />
-            <span className="text-[12.5px] font-medium text-[#232D42] truncate">
-              {loading ? "Checking…" : linked ? prettyPhone(session!.phone) : "No number linked"}
-            </span>
+      {accounts === null && <div className="px-3 py-2.5 text-[12.5px] text-[#8A92A6]">Checking accounts…</div>}
+
+      {accounts?.length === 0 && phase.at === "idle" && (
+        <div className="px-3 py-2.5">
+          <div className="text-[12.5px] font-medium text-[#232D42]">No number linked</div>
+          <div className="text-[11.5px] text-[#8A92A6]">Nothing can send until one is.</div>
+        </div>
+      )}
+
+      {accounts?.map((a, i) => (
+        <div key={a.name} className={`flex items-center gap-1.5 px-2.5 py-2.5 ${i ? "border-t border-gray-100" : ""}`}>
+          <IconBrandWhatsapp size={16} className="text-[#25D366] flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[a.status] || DOT.UNKNOWN}`} />
+              <span className="text-[12.5px] font-medium text-[#232D42] truncate">
+                {prettyPhone(a.phone) || a.name}
+              </span>
+            </div>
+            <div className="text-[11.5px] text-[#8A92A6] truncate">
+              {a.label || (a.status === "WORKING" ? "Linked" : a.status.toLowerCase().replace(/_/g, " "))}
+            </div>
           </div>
-          <div className="text-[11.5px] text-[#8A92A6] truncate">
-            {loading ? "\u00a0" : linked ? (session?.name || "Linked") : "Nothing can send until a number is linked"}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={() => disconnect(a)} disabled={busy} title="Unlink this number"
+              className="w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
+              <IconPlugConnectedX size={13} />
+            </button>
+            <button onClick={() => openPanel(a.name)}
+              className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
+              Change
+            </button>
           </div>
         </div>
-        {!loading && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={() => load()} title="Re-check"
-              className="w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#232D42] hover:bg-[#F6F7FB]">
-              <IconRefresh size={13} />
-            </button>
-            <button onClick={() => { setPhase(open ? { at: "idle" } : { at: "asking" }); setInput(""); }}
-              className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
-              {open ? "Close" : linked ? "Change" : "Link"}
-            </button>
-          </div>
-        )}
-      </div>
+      ))}
+
+      {accounts !== null && phase.at === "idle" && (
+        <div className="border-t border-gray-100 px-2.5 py-2 flex items-center gap-2">
+          <button onClick={() => openPanel()} className="inline-flex items-center gap-1 text-[12px] text-brand hover:underline">
+            <IconPlus size={13} /> Add a number
+          </button>
+          <button onClick={() => load()} title="Re-check"
+            className="ml-auto w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#232D42] hover:bg-[#F6F7FB]">
+            <IconRefresh size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Entering a number */}
       {phase.at === "asking" && (
         <div className="border-t border-gray-100 px-3 py-2.5">
+          <div className="text-[11.5px] text-[#8A92A6] mb-1">
+            {phase.session ? "Link a different number to this account" : "Link another WhatsApp number"}
+          </div>
           <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && input.trim()) connect(); }}
-            placeholder="Phone number with country code"
-            autoFocus
+            value={input} onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && input.trim()) connect(phase.session); }}
+            placeholder="Phone number with country code" autoFocus
             className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12.5px] text-[#232D42] outline-none focus:border-brand"
           />
           <div className="text-[11px] text-[#8A92A6] mt-1">
             A 10-digit number is treated as Indian. For anywhere else, start with the country code.
           </div>
-          <button onClick={connect} disabled={busy || !input.trim()}
-            className="mt-2 w-full rounded-lg bg-brand text-white text-[12px] font-medium px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
-            {busy ? "Getting a code…" : "Get pairing code"}
-          </button>
-          <div className="text-[11px] text-[#8A92A6] mt-2">
-            Linking a number replaces the one in use and turns the contact list on.
-          </div>
-          {linked && (
-            <button onClick={disconnect} disabled={busy}
-              className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-[#8A92A6] hover:text-[#C03221] disabled:opacity-50">
-              <IconPlugConnectedX size={12} /> Unlink {prettyPhone(session!.phone)} without linking another
+          <div className="mt-2 flex items-center gap-2">
+            <button onClick={() => connect(phase.session)} disabled={busy || !input.trim()}
+              className="rounded-lg bg-brand text-white text-[12px] font-medium px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50">
+              {busy ? "Getting a code…" : "Get pairing code"}
             </button>
-          )}
+            <button onClick={() => setPhase({ at: "idle" })} className="text-[12px] text-[#8A92A6] hover:text-[#232D42]">Cancel</button>
+          </div>
         </div>
       )}
 
@@ -195,10 +207,10 @@ export function WhatsAppAccount() {
           <div className="flex items-center gap-1.5 text-[11.5px] text-amber-700 mt-2">
             <IconClock size={12} /> Waiting for the phone…
           </div>
+          <button onClick={() => setPhase({ at: "idle" })} className="text-[11.5px] text-[#8A92A6] hover:text-[#232D42] mt-1.5">Cancel</button>
         </div>
       )}
 
-      {/* Something went wrong */}
       {phase.at === "error" && (
         <div className="border-t border-gray-100 px-3 py-2 flex items-start gap-1.5 text-[11.5px] text-[#C03221]">
           <IconAlertTriangle size={13} className="mt-0.5 flex-shrink-0" />

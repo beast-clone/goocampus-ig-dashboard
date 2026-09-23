@@ -45,6 +45,7 @@ export async function POST(req: Request) {
       kind?: string; chats?: { id?: string; label?: string }[];
       body?: string; imageUrl?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
       repeat?: { rule?: string; until?: string | null };
+      session?: string;   // which linked WhatsApp account sends it
     };
     const kind: WaKind = b.kind === "poll" ? "poll" : b.kind === "status" ? "status" : "message";
 
@@ -83,6 +84,10 @@ export async function POST(req: Request) {
         ? { rule, until: b.repeat?.until || null, anchorDay: when.getDate() }
         : null;
 
+    // Which account sends it. Left off, the sender falls back to "default", so
+    // rows queued before multi-account keep working untouched.
+    const session = (b.session || "").trim() || null;
+
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
@@ -91,7 +96,10 @@ export async function POST(req: Request) {
         chat_id: c.id, chat_label: c.label,
         body: text || null, image_url: imageUrl,
         schedule_time: when.toISOString(), status: "scheduled",
-        kind, payload: poll || repeat ? { ...(poll ? { poll } : {}), ...(repeat ? { repeat } : {}) } : null,
+        kind,
+        payload: poll || repeat || session
+          ? { ...(poll ? { poll } : {}), ...(repeat ? { repeat } : {}), ...(session ? { session } : {}) }
+          : null,
         created_by: getSessionUserId() || null,
       })))
       .select(WA_COLS);

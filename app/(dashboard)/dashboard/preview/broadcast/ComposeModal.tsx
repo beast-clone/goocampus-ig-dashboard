@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { RecipientPicker, type Recipient } from "./RecipientPicker";
+import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
 
@@ -75,6 +76,8 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
   const [pollMulti, setPollMulti] = useState(false);
   const [date, setDate] = useState(initialDate || new Date().toLocaleDateString("en-CA"));
   const [time, setTime] = useState(() => { const d = new Date(Date.now() + 30 * 60000); return d.toTimeString().slice(0, 5); });
+  const [accounts, setAccounts] = useState<WaAccount[]>([]);
+  const [session, setSession] = useState<string>("");
   const [repeatRule, setRepeatRule] = useState<WaRepeatRule>("none");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [busy, setBusy] = useState(false);
@@ -157,6 +160,18 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
     : !at || isNaN(at.getTime()) ? "Please pick a date and a time"
     : null;
 
+  // Which number this goes out from. Only worth showing when there is a choice.
+  useEffect(() => {
+    fetch("/api/scheduler/whatsapp/session", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        const list = (d.accounts || []) as WaAccount[];
+        setAccounts(list);
+        setSession((cur) => cur || list.find((a) => a.status === "WORKING")?.name || list[0]?.name || "");
+      })
+      .catch(() => setAccounts([]));
+  }, []);
+
   const submit = async () => {
     if (problem || inPast) return;
     setBusy(true); setErr(null);
@@ -169,6 +184,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
           poll: kind === "poll" ? { name: pollName.trim(), options: pollOptions.map((o) => o.trim()).filter(Boolean), multipleAnswers: pollMulti } : undefined,
           scheduleTimeISO: at!.toISOString(),
           repeat: repeatRule === "none" ? undefined : { rule: repeatRule, until: repeatUntil || null },
+          session: session || undefined,
         }),
       });
       const d = await res.json();
@@ -207,10 +223,30 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
             {kind === "status" ? (
               <div className="flex items-start gap-2 rounded-xl border border-gray-100 bg-[#F6F7FB] px-3 py-2.5 text-[12.5px] text-[#4A5468] mb-4">
                 <IconInfoCircle size={15} className="mt-0.5 flex-shrink-0 text-[#8A92A6]" />
-                A status goes to everyone in the account&apos;s contacts and disappears after 24 hours. Picking who sees it needs the WhatsApp contact sync, which isn&apos;t connected yet.
+                A status goes to everyone in the account&apos;s contacts and disappears after 24 hours. Choosing who sees it isn&apos;t supported yet.
               </div>
             ) : (
-              <div className="mb-4"><RecipientPicker selected={chats} onChange={setChats} /></div>
+              <>
+              {accounts.length > 1 && (
+                <div className="flex items-center gap-2 mb-3">
+                  <label className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">Send from</label>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5">
+                    <IconBrandWhatsapp size={14} className="text-[#25D366]" />
+                    <select value={session} onChange={(e) => { setSession(e.target.value); setChats([]); }}
+                      className="outline-none text-[13px] text-[#232D42] bg-transparent">
+                      {accounts.map((a) => (
+                        <option key={a.name} value={a.name}>
+                          {prettyPhone(a.phone) || a.name}{a.label ? ` — ${a.label}` : ""}
+                          {a.status === "WORKING" ? "" : " (not linked)"}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                  <span className="text-[11.5px] text-[#8A92A6]">Contacts and groups are this number&apos;s.</span>
+                </div>
+              )}
+              <div className="mb-4"><RecipientPicker selected={chats} onChange={setChats} session={session || undefined} /></div>
+              </>
             )}
 
             {kind === "poll" ? (
