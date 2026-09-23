@@ -104,6 +104,10 @@ export function BroadcastWorkspace() {
         {/* Left rail — every scheduled message, kept for good */}
         <aside className="bg-white border border-gray-100 rounded-2xl flex flex-col max-h-[calc(100vh-190px)]">
           <div className="px-3 py-3 border-b border-gray-100">
+            <button onClick={() => setCompose({ open: true })}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white text-[13px] font-medium px-3 py-2 mb-2 hover:bg-brand-dark">
+              <IconPlus size={15} /> New message
+            </button>
             <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5">
               <IconSearch size={15} className="text-[#8A92A6]" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search scheduled messages"
@@ -139,10 +143,6 @@ export function BroadcastWorkspace() {
               <div className="text-[11.5px] text-[#8A92A6]">{countIn(all, cursor, view)} sends this {view}</div>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <button onClick={() => setCompose({ open: true })}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand text-white text-[12.5px] font-medium px-3 py-2 hover:bg-brand-dark">
-                <IconPlus size={14} /> New message
-              </button>
               <div className="inline-flex bg-[#F6F7FB] border border-gray-100 rounded-lg p-0.5 gap-0.5">
                 {(["month", "week", "day"] as View[]).map((v) => (
                   <button key={v} onClick={() => setView(v)}
