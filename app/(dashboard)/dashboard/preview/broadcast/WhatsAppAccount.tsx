@@ -40,7 +40,7 @@ function StatusDot({ status }: { status: string }) {
   const colour = DOT[status] || DOT.UNKNOWN;
   const live = status === "WORKING";
   return (
-    <span className="relative flex w-3 h-3 flex-shrink-0" title={live ? "Connected" : status.toLowerCase().replace(/_/g, " ")}>
+    <span className="relative flex items-center justify-center w-3 h-3 flex-shrink-0 self-center" title={live ? "Connected" : status.toLowerCase().replace(/_/g, " ")}>
       {live && <span className={`absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping ${colour}`} />}
       <span className={`relative inline-flex w-3 h-3 rounded-full ${colour}`} />
     </span>
@@ -147,12 +147,12 @@ export function WhatsAppAccount() {
       )}
 
       {accounts?.map((a, i) => (
-        <div key={a.name} className={`group relative flex items-center gap-3 px-3 py-3.5 ${i ? "border-t border-gray-100" : ""}`}>
+        <div key={a.name} className={`group relative flex items-center gap-2.5 px-3 py-3.5 ${i ? "border-t border-gray-100" : ""}`}>
           <span className="w-10 h-10 rounded-full bg-[#25D366]/10 grid place-items-center flex-shrink-0">
             <IconBrandWhatsapp size={25} className="text-[#25D366]" stroke={2} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-medium text-[#232D42] truncate leading-tight">
+            <div className="text-[14px] font-medium text-[#232D42] truncate leading-tight">
               {prettyPhone(a.phone) || a.name}
             </div>
             <div className="text-[13px] text-[#8A92A6] truncate">
@@ -170,7 +170,7 @@ export function WhatsAppAccount() {
             </button>
           )}
           <button onClick={() => disconnect(a)} disabled={busy} title="Unlink this number"
-            className="absolute right-8 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-md bg-white text-[#8A92A6] opacity-0 group-hover:opacity-100 focus:opacity-100 transition hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
+            className="w-7 h-7 grid place-items-center rounded-md text-[#8A92A6] flex-shrink-0 transition hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
             <IconPlugConnectedX size={15} />
           </button>
         </div>
