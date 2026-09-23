@@ -55,18 +55,26 @@ export function RecipientPicker({ selected, onChange }: {
       .filter((r) => !needle || r.label.toLowerCase().includes(needle) || r.id.toLowerCase().includes(needle));
   }, [list, kind, q]);
 
+  // Typing a number straight into the search box is the fast path: you should not
+  // have to open "Add a number or group" and fill two fields to reach one person.
+  const typed = useMemo(() => {
+    const id = normalizeChatId(q);
+    if (!id) return null;
+    if ((list || []).some((r) => r.id === id)) return null;   // already in the list below
+    return { id, label: chatDisplay(id), kind: chatKind(id) } as Recipient;
+  }, [q, list]);
+
   const isOn = (id: string) => selected.some((s) => s.id === id);
   const toggle = (r: Recipient) => onChange(isOn(r.id) ? selected.filter((s) => s.id !== r.id) : [...selected, r]);
 
   // Saving is what makes a chat reusable; a one-off can still be sent by typing it
   // and hitting Add, which selects it whether or not the save succeeds.
-  const add = async () => {
+  const addId = async (raw: string, label?: string) => {
     setErr(null);
-    const id = normalizeChatId(newId);
+    const id = normalizeChatId(raw);
     if (!id) { setErr("Enter a phone number, a group id (…@g.us) or a channel id (…@newsletter)."); return; }
-    const r: Recipient = { id, label: newLabel.trim() || chatDisplay(id), kind: chatKind(id) };
+    const r: Recipient = { id, label: (label || "").trim() || chatDisplay(id), kind: chatKind(id) };
     onChange(isOn(id) ? selected : [...selected, r]);
-    setNewId(""); setNewLabel(""); setAdding(false);
     try {
       await fetch("/api/scheduler/whatsapp/recipients", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
@@ -75,6 +83,8 @@ export function RecipientPicker({ selected, onChange }: {
       load();
     } catch { /* selected anyway — saving is a convenience, not the send */ }
   };
+
+  const add = async () => { await addId(newId, newLabel); setNewId(""); setNewLabel(""); setAdding(false); };
 
   const forget = async (id: string) => {
     await fetch(`/api/scheduler/whatsapp/recipients?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
@@ -124,7 +134,7 @@ export function RecipientPicker({ selected, onChange }: {
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-2.5 py-2 border-b border-gray-100">
           <IconSearch size={15} stroke={1.8} className="text-[#8A92A6]" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search saved recipients…"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search, or type a number…"
             className="flex-1 outline-none text-[13px] text-[#232D42] bg-transparent" />
         </div>
         <div className="flex gap-1 px-2.5 py-2 border-b border-gray-100">
@@ -137,13 +147,26 @@ export function RecipientPicker({ selected, onChange }: {
         </div>
 
         <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
+          {typed && (
+            <button type="button" onClick={() => { addId(typed.id); setQ(""); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[#F6F7FB] border-b border-gray-50">
+              <span className="w-4 h-4 rounded border border-dashed border-brand grid place-items-center flex-shrink-0 text-brand">
+                <IconPlus size={11} stroke={2.5} />
+              </span>
+              <Avatar r={typed} />
+              <span className="min-w-0">
+                <span className="block text-[13px] text-[#232D42] truncate">Send to {typed.label}</span>
+                <span className="block text-[11.5px] text-[#8A92A6] truncate">Not saved yet — click to add</span>
+              </span>
+            </button>
+          )}
           {list === null ? (
             <div className="px-3 py-6 text-[13px] text-[#8A92A6] text-center">Loading…</div>
-          ) : shown.length === 0 ? (
+          ) : shown.length === 0 && !typed ? (
             <div className="px-3 py-6 text-[13px] text-[#8A92A6] text-center">
               {list.length === 0 ? "No saved recipients yet — add a number or group above." : "Nothing matches that search."}
             </div>
-          ) : shown.map((r) => (
+          ) : shown.length === 0 ? null : shown.map((r) => (
             <div key={r.id} className={`flex items-center gap-2.5 px-3 py-2 ${isOn(r.id) ? "bg-brand-light/40" : "hover:bg-[#F6F7FB]"}`}>
               <button type="button" onClick={() => toggle(r)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
                 <span className={`w-4 h-4 rounded border grid place-items-center flex-shrink-0 ${isOn(r.id) ? "bg-brand border-brand text-white" : "border-gray-300"}`}>

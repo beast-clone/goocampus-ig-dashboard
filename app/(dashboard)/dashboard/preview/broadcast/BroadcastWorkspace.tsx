@@ -7,7 +7,8 @@ import {
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
-import { ComposeModal } from "./ComposeModal";
+import { ComposeModal, renderWa } from "./ComposeModal";
+import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
 import { chatDisplay, type WaMessage, type WaStatus } from "@/lib/whatsapp";
 
@@ -99,6 +100,8 @@ export function BroadcastWorkspace() {
     load();
   };
 
+  const selectedRow = selected ? all.find((r) => r.id === selected) || null : null;
+
   return (
     <div className="preview-scope">
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
@@ -164,6 +167,13 @@ export function BroadcastWorkspace() {
 
       {compose?.open && (
         <ComposeModal initialDate={compose.date} onClose={() => setCompose(null)} onSaved={load} />
+      )}
+
+      {/* Clicking anything in the rail or the calendar opens it in full — the preview
+          is short and a tooltip cannot show an image, a poll or a failure reason. */}
+      {selectedRow && (
+        <MessageDetail m={selectedRow} onClose={() => setSelected(null)}
+          onCancel={() => { cancel(selectedRow); setSelected(null); }} />
       )}
     </div>
   );
@@ -297,5 +307,105 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd }: {
         })}
       </div>
     </div>
+  );
+}
+
+
+// One scheduled message, in full. Reached by clicking it in the rail or on the
+// calendar — the list only has room for a truncated line, and a tooltip cannot
+// show an image, poll options, or why a send failed.
+function MessageDetail({ m, onClose, onCancel }: {
+  m: WaMessage; onClose: () => void; onCancel: () => void;
+}) {
+  const st = STATUS_STYLE[m.status];
+  const when = new Date(m.schedule_time);
+  const poll = m.kind === "poll" ? m.payload?.poll : null;
+  const stamp = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString(IST, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+
+  return (
+    <Overlay onClose={onClose}>
+      {/* .preview-scope sets a max-width of its own, which beats the utility class, so the
+          width goes inline. The class still has to be here: Overlay portals to <body>,
+          outside the page's scope, and without it the brand tokens are gone. */}
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 520 }}
+        className="preview-scope w-full my-6 bg-white rounded-2xl border border-gray-100 p-5 max-h-[86vh] overflow-y-auto">
+      <div className="flex items-start gap-2 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-medium text-[#232D42] truncate">
+            {m.chat_label || chatDisplay(m.chat_id)}
+          </div>
+          <div className="text-[12px] text-[#8A92A6] truncate">{chatDisplay(m.chat_id)}</div>
+        </div>
+        <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium rounded-full px-2 py-0.5 flex-shrink-0 ${st.pill}`}>
+          {st.icon} {st.label}
+        </span>
+      </div>
+
+      {/* The message as WhatsApp will render it */}
+      <div className="rounded-xl border p-3 mb-3" style={{ background: "var(--wa-bg)", borderColor: "var(--wa-border)" }}>
+        <div className="ml-auto max-w-[320px] rounded-xl rounded-tr-sm px-2 pt-2 pb-1.5" style={{ background: "var(--wa-bubble)" }}>
+          {m.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={m.image_url} alt="" className="w-full rounded-lg mb-1.5 block"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+          )}
+          {poll ? (
+            <div className="text-[13px]" style={{ color: "var(--wa-ink)" }}>
+              <div className="font-medium mb-1.5">{poll.name}</div>
+              <div className="flex flex-col gap-1.5">
+                {poll.options.map((o, i) => (
+                  <div key={i} className="rounded-lg border px-2 py-1 text-[12.5px]"
+                    style={{ borderColor: "var(--wa-optline)", color: "var(--wa-ink)" }}>{o}</div>
+                ))}
+              </div>
+              <div className="text-[10.5px] mt-1.5" style={{ color: "var(--wa-meta)" }}>
+                {poll.multipleAnswers ? "Select one or more" : "Select one"}
+              </div>
+            </div>
+          ) : (
+            <div className="text-[13px] whitespace-pre-wrap break-words leading-snug" style={{ color: "var(--wa-ink)" }}>
+              {m.body ? renderWa(m.body) : <span className="italic" style={{ color: "var(--wa-meta)" }}>No text</span>}
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-1 text-[10.5px] mt-0.5" style={{ color: "var(--wa-meta)" }}>
+            {when.toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit" })}
+            <IconChecks size={13} style={{ color: "var(--wa-tick)" }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Why it failed comes first — it is the reason anyone opens a failed row */}
+      {m.error && (
+        <div className="flex items-start gap-1.5 rounded-lg bg-[#FDECEA] text-[#C0392B] text-[12.5px] px-3 py-2 mb-3">
+          <IconAlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+          <span className="min-w-0 break-words">{m.error}</span>
+        </div>
+      )}
+
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12.5px] mb-4">
+        <dt className="text-[#8A92A6]">Type</dt>
+        <dd className="text-[#232D42] capitalize">{m.kind}{m.image_url ? " with an image" : ""}</dd>
+        <dt className="text-[#8A92A6]">Scheduled for</dt>
+        <dd className="text-[#232D42]">{stamp(m.schedule_time)} · {relative(m.schedule_time)}</dd>
+        {m.sent_at && (<><dt className="text-[#8A92A6]">Sent</dt><dd className="text-[#232D42]">{stamp(m.sent_at)}</dd></>)}
+        <dt className="text-[#8A92A6]">Created</dt>
+        <dd className="text-[#232D42]">{stamp(m.created_at)}{m.created_by ? ` · ${m.created_by}` : ""}</dd>
+        {m.wa_message_id && (<><dt className="text-[#8A92A6]">WhatsApp id</dt>
+          <dd className="text-[#8A92A6] font-mono text-[11px] break-all">{m.wa_message_id}</dd></>)}
+      </dl>
+
+      <div className="flex items-center gap-2">
+        {m.status === "scheduled" && (
+          <button onClick={onCancel}
+            className="inline-flex items-center gap-1 text-[13px] text-[#C03221] rounded-xl border border-gray-200 px-3 py-2 hover:border-[#C03221]">
+            <IconTrash size={14} /> Cancel this message
+          </button>
+        )}
+          <button onClick={onClose} className="ml-auto text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Close</button>
+        </div>
+      </div>
+    </Overlay>
   );
 }
