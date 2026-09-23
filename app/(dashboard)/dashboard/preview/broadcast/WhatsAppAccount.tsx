@@ -140,13 +140,18 @@ export function WhatsAppAccount() {
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* A working account needs no button — unlink it, or use Add a number.
+                A dropped one does: relinking here keeps its name, so anything already
+                queued from it still knows where to go. */}
+            {a.status !== "WORKING" && (
+              <button onClick={() => openPanel(a.name)}
+                className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
+                Link
+              </button>
+            )}
             <button onClick={() => disconnect(a)} disabled={busy} title="Unlink this number"
               className="w-6 h-6 grid place-items-center rounded-md text-[#8A92A6] hover:text-[#C03221] hover:bg-[#F6F7FB] disabled:opacity-50">
               <IconPlugConnectedX size={13} />
-            </button>
-            <button onClick={() => openPanel(a.name)}
-              className="text-[11.5px] font-medium rounded-md border border-gray-200 px-1.5 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
-              Change
             </button>
           </div>
         </div>
