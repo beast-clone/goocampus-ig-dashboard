@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconBell, IconX } from "@tabler/icons-react";
+import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 
 // On-screen notification pop-ups, on EVERY preview page (docs/NOTIFICATIONS_SPEC.md).
 // Mounted once in the preview layout, so it survives navigation and never doubles up.
@@ -139,7 +140,7 @@ export function NotificationHost() {
         <div key={n.id} className={`gc-notif ${n.action_needed ? "is-action" : ""}`}>
           <button type="button" className="gc-notif-body" title={n.post_id ? "Open the task" : "Open the notification center"}
             onClick={() => act(n, "read", n.post_id ? taskHref(n.post_id) : NOTIF_CENTER)}>
-            <span className="gc-notif-emoji" aria-hidden>{n.emoji || "🔔"}</span>
+            <NotifIcon emoji={n.emoji} actionNeeded={n.action_needed} size={16} />
             <span className="gc-notif-text">
               {n.action_needed && <span className="gc-notif-tag">Needs you</span>}
               <span className="gc-notif-title">{n.title}</span>

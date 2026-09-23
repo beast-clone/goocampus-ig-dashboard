@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconBell, IconCheck, IconChecks, IconExternalLink, IconTrash, IconPin } from "@tabler/icons-react";
+import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
@@ -23,12 +24,13 @@ const CATS: { key: Exclude<Cat, "all">; label: string }[] = [
 const label = (c: string) => CATS.find((x) => x.key === c)?.label || c;
 const isOpenAction = (n: NotifItem) => n.action_needed && !n.done_at;
 
+// Always the day AND the time — "21 Sept" alone left people guessing (Praveen, 23 Sep).
 const when = (iso: string) => {
   const d = new Date(iso), now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
+  const day = d.toDateString() === now.toDateString()
+    ? "Today"
     : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+  return `${day} · ${d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
 };
 
 export default function NotificationsPage() {
@@ -70,7 +72,7 @@ function NotificationsList() {
   // "All" reads as sections per category; a single category is one list.
   const sections = cat === "all"
     ? CATS.map((c) => ({ key: c.key, label: c.label, rows: rest.filter((n) => n.category === c.key) })).filter((s) => s.rows.length)
-    : [{ key: cat, label: label(cat), rows: rest }];
+    : (rest.length ? [{ key: cat, label: label(cat), rows: rest }] : []);
   const showPinned = (cat === "all" || cat === "action") && pinned.length > 0;
 
   const run = async (fn: () => Promise<void>) => {
@@ -160,15 +162,15 @@ function Row({ n, busy, onOpen, onRead, onDelete }: { n: NotifItem; busy: boolea
   return (
     <div className={`flex items-start gap-3 px-4 py-3 ${unread ? "" : "bg-[#F6F7FB]/50"}`}>
       <span className="w-2 flex-shrink-0 pt-2">{unread && <span className="block w-2 h-2 rounded-full bg-brand" title="Unread" />}</span>
-      <span className="text-[18px] leading-6 flex-shrink-0" aria-hidden>{n.emoji || "🔔"}</span>
+      <NotifIcon emoji={n.emoji} actionNeeded={pendingAction} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-[14px] ${unread ? "font-medium text-[#232D42]" : "text-[#4A5468]"}`}>{n.title}</span>
           {n.action_needed && n.done_at && <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#E8F6F0] text-[#2F9E6F]">Done</span>}
           {n.dismissed_at && !n.read_at && <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#F6F7FB] text-[#8A92A6]">Dismissed</span>}
         </div>
-        {n.sub && <div className="text-[13px] text-[#8A92A6] mt-0.5">{n.sub}</div>}
-        <div className="text-[12px] text-[#8A92A6] mt-1">{when(n.created_at)}</div>
+        {n.sub && <div className="text-[13px] text-[#4A5468] mt-0.5 break-words">{n.sub}</div>}
+        <div className="text-[12px] text-[#6B7385] mt-1">{when(n.created_at)}</div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {n.post_id && (
@@ -179,13 +181,13 @@ function Row({ n, busy, onOpen, onRead, onDelete }: { n: NotifItem; busy: boolea
         )}
         {unread && (
           <button disabled={busy} onClick={() => onRead(n)} title="Mark read"
-            className="h-8 w-8 rounded border border-gray-200 text-[#4A5468] inline-flex items-center justify-center hover:border-[#3A57E8] hover:text-brand disabled:opacity-40">
+            className="h-8 w-8 rounded border border-[#BBE5D3] bg-[#E8F6F0] text-[#2F9E6F] inline-flex items-center justify-center hover:bg-[#D7EFE4] hover:border-[#8FD3B6] disabled:opacity-40">
             <IconCheck size={15} stroke={1.8} />
           </button>
         )}
         <button disabled={busy || pendingAction} onClick={() => onDelete(n)}
           title={pendingAction ? "Can't delete until the action is done — it's your only reminder" : "Delete"}
-          className="h-8 w-8 rounded border border-gray-200 text-[#4A5468] inline-flex items-center justify-center hover:border-[#C03221] hover:text-[#C03221] disabled:opacity-30 disabled:hover:border-gray-200 disabled:hover:text-[#4A5468]">
+          className="h-8 w-8 rounded border border-[#F3C9C4] bg-[#FDECEA] text-[#C03221] inline-flex items-center justify-center hover:bg-[#F9DCD8] hover:border-[#E8A9A1] disabled:opacity-30 disabled:bg-[#F6F7FB] disabled:border-gray-200 disabled:text-[#8A92A6]">
           <IconTrash size={15} stroke={1.8} />
         </button>
       </div>

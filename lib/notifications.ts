@@ -73,7 +73,9 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
   for (const e of events) {
     const post = postMap.get(e.post_id);
     const t = post?.particulars || "a task";
-    const short = t.length > 46 ? `${t.slice(0, 44)}…` : t;
+    // Was 46 characters, which cut most task names in half (Praveen, 23 Sep). The
+  // pop-up card clamps its own lines, so the full name is safe to carry here.
+  const short = t.length > 110 ? `${t.slice(0, 108)}…` : t;
 
     let target: string[] = [];
     let n: Omit<Notif, "id" | "at"> | null = null;
@@ -187,7 +189,9 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       if (seenCreated.has(l.post_id)) continue; // newest stage per task only
       seenCreated.add(l.post_id);
       const t = post.particulars || "a task";
-      const short = t.length > 46 ? `${t.slice(0, 44)}…` : t;
+      // Was 46 characters, which cut most task names in half (Praveen, 23 Sep). The
+  // pop-up card clamps its own lines, so the full name is safe to carry here.
+  const short = t.length > 110 ? `${t.slice(0, 108)}…` : t;
       // No postId: in My Day a notification with a postId acts as "Accept" (takeover).
       createdNotifs.push({ id: `s${l.id}`, cat: "progress", at: l.changed_at, taskId: l.post_id, kind: "message", emoji: stage.emoji, title: `Your task is ${stage.title}`,
         sub: `"${short}"${post.owner_key ? ` · with ${nameOf(post.owner_key)}` : ""}.` });
