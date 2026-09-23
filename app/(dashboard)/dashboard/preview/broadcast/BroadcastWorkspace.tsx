@@ -19,7 +19,10 @@ import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } fr
 const IST = "en-IN";
 type View = "month" | "week" | "day";
 
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(IST, { hour: "2-digit", minute: "2-digit", hour12: false });
+// am/pm, because that is how the composer, the confirmation line and the detail
+// view all say it — 24-hour here was the odd one out.
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString(IST, { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
 const dayKey = (d: Date | string) => (typeof d === "string" ? new Date(d) : d).toLocaleDateString("en-CA");
 
 // "in 3 minutes" / "6 days ago" — the rail reads as a timeline, not a list of stamps.
@@ -89,15 +92,33 @@ export function BroadcastWorkspace() {
     load();
   };
 
+  // Deleting removes the record. Cancelling only stops a send, and a cancelled row
+  // stays visible on purpose — you usually want to see that it was pulled.
+  const remove = async (ids: string[]) => {
+    if (!ids.length) return;
+    const qs = ids.map((id) => `id=${encodeURIComponent(id)}`).join("&");
+    await fetch(`/api/scheduler/whatsapp?${qs}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
+    load();
+  };
+
+  const removeOne = async (m: WaMessage) => {
+    const ok = await confirmDialog({
+      title: "Delete this message?",
+      body: m.status === "scheduled"
+        ? <>It won&apos;t be sent, and it&apos;s removed from the list for good.</>
+        : <>It&apos;s removed from the list for good. Anything already sent stays sent.</>,
+      action: "Delete", danger: true,
+    });
+    if (!ok) return;
+    await remove([m.id]);
+  };
+
   const clearFailed = async () => {
     if (!failedCount) return;
-    if (!await confirmDialog({ title: `Clear ${failedCount} failed message${failedCount === 1 ? "" : "s"}?`, body: "They're removed from this list. Nothing is sent.", action: "Clear", danger: true })) return;
-    await Promise.all(all.filter((r) => r.status === "failed").map((r) =>
-      fetch("/api/scheduler/whatsapp/cancel", {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ id: r.id }),
-      }).catch(() => {})));
-    load();
+    if (!await confirmDialog({ title: `Clear ${failedCount} failed message${failedCount === 1 ? "" : "s"}?`, body: "They're deleted from the list. Nothing is sent.", action: "Clear", danger: true })) return;
+    // These used to go to /cancel, which only ever matches a row still waiting —
+    // so clearing failed messages quietly did nothing at all.
+    await remove(all.filter((r) => r.status === "failed").map((r) => r.id));
   };
 
   const selectedRow = selected ? all.find((r) => r.id === selected) || null : null;
@@ -130,8 +151,8 @@ export function BroadcastWorkspace() {
               : listed.length === 0 ? <div className="px-4 py-10 text-center text-[13px] text-[#8A92A6]">{all.length ? "Nothing matches that search." : "Nothing scheduled yet."}</div>
               : (
                 <>
-                  {upcoming.length > 0 && <RailGroup title="Upcoming" rows={upcoming} selected={selected} onSelect={setSelected} onCancel={cancel} />}
-                  {earlier.length > 0 && <RailGroup title="Earlier" rows={earlier} selected={selected} onSelect={setSelected} onCancel={cancel} />}
+                  {upcoming.length > 0 && <RailGroup title="Upcoming" rows={upcoming} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
+                  {earlier.length > 0 && <RailGroup title="Earlier" rows={earlier} selected={selected} onSelect={setSelected} onDelete={removeOne} />}
                 </>
               )}
           </div>
@@ -160,7 +181,8 @@ export function BroadcastWorkspace() {
           <div className="p-4">
             {rows === null ? <div className="h-64 grid place-items-center"><LoadingBlock label="Loading…" /></div>
               : <Grid rows={all} view={view} cursor={cursor} selected={selected}
-                  onSelect={setSelected} onAdd={(d) => setCompose({ open: true, date: d })} />}
+                  onSelect={setSelected} onAdd={(d) => setCompose({ open: true, date: d })}
+                  onOpenDay={(d) => { setCursor(new Date(d)); setView("day"); }} />}
           </div>
         </section>
       </div>
@@ -173,15 +195,16 @@ export function BroadcastWorkspace() {
           is short and a tooltip cannot show an image, a poll or a failure reason. */}
       {selectedRow && (
         <MessageDetail m={selectedRow} onClose={() => setSelected(null)}
-          onCancel={() => { cancel(selectedRow); setSelected(null); }} />
+          onCancel={() => { cancel(selectedRow); setSelected(null); }}
+          onDelete={() => { removeOne(selectedRow); setSelected(null); }} />
       )}
     </div>
   );
 }
 
-function RailGroup({ title, rows, selected, onSelect, onCancel }: {
+function RailGroup({ title, rows, selected, onSelect, onDelete }: {
   title: string; rows: WaMessage[]; selected: string | null;
-  onSelect: (id: string) => void; onCancel: (m: WaMessage) => void;
+  onSelect: (id: string) => void; onDelete: (m: WaMessage) => void;
 }) {
   return (
     <div>
@@ -203,10 +226,8 @@ function RailGroup({ title, rows, selected, onSelect, onCancel }: {
                 <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.pill}`}>{st.label}</span>
               </span>
             </span>
-            {m.status === "scheduled" && (
-              <span onClick={(e) => { e.stopPropagation(); onCancel(m); }} title="Cancel"
-                className="text-gray-300 hover:text-[#C03221] flex-shrink-0"><IconTrash size={14} /></span>
-            )}
+            <span onClick={(e) => { e.stopPropagation(); onDelete(m); }} title="Delete"
+              className="text-gray-300 hover:text-[#C03221] flex-shrink-0"><IconTrash size={14} /></span>
           </button>
         );
       })}
@@ -238,9 +259,11 @@ const countIn = (rows: WaMessage[], d: Date, view: View) => {
   return rows.filter((r) => { const t = new Date(r.schedule_time).getTime(); return t >= a.getTime() && t <= b.getTime(); }).length;
 };
 
-function Grid({ rows, view, cursor, selected, onSelect, onAdd }: {
+function Grid({ rows, view, cursor, selected, onSelect, onAdd, onOpenDay }: {
   rows: WaMessage[]; view: View; cursor: Date; selected: string | null;
   onSelect: (id: string) => void; onAdd: (date: string) => void;
+  /** "+3 more" — a month cell only has room for three, so hand the day over to Day view. */
+  onOpenDay: (date: Date) => void;
 }) {
   const byDay = useMemo(() => {
     const m = new Map<string, WaMessage[]>();
@@ -301,7 +324,12 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd }: {
                     </button>
                   );
                 })}
-                {view === "month" && items.length > 3 && <div className="text-[10.5px] text-[#8A92A6] px-1">+{items.length - 3} more</div>}
+                {view === "month" && items.length > 3 && (
+                  <button onClick={() => onOpenDay(d)}
+                    className="text-[10.5px] text-[#8A92A6] hover:text-brand hover:underline px-1 text-left">
+                    +{items.length - 3} more
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -315,8 +343,8 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd }: {
 // One scheduled message, in full. Reached by clicking it in the rail or on the
 // calendar — the list only has room for a truncated line, and a tooltip cannot
 // show an image, poll options, or why a send failed.
-function MessageDetail({ m, onClose, onCancel }: {
-  m: WaMessage; onClose: () => void; onCancel: () => void;
+function MessageDetail({ m, onClose, onCancel, onDelete }: {
+  m: WaMessage; onClose: () => void; onCancel: () => void; onDelete: () => void;
 }) {
   const st = STATUS_STYLE[m.status];
   const when = new Date(m.schedule_time);
@@ -406,10 +434,14 @@ function MessageDetail({ m, onClose, onCancel }: {
       <div className="flex items-center gap-2">
         {m.status === "scheduled" && (
           <button onClick={onCancel}
-            className="inline-flex items-center gap-1 text-[13px] text-[#C03221] rounded-xl border border-gray-200 px-3 py-2 hover:border-[#C03221]">
-            <IconTrash size={14} /> {repeat ? "Stop this message repeating" : "Cancel this message"}
+            className="inline-flex items-center gap-1 text-[13px] text-[#4A5468] rounded-xl border border-gray-200 px-3 py-2 hover:border-brand hover:text-brand">
+            <IconCircleDashed size={14} /> {repeat ? "Stop this repeating" : "Cancel, keep the record"}
           </button>
         )}
+        <button onClick={onDelete}
+          className="inline-flex items-center gap-1 text-[13px] text-[#C03221] rounded-xl border border-gray-200 px-3 py-2 hover:border-[#C03221]">
+          <IconTrash size={14} /> Delete
+        </button>
           <button onClick={onClose} className="ml-auto text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Close</button>
         </div>
       </div>

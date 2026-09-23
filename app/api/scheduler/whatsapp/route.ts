@@ -109,3 +109,40 @@ export async function POST(req: Request) {
     return NextResponse.json(safeError(err, "Failed to schedule the WhatsApp message"), { status: 502 });
   }
 }
+
+// DELETE /api/scheduler/whatsapp?id=<id>[&id=<id>…]
+//
+// Cancelling stops a message going out but keeps the record — you usually want to
+// see that it was pulled. Deleting is for when you want it gone from the list
+// entirely, and it is the only way to clear failed rows.
+//
+// A row that n8n has already claimed ("sending") is left alone: WhatsApp may be
+// mid-send, and deleting the row would lose the record of a message that went out.
+export async function DELETE(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+
+  try {
+    const ids = new URL(req.url).searchParams.getAll("id").filter(Boolean);
+    if (!ids.length) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+    const sb = getSupabase();
+    if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    const { data, error } = await sb
+      .from("whatsapp_scheduled_messages")
+      .delete().in("id", ids).neq("status", "sending")
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    const deleted = (data || []).length;
+    if (!deleted) {
+      return NextResponse.json(
+        { error: "nothing deleted — a message being sent right now cannot be removed" },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ ok: true, deleted });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Failed to delete"), { status: 502 });
+  }
+}
