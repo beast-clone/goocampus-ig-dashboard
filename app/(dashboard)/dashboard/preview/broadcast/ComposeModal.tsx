@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconFileTypePdf, IconBolt, IconAlertTriangle,
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconFileTypePdf, IconBolt, IconAlertTriangle, IconSparkles,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -12,7 +12,7 @@ import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
-import { checkBatch, spreadLabel, type WaWarning } from "@/lib/whatsapp-safety";
+import { checkBatch, spreadLabel, WA_SAFETY, type WaWarning } from "@/lib/whatsapp-safety";
 import { quotaNote, type WaQuota } from "@/lib/whatsapp-session";
 import { compressImage } from "@/lib/compress-image";
 
@@ -96,6 +96,12 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[] | null>(null);
+  // How far apart the individual sends go. "" = the random 5-10 minutes; a
+  // number is a hand-set gap, and the API floors it at 5 whatever is typed here.
+  const [gap, setGap] = useState("");
+  // Re-word the message per person, so forty identical texts don't go out.
+  const [vary, setVary] = useState(false);
+  const [varying, setVarying] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -251,6 +257,35 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
       }
     } catch { /* the check is a courtesy — never block a send on it */ }
 
+    // One wording per recipient, asked for only once the batch is going ahead —
+    // it costs a Perplexity call, so it is not run on every keystroke.
+    let bodies: Record<string, string> | undefined;
+    if (vary && kind !== "poll" && body.trim() && chats.length > 1) {
+      setVarying(true); setErr(null);
+      try {
+        const res = await fetch("/api/scheduler/whatsapp/vary", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({
+            body: body.trim(),
+            // A label that is just a phone number is no one's name.
+            recipients: chats.map((c) => ({ id: c.id, name: /[A-Za-z]/.test(c.label) ? c.label : undefined })),
+          }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+        bodies = d.bodies;
+      } catch (e) {
+        const ok = await confirmDialog({
+          title: "The wording couldn't be varied",
+          body: <>{(e as Error).message}. The same text would go to all {chats.length} recipients, which is what WhatsApp looks for. You can send it anyway, or close this and try again.</>,
+          action: "Send the same text",
+        });
+        setVarying(false);
+        if (!ok) return;
+      }
+      setVarying(false);
+    }
+
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/scheduler/whatsapp", {
@@ -263,6 +298,8 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
           scheduleTimeISO: (sendNow ? new Date() : at!).toISOString(),
           repeat: repeatRule === "none" ? undefined : { rule: repeatRule, until: repeatUntil || null },
           session: session || undefined,
+          gapMinutes: gap ? Number(gap) : undefined,
+          bodies,
         }),
       });
       const d = await res.json();
@@ -481,8 +518,40 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
               <IconUsers size={14} className={chats.length || kind === "status" ? "text-brand" : "text-[#8A92A6]"} /> {recipientLine}
             </div>
             {kind !== "status" && chats.length > 1 && (
-              <div className="flex items-center gap-2 text-[12px] text-[#8A92A6] mt-1">
-                <IconClock size={13} className="shrink-0" /> {spreadLabel(chats.map((c) => c.id))} — groups go at once; people are spaced out.
+              <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] px-3 py-2.5 mt-2 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <IconClock size={14} className="text-[#8A92A6] shrink-0" />
+                  <span className="text-[12.5px] text-[#4A5468]">Leave</span>
+                  <PreviewSelect
+                    value={gap} onChange={setGap} dropUp
+                    options={[
+                      { value: "", label: `${WA_SAFETY.gapMinMin}–${WA_SAFETY.gapMaxMin} minutes (recommended)` },
+                      ...[5, 10, 15, 30, 60].map((m) => ({ value: String(m), label: `exactly ${m} minutes` })),
+                    ]}
+                  />
+                  <span className="text-[12.5px] text-[#4A5468]">between each person.</span>
+                </div>
+                {spreadLabel(chats.map((c) => c.id), gap ? Number(gap) : undefined) && (
+                  <div className="text-[12px] text-[#8A92A6] pl-[22px]">
+                    {spreadLabel(chats.map((c) => c.id), gap ? Number(gap) : undefined)}. Groups go out at once —
+                    {" "}a group post is one message however many people read it.
+                  </div>
+                )}
+                {kind !== "poll" && (
+                  <label className="flex items-start gap-2 cursor-pointer pt-0.5">
+                    <input type="checkbox" checked={vary} onChange={(e) => setVary(e.target.checked)}
+                      className="mt-[3px] accent-[#3A57E8]" />
+                    <span className="text-[12.5px] text-[#4A5468]">
+                      <span className="inline-flex items-center gap-1 font-medium text-[#232D42]">
+                        <IconSparkles size={13} className="text-brand" /> Word it differently for each one
+                      </span>
+                      <span className="block text-[12px] text-[#8A92A6]">
+                        The same text forty times over is what gets a number flagged. Every fact, link and
+                        date stays exactly as you wrote it — only the wording changes.
+                      </span>
+                    </span>
+                  </label>
+                )}
               </div>
             )}
             {at && !isNaN(at.getTime()) && !inPast && (
@@ -523,14 +592,14 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
             {err && <div className="text-[12.5px] rounded-lg px-3 py-2 mt-2 bg-rose-50 text-rose-700 border border-rose-100">{err}</div>}
             <div className="flex justify-end gap-2 mt-3">
               <button onClick={onClose} className="text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Cancel</button>
-              <button onClick={() => submit(true)} disabled={busy || !!problem}
+              <button onClick={() => submit(true)} disabled={busy || varying || !!problem}
                 title="Skip the schedule and send it on the next check"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 text-[13px] font-medium text-[#4A5468] px-4 py-2 hover:border-brand hover:text-brand disabled:opacity-50">
                 <IconBolt size={15} /> Send now
               </button>
-              <button onClick={() => submit(false)} disabled={busy || !!problem || inPast}
+              <button onClick={() => submit(false)} disabled={busy || varying || !!problem || inPast}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
-                <IconSend size={15} /> {busy ? "Scheduling…" : "Schedule send"}
+                <IconSend size={15} /> {varying ? "Writing each one…" : busy ? "Scheduling…" : "Schedule send"}
               </button>
             </div>
           </div>

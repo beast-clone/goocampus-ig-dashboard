@@ -1,6 +1,6 @@
 # Community Broadcast — what's done, what's pending
 
-Updated 24 Sep 2026. Everything below is on `feat/dashboard-reskin` and pushed to
+Updated 24 Sep 2026 (evening). Everything below is on `feat/dashboard-reskin` and pushed to
 GitHub. **The live site is still on this morning's deploy** — one deploy at the end
 covers the lot.
 
@@ -18,10 +18,14 @@ covers the lot.
 | ✅ | The file's type travels with the message, so nothing has to guess from its name | `6f226af`, `a6d8035` |
 | ✅ | **Send again** — reopens a past message with everything filled in but the time | `1a39a3a` |
 | ✅ | **Send now** — skips the calendar, confirms first | `6f226af` |
-| ✅ | **Batch spacing** — several recipients go 30–60 seconds apart, randomly | `a6d8035` |
+| ✅ | **Batch spacing** — people go 5–10 minutes apart; groups go out at once | `a6d8035` |
+| ✅ | **A hand-set gap** — 5, 10, 15, 30 or 60 minutes, and never under 5 whatever is asked for | this batch |
+| ✅ | **Different wording for each recipient** — ticked in the composer, written by Claude through Perplexity; facts, links and dates stay exactly as typed | this batch |
 | ✅ | **Safety warning before queueing** — too many in an hour/day, outside 9am–9pm, or a big one-by-one fan-out | `a6d8035` |
 | ✅ | Duplicate uploads prevented; images compressed before upload | `ef7154e` |
-| ✅ | **Groups & members** — invite link (copy), member list, and Add all with per-number results | `475cbdc` |
+| ✅ | **Groups & members** — group dropdown, invite link (copy), member list, and Add all with per-number results | `475cbdc` |
+| ✅ | **Numbers by CSV** — name and number, pasted or uploaded; the name is used in the invite | this batch |
+| ✅ | **Sending from the groups panel** — invite those numbers, or message the group (opens the composer with it filled in) | this batch |
 | ✅ | **A typed number is checked against WhatsApp** — one that has no account can't be picked | `41e77f9` |
 | ✅ | **WhatsApp's own quota is read** — the panel warns when WhatsApp limits the number, and the composer says so before queueing | `ae0508b` |
 
