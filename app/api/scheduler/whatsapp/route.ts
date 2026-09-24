@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       body?: string; imageUrl?: string; mime?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
       gapMinutes?: number;      // hand-set gap between individuals; floored at 5
       bodies?: Record<string, string>;   // per-recipient text, when each one differs
+      times?: Record<string, string>;    // per-recipient ISO time, as the review screen showed it
       repeat?: { rule?: string; until?: string | null };
       session?: string;   // which linked WhatsApp account sends it
     };
@@ -100,17 +101,20 @@ export async function POST(req: Request) {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
       .from("whatsapp_scheduled_messages")
-      // Several recipients are spread 30–60 seconds apart instead of all going in
-      // the same minute. Forty messages at once is the burst that gets a number
-      // flagged, and WAHA's own guidance is a random gap, never a fixed one. A
-      // single recipient keeps exactly the time that was asked for.
-      .insert(spreadSchedule(when.toISOString(), targets.map((t) => t.id), b.gapMinutes).map((at, i) => ({
+      // Several recipients are spread minutes apart instead of all going in the
+      // same one. Forty messages at once is the burst that gets a number flagged,
+      // and WAHA's own guidance is a random gap, never a fixed one. A single
+      // recipient keeps exactly the time that was asked for.
+      //
+      // `times` wins when it is there: the review screen showed those minutes,
+      // and re-rolling a random spread here would send at times nobody saw.
+      .insert(spreadSchedule(when.toISOString(), targets.map((t) => t.id), b.gapMinutes).map((computed, i) => ({
         chat_id: targets[i].id, chat_label: targets[i].label,
         // A different wording per person when one was written for them — the same
         // string to forty people is the pattern that gets reported.
         body: (b.bodies && b.bodies[targets[i].id]) || text || null,
         image_url: imageUrl,
-        schedule_time: at, status: "scheduled",
+        schedule_time: (b.times && b.times[targets[i].id]) || computed, status: "scheduled",
         kind,
         // mime rides along so the worker never has to guess a file's type from
         // its name — a long name loses its extension, and a PDF then went out

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { IconSearch, IconUser, IconUsers, IconSpeakerphone, IconPlus, IconX, IconCheck } from "@tabler/icons-react";
-import { chatDisplay, chatKind, normalizeChatId, type ChatKind } from "@/lib/whatsapp";
+import { IconSearch, IconUser, IconUsers, IconSpeakerphone, IconPlus, IconX, IconCheck, IconUpload } from "@tabler/icons-react";
+import { chatDisplay, chatKind, normalizeChatId, parseWaRows, type ChatKind } from "@/lib/whatsapp";
 
 // Who a WhatsApp broadcast goes to.
 //
@@ -43,6 +43,7 @@ export function RecipientPicker({ selected, onChange, session }: {
   const [newId, setNewId] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [imported, setImported] = useState<{ added: number; skipped: number } | null>(null);
 
   const load = () => fetch(`/api/scheduler/whatsapp/recipients${session ? `?session=${encodeURIComponent(session)}` : ""}`, { cache: "no-store" })
     .then((r) => r.json())
@@ -100,7 +101,7 @@ export function RecipientPicker({ selected, onChange, session }: {
     : "unknown";
 
   const isOn = (id: string) => selected.some((s) => s.id === id);
-  const toggle = (r: Recipient) => onChange(isOn(r.id) ? selected.filter((s) => s.id !== r.id) : [...selected, r]);
+  const toggle = (r: Recipient) => { setImported(null); onChange(isOn(r.id) ? selected.filter((s) => s.id !== r.id) : [...selected, r]); };
 
   // Saving is what makes a chat reusable; a one-off can still be sent by typing it
   // and hitting Add, which selects it whether or not the save succeeds.
@@ -121,6 +122,29 @@ export function RecipientPicker({ selected, onChange, session }: {
 
   const add = async () => { await addId(newId, newLabel); setNewId(""); setNewLabel(""); setAdding(false); };
 
+  /**
+   * A list of people, straight into the recipients. Every number is taken as
+   * given: checking seventy-six against WhatsApp one by one is itself a way to
+   * get the number rate-limited, and one that isn't on WhatsApp simply fails at
+   * send time and says so in the history.
+   *
+   * These are not saved to the reusable list — a one-off import of a few hundred
+   * numbers would bury the handful of chats people actually pick from.
+   */
+  const addFile = async (f: File) => {
+    setErr(null);
+    const rows = parseWaRows(await f.text());
+    if (!rows.length) { setErr("No phone numbers in that file. Each line needs a number, with the name beside it."); return; }
+    const have = new Set(selected.map((s) => s.id));
+    const fresh = rows
+      .filter((r) => !have.has(r.phone))
+      .map((r) => ({ id: r.phone, label: r.name || chatDisplay(r.phone), kind: chatKind(r.phone) }));
+    if (!fresh.length) { setErr(`All ${rows.length} of those are already in the list.`); return; }
+    onChange([...selected, ...fresh]);
+    setErr(null);
+    setImported({ added: fresh.length, skipped: rows.length - fresh.length });
+  };
+
   const forget = async (id: string) => {
     await fetch(`/api/scheduler/whatsapp/recipients?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
     load();
@@ -130,11 +154,24 @@ export function RecipientPicker({ selected, onChange, session }: {
     <div>
       <div className="flex items-center gap-2 mb-1.5">
         <label className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">Send to</label>
+        <label className="ml-auto text-[12px] text-brand hover:underline inline-flex items-center gap-1 cursor-pointer">
+          <IconUpload size={13} stroke={2} /> Upload a CSV
+          <input type="file" accept=".csv,text/csv,text/plain" className="hidden"
+            onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) await addFile(f); }} />
+        </label>
         <button type="button" onClick={() => setAdding((a) => !a)}
-          className="ml-auto text-[12px] text-brand hover:underline inline-flex items-center gap-1">
+          className="text-[12px] text-brand hover:underline inline-flex items-center gap-1">
           <IconPlus size={13} stroke={2} /> Add a number or group
         </button>
       </div>
+
+      {(imported || (err && !adding)) && (
+        <div className={`text-[12px] rounded-lg px-3 py-2 mb-2 border ${imported ? "bg-brand-light/50 border-brand-light text-brand-dark" : "bg-rose-50 border-rose-100 text-rose-700"}`}>
+          {imported
+            ? <>Added <b>{imported.added}</b> {imported.added === 1 ? "person" : "people"} from that file{imported.skipped ? `, ${imported.skipped} already in the list` : ""}. They aren&apos;t checked against WhatsApp — any number without an account simply fails and says so afterwards.</>
+            : err}
+        </div>
+      )}
 
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">

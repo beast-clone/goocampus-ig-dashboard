@@ -122,3 +122,34 @@ export function chatDisplay(chatId: string): string {
   if (chatKind(chatId) === "contact" && /^[0-9]+$/.test(left)) return `+${left}`;
   return chatId;
 }
+
+/** A row from a pasted list or an uploaded CSV: a number, and a name to greet them by. */
+export type WaRow = { phone: string; name: string | null };
+
+/**
+ * A pasted list or a CSV, read the same way. Accepts "name, number" in either
+ * order, one per line, and ignores a header row — people export from anywhere,
+ * and a real export often splits a name into two columns and the country code
+ * into a third ("Vrushali,Dalvi,+91,8975072403").
+ *
+ * So: the first cell that reads as a phone number is the number, and the other
+ * word-like cells are joined back into the name. A bare "+91" is not a number
+ * and not a name, and drops out of both.
+ */
+export function parseWaRows(text: string): WaRow[] {
+  const out: WaRow[] = [];
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const cells = line.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    if (!cells.length) continue;
+    if (/^(name|first ?name|phone|number|mobile|contact)$/i.test(cells[0]) && cells.length > 1) continue;  // header
+    const numberCell = cells.find((c) => normalizeChatId(c));
+    if (!numberCell) continue;
+    const id = normalizeChatId(numberCell)!;
+    if (seen.has(id)) continue;                        // the same person twice is one message
+    seen.add(id);
+    const name = cells.filter((c) => c !== numberCell && /[A-Za-z]/.test(c)).join(" ").trim();
+    out.push({ phone: id, name: name || null });
+  }
+  return out;
+}

@@ -8,11 +8,12 @@ import {
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { RecipientPicker, type Recipient } from "./RecipientPicker";
+import { ReviewModal, type ReviewRow } from "./ReviewModal";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
-import { checkBatch, spreadLabel, WA_SAFETY, type WaWarning } from "@/lib/whatsapp-safety";
+import { checkBatch, spreadLabel, spreadSchedule, WA_SAFETY, type WaWarning } from "@/lib/whatsapp-safety";
 import { quotaNote, type WaQuota } from "@/lib/whatsapp-session";
 import { compressImage } from "@/lib/compress-image";
 
@@ -102,6 +103,9 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
   // Re-word the message per person, so forty identical texts don't go out.
   const [vary, setVary] = useState(false);
   const [varying, setVarying] = useState(false);
+  // The last look before anything is queued. Null until Schedule send is pressed
+  // on a batch; a single message needs no list.
+  const [review, setReview] = useState<{ rows: ReviewRow[]; sendNow: boolean } | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -286,12 +290,40 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
       setVarying(false);
     }
 
+    // More than one recipient: show every line before any of it is queued.
+    if (kind !== "status" && chats.length > 1) {
+      const times = spreadSchedule(when.toISOString(), chats.map((c) => c.id), gap ? Number(gap) : undefined);
+      setReview({
+        sendNow,
+        rows: chats.map((c, i) => ({ chat: c, body: (bodies && bodies[c.id]) || body.trim(), at: times[i] })),
+      });
+      return;
+    }
+
+    await queue({ sendNow, when, bodies });
+  };
+
+  /** The only thing that writes to the queue. Called straight for a single
+   *  message, and from the review screen for a batch. */
+  const queue = async ({ sendNow, when, bodies, rows }: {
+    sendNow: boolean;
+    when: Date;
+    bodies?: Record<string, string>;
+    /** Present when the review screen ran: what is on it is what goes. */
+    rows?: ReviewRow[];
+  }) => {
+    const targets = rows ? rows.map((r) => r.chat) : chats;
+    const texts = rows
+      ? Object.fromEntries(rows.map((r) => [r.chat.id, r.body]))
+      : bodies;
+    const times = rows ? Object.fromEntries(rows.map((r) => [r.chat.id, r.at])) : undefined;
+
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/scheduler/whatsapp", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
         body: JSON.stringify({
-          kind, chats: chats.map((c) => ({ id: c.id, label: c.label })),
+          kind, chats: targets.map((c) => ({ id: c.id, label: c.label })),
           body: body.trim(), imageUrl: imageUrl.trim() || undefined, mime: mediaMime || undefined,
           poll: kind === "poll" ? { name: pollName.trim(), options: pollOptions.map((o) => o.trim()).filter(Boolean), multipleAnswers: pollMulti } : undefined,
           // "now" is a time like any other: the worker picks it up on its next tick.
@@ -299,13 +331,14 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
           repeat: repeatRule === "none" ? undefined : { rule: repeatRule, until: repeatUntil || null },
           session: session || undefined,
           gapMinutes: gap ? Number(gap) : undefined,
-          bodies,
+          bodies: texts,
+          times,
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       onSaved(); onClose();
-    } catch (e) { setErr((e as Error).message); }
+    } catch (e) { setErr((e as Error).message); setReview(null); }
     finally { setBusy(false); }
   };
 
@@ -471,7 +504,7 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
               <div className="flex gap-2 mt-1.5 items-center">
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
                   <IconCalendarEvent size={14} className="text-[#8A92A6]" />
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                  <input type="date" value={date} min={new Date().toLocaleDateString("en-CA")} onChange={(e) => setDate(e.target.value)}
                     className="outline-none text-[13px] text-[#232D42] bg-transparent" />
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
@@ -497,7 +530,7 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
                 {repeatRule !== "none" && (
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2">
                     <span className="text-[12.5px] text-[#8A92A6]">until</span>
-                    <input type="date" value={repeatUntil} onChange={(e) => setRepeatUntil(e.target.value)}
+                    <input type="date" value={repeatUntil} min={date || new Date().toLocaleDateString("en-CA")} onChange={(e) => setRepeatUntil(e.target.value)}
                       className="outline-none text-[13px] text-[#232D42] bg-transparent" />
                     {repeatUntil && (
                       <button type="button" onClick={() => setRepeatUntil("")}
@@ -654,6 +687,16 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
           </div>
         </div>
       </div>
+
+      {review && (
+        <ReviewModal
+          rows={review.rows}
+          imageName={imageUrl ? decodeURIComponent(imageUrl.split("/").pop() || "") || null : null}
+          busy={busy}
+          onClose={() => setReview(null)}
+          onConfirm={(rows) => queue({ sendNow: review.sendNow, when: review.sendNow ? new Date() : at!, rows })}
+        />
+      )}
     </Overlay>
   );
 }

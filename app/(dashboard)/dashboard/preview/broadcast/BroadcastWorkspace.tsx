@@ -239,6 +239,7 @@ export function BroadcastWorkspace() {
       {showGroups && (
         <GroupMembers
           session={(accounts.find((a) => a.status === "WORKING")?.name) || "default"}
+          sessionPhone={accounts.find((a) => a.status === "WORKING")?.phone || null}
           groups={groups}
           onClose={() => setShowGroups(false)}
           // "Message this group" hands off to the composer — sending lives in one
@@ -367,12 +368,21 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd, onOpenDay }: {
           const k = dayKey(d);
           const items = byDay.get(k) || [];
           const isToday = k === today;
+          // A day that has already been and gone can be read, never written to:
+          // its "New" shortcut would open the composer on a date the scheduler
+          // rejects anyway. Today still counts as schedulable — the rest of
+          // today is still ahead.
+          const past = k < today;
           return (
-            <div key={k} className={`group relative rounded-lg border p-1.5 ${view === "day" ? "min-h-[360px]" : view === "week" ? "min-h-[220px]" : "min-h-[104px]"} ${isToday ? "border-brand bg-brand-light/20" : "border-gray-100"}`}>
+            <div key={k} className={`group relative rounded-lg border p-1.5 ${view === "day" ? "min-h-[360px]" : view === "week" ? "min-h-[220px]" : "min-h-[104px]"} ${isToday ? "border-brand bg-brand-light/20" : past ? "border-gray-100 bg-[#F6F7FB]/60" : "border-gray-100"}`}>
               <div className="flex items-center gap-1 mb-1">
-                <span className={`text-[11px] ${isToday ? "text-white bg-brand rounded-full w-5 h-5 grid place-items-center" : "text-[#8A92A6]"}`}>{d.getDate()}</span>
-                <button onClick={() => onAdd(k)} title="Schedule a message on this day"
-                  className="ml-auto opacity-0 group-hover:opacity-100 transition text-[10.5px] text-brand hover:underline inline-flex items-center gap-0.5"><IconPlus size={11} /> New</button>
+                <span className={`text-[11px] ${isToday ? "text-white bg-brand rounded-full w-5 h-5 grid place-items-center" : past ? "text-[#C9CDD8]" : "text-[#8A92A6]"}`}>{d.getDate()}</span>
+                {past ? (
+                  <span className="ml-auto opacity-0 group-hover:opacity-100 transition text-[10.5px] text-[#C9CDD8]">Gone</span>
+                ) : (
+                  <button onClick={() => onAdd(k)} title="Schedule a message on this day"
+                    className="ml-auto opacity-0 group-hover:opacity-100 transition text-[10.5px] text-brand hover:underline inline-flex items-center gap-0.5"><IconPlus size={11} /> New</button>
+                )}
               </div>
               <div className="flex flex-col gap-1">
                 {items.slice(0, view === "month" ? 3 : 12).map((m) => {

@@ -9,7 +9,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { prettyPhone } from "@/lib/whatsapp-session";
-import { normalizeChatId } from "@/lib/whatsapp";
+import { parseWaRows } from "@/lib/whatsapp";
 import type { Recipient } from "./RecipientPicker";
 
 // Who is in a group, its invite link, and adding people to it.
@@ -26,33 +26,13 @@ import type { Recipient } from "./RecipientPicker";
 type Member = { id: string; phone: string | null; admin: boolean };
 type Result = { id: string; state: string; text: string };
 
-/** A row from an uploaded list: a number, and a name to greet them by. */
-type Row = { phone: string; name: string | null };
+/** Numbers per request. Each one is checked against WhatsApp, then added. */
+const BATCH = 5;
 
-/**
- * A pasted list or a CSV, read the same way. Accepts "name, number" in either
- * order, one per line, and ignores a header row — people export from anywhere.
- */
-function parseRows(text: string): Row[] {
-  const out: Row[] = [];
-  const seen = new Set<string>();
-  for (const line of text.split(/\r?\n/)) {
-    const cells = line.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, "")).filter(Boolean);
-    if (!cells.length) continue;
-    if (/^(name|phone|number|mobile|contact)$/i.test(cells[0]) && cells.length > 1) continue;   // header
-    const numberCell = cells.find((c) => normalizeChatId(c));
-    if (!numberCell) continue;
-    const id = normalizeChatId(numberCell)!;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const nameCell = cells.find((c) => c !== numberCell && /[A-Za-z]/.test(c)) || null;
-    out.push({ phone: id, name: nameCell });
-  }
-  return out;
-}
-
-export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
+export function GroupMembers({ session, sessionPhone, groups, onClose, onMessageGroup }: {
   session: string;
+  /** The sending number, so the panel can tell whether it is an admin here. */
+  sessionPhone?: string | null;
   groups: Recipient[];
   onClose: () => void;
   /** Hand a group to the composer, so "send" lives in one place. */
@@ -66,6 +46,8 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
   const [results, setResults] = useState<Result[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  /** "12 of 76" while a long add is working through its batches. */
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!picked) return;
@@ -79,7 +61,16 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
       .catch((e) => { setErr((e as Error).message); setMembers([]); });
   }, [picked, session]);
 
-  const rows = useMemo(() => parseRows(numbers), [numbers]);
+  // Whether the sending number is an admin here. WhatsApp only gives an invite
+  // link to an admin, and most groups only let admins add people — so saying
+  // this plainly is kinder than letting someone press Add all and watch it fail.
+  const me = useMemo(
+    () => (sessionPhone && members ? members.find((m) => m.phone === sessionPhone) : null) || null,
+    [members, sessionPhone],
+  );
+  const notAdmin = !!me && !me.admin;
+
+  const rows = useMemo(() => parseWaRows(numbers), [numbers]);
   const parsed = useMemo(() => rows.map((r) => r.phone), [rows]);
   const named = useMemo(() => rows.filter((r) => r.name).length, [rows]);
 
@@ -92,26 +83,48 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
           Each number is checked against WhatsApp first, then added a few at a time with a pause —
           adding a crowd at once is one of the ways a number gets banned.
           <div className="mt-2">Anyone who doesn&apos;t allow being added gets a private invite from WhatsApp instead.</div>
+          {notAdmin && (
+            <div className="mt-2">
+              This number isn&apos;t an admin of {picked.label}. Many groups only let admins add people,
+              so these may all come back refused.
+            </div>
+          )}
         </>
       ),
       action: "Add them",
     });
     if (!ok) return;
-    setBusy(true); setErr(null); setResults(null);
+
+    // Five per request, not seventy-six. The server checks each number and then
+    // adds them, so one big call runs for minutes and is cut off by the host
+    // long before it finishes. Small calls also mean the results appear as they
+    // happen instead of after a three-minute wait.
+    setBusy(true); setErr(null); setResults([]); setProgress({ done: 0, total: parsed.length });
+    const all: Result[] = [];
     try {
-      const d = await fetch("/api/scheduler/whatsapp/group", {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ groupId: picked.id, phones: parsed, session }),
-      }).then((r) => r.json());
-      if (d.error) throw new Error(d.error);
-      setResults(d.results || []);
-      if (d.inviteLink) setLink(d.inviteLink);
+      for (let i = 0; i < parsed.length; i += BATCH) {
+        const slice = parsed.slice(i, i + BATCH);
+        const d = await fetch("/api/scheduler/whatsapp/group", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ groupId: picked.id, phones: slice, session }),
+        }).then((r) => r.json());
+        if (d.error) throw new Error(d.error);
+        all.push(...((d.results || []) as Result[]));
+        if (d.inviteLink) setLink(d.inviteLink);
+        setResults([...all]);
+        setProgress({ done: Math.min(i + BATCH, parsed.length), total: parsed.length });
+        // A gap between batches, for the same reason the server pauses inside one.
+        if (i + BATCH < parsed.length) await new Promise((r) => setTimeout(r, 4000));
+      }
       setNumbers("");
       // refresh the member list so the count is honest
       fetch(`/api/scheduler/whatsapp/group?groupId=${encodeURIComponent(picked.id)}&session=${encodeURIComponent(session)}`, { cache: "no-store" })
         .then((r) => r.json()).then((g) => setMembers(g.participants || [])).catch(() => {});
-    } catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
+    } catch (e) {
+      // Whatever got through stays on screen: those people really were added.
+      setErr(`${(e as Error).message}${all.length ? ` — ${all.length} of ${parsed.length} were done before this` : ""}`);
+    }
+    finally { setBusy(false); setProgress(null); }
   };
 
   // Inviting is the gentler of the two: it queues a normal message carrying the
@@ -188,6 +201,18 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
                 )}
               </div>
 
+              {notAdmin && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2.5 mb-4">
+                  <IconAlertTriangle size={15} className="mt-[1px] shrink-0" />
+                  <span>
+                    This number isn&apos;t an <b>admin</b> of {picked?.label}. That means no invite link, and
+                    most groups only let admins add people — so <b>Add all</b> may come back refused for
+                    everyone. Ask an admin to make {prettyPhone(sessionPhone || null)} an admin, or share the
+                    link from your phone instead.
+                  </span>
+                </div>
+              )}
+
               {/* Invite link — the safe way in */}
               <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-3 mb-4">
                 <div className="flex items-center gap-2 text-[12.5px] font-medium text-[#232D42] mb-1">
@@ -235,7 +260,7 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <button onClick={addAll} disabled={busy || !parsed.length || !picked}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
-                  <IconSend size={15} /> {busy ? "Adding…" : parsed.length ? `Add all ${parsed.length}` : "Add all"}
+                  <IconSend size={15} /> {progress ? `Adding ${progress.done} of ${progress.total}…` : busy ? "Adding…" : parsed.length ? `Add all ${parsed.length}` : "Add all"}
                 </button>
                 <button onClick={sendInvites} disabled={busy || !parsed.length || !link}
                   title={!link ? "No invite link for this group" : "Queue the invite link to these numbers"}
@@ -243,7 +268,9 @@ export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
                   <IconLink size={15} /> Send them the invite link
                 </button>
                 <span className="text-[11.5px] text-[#8A92A6] w-full">
-                  Adding checks each number against WhatsApp first, then adds in small batches. Inviting queues one message each, 5–10 minutes apart.
+                  Adding checks each number against WhatsApp first, then adds {BATCH} at a time with a pause
+                  between — {parsed.length > BATCH ? `about ${Math.max(1, Math.round(parsed.length / BATCH * 9 / 60))} minute${Math.round(parsed.length / BATCH * 9 / 60) === 1 ? "" : "s"} for ${parsed.length}. ` : ""}
+                  Leave this open while it works. Inviting instead queues one message each, 5–10 minutes apart.
                 </span>
               </div>
 
