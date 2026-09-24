@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconSearch, IconFilter, IconChevronLeft, IconChevronRight, IconPlus, IconTrash,
   IconCircleCheck, IconCircleDashed, IconClock, IconAlertTriangle, IconChecks, IconChartBar,
-  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat,
+  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat, IconUsersGroup,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -47,11 +47,7 @@ const STATUS_STYLE: Record<WaStatus, { pill: string; dot: string; label: string;
   canceled: { pill: "bg-gray-100 text-gray-500", dot: "bg-gray-300", label: "Cancelled", icon: <IconTrash size={12} /> },
 };
 
-export function BroadcastWorkspace({ groupsOpen, onGroupsOpenChange }: {
-  /** Groups & members is opened from the page header, so its state lives there. */
-  groupsOpen: boolean;
-  onGroupsOpenChange: (open: boolean) => void;
-}) {
+export function BroadcastWorkspace() {
   const [rows, setRows] = useState<WaMessage[] | null>(null);
   const [q, setQ] = useState("");
   const [onlyFailed, setOnlyFailed] = useState(false);
@@ -61,6 +57,7 @@ export function BroadcastWorkspace({ groupsOpen, onGroupsOpenChange }: {
   // Groups this number is in — for the members panel. Read once, cheaply, from
   // the same list the picker uses.
   const [groups, setGroups] = useState<Recipient[] | null>(null);
+  const [showGroups, setShowGroups] = useState(false);
   useEffect(() => {
     fetch("/api/scheduler/whatsapp/recipients", { cache: "no-store" })
       .then((r) => r.json())
@@ -178,6 +175,10 @@ export function BroadcastWorkspace({ groupsOpen, onGroupsOpenChange }: {
         <aside className="bg-white border border-gray-100 rounded-2xl flex flex-col max-h-[calc(100vh-190px)]">
           <div className="px-3 py-3 border-b border-gray-100">
             <WhatsAppAccount />
+            <button onClick={() => setShowGroups(true)}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] px-3 py-1.5 mb-2 hover:border-brand hover:text-brand">
+              <IconUsersGroup size={14} /> Groups &amp; members
+            </button>
             <button onClick={() => setCompose({ open: true })}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white text-[13px] font-medium px-3 py-2 mb-2 hover:bg-brand-dark">
               <IconPlus size={15} /> New message
@@ -235,15 +236,15 @@ export function BroadcastWorkspace({ groupsOpen, onGroupsOpenChange }: {
         </section>
       </div>
 
-      {groupsOpen && (
+      {showGroups && (
         <GroupMembers
           session={(accounts.find((a) => a.status === "WORKING")?.name) || "default"}
           sessionPhone={accounts.find((a) => a.status === "WORKING")?.phone || null}
           groups={groups}
-          onClose={() => onGroupsOpenChange(false)}
+          onClose={() => setShowGroups(false)}
           // "Message this group" hands off to the composer — sending lives in one
           // place, and picks up every check that lives there.
-          onMessageGroup={(g) => { onGroupsOpenChange(false); setCompose({ open: true, seed: { kind: "message", chats: [g], body: "", imageUrl: "" } }); }}
+          onMessageGroup={(g) => { setShowGroups(false); setCompose({ open: true, seed: { kind: "message", chats: [g], body: "", imageUrl: "" } }); }}
         />
       )}
 
