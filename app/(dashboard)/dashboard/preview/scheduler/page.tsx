@@ -1437,36 +1437,44 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
             <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
           </Card>
 
-          {/* Only asked once there is a single creative to ask about. Offering
-              "Reel" beside four files is a choice that cannot be honoured. */}
-          {formatChoices.length > 1 && (
-            <Card title="Format" subtitle={FORMAT_NOTE[format]}>
-              <div className="space-y-3">
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                  {formatChoices.map((f, i) => (
-                    <button key={f} type="button" onClick={() => chooseFormat(f)}
-                      className={`px-3.5 py-1.5 text-[12.5px] ${format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"} ${i > 0 ? "border-l border-gray-200" : ""}`}>
+          {/* Always on screen, with whatever this creative cannot be greyed out and a
+              line saying why. It used to appear only once exactly one file was
+              attached, so anyone who opened Create post to schedule a story saw no
+              Format control at all and concluded stories were not supported
+              ("schedule story as well" — Maheen, 22 Sep). Offering "Reel" beside four
+              files is still a choice that cannot be honoured — hence disabled, not hidden. */}
+          <Card title="Format" subtitle={formatChoices.length ? FORMAT_NOTE[format] : FORMAT_BLOCKED}>
+            <div className="space-y-3">
+              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                {ALL_FORMATS.map((f, i) => {
+                  const ok = formatChoices.includes(f);
+                  return (
+                    <button key={f} type="button" disabled={!ok} onClick={() => chooseFormat(f)}
+                      title={ok ? undefined : FORMAT_WHY_NOT[f]}
+                      className={`px-3.5 py-1.5 text-[12.5px] ${i > 0 ? "border-l border-gray-200" : ""} ${
+                        !ok ? "text-[#C2C6D0] bg-[#FAFBFC] cursor-not-allowed"
+                          : format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
                       {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
                     </button>
-                  ))}
-                </div>
-                {format === "reel" && singleVideoUrl && (
-                  <div className="pt-1 border-t border-gray-100">
-                    <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mt-3 mb-2">Thumbnail</div>
-                    <ReelThumbnail videoUrl={singleVideoUrl} coverUrl={coverUrl} onCover={setCoverUrl} />
-                  </div>
-                )}
-                {format === "story" && (
-                  <div className="pt-3 border-t border-gray-100 text-[12px] leading-snug text-[#8A92A6]">
-                    Stories go out through the API, which posts the creative and nothing
-                    else — no stickers, no link, no poll, no music, and no collaborator.
-                    Anything you want on the story has to be burned into the file.
-                    It disappears after 24 hours.
-                  </div>
-                )}
+                  );
+                })}
               </div>
-            </Card>
-          )}
+              {format === "reel" && singleVideoUrl && (
+                <div className="pt-1 border-t border-gray-100">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mt-3 mb-2">Thumbnail</div>
+                  <ReelThumbnail videoUrl={singleVideoUrl} coverUrl={coverUrl} onCover={setCoverUrl} />
+                </div>
+              )}
+              {format === "story" && (
+                <div className="pt-3 border-t border-gray-100 text-[12px] leading-snug text-[#8A92A6]">
+                  Stories go out through the API, which posts the creative and nothing
+                  else — no stickers, no link, no poll, no music, and no collaborator.
+                  Anything you want on the story has to be burned into the file.
+                  It disappears after 24 hours.
+                </div>
+              )}
+            </div>
+          </Card>
 
           <Card title="Caption">
             <div className="space-y-3">
@@ -3262,6 +3270,15 @@ function LinkedInLogo({ size = 34 }: { size?: number }) {
 type PreviewPlatform = "instagram" | "facebook" | "linkedin";
 type PreviewDevice = "mobile" | "tablet";
 
+const ALL_FORMATS: ("post" | "reel" | "story")[] = ["post", "reel", "story"];
+// Shown under the heading when no format can be picked yet, and on hover over one
+// that this creative rules out — "why is it greyed out" should never need asking.
+const FORMAT_BLOCKED = "Attach one image or video to choose a format.";
+const FORMAT_WHY_NOT: Record<"post" | "reel" | "story", string> = {
+  post: "Attach a creative first.",
+  reel: "A reel is one video — attach a single video file.",
+  story: "A story is one image or video — attach a single file.",
+};
 const FORMAT_NOTE: Record<"post" | "reel" | "story", string> = {
   post: "Set from your file. A feed post — it stays on the profile.",
   reel: "Set from your file. Instagram publishes a single video as a reel either way; Facebook posts it to the Page as one.",
