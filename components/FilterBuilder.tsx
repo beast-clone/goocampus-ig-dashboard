@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { IconCheck, IconChevronDown, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown, IconFilter, IconPlus, IconTrash } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
-import { OPS_BY_TYPE, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
+import { EMPTY_FILTER, OPS_BY_TYPE, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 
 // Airtable-style filter builder — rows of Field · Operator · Value joined by a
 // top-level AND/OR. The operators and the value control follow the field's type.
@@ -94,6 +94,45 @@ export function FilterBuilder<T>({ filter, fields, optionsFor, onChange, emptyNo
         })}
       </div>
       <button onClick={add} className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-brand"><IconPlus size={14} />Add condition</button>
+    </div>
+  );
+}
+
+/**
+ * The builder behind a toolbar button, with the active-condition count on it.
+ *
+ * The Marketing Hub has its own toolbar shell; this is the drop-in for pages that
+ * just want the control without building one.
+ */
+export function FilterPopover<T>({ filter, fields, optionsFor, onChange, emptyNote, align = "left" }: {
+  filter: FilterModel;
+  fields: FilterFieldDef<T>[];
+  optionsFor: (fieldKey: string) => { value: string; label: string }[];
+  onChange: (f: FilterModel) => void;
+  emptyNote?: string;
+  /** The panel is 560px wide — anchor it right when the button sits near the edge. */
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const n = filter.conditions.length;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)}
+        className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[13px] ${
+          n ? "border-brand text-brand bg-brand-light" : "border-gray-200 text-[#4A5468] hover:border-gray-300"}`}>
+        <IconFilter size={15} stroke={1.8} />{n ? `Filtered · ${n}` : "Filter"}
+      </button>
+      {n > 0 && (
+        <button onClick={() => onChange(EMPTY_FILTER)} className="ml-2 text-[12.5px] text-[#8A92A6] hover:text-[#232D42]">Clear</button>
+      )}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[57]" onClick={() => setOpen(false)} />
+          <div className={`absolute top-[calc(100%+6px)] z-[58] ${align === "right" ? "right-0" : "left-0"}`}>
+            <FilterBuilder filter={filter} fields={fields} optionsFor={optionsFor} onChange={onChange} emptyNote={emptyNote} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

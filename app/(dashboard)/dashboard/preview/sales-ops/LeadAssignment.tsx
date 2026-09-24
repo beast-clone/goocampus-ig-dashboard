@@ -1,6 +1,8 @@
 "use client";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
+import { FilterPopover } from "@/components/FilterBuilder";
+import { EMPTY_FILTER, evalFilter, type FilterFieldDef, type FilterModel } from "@/lib/filter-model";
 import { fmtDateTime } from "@/lib/date";
 import { isClosedStatus } from "@/lib/lead-status";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
@@ -48,6 +50,22 @@ type BoardLead = {
   daysUntouched: number; cold: boolean; link: string;
   role: Role; ageDays: number; callAttempts: number; flaggedNew: boolean; flaggedPool: boolean;
 };
+// What you can filter a lead by on the tracker — the same builder the Marketing
+// Hub master sheet uses ("add filtering, like in airtable" — Maheen, 22 Sep).
+// The search box stays for "I know roughly what it's called"; this is for
+// everything the search can't express, like "pool AND older than a date".
+const TRACKER_FILTER_FIELDS: FilterFieldDef<BoardLead>[] = [
+  { key: "name", label: "Name", type: "text", get: (l) => l.name || "" },
+  { key: "interest", label: "Primary interest", type: "select", get: (l) => l.interest || "" },
+  { key: "sbu", label: "SBU", type: "select", get: (l) => l.sbu || "" },
+  { key: "source", label: "Source", type: "select", get: (l) => l.source || "" },
+  { key: "status", label: "Status", type: "select", get: (l) => l.status || "" },
+  { key: "counsellor", label: "Counsellor", type: "select", get: (l) => l.counsellor || "" },
+  { key: "role", label: "Held by", type: "select", get: (l) => l.role || "" },
+  { key: "date", label: "Arrived", type: "date", get: (l) => (l.date || "").slice(0, 10) },
+  { key: "cold", label: "Cold", type: "checkbox", get: (l) => !!l.cold },
+];
+
 type InterestRow = {
   interest: string; total: number; assigned: number; pool: number; partner: number;
   other: number; newOver2: number; poolStuck: number;
@@ -880,12 +898,23 @@ function TrackerTab({ data, since, starred, persisted, onStar, onTrack }: {
   // Find-a-lead-to-track search — filters this period's leads by name / interest /
   // source / counsellor, 10 a page, each pinnable with the star.
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<FilterModel>(EMPTY_FILTER);
   const [page, setPage] = useState(0);
   const PER = 10;
   const query = q.trim().toLowerCase();
-  const matches = query
-    ? data.allLeads.filter((l) => inRange(l) && `${l.name} ${l.interest} ${l.source} ${l.counsellor}`.toLowerCase().includes(query))
+  // Either control on its own narrows the list; together they both apply.
+  const hasFilter = filter.conditions.length > 0;
+  const matches = query || hasFilter
+    ? data.allLeads.filter((l) => inRange(l)
+        && (!query || `${l.name} ${l.interest} ${l.source} ${l.counsellor}`.toLowerCase().includes(query))
+        && (!hasFilter || evalFilter(l, filter, TRACKER_FILTER_FIELDS)))
     : [];
+  const trackerOptionsFor = (key: string) => {
+    const def = TRACKER_FILTER_FIELDS.find((f) => f.key === key);
+    if (!def || def.type !== "select") return [];
+    const seen = new Set(data.allLeads.map((l) => String(def.get(l) || "")).filter(Boolean));
+    return [...seen].sort().map((v) => ({ value: v, label: v }));
+  };
   const mPages = Math.max(1, Math.ceil(matches.length / PER));
   const mp = Math.min(page, mPages - 1);
   const mSlice = matches.slice(mp * PER, mp * PER + PER);
@@ -910,7 +939,12 @@ function TrackerTab({ data, since, starred, persisted, onStar, onTrack }: {
         <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search by name, primary interest, source or counsellor…"
           className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand" />
       </div>
-      {query && (
+      <div className="mb-4 flex items-center gap-2">
+        <FilterPopover<BoardLead> filter={filter} fields={TRACKER_FILTER_FIELDS} optionsFor={trackerOptionsFor}
+          onChange={(f) => { setFilter(f); setPage(0); }}
+          emptyNote="No conditions — showing every lead in this period. Add one below." />
+      </div>
+      {(query || hasFilter) && (
         <div className="mb-6">
           {matches.length ? (
             <>
@@ -926,7 +960,7 @@ function TrackerTab({ data, since, starred, persisted, onStar, onTrack }: {
                 </div>
               )}
             </>
-          ) : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">No leads match &ldquo;{q}&rdquo; in this period. Try another word, or widen the date range at the top.</div>}
+          ) : <div className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">No leads match {query ? <>&ldquo;{q}&rdquo;</> : "that filter"} in this period. Try another word, loosen the filter, or widen the date range at the top.</div>}
         </div>
       )}
 

@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { LiveWaiting } from "./LiveWaiting";
+import { FilterPopover } from "@/components/FilterBuilder";
+import { EMPTY_FILTER, evalFilter, type FilterFieldDef, type FilterModel } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconTrophy } from "@tabler/icons-react";
@@ -768,6 +770,21 @@ type FCLead = {
   contacted: boolean; firstContactHrs: number | null; counsellor: string;
 };
 
+// What you can filter a lead by — same builder the Marketing Hub master sheet
+// uses ("add filters like in airtable" — Maheen, 22 Sep). The quick counsellor /
+// status / search controls stay: they are one click for the common case, and this
+// is for everything else. Both narrow the same list.
+const FC_FILTER_FIELDS: FilterFieldDef<FCLead>[] = [
+  { key: "name", label: "Name", type: "text", get: (l) => l.name || "" },
+  { key: "mobile", label: "Phone", type: "text", get: (l) => l.mobile || "" },
+  { key: "source", label: "Source", type: "select", get: (l) => l.source || "" },
+  { key: "status", label: "Status", type: "select", get: (l) => l.status || "" },
+  { key: "counsellor", label: "Counsellor", type: "select", get: (l) => l.counsellor || "Unassigned" },
+  { key: "contacted", label: "Contacted", type: "checkbox", get: (l) => !!l.contacted },
+  { key: "createdAt", label: "Created", type: "date", get: (l) => (l.createdAt || "").slice(0, 10) },
+  { key: "daysUntouched", label: "Days untouched", type: "text", get: (l) => String(l.daysUntouched ?? "") },
+];
+
 const initials = (n: string) => (n || "?").split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -784,6 +801,7 @@ function LeadsFirstContact() {
   const [q, setQ] = useState("");
   const [statusF, setStatusF] = useState<"all" | "contacted" | "not">("all");
   const [counsellorF, setCounsellorF] = useState<string>("all");
+  const [filter, setFilter] = useState<FilterModel>(EMPTY_FILTER);
   const [page, setPage] = useState(0);
 
   const win = useMemo(() => {
@@ -806,7 +824,7 @@ function LeadsFirstContact() {
   }, [win?.from, win?.to]);
 
   // Reset to page 1 whenever a filter changes.
-  useEffect(() => { setPage(0); }, [q, statusF, counsellorF]);
+  useEffect(() => { setPage(0); }, [q, statusF, counsellorF, filter]);
 
   const counsellorOpts = useMemo(() => {
     if (!leads) return [] as { name: string; n: number }[];
@@ -823,8 +841,18 @@ function LeadsFirstContact() {
     if (statusF === "contacted") out = out.filter((l) => l.contacted);
     else if (statusF === "not") out = out.filter((l) => !l.contacted);
     if (needle) out = out.filter((l) => (l.name || "").toLowerCase().includes(needle) || (l.mobile || "").includes(needle) || (l.source || "").toLowerCase().includes(needle));
+    if (filter.conditions.length) out = out.filter((l) => evalFilter(l, filter, FC_FILTER_FIELDS));
     return out;
-  }, [leads, q, statusF, counsellorF]);
+  }, [leads, q, statusF, counsellorF, filter]);
+
+  // Choices come from the leads actually loaded, so nothing offers a value that
+  // cannot match.
+  const fcOptionsFor = useCallback((key: string) => {
+    const def = FC_FILTER_FIELDS.find((f) => f.key === key);
+    if (!def || def.type !== "select") return [];
+    const seen = new Set((leads || []).map((l) => String(def.get(l) || "")).filter(Boolean));
+    return [...seen].sort().map((v) => ({ value: v, label: v }));
+  }, [leads]);
 
   const contactedN = useMemo(() => filtered.filter((l) => l.contacted).length, [filtered]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -883,6 +911,8 @@ function LeadsFirstContact() {
           </button>
         ))}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, source…" className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 w-56 max-w-full focus:outline-none focus:border-brand" />
+        <FilterPopover<FCLead> filter={filter} fields={FC_FILTER_FIELDS} optionsFor={fcOptionsFor} onChange={setFilter} align="right"
+          emptyNote="No conditions — showing every lead in this window. Add one below." />
         <button onClick={exportCsv} disabled={!leads || filtered.length === 0} className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[#3B4457] hover:border-brand disabled:opacity-50">⬇ Export</button>
       </div>
 
