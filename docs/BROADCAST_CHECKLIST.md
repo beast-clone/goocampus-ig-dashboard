@@ -26,6 +26,11 @@ covers the lot.
 | ✅ | **Groups & members** — group dropdown, invite link (copy), member list, and Add all with per-number results | `475cbdc` |
 | ✅ | **Numbers by CSV** — name and number, pasted or uploaded; the name is used in the invite | this batch |
 | ✅ | **Sending from the groups panel** — invite those numbers, or message the group (opens the composer with it filled in) | this batch |
+| ✅ | **A review screen before anything is queued** — every recipient, their exact text and exact minute; edit or drop any line | this batch |
+| ✅ | **Upload a CSV into Send to** — a list of people becomes the recipients | this batch |
+| ✅ | **Add all goes up 5 at a time** — 76 in one request ran for minutes and would be cut off once deployed | this batch |
+| ✅ | **Says when the number isn't an admin** of the group, instead of only a missing invite link | this batch |
+| ✅ | **Past days are read-only** — they show what was sent; no "New", and the date picker won't offer them | this batch |
 | ✅ | **A typed number is checked against WhatsApp** — one that has no account can't be picked | `41e77f9` |
 | ✅ | **WhatsApp's own quota is read** — the panel warns when WhatsApp limits the number, and the composer says so before queueing | `ae0508b` |
 
