@@ -79,7 +79,14 @@ export function ReviewModal({ rows: initial, imageName, onClose, onConfirm, busy
                 <span className={`w-6 h-6 rounded-lg grid place-items-center flex-shrink-0 ${r.chat.kind === "contact" ? "bg-[#F6F7FB] text-[#8A92A6]" : "bg-brand-light text-brand"}`}>
                   {r.chat.kind === "contact" ? <IconUser size={13} /> : <IconUsers size={13} />}
                 </span>
-                <span className="text-[13px] font-medium text-[#232D42] truncate">{r.chat.label}</span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-medium text-[#232D42] truncate">{r.chat.label}</span>
+                  {/* Two groups can carry the same name — a Community and its
+                      Announcements both do — so the id is here to tell them apart. */}
+                  {r.chat.kind !== "contact" && r.chat.label !== r.chat.id && (
+                    <span className="block text-[11px] text-[#8A92A6] truncate">{r.chat.id}</span>
+                  )}
+                </span>
                 <span className="inline-flex items-center gap-1 text-[12px] text-[#8A92A6] whitespace-nowrap">
                   <IconClock size={13} /> {fmtTime(r.at)}
                 </span>

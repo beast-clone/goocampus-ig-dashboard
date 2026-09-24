@@ -109,7 +109,11 @@ export function RecipientPicker({ selected, onChange, session }: {
     setErr(null);
     const id = normalizeChatId(raw);
     if (!id) { setErr("Enter a phone number, a group id (…@g.us) or a channel id (…@newsletter)."); return; }
-    const r: Recipient = { id, label: (label || "").trim() || chatDisplay(id), kind: chatKind(id) };
+    // A group pasted by id is not nameless just because no name was typed: if it
+    // is already saved, it has one, and a raw 1203…@g.us in the composer is what
+    // makes two same-named groups impossible to tell apart.
+    const known = (list || []).find((x) => x.id === id);
+    const r: Recipient = { id, label: (label || "").trim() || known?.label || chatDisplay(id), kind: chatKind(id) };
     onChange(isOn(id) ? selected : [...selected, r]);
     try {
       await fetch("/api/scheduler/whatsapp/recipients", {
@@ -176,7 +180,7 @@ export function RecipientPicker({ selected, onChange, session }: {
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selected.map((r) => (
-            <span key={r.id} className="inline-flex items-center gap-1 bg-brand-light text-brand-dark rounded-full pl-2.5 pr-1.5 py-1 text-[12px]">
+            <span key={r.id} title={r.id} className="inline-flex items-center gap-1 bg-brand-light text-brand-dark rounded-full pl-2.5 pr-1.5 py-1 text-[12px]">
               {r.label}
               <button type="button" onClick={() => toggle(r)} className="text-brand/60 hover:text-brand-dark" aria-label={`Remove ${r.label}`}>
                 <IconX size={13} stroke={2} />

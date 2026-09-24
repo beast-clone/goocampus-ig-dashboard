@@ -664,7 +664,9 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
                 <IconAlertTriangle size={15} className="mt-[1px] shrink-0" />
                 <span className="min-w-0">
                   <b>{sendingFrom?.label || prettyPhone(sendingFrom?.phone || null)}</b> isn&apos;t in
-                  {" "}<b>{chat.label}</b>, so WhatsApp will refuse this one.
+                  {" "}<b>{chat.label}</b>
+                  {chat.label !== chat.id && <span className="opacity-70"> ({chat.id})</span>}
+                  , so WhatsApp will refuse this one.
                   {!useInstead && " Neither is your other number — someone in the group has to add it first."}
                 </span>
                 {useInstead && (
