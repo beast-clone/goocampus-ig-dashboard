@@ -68,6 +68,37 @@ export function RecipientPicker({ selected, onChange, session }: {
     return { id, label: chatDisplay(id), kind: chatKind(id) } as Recipient;
   }, [q, list]);
 
+  // Is that number actually on WhatsApp? Offering any digits someone typed means
+  // a message that queues, "sends", and reaches nobody — you would only find out
+  // from your own phone offering to invite them.
+  //
+  // Debounced, and only for a plain number: WhatsApp rate-limits this lookup, and
+  // hammering it is itself a way to get a number flagged.
+  const [checked, setChecked] = useState<{ id: string; exists: boolean | null } | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const id = typed?.id;
+    if (!id || !id.endsWith("@c.us")) { setChecked(null); setChecking(false); return; }
+    setChecking(true);
+    const t = setTimeout(async () => {
+      try {
+        const d = await fetch(`/api/scheduler/whatsapp/check?phone=${encodeURIComponent(id)}`, { cache: "no-store" }).then((r) => r.json());
+        setChecked({ id, exists: typeof d.exists === "boolean" ? d.exists : null });
+      } catch {
+        setChecked({ id, exists: null });   // could not ask ≠ not on WhatsApp
+      } finally { setChecking(false); }
+    }, 700);
+    return () => { clearTimeout(t); setChecking(false); };
+  }, [typed?.id]);
+
+  const typedState: "checking" | "yes" | "no" | "unknown" =
+    !typed ? "unknown"
+    : !typed.id.endsWith("@c.us") ? "unknown"          // a group or channel id: nothing to check
+    : checking || checked?.id !== typed.id ? "checking"
+    : checked?.exists === true ? "yes"
+    : checked?.exists === false ? "no"
+    : "unknown";
+
   const isOn = (id: string) => selected.some((s) => s.id === id);
   const toggle = (r: Recipient) => onChange(isOn(r.id) ? selected.filter((s) => s.id !== r.id) : [...selected, r]);
 
@@ -152,15 +183,24 @@ export function RecipientPicker({ selected, onChange, session }: {
 
         <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
           {typed && (
-            <button type="button" onClick={() => { addId(typed.id); setQ(""); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[#F6F7FB] border-b border-gray-50">
-              <span className="w-4 h-4 rounded border border-dashed border-brand grid place-items-center flex-shrink-0 text-brand">
-                <IconPlus size={11} stroke={2.5} />
+            <button type="button" disabled={typedState === "checking" || typedState === "no"}
+              onClick={() => { addId(typed.id); setQ(""); }}
+              title={typedState === "no" ? "This number isn't on WhatsApp" : undefined}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-gray-50 ${typedState === "no" ? "opacity-60 cursor-not-allowed" : "hover:bg-[#F6F7FB]"}`}>
+              <span className={`w-4 h-4 rounded border border-dashed grid place-items-center flex-shrink-0 ${typedState === "no" ? "border-[#C03221] text-[#C03221]" : "border-brand text-brand"}`}>
+                {typedState === "no" ? <IconX size={11} stroke={2.5} /> : <IconPlus size={11} stroke={2.5} />}
               </span>
               <Avatar r={typed} />
               <span className="min-w-0">
-                <span className="block text-[13px] text-[#232D42] truncate">Send to {typed.label}</span>
-                <span className="block text-[11.5px] text-[#8A92A6] truncate">Not saved yet — click to add</span>
+                <span className="block text-[13px] text-[#232D42] truncate">
+                  {typedState === "no" ? typed.label : `Send to ${typed.label}`}
+                </span>
+                <span className={`block text-[11.5px] truncate ${typedState === "no" ? "text-[#C03221]" : "text-[#8A92A6]"}`}>
+                  {typedState === "checking" ? "Checking WhatsApp…"
+                    : typedState === "yes" ? "On WhatsApp — click to add"
+                    : typedState === "no" ? "Not on WhatsApp. They'd have to be invited to it first."
+                    : "Click to add — couldn't check whether it's on WhatsApp"}
+                </span>
               </span>
             </button>
           )}

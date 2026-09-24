@@ -142,6 +142,20 @@ export function quotaNote(q?: WaQuota | null): { tone: "ok" | "warn" | "stop"; t
 }
 
 /**
+ * Is this number actually on WhatsApp?
+ *
+ * Without this the picker would happily offer any digits someone typed, and the
+ * message would sit in the queue, "send", and arrive nowhere — you'd only find
+ * out by checking your phone and seeing WhatsApp offer to invite them.
+ *
+ * `exists: null` means we could not ask (relay down, WAHA older). Unknown must
+ * never read as "not on WhatsApp": telling someone a real number is unreachable
+ * is worse than saying nothing.
+ */
+export const checkNumber = (phone: string, session = "default") =>
+  relay<{ phone: string; exists: boolean | null; chatId: string | null }>("check", { phone, session }, READ_HOOK);
+
+/**
  * Does the n8n relay actually honour the account we ask for?
  *
  * The session-control workflow hardcoded "default" until multi-account, and a
