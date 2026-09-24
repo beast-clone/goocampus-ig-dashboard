@@ -237,7 +237,14 @@ export function BroadcastWorkspace() {
       </div>
 
       {showGroups && (
-        <GroupMembers session={(accounts.find((a) => a.status === "WORKING")?.name) || "default"} groups={groups} onClose={() => setShowGroups(false)} />
+        <GroupMembers
+          session={(accounts.find((a) => a.status === "WORKING")?.name) || "default"}
+          groups={groups}
+          onClose={() => setShowGroups(false)}
+          // "Message this group" hands off to the composer — sending lives in one
+          // place, and picks up every check that lives there.
+          onMessageGroup={(g) => { setShowGroups(false); setCompose({ open: true, seed: { kind: "message", chats: [g], body: "", imageUrl: "" } }); }}
+        />
       )}
 
       {compose?.open && (

@@ -18,9 +18,16 @@
 // person can always go ahead.
 
 export const WA_SAFETY = {
-  /** Random gap between two sends in the same batch, in seconds (WAHA's advice). */
-  gapMinSec: 30,
-  gapMaxSec: 60,
+  // Gap between two sends to INDIVIDUALS, in minutes. WAHA suggests 30–60
+  // seconds; Praveen chose 5–10 minutes (24 Sep), which is slower and safer —
+  // forty numbers then take about four and a half hours, on purpose.
+  //
+  // Groups are not paced at all: a group post is one message however many people
+  // read it, and it uses none of the new-contact quota WhatsApp rations.
+  gapMinMin: 5,
+  gapMaxMin: 10,
+  /** A hand-set gap may be longer, never shorter. */
+  gapFloorMin: 5,
   /** Rules of thumb for a number that has been running a while. */
   perHour: 50,
   perDay: 300,
@@ -37,27 +44,40 @@ const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
 /**
  * When a message goes to several recipients, spread them out instead of firing
- * them all in the same minute. Random, never a fixed cadence — a metronome is
- * exactly what automation detection looks for.
+ * them all at once. Random, never a fixed cadence — a metronome is exactly what
+ * automation detection looks for.
+ *
+ * Groups keep the time they were given; only individuals are paced.
+ * `gapMinutes` overrides the random gap, and is floored, never honoured below it.
  */
-export function spreadSchedule(startISO: string, count: number): string[] {
+export function spreadSchedule(startISO: string, ids: string[], gapMinutes?: number): string[] {
   const start = new Date(startISO).getTime();
+  const isGroup = (id: string) => /@(g\.us|newsletter)$/i.test(id) || id === "status@broadcast";
+  const fixed = typeof gapMinutes === "number" && gapMinutes > 0
+    ? Math.max(WA_SAFETY.gapFloorMin, gapMinutes)
+    : null;
+
   const out: string[] = [];
   let t = start;
-  for (let i = 0; i < count; i++) {
+  for (const id of ids) {
+    if (isGroup(id)) { out.push(new Date(start).toISOString()); continue; }
     out.push(new Date(t).toISOString());
-    t += Math.round(rnd(WA_SAFETY.gapMinSec, WA_SAFETY.gapMaxSec)) * 1000;
+    const gap = fixed ?? rnd(WA_SAFETY.gapMinMin, WA_SAFETY.gapMaxMin);
+    t += Math.round(gap * 60) * 1000;
   }
   return out;
 }
 
-/** How long a batch of this size will take, in plain words. */
-export function spreadLabel(count: number): string | null {
-  if (count < 2) return null;
-  const mid = (WA_SAFETY.gapMinSec + WA_SAFETY.gapMaxSec) / 2;
-  const mins = Math.round(((count - 1) * mid) / 60);
-  if (mins < 1) return "sent a few seconds apart";
-  return `spread over about ${mins} minute${mins === 1 ? "" : "s"}, 30–60 seconds apart`;
+/** How long a batch will take, in plain words. */
+export function spreadLabel(ids: string[], gapMinutes?: number): string | null {
+  const people = ids.filter((id) => !/@(g\.us|newsletter)$/i.test(id) && id !== "status@broadcast").length;
+  if (people < 2) return null;
+  const gap = typeof gapMinutes === "number" && gapMinutes > 0 ? Math.max(WA_SAFETY.gapFloorMin, gapMinutes)
+    : (WA_SAFETY.gapMinMin + WA_SAFETY.gapMaxMin) / 2;
+  const mins = Math.round((people - 1) * gap);
+  const span = mins >= 90 ? `${(mins / 60).toFixed(1)} hours` : `${mins} minutes`;
+  const how = typeof gapMinutes === "number" && gapMinutes > 0 ? `${Math.max(WA_SAFETY.gapFloorMin, gapMinutes)} minutes apart` : `${WA_SAFETY.gapMinMin}–${WA_SAFETY.gapMaxMin} minutes apart`;
+  return `${people} people, ${how} — the last one goes about ${span} after the first`;
 }
 
 const istHour = (d: Date) => Number(d.toLocaleString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }));

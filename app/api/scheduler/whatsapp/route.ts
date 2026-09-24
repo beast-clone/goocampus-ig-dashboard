@@ -45,6 +45,8 @@ export async function POST(req: Request) {
     const b = (await req.json()) as {
       kind?: string; chats?: { id?: string; label?: string }[];
       body?: string; imageUrl?: string; mime?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
+      gapMinutes?: number;      // hand-set gap between individuals; floored at 5
+      bodies?: Record<string, string>;   // per-recipient text, when each one differs
       repeat?: { rule?: string; until?: string | null };
       session?: string;   // which linked WhatsApp account sends it
     };
@@ -102,9 +104,12 @@ export async function POST(req: Request) {
       // the same minute. Forty messages at once is the burst that gets a number
       // flagged, and WAHA's own guidance is a random gap, never a fixed one. A
       // single recipient keeps exactly the time that was asked for.
-      .insert(spreadSchedule(when.toISOString(), targets.length).map((at, i) => ({
+      .insert(spreadSchedule(when.toISOString(), targets.map((t) => t.id), b.gapMinutes).map((at, i) => ({
         chat_id: targets[i].id, chat_label: targets[i].label,
-        body: text || null, image_url: imageUrl,
+        // A different wording per person when one was written for them — the same
+        // string to forty people is the pattern that gets reported.
+        body: (b.bodies && b.bodies[targets[i].id]) || text || null,
+        image_url: imageUrl,
         schedule_time: at, status: "scheduled",
         kind,
         // mime rides along so the worker never has to guess a file's type from

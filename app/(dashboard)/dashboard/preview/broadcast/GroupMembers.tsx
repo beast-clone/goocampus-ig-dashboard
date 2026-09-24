@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   IconUsers, IconX, IconCopy, IconCheck, IconLink, IconUserPlus, IconSend,
-  IconAlertTriangle, IconCircleCheck, IconMail,
+  IconAlertTriangle, IconCircleCheck, IconMail, IconUpload,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { prettyPhone } from "@/lib/whatsapp-session";
+import { normalizeChatId } from "@/lib/whatsapp";
 import type { Recipient } from "./RecipientPicker";
 
 // Who is in a group, its invite link, and adding people to it.
@@ -24,10 +26,37 @@ import type { Recipient } from "./RecipientPicker";
 type Member = { id: string; phone: string | null; admin: boolean };
 type Result = { id: string; state: string; text: string };
 
-export function GroupMembers({ session, groups, onClose }: {
+/** A row from an uploaded list: a number, and a name to greet them by. */
+type Row = { phone: string; name: string | null };
+
+/**
+ * A pasted list or a CSV, read the same way. Accepts "name, number" in either
+ * order, one per line, and ignores a header row — people export from anywhere.
+ */
+function parseRows(text: string): Row[] {
+  const out: Row[] = [];
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const cells = line.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    if (!cells.length) continue;
+    if (/^(name|phone|number|mobile|contact)$/i.test(cells[0]) && cells.length > 1) continue;   // header
+    const numberCell = cells.find((c) => normalizeChatId(c));
+    if (!numberCell) continue;
+    const id = normalizeChatId(numberCell)!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const nameCell = cells.find((c) => c !== numberCell && /[A-Za-z]/.test(c)) || null;
+    out.push({ phone: id, name: nameCell });
+  }
+  return out;
+}
+
+export function GroupMembers({ session, groups, onClose, onMessageGroup }: {
   session: string;
   groups: Recipient[];
   onClose: () => void;
+  /** Hand a group to the composer, so "send" lives in one place. */
+  onMessageGroup: (g: Recipient) => void;
 }) {
   const [picked, setPicked] = useState<Recipient | null>(groups[0] || null);
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -50,11 +79,9 @@ export function GroupMembers({ session, groups, onClose }: {
       .catch((e) => { setErr((e as Error).message); setMembers([]); });
   }, [picked, session]);
 
-  // One per line, or commas — people paste from a spreadsheet either way.
-  const parsed = useMemo(
-    () => [...new Set(numbers.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean))],
-    [numbers],
-  );
+  const rows = useMemo(() => parseRows(numbers), [numbers]);
+  const parsed = useMemo(() => rows.map((r) => r.phone), [rows]);
+  const named = useMemo(() => rows.filter((r) => r.name).length, [rows]);
 
   const addAll = async () => {
     if (!picked || !parsed.length) return;
@@ -87,6 +114,39 @@ export function GroupMembers({ session, groups, onClose }: {
     finally { setBusy(false); }
   };
 
+  // Inviting is the gentler of the two: it queues a normal message carrying the
+  // link, which means it is paced and warned about like any other send.
+  const sendInvites = async () => {
+    if (!picked || !link || !parsed.length) return;
+    const ok = await confirmDialog({
+      title: `Send the invite link to ${parsed.length} ${parsed.length === 1 ? "person" : "people"}?`,
+      body: <>They get a message with the link to {picked.label} and join themselves. Queued 5–10 minutes apart, so the last one goes about {Math.round((parsed.length - 1) * 7.5)} minutes after the first.</>,
+      action: "Queue the invites",
+    });
+    if (!ok) return;
+    setBusy(true); setErr(null);
+    try {
+      const bodies: Record<string, string> = {};
+      for (const r of rows) {
+        bodies[r.phone] = `${r.name ? `Hi ${r.name}, ` : "Hi, "}you're invited to join *${picked.label}* on WhatsApp.\n\n${link}`;
+      }
+      const d = await fetch("/api/scheduler/whatsapp", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({
+          kind: "message", session,
+          chats: rows.map((r) => ({ id: r.phone, label: r.name || null })),
+          body: `You're invited to join ${picked.label} on WhatsApp.\n\n${link}`,
+          bodies,
+          scheduleTimeISO: new Date().toISOString(),
+        }),
+      }).then((r) => r.json());
+      if (d.error) throw new Error(d.error);
+      setResults(rows.map((r) => ({ id: r.phone, state: "invited", text: `Invite queued${r.name ? ` for ${r.name}` : ""}` })));
+      setNumbers("");
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
   const copy = async () => {
     if (!link) return;
     try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
@@ -112,13 +172,20 @@ export function GroupMembers({ session, groups, onClose }: {
           ) : (
             <>
               <label className="text-[11px] uppercase tracking-wide text-[#8A92A6] font-semibold">Group</label>
-              <div className="flex flex-wrap gap-1.5 mt-1.5 mb-4">
-                {groups.map((g) => (
-                  <button key={g.id} onClick={() => setPicked(g)}
-                    className={`text-[12.5px] rounded-lg px-2.5 py-1.5 border transition ${picked?.id === g.id ? "bg-brand-light text-brand-dark border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-gray-300"}`}>
-                    {g.label}
+              <div className="flex items-center gap-2 mt-1.5 mb-4">
+                <PreviewSelect
+                  value={picked?.id || ""}
+                  onChange={(v) => setPicked(groups.find((g) => g.id === v) || null)}
+                  options={groups.map((g) => ({ value: g.id, label: g.label }))}
+                  placeholder="Pick a group"
+                  className="flex-1 min-w-0"
+                />
+                {picked && (
+                  <button onClick={() => onMessageGroup(picked)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] px-3 py-2 hover:border-brand hover:text-brand whitespace-nowrap">
+                    <IconSend size={14} /> Message this group
                   </button>
-                ))}
+                )}
               </div>
 
               {/* Invite link — the safe way in */}
@@ -146,14 +213,38 @@ export function GroupMembers({ session, groups, onClose }: {
                 <IconUserPlus size={13} /> Add numbers
               </label>
               <textarea value={numbers} onChange={(e) => setNumbers(e.target.value)} rows={4}
-                placeholder={"One number per line, or separated by commas\n+91 98765 43210\n9876543211"}
+                placeholder={"Name, number — one per line. Or upload a CSV.\nArun, +91 98765 43210\nPriya, 9876543211"}
                 className="w-full mt-1.5 rounded-xl border border-gray-200 focus:border-brand outline-none p-3 text-[13px] text-[#232D42] resize-y" />
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <label className="inline-flex items-center gap-1.5 text-[12.5px] text-brand hover:underline cursor-pointer">
+                  <IconUpload size={13} /> Upload a CSV
+                  <input type="file" accept=".csv,text/csv,text/plain" className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0]; e.target.value = "";
+                      if (!f) return;
+                      const text = await f.text();
+                      setNumbers((cur) => (cur.trim() ? cur.replace(/\s*$/, "\n") : "") + text);
+                    }} />
+                </label>
+                {rows.length > 0 && (
+                  <span className="text-[11.5px] text-[#8A92A6]">
+                    {rows.length} number{rows.length === 1 ? "" : "s"}{named ? `, ${named} with a name` : " — no names, so nothing can be personalised"}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <button onClick={addAll} disabled={busy || !parsed.length || !picked}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
                   <IconSend size={15} /> {busy ? "Adding…" : parsed.length ? `Add all ${parsed.length}` : "Add all"}
                 </button>
-                <span className="text-[11.5px] text-[#8A92A6]">Checked against WhatsApp first, then added in small batches with a pause.</span>
+                <button onClick={sendInvites} disabled={busy || !parsed.length || !link}
+                  title={!link ? "No invite link for this group" : "Queue the invite link to these numbers"}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 text-[13px] font-medium text-[#4A5468] px-4 py-2 hover:border-brand hover:text-brand disabled:opacity-50">
+                  <IconLink size={15} /> Send them the invite link
+                </button>
+                <span className="text-[11.5px] text-[#8A92A6] w-full">
+                  Adding checks each number against WhatsApp first, then adds in small batches. Inviting queues one message each, 5–10 minutes apart.
+                </span>
               </div>
 
               {err && <div className="text-[12.5px] rounded-lg px-3 py-2 mt-3 bg-rose-50 text-rose-700 border border-rose-100">{err}</div>}

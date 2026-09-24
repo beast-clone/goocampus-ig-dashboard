@@ -482,7 +482,7 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
             </div>
             {kind !== "status" && chats.length > 1 && (
               <div className="flex items-center gap-2 text-[12px] text-[#8A92A6] mt-1">
-                <IconClock size={13} className="shrink-0" /> {spreadLabel(chats.length)} — sending them all in the same minute is what gets a number flagged.
+                <IconClock size={13} className="shrink-0" /> {spreadLabel(chats.map((c) => c.id))} — groups go at once; people are spaced out.
               </div>
             )}
             {at && !isNaN(at.getTime()) && !inPast && (
