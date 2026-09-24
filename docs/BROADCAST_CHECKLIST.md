@@ -1,6 +1,6 @@
 # Community Broadcast — what's done, what's pending
 
-Updated 24 Sep 2026 (evening). Everything below is on `feat/dashboard-reskin` and pushed to
+Updated 24 Sep 2026 (late). Everything below is on `feat/dashboard-reskin` and pushed to
 GitHub. **The live site is still on this morning's deploy** — one deploy at the end
 covers the lot.
 
@@ -30,7 +30,11 @@ covers the lot.
 | ✅ | **Upload a CSV into Send to** — a list of people becomes the recipients | this batch |
 | ✅ | **Add all goes up 5 at a time** — 76 in one request ran for minutes and would be cut off once deployed | this batch |
 | ✅ | **Says when the number isn't an admin** of the group, instead of only a missing invite link | this batch |
-| ✅ | **Past days are read-only** — they show what was sent; no "New", and the date picker won't offer them | this batch |
+| ✅ | **Past days are read-only** — they show what was sent; no "New", and the date picker won't offer them | `91e1527` |
+| ✅ | **Groups & members** sits above New message in the rail | `cb0a34b` |
+| ✅ | **Warns when the sending number isn't in a group** — with a button to send from the number that is | `1446aa9` |
+| ✅ | **Failures read as English** — the raw WAHA reply folded behind "What WhatsApp actually said" | `1446aa9` |
+| ✅ | **A group pasted by id shows its name**; the id stays where two groups share a name | `4d1a37d` |
 | ✅ | **A typed number is checked against WhatsApp** — one that has no account can't be picked | `41e77f9` |
 | ✅ | **WhatsApp's own quota is read** — the panel warns when WhatsApp limits the number, and the composer says so before queueing | `ae0508b` |
 
@@ -55,6 +59,15 @@ covers the lot.
 |---|---|---|
 | ⬜ | **Monthly media retention** — the notification, the storage screen, the two-day grace period, the zip download | Specced in `MEDIA_RETENTION_SPEC.md`, agreed, not started |
 | ⬜ | Confirm the warning thresholds (50/hour, 300/day) or set your own | Your numbers |
+
+## Worth knowing
+
+- **Two groups can carry the same name.** A WhatsApp Community's *Announcements* chat
+  takes the Community's own name and lists only admins as members, so it looks like a
+  second group with one person in it. One send went there instead of to the real group
+  (24 Sep). The saved one-member entry is now named *GC Marketing Community — announcements*.
+- **A group send fails with a bare 403** when the sending number isn't a member. The
+  composer now catches this before queueing.
 
 ## Known, not fixed
 
