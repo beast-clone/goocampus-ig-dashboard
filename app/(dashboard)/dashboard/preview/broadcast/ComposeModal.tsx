@@ -12,6 +12,7 @@ import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
+import { checkBatch, spreadLabel, type WaWarning } from "@/lib/whatsapp-safety";
 import { compressImage } from "@/lib/compress-image";
 
 // The compose popup, built to match the tool this replaces: tabs across the top,
@@ -210,6 +211,33 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
       });
       if (!ok) return;
     }
+    // Before anything is queued: is this the shape of batch that gets a number
+    // banned? Warnings only — the decision stays with the person.
+    const when = sendNow ? new Date() : at!;
+    try {
+      const d = await fetch("/api/scheduler/whatsapp", { cache: "no-store" }).then((r) => r.json());
+      const warnings: WaWarning[] = checkBatch({
+        at: when,
+        count: kind === "status" ? 1 : chats.length,
+        existing: (d.messages || []) as { schedule_time: string; status: string }[],
+        kind: kind === "poll" ? "poll" : kind === "status" ? "status" : "message",
+        toGroups: chats.filter((c) => c.kind !== "contact").length,
+      });
+      if (warnings.length) {
+        const ok = await confirmDialog({
+          title: warnings.length === 1 ? "One thing worth checking" : "A few things worth checking",
+          body: (
+            <>
+              <ul className="list-disc pl-4 space-y-1.5">{warnings.map((w) => <li key={w.key}>{w.text}</li>)}</ul>
+              <div className="mt-2">Nothing is queued yet — pick another time, or go ahead.</div>
+            </>
+          ),
+          action: sendNow ? "Send anyway" : "Schedule anyway",
+        });
+        if (!ok) return;
+      }
+    } catch { /* the check is a courtesy — never block a send on it */ }
+
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/scheduler/whatsapp", {
@@ -439,6 +467,11 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
             <div className={`flex items-center gap-2 text-[12.5px] ${chats.length || kind === "status" ? "text-[#232D42] font-medium" : "text-[#8A92A6]"}`}>
               <IconUsers size={14} className={chats.length || kind === "status" ? "text-brand" : "text-[#8A92A6]"} /> {recipientLine}
             </div>
+            {kind !== "status" && chats.length > 1 && (
+              <div className="flex items-center gap-2 text-[12px] text-[#8A92A6] mt-1">
+                <IconClock size={13} className="shrink-0" /> {spreadLabel(chats.length)} — sending them all in the same minute is what gets a number flagged.
+              </div>
+            )}
             {at && !isNaN(at.getTime()) && !inPast && (
               <div className="flex items-center gap-2 text-[12.5px] text-[#4A5468] mt-1">
                 <IconClock size={14} className="text-[#8A92A6] shrink-0" />

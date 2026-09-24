@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { normalizeChatId, STATUS_CHAT, WA_COLS, type WaKind, type WaPoll, type WaRepeat, type WaRepeatRule } from "@/lib/whatsapp";
+import { spreadSchedule } from "@/lib/whatsapp-safety";
 
 // WhatsApp broadcast queue — its own table (whatsapp_scheduled_messages), fully
 // separate from the Meta/n8n post pipeline and from the LinkedIn queue it copies.
@@ -97,13 +98,20 @@ export async function POST(req: Request) {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
       .from("whatsapp_scheduled_messages")
-      .insert(targets.map((c) => ({
-        chat_id: c.id, chat_label: c.label,
+      // Several recipients are spread 30–60 seconds apart instead of all going in
+      // the same minute. Forty messages at once is the burst that gets a number
+      // flagged, and WAHA's own guidance is a random gap, never a fixed one. A
+      // single recipient keeps exactly the time that was asked for.
+      .insert(spreadSchedule(when.toISOString(), targets.length).map((at, i) => ({
+        chat_id: targets[i].id, chat_label: targets[i].label,
         body: text || null, image_url: imageUrl,
-        schedule_time: when.toISOString(), status: "scheduled",
+        schedule_time: at, status: "scheduled",
         kind,
-        payload: poll || repeat || session
-          ? { ...(poll ? { poll } : {}), ...(repeat ? { repeat } : {}), ...(session ? { session } : {}) }
+        // mime rides along so the worker never has to guess a file's type from
+        // its name — a long name loses its extension, and a PDF then went out
+        // as a photo (24 Sep).
+        payload: poll || repeat || session || mime
+          ? { ...(poll ? { poll } : {}), ...(repeat ? { repeat } : {}), ...(session ? { session } : {}), ...(mime ? { mime } : {}) }
           : null,
         created_by: getSessionUserId() || null,
       })))
