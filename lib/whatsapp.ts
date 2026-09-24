@@ -153,3 +153,44 @@ export function parseWaRows(text: string): WaRow[] {
   }
   return out;
 }
+
+/**
+ * What a failed send actually means, in words.
+ *
+ * WAHA hands back whatever Baileys threw, which is a JSON blob with a stack
+ * trace in it — the real reason is one word buried three levels down, and a row
+ * that says `assertNodeErrorFree (file:///app/node_modules/…)` tells the person
+ * reading it nothing. So the reason is translated for display; the original is
+ * kept alongside for whoever has to debug it.
+ *
+ * Nothing is rewritten in the database: old rows read better too, and a message
+ * we can't place still shows exactly what WhatsApp said.
+ */
+export function waFailureText(raw: string | null | undefined): { text: string; detail: string | null } {
+  const s = (raw || "").trim();
+  if (!s) return { text: "WhatsApp send failed", detail: null };
+  const low = s.toLowerCase();
+  const say = (text: string) => ({ text, detail: s });
+
+  // 403. Overwhelmingly: the sending number is not in that group, or the group
+  // is set so only admins can post.
+  if (low.includes("forbidden") || low.includes('"403"') || low.includes(":403")) {
+    return say("WhatsApp refused it — this number isn't in that group, or the group only lets admins post. Send it from a number that is a member.");
+  }
+  if (low.includes("not-authorized") || low.includes("unauthorized") || low.includes(":401")) {
+    return say("WhatsApp wouldn't authorise this number. It may need to be linked again.");
+  }
+  if (low.includes("item-not-found") || low.includes(":404")) {
+    return say("That chat no longer exists on WhatsApp — the group may have been deleted, or the number changed.");
+  }
+  if (low.includes("rate-overlimit") || low.includes(":429") || low.includes("too many")) {
+    return say("WhatsApp is rate-limiting this number. Leave it a while before sending again.");
+  }
+  if (low.includes("timed out") || low.includes("timeout") || low.includes("etimedout")) {
+    return say("WhatsApp didn't answer in time. Sending it again usually works.");
+  }
+  if (low.includes("econnrefused") || low.includes("enotfound") || low.includes("socket")) {
+    return say("Couldn't reach WhatsApp — the sending service was down or the number wasn't connected.");
+  }
+  return { text: s, detail: null };
+}

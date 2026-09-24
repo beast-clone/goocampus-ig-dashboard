@@ -70,6 +70,29 @@ export type ComposeSeed = {
   session?: string;
 };
 
+/**
+ * Is this number in this group? Cached per number+group for the life of the
+ * page — the answer changes only when someone joins or leaves, and the read
+ * costs a relay call. A read that fails answers "yes": never block a send on a
+ * question we could not ask.
+ */
+const inGroupCache = new Map<string, boolean>();
+async function inGroup(session: string, groupId: string): Promise<boolean> {
+  const key = `${session}|${groupId}`;
+  const known = inGroupCache.get(key);
+  if (known !== undefined) return known;
+  let yes = true;
+  try {
+    const d = await fetch(
+      `/api/scheduler/whatsapp/group?groupId=${encodeURIComponent(groupId)}&session=${encodeURIComponent(session)}`,
+      { cache: "no-store" },
+    ).then((r) => r.json());
+    if (!d.error) yes = ((d.participants || []) as unknown[]).length > 0;
+  } catch { /* leave it as yes */ }
+  inGroupCache.set(key, yes);
+  return yes;
+}
+
 export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
   initialDate?: string;                 // yyyy-mm-dd, when opened from a day in the calendar
   seed?: ComposeSeed;                   // "Send again" — everything except the time
@@ -179,6 +202,38 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
   // Another connected number to send from instead, if there is one.
   const otherAccount = accounts.find((a) => a.name !== sendingFrom?.name && a.status === "WORKING") || null;
 
+  // Can this number actually post to the groups chosen?
+  //
+  // WhatsApp refuses with a bare 403 when you post to a group you are not in,
+  // and the only sign is a failed row afterwards (Test Group, 24 Sep). Reading
+  // the group from a number returns nothing when it is not a member, so that is
+  // the question asked here — while the number can still be changed.
+  //
+  // One read per number per group, remembered for the life of the page: the
+  // answer only changes when someone is added to or removed from a group.
+  const [blocked, setBlocked] = useState<{ chat: Recipient; useInstead: WaAccount | null }[]>([]);
+  useEffect(() => {
+    const picked = chats.filter((c) => c.id.endsWith("@g.us"));
+    if (!picked.length || !accounts.length || !sendingFrom) { setBlocked([]); return; }
+    let dropped = false;
+    const t = setTimeout(async () => {
+      const out: { chat: Recipient; useInstead: WaAccount | null }[] = [];
+      for (const g of picked) {
+        if (await inGroup(sendingFrom.name, g.id)) continue;
+        // Not a member. Is the other linked number? Worth one more read — it
+        // turns "this won't work" into "press here".
+        let alt: WaAccount | null = null;
+        for (const a of accounts) {
+          if (a.name === sendingFrom.name || a.status !== "WORKING") continue;
+          if (await inGroup(a.name, g.id)) { alt = a; break; }
+        }
+        out.push({ chat: g, useInstead: alt });
+      }
+      if (!dropped) setBlocked(out);
+    }, 500);
+    return () => { dropped = true; clearTimeout(t); };
+  }, [chats, accounts, sendingFrom]);
+
   // What the footer says, in the same order the old tool said it.
   const recipientLine =
     kind === "status" ? "Posted to your WhatsApp Status — everyone in your contacts sees it."
@@ -246,6 +301,15 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
         toGroups: chats.filter((c) => c.kind !== "contact").length,
       });
       warnings.unshift(...quotaWarnings);
+      // The one warning here that is a certainty rather than a rule of thumb, so
+      // it goes at the very top: WhatsApp will refuse these outright.
+      for (const { chat, useInstead } of blocked) {
+        warnings.unshift({
+          key: `blocked:${chat.id}`,
+          text: `WhatsApp will refuse the one to ${chat.label} — ${sendingFrom?.label || "this number"} isn't in that group.`
+            + (useInstead ? ` Send from ${useInstead.label || prettyPhone(useInstead.phone)} instead.` : " No linked number is in it."),
+        });
+      }
       if (warnings.length) {
         const ok = await confirmDialog({
           title: warnings.length === 1 ? "One thing worth checking" : "A few things worth checking",
@@ -595,6 +659,22 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
                 <span>This message will be sent on <b className="font-medium text-[#232D42]">{fmtLong(at)}</b>.</span>
               </div>
             )}
+            {blocked.map(({ chat, useInstead }) => (
+              <div key={chat.id} className="flex items-start gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
+                <IconAlertTriangle size={15} className="mt-[1px] shrink-0" />
+                <span className="min-w-0">
+                  <b>{sendingFrom?.label || prettyPhone(sendingFrom?.phone || null)}</b> isn&apos;t in
+                  {" "}<b>{chat.label}</b>, so WhatsApp will refuse this one.
+                  {!useInstead && " Neither is your other number — someone in the group has to add it first."}
+                </span>
+                {useInstead && (
+                  <button onClick={() => { setSession(useInstead.name); setSendFrom(useInstead.name); }}
+                    className="ml-auto inline-flex items-center gap-1 rounded-lg bg-white border border-amber-200 px-2.5 py-1 font-medium hover:border-amber-300 whitespace-nowrap">
+                    Send from {useInstead.label || prettyPhone(useInstead.phone)} instead
+                  </button>
+                )}
+              </div>
+            ))}
             {selfChats.length > 0 && (
               <div className="flex items-start gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-[12.5px] px-3 py-2 mt-2">
                 <IconAlertTriangle size={15} className="mt-[1px] shrink-0" />

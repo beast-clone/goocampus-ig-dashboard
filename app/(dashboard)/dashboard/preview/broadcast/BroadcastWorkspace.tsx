@@ -12,7 +12,7 @@ import { GroupMembers } from "./GroupMembers";
 import type { Recipient } from "./RecipientPicker";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
-import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
+import { waFailureText, chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 
 // Community Broadcast — the whole WhatsApp workspace, laid out like the tool it
@@ -484,12 +484,25 @@ function MessageDetail({ m, onClose, onCancel, onSendAgain, onDelete, fromLabel 
       </div>
 
       {/* Why it failed comes first — it is the reason anyone opens a failed row */}
-      {m.error && (
-        <div className="flex items-start gap-1.5 rounded-lg bg-[#FDECEA] text-[#C0392B] text-[12.5px] px-3 py-2 mb-3">
-          <IconAlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
-          <span className="min-w-0 break-words">{m.error}</span>
-        </div>
-      )}
+      {m.error && (() => {
+        const why = waFailureText(m.error);
+        return (
+          <div className="rounded-lg bg-[#FDECEA] text-[#C0392B] text-[12.5px] px-3 py-2 mb-3">
+            <div className="flex items-start gap-1.5">
+              <IconAlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+              <span className="min-w-0 break-words">{why.text}</span>
+            </div>
+            {why.detail && (
+              <details className="mt-1.5">
+                <summary className="cursor-pointer text-[11.5px] text-[#C0392B]/70 hover:text-[#C0392B] select-none">
+                  What WhatsApp actually said
+                </summary>
+                <div className="mt-1 text-[11px] break-words font-mono opacity-80">{why.detail}</div>
+              </details>
+            )}
+          </div>
+        );
+      })()}
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12.5px] mb-4">
         <dt className="text-[#8A92A6]">Type</dt>
