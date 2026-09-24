@@ -1,7 +1,8 @@
 # Changelog — 24 Sep 2026
 
-Branch **`feat/dashboard-reskin`**. **Deployed to production at the end of this
-session** — see §1 for what that means for checking things.
+Branch **`feat/dashboard-reskin`**. **LIVE.** Deployed to production at the end of
+this session — deploy `6ab55f62`, https://goocampus-ig-dashboard.netlify.app.
+Everything below is on the live site right now.
 
 Two sessions ran today: Community Broadcast during the day (its own file,
 `docs/BROADCAST_CHECKLIST.md`), and this one in the evening. Both are on the same
@@ -27,10 +28,17 @@ npm run dev
 ## 1. ▶ What to check on the LIVE site (this is the list you asked for)
 
 Everything else was verified locally against the **same** live Supabase and live
-Meta / Airtable APIs, so it is already proven. These three could not be, and are
-the whole reason the deploy matters.
+Meta / Airtable APIs, so it is already proven. Three things could not be, and are
+the whole reason the deploy matters. **Two of them were settled after the deploy —
+only 1a is still open.**
 
-### 1a. The import that failed with `Unexpected token '<'`  ⬜
+| | | |
+|---|---|---|
+| 1a | The import `<HTML>` error | ⬜ **still to check — the only one left** |
+| 1b | Hourly Airtable sync | ✅ verified on production after the deploy |
+| 1c | Does a Story publish | ⬜ needs a real story through n8n |
+
+### 1a. The import that failed with `Unexpected token '<'`  ⬜ **← do this one**
 
 **Marketing Hub → Master sheet → Sync from Airtable → Import.**
 
@@ -44,14 +52,42 @@ not anything was fixed. Writes now go six at a time — 8.4s → 1.6s measured.
 If it still fails, the fix was not enough and the next step is chunking the import
 server-side, not tuning the concurrency.
 
-### 1b. The hourly Airtable sync  ⬜
+**Note:** the hourly cron runs the same code on the same Netlify runtime and
+finishes in under 2s — but it only ADDS, so it never exercised the 86 updates,
+which is exactly where the timeout was. That is why this one is still open.
+Someone signed in has to press Import once.
 
-Fires at minute 0 of every hour. **Check after the next o'clock.**
+### 1b. The hourly Airtable sync  ✅ verified on production
 
-- Netlify → Project → Logs → Functions → `import-airtable-cron`
-- A run logs one line: `[cron/import-airtable] N added, 88 in view, NNNNms`
-- Add a task in the Airtable "Task Dashboard" view and it should appear in the
-  dashboard within the hour, without anyone pressing Sync.
+Run against the live site twice after the deploy:
+
+```
+GET /api/cron/import-airtable   (with x-cron-secret)
+{"ok":true,"ms":857,"added":0,"inView":88,
+ "skipped":[{"already in the dashboard":86},{"no title in Airtable":2}]}
+200 in 1.8s
+```
+
+`netlify functions:list` shows both `import-airtable-cron` and
+`snapshot-stories-cron` as `deployed: yes`.
+
+**Does it create duplicates? No — measured, not assumed.** Database counted either
+side of a production run:
+
+```
+rows before : 124   distinct airtable ids: 87   duplicates: 0
+rows after  : 124   distinct airtable ids: 87   duplicates: 0
+```
+
+Two independent guards: every task carries Airtable's record id and is matched on
+it (which is why pressing Sync twice has always updated rather than duplicated),
+and the hourly run additionally skips anything already present.
+
+**Left to confirm:** only that the *schedule* fires by itself on the hour —
+Netlify → Project → Logs → Functions → `import-airtable-cron`, one line per run:
+`[cron/import-airtable] N added, 88 in view, NNNNms`. Add a task to the Airtable
+"Task Dashboard" view and it should appear within the hour with nobody pressing
+Sync.
 
 **It only ADDS.** It never touches a task that is already here. A full import
 copies every Airtable field over the dashboard's row — right when a person presses
