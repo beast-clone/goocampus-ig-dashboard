@@ -91,12 +91,6 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
   };
 
   const reset = () => { setPreview(null); setDone(null); };
-  const month = (back: number) => {
-    const d = new Date(now.getFullYear(), now.getMonth() + back, 1);
-    setFrom(iso(d));
-    setTo(iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
-    reset();
-  };
   const toggle = (key: FacetKey, value: string) => {
     setFilters((f) => {
       const cur = f[key] || [];
@@ -136,19 +130,10 @@ export function SyncFromAirtable({ onImported }: { onImported: () => void }) {
                   <span className="text-[12px] text-[#A6ACBE]">to</span>
                   <PreviewDatePicker value={to} onChange={(v) => { setTo(v); reset(); }} size="sm" min={from || undefined} placeholder="Any date" />
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap pl-[168px]">
-                  <button onClick={() => { setFrom(""); setTo(""); reset(); }}
-                    style={!from && !to ? { borderColor: BLUE, color: BLUE } : undefined}
-                    className="h-7 text-[12px] text-[#4A5468] border border-gray-200 rounded px-2.5 hover:border-[#3A57E8] hover:text-[#3A57E8]">
-                    All dates in the view
-                  </button>
-                  {[["This month", 0], ["Last month", -1], ["Next month", 1]].map(([label, back]) => (
-                    <button key={label as string} onClick={() => month(back as number)}
-                      className="h-7 text-[12px] text-[#4A5468] border border-gray-200 rounded px-2.5 hover:border-[#3A57E8] hover:text-[#3A57E8]">
-                      {label as string}
-                    </button>
-                  ))}
-                </div>
+                {/* Pick the two dates and that is the range. There used to be All dates /
+                    This month / Last month / Next month shortcuts next to them, which only
+                    raised the question of which one was in force. Leaving a date empty means
+                    that end is not bounded, and each picker clears itself. */}
               </div>
 
               <div className="border-t border-gray-100 pt-4 space-y-3">
