@@ -11,6 +11,9 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskButton, NewTaskModal } from "@/components/NewTaskModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { FilterBuilder } from "@/components/FilterBuilder";
+import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
+  type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
 import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
@@ -1848,19 +1851,26 @@ function downloadText(filename: string, text: string) {
 // A view's filter is a set of conditions (Field → Operator → Value) joined by
 // AND/OR. Operators adapt to the field's type. Pure + data-driven so the same
 // model powers the builder UI, row filtering, and saved-view config.
-type FieldType = "text" | "select" | "owner" | "date" | "checkbox";
-type FilterOp =
-  | "is" | "isNot" | "isAnyOf" | "isNoneOf"
-  | "contains" | "doesNotContain"
-  | "isEmpty" | "isNotEmpty"
-  | "isBefore" | "isAfter"
-  | "isChecked" | "isNotChecked";
-type FilterCondition = { field: string; op: FilterOp; value?: string | string[] };
-type FilterModel = { conjunction: "and" | "or"; conditions: FilterCondition[] };
-const EMPTY_FILTER: FilterModel = { conjunction: "and", conditions: [] };
-
-type FilterFieldDef = { key: string; label: string; type: FieldType; get: (r: Row) => string | boolean; options?: string[]; custom?: boolean };
-const FILTER_FIELDS: FilterFieldDef[] = [
+// The choices for a select/owner field here: the hub's live facets when it has
+// them, the canonical lists otherwise. Used to live inside the builder, which is
+// why the builder knew about tasks at all.
+function hubOptionsFor(fields: FilterFieldDef<Row>[], facets?: Facets) {
+  return (fieldKey: string): { value: string; label: string }[] => {
+    const def = fields.find((f) => f.key === fieldKey);
+    if (!def) return [];
+    if (def.type === "owner") return TEAM.map((m) => ({ value: m.key, label: m.label }));
+    if (def.options && def.options.length) return def.options.map((o) => ({ value: o, label: o }));
+    if (def.type === "select") {
+      const src = fieldKey === "status" ? (facets?.status || PIPELINE_STAGES.map((s) => s.key))
+        : fieldKey === "type" ? (facets?.type || [])
+        : fieldKey === "sbu" ? (facets?.sbu || [])
+        : fieldKey === "priority" ? (facets?.priority || ["Urgent", "High", "Medium", "Low"]) : [];
+      return src.map((o) => ({ value: o, label: o }));
+    }
+    return [];
+  };
+}
+const FILTER_FIELDS: FilterFieldDef<Row>[] = [
   { key: "particulars", label: "Task name", type: "text", get: (r) => r.particulars || "" },
   { key: "status", label: "Status", type: "select", get: (r) => r.status || "" },
   { key: "type", label: "Type", type: "select", get: (r) => r.type || "" },
@@ -1873,43 +1883,15 @@ const FILTER_FIELDS: FilterFieldDef[] = [
   { key: "caption", label: "Caption", type: "text", get: (r) => r.caption || "" },
   { key: "needsReview", label: "Needs review", type: "checkbox", get: (r) => !!r.needsReview },
 ];
-const OPS_BY_TYPE: Record<FieldType, { op: FilterOp; label: string; arity: "none" | "one" | "many" }[]> = {
-  text: [{ op: "contains", label: "contains", arity: "one" }, { op: "doesNotContain", label: "does not contain", arity: "one" }, { op: "is", label: "is", arity: "one" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
-  select: [{ op: "is", label: "is", arity: "one" }, { op: "isNot", label: "is not", arity: "one" }, { op: "isAnyOf", label: "is any of", arity: "many" }, { op: "isNoneOf", label: "is none of", arity: "many" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
-  owner: [{ op: "is", label: "is", arity: "one" }, { op: "isAnyOf", label: "is any of", arity: "many" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
-  date: [{ op: "is", label: "is", arity: "one" }, { op: "isBefore", label: "is before", arity: "one" }, { op: "isAfter", label: "is after", arity: "one" }, { op: "isEmpty", label: "is empty", arity: "none" }, { op: "isNotEmpty", label: "is not empty", arity: "none" }],
-  checkbox: [{ op: "isChecked", label: "is checked", arity: "none" }, { op: "isNotChecked", label: "is unchecked", arity: "none" }],
-};
+// The Row-shaped wrappers. The engine and the operator table live in
+// lib/filter-model.ts so Sales Ops uses the same ones.
 export const ownerMatchesKey = (owner: string, key: string) => { const m = TEAM.find((t) => t.key === key); return m ? ownerMatches(owner, m) : false; };
-function evalCondition(r: Row, c: FilterCondition, fields: FilterFieldDef[] = FILTER_FIELDS): boolean {
-  const def = fields.find((f) => f.key === c.field);
-  if (!def) return true;
-  const raw = def.get(r);
-  const s = typeof raw === "boolean" ? "" : raw;
-  const one = String(c.value ?? "");
-  const many = Array.isArray(c.value) ? c.value : [];
-  const isOwner = def.type === "owner";
-  const eq = (v: string) => (isOwner ? ownerMatchesKey(s, v) : s === v);
-  switch (c.op) {
-    case "isEmpty": return typeof raw === "boolean" ? !raw : !s;
-    case "isNotEmpty": return typeof raw === "boolean" ? !!raw : !!s;
-    case "isChecked": return raw === true;
-    case "isNotChecked": return raw !== true;
-    case "contains": return s.toLowerCase().includes(one.toLowerCase());
-    case "doesNotContain": return !s.toLowerCase().includes(one.toLowerCase());
-    case "isBefore": return !!s && s < one;
-    case "isAfter": return !!s && s > one;
-    case "is": return eq(one);
-    case "isNot": return !eq(one);
-    case "isAnyOf": return many.some(eq);
-    case "isNoneOf": return !many.some(eq);
-    default: return true;
-  }
+const ownerLabel = (key: string) => TEAM.find((m) => m.key === key)?.label || key;
+function evalFilter(r: Row, f: FilterModel, fields: FilterFieldDef<Row>[] = FILTER_FIELDS): boolean {
+  return evalFilterShared(r, f, fields, ownerMatchesKey);
 }
-function evalFilter(r: Row, f: FilterModel, fields: FilterFieldDef[] = FILTER_FIELDS): boolean {
-  if (!f.conditions.length) return true;
-  const res = f.conditions.map((c) => evalCondition(r, c, fields));
-  return f.conjunction === "or" ? res.some(Boolean) : res.every(Boolean);
+function summarizeFilter(f: FilterModel, fields: FilterFieldDef<Row>[] = FILTER_FIELDS): string[] {
+  return summarizeFilterShared(f, fields, ownerLabel);
 }
 // Back-compat: convert the old simple {owner,status,type,sbu,priority} to a FilterModel.
 function legacyToFilter(f?: Partial<MasterDraft>): FilterModel {
@@ -1918,22 +1900,9 @@ function legacyToFilter(f?: Partial<MasterDraft>): FilterModel {
   (["owner", "status", "type", "sbu", "priority"] as const).forEach((k) => { if (f[k]) conds.push({ field: k, op: "is", value: f[k] }); });
   return { conjunction: "and", conditions: conds };
 }
-// Human summary of a filter's conditions (for the New-view "Captures" chips).
-function summarizeFilter(f: FilterModel, fields: FilterFieldDef[] = FILTER_FIELDS): string[] {
-  return f.conditions.map((c) => {
-    const def = fields.find((d) => d.key === c.field);
-    const label = def?.label || c.field;
-    const opLabel = (OPS_BY_TYPE[def?.type || "text"].find((o) => o.op === c.op)?.label) || c.op;
-    const val = Array.isArray(c.value)
-      ? c.value.map((v) => (def?.type === "owner" ? TEAM.find((m) => m.key === v)?.label || v : v)).join(", ")
-      : def?.type === "owner" ? (TEAM.find((m) => m.key === c.value)?.label || String(c.value ?? "")) : String(c.value ?? "");
-    return `${label} ${opLabel}${val ? ` ${val}` : ""}`.trim();
-  });
-}
-
 // ── Sort (multi-field) ──────────────────────────────────────────────────────
 type SortSpec = { field: string; dir: "asc" | "desc" };
-function sortRows(rows: Row[], sorts: SortSpec[], fields: FilterFieldDef[] = FILTER_FIELDS): Row[] {
+function sortRows(rows: Row[], sorts: SortSpec[], fields: FilterFieldDef<Row>[] = FILTER_FIELDS): Row[] {
   if (!sorts.length) return rows;
   const idx = rows.map((r, i) => [r, i] as const);
   idx.sort(([a, ai], [b, bi]) => {
@@ -1981,7 +1950,7 @@ const GROUP_FIELDS: { key: string; label: string }[] = [
 type CustomColType = "text" | "number" | "select" | "date" | "checkbox";
 type CustomColumn = { id: string; key: string; label: string; type: CustomColType; options: string[]; canDelete?: boolean };
 const customFieldType = (t: CustomColType): FieldType => (t === "select" ? "select" : t === "date" ? "date" : t === "checkbox" ? "checkbox" : "text");
-function customFieldDefs(cols: CustomColumn[]): FilterFieldDef[] {
+function customFieldDefs(cols: CustomColumn[]): FilterFieldDef<Row>[] {
   return cols.map((c) => ({
     key: c.key, label: c.label, type: customFieldType(c.type), custom: true, options: c.options,
     get: (r: Row) => { const v = (r.custom || {})[c.key]; return c.type === "checkbox" ? !!v : String(v ?? ""); },
@@ -2060,96 +2029,6 @@ function ViewMenu({ view, otherViews, onAction }: {
 }
 
 // Multi-select checklist (for "is any of" / "is none of") — compact dropdown.
-function FilterMultiSelect({ options, value, onChange }: {
-  options: { value: string; label: string }[]; value: string[]; onChange: (v: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-1 border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] text-left bg-white">
-        <span className="truncate text-gray-700">{value.length ? `${value.length} selected` : "Select…"}</span>
-        <IconChevronDown size={13} className="text-gray-400 flex-shrink-0" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-[calc(100%+4px)] z-[56] bg-white border border-gray-200 rounded-lg shadow-lg p-1 min-w-[170px] max-h-56 overflow-auto">
-            {options.length === 0 && <div className="px-2 py-1.5 text-[12px] text-gray-400">No options</div>}
-            {options.map((o) => (
-              <button key={o.value} onClick={() => toggle(o.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] rounded hover:bg-gray-50 text-left">
-                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${value.includes(o.value) ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{value.includes(o.value) && <IconCheck size={10} stroke={3} />}</span>
-                <span className="truncate">{o.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// Airtable-style filter builder popover — rows of Field · Operator · Value joined
-// by a top-level AND/OR. Operators + value control adapt to the field type.
-function FilterBuilder({ filter, facets, fields, onChange }: {
-  filter: FilterModel; facets?: Facets; fields: FilterFieldDef[]; onChange: (f: FilterModel) => void;
-}) {
-  const optionsFor = (fieldKey: string): { value: string; label: string }[] => {
-    const def = fields.find((f) => f.key === fieldKey);
-    if (!def) return [];
-    if (def.type === "owner") return TEAM.map((m) => ({ value: m.key, label: m.label }));
-    if (def.options && def.options.length) return def.options.map((o) => ({ value: o, label: o }));
-    if (def.type === "select") {
-      const src = fieldKey === "status" ? (facets?.status || PIPELINE_STAGES.map((s) => s.key))
-        : fieldKey === "type" ? (facets?.type || [])
-        : fieldKey === "sbu" ? (facets?.sbu || [])
-        : fieldKey === "priority" ? (facets?.priority || ["Urgent", "High", "Medium", "Low"]) : [];
-      return src.map((o) => ({ value: o, label: o }));
-    }
-    return [];
-  };
-  const update = (i: number, patch: Partial<FilterCondition>) => onChange({ ...filter, conditions: filter.conditions.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) });
-  const remove = (i: number) => onChange({ ...filter, conditions: filter.conditions.filter((_, idx) => idx !== i) });
-  const add = () => onChange({ ...filter, conditions: [...filter.conditions, { field: "status", op: "is", value: "" }] });
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[560px] max-w-[92vw]">
-      {filter.conditions.length === 0 && <div className="text-[12px] text-gray-400 px-1 pb-2">No conditions — showing every task. Add one below.</div>}
-      <div className="space-y-2">
-        {filter.conditions.map((c, i) => {
-          const def = fields.find((f) => f.key === c.field);
-          const ops = OPS_BY_TYPE[def?.type || "text"];
-          const opDef = ops.find((o) => o.op === c.op) || ops[0];
-          return (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-[52px] flex-shrink-0 text-[12px]">
-                {i === 0 ? <span className="text-gray-400 pl-1">Where</span>
-                  : i === 1 ? <PreviewSelect value={filter.conjunction} onChange={(v) => onChange({ ...filter, conjunction: v as "and" | "or" })} options={[{ value: "and", label: "and" }, { value: "or", label: "or" }]} />
-                  : <span className="text-gray-400 pl-1">{filter.conjunction}</span>}
-              </div>
-              <div className="w-[130px] flex-shrink-0">
-                <PreviewSelect value={c.field} onChange={(v) => { const nd = fields.find((f) => f.key === v)!; const first = OPS_BY_TYPE[nd.type][0]; update(i, { field: v, op: first.op, value: first.arity === "many" ? [] : first.arity === "none" ? undefined : "" }); }} options={fields.map((f) => ({ value: f.key, label: f.label }))} />
-              </div>
-              <div className="w-[130px] flex-shrink-0">
-                <PreviewSelect value={c.op} onChange={(v) => { const a = ops.find((o) => o.op === v)!.arity; update(i, { op: v as FilterOp, value: a === "many" ? [] : a === "none" ? undefined : (Array.isArray(c.value) ? "" : c.value || "") }); }} options={ops.map((o) => ({ value: o.op, label: o.label }))} />
-              </div>
-              <div className="flex-1 min-w-0">
-                {opDef.arity === "none" ? <span className="text-[12px] text-gray-300 pl-1">—</span>
-                  : def?.type === "date" ? <input type="date" value={String(c.value || "")} onChange={(e) => update(i, { value: e.target.value })} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] outline-none focus:border-brand" />
-                  : def?.type === "text" ? <input value={String(c.value || "")} onChange={(e) => update(i, { value: e.target.value })} placeholder="value" className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] outline-none focus:border-brand" />
-                  : opDef.arity === "many" ? <FilterMultiSelect options={optionsFor(c.field)} value={Array.isArray(c.value) ? c.value : []} onChange={(vals) => update(i, { value: vals })} />
-                  : <PreviewSelect value={String(c.value || "")} onChange={(v) => update(i, { value: v })} placeholder="Select…" options={[{ value: "", label: "Select…" }, ...optionsFor(c.field)]} />}
-              </div>
-              <button onClick={() => remove(i)} className="text-gray-400 hover:text-rose-500 flex-shrink-0"><IconTrash size={14} /></button>
-            </div>
-          );
-        })}
-      </div>
-      <button onClick={add} className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-brand"><IconPlus size={14} />Add condition</button>
-    </div>
-  );
-}
-
 // Portals a dropdown to <body> with fixed positioning under an anchor, so it can
 // never be clipped by a scrollable/overflow-hidden ancestor (e.g. the DetailModal
 // scroll body). Re-wraps in .preview-scope so brand tokens still apply outside the
@@ -2201,7 +2080,7 @@ function ToolButton({ icon: Ic, label, active, open, onToggle, children }: {
 }
 
 // Multi-field sort builder.
-function SortBuilder({ sorts, fields, onChange }: { sorts: SortSpec[]; fields: FilterFieldDef[]; onChange: (s: SortSpec[]) => void }) {
+function SortBuilder({ sorts, fields, onChange }: { sorts: SortSpec[]; fields: FilterFieldDef<Row>[]; onChange: (s: SortSpec[]) => void }) {
   const update = (i: number, patch: Partial<SortSpec>) => onChange(sorts.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-[380px] max-w-[92vw]">
@@ -2559,7 +2438,8 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
         {/* Toolbar — Airtable-style Filter / Sort / Columns / Colour; save the result as a view */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
           <ToolButton icon={IconFilter} active={hasFilter} label={hasFilter ? `Filtered · ${draft.conditions.length}` : "Filter"} open={openTool === "filter"} onToggle={() => setOpenTool(openTool === "filter" ? null : "filter")}>
-            <FilterBuilder filter={draft} facets={facets} fields={fields} onChange={setFilter} />
+            <FilterBuilder<Row> filter={draft} fields={fields} optionsFor={hubOptionsFor(fields, facets)}
+              onChange={setFilter} emptyNote="No conditions — showing every task. Add one below." />
           </ToolButton>
           <ToolButton icon={IconArrowsSort} active={sorts.length > 0} label={sorts.length ? `Sorted · ${sorts.length}` : "Sort"} open={openTool === "sort"} onToggle={() => setOpenTool(openTool === "sort" ? null : "sort")}>
             <SortBuilder sorts={sorts} fields={fields} onChange={setSorts} />
@@ -2781,7 +2661,7 @@ function RecycleBin({ items, notReady, error, onChanged }: { items?: TrashItem[]
 // Branded "New view" builder — replaces the native window.prompt. Names the view,
 // picks an access level + optional description, and shows exactly what it captures.
 function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
-  config: { filter: FilterModel; sorts: SortSpec[]; hiddenCols: string[]; color: string; rangeDays: number }; fields: FilterFieldDef[]; totalCols: number; onClose: () => void; onCreated: () => void;
+  config: { filter: FilterModel; sorts: SortSpec[]; hiddenCols: string[]; color: string; rangeDays: number }; fields: FilterFieldDef<Row>[]; totalCols: number; onClose: () => void; onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
