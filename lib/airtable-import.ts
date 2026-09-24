@@ -145,6 +145,16 @@ export async function importFromAirtable(opts: {
   filters?: ImportFilters;
   /** Just read the range and report the filter options — no counting, no writes. */
   facetsOnly?: boolean;
+  /**
+   * Only ADD tasks that aren't here yet; never touch a row that already exists.
+   *
+   * The hourly sync runs this way. A normal import copies every Airtable field over
+   * the dashboard's row, which is what you want when a person presses the button and
+   * is watching — but on a timer it would quietly undo the team's own edits. Change a
+   * status in the dashboard and, if Airtable still held the old one, it would be back
+   * within the hour with nobody knowing why.
+   */
+  newOnly?: boolean;
 }): Promise<ImportResult> {
   const db = getSupabase();
   if (!db) throw new Error("Supabase not configured");
@@ -252,6 +262,7 @@ export async function importFromAirtable(opts: {
     };
 
     const hit = existing.get(rec.id);
+    if (opts.newOnly && hit) { skip("already in the dashboard"); continue; }
     // Creator = Airtable's "Created by", set once: on insert, or to fill a row that has
     // none. Never overwrites a creator the dashboard already recorded.
     const creatorName = str(f["Created by"]?.name);

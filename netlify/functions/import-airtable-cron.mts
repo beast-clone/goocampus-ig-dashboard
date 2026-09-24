@@ -1,23 +1,24 @@
 // Netlify Scheduled Function — fires hourly and pokes the Next.js API route that
-// snapshots every account's live stories into Supabase. The actual work stays in
-// app/api/cron/snapshot-stories/route.ts so all Meta + Supabase logic lives with
-// the rest of the app; this file only exists because Netlify's `schedule` attribute
-// can't be attached directly to Next.js App Router routes.
+// pulls new Airtable tasks into the master sheet. The work stays in
+// app/api/cron/import-airtable/route.ts so all the Airtable + Supabase logic lives
+// with the rest of the app; this file exists only because Netlify's `schedule`
+// attribute can't be attached directly to an App Router route.
 
 export default async () => {
   const secret = process.env.CRON_SECRET;
   if (!secret) return new Response("CRON_SECRET missing", { status: 500 });
 
-  // The app moved to the site root, but this kept calling /gc-dashboard and got a
-  // 404 every hour — verified against the live site on 24 Sep. Resolve the base path
-  // the way next.config.mjs does so the URL follows the app from now on.
+  // Resolve the base path exactly the way next.config.mjs does, so the URL follows
+  // the app instead of being pinned to whatever it was the day this was written.
+  // The older snapshot-stories function hardcoded "/gc-dashboard" and kept calling
+  // it after the app moved to the root — a 404 every hour, silently.
   const baseUrl = process.env.URL || "https://goocampus-ig-dashboard.netlify.app";
   const basePath = process.env.BASE_PATH ?? "/gc-dashboard";
 
   // BASE_PATH is read at build time by next.config.mjs but at RUN time here, and
   // the two need not agree. Rather than assume, try the resolved path and fall back
   // to the root on a 404 — the failure mode this whole comment exists because of.
-  const paths = [...new Set([`${basePath}/api/cron/snapshot-stories`, `/api/cron/snapshot-stories`])];
+  const paths = [...new Set([`${basePath}/api/cron/import-airtable`, `/api/cron/import-airtable`])];
   let r: Response | null = null;
   let target = "";
   for (const path of paths) {
@@ -26,12 +27,12 @@ export default async () => {
     if (r.status !== 404) break;
   }
   const body = await r!.text();
-  if (!r!.ok) console.error(`[snapshot-stories-cron] ${target} → ${r!.status} ${body.slice(0, 300)}`);
+  if (!r!.ok) console.error(`[import-airtable-cron] ${target} → ${r!.status} ${body.slice(0, 300)}`);
   return new Response(body, { status: r!.status });
 };
 
 export const config = {
-  // "@hourly" runs at minute 0 of every hour. Netlify's cron parser supports the
-  // predefined @hourly / @daily / @weekly aliases and standard 5-field cron strings.
+  // Minute 0 of every hour. Netlify's parser takes the @hourly alias and standard
+  // 5-field cron strings.
   schedule: "@hourly",
 };
