@@ -16,7 +16,7 @@ export type IGAccount = {
 export const ACCOUNTS: IGAccount[] = [
   { id: "goocampus", handle: "@goocampus", label: "GooCampus", igUserId: "17841407196182440" },
   { id: "goocampusworld", handle: "@goocampusworld", label: "GooCampus World", igUserId: "17841473429363077" },
-  { id: "12thplusdotcom", handle: "@12thplusdotcom", label: "GooCampus India (12thplus)", igUserId: "17841451240960832" },
+  { id: "12thplusdotcom", handle: "@12thplusdotcom", label: "12thPlus.com", igUserId: "17841451240960832" },
   // Samvaya is a separate business, but Maheen and Nandu both asked for its
   // dashboards (comments, 22 Sep). It was pulled out previously because it had
   // no token and showed mock data as "live" — it now has a working page token,

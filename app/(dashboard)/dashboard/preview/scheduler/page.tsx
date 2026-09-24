@@ -97,7 +97,7 @@ function linkedInKeyFor(page: string): string | null {
 const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] = [
   { value: "GooCampus Main",     label: "GooCampus Main",       subtitle: "@goocampus + 2 FB pages" },
   { value: "GooCampus World",    label: "GooCampus World",      subtitle: "@goocampusworld + GooCampus World page" },
-  { value: "12Plus / GC India",  label: "GooCampus India",      subtitle: "@12thplusdotcom + GC India page" },
+  { value: "12Plus / GC India",  label: "12thPlus.com",          subtitle: "@12thplusdotcom + GC India page" },
 ];
 
 // Our own handles, offered before anyone types — collaborating with a sister
@@ -105,7 +105,7 @@ const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] 
 const OWN_IG_ACCOUNTS = [
   { username: "goocampus", label: "GooCampus Main" },
   { username: "goocampusworld", label: "GooCampus World" },
-  { username: "12thplusdotcom", label: "GooCampus India" },
+  { username: "12thplusdotcom", label: "12thPlus.com" },
 ];
 
 // Soft daily post limits per account — warn (don't hard-block) before a day exceeds the
@@ -1418,7 +1418,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
               </span>
               <span className="text-xs text-gray-500 ml-auto">
                 {!linkedInAvailable
-                  ? "GooCampus India has no LinkedIn page"
+                  ? "12thPlus.com has no LinkedIn page"
                   : alsoLinkedIn ? linkedInPages.map((k) => (k === "world" ? "World" : "GooCampus")).join(" · ") : ""}
               </span>
             </label>
