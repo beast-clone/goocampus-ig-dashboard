@@ -1,8 +1,11 @@
 # Media housekeeping — plan (24 Sep 2026)
 
 What happens to a photo or video **after** its post has gone live, so storage stays
-flat without anyone remembering to clean up. Agreed in principle with Praveen on
-24 Sep; **nothing is built yet**.
+flat without anyone remembering to clean up. Agreed with Praveen on
+24 Sep, including the three decisions below; **nothing is built yet**.
+
+**Decided:** keep a **compressed** copy of a video rather than deleting it · final
+sweep at **three months** · **leave `story-snapshots` alone**.
 
 ---
 
@@ -31,7 +34,7 @@ Before uploading, check whether a file with the same content is already in the
 bucket; if it is, reuse its URL. Same-name-same-size is enough — a hash is better.
 Saves 133 MB today and stops the problem repeating.
 
-### 2. After a post is live, drop our copy of the video
+### 2. After a post is live, shrink our copy of the video
 Once the post is published, **Meta hosts the media**. Our copy exists only for the
 dashboard's own preview.
 
@@ -39,10 +42,11 @@ A weekly job (Sunday night) would:
 1. Take every post marked published in the last week.
 2. Confirm it really has its live link (`instagram_url` / `facebook_url`).
    **No link → touch nothing.** That is the safety catch.
-3. Delete the **video** from our storage and keep the link.
-4. Keep a **small still image** so the dashboard has something to show.
+3. Replace the **video** with a compressed version (720p, ~10 MB) and keep the link.
+4. Keep a **small still image** so lists and cards have something light to show.
 
-A reel is 20–50 MB; the still is under 100 KB. This is where the space goes.
+A reel is 20–50 MB and comes back at about 10 MB, so roughly 80% comes back while the
+post stays watchable inside the dashboard.
 
 ### 3. Compress what we keep
 - **Images / carousels:** 5 MB → 1–2 MB. Text stays readable. The composer already
@@ -50,8 +54,8 @@ A reel is 20–50 MB; the still is under 100 KB. This is where the space goes.
 - **Video:** 50 MB → about 10 MB at 720p. Needs ffmpeg. The VPS can do it, but it has
   **2 cores**, so it must run at night, never while publishing.
 
-### 4. The two-month sweep
-Anything older than two months: delete the stored media entirely, keep the row, the
+### 4. The three-month sweep
+Anything older than three months: delete the stored media entirely, keep the row, the
 caption and the live link. The post stays in reports and on Instagram; only our copy
 of the file goes.
 
@@ -72,11 +76,11 @@ as the plan above: keep the link and a small preview, not the heavy original.
 | 1. No duplicate uploads | 133 MB now | small | none |
 | 2. Delete video after the link is confirmed | ~40 MB per reel | small | low — gated on the link |
 | 3. Compress images we keep | ~60% of image size | small | none |
-| 4. Compress video instead of deleting | ~80% of video size | medium (ffmpeg on the VPS) | low |
-| 5. Two-month sweep | everything older | small | low |
+| 4. Compress video (chosen over deleting) | ~80% of video size | medium (ffmpeg on the VPS) | low |
+| 5. Three-month sweep | everything older | small | low |
 
-Steps 1–3 are worth doing on their own. Step 4 only matters if we decide we want to
-keep watchable copies of old reels; otherwise step 2 already covers it.
+Steps 1–3 are worth doing on their own; step 4 is the one that needs ffmpeg on the VPS
+and a nightly slot.
 
 ---
 
@@ -89,8 +93,9 @@ keep watchable copies of old reels; otherwise step 2 already covers it.
 - Deletions get logged, so "where did the file go" has an answer.
 - Run it weekly at night, in one batch, so it never competes with a publish.
 
-## Open questions for Praveen
+## Answered 24 Sep
 
-1. After a post is live, delete our video outright, or keep a compressed copy?
-2. Two months, or longer, for the final sweep?
-3. Should `story-snapshots` (406 files, 62 MB, already small) be included, or left alone?
+1. **Compress the video, don't delete it** — old reels stay watchable in the dashboard.
+2. **Three months** for the final sweep.
+3. **Leave `story-snapshots` alone** (406 files, 62 MB — small, and they are the only
+   record of a story once its 24 hours are up).
