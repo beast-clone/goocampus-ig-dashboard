@@ -57,27 +57,38 @@ const isDocFile = (u: string, mime: string) => /pdf|officedocument|msword|excel|
 const fileNameOf = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "file"))
   .replace(/^\d+-[a-z0-9]{6}-/i, "");
 
-export function ComposeModal({ initialDate, onClose, onSaved }: {
+/** A message being sent again: the same content, waiting for a new time. */
+export type ComposeSeed = {
+  kind: WaKind;
+  chats: Recipient[];
+  body: string;
+  imageUrl: string;
+  poll?: { name: string; options: string[]; multipleAnswers: boolean } | null;
+  session?: string;
+};
+
+export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
   initialDate?: string;                 // yyyy-mm-dd, when opened from a day in the calendar
+  seed?: ComposeSeed;                   // "Send again" — everything except the time
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [kind, setKind] = useState<WaKind>("message");
-  const [chats, setChats] = useState<Recipient[]>([]);
-  const [body, setBody] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [kind, setKind] = useState<WaKind>(seed?.kind || "message");
+  const [chats, setChats] = useState<Recipient[]>(seed?.chats || []);
+  const [body, setBody] = useState(seed?.body || "");
+  const [imageUrl, setImageUrl] = useState(seed?.imageUrl || "");
   // What the upload said it was. The name is a weak signal — a long one used to
   // lose its extension entirely — so the mime decides, and the name is only the
   // fallback for a URL somebody typed or a template brought back.
   const [mediaMime, setMediaMime] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [pollName, setPollName] = useState("");
-  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
-  const [pollMulti, setPollMulti] = useState(false);
+  const [pollName, setPollName] = useState(seed?.poll?.name || "");
+  const [pollOptions, setPollOptions] = useState<string[]>(seed?.poll?.options?.length ? seed.poll.options : ["", ""]);
+  const [pollMulti, setPollMulti] = useState(!!seed?.poll?.multipleAnswers);
   const [date, setDate] = useState(initialDate || new Date().toLocaleDateString("en-CA"));
   const [time, setTime] = useState(() => { const d = new Date(Date.now() + 30 * 60000); return d.toTimeString().slice(0, 5); });
   const [accounts, setAccounts] = useState<WaAccount[]>([]);
-  const [session, setSession] = useState<string>("");
+  const [session, setSession] = useState<string>(seed?.session || "");
   const [repeatRule, setRepeatRule] = useState<WaRepeatRule>("none");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [busy, setBusy] = useState(false);

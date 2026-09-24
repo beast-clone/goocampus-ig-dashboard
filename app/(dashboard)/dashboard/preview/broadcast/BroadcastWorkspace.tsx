@@ -7,7 +7,7 @@ import {
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
-import { ComposeModal, renderWa } from "./ComposeModal";
+import { ComposeModal, renderWa, type ComposeSeed } from "./ComposeModal";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
 import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
@@ -51,7 +51,7 @@ export function BroadcastWorkspace() {
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [view, setView] = useState<View>("month");
   const [cursor, setCursor] = useState(() => new Date());
-  const [compose, setCompose] = useState<{ open: boolean; date?: string } | null>(null);
+  const [compose, setCompose] = useState<{ open: boolean; date?: string; seed?: ComposeSeed } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // With two numbers linked, a row that just says "Pandey Ji" does not tell you
   // which of your numbers it leaves from (Praveen, 23 Sep). Only shown when there
@@ -135,6 +135,25 @@ export function BroadcastWorkspace() {
     await remove(all.filter((r) => r.status === "failed").map((r) => r.id));
   };
 
+  // "Send again": the same message, waiting for a new time. Everything is carried
+  // over except the schedule — that is the one thing you are here to change.
+  const sendAgain = (m: WaMessage) => {
+    const repeat = repeatOf(m.payload);
+    setCompose({
+      open: true,
+      seed: {
+        kind: m.kind,
+        chats: m.kind === "status" ? [] : [{ id: m.chat_id, label: m.chat_label || chatDisplay(m.chat_id), kind: "contact" }],
+        body: m.body || "",
+        imageUrl: m.image_url || "",
+        poll: m.payload?.poll || null,
+        session: (m.payload as { session?: string } | null)?.session,
+      },
+    });
+    setSelected(null);
+    void repeat;
+  };
+
   const selectedRow = selected ? all.find((r) => r.id === selected) || null : null;
 
   return (
@@ -202,7 +221,7 @@ export function BroadcastWorkspace() {
       </div>
 
       {compose?.open && (
-        <ComposeModal initialDate={compose.date} onClose={() => setCompose(null)} onSaved={load} />
+        <ComposeModal initialDate={compose.date} seed={compose.seed} onClose={() => setCompose(null)} onSaved={load} />
       )}
 
       {/* Clicking anything in the rail or the calendar opens it in full — the preview
@@ -210,6 +229,7 @@ export function BroadcastWorkspace() {
       {selectedRow && (
         <MessageDetail m={selectedRow} fromLabel={fromLabel} onClose={() => setSelected(null)}
           onCancel={() => { cancel(selectedRow); setSelected(null); }}
+          onSendAgain={() => sendAgain(selectedRow)}
           onDelete={() => { removeOne(selectedRow); setSelected(null); }} />
       )}
     </div>
@@ -359,8 +379,8 @@ function Grid({ rows, view, cursor, selected, onSelect, onAdd, onOpenDay }: {
 // One scheduled message, in full. Reached by clicking it in the rail or on the
 // calendar — the list only has room for a truncated line, and a tooltip cannot
 // show an image, poll options, or why a send failed.
-function MessageDetail({ m, onClose, onCancel, onDelete, fromLabel }: {
-  m: WaMessage; onClose: () => void; onCancel: () => void; onDelete: () => void;
+function MessageDetail({ m, onClose, onCancel, onSendAgain, onDelete, fromLabel }: {
+  m: WaMessage; onClose: () => void; onCancel: () => void; onSendAgain: () => void; onDelete: () => void;
   fromLabel?: (m: WaMessage) => string | null;
 }) {
   const st = STATUS_STYLE[m.status];
@@ -458,6 +478,10 @@ function MessageDetail({ m, onClose, onCancel, onDelete, fromLabel }: {
             <IconCircleDashed size={14} /> {repeat ? "Stop this repeating" : "Cancel, keep the record"}
           </button>
         )}
+        <button onClick={onSendAgain}
+          className="inline-flex items-center gap-1 text-[13px] text-[#4A5468] rounded-xl border border-gray-200 px-3 py-2 hover:border-brand hover:text-brand">
+          <IconRepeat size={14} /> Send again
+        </button>
         <button onClick={onDelete}
           className="inline-flex items-center gap-1 text-[13px] text-[#C03221] rounded-xl border border-gray-200 px-3 py-2 hover:border-[#C03221]">
           <IconTrash size={14} /> Delete
