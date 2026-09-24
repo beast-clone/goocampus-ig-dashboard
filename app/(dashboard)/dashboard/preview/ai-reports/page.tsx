@@ -25,6 +25,8 @@ function AIReports({ accountId, period, setPeriod }: { accountId: string; period
   const [loading, setLoading] = useState<Period | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedMode, setSavedMode] = useState(false);
+  // The archive key of the report on screen — what an edit is saved back to.
+  const [savedKey, setSavedKey] = useState<string | null>(null);
   const autoedFor = useRef<string | null>(null);
 
   const reqId = useRef(0); // only the latest request may set the report (quick account switches)
@@ -49,15 +51,16 @@ function AIReports({ accountId, period, setPeriod }: { accountId: string; period
 
   // Open an archived report as-is when ?saved=<key> is present.
   useEffect(() => {
-    const savedKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("saved") : null;
-    if (!savedKey) return;
-    if (autoedFor.current === `saved:${savedKey}`) return;
-    autoedFor.current = `saved:${savedKey}`;
+    const keyFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("saved") : null;
+    if (!keyFromUrl) return;
+    if (autoedFor.current === `saved:${keyFromUrl}`) return;
+    autoedFor.current = `saved:${keyFromUrl}`;
     setSavedMode(true);
+    setSavedKey(keyFromUrl);
     setReport(null);
     setError(null);
     setLoading("monthly");
-    fetch(`/api/reports?key=${encodeURIComponent(savedKey)}`)
+    fetch(`/api/reports?key=${encodeURIComponent(keyFromUrl)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) throw new Error(d.error);
@@ -96,7 +99,7 @@ function AIReports({ accountId, period, setPeriod }: { accountId: string; period
           </div>
         </div>
         {loading && <div className="flex justify-center py-16"><BrandLoader size={40} /></div>}
-        {report && <ReportView report={report} regenerating={false} />}
+        {report && <ReportView report={report} regenerating={false} storageKey={savedKey ?? undefined} />}
         {error && <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-[13px] text-rose-800">{error}</div>}
       </div>
     );

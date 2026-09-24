@@ -22,6 +22,8 @@ export type SavedReportMeta = {
   generatedAt: string;
   headline?: { label: string; value: string; delta?: string }[];
   trashedAt?: string;   // set when the report is in the Recycle Bin (soft-deleted)
+  editedBy?: string;    // who last corrected the wording, if anyone
+  editedAt?: string;
 };
 
 type StoredRecord = SavedReportMeta & { report: unknown };
@@ -153,4 +155,71 @@ export async function listTrash(): Promise<SavedReportMeta[]> {
     .map((r) => r.payload as StoredRecord)
     .map(({ report: _drop, ...meta }) => meta)
     .sort((a, b) => (b.trashedAt || "").localeCompare(a.trashedAt || "") || b.to.localeCompare(a.to));
+}
+
+/**
+ * Correct the wording of a saved report.
+ *
+ * Reports read as final and get sent on, but they are written by a model and
+ * sometimes phrase a thing badly or miss context only a person has — "report needs
+ * edit access" (Maheen, 22 Sep). This edits the prose in place and keeps a note of
+ * who last touched it, so a changed line is never mistaken for the model's own.
+ *
+ * `edits` maps a dot path to its new text ("executiveSummary",
+ * "contentMix.insight", "recommendations.0.action").
+ *
+ * A path is only written when what's already there is a STRING. That is the whole
+ * safety model: the numbers, the charts and the post lists are measurements and
+ * cannot be edited through here, whatever path is sent.
+ */
+export async function updateReportText(
+  key: string,
+  edits: Record<string, string>,
+  actor: string,
+): Promise<{ ok: boolean; applied: string[]; rejected: string[] }> {
+  const db = getSupabase();
+  if (!db) return { ok: false, applied: [], rejected: Object.keys(edits) };
+  const { data } = await db
+    .from("discover_cache")
+    .select("payload")
+    .eq("cache_key", key)
+    .eq("source", "saved_report")
+    .maybeSingle();
+  if (!data) return { ok: false, applied: [], rejected: Object.keys(edits) };
+
+  const record = data.payload as StoredRecord;
+  const applied: string[] = [];
+  const rejected: string[] = [];
+
+  for (const [path, value] of Object.entries(edits)) {
+    const parts = path.split(".");
+    // __proto__ / constructor / prototype would let a crafted path reach outside
+    // the document entirely.
+    if (parts.some((p) => !p || p === "__proto__" || p === "constructor" || p === "prototype")) { rejected.push(path); continue; }
+    let node: unknown = record.report;
+    for (const p of parts.slice(0, -1)) {
+      if (node === null || typeof node !== "object") { node = undefined; break; }
+      node = (node as Record<string, unknown>)[p];
+    }
+    const last = parts[parts.length - 1];
+    if (node === null || typeof node !== "object" || typeof (node as Record<string, unknown>)[last] !== "string") {
+      rejected.push(path);
+      continue;
+    }
+    (node as Record<string, unknown>)[last] = value;
+    applied.push(path);
+  }
+
+  if (!applied.length) return { ok: false, applied, rejected };
+
+  record.editedBy = actor;
+  record.editedAt = new Date().toISOString();
+  // The card in the archive shows the headline figures — they are measurements and
+  // are not re-derived here, so they stay in step with the report.
+  const { error } = await db
+    .from("discover_cache")
+    .update({ payload: record })
+    .eq("cache_key", key)
+    .eq("source", "saved_report");
+  return { ok: !error, applied, rejected };
 }

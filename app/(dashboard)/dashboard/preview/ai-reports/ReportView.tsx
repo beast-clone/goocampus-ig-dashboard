@@ -88,7 +88,49 @@ function fmtDayLong(date: string): string {
   return d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
 }
 
-export function ReportView({ report, regenerating }: { report: ReportPayload; regenerating: boolean }) {
+// `storageKey` turns on editing: the prose becomes text boxes and Save writes it
+// back to that saved report. Reports read as final and get sent on, but a model
+// wrote them and sometimes phrases a thing badly or misses context only a person
+// has ("report needs edit access" — Maheen, 22 Sep). Without a key the report is
+// read-only exactly as before — a freshly generated one has nowhere to save to yet.
+export function ReportView({ report, regenerating, storageKey, onSaved }: {
+  report: ReportPayload; regenerating: boolean; storageKey?: string; onSaved?: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const dirty = Object.keys(drafts).length > 0;
+
+  // One prose block. Reading shows the edited text the moment it is typed, so what
+  // you see after Save is what you were already looking at.
+  const prose = (path: string, value: string, className: string) => {
+    const shown = drafts[path] ?? value;
+    if (!editing) return <p className={className}>{shown}</p>;
+    return (
+      <textarea value={shown} rows={Math.min(10, Math.max(2, Math.ceil(shown.length / 90)))}
+        onChange={(e) => setDrafts((d) => ({ ...d, [path]: e.target.value }))}
+        className={`${className} w-full border border-brand/40 rounded-lg px-2.5 py-2 bg-[#FCFCFF] outline-none focus:border-brand resize-y`} />
+    );
+  };
+
+  const save = async () => {
+    if (!storageKey || !dirty) { setEditing(false); return; }
+    setSaving(true); setSaveError(null);
+    try {
+      const r = await fetch("/api/reports", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ key: storageKey, edits: drafts }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setEditing(false);
+      onSaved?.();
+    } catch (e) {
+      setSaveError((e as Error).message);
+    } finally { setSaving(false); }
+  };
+
   const chartWidth = 720;
   const chartHeight = 140;
   // Posts table: 20 per page with Next/Prev instead of one long scroll.
@@ -114,13 +156,36 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
         <div className="text-[12.5px] text-gray-500 mt-1">
           @{report.meta.account} · Generated {fmtDateTime(report.meta.generatedAt)}
         </div>
+        {storageKey && (
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            {editing ? (
+              <>
+                <button onClick={save} disabled={saving}
+                  className="h-8 px-3 rounded-lg bg-brand text-white text-[12.5px] font-medium disabled:opacity-50">
+                  {saving ? "Saving…" : dirty ? "Save changes" : "Done"}
+                </button>
+                <button onClick={() => { setDrafts({}); setSaveError(null); setEditing(false); }} disabled={saving}
+                  className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#4A5468] disabled:opacity-50">
+                  Discard
+                </button>
+                <span className="text-[12px] text-gray-500">Only the written parts can be changed — the numbers and charts are measurements.</span>
+              </>
+            ) : (
+              <button onClick={() => setEditing(true)}
+                className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#4A5468] hover:border-brand hover:text-brand">
+                Edit the wording
+              </button>
+            )}
+            {saveError && <span className="text-[12px] text-rose-600">{saveError}</span>}
+          </div>
+        )}
       </header>
 
       {/* Executive summary */}
       {report.executiveSummary && (
         <section>
           <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-2">Executive summary</div>
-          <p className="text-[15px] text-gray-800 leading-relaxed">{report.executiveSummary}</p>
+          {prose("executiveSummary", report.executiveSummary, "text-[15px] text-gray-800 leading-relaxed")}
         </section>
       )}
 
@@ -128,7 +193,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
       <section>
         <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Highlights</div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {report.highlights.map((h) => (
+          {report.highlights.map((h, i) => (
             <div key={h.label} className="border border-gray-200 rounded-xl p-4">
               <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">{h.label}</div>
               <div className="flex items-baseline gap-2 mt-1">
@@ -139,7 +204,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
                   </div>
                 )}
               </div>
-              {h.insight && <div className="text-[12px] text-gray-600 mt-2 leading-snug">{h.insight}</div>}
+              {(h.insight || editing) && <div className="mt-2">{prose(`highlights.${i}.insight`, h.insight, "text-[12px] text-gray-600 leading-snug")}</div>}
             </div>
           ))}
         </div>
@@ -190,7 +255,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
           {report.contentMix.insight && (
             <div className="border border-brand/30 bg-brand/5 rounded-xl p-4">
               <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on the mix</div>
-              <p className="text-[13px] text-gray-800 leading-relaxed">{report.contentMix.insight}</p>
+              {prose("contentMix.insight", report.contentMix.insight, "text-[13px] text-gray-800 leading-relaxed")}
             </div>
           )}
         </div>
@@ -261,7 +326,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
           {report.followerGrowth.insight && (
             <div className="border border-brand/30 bg-brand/5 rounded-xl p-4">
               <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">What this means</div>
-              <p className="text-[13px] text-gray-800 leading-relaxed">{report.followerGrowth.insight}</p>
+              {prose("followerGrowth.insight", report.followerGrowth.insight, "text-[13px] text-gray-800 leading-relaxed")}
             </div>
           )}
         </div>
@@ -269,8 +334,11 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
 
       {/* Reach + Engagement side-by-side */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TwoLineCard title="Reach" value={fmtNum(report.reachOverview.total)} delta={report.reachOverview.deltaPct} insight={report.reachOverview.insight} />
-        <TwoLineCard title="Engagement" value={fmtNum(report.engagementOverview.total)} delta={report.engagementOverview.deltaPct} insight={report.engagementOverview.insight} extra={`Engagement rate: ${report.engagementOverview.engagementRatePct}%`} />
+        <TwoLineCard title="Reach" value={fmtNum(report.reachOverview.total)} delta={report.reachOverview.deltaPct}
+          insight={prose("reachOverview.insight", report.reachOverview.insight, "text-[12.5px] text-gray-700 leading-snug")} />
+        <TwoLineCard title="Engagement" value={fmtNum(report.engagementOverview.total)} delta={report.engagementOverview.deltaPct}
+          insight={prose("engagementOverview.insight", report.engagementOverview.insight, "text-[12.5px] text-gray-700 leading-snug")}
+          extra={`Engagement rate: ${report.engagementOverview.engagementRatePct}%`} />
       </section>
 
       {/* Leads & sales — from the Sales Hub CRM for the same window */}
@@ -375,7 +443,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
           {report.leadsSales.insight && (
             <div className="mt-4 border border-brand/30 bg-brand/5 rounded-xl p-4">
               <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on leads &amp; sales</div>
-              <p className="text-[13px] text-gray-800 leading-relaxed">{report.leadsSales.insight}</p>
+              {prose("leadsSales.insight", report.leadsSales.insight, "text-[13px] text-gray-800 leading-relaxed")}
             </div>
           )}
         </section>
@@ -414,7 +482,7 @@ export function ReportView({ report, regenerating }: { report: ReportPayload; re
           {report.audienceInsights.insight && (
             <div className="mt-3 border border-brand/30 bg-brand/5 rounded-xl p-4">
               <div className="text-xs uppercase tracking-widest text-brand font-semibold mb-2">Read on audience</div>
-              <p className="text-[13px] text-gray-800 leading-relaxed">{report.audienceInsights.insight}</p>
+              {prose("audienceInsights.insight", report.audienceInsights.insight, "text-[13px] text-gray-800 leading-relaxed")}
             </div>
           )}
         </section>
@@ -509,7 +577,7 @@ function MiniFact({ big, lbl }: { big: string; lbl: string }) {
   );
 }
 
-function TwoLineCard({ title, value, delta, insight, extra }: { title: string; value: string; delta: number | null; insight: string; extra?: string }) {
+function TwoLineCard({ title, value, delta, insight, extra }: { title: string; value: string; delta: number | null; insight: React.ReactNode; extra?: string }) {
   return (
     <div className="border border-gray-200 rounded-xl p-4">
       <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">{title}</div>

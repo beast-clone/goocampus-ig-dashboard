@@ -139,7 +139,7 @@ function PlatformTable({ platform, label }: { platform: string; label: string })
         </button>
         {openLoading && <div className="h-64 bg-white rounded-2xl border border-gray-100 flex items-center justify-center"><LoadingBlock label="Opening report…" /></div>}
         {openError && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t open report — {openError}</div>}
-        {openReport && <ReportView report={openReport} regenerating={false} />}
+        {openReport && <ReportView report={openReport} regenerating={false} storageKey={openKey ?? undefined} />}
       </div>
     );
   }

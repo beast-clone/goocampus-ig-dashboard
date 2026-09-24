@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import {
-  listReports, getReport, listTrash, trashReport, restoreReport, deleteReportPermanent, type ReportPlatform,
+  listReports, getReport, listTrash, trashReport, restoreReport, deleteReportPermanent, updateReportText, type ReportPlatform,
 } from "@/lib/report-store";
 import { safeError } from "@/lib/errors";
+import { getSessionUserId } from "@/lib/auth";
 
 // Saved-report archive API.
 //   GET  /api/reports?platform=instagram        -> saved reports for one platform
@@ -67,5 +68,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to restore report"), { status: 500 });
+  }
+}
+
+// PATCH /api/reports { key, edits: { "<dot.path>": "<new text>" } }
+//   Correct the wording of a saved report. Only string fields can be changed —
+//   updateReportText rejects any path that doesn't already hold text, so the
+//   measurements can't be rewritten through here.
+export async function PATCH(req: Request) {
+  const __denied = await requireSection("analytics");
+  if (__denied) return __denied;
+
+  try {
+    const body = (await req.json().catch(() => ({}))) as { key?: string; edits?: Record<string, unknown> };
+    if (!body.key || !body.edits || typeof body.edits !== "object") {
+      return NextResponse.json({ error: "expected { key, edits }" }, { status: 400 });
+    }
+    const edits: Record<string, string> = {};
+    for (const [k, v] of Object.entries(body.edits)) {
+      if (typeof v === "string") edits[k] = v.slice(0, 20_000);
+    }
+    if (!Object.keys(edits).length) return NextResponse.json({ error: "no text to save" }, { status: 400 });
+
+    const actor = getSessionUserId() || "someone";
+    const res = await updateReportText(body.key, edits, actor);
+    if (!res.ok && !res.applied.length) {
+      return NextResponse.json({ error: "Nothing was saved — the report may have been deleted, or those fields aren't text.", rejected: res.rejected }, { status: 404 });
+    }
+    return NextResponse.json({ ...res, ok: true, editedBy: actor });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Failed to save the report"), { status: 500 });
   }
 }
