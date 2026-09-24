@@ -25,6 +25,8 @@
         "npm:clsx@^2.1.1",
         "npm:d3-geo@^3.1.1",
         "npm:date-fns@^4.1.0",
+        "npm:eslint-config-next@^14.2.35",
+        "npm:eslint@^8.57.1",
         "npm:html2canvas@^1.4.1",
         "npm:jsdom@^29.1.1",
         "npm:jspdf@^4.2.1",
