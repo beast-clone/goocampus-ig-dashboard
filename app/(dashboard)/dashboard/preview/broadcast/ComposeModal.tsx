@@ -52,6 +52,8 @@ const compressForWhatsApp = (f: File) => compressImage(f, { maxEdge: 1600, quali
 // for each, so the preview shows each one the way WhatsApp itself would.
 const isVideoUrl = (u: string) => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u);
 const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
+const isVideoFile = (u: string, mime: string) => /^video\//i.test(mime) || (!mime && isVideoUrl(u));
+const isDocFile = (u: string, mime: string) => /pdf|officedocument|msword|excel|zip/i.test(mime) || (!mime && isPdfUrl(u));
 const fileNameOf = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "file"))
   .replace(/^\d+-[a-z0-9]{6}-/i, "");
 
@@ -64,6 +66,10 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
   const [chats, setChats] = useState<Recipient[]>([]);
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  // What the upload said it was. The name is a weak signal — a long one used to
+  // lose its extension entirely — so the mime decides, and the name is only the
+  // fallback for a URL somebody typed or a template brought back.
+  const [mediaMime, setMediaMime] = useState("");
   const [uploading, setUploading] = useState(false);
   const [pollName, setPollName] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
@@ -117,6 +123,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       setImageUrl(d.url);
+      setMediaMime(d.mime || file.type || "");
     } catch (e) { setErr((e as Error).message); }
     finally { setUploading(false); }
   };
@@ -156,7 +163,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
     : chats.length === 1 ? `One ${kind === "poll" ? "poll" : "message"} to ${chats[0].label}`
     : `${chats.length} separate ${kind === "poll" ? "polls" : "messages"}, one to each recipient`;
 
-  const statusPdf = kind === "status" && !!imageUrl && isPdfUrl(imageUrl);
+  const statusPdf = kind === "status" && !!imageUrl && isDocFile(imageUrl, mediaMime);
 
   const problem =
     kind !== "status" && !chats.length ? "Please add at least one recipient"
@@ -316,7 +323,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                           <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
                             {templates.map((t) => (
                               <div key={t.id} className="flex items-center gap-2">
-                                <button onClick={() => { setBody(t.body); if (t.imageUrl) setImageUrl(t.imageUrl); setShowTemplates(false); }}
+                                <button onClick={() => { setBody(t.body); if (t.imageUrl) { setImageUrl(t.imageUrl); setMediaMime(""); } setShowTemplates(false); }}
                                   className="flex-1 text-left text-[12.5px] text-[#232D42] bg-white border border-gray-100 rounded px-2 py-1 hover:border-brand truncate">{t.name}</button>
                                 <button onClick={() => removeTemplate(t)} className="text-gray-300 hover:text-[#C03221]"><IconTrash size={13} /></button>
                               </div>
@@ -336,18 +343,18 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                       className="flex-1 outline-none text-[13.5px] text-[#232D42] resize-y bg-transparent" />
                     {imageUrl && (
                       <div className="relative w-16 flex-shrink-0">
-                        {isPdfUrl(imageUrl) ? (
+                        {isDocFile(imageUrl, mediaMime) ? (
                           <div className="w-16 h-16 rounded-lg border border-gray-100 bg-[#FDECEA] text-[#C0392B] grid place-items-center">
                             <IconFileTypePdf size={22} stroke={1.6} />
                           </div>
-                        ) : isVideoUrl(imageUrl) ? (
+                        ) : isVideoFile(imageUrl, mediaMime) ? (
                           <video src={imageUrl} className="w-16 h-16 object-cover rounded-lg border border-gray-100 bg-black" muted />
                         ) : (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-100"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                         )}
-                        <button onClick={() => setImageUrl("")} title="Remove"
+                        <button onClick={() => { setImageUrl(""); setMediaMime(""); }} title="Remove"
                           className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-gray-200 text-[#8A92A6] grid place-items-center hover:text-[#C03221]"><IconX size={12} /></button>
                       </div>
                     )}
@@ -477,13 +484,13 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               </div>
             ) : (
               <>
-                {imageUrl && (isPdfUrl(imageUrl) ? (
+                {imageUrl && (isDocFile(imageUrl, mediaMime) ? (
                   // WhatsApp shows a document as a strip with its name, not a picture.
                   <div className="flex items-center gap-2 rounded-lg bg-black/20 px-2 py-2 mb-1.5">
                     <IconFileTypePdf size={26} stroke={1.5} className="text-[#E9EDEF] flex-shrink-0" />
                     <span className="text-[11.5px] text-[#E9EDEF] truncate">{fileNameOf(imageUrl)}</span>
                   </div>
-                ) : isVideoUrl(imageUrl) ? (
+                ) : isVideoFile(imageUrl, mediaMime) ? (
                   <video src={imageUrl} className="w-full rounded-lg mb-1.5 block bg-black" controls playsInline />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element

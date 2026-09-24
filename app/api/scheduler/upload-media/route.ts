@@ -61,8 +61,17 @@ async function findByHash(db: NonNullable<ReturnType<typeof getSupabase>>, sha: 
 
 function safeFilename(name: string): string {
   // strip path separators + weird chars, keep ascii letters/digits/dot/dash/underscore
-  const base = name.split(/[\\/]/).pop() || "file";
-  return base.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80);
+  const base = (name.split(/[\\/]/).pop() || "file").replace(/[^A-Za-z0-9._-]/g, "_");
+  // Trim the NAME, never the extension. A real file — "NMC Seat Matrix for
+  // Undergraduate (MBBS) Courses excluding INIs….pdf" — is longer than 80
+  // characters, and chopping the tail took the ".pdf" with it. Everything
+  // downstream reads the type off that extension: the composer previewed the
+  // document as a photo (and showed nothing), and n8n would have sent it with
+  // sendImage instead of sendFile. Found 24 Sep, in exactly that way.
+  const dot = base.lastIndexOf(".");
+  const ext = dot > 0 && base.length - dot <= 11 ? base.slice(dot) : "";
+  const stem = ext ? base.slice(0, dot) : base;
+  return stem.slice(0, 80 - ext.length) + ext;
 }
 
 export async function POST(req: Request) {
