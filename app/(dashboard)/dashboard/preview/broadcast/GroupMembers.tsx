@@ -33,12 +33,13 @@ export function GroupMembers({ session, sessionPhone, groups, onClose, onMessage
   session: string;
   /** The sending number, so the panel can tell whether it is an admin here. */
   sessionPhone?: string | null;
-  groups: Recipient[];
+  /** null while they are still being read. */
+  groups: Recipient[] | null;
   onClose: () => void;
   /** Hand a group to the composer, so "send" lives in one place. */
   onMessageGroup: (g: Recipient) => void;
 }) {
-  const [picked, setPicked] = useState<Recipient | null>(groups[0] || null);
+  const [picked, setPicked] = useState<Recipient | null>(groups?.[0] || null);
   const [members, setMembers] = useState<Member[] | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [numbers, setNumbers] = useState("");
@@ -48,6 +49,12 @@ export function GroupMembers({ session, sessionPhone, groups, onClose, onMessage
   const [copied, setCopied] = useState(false);
   /** "12 of 76" while a long add is working through its batches. */
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // The panel can be opened before the groups have arrived, so the first one is
+  // chosen when they do, not only at mount.
+  useEffect(() => {
+    if (!picked && groups?.length) setPicked(groups[0]);
+  }, [groups, picked]);
 
   useEffect(() => {
     if (!picked) return;
@@ -178,7 +185,9 @@ export function GroupMembers({ session, sessionPhone, groups, onClose, onMessage
         </div>
 
         <div className="overflow-y-auto px-5 py-4 flex-1">
-          {groups.length === 0 ? (
+          {groups === null ? (
+            <div className="py-8"><LoadingBlock label="Reading your groups…" /></div>
+          ) : groups.length === 0 ? (
             <div className="text-[13px] text-[#8A92A6] py-8 text-center">
               No groups on this number yet. A group appears here once this WhatsApp number is in it.
             </div>
@@ -188,8 +197,8 @@ export function GroupMembers({ session, sessionPhone, groups, onClose, onMessage
               <div className="flex items-center gap-2 mt-1.5 mb-4">
                 <PreviewSelect
                   value={picked?.id || ""}
-                  onChange={(v) => setPicked(groups.find((g) => g.id === v) || null)}
-                  options={groups.map((g) => ({ value: g.id, label: g.label }))}
+                  onChange={(v) => setPicked((groups || []).find((g) => g.id === v) || null)}
+                  options={(groups || []).map((g) => ({ value: g.id, label: g.label }))}
                   placeholder="Pick a group"
                   className="flex-1 min-w-0"
                 />

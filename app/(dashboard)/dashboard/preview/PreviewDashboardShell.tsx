@@ -37,11 +37,14 @@ function rangeLabel(r: Range): string {
 }
 
 export function PreviewDashboardShell({
-  active, title, subtitle, hideAccountPicker, hideRange, compact, children,
+  active, title, subtitle, titleAction, hideAccountPicker, hideRange, compact, children,
 }: {
   active: PreviewTab;
   title: string;
   subtitle?: string;
+  /** A control that belongs beside the tab's name, in the brand band. Used when a
+   *  tab has one companion screen that is easy to miss further down the page. */
+  titleAction?: React.ReactNode;
   hideAccountPicker?: boolean;
   hideRange?: boolean;   // hide the top date bar (page drives the range itself via setRange)
   // Slimmer hero for drill-down pages. A full-height band is right for a landing
@@ -105,7 +108,10 @@ export function PreviewDashboardShell({
         >
           <div className="relative z-10">
             {/* Inline colour: .preview-scope forces heading colour dark, so force white here. */}
-            <h1 className={`preview-hero-h1 leading-tight tracking-tight ${compact ? "text-[1.25rem]" : "text-[1.7rem]"}`} style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className={`preview-hero-h1 leading-tight tracking-tight ${compact ? "text-[1.25rem]" : "text-[1.7rem]"}`} style={{ fontWeight: 700, color: "#fff" }}>{title}</h1>
+              {titleAction}
+            </div>
             {headerSub && <p className={compact ? "mt-0.5 text-[12.5px]" : "mt-1.5 text-sm"} style={{ color: "rgba(255,255,255,0.85)" }}>{headerSub}</p>}
           </div>
           <div className="pointer-events-none absolute -right-10 -top-16 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 62%)" }} />
