@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconSearch, IconFilter, IconChevronLeft, IconChevronRight, IconPlus, IconTrash,
   IconCircleCheck, IconCircleDashed, IconClock, IconAlertTriangle, IconChecks, IconChartBar,
-  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat,
+  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat, IconUsersGroup,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { ComposeModal, renderWa, type ComposeSeed } from "./ComposeModal";
+import { GroupMembers } from "./GroupMembers";
+import type { Recipient } from "./RecipientPicker";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppAccount } from "./WhatsAppAccount";
 import { chatDisplay, REPEAT_LABEL, repeatOf, type WaMessage, type WaStatus } from "@/lib/whatsapp";
@@ -52,6 +54,16 @@ export function BroadcastWorkspace() {
   const [view, setView] = useState<View>("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [compose, setCompose] = useState<{ open: boolean; date?: string; seed?: ComposeSeed } | null>(null);
+  // Groups this number is in — for the members panel. Read once, cheaply, from
+  // the same list the picker uses.
+  const [groups, setGroups] = useState<Recipient[]>([]);
+  const [showGroups, setShowGroups] = useState(false);
+  useEffect(() => {
+    fetch("/api/scheduler/whatsapp/recipients", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setGroups(((d.recipients || []) as Recipient[]).filter((r) => r.kind === "group")))
+      .catch(() => setGroups([]));
+  }, []);
   const [selected, setSelected] = useState<string | null>(null);
   // With two numbers linked, a row that just says "Pandey Ji" does not tell you
   // which of your numbers it leaves from (Praveen, 23 Sep). Only shown when there
@@ -167,6 +179,10 @@ export function BroadcastWorkspace() {
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white text-[13px] font-medium px-3 py-2 mb-2 hover:bg-brand-dark">
               <IconPlus size={15} /> New message
             </button>
+            <button onClick={() => setShowGroups(true)}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] px-3 py-1.5 mb-2 hover:border-brand hover:text-brand">
+              <IconUsersGroup size={14} /> Groups &amp; members
+            </button>
             <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5">
               <IconSearch size={15} className="text-[#8A92A6]" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search scheduled messages"
@@ -219,6 +235,10 @@ export function BroadcastWorkspace() {
           </div>
         </section>
       </div>
+
+      {showGroups && (
+        <GroupMembers session={(accounts.find((a) => a.status === "WORKING")?.name) || "default"} groups={groups} onClose={() => setShowGroups(false)} />
+      )}
 
       {compose?.open && (
         <ComposeModal initialDate={compose.date} seed={compose.seed} onClose={() => setCompose(null)} onSaved={load} />

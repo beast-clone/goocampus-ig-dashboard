@@ -155,6 +155,30 @@ export function quotaNote(q?: WaQuota | null): { tone: "ok" | "warn" | "stop"; t
 export const checkNumber = (phone: string, session = "default") =>
   relay<{ phone: string; exists: boolean | null; chatId: string | null }>("check", { phone, session }, READ_HOOK);
 
+/** One group: who is in it, its invite link, and what happened to anyone added. */
+export type WaGroupRead = {
+  groupId: string | null;
+  participants: { id: string; phone: string | null; admin: boolean }[];
+  count: number;
+  inviteCode: string | null;
+  results: { id: string; code: string; inviteSent?: boolean; message?: string | null }[];
+};
+
+/**
+ * Read a group, and optionally add people to it in the same call.
+ *
+ * Adding is the part to be careful with. WhatsApp lets someone refuse being
+ * added to groups; when they have, the add comes back 403 and WhatsApp sends
+ * them a private invite instead. That is a normal outcome, not a failure — and
+ * bulk-adding people who never asked is one of the documented ways to lose the
+ * number, which is why the UI checks each number first and spaces the adds out.
+ */
+export const readGroup = (groupId: string, session = "default", participants: string[] = []) =>
+  relay<WaGroupRead>("group", { groupId, session, participants }, READ_HOOK);
+
+/** chat.whatsapp.com link for an invite code. */
+export const inviteLink = (code?: string | null) => (code ? `https://chat.whatsapp.com/${code}` : null);
+
 /**
  * Does the n8n relay actually honour the account we ask for?
  *
