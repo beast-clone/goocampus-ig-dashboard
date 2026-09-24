@@ -7,6 +7,18 @@ flat without anyone remembering to clean up. Agreed with Praveen on
 **Decided:** keep a **compressed** copy of a video rather than deleting it · final
 sweep at **three months** · **leave `story-snapshots` alone**.
 
+**Why we keep anything at all (Praveen, 24 Sep).** Not for viewing — the Posts, Reels
+and analytics tabs read **live from the Graph API**, so the dashboard always shows what
+is genuinely on the account, including anything posted by hand. The stored copy is a
+**record of what we scheduled**, so that "we scheduled this video, but that one went
+out" can be proved later. A small, compressed copy is enough for that.
+
+**Where things run.** Three separate machines, easy to mix up:
+- **Hostinger VPS** (srv1046538, KVM 2 — 2 cores, 8 GB, 100 GB disk): runs **n8n** and
+  **WAHA**. The only place that can run ffmpeg, so video compression belongs here, at night.
+- **Supabase** (Pro, 100 GB): the database and the file storage. Stores files; cannot process them.
+- **Netlify**: the dashboard site itself.
+
 ---
 
 ## Where we are today
@@ -43,10 +55,10 @@ A weekly job (Sunday night) would:
 2. Confirm it really has its live link (`instagram_url` / `facebook_url`).
    **No link → touch nothing.** That is the safety catch.
 3. Replace the **video** with a compressed version (720p, ~10 MB) and keep the link.
-4. Keep a **small still image** so lists and cards have something light to show.
+4. Keep a **small still image** alongside it.
 
-A reel is 20–50 MB and comes back at about 10 MB, so roughly 80% comes back while the
-post stays watchable inside the dashboard.
+A reel is 20–50 MB and comes back at about 10 MB, so roughly 80% of the space is
+recovered while the record of what we scheduled survives.
 
 ### 3. Compress what we keep
 - **Images / carousels:** 5 MB → 1–2 MB. Text stays readable. The composer already
@@ -95,7 +107,8 @@ and a nightly slot.
 
 ## Answered 24 Sep
 
-1. **Compress the video, don't delete it** — old reels stay watchable in the dashboard.
+1. **Compress the video, don't delete it** — kept as the record of what was scheduled,
+   not for viewing (viewing comes from the Graph API).
 2. **Three months** for the final sweep.
 3. **Leave `story-snapshots` alone** (406 files, 62 MB — small, and they are the only
    record of a story once its 24 hours are up).
