@@ -17,6 +17,7 @@ import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFa
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
+import { compressImage } from "@/lib/compress-image";
 
 export type Row = {
   id: string;
@@ -3355,7 +3356,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     try {
       for (const f of Array.from(files)) {
         const fd = new FormData();
-        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", f); fd.append("kind", kind);
+        // Same compression the composer uses — a 5 MB slide export helps nobody.
+        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", await compressImage(f)); fd.append("kind", kind);
         const res = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
         if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "upload failed" }); }
       }

@@ -12,6 +12,7 @@ import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
+import { compressImage } from "@/lib/compress-image";
 
 // The compose popup, built to match the tool this replaces: tabs across the top,
 // recipients, the message, when to send, and a live WhatsApp preview beside it.
@@ -42,26 +43,9 @@ export function renderWa(text: string): React.ReactNode[] {
   return out;
 }
 
-// Images are compressed before they are uploaded: long edge 1600px, JPEG quality
-// 0.7. A WebP has to become a JPEG anyway — WhatsApp shows a WebP as a sticker —
-// and a 6 MB phone photo is slow to send for no visible gain on a phone screen.
-async function compressImage(file: File): Promise<File> {
-  if (!/^image\//i.test(file.type)) return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); // JPEG has no transparency
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.7));
-    if (!blob || blob.size >= file.size) return /image\/webp/i.test(file.type) && blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
-    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
-  } catch { return file; }
-}
+// WhatsApp gets a harder squeeze than a feed post: it is read on a phone, and a
+// WebP must become a JPEG or WhatsApp shows it as a sticker.
+const compressForWhatsApp = (f: File) => compressImage(f, { maxEdge: 1600, quality: 0.7 });
 
 export function ComposeModal({ initialDate, onClose, onSaved }: {
   initialDate?: string;                 // yyyy-mm-dd, when opened from a day in the calendar
@@ -119,7 +103,7 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
   const upload = async (f: File) => {
     setUploading(true); setErr(null);
     try {
-      const file = await compressImage(f);
+      const file = await compressForWhatsApp(f);
       const fd = new FormData(); fd.append("file", file);
       const res = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd, credentials: "same-origin" });
       const d = await res.json();

@@ -17,6 +17,7 @@ import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInpu
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { compressImage } from "@/lib/compress-image";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -1678,7 +1679,10 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
     setUploadingId(postId);
     try {
       const urls: string[] = [];
-      for (const f of Array.from(files)) {
+      for (const raw of Array.from(files)) {
+        // Shrink before it leaves the browser — Meta re-encodes anyway, so the
+        // extra megabytes only ever cost us storage.
+        const f = await compressImage(raw);
         const fd = new FormData(); fd.append("file", f);
         const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
         const d = await r.json();
@@ -2668,7 +2672,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
         // The cap is Meta's carousel limit; a LinkedIn PDF doesn't use a slot.
         if (!isPdfUrl(file.name) && next.filter((u) => !isPdfUrl(u)).length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} images per post`); break; }
         const fd = new FormData();
-        fd.append("file", file);
+        fd.append("file", await compressImage(file));
         const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
         const d = await r.json();
         if (!r.ok || d.error) { setUploadError(d.error || `HTTP ${r.status}`); break; }
