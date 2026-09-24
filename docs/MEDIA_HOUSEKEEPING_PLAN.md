@@ -4,8 +4,14 @@ What happens to a photo or video **after** its post has gone live, so storage st
 flat without anyone remembering to clean up. Agreed with Praveen on
 24 Sep, including the three decisions below; **nothing is built yet**.
 
-**Decided:** keep a **compressed** copy of a video rather than deleting it · final
-sweep at **three months** · **leave `story-snapshots` alone**.
+**Decided (24 Sep, latest):** **delete the video** once its post is live — no video
+compression, so the VPS does no work at all · final sweep at **three months** ·
+**leave `story-snapshots` alone**.
+
+*(Compression was considered and dropped. For the record, the flow would have been:
+Hostinger downloads the file to a temp folder, compresses it, uploads the compressed
+copy to Supabase in place of the original, and deletes its temp files — one copy at
+the end, never two. Kept here in case it is wanted later.)*
 
 **Why we keep anything at all (Praveen, 24 Sep).** Not for viewing — the Posts, Reels
 and analytics tabs read **live from the Graph API**, so the dashboard always shows what
@@ -46,7 +52,7 @@ Before uploading, check whether a file with the same content is already in the
 bucket; if it is, reuse its URL. Same-name-same-size is enough — a hash is better.
 Saves 133 MB today and stops the problem repeating.
 
-### 2. After a post is live, shrink our copy of the video
+### 2. After a post is live, delete our copy of the video
 Once the post is published, **Meta hosts the media**. Our copy exists only for the
 dashboard's own preview.
 
@@ -54,17 +60,16 @@ A weekly job (Sunday night) would:
 1. Take every post marked published in the last week.
 2. Confirm it really has its live link (`instagram_url` / `facebook_url`).
    **No link → touch nothing.** That is the safety catch.
-3. Replace the **video** with a compressed version (720p, ~10 MB) and keep the link.
-4. Keep a **small still image** alongside it.
+3. **Delete the video** from Supabase and keep the link.
+4. Keep a **small still image** as the record of what was scheduled.
 
-A reel is 20–50 MB and comes back at about 10 MB, so roughly 80% of the space is
-recovered while the record of what we scheduled survives.
+A reel is 20–50 MB and the still is under 100 KB, so effectively all of it comes back.
+Instagram keeps the video itself, and the dashboard reads it from there.
 
 ### 3. Compress what we keep
 - **Images / carousels:** 5 MB → 1–2 MB. Text stays readable. The composer already
   does exactly this for WhatsApp (long edge 1600px, JPEG 0.7), so it is the same code.
-- **Video:** 50 MB → about 10 MB at 720p. Needs ffmpeg. The VPS can do it, but it has
-  **2 cores**, so it must run at night, never while publishing.
+- **Video:** not compressed — deleted instead (step 2), so no ffmpeg and no VPS load.
 
 ### 4. The three-month sweep
 Anything older than three months: delete the stored media entirely, keep the row, the
@@ -88,11 +93,10 @@ as the plan above: keep the link and a small preview, not the heavy original.
 | 1. No duplicate uploads | 133 MB now | small | none |
 | 2. Delete video after the link is confirmed | ~40 MB per reel | small | low — gated on the link |
 | 3. Compress images we keep | ~60% of image size | small | none |
-| 4. Compress video (chosen over deleting) | ~80% of video size | medium (ffmpeg on the VPS) | low |
+| 4. ~~Compress video~~ — dropped in favour of deleting | — | — | — |
 | 5. Three-month sweep | everything older | small | low |
 
-Steps 1–3 are worth doing on their own; step 4 is the one that needs ffmpeg on the VPS
-and a nightly slot.
+Steps 1, 2, 3 and 5 are the whole job now. Nothing runs on the VPS.
 
 ---
 
@@ -107,8 +111,9 @@ and a nightly slot.
 
 ## Answered 24 Sep
 
-1. **Compress the video, don't delete it** — kept as the record of what was scheduled,
-   not for viewing (viewing comes from the Graph API).
+1. **Delete the video** once the post is live (changed from compressing it — no reason
+   to load the VPS). The still image plus the caption is the record; viewing comes from
+   the Graph API.
 2. **Three months** for the final sweep.
 3. **Leave `story-snapshots` alone** (406 files, 62 MB — small, and they are the only
    record of a story once its 24 hours are up).
