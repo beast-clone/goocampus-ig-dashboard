@@ -21,6 +21,7 @@ covers the lot.
 | ✅ | **Batch spacing** — several recipients go 30–60 seconds apart, randomly | `a6d8035` |
 | ✅ | **Safety warning before queueing** — too many in an hour/day, outside 9am–9pm, or a big one-by-one fan-out | `a6d8035` |
 | ✅ | Duplicate uploads prevented; images compressed before upload | `ef7154e` |
+| ✅ | **A typed number is checked against WhatsApp** — one that has no account can't be picked | `41e77f9` |
 | ✅ | **WhatsApp's own quota is read** — the panel warns when WhatsApp limits the number, and the composer says so before queueing | `ae0508b` |
 
 ## Done — already live, no deploy needed
@@ -30,6 +31,7 @@ covers the lot.
 | ✅ | **n8n sender** sends videos (`sendVideo`), documents (`sendFile`) and video status |
 | ✅ | **n8n trusts the carried file type**, and sends anything it can't identify as a document — so the broken-photo failure can't repeat |
 | ✅ | **n8n read relay returns the quota** — message-capping and timelock per number (published 24 Sep) |
+| ✅ | **n8n read relay checks a number** — does this phone have WhatsApp (published 24 Sep) |
 | ✅ | **n8n memory fix** — files to disk, 4 GB ceiling, 7-day history cleanup (the crash on 23 Sep) |
 | ✅ | **Airtable publisher switched off** — one publisher now, fed by the dashboard |
 | ✅ | 133 MB of duplicate video removed from storage |
