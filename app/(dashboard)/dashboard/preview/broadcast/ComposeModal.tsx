@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconAlertTriangle,
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconFileTypePdf, IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -44,8 +44,16 @@ export function renderWa(text: string): React.ReactNode[] {
 }
 
 // WhatsApp gets a harder squeeze than a feed post: it is read on a phone, and a
-// WebP must become a JPEG or WhatsApp shows it as a sticker.
+// WebP must become a JPEG or WhatsApp shows it as a sticker. A video or a PDF is
+// passed through untouched — compressImage returns anything it can't re-encode.
 const compressForWhatsApp = (f: File) => compressImage(f, { maxEdge: 1600, quality: 0.7 });
+
+// What kind of attachment a stored URL is. WhatsApp needs a different send call
+// for each, so the preview shows each one the way WhatsApp itself would.
+const isVideoUrl = (u: string) => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u);
+const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
+const fileNameOf = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "file"))
+  .replace(/^\d+-[a-z0-9]{6}-/i, "");
 
 export function ComposeModal({ initialDate, onClose, onSaved }: {
   initialDate?: string;                 // yyyy-mm-dd, when opened from a day in the calendar
@@ -148,10 +156,13 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
     : chats.length === 1 ? `One ${kind === "poll" ? "poll" : "message"} to ${chats[0].label}`
     : `${chats.length} separate ${kind === "poll" ? "polls" : "messages"}, one to each recipient`;
 
+  const statusPdf = kind === "status" && !!imageUrl && isPdfUrl(imageUrl);
+
   const problem =
     kind !== "status" && !chats.length ? "Please add at least one recipient"
     : kind === "poll" && !pollName.trim() ? "Please write the poll question"
     : kind === "poll" && pollOptions.filter((o) => o.trim()).length < 2 ? "A poll needs at least two options"
+    : statusPdf ? "A status can't carry a PDF — post it as a message instead"
     : kind !== "poll" && !body.trim() && !imageUrl ? "Please enter a message or attach a file"
     : !at || isNaN(at.getTime()) ? "Please pick a date and a time"
     : null;
@@ -325,18 +336,26 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
                       className="flex-1 outline-none text-[13.5px] text-[#232D42] resize-y bg-transparent" />
                     {imageUrl && (
                       <div className="relative w-16 flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {isPdfUrl(imageUrl) ? (
+                          <div className="w-16 h-16 rounded-lg border border-gray-100 bg-[#FDECEA] text-[#C0392B] grid place-items-center">
+                            <IconFileTypePdf size={22} stroke={1.6} />
+                          </div>
+                        ) : isVideoUrl(imageUrl) ? (
+                          <video src={imageUrl} className="w-16 h-16 object-cover rounded-lg border border-gray-100 bg-black" muted />
+                        ) : (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-100"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                        )}
                         <button onClick={() => setImageUrl("")} title="Remove"
                           className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-gray-200 text-[#8A92A6] grid place-items-center hover:text-[#C03221]"><IconX size={12} /></button>
                       </div>
                     )}
                   </div>
-                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden"
+                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,application/pdf" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
                 </div>
-                <div className="text-[11.5px] text-[#8A92A6] mt-1.5">Images are compressed before sending, so they arrive quickly.</div>
+                <div className="text-[11.5px] text-[#8A92A6] mt-1.5">Photo, video or PDF. Images are compressed before sending, so they arrive quickly; videos and PDFs go as they are.</div>
               </>
             )}
 
@@ -458,11 +477,19 @@ export function ComposeModal({ initialDate, onClose, onSaved }: {
               </div>
             ) : (
               <>
-                {imageUrl && (
+                {imageUrl && (isPdfUrl(imageUrl) ? (
+                  // WhatsApp shows a document as a strip with its name, not a picture.
+                  <div className="flex items-center gap-2 rounded-lg bg-black/20 px-2 py-2 mb-1.5">
+                    <IconFileTypePdf size={26} stroke={1.5} className="text-[#E9EDEF] flex-shrink-0" />
+                    <span className="text-[11.5px] text-[#E9EDEF] truncate">{fileNameOf(imageUrl)}</span>
+                  </div>
+                ) : isVideoUrl(imageUrl) ? (
+                  <video src={imageUrl} className="w-full rounded-lg mb-1.5 block bg-black" controls playsInline />
+                ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={imageUrl} alt="" className="w-full rounded-lg mb-1.5 block"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                )}
+                ))}
                 <div className="text-[13px] whitespace-pre-wrap break-words leading-snug" style={{ color: "var(--wa-ink)" }}>
                   {body.trim() ? renderWa(body) : <span className="italic" style={{ color: "var(--wa-meta)" }}>Your message will appear here</span>}
                 </div>
