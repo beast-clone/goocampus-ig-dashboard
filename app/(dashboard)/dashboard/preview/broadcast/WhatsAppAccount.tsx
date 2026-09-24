@@ -7,6 +7,7 @@ import {
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { prettyPhone, type WaAccount } from "@/lib/whatsapp-session";
 import { resolveSendFrom, setSendFrom, SEND_FROM_CHANGED } from "./sendFrom";
+import { quotaNote, type WaQuota } from "@/lib/whatsapp-session";
 
 // Which WhatsApp number Community Broadcast sends from, and how to change it.
 //
@@ -52,6 +53,7 @@ export function WhatsAppAccount() {
   const [accounts, setAccounts] = useState<WaAccount[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "idle" });
   const [input, setInput] = useState("");
+  const [quota, setQuota] = useState<WaQuota | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,6 +65,7 @@ export function WhatsAppAccount() {
       if (!r.ok) throw new Error(d?.error || "Could not read the accounts");
       const list = (d.accounts || []) as WaAccount[];
       setAccounts(list);
+      setQuota((d.quota as WaQuota) || null);
       return list;
     } catch (e) {
       setAccounts([]);
@@ -198,6 +201,23 @@ export function WhatsAppAccount() {
           </button>
         </div>
       ))}
+
+      {/* WhatsApp's own verdict on this number. Silent when there is nothing to
+          say — a permanent "all good" badge trains people to ignore the row that
+          matters. */}
+      {(() => {
+        const note = quotaNote(quota);
+        if (!note || note.tone === "ok") return null;
+        const style = note.tone === "stop"
+          ? "bg-[#FDECEA] text-[#8a2e28] border-[#F3C9C4]"
+          : "bg-amber-50 text-amber-800 border-amber-100";
+        return (
+          <div className={`mx-2.5 mb-2 rounded-lg border px-2.5 py-2 text-[11.5px] leading-snug ${style}`}>
+            <span className="font-medium">{note.tone === "stop" ? "WhatsApp has limited this number. " : "WhatsApp warning. "}</span>
+            {note.text}
+          </div>
+        );
+      })()}
 
       {accounts !== null && phase.at === "idle" && (
         <div className="border-t border-gray-100 px-2.5 py-2 flex items-center gap-2">

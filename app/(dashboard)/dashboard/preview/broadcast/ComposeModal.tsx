@@ -13,6 +13,7 @@ import { resolveSendFrom, setSendFrom } from "./sendFrom";
 import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { REPEAT_LABEL, type WaKind, type WaRepeatRule } from "@/lib/whatsapp";
 import { checkBatch, spreadLabel, type WaWarning } from "@/lib/whatsapp-safety";
+import { quotaNote, type WaQuota } from "@/lib/whatsapp-session";
 import { compressImage } from "@/lib/compress-image";
 
 // The compose popup, built to match the tool this replaces: tabs across the top,
@@ -216,6 +217,17 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
     const when = sendNow ? new Date() : at!;
     try {
       const d = await fetch("/api/scheduler/whatsapp", { cache: "no-store" }).then((r) => r.json());
+      // WhatsApp's own verdict first — it is the only number here that isn't a
+      // rule of thumb. A capped number can still post to groups and existing
+      // chats, so this warns rather than blocks.
+      const quotaWarnings: WaWarning[] = [];
+      try {
+        const q = await fetch(`/api/scheduler/whatsapp/session?session=${encodeURIComponent(session || "default")}`, { cache: "no-store" })
+          .then((r) => r.json());
+        const note = quotaNote(q?.quota as WaQuota);
+        if (note && note.tone !== "ok") quotaWarnings.push({ key: "quota", text: note.text });
+      } catch { /* the quota is a nicety; never block a send on it */ }
+
       const warnings: WaWarning[] = checkBatch({
         at: when,
         count: kind === "status" ? 1 : chats.length,
@@ -223,6 +235,7 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
         kind: kind === "poll" ? "poll" : kind === "status" ? "status" : "message",
         toGroups: chats.filter((c) => c.kind !== "contact").length,
       });
+      warnings.unshift(...quotaWarnings);
       if (warnings.length) {
         const ok = await confirmDialog({
           title: warnings.length === 1 ? "One thing worth checking" : "A few things worth checking",

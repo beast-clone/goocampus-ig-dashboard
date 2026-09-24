@@ -27,11 +27,13 @@ export async function GET(req: Request) {
   const session = new URL(req.url).searchParams.get("session") || DEFAULT_ACCOUNT;
   try {
     // One call gives every account; the picked one's detail comes from the same list.
-    const { accounts } = await readChats(session);
+    const { accounts, quota } = await readChats(session);
     const picked = accounts.find((a) => a.name === session) || null;
     return NextResponse.json({
       ok: true,
       accounts,
+      // What WhatsApp says about this number's headroom, when it says anything.
+      quota: quota ?? null,
       session: picked
         ? { status: picked.status as never, phone: picked.phone, name: picked.label }
         : await readSession(session),

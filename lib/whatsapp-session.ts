@@ -90,7 +90,56 @@ export type WaAccount = { name: string; status: string; phone: string | null; la
  * data; ~2000 items ran n8n out of heap and took it down. Keep it that way.
  */
 export const readChats = (session = "default") =>
-  relay<{ session: string; recipients: SyncedChat[]; accounts: WaAccount[] }>("chats", { session }, READ_HOOK);
+  relay<{ session: string; recipients: SyncedChat[]; accounts: WaAccount[]; quota?: WaQuota }>("chats", { session }, READ_HOOK);
+
+/**
+ * What WhatsApp itself says about this number's headroom — the only numbers in
+ * any of this that are not guesswork.
+ *
+ * `capping` is a quota on messaging people you have no chat with: it warns
+ * twice and then refuses (WAHA surfaces that as error 475). `timelock` is a
+ * temporary shadow-restriction with a real end time (error 463). Neither is
+ * reset by restarting or re-pairing — waiting is the only cure.
+ *
+ * Both endpoints are new (WAHA 2026.8+) and may be missing, so everything here
+ * is optional and absence means "nothing to report", never "blocked".
+ */
+export type WaQuota = {
+  capping?: {
+    cappingStatus?: "NONE" | "FIRST_WARNING" | "SECOND_WARNING" | "CAPPED";
+    totalQuota?: number;    // -1 = no cap in force
+    usedQuota?: number;
+    cycleStart?: number;    // unix seconds
+    cycleEnd?: number;
+  } | null;
+  timelock?: {
+    isActive?: boolean;
+    timeEnforcementEnds?: number | null;   // unix seconds
+    enforcementType?: string;
+  } | null;
+};
+
+/** Plain-English read of the quota, or null when there is nothing worth saying. */
+export function quotaNote(q?: WaQuota | null): { tone: "ok" | "warn" | "stop"; text: string } | null {
+  if (!q) return null;
+  const lock = q.timelock;
+  if (lock?.isActive) {
+    const until = lock.timeEnforcementEnds
+      ? new Date(lock.timeEnforcementEnds * 1000).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+      : null;
+    return { tone: "stop", text: `WhatsApp has paused new conversations from this number${until ? ` until ${until}` : ""}. Messages to existing chats still go. Don't unlink or re-pair — it doesn't help.` };
+  }
+  const cap = q.capping;
+  const status = cap?.cappingStatus;
+  if (status === "CAPPED") return { tone: "stop", text: "WhatsApp has stopped this number messaging new contacts for now. Groups and existing chats still work." };
+  if (status === "SECOND_WARNING") return { tone: "warn", text: "Second warning from WhatsApp about messaging new contacts. Ease off, or send to groups instead." };
+  if (status === "FIRST_WARNING") return { tone: "warn", text: "WhatsApp has warned this number about messaging new contacts." };
+  if (cap && typeof cap.totalQuota === "number" && cap.totalQuota > 0) {
+    const used = cap.usedQuota ?? 0;
+    return { tone: used / cap.totalQuota > 0.8 ? "warn" : "ok", text: `${used} of ${cap.totalQuota} new contacts used this cycle.` };
+  }
+  return null;
+}
 
 /**
  * Does the n8n relay actually honour the account we ask for?
