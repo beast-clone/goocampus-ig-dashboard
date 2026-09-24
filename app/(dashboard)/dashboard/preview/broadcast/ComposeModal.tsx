@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconX, IconMessage, IconCircleDashed, IconChartBar, IconBold, IconItalic, IconStrikethrough,
   IconCode, IconList, IconListNumbers, IconQuote, IconMoodSmile, IconPaperclip, IconTemplate,
-  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconFileTypePdf, IconAlertTriangle,
+  IconCalendarEvent, IconClock, IconSend, IconUsers, IconInfoCircle, IconPlus, IconTrash, IconDeviceFloppy, IconChecks, IconRepeat, IconBrandWhatsapp, IconFileTypePdf, IconBolt, IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -198,17 +198,28 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
       .catch(() => setAccounts([]));
   }, []);
 
-  const submit = async () => {
-    if (problem || inPast) return;
+  const submit = async (sendNow = false) => {
+    if (problem) return;
+    if (!sendNow && inPast) return;
+    if (sendNow) {
+      const who = kind === "status" ? "your WhatsApp Status" : chats.length === 1 ? chats[0].label : `${chats.length} recipients`;
+      const ok = await confirmDialog({
+        title: "Send this now?",
+        body: <>It goes to {who} on the next check — within a minute. This can&apos;t be taken back.</>,
+        action: "Send now",
+      });
+      if (!ok) return;
+    }
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/scheduler/whatsapp", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
         body: JSON.stringify({
           kind, chats: chats.map((c) => ({ id: c.id, label: c.label })),
-          body: body.trim(), imageUrl: imageUrl.trim() || undefined,
+          body: body.trim(), imageUrl: imageUrl.trim() || undefined, mime: mediaMime || undefined,
           poll: kind === "poll" ? { name: pollName.trim(), options: pollOptions.map((o) => o.trim()).filter(Boolean), multipleAnswers: pollMulti } : undefined,
-          scheduleTimeISO: at!.toISOString(),
+          // "now" is a time like any other: the worker picks it up on its next tick.
+          scheduleTimeISO: (sendNow ? new Date() : at!).toISOString(),
           repeat: repeatRule === "none" ? undefined : { rule: repeatRule, until: repeatUntil || null },
           session: session || undefined,
         }),
@@ -466,7 +477,12 @@ export function ComposeModal({ initialDate, seed, onClose, onSaved }: {
             {err && <div className="text-[12.5px] rounded-lg px-3 py-2 mt-2 bg-rose-50 text-rose-700 border border-rose-100">{err}</div>}
             <div className="flex justify-end gap-2 mt-3">
               <button onClick={onClose} className="text-[13px] text-[#4A5468] px-3 py-2 rounded-xl hover:bg-[#F6F7FB]">Cancel</button>
-              <button onClick={submit} disabled={busy || !!problem || inPast}
+              <button onClick={() => submit(true)} disabled={busy || !!problem}
+                title="Skip the schedule and send it on the next check"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 text-[13px] font-medium text-[#4A5468] px-4 py-2 hover:border-brand hover:text-brand disabled:opacity-50">
+                <IconBolt size={15} /> Send now
+              </button>
+              <button onClick={() => submit(false)} disabled={busy || !!problem || inPast}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
                 <IconSend size={15} /> {busy ? "Scheduling…" : "Schedule send"}
               </button>

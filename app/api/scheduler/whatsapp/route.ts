@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   try {
     const b = (await req.json()) as {
       kind?: string; chats?: { id?: string; label?: string }[];
-      body?: string; imageUrl?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
+      body?: string; imageUrl?: string; mime?: string; poll?: Partial<WaPoll>; scheduleTimeISO?: string;
       repeat?: { rule?: string; until?: string | null };
       session?: string;   // which linked WhatsApp account sends it
     };
@@ -56,6 +56,11 @@ export async function POST(req: Request) {
       .filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
     const text = (b.body || "").trim();
     const imageUrl = (b.imageUrl || "").trim() || null;
+    // The worker has to know whether this is a photo, a video or a document, and a
+    // file name is a poor way to tell: a long one loses its extension. Carry the
+    // type the upload reported so nothing downstream has to guess (24 Sep — a PDF
+    // went out as a photo and WhatsApp showed a broken image).
+    const mime = (b.mime || "").trim().slice(0, 100) || null;
 
     // A status has no recipient to pick — it goes to the account's contacts.
     const targets = kind === "status" ? [{ id: STATUS_CHAT, label: "My Status" }] : chats;
