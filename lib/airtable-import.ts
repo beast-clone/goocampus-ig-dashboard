@@ -198,6 +198,9 @@ export async function importFromAirtable(opts: {
   // Restore it from the bin instead if it's wanted back.
   const binned = await trashedAirtableIds(db);
 
+  // Built first, sent after — see the worker pool below.
+  const writes: { row: Record<string, unknown>; existingId?: string; particulars: string }[] = [];
+
   for (const rec of records) {
     const f = rec.fields;
     const particulars = str(f["Particulars"]);
@@ -267,22 +270,43 @@ export async function importFromAirtable(opts: {
       continue;
     }
 
-    try {
-      if (hit) {
-        if (PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) { skip("already published here"); continue; }
-        const { error } = await db.from("mh_posts").update(row).eq("id", hit.id);
-        if (error) throw new Error(error.message);
-        out.updated += 1;
-      } else {
-        const { error } = await db.from("mh_posts").insert({ ...row, created_at: new Date().toISOString() });
-        if (error) throw new Error(error.message);
-        out.created += 1;
+    if (hit && PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) { skip("already published here"); continue; }
+    writes.push({ row, existingId: hit?.id, particulars });
+  }
+
+  // Send the writes a few at a time instead of one after another.
+  //
+  // Each write is its own round-trip to Supabase (~175 ms), so 88 records took
+  // ~15 s of pure waiting and the whole request blew past Netlify's 10-second
+  // function limit. Netlify then answered with its own HTML error page, which the
+  // dashboard tried to read as JSON — "Unexpected token '<'" (Praveen, 23 Sep).
+  // Nothing was wrong with the data; the request simply never finished.
+  //
+  // Six at a time is the same worker-pool shape used for media insights. Writes are
+  // independent rows, so order does not matter, and each still fails on its own —
+  // one bad record must not abandon the other four thousand.
+  const CONCURRENCY = 6;
+  const sb = db; // the null check above doesn't follow into the closure
+  let next = 0;
+  async function writer() {
+    while (next < writes.length) {
+      const { row, existingId, particulars } = writes[next++];
+      try {
+        if (existingId) {
+          const { error } = await sb.from("mh_posts").update(row).eq("id", existingId);
+          if (error) throw new Error(error.message);
+          out.updated += 1;
+        } else {
+          const { error } = await sb.from("mh_posts").insert({ ...row, created_at: new Date().toISOString() });
+          if (error) throw new Error(error.message);
+          out.created += 1;
+        }
+      } catch (e) {
+        if (out.errors.length < 10) out.errors.push(`${particulars}: ${isNetworkError(e) ? "lost connection — try again" : (e as Error).message}`);
       }
-    } catch (e) {
-      // One bad record must not abandon the other four thousand.
-      if (out.errors.length < 10) out.errors.push(`${particulars}: ${isNetworkError(e) ? "lost connection — try again" : (e as Error).message}`);
     }
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, writes.length) }, () => writer()));
 
   // The hub read endpoint caches for 12 hours. Without this an import appears to
   // have done nothing until the TTL expires.
