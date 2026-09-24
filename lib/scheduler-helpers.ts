@@ -3,6 +3,7 @@
 // and resolves it to one of the configured IG accounts.
 
 import { getAccount, fetchAudience, fetchRecentMedia, fetchMediaInsights, type IGAccountConfig, type IGMedia } from "@/lib/instagram";
+import { fetchPagePosts } from "@/lib/facebook";
 
 // Inlined to survive the Mac-side rename of extractHashtags from the older lib
 function extractHashtags(text: string | undefined | null): string[] {
@@ -408,4 +409,52 @@ export async function getTopPerformers(publishToPage: string, count = 5, daysBac
     .sort((a, b) => b._reach - a._reach)
     .slice(0, count)
     .map(({ _reach, ...rest }) => { void _reach; return rest; });
+}
+
+// ---- Facebook: what the last posts actually did ------------------------------
+//
+// Nandu asked for "expected reach in facebook also" (23 Sep). Instagram's number
+// can't simply be repeated here: Meta no longer serves post reach or impressions
+// for Page posts at all (post_impressions, post_impressions_unique and post_reach
+// are rejected on v19 through v23, on every one of our pages), so there is nothing
+// to predict reach from and nothing to compare a caption against.
+//
+// What IS readable is what each post got: likes, comments and shares. So rather
+// than invent a forecast, this reports the measured baseline and lets the page say
+// so plainly — including when the honest answer is zero, which it currently is.
+export type FacebookBaseline = {
+  available: boolean;
+  reason?: string;
+  posts: number;          // how many recent posts this is based on
+  likes: number;
+  comments: number;
+  shares: number;
+  avgEngagement: number;  // per post, rounded
+  best: { engagement: number; message: string } | null;
+};
+
+export async function facebookBaseline(publishToPage: string, limit = 25): Promise<FacebookBaseline> {
+  const empty: FacebookBaseline = { available: false, posts: 0, likes: 0, comments: 0, shares: 0, avgEngagement: 0, best: null };
+  const acc = resolveAccountForPage(publishToPage);
+  if (!acc) return { ...empty, reason: "No Facebook page is linked to this brand." };
+  const res = await fetchPagePosts(acc, limit);
+  if (!res.available) return { ...empty, reason: res.reason };
+  if (!res.items.length) return { ...empty, available: true, reason: undefined };
+
+  let likes = 0, comments = 0, shares = 0;
+  let best: FacebookBaseline["best"] = null;
+  for (const post of res.items) {
+    const l = post.likes ?? 0, c = post.comments ?? 0, sh = post.shares ?? 0;
+    likes += l; comments += c; shares += sh;
+    const eng = l + c + sh;
+    if (eng > 0 && (!best || eng > best.engagement)) best = { engagement: eng, message: (post.message || "").slice(0, 120) };
+  }
+  const total = likes + comments + shares;
+  return {
+    available: true,
+    posts: res.items.length,
+    likes, comments, shares,
+    avgEngagement: Math.round((total / res.items.length) * 10) / 10,
+    best,
+  };
 }

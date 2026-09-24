@@ -6,12 +6,13 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
 import { CopyrightCheck } from "./CopyrightCheck";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import type { FacebookBaseline } from "@/lib/scheduler-helpers";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
@@ -256,6 +257,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   // Smart features state
   const [timeSuggestions, setTimeSuggestions] = useState<TimeSuggestion[]>([]);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [fbBaseline, setFbBaseline] = useState<FacebookBaseline | null>(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
   const [topLoading, setTopLoading] = useState(false);
@@ -463,6 +465,23 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
       .catch(() => {});
     return () => ctrl.abort();
   }, [publishToPage]);
+
+  // Facebook's side of the same question. It depends only on the page, not on what
+  // is typed, because there is nothing to compare a caption against — see
+  // facebookBaseline() for why Facebook gets measurements instead of a forecast.
+  useEffect(() => {
+    setFbBaseline(null);
+    if (!publishToPage || !toFacebook) return;
+    const ctrl = new AbortController();
+    fetch("/api/scheduler/fb-baseline", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publishToPage }), signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { baseline?: FacebookBaseline } | null) => { if (d?.baseline) setFbBaseline(d.baseline); })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [publishToPage, toFacebook]);
 
   // Prediction — refetch when brand or caption changes (debounced).
   // CRITICAL: clear old prediction state IMMEDIATELY on every change so stale data
@@ -1535,6 +1554,9 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                   }}
                   onDismiss={() => setSuggestions(null)}
                 />
+
+                {/* Facebook's own numbers, whenever Facebook is one of the targets. */}
+                {toFacebook && fbBaseline && <FacebookBaselinePanel b={fbBaseline} />}
 
                 {/* Existing reach-prediction overlay (as-you-type) */}
                 {caption.trim().length > 0 && (
@@ -2905,6 +2927,46 @@ function AISuggestBar({
   void brand; // brand is used indirectly by parent's onFetch; keep for future signature changes
 }
 
+
+// Facebook's counterpart to the reach prediction.
+//
+// It states what the last posts got rather than forecasting, because Meta serves no
+// reach or impressions for Page posts on any current API version — there is nothing
+// to forecast from. When the totals are zero it says exactly that: a made-up
+// "expected ~0" on every caption would look broken and tell Nandu nothing.
+function FacebookBaselinePanel({ b }: { b: FacebookBaseline }) {
+  if (!b.available) {
+    return (
+      <div className="mt-3 rounded-xl border border-gray-200 bg-[#FAFBFC] p-3 text-xs text-gray-500">
+        <IconBrandFacebook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />
+        {b.reason || "No Facebook data for this brand."}
+      </div>
+    );
+  }
+  const total = b.likes + b.comments + b.shares;
+  return (
+    <div className="mt-3 rounded-xl border border-[#D6E0F5] bg-[#F5F8FF] p-3 space-y-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white text-[#244D82] border border-[#D6E0F5]">Facebook</span>
+        <span className="text-xs uppercase tracking-wide text-[#244D82] font-semibold">Last {b.posts} posts</span>
+        <span className="text-lg font-semibold tabular-nums text-[#244D82]">{total.toLocaleString("en-IN")}</span>
+        <span className="text-xs text-[#244D82]">engagements · {b.likes} likes · {b.comments} comments · {b.shares} shares</span>
+      </div>
+      {total > 0 ? (
+        <div className="text-xs text-[#244D82]/90">
+          That is {b.avgEngagement} per post on average.
+          {b.best && <> Best recent post got {b.best.engagement} — &ldquo;{b.best.message}&rdquo;</>}
+        </div>
+      ) : (
+        <div className="text-xs text-[#8A5B12] bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed">
+          Nothing at all on the last {b.posts} posts — no likes, comments or shares. So there is no
+          Facebook history to predict from yet, and no number here would mean anything.
+          Meta also serves no reach or impressions for Page posts, so that can&rsquo;t fill the gap.
+        </div>
+      )}
+    </div>
+  );
+}
 function PredictionPanel({ loading, prediction, onAddHashtag }: {
   loading: boolean;
   prediction: Prediction | null;
