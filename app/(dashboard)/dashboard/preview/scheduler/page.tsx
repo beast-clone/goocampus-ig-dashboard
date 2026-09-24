@@ -1020,6 +1020,27 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
                                 <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} /></div>
                               </div>
+                              {/* Same Format choice as the modal. This row is how produced work
+                                  actually gets scheduled, so leaving it out here meant a story
+                                  could only be scheduled by starting again from Create post. */}
+                              <div>
+                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Format</label>
+                                <div className="mt-1 inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                                  {ALL_FORMATS.map((f, fi) => {
+                                    const ok = formatChoices.includes(f);
+                                    return (
+                                      <button key={f} type="button" disabled={!ok} onClick={() => chooseFormat(f)}
+                                        title={ok ? undefined : FORMAT_WHY_NOT[f]}
+                                        className={`px-3 py-1.5 text-[12px] ${fi > 0 ? "border-l border-gray-200" : ""} ${
+                                          !ok ? "text-[#C2C6D0] bg-[#FAFBFC] cursor-not-allowed"
+                                            : format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                                        {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="text-xs text-gray-400 mt-1">{formatChoices.length ? FORMAT_NOTE[format] : FORMAT_BLOCKED}</div>
+                              </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
                                 <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
