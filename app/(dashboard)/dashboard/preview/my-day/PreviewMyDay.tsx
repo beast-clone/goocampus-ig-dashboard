@@ -198,7 +198,7 @@ function durBetween(a?: string, b?: string): string {
 const clockOf = (m: number) => { const t = DAY_START_H * 60 + m; const h = Math.floor(t / 60), mm = t % 60; const ap = h >= 12 ? "PM" : "AM"; const h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2, "0")} ${ap}`; };
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
 
-type PlanItem = { key: string; taskId: string; label: string; dur: number; at?: number };
+type PlanItem = { key: string; taskId: string; label: string; dur: number };
 // (Today's plan seeds itself from the person's real in-view tasks — no demo plan.)
 
 // REAL team chat (mh_messages via /api/my-day/chat). WhatsApp-style: a Team
@@ -622,14 +622,25 @@ function ExtendPicker({ onExtend }: { onExtend: (mins: number) => void }) {
 }
 
 // ── My tasks sort ──
-type TaskSort = "date" | "priority" | "status" | "recent";
-const TASK_SORTS: Record<TaskSort, string> = { date: "Publishing date", priority: "Priority", status: "Status", recent: "Recently added" };
+type TaskSort = "plan" | "date" | "priority" | "status" | "recent";
+const TASK_SORTS: Record<TaskSort, string> = { plan: "Today's plan", date: "Publishing date", priority: "Priority", status: "Status", recent: "Recently added" };
 const PRIO_RANK: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 const STATUS_RANK = Object.keys(STATUS) as CCStatus[];
-function taskComparator(by: TaskSort) {
+/**
+ * `planOrder` is only used by the "Today's plan" sort: task id -> its place on the
+ * timeline. Dragging a block reorders the day, and the list has to agree with it —
+ * a list still sorted by publishing date after a drag tells you a different thing
+ * is next (Praveen, 25 Sep).
+ */
+function taskComparator(by: TaskSort, planOrder?: Map<string, number>) {
   const due = (a: Task, b: Task) => (a.due || "9999").localeCompare(b.due || "9999");
   const hot = (t: Task) => (t.detail.priority === "Urgent" || t.detail.priority === "High" ? 0 : 1);
   return (a: Task, b: Task) => {
+    if (by === "plan") {
+      // Anything not on today's timeline sits after everything that is.
+      const ia = planOrder?.get(a.id) ?? Infinity, ib = planOrder?.get(b.id) ?? Infinity;
+      return (ia - ib) || due(a, b);
+    }
     if (by === "priority") return (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]) || due(a, b);
     if (by === "status") return (STATUS_RANK.indexOf(a.status) - STATUS_RANK.indexOf(b.status)) || due(a, b);
     if (by === "recent") return (b.detail.createdAt || "").localeCompare(a.detail.createdAt || "") || due(a, b);
@@ -1533,7 +1544,7 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
 
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
-export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: { initialPerson?: string; isAdmin?: boolean } = {}) {
+export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, viewerId }: { initialPerson?: string; isAdmin?: boolean; viewerId?: string } = {}) {
   // Profile pictures (Account page) → PHOTOS, so every <Avatar> shows them.
   const [, setPhotosVer] = useState(0);
   useEffect(() => {
@@ -1710,18 +1721,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     // so overdue work front-loads into the morning instead of getting stuck late.
     const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
     let restored = false;
-    // Record login server-side for the admin Attendance board (first login of the day
-    // wins — the server ignores later posts, so re-posting a restored time is safe).
-    // ONLY when the person is opening THEIR OWN day — an admin previewing a teammate
-    // (viewerIsAdmin, switcher) must never stamp that teammate as "logged in", or the
-    // Team Command / Attendance boards fill with phantom logins the person never made.
-    const recordLogin = (min: number, at: string) => {
-      if (viewerIsAdmin) return;
-      fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action: "login", min, at }) }).catch(() => {});
-    };
+    // Attendance is NOT written here any more. Signing in is the clock-in, and the
+    // login route records it server-side — which is the only way an admin, or
+    // someone who opens another tab first, is ever marked present (25 Sep: the
+    // board read 0/5 all morning because this write skipped every admin).
+    // What stays local is the plan anchor: which minute today's timeline starts at.
     try {
       const j = JSON.parse(localStorage.getItem(`hmd-day-${person}`) || "null");
-      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; recordLogin(Number(j.min) || 0, j.at || ""); }
+      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; }
     } catch { /* old/plain/corrupt record → treat as stale */ }
     if (!restored) {
       const d = new Date();
@@ -1729,7 +1736,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
       const at = clockOf(min);
       setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
       try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date: todayKey })); } catch { /* private mode */ }
-      recordLogin(min, at);
     }
   }, [person]);
   // Persist reminders as they change (skip the initial empty render).
@@ -1890,7 +1896,40 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     try { const v = window.localStorage.getItem("myday.sort"); if (v && v in TASK_SORTS) setSortBy(v as TaskSort); } catch { /* ignore */ }
   }, []);
   const pickSort = (v: TaskSort) => { setSortBy(v); try { window.localStorage.setItem("myday.sort", v); } catch { /* ignore */ } };
-  const cmpTasks = useMemo(() => taskComparator(sortBy), [sortBy]);
+  // The order this person last dragged today's plan into (spec §11). Without this a
+  // drag lived in React state alone: reload and the day snapped back, which made
+  // reordering pointless.
+  const [savedOrder, setSavedOrder] = useState<string[] | null>(null);
+  const appliedOrder = useRef("");
+  useEffect(() => {
+    setSavedOrder(null); appliedOrder.current = "";
+    if (!person) return;
+    fetch(`/api/my-day/plan-order?person=${encodeURIComponent(person)}`, { cache: "no-store" })
+      .then((r) => r.json()).then((d) => setSavedOrder(Array.isArray(d.order) ? d.order : []))
+      .catch(() => setSavedOrder([]));
+  }, [person]);
+  // Applied once the plan has been seeded from real tasks — and only once, or it
+  // would fight every later drag.
+  useEffect(() => {
+    if (!savedOrder || !savedOrder.length || !plan.length) return;
+    const sig = savedOrder.join(",");
+    if (appliedOrder.current === sig) return;
+    appliedOrder.current = sig;
+    const rank = new Map(savedOrder.map((id, i) => [id, i]));
+    setPlan((arr) => [...arr].sort((a, b) => (rank.get(a.taskId) ?? Infinity) - (rank.get(b.taskId) ?? Infinity)));
+  }, [savedOrder, plan.length]);
+  /** Remember a reorder. Best-effort — a save that fails costs the order, not the day. */
+  const saveOrder = (arr: PlanItem[]) => {
+    appliedOrder.current = arr.map((p) => p.taskId).join(",");
+    fetch("/api/my-day/plan-order", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ person, order: arr.map((p) => p.taskId) }),
+    }).catch(() => {});
+  };
+
+  // Where each task sits on today's timeline, for the "Today's plan" sort.
+  const planOrder = useMemo(() => new Map(plan.map((p, i) => [p.taskId, i])), [plan]);
+  const cmpTasks = useMemo(() => taskComparator(sortBy, planOrder), [sortBy, planOrder]);
   const shownTasks = useMemo(() => {
     return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
   }, [workingTasks, taskTab, cmpTasks]);
@@ -2171,10 +2210,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of fitPlan) {
       let remaining = p.dur;
-      // Pinned start (dragged to a specific time) — jump the cursor forward to it,
-      // leaving the earlier slot free. Can only push LATER than the natural flow,
-      // never earlier (no overlap, no scheduling in the past).
-      if (p.at != null) cursor = Math.max(cursor, Math.min(p.at, DAY_MINS));
       // If we're sitting inside the lunch window, jump past the (fixed) 1 PM lunch.
       if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { pushLunch(); cursor = LUNCH_END; }
       // Part that fits before lunch.
@@ -2223,7 +2258,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     const planned = t.detail.duration || estMins(t.detail.typeLine);
     return { planned, elapsed: Math.max(0, elapsed) };
   };
-  const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; });
+  const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; saveOrder(c); return c; });
   // Where a dragged block's LEFT EDGE would land, given the cursor. We subtract the
   // grab offset (where inside the block you picked it up) so the block tracks the
   // cursor naturally instead of teleporting its edge under the pointer. Snapped to
@@ -2235,14 +2270,45 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
     const mins = ((leftPx - r.left) / r.width) * DAY_MINS;
     return Math.max(0, Math.min(DAY_MINS, Math.round(mins / 15) * 15));
   };
-  // Drag a task block onto the track to PIN its start time. Dropping it at/before
-  // "now" clears the pin (the task flows normally again).
-  const pinPlanAt = (mins: number | null) => {
+  // Drag a task block onto the track to change WHERE IT COMES in the day's order.
+  //
+  // It used to pin a start time instead, which broke in three ways at once
+  // (measured 25 Sep): a drop at or before "now" was thrown away, so the last task
+  // could never be dragged to the front; the layout only ever pushed a pinned block
+  // LATER, so it could not be moved earlier either; and a block pinned late shoved
+  // everything after it past the end of the day — blocks rendered at 105% and two
+  // disappeared off the track.
+  //
+  // Ordering has none of those problems. The same work is laid out in a different
+  // sequence, so the day is exactly as long as it was, and "earlier" is just a
+  // smaller index. Spec §11 asks for this, and the ◀▸ buttons already do it.
+  const dropPlanAt = (mins: number | null) => {
     const key = dragKey.current; dragKey.current = null;
     setDropAt(null);
     if (!key || mins == null) return;
-    const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
-    setPlan((arr) => arr.map((p) => (p.key === key ? { ...p, at: mins <= now ? undefined : mins } : p)));
+    setPlan((arr) => {
+      const from = arr.findIndex((p) => p.key === key);
+      if (from < 0) return arr;
+      // Where the drop lands, counted in tasks: every task whose middle sits before
+      // the cursor stays ahead of it. Midpoints, not edges, so dropping onto the
+      // left half of a block puts you before it and the right half after it.
+      const rest = arr.filter((_, i) => i !== from);
+      let cursor = planStart, to = rest.length;
+      for (let i = 0; i < rest.length; i++) {
+        const mid = cursor + rest[i].dur / 2;
+        if (mins < mid) { to = i; break; }
+        cursor += rest[i].dur;
+      }
+      if (to === from) return arr;
+      const next = [...rest];
+      next.splice(to, 0, arr[from]);
+      saveOrder(next);
+      return next;
+    });
+    // The list beside the timeline has to agree with what was just dragged, so a
+    // drag switches it to plan order. Any other sort is a deliberate choice and is
+    // only overridden here, by a deliberate drag.
+    pickSort("plan");
   };
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
   const setDuration = (id: string, mins: number) => {
@@ -2456,7 +2522,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
   // Record this person's login / logout server-side so the admin Attendance board
   // can show them. Best-effort — never blocks the UI.
   const postAttendance = (action: "login" | "logout", min: number, at: string, rolled?: { title: string; reason: string }[]) => {
-    if (viewerIsAdmin) return; // an admin previewing a teammate must not write their attendance
+    // An admin PREVIEWING a teammate must not write that teammate's attendance.
+    // An admin looking at their OWN day is just a person ending their day, and
+    // used to be blocked here too — which is half of why the board read 0/5.
+    if (viewerIsAdmin && person !== viewerId) return;
     fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action, min, at, rolled }) }).catch(() => {});
   };
   const logBackIn = () => {
@@ -2873,7 +2942,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false }: 
               ref={trackRef}
               onDragOver={(e) => { e.preventDefault(); if (dragKey.current) setDropAt(edgeMinFromCursor(e.clientX)); }}
               onDragLeave={(e) => { if (e.currentTarget === e.target) setDropAt(null); }}
-              onDrop={(e) => { e.preventDefault(); pinPlanAt(edgeMinFromCursor(e.clientX)); }}
+              onDrop={(e) => { e.preventDefault(); dropPlanAt(edgeMinFromCursor(e.clientX)); }}
             >
               {/* Live drop guide — where the block's start edge will land while dragging. */}
               {dropAt !== null && (

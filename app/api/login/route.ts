@@ -3,6 +3,7 @@ import { setSession } from "@/lib/auth";
 import { rosterByEmail, rosterById } from "@/lib/team-db";
 import { verifyPassword } from "@/lib/passwords";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { recordLogin } from "@/lib/attendance";
 
 const LOGIN_MAX = 5;             // 5 attempts
 const LOGIN_WINDOW_MS = 15 * 60 * 1000; // per 15 minutes per IP
@@ -55,6 +56,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false }, { status: 401 });
     }
     setSession(person.id, person.isAdmin);
+    // Signing in IS the clock-in (spec §10). Doing it here rather than in My Day
+    // means it happens for admins too, whatever page they open first, on the
+    // server's IST clock instead of the laptop's. First sign-in of the day wins.
+    await recordLogin(person.id);
     return NextResponse.json({ ok: true, user: person.id });
   }
 

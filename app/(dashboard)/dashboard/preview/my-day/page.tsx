@@ -22,5 +22,5 @@ export default function PreviewMyDayPage({ searchParams }: { searchParams?: { pe
   // "View their day"). Producers can never override who they are.
   const wanted = admin && typeof searchParams?.person === "string" ? searchParams.person.toLowerCase().trim() : undefined;
   const initialPerson = wanted || (user && !admin ? user.id : undefined);
-  return <PreviewMyDay initialPerson={initialPerson} isAdmin={admin} />;
+  return <PreviewMyDay initialPerson={initialPerson} isAdmin={admin} viewerId={uid || undefined} />;
 }
