@@ -1,7 +1,7 @@
 "use client";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
@@ -9,6 +9,8 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
+import { showToast } from "../Toast";
+import { NotifIcon } from "../NotifIcon";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -1194,7 +1196,7 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   return (
     <div className="modal" onClick={onClose}>
       <div className="modal-card nt-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
         <div className="lbl" style={{ marginBottom: ".5rem" }}>New task · created by Manya</div>
         <div className="d-title" style={{ marginBottom: "1.1rem" }}>Create a content task</div>
         <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
@@ -1240,7 +1242,7 @@ function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs
       <div className="nstack-head"><span>{notifs.length} notification{notifs.length > 1 ? "s" : ""}</span><button className="nstack-clear" onClick={onClearAll}>Clear all</button></div>
       {notifs.map((n) => (
         <div key={n.id} className={`pnotif ${n.kind}`}>
-          <div className={`pn-ic ${n.kind}`}>{n.emoji}</div>
+          <div className={`pn-ic ${n.kind}`}><NotifIcon emoji={n.emoji} actionNeeded={n.kind === "urgent"} size={15} /></div>
           <div className="pn-body">
             {n.kind === "urgent" && <div className="pn-eyebrow">Urgent · must publish today</div>}
             <div className="pn-title">{n.title}</div>
@@ -1252,7 +1254,7 @@ function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs
               </div>
             )}
           </div>
-          <button className="pn-x" onClick={() => onDismiss(n.id)} title="Dismiss">✕</button>
+          <button className="pn-x" onClick={() => onDismiss(n.id)} title="Dismiss"><IconX size={13} stroke={2} /></button>
         </div>
       ))}
     </div>
@@ -1270,7 +1272,7 @@ function AcceptWorkModal({ task, committed, onAcceptWork, onAskManya, onClose }:
   return (
     <div className="modal" onClick={onClose}>
       <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
         <div className="aw-h">Accept this task?</div>
         <div className="aw-task"><div className="tt">{task.title}</div><div className="tm">{task.detail.typeLine} · adds ~{fmtMins(add)} to your day</div></div>
         <div className={`impact ${fits ? "ok" : ""}`}>
@@ -1297,7 +1299,7 @@ function AskManyaModal({ onSend, onClose }: { onSend: () => void; onClose: () =>
   return (
     <div className="modal" onClick={onClose}>
       <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
         <div className="aw-h">Ask Manya to free up room</div>
         <p className="aw-p">These of yours can slip to tomorrow — Manya picks one to move so the urgent reel fits. Must-go-today tasks stay put.</p>
         <div className="tchips">
@@ -1511,7 +1513,7 @@ function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: 
   return (
     <div className="modal" onClick={onClose}>
       <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} title="Close">✕</button>
+        <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
         <div className="aw-h">Wrap up your day</div>
         <p className="aw-p">Confirm what you finished. Anything unchecked rolls to tomorrow — say why so it&apos;s tracked.</p>
         {tasks.length === 0 && <div className="empty" style={{ padding: "1rem 0" }}>No tasks on your plate today.</div>}
@@ -1616,7 +1618,22 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [todayStr, setTodayStr] = useState("");                       // YYYY-MM-DD for due-date sorting
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPinned, setChatPinned] = useState(false);
-  const [toast, setToast] = useState<null | { who: string; color: string; av: React.ReactNode; body: string; convo?: string }>(null);
+  const openChatRef = useRef<(() => void) | null>(null);
+  const openConvoRef = useRef<((id: string) => void) | null>(null);
+  // Toasts render from the one dashboard-wide host (top centre) rather than a copy
+  // pinned to the bottom-right of this tab, where it sat under the Comment button.
+  // Kept as `setToast` so every call site reads the same as before.
+  const setToast = useCallback((t: null | { who: string; color?: string; av?: React.ReactNode; body?: string; convo?: string }) => {
+    if (!t) { showToast(null); return; }
+    showToast({
+      who: t.who,
+      body: typeof t.body === "string" ? t.body : undefined,
+      color: t.color,
+      av: typeof t.av === "string" ? t.av : undefined,
+      convo: t.convo,
+      onOpen: t.convo ? () => { openChatRef.current?.(); openConvoRef.current?.(t.convo!); } : undefined,
+    });
+  }, []);
   // ── Undo / redo (My Day, session-scoped multi-step stack) ──────────────
   // Each entry stores the field-map to REVERSE the change (undo) and to RE-APPLY
   // it (redo). Everything goes back through the same update API. Cleared on reload.
@@ -1764,12 +1781,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     }
     lastMsgId.current = last.id;
   }, [chatMsgs, person]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 4400);
-    return () => clearTimeout(id);
-  }, [toast]);
 
   // Ignored claim pool → demote to the bell after 15s.
   useEffect(() => {
@@ -2088,8 +2099,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setClaimedTasks((a) => a.map((t) => (t.id === id ? next : t)));
 
     if (next.detail.owner !== cur.detail.owner) setToast({ who: `Approved → ${next.detail.owner}`, color: "#3A57E8", av: (next.detail.owner[0] || "?").toUpperCase(), body: `${cur.detail.typeLine} handed off to ${next.detail.owner} (design).` });
-    else if (status === "Output - Ready" || status === "Output - In Progress") setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "Moved to the Output tab." });
-    else if (!STATUS[status].inView) setToast({ who: `${STATUS[status].label} ✓`, color: "#3A57E8", av: me.av, body: "It's left your working view." });
+    else if (status === "Output - Ready" || status === "Output - In Progress") setToast({ who: `${STATUS[status].label}`, color: "#3A57E8", av: me.av, body: "Moved to the Output tab." });
+    else if (!STATUS[status].inView) setToast({ who: `${STATUS[status].label}`, color: "#3A57E8", av: me.av, body: "It's left your working view." });
   };
 
   // Seed/sync Today's plan from REAL tasks: the person's own in-production tasks
@@ -2412,7 +2423,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       order: { undo: before.map((p) => p.taskId), redo: next.map((p) => p.taskId) },
     });
     pickSort("plan");
-    setToast({ who: "Rearranged ✓", color: "#3A57E8", av: me.av, body: "Overdue first, then high priority, then by date." });
+    setToast({ who: "Rearranged", color: "#3A57E8", av: me.av, body: "Overdue first, then high priority, then by date." });
   };
 
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
@@ -2426,7 +2437,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       const t = [...claimedTasks, ...tasks].find((x) => x.id === id);
       return t ? [...p, { key: `pk${id}`, taskId: id, label: t.title, dur: mins }] : p;
     });
-    setToast({ who: "Duration set ✓", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan.` });
+    setToast({ who: "Duration set", color: "#3A57E8", av: me.av, body: `${fmtDur(mins)} — slotted into Today's plan.` });
     // Persist so it survives reload (drives the timer's planned time + plan blocks).
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields: { duration_min: mins } }) })
       .then(async (res) => {
@@ -2473,14 +2484,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const e = undoStack[undoStack.length - 1];
     const ok = applyHistory(e, "undo");
     setUndoStack((s) => s.slice(0, -1));
-    if (ok) { setRedoStack((r) => [...r, e]); setToast({ who: "Undone ↩", color: "#3A57E8", av: me.av, body: e.label }); }
+    if (ok) { setRedoStack((r) => [...r, e]); setToast({ who: "Undone", color: "#3A57E8", av: me.av, body: e.label }); }
   };
   const redo = () => {
     if (!redoStack.length) return;
     const e = redoStack[redoStack.length - 1];
     const ok = applyHistory(e, "redo");
     setRedoStack((s) => s.slice(0, -1));
-    if (ok) { setUndoStack((u) => [...u, e]); setToast({ who: "Redone ↪", color: "#3A57E8", av: me.av, body: e.label }); }
+    if (ok) { setUndoStack((u) => [...u, e]); setToast({ who: "Redone", color: "#3A57E8", av: me.av, body: e.label }); }
   };
   // ⌘Z / ⌘⇧Z (and Ctrl on Windows). Let native undo win inside text fields.
   useEffect(() => {
@@ -2567,7 +2578,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           for (const f of assets.outFiles) await upload(f, "creative");
         }
         const extras = assets ? [assets.refFiles.length + assets.refLinks.length ? "references" : "", assets.outFiles.length + (assets.outLink ? 1 : 0) ? "output" : ""].filter(Boolean).join(" + ") : "";
-        setToast({ who: "Created ✓", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending)${extras ? ` · ${extras} attached` : ""}.` });
+        setToast({ who: "Created", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending)${extras ? ` · ${extras} attached` : ""}.` });
         load();
       })
       .catch((e) => setToast({ who: "Create failed", color: "#C03221", av: "!", body: String(e) }));
@@ -2586,7 +2597,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: person }) })
         .then(async (res) => {
           if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-          else setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: "It's yours now — added to My tasks + Today's plan." });
+          else setToast({ who: "Accepted", color: "#3A57E8", av: me.av, body: "It's yours now — added to My tasks + Today's plan." });
           load();
         })
         .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
@@ -2605,7 +2616,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     })
       .then(async (res) => {
         if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Accept failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-        else setToast({ who: "Accepted ✓", color: "#3A57E8", av: me.av, body: `“${t.title}” is yours now — added to your plan.` });
+        else setToast({ who: "Accepted", color: "#3A57E8", av: me.av, body: `“${t.title}” is yours now — added to your plan.` });
         load(); // server truth → it appears in My tasks + Today's plan via the sync
       })
       .catch((e) => { setToast({ who: "Accept failed", color: "#C03221", av: "!", body: String(e) }); load(); });
@@ -2625,7 +2636,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     fetch("/api/my-day/swap-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pendingId: t.id, from: person, candidates }) })
       .then(async (res) => {
         if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Send failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-        else setToast({ who: "Sent to Manya ✓", color: "#3A57E8", av: me.av, body: `Your ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} were offered — she'll pick which one moves.` });
+        else setToast({ who: "Sent to Manya", color: "#3A57E8", av: me.av, body: `Your ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} were offered — she'll pick which one moves.` });
       })
       .catch((e) => setToast({ who: "Send failed", color: "#C03221", av: "!", body: String(e) }));
   };
@@ -2667,7 +2678,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     postAttendance("logout", min, clockOf(min), rolled.map((t) => ({ title: t.title, reason: t.reason })));
     setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
-    setToast({ who: "Day wrapped ✓", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
+    setToast({ who: "Day wrapped", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
     setLoggedOut(true);
   };
   // Editor sends the reschedule ask → the request goes to Manya (pipeline: waiting).
@@ -2681,7 +2692,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const manyaConfirmMove = () => {
     setPlan((p) => (p.length > 1 ? p.slice(0, -1) : p)); // free ~1h 30m on the editor's day
     setPipeline("freed");
-    setToast({ who: "Room freed ✓", color: "#1AA053", av: me.av, body: "Slid a low-priority reel to tomorrow — Nandu can take the urgent one now." });
+    setToast({ who: "Room freed", color: "#1AA053", av: me.av, body: "Slid a low-priority reel to tomorrow — Nandu can take the urgent one now." });
   };
   // Real notifications, polled from the activity log — claims, handoffs, send-backs
   // and pushes-to-schedule relevant to the person being viewed. Refetched on person
@@ -2722,7 +2733,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const claimed: Task = { ...v, status: "Content - Approved", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: me.name } };
     setClaimedTasks((c) => [claimed, ...c]);
     setSel(0); // open the freshly claimed task in "Up next"
-    setToast({ who: "Claimed ✓", color: me.color, av: me.av, body: `You claimed “${v.title}” — it's yours now, added to My tasks.` });
+    setToast({ who: "Claimed", color: me.color, av: me.av, body: `You claimed “${v.title}” — it's yours now, added to My tasks.` });
     // Persist the ownership takeover, then reconcile with server truth. On failure,
     // roll back the optimistic claim (restore it to the pool) and surface the error —
     // never leave the editor believing they own a video the server never took over.
@@ -2796,6 +2807,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
 
   const totalUnread = Object.values(convos).reduce((s, c) => s + c.unread, 0);
   const openChat = () => { setChatOpen(true); closedManually.current = false; };
+  openChatRef.current = openChat;
   const closeChat = () => { if (chatPinned) return; setChatOpen(false); closedManually.current = true; };
   const markRead = (cid: string) => setChatRead((r) => {
     const nr = { ...r, [cid]: new Date().toISOString() };
@@ -2803,6 +2815,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     return nr;
   });
   const openConvo = (id: string) => { setActiveChat(id); markRead(id); };
+  openConvoRef.current = openConvo;
   const addReminder = () => { const t = newRem.trim(); if (!t) return; setReminders((r) => [{ text: t, done: false }, ...r]); setNewRem(""); };
   // Dismiss a smart reminder from the strip: hide it here, but keep it in the 📋
   // reminders popover (as a record) so it isn't lost — persisted per person.
@@ -3297,7 +3310,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 )}
                 <div className="chat-head-acts">
                   <button className={`pinbtn ${chatPinned ? "on" : ""}`} onClick={() => setChatPinned((p) => !p)} title={chatPinned ? "Unpin" : "Pin open"}>{chatPinned ? <><IconPin size={13} stroke={1.8} /> Pinned</> : "Pin"}</button>
-                  <button className="closebtn" onClick={() => { setChatPinned(false); setChatOpen(false); closedManually.current = true; }} title="Close">✕</button>
+                  <button className="closebtn" onClick={() => { setChatPinned(false); setChatOpen(false); closedManually.current = true; }} title="Close"><IconX size={14} stroke={2} /></button>
                 </div>
               </div>
 
@@ -3358,7 +3371,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {planModalTask && (
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close"><IconX size={14} stroke={2} /></button>
             <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m) => setDuration(planModalTask.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
@@ -3378,7 +3391,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cur.id, actor: person, fields: { due_date: next } }) })
                       .then(async (res) => {
                         if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Move failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-                        else setToast({ who: "Moved ✓", color: "#3A57E8", av: me.av, body: `“${cur.title}” rolled a week — now due ${next}.` });
+                        else setToast({ who: "Moved", color: "#3A57E8", av: me.av, body: `“${cur.title}” rolled a week — now due ${next}.` });
                         load();
                       })
                       .catch((e) => { setToast({ who: "Move failed", color: "#C03221", av: "!", body: String(e) }); load(); });
@@ -3411,7 +3424,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {showClaimPool && (
         <div className="modal" onClick={() => setShowClaimPool(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowClaimPool(false)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setShowClaimPool(false)} title="Close"><IconX size={14} stroke={2} /></button>
             <div className="lbl" style={{ marginBottom: ".4rem" }}>Claim pool · video work up for grabs</div>
             <div className="d-title" style={{ marginBottom: "1rem" }}>Pick up a video</div>
             {claimPool.length ? (
@@ -3436,7 +3449,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {pipeOpen && person === "manya" && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close"><IconX size={14} stroke={2} /></button>
             <div className="lbl" style={{ marginBottom: ".4rem" }}>Requests · from the team</div>
             <div className="d-title" style={{ marginBottom: "1rem" }}>Changes asked of you</div>
             {notifs.length ? (
@@ -3445,7 +3458,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   <div key={n.id} className="claim-card" style={n.swap ? { flexDirection: "column", alignItems: "stretch" } : undefined}>
                     <div style={{ minWidth: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: ".6rem" }}>
                       <div style={{ minWidth: 0 }}>
-                        <div className="claim-title">{n.emoji} {n.title}</div>
+                        <div className="claim-title" style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
+                          <NotifIcon emoji={n.emoji} size={14} />{n.title}
+                        </div>
                         <div className="claim-meta">{n.sub}</div>
                       </div>
                       <button className="btn sm" onClick={() => dismissNotif(n.id)}>Dismiss</button>
@@ -3469,7 +3484,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                                 .then(() => fetch("/api/marketing-hub/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: n.postId, newOwnerKey: n.swap!.from }) }))
                                 .then(async (res) => {
                                   if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Swap failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-                                  else setToast({ who: "Swapped ✓", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${label} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
+                                  else setToast({ who: "Swapped", color: "#1AA053", av: me.av, body: `“${c.title}” moved to ${label} — the queued task is now on ${PPL[n.swap!.from]?.name || n.swap!.from}'s plan.` });
                                   load();
                                 })
                                 .catch((e) => { setToast({ who: "Swap failed", color: "#C03221", av: "!", body: String(e) }); load(); });
@@ -3491,7 +3506,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {approvalsOpen && viewerIsAdmin && (
         <div className="modal" onClick={() => setApprovalsOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setApprovalsOpen(false)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setApprovalsOpen(false)} title="Close"><IconX size={14} stroke={2} /></button>
             <div className="lbl" style={{ marginBottom: ".4rem" }}>Approvals · publish-date changes</div>
             <div className="d-title" style={{ marginBottom: "1rem" }}>Waiting for your approval</div>
             {approvals.length ? (
@@ -3525,7 +3540,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {pipeOpen && person !== "manya" && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close"><IconX size={14} stroke={2} /></button>
             <div className="lbl" style={{ marginBottom: ".4rem" }}>Pipeline · queued for you</div>
             <div className="d-title" style={{ marginBottom: "1rem" }}>Waiting for your accept</div>
             {pipelineTasks.length ? (
@@ -3557,7 +3572,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cid, actor: person, fields: { due_date: next } }) })
             .then(async (res) => {
               if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Move failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-              else setToast({ who: "Moved ✓", color: "#1AA053", av: me.av, body: `Rescheduled to ${next} — ${tName}'s day just freed up.` });
+              else setToast({ who: "Moved", color: "#1AA053", av: me.av, body: `Rescheduled to ${next} — ${tName}'s day just freed up.` });
               load(); // popup stays open; the timeline + numbers refresh from server truth
             })
             .catch((e) => { setToast({ who: "Move failed", color: "#C03221", av: "!", body: String(e) }); load(); });
@@ -3570,7 +3585,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         return (
           <div className="modal" onClick={() => setApproveGate(null)}>
             <div className="modal-card" style={{ maxWidth: 900, width: "94vw" }} onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setApproveGate(null)} title="Close">✕</button>
+              <button className="modal-close" onClick={() => setApproveGate(null)} title="Close"><IconX size={14} stroke={2} /></button>
               <div className="lbl" style={{ marginBottom: ".4rem" }}>Approve &amp; hand over</div>
               <div className="d-title" style={{ marginBottom: ".8rem" }}>“{pending?.title || "Task"}” → {tName}</div>
 
@@ -3636,7 +3651,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {assignWarn && (
         <div className="modal" onClick={() => setAssignWarn(null)}>
           <div className="modal-card" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setAssignWarn(null)} title="Close">✕</button>
+            <button className="modal-close" onClick={() => setAssignWarn(null)} title="Close"><IconX size={14} stroke={2} /></button>
             <div className="lbl" style={{ marginBottom: ".4rem" }}>Capacity check</div>
             <div className="d-title" style={{ marginBottom: ".7rem" }}>{assignWarn.name}&rsquo;s day is already full</div>
             <div className="nt-assign" style={{ marginBottom: "1.1rem" }}>
@@ -3658,14 +3673,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {/* END TODAY — wrap-up checklist */}
       {showEod && <EndTodayModal tasks={workingTasks.map((t) => ({ id: t.id, title: t.title }))} onEnd={endToday} onClose={() => setShowEod(false)} />}
 
-      {/* TOAST — new message nudge */}
-      {toast && (
-        <div className="toast" onClick={() => { if (toast.convo) { openChat(); openConvo(toast.convo); } setToast(null); }}>
-          <span className="av" style={{ background: toast.color }}>{toast.av}</span>
-          <div><div className="who2">{toast.who}</div><div className="body">{toast.body}</div></div>
-          <span className="toast-cta">Open</span>
-        </div>
-      )}
 
     </div>
   );
@@ -4028,10 +4035,10 @@ const CSS = `
 .hmd .chatpanel.open{transform:translateX(0)}
 .hmd .chat-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem .75rem;border-bottom:1px solid var(--line)}
 .hmd .chat-head h3{margin:0;font-size:16px;display:flex;align-items:center;gap:.5rem}
-.hmd .chat-head-acts{display:flex;align-items:center;gap:.4rem}
-.hmd .pinbtn{font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:.3em .55em;cursor:pointer}
+.hmd .chat-head-acts{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+.hmd .pinbtn{font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:.3em .55em;cursor:pointer;display:inline-flex;align-items:center;gap:.3em;white-space:nowrap;flex-shrink:0}
 .hmd .pinbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
-.hmd .closebtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;font-size:14px}
+.hmd .closebtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;display:inline-grid;place-items:center;flex-shrink:0}
 .hmd .closebtn:hover{color:var(--ink);border-color:var(--cD9DEEA)}
 .hmd .online{font-size:12px;color:var(--good);font-weight:600}
 .hmd .chat-scroll{flex:1;min-height:0;overflow:auto;padding:.3rem 1.1rem}

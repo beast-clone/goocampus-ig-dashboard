@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { LoadingBlock } from "@/components/LoadingBlock";
+import { showToast } from "../Toast";
 
 type SysAction = { type: "reconnect" | "add-key" | "clear-cache"; label: string; provider?: string };
 type SystemResult = { key: string; name: string; category: string; status: "ok" | "warn" | "error"; detail: string; expiresAt: number | null; latencyMs: number | null; repair?: { action: string; result: string; note: string }; action?: SysAction };
@@ -44,7 +45,8 @@ function DiagnosticsBody() {
   const [history, setHistory] = useState<HistRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [reconnect, setReconnect] = useState<{ provider: string; name: string } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  // Shared toast host, top centre (see preview/Toast.tsx).
+  const setToast = useCallback((m: string | null) => showToast(m ? { who: m, color: "#3A57E8", av: "✓" } : null), []);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3500); };
 
@@ -196,7 +198,6 @@ function DiagnosticsBody() {
       )}
 
       {reconnect && <ReconnectModal info={reconnect} onClose={() => setReconnect(null)} onDone={(m) => { flash(m); run(); }} />}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#232D42] text-white text-xs px-4 py-2.5 rounded-lg">{toast}</div>}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
+import { showToast } from "../Toast";
 
 export type Row = {
   id: string;
@@ -279,7 +280,9 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
   const [ask, setAsk] = useState<null | { id: string; title: string; from: string | null; to: string | null; resolve: (reason: string | null) => void }>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  // One dashboard-wide toast, top centre (see preview/Toast.tsx) — this tab used to
+  // draw its own at the bottom of the screen.
+  const setToast = useCallback((t: string | null) => showToast(t ? { who: t, color: "#3A57E8", av: "✓" } : null), []);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin })).catch(() => setViewer({ ready: true, isAdmin: false }));
@@ -336,13 +339,6 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
               <button onClick={submit} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-60">Send for approval</button>
             </div>
           </div>
-        </div>
-      )}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[96] flex items-start gap-3 bg-white border border-[#E9ECFB] border-l-[3px] border-l-brand rounded-xl shadow-lg px-4 py-3 max-w-md">
-          <IconCheck size={16} className="text-brand mt-0.5 flex-shrink-0" />
-          <span className="text-[13px] text-[#232D42]">{toast}</span>
-          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-700 text-lg leading-none ml-1">×</button>
         </div>
       )}
     </PublishApprovalContext.Provider>

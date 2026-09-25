@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { DialogHost } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { ToastHost } from "@/app/(dashboard)/dashboard/preview/Toast";
 import { ThemeSync } from "@/components/Theme";
 
 // Every route in this group is auth-gated and renders live data — it is never
@@ -10,5 +11,6 @@ export const dynamic = "force-dynamic";
 
 export default function DashboardGroupLayout({ children }: { children: ReactNode }) {
   // DialogHost: the dashboard's own confirm/alert/prompt popups (see ConfirmDialog.tsx).
-  return <>{children}<DialogHost /><ThemeSync /></>;
+  // ToastHost: the one toast, top centre, for every tab (see Toast.tsx).
+  return <>{children}<DialogHost /><ToastHost /><ThemeSync /></>;
 }
