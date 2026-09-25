@@ -68,7 +68,34 @@ says what was verified.
 | Maheen | Schedule story as well | Create post shows Format — Post / Reel / Story — with no file attached |
 | Maheen | Make a separate notification tab | Notifications is its own tab with an unread count |
 
-**35 comments total: 25 resolved, 10 still open.**
+**35 comments total: 34 resolved, 1 still open** (updated after working the queue on 25 Sep).
+
+### Worked on 25 Sep
+
+Six turned out to be **built already** — each was checked on the running app rather
+than taken from the changelog: the status picker on the Calendar (the pill opens it;
+an earlier check missed it because the pill read "Published/Scheduled"), removing a
+collaborator, the claim reassigning owner and collaborators, and Posting cadence
+counting carousels, statics and reels separately.
+
+Two were **closed by Praveen's decision**: the months buttons (declined), and Samvaya
+YouTube (excluded on purpose — it serves demo data for unknown channels).
+
+Two needed real work:
+
+- **Manya's reminders.** Producers got the end-of-day nudge in the 22 Sep revision,
+  but her own branch was left on "pending 3 days — why still open?" — so the person
+  who raised it was the only one who never saw the fix. One rule for everyone now:
+  a task due today, nudged in the last three hours of the shift.
+- **Nandu as default collaborator on 12thPlus.** The rule existed and fired on new
+  tasks and on claims, but had never touched the tasks imported from Airtable before
+  it — every existing 12thPlus task had no collaborator at all. Backfilled 14 of the
+  16 still in the pipeline; 2 skipped because Nandu owns them, 9 published ones left
+  alone. Verified afterwards: 24 collaborator rows, no duplicates.
+
+**Still open:** *"task claimed but not updated for nikhil and nandu"* — not
+reproducible from today's data (Nikhil has no open tasks, so "0m committed" is
+correct for him). Testing it properly means claiming a real task as Nikhil.
 
 ### Still open, and why
 
