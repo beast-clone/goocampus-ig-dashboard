@@ -1,13 +1,14 @@
 "use client";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "../Overlay";
+import { confirmDialog, promptDialog } from "../ConfirmDialog";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -2305,39 +2306,115 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Ordering has none of those problems. The same work is laid out in a different
   // sequence, so the day is exactly as long as it was, and "earlier" is just a
   // smaller index. Spec §11 asks for this, and the ◀▸ buttons already do it.
-  const dropPlanAt = (mins: number | null) => {
+  /** Overdue, or Urgent/High — the work that shouldn't quietly slide down the day. */
+  const isProtected = (taskId?: string) => {
+    const t = [...tasks, ...claimedTasks, ...samvaya].find((x) => x.id === taskId);
+    if (!t) return false;
+    return (!!todayStr && !!t.due && t.due < todayStr) || isHot(t.detail.priority);
+  };
+
+  const dropPlanAt = async (mins: number | null) => {
     const key = dragKey.current; dragKey.current = null;
     setDropAt(null);
     if (!key || mins == null) return;
-    setPlan((arr) => {
-      const from = arr.findIndex((p) => p.key === key);
-      if (from < 0) return arr;
-      // Where the drop lands, counted in tasks: every task whose middle sits before
-      // the cursor stays ahead of it. Midpoints, not edges, so dropping onto the
-      // left half of a block puts you before it and the right half after it.
-      const rest = arr.filter((_, i) => i !== from);
-      let cursor = planStart, to = rest.length;
-      for (let i = 0; i < rest.length; i++) {
-        const mid = cursor + rest[i].dur / 2;
-        if (mins < mid) { to = i; break; }
-        cursor += rest[i].dur;
-      }
-      if (to === from) return arr;
-      const next = [...rest];
-      next.splice(to, 0, arr[from]);
-      saveOrder(next);
-      recordHistory({
-        id: "", label: `Moved “${arr[from].label}” to ${to === 0 ? "the start of the day" : `position ${to + 1}`}`,
-        undo: {}, redo: {},
-        order: { undo: arr.map((p) => p.taskId), redo: next.map((p) => p.taskId) },
+
+    const arr = plan;
+    const from = arr.findIndex((p) => p.key === key);
+    if (from < 0) return;
+    // Where the drop lands, counted in tasks: every task whose middle sits before
+    // the cursor stays ahead of it. Midpoints, not edges, so dropping onto the left
+    // half of a block puts you before it and the right half after it.
+    const rest = arr.filter((_, i) => i !== from);
+    let cursor = planStart, to = rest.length;
+    for (let i = 0; i < rest.length; i++) {
+      const mid = cursor + rest[i].dur / 2;
+      if (mins < mid) { to = i; break; }
+      cursor += rest[i].dur;
+    }
+    if (to === from) return;
+    const next = [...rest];
+    next.splice(to, 0, arr[from]);
+
+    // Anything overdue or high-priority that ends up LATER than it was — whether it
+    // was the block you dragged or one you jumped over — needs a reason. Late work
+    // is not blocked from moving; it is just never moved silently.
+    const wasAt = new Map(arr.map((p, i) => [p.key, i]));
+    const pushedBack = next
+      .map((p, i) => ({ p, i }))
+      .filter(({ p, i }) => i > (wasAt.get(p.key) ?? i) && isProtected(p.taskId))
+      .map(({ p }) => p);
+    if (pushedBack.length) {
+      const names = pushedBack.map((p) => `“${p.label}”`).join(", ");
+      const reason = await promptDialog({
+        title: pushedBack.length === 1 ? "This one is meant to go out first" : "These are meant to go out first",
+        body: (
+          <>
+            {names} {pushedBack.length === 1 ? "is" : "are"} overdue or high priority, and this move pushes
+            {pushedBack.length === 1 ? " it" : " them"} later in the day.
+            <div className="mt-2">Say why, and it goes on the task&apos;s activity so nobody has to guess later.</div>
+          </>
+        ),
+        placeholder: "e.g. waiting on the client's logo",
+        action: "Move it anyway",
       });
-      return next;
+      if (!reason || !reason.trim()) return;   // no reason → the day is left alone
+      for (const p of pushedBack) {
+        fetch("/api/my-day/plan-note", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ taskId: p.taskId, actor: person, reason: reason.trim(), from: wasAt.get(p.key), to: next.findIndex((x) => x.key === p.key) }),
+        }).catch(() => {});
+      }
+      setToast({ who: "Moved, and noted", color: "#D97706", av: me.av, body: reason.trim() });
+    }
+
+    setPlan(next);
+    saveOrder(next);
+    recordHistory({
+      id: "", label: `Moved “${arr[from].label}” to ${to === 0 ? "the start of the day" : `position ${to + 1}`}`,
+      undo: {}, redo: {},
+      order: { undo: arr.map((p) => p.taskId), redo: next.map((p) => p.taskId) },
     });
     // The list beside the timeline has to agree with what was just dragged, so a
     // drag switches it to plan order. Any other sort is a deliberate choice and is
     // only overridden here, by a deliberate drag.
     pickSort("plan");
   };
+
+  /**
+   * Put the day back in its natural order: overdue first, then Urgent/High, then by
+   * publishing date. Clears the saved manual order — otherwise it would come back
+   * on the next load and the button would look broken.
+   */
+  const rearrangePlan = async () => {
+    const ok = await confirmDialog({
+      title: "Rearrange today's plan?",
+      body: <>It goes back to overdue first, then high priority, then by publishing date. Anything you dragged today is forgotten.</>,
+      action: "Rearrange",
+    });
+    if (!ok) return;
+    const meta = (id?: string) => [...tasks, ...claimedTasks, ...samvaya].find((t) => t.id === id);
+    const rank = (p: PlanItem) => {
+      const t = meta(p.taskId);
+      const late = todayStr && t?.due && t.due < todayStr ? 0 : 1;
+      const hot = t && isHot(t.detail.priority) ? 0 : 1;
+      return [late, hot, t?.due || "9999"] as [number, number, string];
+    };
+    const before = plan;
+    const next = [...plan].sort((a, b) => {
+      const [la, ha, da] = rank(a), [lb, hb, db] = rank(b);
+      return (la - lb) || (ha - hb) || da.localeCompare(db);
+    });
+    setPlan(next);
+    saveOrder(next);
+    recordHistory({
+      id: "", label: "Rearranged today's plan",
+      undo: {}, redo: {},
+      order: { undo: before.map((p) => p.taskId), redo: next.map((p) => p.taskId) },
+    });
+    pickSort("plan");
+    setToast({ who: "Rearranged ✓", color: "#3A57E8", av: me.av, body: "Overdue first, then high priority, then by date." });
+  };
+
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
   const setDuration = (id: string, mins: number) => {
     const prevT = [...tasks, ...claimedTasks].find((t) => t.id === id);
@@ -2967,9 +3044,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
                   : spillPlan.length > 0 && <span style={{ marginLeft: 8, whiteSpace: "nowrap" }}>· {spillPlan.length} more planned{nextDue ? ` · next due ${new Date(nextDue + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : ""}</span>}
               </span>
-              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Tasks are ordered by publishing date, earliest first; work due later is pulled forward whenever there's room. The last hour is kept free for urgent work — Urgent/High tasks jump to the front and may use it. Drag a task along the timeline to start it later; use ‹ › to reorder.">?</span>
+              <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Tasks are ordered by publishing date, earliest first; work due later is pulled forward whenever there's room. The last hour is kept free for urgent work — Urgent/High tasks jump to the front and may use it. Drag a task along the timeline to move it earlier or later in the order; use ‹ › to nudge it one place. Anything overdue or high priority asks for a reason before it slips later.">?</span>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              {/* Back to the order the day would have had on its own — the way out of
+                  a rearrangement someone no longer wants. */}
+              {myPlan.length > 1 && (
+                <button type="button" onClick={rearrangePlan} title="Overdue first, then high priority, then by publishing date"
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white text-[11.5px] font-medium text-[#4A5468] px-2.5 py-1 hover:border-brand hover:text-brand">
+                  <IconArrowsSort size={13} /> Rearrange
+                </button>
+              )}
               <div className="legend"><span><i className="dot" style={{ background: "#3A57E8" }} />Task</span><span><i className="dot" style={{ background: "#E11D48" }} />High priority</span><span><i className="dot" style={{ background: "#D9DEEA" }} />Break</span></div>
             </div>
           </div>
