@@ -1,17 +1,18 @@
 "use client";
 import type { Icon } from "@tabler/icons-react";
 import {
-  IconBell, IconCalendarEvent, IconCheck, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
-  IconArrowsExchange, IconPin, IconCircleCheck, IconPalette, IconPackage, IconSparkles,
+  IconBell, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
+  IconArrowsExchange, IconPin, IconCircleCheck, IconPalette, IconPackage, IconSend,
+  IconUserCheck,
 } from "@tabler/icons-react";
 
 // The dashboard's own line icons for notifications — the rows used to show emojis,
 // which don't belong beside Tabler icons everywhere else (Praveen, 23 Sep).
 // Stored rows still carry the emoji they were created with, so it stays the key.
 const BY_EMOJI: Record<string, Icon> = {
-  "📅": IconCalendarEvent,   // date change / scheduled
-  "✓": IconCheck,            // someone claimed a video
-  "🎬": IconMovie,           // video up for grabs
+  "📅": IconCalendarEvent,   // a date moved, or work reached the Scheduler
+  "✓": IconUserCheck,        // someone claimed a video — a person took it
+  "🎬": IconMovie,           // a video is up for grabs
   "⏳": IconHourglass,        // waiting in your pipeline
   "📥": IconInbox,           // handed to you
   "↩️": IconArrowBackUp,      // sent back for changes
@@ -20,7 +21,7 @@ const BY_EMOJI: Record<string, Icon> = {
   "✅": IconCircleCheck,      // approved
   "🎨": IconPalette,         // being made
   "📦": IconPackage,         // ready for review
-  "🎉": IconSparkles,        // published
+  "🎉": IconSend,            // published — it has gone out, not confetti
 };
 
 /**
