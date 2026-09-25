@@ -1663,7 +1663,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views.
   const [wsTab] = useState<"myday" | "team" | "master" | "pipeline" | "calendar">("myday"); // pinned — top tab bar removed; sidebar handles the other views
   const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
-  const [dayStartAt, setDayStartAt] = useState("");
   const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
   // Today's first login per person (mh_attendance) — plans start at max(shift, login).
   const [teamLogins, setTeamLogins] = useState<Record<string, number>>({});
@@ -1752,13 +1751,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // What stays local is the plan anchor: which minute today's timeline starts at.
     try {
       const j = JSON.parse(localStorage.getItem(`hmd-day-${person}`) || "null");
-      if (j && j.date === todayKey) { setDayStarted(true); setDayStartAt(j.at || ""); setDayStartMin(Number(j.min) || 0); restored = true; }
+      if (j && j.date === todayKey) { setDayStarted(true); setDayStartMin(Number(j.min) || 0); restored = true; }
     } catch { /* old/plain/corrupt record → treat as stale */ }
     if (!restored) {
       const d = new Date();
       const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
       const at = clockOf(min);
-      setDayStarted(true); setDayStartAt(at); setDayStartMin(min);
+      setDayStarted(true); setDayStartMin(min);
       try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date: todayKey })); } catch { /* private mode */ }
     }
   }, [person]);
@@ -2187,6 +2186,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // teammate's plan to the admin's own morning.
   const ownDay = !viewerIsAdmin || person === viewerId;
   const loginMin = teamLogins[person] ?? (ownDay && dayStarted ? dayStartMin : undefined);
+  // The "Started …" badge has to read from the SAME value the plan is anchored to.
+  // It used to show this browser's own hmd-day-<person> record, so an admin opening
+  // a teammate's day saw "Started 12:05 PM" — the admin's clock — above a timeline
+  // that began at the teammate's shift, two hours earlier (Praveen, 25 Sep). Two
+  // clocks on one screen, and neither of them the teammate's.
+  const startedAt = loginMin == null ? null : clockOf(Math.max(0, Math.min(loginMin, DAY_MINS)));
   const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
   const availMin = workAvailFrom(planStart, shiftStart);
   const { fitPlan, spillPlan } = useMemo(() => {
@@ -2660,7 +2665,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const min = Math.max(0, Math.min(d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60, DAY_MINS));
     const at = clockOf(min);
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    setDayStarted(true); setDayStartAt(at); setDayStartMin(min); setLoggedOut(false);
+    setDayStarted(true); setDayStartMin(min); setLoggedOut(false);
     try { localStorage.setItem(`hmd-day-${person}`, JSON.stringify({ at, min, date })); } catch { /* private mode */ }
     postAttendance("login", min, at);
   };
@@ -2881,7 +2886,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             {/* Day control — then a divider, so End day sits apart from the
                 notification icons + profile and isn't clicked by accident. End day only
                 OPENS the wrap-up (a confirm step) — it never logs out on a single tap. */}
-            <span className="daybar"><span className="daychip"><span className="pulse" />Started {dayStartAt}</span><button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button></span>
+            <span className="daybar">
+              <span className="daychip" title={startedAt ? "When this person signed in today" : "No sign-in recorded today — the plan starts at their shift"}>
+                <span className="pulse" />{startedAt ? `Started ${startedAt}` : "Not signed in yet"}
+              </span>
+              <button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button>
+            </span>
             <span className="topdivider" aria-hidden="true" />
             <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
