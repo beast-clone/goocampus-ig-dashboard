@@ -632,9 +632,13 @@ const STATUS_RANK = Object.keys(STATUS) as CCStatus[];
  * a list still sorted by publishing date after a drag tells you a different thing
  * is next (Praveen, 25 Sep).
  */
-function taskComparator(by: TaskSort, planOrder?: Map<string, number>) {
+function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?: string) {
   const due = (a: Task, b: Task) => (a.due || "9999").localeCompare(b.due || "9999");
   const hot = (t: Task) => (t.detail.priority === "Urgent" || t.detail.priority === "High" ? 0 : 1);
+  // Work that should already have gone out comes first, whatever its priority.
+  // A High task due tomorrow used to jump ahead of two tasks that were overdue
+  // yesterday (Praveen, 25 Sep) — late work is the more urgent thing by definition.
+  const late = (t: Task) => (todayStr && t.due && t.due < todayStr ? 0 : 1);
   return (a: Task, b: Task) => {
     if (by === "plan") {
       // Anything not on today's timeline sits after everything that is.
@@ -644,8 +648,8 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>) {
     if (by === "priority") return (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]) || due(a, b);
     if (by === "status") return (STATUS_RANK.indexOf(a.status) - STATUS_RANK.indexOf(b.status)) || due(a, b);
     if (by === "recent") return (b.detail.createdAt || "").localeCompare(a.detail.createdAt || "") || due(a, b);
-    // Publishing date: Urgent/High jump the queue (as on Today's plan), then earliest date first.
-    return (hot(a) - hot(b)) || due(a, b) || (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]);
+    // Publishing date: overdue first, then Urgent/High, then earliest date.
+    return (late(a) - late(b)) || (hot(a) - hot(b)) || due(a, b) || (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]);
   };
 }
 
@@ -1615,7 +1619,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // ── Undo / redo (My Day, session-scoped multi-step stack) ──────────────
   // Each entry stores the field-map to REVERSE the change (undo) and to RE-APPLY
   // it (redo). Everything goes back through the same update API. Cleared on reload.
-  type HistEntry = { id: string; label: string; undo: Record<string, unknown>; redo: Record<string, unknown> };
+  // `order` entries are a reorder of Today's plan rather than a field change on one
+  // task, so ⌘Z takes back a drag the same way it takes back a status change.
+  type HistEntry = { id: string; label: string; undo: Record<string, unknown>; redo: Record<string, unknown>; order?: { undo: string[]; redo: string[] } };
   const [undoStack, setUndoStack] = useState<HistEntry[]>([]);
   const [redoStack, setRedoStack] = useState<HistEntry[]>([]);
   const recordHistory = (e: HistEntry) => { setUndoStack((s) => [...s.slice(-49), e]); setRedoStack([]); };
@@ -1929,7 +1935,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
 
   // Where each task sits on today's timeline, for the "Today's plan" sort.
   const planOrder = useMemo(() => new Map(plan.map((p, i) => [p.taskId, i])), [plan]);
-  const cmpTasks = useMemo(() => taskComparator(sortBy, planOrder), [sortBy, planOrder]);
+  const cmpTasks = useMemo(() => taskComparator(sortBy, planOrder, todayStr), [sortBy, planOrder, todayStr]);
   const shownTasks = useMemo(() => {
     return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
   }, [workingTasks, taskTab, cmpTasks]);
@@ -2108,8 +2114,20 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         .filter((t) => !keep.some((x) => x.taskId === t.id))
         .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (PRANK[a.detail.priority] - PRANK[b.detail.priority]));
       const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) });
-      const high = missing.filter((t) => isHot(t.detail.priority)).map(entry);   // urgent → front
-      const rest = missing.filter((t) => !isHot(t.detail.priority)).map(entry);   // rest → append
+      // Overdue work leads the day, then urgent, then the rest by date. A High task
+      // due TOMORROW used to open the day ahead of two tasks that were already a day
+      // late (Praveen, 25 Sep) — being late is the more urgent thing.
+      // The date is read here, not from `todayStr` state: that starts empty (it is
+      // set in an effect to keep the server and client render identical), and the
+      // seed runs first — so overdue work looked on-time and the order came out
+      // wrong on every fresh load.
+      const nowD = new Date();
+      const todayKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, "0")}-${String(nowD.getDate()).padStart(2, "0")}`;
+      const isLate = (t: Task) => !!t.due && t.due < todayKey;
+      const high = missing.filter((t) => isLate(t) || isHot(t.detail.priority))
+        .sort((a, b) => (Number(!isLate(a)) - Number(!isLate(b))) || (Number(!isHot(a.detail.priority)) - Number(!isHot(b.detail.priority))))
+        .map(entry);
+      const rest = missing.filter((t) => !isLate(t) && !isHot(t.detail.priority)).map(entry);
       // NEVER displace a task that's actively being worked (Output - In Progress) at the
       // front — the urgent arrival slots right AFTER it, so the current task finishes first.
       let at = 0;
@@ -2151,7 +2169,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // aren't recorded) viewing a teammate use that teammate's recorded login; if it
   // isn't in yet, the plan starts at the shift.
   const shiftStart = shiftStartOf(me.name);
-  const loginMin = teamLogins[person] ?? (viewerIsAdmin ? undefined : (dayStarted ? dayStartMin : undefined));
+  // The recorded sign-in is the truth. If it hasn't arrived — a first visit, or the
+  // attendance read failed — fall back to when THIS browser started the day, but
+  // only for your own day: an admin previewing a teammate must not anchor that
+  // teammate's plan to the admin's own morning.
+  const ownDay = !viewerIsAdmin || person === viewerId;
+  const loginMin = teamLogins[person] ?? (ownDay && dayStarted ? dayStartMin : undefined);
   const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
   const availMin = workAvailFrom(planStart, shiftStart);
   const { fitPlan, spillPlan } = useMemo(() => {
@@ -2303,6 +2326,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       const next = [...rest];
       next.splice(to, 0, arr[from]);
       saveOrder(next);
+      recordHistory({
+        id: "", label: `Moved “${arr[from].label}” to ${to === 0 ? "the start of the day" : `position ${to + 1}`}`,
+        undo: {}, redo: {},
+        order: { undo: arr.map((p) => p.taskId), redo: next.map((p) => p.taskId) },
+      });
       return next;
     });
     // The list beside the timeline has to agree with what was just dragged, so a
@@ -2343,6 +2371,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Apply one history entry, but only if the task hasn't been changed out from
   // under us since (tasks are shared — never clobber someone else's edit).
   const applyHistory = (e: HistEntry, dir: "undo" | "redo"): boolean => {
+    if (e.order) {
+      const ids = dir === "undo" ? e.order.undo : e.order.redo;
+      const rank = new Map(ids.map((id, i) => [id, i]));
+      setPlan((arr) => {
+        const next = [...arr].sort((a, b) => (rank.get(a.taskId) ?? Infinity) - (rank.get(b.taskId) ?? Infinity));
+        saveOrder(next);
+        return next;
+      });
+      return true;
+    }
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === e.id);
     const expect = dir === "undo" ? e.redo : e.undo; // what we last set
     const fields = dir === "undo" ? e.undo : e.redo;
