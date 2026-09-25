@@ -10,7 +10,7 @@ import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
-import { NotifIcon } from "../NotifIcon";
+import { notifIconFor } from "../NotifIcon";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -1242,7 +1242,7 @@ function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs
       <div className="nstack-head"><span>{notifs.length} notification{notifs.length > 1 ? "s" : ""}</span><button className="nstack-clear" onClick={onClearAll}>Clear all</button></div>
       {notifs.map((n) => (
         <div key={n.id} className={`pnotif ${n.kind}`}>
-          <div className={`pn-ic ${n.kind}`}><NotifIcon emoji={n.emoji} actionNeeded={n.kind === "urgent"} size={15} /></div>
+          <div className={`pn-ic ${n.kind}`}>{(() => { const I = notifIconFor(n.emoji); return <I size={15} stroke={1.9} />; })()}</div>
           <div className="pn-body">
             {n.kind === "urgent" && <div className="pn-eyebrow">Urgent · must publish today</div>}
             <div className="pn-title">{n.title}</div>
@@ -3459,7 +3459,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <div style={{ minWidth: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: ".6rem" }}>
                       <div style={{ minWidth: 0 }}>
                         <div className="claim-title" style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
-                          <NotifIcon emoji={n.emoji} size={14} />{n.title}
+                          {(() => { const I = notifIconFor(n.emoji); return <I size={14} stroke={1.9} className="text-brand flex-shrink-0" />; })()}{n.title}
                         </div>
                         <div className="claim-meta">{n.sub}</div>
                       </div>

@@ -23,6 +23,15 @@ const BY_EMOJI: Record<string, Icon> = {
   "🎉": IconSparkles,        // published
 };
 
+/**
+ * Just the line icon, with no tile around it — for places that already draw their
+ * own coloured square (My Day's notification rows). Nesting NotifIcon inside one of
+ * those gave a pale box inside a brand box, and an icon you could barely see.
+ */
+export function notifIconFor(emoji?: string | null): Icon {
+  return (emoji && BY_EMOJI[emoji]) || IconBell;
+}
+
 /** Tint per category: action items amber, everything else the brand blue. */
 export function notifTone(actionNeeded: boolean) {
   return actionNeeded
