@@ -34,11 +34,16 @@ only 1a is still open.**
 
 | | | |
 |---|---|---|
-| 1a | The import `<HTML>` error | ⬜ **still to check — the only one left** |
+| 1a | The import `<HTML>` error | ✅ **fixed — pressed on production 25 Sep, see `LIVE_CHECK_2026-09-25.md` §4** |
 | 1b | Hourly Airtable sync | ✅ verified on production after the deploy |
 | 1c | Does a Story publish | ⬜ needs a real story through n8n |
 
-### 1a. The import that failed with `Unexpected token '<'`  ⬜ **← do this one**
+### 1a. The import that failed with `Unexpected token '<'`  ✅ **done**
+
+**Pressed on the live site at 9:33 am, 25 Sep. It worked:** *Imported — 0 new · 87 updated ·
+2 skipped (no title in Airtable)*, in **7 seconds**. No `<HTML>` error. 87 updates is exactly
+the case that used to time out, and the row count was 127 before and 127 after, so nothing
+was duplicated. The concurrency fix was enough; server-side chunking is not needed.
 
 **Marketing Hub → Master sheet → Sync from Airtable → Import.**
 

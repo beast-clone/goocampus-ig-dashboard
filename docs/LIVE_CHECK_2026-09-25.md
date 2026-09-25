@@ -87,8 +87,29 @@ says what was verified.
 
 ---
 
-## 4. Not done yet
+## 4. Airtable import — the last open live check, now passed
 
-- **Marketing Hub → Master sheet → Sync from Airtable → Import** (changelog §1a) — the
-  one live check still open. It writes to live data, so it needs Praveen's go-ahead.
-- **Does a Story actually publish** (§1c) — needs a real story through n8n.
+Pressed **Marketing Hub → Master sheet → Sync from Airtable → Import** on production at
+**9:33 am**, with Praveen's go-ahead.
+
+```
+Imported — 0 new · 87 updated · 2 skipped (no title in Airtable)
+7 seconds
+```
+
+**No `Unexpected token '<'`.** That error was Netlify cutting the request off at 10
+seconds while records were written one at a time; writes now go six at a time. The 87
+updates are exactly the path that used to time out — the hourly cron never exercised it,
+because it only ever adds.
+
+**Nothing was duplicated:** 127 rows before, 127 after, and the import reported 0 new.
+(A crude title check flags 9 "repeats" — they are the genuine daily series, e.g. *Daily
+News → 12th Plus* on five different dates, and they pre-date this run.)
+
+So the concurrency fix was enough. Chunking the import server-side is not needed.
+
+## 5. Still not done
+
+- **Does a Story actually publish** (changelog §1c) — the dashboard queues it and tags it
+  `type: "Story"`, but the publisher is n8n (`oJCNoKDWBYuiYVp1`) and has never been tested
+  with a story. Needs a real story scheduled and watched.
