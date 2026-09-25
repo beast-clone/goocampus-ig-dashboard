@@ -91,7 +91,7 @@ function Board() {
       {isDay ? <DayTable rows={(resp?.rows as DayRow[]) ?? null} expanded={expanded} setExpanded={setExpanded} />
              : <AggTable rows={(resp?.rows as AggRow[]) ?? null} view={(resp?.view as "week" | "month") || "week"} />}
 
-      <div className="text-[11px] text-gray-400 flex items-center gap-1.5"><IconLogin size={12} /> Login = when a teammate opens their My Day · <IconClock size={12} /> Worked is net of the 1-hour lunch · saved permanently.</div>
+      <div className="text-[11px] text-gray-400 flex items-center gap-1.5"><IconLogin size={12} /> Login = when they sign in, first sign-in of the day · <IconClock size={12} /> Worked is net of the 1-hour lunch · saved permanently.</div>
     </div>
   );
 }

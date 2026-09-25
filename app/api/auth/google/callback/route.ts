@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { setSession } from "@/lib/auth";
 import { rosterByEmail } from "@/lib/team-db";
+import { recordLogin } from "@/lib/attendance";
 
 // GET /api/auth/google/callback?code=...&state=...
 // Completes the Google login: verifies state, swaps the code for the user's
@@ -70,8 +71,9 @@ export async function GET(req: Request) {
     const person = await rosterByEmail(email);
     if (!person || !person.active) return back(origin, "unknown");
 
-    // 5) log them in exactly like the password flow
+    // 5) log them in exactly like the password flow — clock-in included
     setSession(person.id, person.isAdmin);
+    await recordLogin(person.id);
     return NextResponse.redirect(new URL(person.isAdmin ? "/dashboard" : "/me", origin));
   } catch {
     return back(origin, "failed");

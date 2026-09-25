@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isLoggedIn, setSession } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
+import { recordLogin } from "@/lib/attendance";
 
 // Attach identity to an already-authenticated session (no password re-entry).
 // Used when someone has a valid session but hasn't picked who they are yet
@@ -28,5 +29,6 @@ export async function POST(req: Request) {
     );
   }
   setSession(person.id, false);
+  await recordLogin(person.id);
   return NextResponse.json({ ok: true, user: person.id });
 }
