@@ -2217,18 +2217,19 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // reminder is always a task the person can actually find and act on (a producer's
     // list hides the content phase, so its reminders must too; else you get phantom
     // "overdue" nudges for tasks that never appear in the list).
+    // The same rule for everyone, writer included. Manya was still being told
+    // "pending 3 days — why still open?", which is the complaint that prompted the
+    // revision in the first place: that is a pending task, and the list already
+    // shows it as one. A reminder is the nudge that arrives while the day can
+    // still be saved (Manya, 25 Sep).
     for (const t of workingTasks) {
-      if (me.name === "Manya" && (t.status === "Content - Pending" || t.status === "Content - In Progress")) {
-        const age = t.detail.createdAt ? Math.floor((today - new Date(t.detail.createdAt).getTime()) / DAY) : 0;
-        if (age >= 2) out.push({ id: t.id, title: t.title, text: `pending ${age} days — why still open?` });
-      } else if (me.name !== "Manya" && t.due && STATUS[t.status].inView) {
-        const dueIn = Math.floor((new Date(t.due + "T00:00:00").getTime() - today) / DAY);
-        // Due today and the day is nearly out — the one moment a nudge still helps.
-        if (dueIn === 0 && minsLeft !== null && minsLeft > 0 && minsLeft <= REMIND_BEFORE_END_MIN) {
-          const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
-          const left = h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
-          out.push({ id: t.id, title: t.title, text: `due today — ${left} left in your day` });
-        }
+      if (!t.due || !STATUS[t.status].inView) continue;
+      const dueIn = Math.floor((new Date(t.due + "T00:00:00").getTime() - today) / DAY);
+      // Due today and the day is nearly out — the one moment a nudge still helps.
+      if (dueIn === 0 && minsLeft !== null && minsLeft > 0 && minsLeft <= REMIND_BEFORE_END_MIN) {
+        const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
+        const left = h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+        out.push({ id: t.id, title: t.title, text: `due today — ${left} left in your day` });
       }
     }
     return out;
