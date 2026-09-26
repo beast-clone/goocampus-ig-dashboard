@@ -161,10 +161,6 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
     }))) return;
     act("/api/marketing-hub/trash/purge", "Delete");
   };
-  const recover = async () => {
-    if (!(await confirmDialog({ title: `Put ${chosen.length} back in the recycle bin?`, body: "They return to the bin, where they can be restored onto the board. They are not restored yet.", action: "Put back in bin" }))) return;
-    act("/api/marketing-hub/trash/archive", "Recover");
-  };
 
   return (
     <PreviewShell active="marketing-hub" title="Recycle bin" subtitle="Deleted tasks for the whole dashboard — nothing here is gone for good">
@@ -188,22 +184,17 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
               <span className="text-[11px] opacity-70">{archive?.length ?? ""}</span>
             </button>
           )}
-          {chosen.length > 0 && (
+          {/* Bulk actions belong to the bin only. The archive has no toolbar action:
+              putting a task back there is a decision you make AFTER reading the report,
+              so the only route to it is through the report itself. */}
+          {tab === "bin" && chosen.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
-              {tab === "bin" ? (
-                <>
-                  <button disabled={busy} onClick={restore} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-[#3A57E8] hover:bg-[#2138B0] disabled:opacity-50">
-                    <IconRestore size={16} stroke={1.8} />Restore {chosen.length}
-                  </button>
-                  <button disabled={busy} onClick={empty} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-[#C0392B] border border-[#F3C6CE] bg-white hover:bg-[#FDECEA] disabled:opacity-50">
-                    <IconTrash size={16} stroke={1.8} />Delete from bin
-                  </button>
-                </>
-              ) : (
-                <button disabled={busy} onClick={recover} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-[#3A57E8] hover:bg-[#2138B0] disabled:opacity-50">
-                  <IconRestore size={16} stroke={1.8} />Put {chosen.length} back in bin
-                </button>
-              )}
+              <button disabled={busy} onClick={restore} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-[#3A57E8] hover:bg-[#2138B0] disabled:opacity-50">
+                <IconRestore size={16} stroke={1.8} />Restore {chosen.length}
+              </button>
+              <button disabled={busy} onClick={empty} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-[#C0392B] border border-[#F3C6CE] bg-white hover:bg-[#FDECEA] disabled:opacity-50">
+                <IconTrash size={16} stroke={1.8} />Delete from bin
+              </button>
             </div>
           )}
         </div>
@@ -225,10 +216,12 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr className="text-gray-500 text-left">
-                    <th className="pl-4 pr-0 py-2.5 w-9 font-normal">
-                      <input type="checkbox" checked={allOn} onChange={() => setPicked(allOn ? new Set() : new Set(list.map((t) => t.id)))} aria-label="Select all" />
-                    </th>
-                    <th className="px-4 py-2.5 font-normal">Task</th>
+                    {tab === "bin" && (
+                      <th className="pl-4 pr-0 py-2.5 w-9 font-normal">
+                        <input type="checkbox" checked={allOn} onChange={() => setPicked(allOn ? new Set() : new Set(list.map((t) => t.id)))} aria-label="Select all" />
+                      </th>
+                    )}
+                    <th className={`py-2.5 pr-4 font-normal ${tab === "bin" ? "px-4" : "pl-4"}`}>Task</th>
                     <th className="px-4 py-2.5 font-normal">SBU</th>
                     <th className="px-4 py-2.5 font-normal">Type</th>
                     <th className="px-4 py-2.5 font-normal">Status</th>
@@ -240,10 +233,12 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
                 <tbody>
                   {list.map((t) => (
                     <tr key={t.id} onClick={() => (tab === "archive" ? openReport(t.id) : toggle(t.id))} title={tab === "archive" ? "Open the report on this task" : undefined} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                      <td className="pl-4 pr-0 py-2.5 w-9">
-                        <input type="checkbox" checked={picked.has(t.id)} onChange={() => toggle(t.id)} onClick={(e) => e.stopPropagation()} aria-label={`Select ${t.particulars || "task"}`} />
-                      </td>
-                      <td className="px-4 py-2.5"><span className="text-gray-800 block max-w-[340px] truncate">{t.particulars || "(untitled)"}</span></td>
+                      {tab === "bin" && (
+                        <td className="pl-4 pr-0 py-2.5 w-9">
+                          <input type="checkbox" checked={picked.has(t.id)} onChange={() => toggle(t.id)} onClick={(e) => e.stopPropagation()} aria-label={`Select ${t.particulars || "task"}`} />
+                        </td>
+                      )}
+                      <td className={`py-2.5 pr-4 ${tab === "bin" ? "px-4" : "pl-4"}`}><span className="text-gray-800 block max-w-[340px] truncate">{t.particulars || "(untitled)"}</span></td>
                       <td className="px-4 py-2.5 text-gray-600">{t.sbu || "—"}</td>
                       <td className="px-4 py-2.5 text-gray-600">{t.type || "—"}</td>
                       <td className="px-4 py-2.5 text-gray-600">{t.status || "—"}</td>
