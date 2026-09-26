@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { fetchWithTimeout, FetchTimeoutError } from "@/lib/fetch-with-timeout";
 import { safeError } from "@/lib/errors";
 import net from "node:net";
 import { lookup } from "node:dns/promises";
@@ -14,6 +14,19 @@ type JSDOMCtor = new (html: string, opts?: { url?: string }) => JSDOMInstance;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// A serverless function without an explicit budget is killed at the platform
+// default (10s on Netlify), but this route's own waits used to add up to 28s
+// (8s HEAD + 20s GET). Slow publishers therefore blew the 10s ceiling and the
+// function was killed mid-request: nothing was ever written to the body, and the
+// browser's .json() failed with "Unexpected end of JSON input" instead of saying
+// anything about the article.
+//
+// 26s is the ceiling for a synchronous function on Netlify Pro; asking for more is
+// clamped, not granted. This raise is headroom for the jsdom + Readability parse
+// after the fetch, not permission to wait longer upstream — FETCH_BUDGET_MS below
+// is what keeps the upstream waits bounded, and it stays inside the unraised 10s
+// default so the route still returns its own JSON error if this line is ignored.
+export const maxDuration = 26;
 
 // In-dashboard reader. Fetches the article HTML directly, runs Mozilla
 // Readability (the same engine Firefox Reader View uses) to strip nav / ads /
@@ -24,6 +37,24 @@ export const dynamic = "force-dynamic";
 const MAX_URL_LEN = 2000;
 const MAX_HTML_LEN = 2_000_000; // 2MB HTML cap before Readability
 const MAX_CONTENT_LEN = 200_000; // trim response body
+
+// One wall-clock budget shared by every upstream wait in a single request, rather
+// than a separate timeout per fetch. Per-fetch timeouts add up (the old 8s + 20s
+// reached 28s), and whatever they add up to has to fit the platform's ceiling or
+// the function is killed with no body written — which is exactly the bug this
+// guards against. The number is deliberately under Netlify's 10s default rather
+// than under the raised `maxDuration` above: per-route maxDuration support is not
+// something to bet correctness on, so the route stays inside the floor it is
+// guaranteed, and the raised budget is headroom for the parse below, not a licence
+// to wait longer upstream.
+const FETCH_BUDGET_MS = 7_000;
+const REDIRECT_PROBE_MAX_MS = 3_000;
+
+// Time left in this request's budget, floored so a nearly-exhausted budget still
+// makes a real attempt instead of aborting instantly.
+function remainingMs(startedAt: number): number {
+  return Math.max(1_500, FETCH_BUDGET_MS - (Date.now() - startedAt));
+}
 
 function looksLikeUrl(u: string): boolean {
   try {
@@ -85,12 +116,15 @@ function sanitizeArticleHtml(JSDOM: JSDOMCtor, rawHtml: string): string {
   return d.body.innerHTML;
 }
 
-async function resolveRedirect(url: string): Promise<string> {
+async function resolveRedirect(url: string, startedAt: number): Promise<string> {
   try {
     const r = await fetchWithTimeout(url, {
       method: "HEAD",
       redirect: "follow",
-      timeoutMs: 8_000,
+      // This probe is an optimisation, not the payload: it must never eat the budget
+      // the article fetch itself needs, so it gets the smaller of its own cap and
+      // whatever is left. Failing it is harmless — the caller falls back to `url`.
+      timeoutMs: Math.min(REDIRECT_PROBE_MAX_MS, remainingMs(startedAt)),
       headers: { "User-Agent": "Mozilla/5.0 (compatible; GooCampusRadar/1.0)" },
     });
     return r.url || url;
@@ -108,12 +142,34 @@ export async function GET(req: Request) {
   }
   try { await assertPublicUrl(target); } catch { return NextResponse.json({ error: "That URL isn't allowed." }, { status: 400 }); }
 
-  // Loaded here (not at module top) — see note by the imports.
-  const { JSDOM } = (await import("jsdom")) as unknown as { JSDOM: JSDOMCtor };
-  const { Readability } = await import("@mozilla/readability");
+  // Loaded here (not at module top) — see note by the imports. Guarded, because a
+  // throw out here used to escape the handler completely: the function died before
+  // writing any body, so the browser's .json() reported "Unexpected end of JSON
+  // input" and the real reason never reached either the user or the logs.
+  //
+  // It can genuinely throw: jsdom's tree contains ESM-only packages (@exodus/bytes
+  // via html-encoding-sniffer, @csstools/css-calc via cssstyle) and jsdom is in
+  // Next's default external-packages list, so it is require()d rather than bundled.
+  // That require only works on a runtime with require(esm) — Node >= 22.12. Netlify
+  // runs Node 24 so production is fine, but an older local Node fails here, and
+  // that difference should surface as a readable error, not a blank 500.
+  let JSDOM: JSDOMCtor;
+  let Readability: typeof import("@mozilla/readability").Readability;
+  try {
+    ({ JSDOM } = (await import("jsdom")) as unknown as { JSDOM: JSDOMCtor });
+    ({ Readability } = await import("@mozilla/readability"));
+  } catch (err) {
+    console.error("[radar/article] reader engine failed to load:", err);
+    return NextResponse.json(
+      { error: "The reader engine couldn't start on the server. Open the original link instead." },
+      { status: 500 },
+    );
+  }
+
+  const startedAt = Date.now();
 
   try {
-    const resolved = await resolveRedirect(target);
+    const resolved = await resolveRedirect(target, startedAt);
     await assertPublicUrl(resolved); // re-check after redirect resolution
 
     // Fetch the article HTML with a browser-like UA so publishers don't hand
@@ -124,7 +180,7 @@ export async function GET(req: Request) {
         "Accept": "text/html,application/xhtml+xml",
         "Accept-Language": "en-IN,en;q=0.9",
       },
-      timeoutMs: 20_000,
+      timeoutMs: remainingMs(startedAt), // whatever the redirect probe left
       redirect: "follow",
     });
     if (!r.ok) throw new Error(`Fetch failed (${r.status})`);
@@ -202,6 +258,16 @@ export async function GET(req: Request) {
       error: "This site renders its article via JavaScript so extraction returned nothing. Open the original link to read it.",
     });
   } catch (err) {
+    // A timeout here is an ordinary outcome, not a fault — plenty of publishers are
+    // just slower than the budget. Say that in words the reader can act on, rather
+    // than passing safeError's literal "Upstream request timed out after 7000ms"
+    // through to the UI.
+    if (err instanceof FetchTimeoutError) {
+      return NextResponse.json(
+        { error: "That site took too long to respond. Open the original link to read it." },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(safeError(err, "Article fetch failed"), { status: 502 });
   }
 }

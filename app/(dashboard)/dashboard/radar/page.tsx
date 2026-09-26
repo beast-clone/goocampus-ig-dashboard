@@ -559,7 +559,19 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
     setLoading(true); setError(null);
     fetch(`/api/radar/article?url=${encodeURIComponent(item.link)}`, { signal: ctrl.signal })
       .then(async (r) => {
-        const d = await r.json();
+        // Read as text first. A gateway timeout or a killed function returns an empty
+        // or non-JSON body, and calling .json() on that threw "Unexpected end of JSON
+        // input" — a parser message shown to someone who only wanted to read an article.
+        const body = await r.text();
+        type Article = { html: string; finalUrl: string; title: string | null; byline?: string | null; error?: string };
+        let d = {} as Article;
+        try { d = body ? (JSON.parse(body) as Article) : ({} as Article); } catch {
+          throw new Error(r.ok
+            ? "The reader returned something we couldn't read. Open the original instead."
+            : r.status === 504 || r.status === 502
+              ? "That site took too long to respond. Open the original instead."
+              : `The reader failed (HTTP ${r.status}). Open the original instead.`);
+        }
         if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
         return d;
       })
