@@ -3,6 +3,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
+import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
@@ -106,7 +107,7 @@ function tabsForPerson(name: string): TabDef[] {
   return name === "Manya" || name === "Maheen" ? MANYA_TABS : PRODUCER_TABS;
 }
 function isVideoTask(typeLine: string): boolean {
-  return (VIDEO_TYPES as readonly string[]).includes(typeLine);
+  return isVideoType(typeLine);
 }
 function matchesTab(t: { status: string; detail: { typeLine: string } }, tab: TabDef): boolean {
   if (!tab.statuses.includes(t.status as CCStatus)) return false;
@@ -232,19 +233,24 @@ const PRIO: Record<"Urgent" | "High" | "Medium" | "Low", { bg: string; fg: strin
 // Urgent + High both count as "hot" — front of the plan + pipeline trigger (spec §9).
 const isHot = (p: string) => p === "Urgent" || p === "High";
 
-// Content Calendar Type options (exact Airtable list). Design/static types route
-// to the designer (Praveen); video types drop into the editors' claim pool.
-const DESIGN_TYPES = ["Atomic Essay", "Post", "Carousel", "Story (Image)", "Reel Thumbnail", "YouTube Thumbnail", "Meta Ads"] as const;
-const VIDEO_TYPES = ["Reel - Original", "Reel - Cut", "YouTube Long-Form", "YouTube Shorts", "Story (Video)"] as const;
-const CC_TYPES = [...DESIGN_TYPES, ...VIDEO_TYPES];
+// Content Calendar Type options. Design/static types route to the designer
+// (Praveen); video types drop into the editors' claim pool.
+// Both lists come from lib/mh-content-types — the same source the approval handoff
+// (api/marketing-hub/update) and the DB trigger (sql/013_design_work_owner.sql) use.
+// They used to be re-typed here and had drifted: "Meta Ads - Video" was missing from
+// the local video list, so My Day read it as design work while the server routed it
+// as video.
+const CC_TYPES: readonly string[] = [...CONTENT_TYPES];
+const DESIGN_TYPES: readonly string[] = CC_TYPES.filter((t) => !VIDEO_TYPE_SET.has(t));
+const isVideoType = (t: string) => VIDEO_TYPE_SET.has(t);
 const CC_SBUS = SBU_OPTIONS;
 
 // The auto-assignment rule: given a Type, who owns the task? Design/thumbnail work
 // auto-assigns to the single designer (Praveen); video work is NOT auto-assigned to
 // one editor — it goes into the shared pool that Nikhil & Nandu can claim.
 function autoAssign(type: string): { owner: string; toPool: boolean; note: string } {
-  if ((DESIGN_TYPES as readonly string[]).includes(type)) return { owner: "Praveen", toPool: false, note: `${type} is design work → auto-assigned to Praveen (designer).` };
-  if ((VIDEO_TYPES as readonly string[]).includes(type)) return { owner: "Unclaimed", toPool: true, note: `${type} is video → dropped into the editors' claim pool (Nikhil / Nandu).` };
+  if (DESIGN_TYPES.includes(type)) return { owner: "Praveen", toPool: false, note: `${type} is design work → auto-assigned to Praveen (designer).` };
+  if (isVideoType(type)) return { owner: "Unclaimed", toPool: true, note: `${type} is video → dropped into the editors' claim pool (Nikhil / Nandu).` };
   return { owner: "Manya", toPool: false, note: "Stays with the writer." };
 }
 
@@ -1145,7 +1151,80 @@ function PendingAssets({ hint, oneLink, value, onChange }: { hint: string; oneLi
   );
 }
 
-function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t: Task, owner: string, note: string, assets: NewTaskAssets) => void }) {
+// "Tasks I created" — the window the card measures over. The keys are the ones
+// /api/my-day/created's windowFor() understands; `empty` finishes the sentence
+// "You haven't created anything …" when a window comes back with nothing.
+type CreatedRange = "this-month" | "last-month" | "3m" | "6m" | "year" | "all" | "custom";
+const CREATED_RANGE_OPTIONS: { value: CreatedRange; label: string; empty: string }[] = [
+  { value: "this-month", label: "This month", empty: "this month" },
+  { value: "last-month", label: "Last month", empty: "last month" },
+  { value: "3m", label: "Last 3 months", empty: "in the last 3 months" },
+  { value: "6m", label: "Last 6 months", empty: "in the last 6 months" },
+  { value: "year", label: "This year", empty: "this year" },
+  { value: "all", label: "All time", empty: "yet" },
+  { value: "custom", label: "Custom…", empty: "in that window" },
+];
+// The custom window is a ROLLING one — "last 6 hours" means the last 6 hours, not
+// since 6 AM. Capped server-side at 2 years either way; these are the same caps so the
+// input can't offer a number the server would silently shrink.
+const CUSTOM_UNIT_MAX = { hours: 17520, days: 730 };
+
+// The three statuses a task can be CREATED at. The rest of the pipeline is reached
+// by moving the task on, not by filing it there on day one.
+const NEW_TASK_STATUSES: CCStatus[] = ["Content - Pending", "Content - In Progress", "Content - Approved"];
+
+/**
+ * Where a task lands the moment it is saved, worked out from Type + Status with the
+ * SAME rule the server uses — api/marketing-hub/update's Content-Approved handoff and
+ * the mh_design_owner DB trigger (sql/013_design_work_owner.sql):
+ *   · below Content - Approved → nobody is assigned yet; it sits with the writer.
+ *   · Content - Approved + design type → owner becomes Praveen, the writer joins as collaborator.
+ *   · Content - Approved + video type → owner STAYS with the writer; Nikhil/Nandu claim it from the pool.
+ * Maheen is never auto-added by either side.
+ * This function only DESCRIBES that rule so the creator can check the routing before
+ * saving — it does not decide anything. The server still does the assigning.
+ */
+function routeFor(type: string, status: CCStatus, writer: string): {
+  ownerKey: string | null; ownerLabel: string; pool: boolean; collaborators: string[]; headline: string; why: string;
+} {
+  const video = isVideoType(type);
+  const approved = status === "Content - Approved";
+  if (!approved) {
+    return {
+      ownerKey: writer, ownerLabel: PPL[writer]?.name || writer, pool: false, collaborators: [],
+      headline: `Starts with ${PPL[writer]?.name || writer}; assigns on approval.`,
+      why: `Nothing is handed over below Content - Approved — ${PPL[writer]?.name || writer} keeps it while the content is written.`,
+    };
+  }
+  if (video) {
+    return {
+      ownerKey: writer, ownerLabel: `${PPL[writer]?.name || writer} — until an editor claims it`, pool: true, collaborators: [],
+      headline: "Editors' claim pool — Nikhil / Nandu claim it.",
+      why: `${type} is video work, so it is never auto-assigned: it goes into the shared pool and stays with ${PPL[writer]?.name || writer} until Nikhil or Nandu claims it.`,
+    };
+  }
+  // Name the writer rather than calling them "the writer" — the person reading this is
+  // checking a routing decision, and a role is one more step to translate.
+  const writerName = PPL[writer]?.name || writer;
+  const selfOwned = writer === "praveen"; // Praveen filing his own design work: no collaborator to name
+  return {
+    ownerKey: "praveen", ownerLabel: "Praveen", pool: false, collaborators: selfOwned ? [] : [writer],
+    headline: selfOwned ? "Owner: Praveen." : `Owner: Praveen · Collaborator: ${writerName}.`,
+    why: `${type} is design work, so on approval it is handed straight to Praveen${selfOwned ? "." : ` and ${writerName} stays on as collaborator.`}`,
+  };
+}
+
+/**
+ * The create form. Lives INSIDE the right-hand detail panel (it used to be a centred
+ * modal): the panel is empty until you ask for either a task or a new one, so the
+ * form gets the full width of the panel and the task list stays readable beside it.
+ */
+function NewTaskPanel({ writer, onClose, onCreate, onDirty }: {
+  writer: string;
+  onClose: () => void;
+  onCreate: (t: Task, status: CCStatus, collaborators: string[], assets: NewTaskAssets) => void;
+  onDirty?: (dirty: boolean) => void;
+}) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("Reel Thumbnail");
   const [sbu, setSbu] = useState<string>(CC_SBUS[0]);
@@ -1154,8 +1233,19 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   const [content, setContent] = useState("");
   const [publishDate, setPublishDate] = useState(""); // the writer picks it — no auto-date
   const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
-  const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if Manya does it herself
-  const assign = autoAssign(type);
+  const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if the writer does it herself
+  // People added by hand, on top of whoever the routing rule attaches.
+  const [extraCollabs, setExtraCollabs] = useState<string[]>([]);
+  const [addingCollab, setAddingCollab] = useState(false);
+  const writerName = PPL[writer]?.name || writer;
+
+  const route = routeFor(type, status, writer);
+  // Everyone on the task once it saves: the rule's collaborators + the hand-picked
+  // ones, minus whoever ends up owning it (nobody is both owner and collaborator).
+  const collabKeys = Array.from(new Set([...route.collaborators, ...extraCollabs])).filter((k) => k !== route.ownerKey);
+  const notOnIt = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k) && !(route.pool && (k === "nikhil" || k === "nandu")));
+  const addable = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k));
+
   // What's still missing, in the order the fields appear in the form. Drives both the
   // button state and the popup — a disabled "Create task" now explains itself.
   const missing = [
@@ -1166,13 +1256,17 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
   ].filter((x): x is string => !!x);
   const canSubmit = missing.length === 0;
   const [gate, setGate] = useState(false);
+  // Tell the panel whether there is anything worth warning about before discarding.
+  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || extraCollabs.length);
+  useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
+
   function create() {
     if (!canSubmit) { setGate(true); return; }
     const due = publishDate; // the writer's chosen publishing date (no +3 assumption)
     const publishes = new Date(publishDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    // Content-first: the task starts with the writer (Manya) in the content phase.
-    // It auto-hands off to the producer (Praveen / claim pool) only once she moves
-    // it to "Content - Approved" — handled in setTaskStatus.
+    // Content-first: the task is always SAVED on the writer at Content - Pending. If she
+    // filed it further along, the panel moves it there straight after, through the same
+    // status route the board uses — so the handoff fires exactly as the preview promised.
     const t: Task = {
       id: `t${Date.now()}`,
       title: title.trim(),
@@ -1180,13 +1274,13 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
       status,
       due,
       detail: {
-        typeLine: type, publishes, owner: "Manya", priority, brand: sbu,
+        typeLine: type, publishes, owner: writerName, priority, brand: sbu,
         content: content.trim(),
-        creatives: [], collaborators: [],
-        activity: [{ who: "Manya", text: "created the task", time: "now" }],
+        creatives: [], collaborators: collabKeys.map((k) => PPL[k]).filter(Boolean),
+        activity: [{ who: writerName, text: "created the task", time: "now" }],
       },
     };
-    onCreate(t, "Manya", assign.note, {
+    onCreate(t, status, collabKeys, {
       refLinks: refs.links,
       refFiles: refs.files.map((f) => f.file),
       outLink: output.links[0] || "",
@@ -1194,41 +1288,105 @@ function NewTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
     });
   }
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="modal-card nt-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
-        <div className="lbl" style={{ marginBottom: ".5rem" }}>New task · created by Manya</div>
-        <div className="d-title" style={{ marginBottom: "1.1rem" }}>Create a content task</div>
-        <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
-        <div className="nt-row">
-          <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
-          <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
+    <>
+      <div className="nt-head">
+        <div>
+          <div className="lbl" style={{ marginBottom: ".35rem" }}>New task · created by {writerName}</div>
+          <div className="d-title">Create a content task</div>
         </div>
-        <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
-        <div className="nt-row">
-          <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={CC_SBUS.map((s) => ({ value: s, label: s }))} /></div>
-          <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as CCStatus)} options={CC_STATUS_ORDER.map((s) => ({ value: s, label: STATUS[s].label }))} /></div>
-        </div>
-        <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
-        <div className="nt-field">
-          <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
-          <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />
-        </div>
-        <div className="nt-field">
-          <label className="nt-label">Output <span className="nt-hint">finishing it yourself? drop the ready creative here</span></label>
-          <PendingAssets oneLink hint="Upload the ready creative (images) + its Drive/Canva link — for tasks you can complete without a designer." value={output} onChange={setOutput} />
-        </div>
-        <div className="nt-assign">
-          <span className="status-dot" style={{ background: "#8A92A6" }} />
-          <span><b>Flow:</b> starts with <b>Manya</b> in the content phase. On <b>Content - Approved</b> it auto-hands off to {assign.toPool ? <b>the editors&apos; claim pool (Nikhil / Nandu)</b> : <b>{assign.owner}</b>} — because {type} is {assign.toPool ? "video" : "design"} work.</span>
-        </div>
-        <div className="nt-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={create} style={canSubmit ? undefined : { opacity: .55 }} title={canSubmit ? undefined : `Still missing: ${missing.join(", ")}`}>Create task</button>
-        </div>
+        <button className="nt-x" onClick={onClose} title="Close without creating"><IconX size={14} stroke={2} /></button>
       </div>
-      {gate && <div onClick={(e) => e.stopPropagation()}><MissingFieldsModal gate="create" missing={missing} title={title.trim() || "This task"} onClose={() => setGate(false)} /></div>}
-    </div>
+      <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
+      <div className="nt-row">
+        <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
+        <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
+      </div>
+      <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
+      <div className="nt-row">
+        <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={CC_SBUS.map((s) => ({ value: s, label: s }))} /></div>
+        <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as CCStatus)} options={NEW_TASK_STATUSES.map((s) => ({ value: s, label: STATUS[s].label }))} /></div>
+      </div>
+
+      {/* Live routing — recomputes on every Type / Status change so the creator can see
+          where the task actually lands BEFORE saving it. */}
+      <div className="nt-route">
+        <div className="nt-route-head">
+          <span className={`nt-route-dot ${route.pool ? "pool" : status === "Content - Approved" ? "on" : "wait"}`} />
+          <span className="nt-route-headline">{route.headline}</span>
+        </div>
+        <div className="nt-route-grid">
+          <div>
+            <div className="mlbl">Owner</div>
+            <div className="collab-cell">
+              {route.ownerKey ? <><Avatar p={PPL[route.ownerKey]} /><span className="collab-names">{route.ownerLabel}</span></> : <span className="collab-names">Unassigned</span>}
+            </div>
+          </div>
+          <div>
+            <div className="mlbl">Collaborators</div>
+            <div className="collab-cell" style={{ position: "relative" }}>
+              {collabKeys.length ? collabKeys.map((k) => {
+                // Rule-attached people (the writer on design work) are added by the
+                // server's own handoff — the form can't take them off, so the chip says
+                // "auto" instead of offering a × that wouldn't hold.
+                const auto = route.collaborators.includes(k);
+                return (
+                  <span key={k} className="collab-chip">
+                    <Avatar p={PPL[k]} />
+                    <span className="collab-names">{PPL[k].name}</span>
+                    {auto
+                      ? <span className="collab-auto" title="Added automatically on approval">auto</span>
+                      : <button type="button" className="collab-del" title={`Remove ${PPL[k].name}`} onClick={() => setExtraCollabs((xs) => xs.filter((x) => x !== k))}>×</button>}
+                  </span>
+                );
+              }) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
+              {addable.length > 0 && <button type="button" className="collab-add" title="Add a collaborator" onClick={() => setAddingCollab((v) => !v)}>+</button>}
+              {addingCollab && (
+                <div className="collab-menu">
+                  {addable.map((k) => (
+                    <button key={k} type="button" className="collab-opt" onClick={() => { setExtraCollabs((xs) => [...xs, k]); setAddingCollab(false); }}>
+                      <Avatar p={PPL[k]} />{PPL[k].name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {route.pool && (
+            <div>
+              <div className="mlbl">Claim pool</div>
+              <div className="collab-cell">
+                <span className="collab-chip"><Avatar p={PPL.nikhil} /><span className="collab-names">Nikhil</span></span>
+                <span className="collab-chip"><Avatar p={PPL.nandu} /><span className="collab-names">Nandu</span></span>
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="mlbl">Not on this task</div>
+            <div className="collab-cell">
+              {notOnIt.length ? notOnIt.map((k) => (
+                <span key={k} className="collab-chip off" title={`${PPL[k].name} is not involved`}><Avatar p={PPL[k]} /><span className="collab-names">{PPL[k].name}</span></span>
+              )) : <span className="collab-names" style={{ color: "var(--faint)" }}>Everyone is on it</span>}
+            </div>
+          </div>
+        </div>
+        <div className="nt-route-why">{route.why}</div>
+      </div>
+
+      <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+      <div className="nt-field">
+        <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
+        <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />
+      </div>
+      <div className="nt-field">
+        <label className="nt-label">Output <span className="nt-hint">finishing it yourself? drop the ready creative here</span></label>
+        <PendingAssets oneLink hint="Upload the ready creative (images) + its Drive/Canva link — for tasks you can complete without a designer." value={output} onChange={setOutput} />
+      </div>
+      <div className="nt-actions">
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={create} style={canSubmit ? undefined : { opacity: .55 }} title={canSubmit ? undefined : `Still missing: ${missing.join(", ")}`}>Create task</button>
+      </div>
+      {gate && <MissingFieldsModal gate="create" missing={missing} title={title.trim() || "This task"} onClose={() => setGate(false)} />}
+    </>
   );
 }
 
@@ -1584,14 +1742,33 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     })();
     return () => { cancel = true; };
   }, []);
-  const [sel, setSel] = useState(0);
+  // Which row of the task list is open in the right-hand panel. null = nothing open,
+  // which is now the resting state: the panel offers "New task" instead of
+  // auto-opening whatever happened to sort first.
+  const [sel, setSel] = useState<number | null>(null);
   const [claimPool, setClaimPool] = useState<Task[]>([]);             // videos up for grabs (live)
   const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal (legacy)
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
-  const [created, setCreated] = useState<Task[]>([]);                 // tasks anyone created (last 60 days) — filtered to the viewed person below
   const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("open");
+  // "Tasks I created" loads separately from /api/my-day/created so the range picker
+  // can reach past the main feed's fixed 60-day window without re-running that whole
+  // composite query. Opens on the last 3 months.
+  const [createdRows, setCreatedRows] = useState<Task[]>([]);
+  const [createdRange, setCreatedRange] = useState<CreatedRange>("3m");
+  const [createdBusy, setCreatedBusy] = useState(false);
+  const [createdCapped, setCreatedCapped] = useState(false);
+  // Custom window ("last N hours / days"). `createdAmtText` is what's in the box —
+  // kept as text so the field can be empty mid-typing without snapping back to a
+  // number; `createdAmt` is the debounced, validated value the query actually uses.
+  const [createdAmtText, setCreatedAmtText] = useState("7");
+  const [createdAmt, setCreatedAmt] = useState(7);
+  const [createdUnit, setCreatedUnit] = useState<"hours" | "days">("days");
+  // Type / SBU narrowing. Applied in the browser over the rows already fetched for the
+  // window — instant, and the tab counts follow them.
+  const [createdType, setCreatedType] = useState<string>("all");
+  const [createdSbu, setCreatedSbu] = useState<string>("all");
   const [openCreatedId, setOpenCreatedId] = useState<string | null>(null); // click a "Tasks I created" row to see it
   const [samvaya, setSamvaya] = useState<Task[]>([]);                 // Nandu's Samvaya / other-platform tasks (spec §14, kept separate)
   const [loading, setLoading] = useState(true);                       // first live load in flight
@@ -1649,7 +1826,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, actor: person, fields }) })
       .then(async (res) => { if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Undo failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); } load(); })
       .catch((e) => { setToast({ who: "Undo failed", color: "#C03221", av: "!", body: String(e) }); load(); });
-  const [showNew, setShowNew] = useState(false); // create-task modal (Manya only)
+  // The create form now lives in the right-hand panel instead of a centred modal.
+  // `composing` is what the panel shows; `composerDirty` is whether closing it would
+  // throw away typing, which is the only time we interrupt with a confirm.
+  const [composing, setComposing] = useState(false);
+  const [composerDirty, setComposerDirty] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);   // chat-panel notification stack
   const [acceptTask, setAcceptTask] = useState<Task | null>(null); // Accept & Work modal
   const [askManya, setAskManya] = useState(false);     // Ask-Manya reschedule modal
@@ -1730,7 +1911,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setActiveChat(null);
     setChatMsgs([]);            // never show the previous person's threads while the refetch is in flight
     lastMsgId.current = null;   // and never toast "new message" for their backlog
-    setSel(0);                  // task selection is per-person
+    setSel(null);               // task selection is per-person; the panel rests empty
     try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
     try { setDismissedNudges(JSON.parse(localStorage.getItem(`hmd-dismissed-${person}`) || "[]")); } catch { setDismissedNudges([]); }
     // Viewing a person = they're logged in → clear any logged-out overlay + close the menu.
@@ -1810,7 +1991,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         setTasks(fetched);
         setClaimPool((d.pool as Task[]) || []);
         setSamvaya((d.samvaya as Task[]) || []);
-        setCreated((d.created as Task[]) || []);
+        // NOTE: d.created is no longer read here — "Tasks I created" has its own
+        // range-aware endpoint (loadCreated below).
         // Reconcile the optimistic claim buffer against server truth: drop a claim once
         // the server confirms I own it (it now shows via `tasks`, so keeping it would
         // duplicate the row) or the row is gone — but KEEP a claim the server hasn't yet
@@ -1827,6 +2009,33 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // "Tasks I created", loaded on its own so the range picker can reach back past the
+  // main feed's 60-day window. Re-runs when the viewed person or the range changes.
+  const loadCreated = useCallback(async () => {
+    if (!person) return;
+    setCreatedBusy(true);
+    try {
+      const qs = new URLSearchParams({ person, range: createdRange });
+      if (createdRange === "custom") { qs.set("amount", String(createdAmt)); qs.set("unit", createdUnit); }
+      const r = await fetch(`/api/my-day/created?${qs}`, { cache: "no-store" });
+      if (!r.ok) return; // keep the last good list rather than blanking the card
+      const d = await r.json();
+      setCreatedRows((d.created as Task[]) || []);
+      setCreatedCapped(d.capped === true);
+    } catch { /* keep whatever we last had */ } finally { setCreatedBusy(false); }
+  }, [person, createdRange, createdAmt, createdUnit]);
+  useEffect(() => { loadCreated(); }, [loadCreated]);
+  // Typing "30" shouldn't fire a query for "3" on the way. Settle for a beat, then
+  // commit the number (blank or junk falls back to 1, the smallest real window).
+  useEffect(() => {
+    if (createdRange !== "custom") return;
+    const id = setTimeout(() => {
+      const n = Math.floor(Number(createdAmtText));
+      setCreatedAmt(Number.isFinite(n) && n >= 1 ? Math.min(n, CUSTOM_UNIT_MAX[createdUnit]) : 1);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [createdAmtText, createdUnit, createdRange]);
+
   const me = useMemo(() => TEAM.find((t) => t.key === person) || TEAM[3], [person]);
   meNameRef.current = me.name;
   const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
@@ -1838,7 +2047,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   //   when their day was full). NOT the claim pool — that's the Claim pool button;
   //   showing it here too made both buttons list the same tasks (Nandu, 21 Sep).
   const pipelineTasks = useMemo(() => {
-    if (person === "praveen") return tasks.filter((t) => t.status === "Content - Approved" && !(VIDEO_TYPES as readonly string[]).includes(t.detail.typeLine) && t.detail.owner !== me.name);
+    if (person === "praveen") return tasks.filter((t) => t.status === "Content - Approved" && !isVideoType(t.detail.typeLine) && t.detail.owner !== me.name);
     if (isEditor) {
       const queued = new Set(notifs.filter((n) => n.accept && n.postId).map((n) => n.postId!));
       const seen = new Set<string>();
@@ -1951,7 +2160,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const shownTasks = useMemo(() => {
     return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
   }, [workingTasks, taskTab, cmpTasks]);
-  const task = shownTasks[sel] || shownTasks[0] || null;
+  // No fallback to the first row: nothing is open until the person opens something.
+  const task = sel === null ? null : shownTasks[sel] || null;
   // A claimable video opened for a look before claiming (Nandu: "I want to open and
   // see the task"). Shown in the detail panel, read-only, with a Claim button.
   const [peekId, setPeekId] = useState<string | null>(null);
@@ -2520,6 +2730,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const activeCaps = capByPerson[person];
   const can = (cap: Capability) => !!activeCaps && (activeCaps.isAdmin || activeCaps.permissions[cap] === true);
   const canCreate = can("create_tasks");      // + New task
+  // Opening the form takes over the right-hand panel, so it also clears whatever was
+  // open there — otherwise the list would still highlight a task you can no longer see.
+  const openComposer = () => { setComposing(true); setComposerDirty(false); setSel(null); setPeekId(null); };
+  const closeComposer = () => { setComposing(false); setComposerDirty(false); };
+  // Leaving the form for something else: only ask when there is typing to lose.
+  const leaveComposer = async () => {
+    if (!composing) return true;
+    if (composerDirty && !(await confirmDialog({ title: "Discard this new task?", body: "You've started filling the form. Leaving now throws away what you typed.", action: "Discard", danger: true }))) return false;
+    closeComposer();
+    return true;
+  };
   const canSchedule = can("approve_content");  // Send to Scheduler (post)
   const canEditTasks = can("edit_tasks");      // edit priority / due date
   const canDeleteTasks = can("delete_tasks");  // remove a task
@@ -2528,20 +2749,25 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
   // Capacity-gated: a new task starts on Manya (writer) — warn if her day is full.
-  const createTask = (t: Task, _owner?: string, _note?: string, assets?: NewTaskAssets) => {
+  // The creator is whoever is signed in — PPL, not TEAM, because TEAM has no Maheen
+  // and would fall back to the wrong person for an admin.
+  const creatorName = PPL[person]?.name || me.name;
+  const createTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets) => {
     const add = estMins(t.detail.typeLine);
-    const committed = committedFor("Manya");
+    const committed = committedFor(creatorName);
     if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: "Manya", committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, assets) });
+      setAssignWarn({ name: creatorName, committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, status, collaborators, assets) });
       return;
     }
-    doCreateTask(t, assets);
+    doCreateTask(t, status, collaborators, assets);
   };
-  const doCreateTask = (t: Task, assets?: NewTaskAssets) => {
-    setShowNew(false);
-    // Persist to mh_posts. Content-first: every new task starts with the writer
-    // (Manya) at "Content - Pending"; the handoff to Praveen / the editors' pool
-    // fires later when she moves it to "Content - Approved" (see setTaskStatus).
+  const doCreateTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets) => {
+    closeComposer();
+    // Persist to mh_posts. Content-first: the row is always CREATED on the writer at
+    // "Content - Pending" (the create route files it that way), and if the form asked
+    // for a later status we move it there straight after — through the same status
+    // route the board uses, so the Content-Approved handoff fires exactly once and
+    // exactly as the form's routing card promised.
     fetch("/api/marketing-hub/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2549,7 +2775,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         title: t.title,
         type: t.detail.typeLine,
         sbu: t.detail.brand,
-        owner: "manya",
+        owner: person,
         publishingDate: t.due || undefined,
         dueDate: t.due || undefined,
         priority: t.detail.priority,
@@ -2567,26 +2793,44 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           return;
         }
         // Now the row exists — persist any references / output the writer attached in the
-        // modal (they need the real post id). Links go on the row; images become attachments.
+        // form (they need the real post id). Links go on the row; images become attachments.
         const postId = j.id as string | undefined;
         if (postId && assets) {
           const fields: Record<string, unknown> = {};
           if (assets.refLinks.length) fields.reference_links = assets.refLinks;
           if (assets.outLink) fields.output_link = assets.outLink;
           if (Object.keys(fields).length) {
-            await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: "manya", fields }) }).catch(() => {});
+            await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: person, fields }) }).catch(() => {});
           }
           const upload = async (file: File, kind: "reference" | "creative") => {
             const fd = new FormData();
-            fd.append("postId", postId); fd.append("uploadedBy", "manya"); fd.append("kind", kind); fd.append("file", file);
+            fd.append("postId", postId); fd.append("uploadedBy", person); fd.append("kind", kind); fd.append("file", file);
             await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => {});
           };
           for (const f of assets.refFiles) await upload(f, "reference");
           for (const f of assets.outFiles) await upload(f, "creative");
         }
+        // Hand-picked collaborators go on BEFORE the status move, so a Content-Approved
+        // handoff never lands on a half-built team.
+        if (postId && collaborators.length) {
+          await fetch("/api/marketing-hub/collaborators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, memberKeys: collaborators }) }).catch(() => {});
+        }
+        // Filed at a later status → move it there now. This is the ordinary status
+        // route, so the server does the assigning; the form only predicted it.
+        let statusNote = `starts with ${creatorName} (Content - Pending)`;
+        if (postId && status !== "Content - Pending") {
+          const moved = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: person, fields: { status } }) }).catch(() => null);
+          if (moved && moved.ok) {
+            const r = routeFor(t.detail.typeLine, status, person);
+            statusNote = `${STATUS[status].label} — ${r.pool ? "in the editors' claim pool" : `with ${r.ownerLabel}`}`;
+          } else {
+            statusNote = `created, but it stayed at Content - Pending — move it to ${STATUS[status].label} from the task`;
+          }
+        }
         const extras = assets ? [assets.refFiles.length + assets.refLinks.length ? "references" : "", assets.outFiles.length + (assets.outLink ? 1 : 0) ? "output" : ""].filter(Boolean).join(" + ") : "";
-        setToast({ who: "Created", color: "#3A57E8", av: "M", body: `“${t.title}” added — starts with Manya (Content - Pending)${extras ? ` · ${extras} attached` : ""}.` });
+        setToast({ who: "Created", color: "#3A57E8", av: PPL[person]?.av || me.av, body: `“${t.title}” added — ${statusNote}${extras ? ` · ${extras} attached` : ""}.` });
         load();
+        loadCreated(); // the new row belongs in "Tasks I created" straight away
       })
       .catch((e) => setToast({ who: "Create failed", color: "#C03221", av: "!", body: String(e) }));
   };
@@ -2832,6 +3076,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setReminders((r) => r.some((x) => x.text === text) ? r : [{ text, done: false }, ...r]);
   };
   const visibleNudges = nudges.filter((n) => !dismissedNudges.includes(n.id));
+  // The reminder group starts collapsed — the count is the headline, the list is
+  // one click away.
+  const [remOpenGroup, setRemOpenGroup] = useState(false);
   const send = () => {
     const t = msg.trim(); if (!t || !activeChat) return;
     const convo = activeChat === "team" ? "team" : dmConvo(person, activeChat);
@@ -3046,16 +3293,32 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         )}
 
         {/* Smart reminders (spec §13) — stale-content / overdue nudges for this person.
+            Grouped behind one collapsed row: on a busy day this was a wall of red
+            above the plan. The summary line carries the count and the first task's
+            name, so a collapsed group still says what's waiting.
             Dismissing one hides it here but keeps it in the 📋 reminders popover. */}
         {visibleNudges.length > 0 && (
-          <div className="card pad" style={{ marginTop: "1rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 }}>{BELL} {visibleNudges.length} reminder{visibleNudges.length > 1 ? "s" : ""}</div>
-            {visibleNudges.map((n) => (
-              <div key={n.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "3px 0" }}>
-                <div style={{ fontSize: 13, color: "#232D42" }}><b>{n.title}</b> — <span style={{ color: "#B0203A" }}>{n.text}</span></div>
-                <button className="btn sm" style={{ flexShrink: 0 }} onClick={() => dismissNudge(n)}>Dismiss</button>
+          <div className="card rem-group" style={{ marginTop: "1rem" }}>
+            <button type="button" className="rem-head" aria-expanded={remOpenGroup} onClick={() => setRemOpenGroup((v) => !v)}>
+              <span className={`rem-caret ${remOpenGroup ? "on" : ""}`} aria-hidden="true">›</span>
+              <span className="rem-head-lbl">{BELL} {visibleNudges.length} reminder{visibleNudges.length > 1 ? "s" : ""}</span>
+              {!remOpenGroup && (
+                <span className="rem-head-peek">
+                  {visibleNudges[0].title}{visibleNudges.length > 1 ? ` + ${visibleNudges.length - 1} more` : ""}
+                </span>
+              )}
+              <span className="rem-head-act">{remOpenGroup ? "Hide" : "Show"}</span>
+            </button>
+            {remOpenGroup && (
+              <div className="rem-body">
+                {visibleNudges.map((n) => (
+                  <div key={n.id} className="rem-row">
+                    <div className="rem-txt"><b>{n.title}</b> — <span className="rem-why">{n.text}</span></div>
+                    <button className="btn sm" style={{ flexShrink: 0 }} onClick={() => dismissNudge(n)}>Dismiss</button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 
@@ -3131,17 +3394,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         {/* 3 · WORK ROW — My tasks | Up next detail (wider now) */}
         <div className="work">
           <div className="card pad">
-            <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className="btn primary sm" onClick={() => setShowNew(true)}>+ New task</button> : null}</div>
+            <div className="colhead"><h3>My tasks</h3>{canCreate ? <button className={`btn sm ${composing ? "" : "primary"}`} onClick={openComposer} disabled={composing} title={composing ? "The form is already open on the right" : "Create a content task"}>+ New task</button> : null}</div>
             <div style={{ display: "flex", alignItems: "center", gap: ".5rem", margin: "-.2rem 0 .6rem" }}>
               <span className="lbl" style={{ whiteSpace: "nowrap" }}>Sort by</span>
-              <PreviewSelect className="flex-1" value={sortBy} onChange={(v) => { pickSort(v as TaskSort); setSel(0); }}
+              <PreviewSelect className="flex-1" value={sortBy} onChange={(v) => { pickSort(v as TaskSort); setSel(null); }}
                 options={(Object.keys(TASK_SORTS) as TaskSort[]).map((k) => ({ value: k, label: TASK_SORTS[k] }))} />
             </div>
             <div className="task-tabs">
               {tabCounts.map((tb) => (
                 // Short names: four full status names don't fit this column (the last
                 // tab was clipped). The full name is the tooltip.
-                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(0); setPeekId(null); }}>
+                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(null); setPeekId(null); }}>
                   {tb.short}<span className="task-tab-n">{tb.n}</span>
                 </button>
               ))}
@@ -3156,7 +3419,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={() => { setSel(i); setPeekId(null); }}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
                     <div className="task-top">
                       <div className="tt">{t.title}</div>
                       <DueChip due={t.due} today={todayStr} />
@@ -3174,7 +3437,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 // tab; first to claim owns it. Nikhil also picks how he'll work it.
                 const confirming = claimConfirm === v.id;
                 return (
-                  <div key={v.id} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={() => setPeekId(v.id)} title="Open to see the task"
+                  <div key={v.id} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setPeekId(v.id); }} title="Open to see the task"
                     style={{ borderStyle: "dashed", borderColor: peekId === v.id ? undefined : "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem", cursor: "pointer" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="tt">{v.title}</div>
@@ -3209,8 +3472,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             </div>
           </div>
 
+          {/* The right-hand panel has three states, in priority order: the create form
+              (opened from either "New task" button), a task you opened, or — at rest —
+              an empty panel offering a new task. It is no longer a centred modal. */}
           <div className="card pad detail">
-            {(() => { const peek = peekId ? claimableHere.find((v) => v.id === peekId) : null; return peek ? (
+            {composing ? (
+              <NewTaskPanel writer={person} onClose={() => { void leaveComposer(); }} onCreate={createTask} onDirty={setComposerDirty} />
+            ) : (() => { const peek = peekId ? claimableHere.find((v) => v.id === peekId) : null; return peek ? (
               <>
                 <div className="nt-assign" style={{ marginBottom: ".8rem", justifyContent: "space-between" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: ".5rem" }}><span className="status-dot" style={{ background: "#1AA053" }} />Up for grabs — not yours yet. Claim it to start working on it.</span>
@@ -3219,9 +3487,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <TaskBody task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
               </>
             ) : null; })() || (task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(0); load(); }} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
             ) : (
-              <div className="empty" style={{ padding: "3.5rem 0" }}>You’re all caught up ✓ — nothing needs work right now.</div>
+              // One entry point only: "+ New task" sits in the My tasks header, so the
+              // resting panel stays empty rather than repeating the same button.
+              <div className="panel-rest">
+                <div className="panel-rest-title">Nothing open</div>
+                <div className="panel-rest-sub">Pick a task on the left to open it here{canCreate ? ", or start a new one with + New task." : "."}</div>
+              </div>
             ))}
           </div>
         </div>
@@ -3229,8 +3502,15 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         {/* Tasks I created — follow work you asked for after it moves to someone else
             (e.g. Nandu's 12th Plus carousels, owned by Praveen once approved). */}
         {(() => {
-          const mineCreated = created.filter((t) => t.detail.createdBy === person);
-          if (!mineCreated.length) return null;
+          // `createdRows` comes from /api/my-day/created, which is already scoped to this
+          // person and the chosen window — no client-side date maths, so the counts can
+          // never disagree with the range label above them.
+          // Type / SBU narrow the window's rows BEFORE the tab counts are taken, so the
+          // counts always describe what the list is actually showing.
+          const mineCreated = createdRows.filter((t) =>
+            (createdType === "all" || t.detail.typeLine === createdType) &&
+            (createdSbu === "all" || t.detail.brand === createdSbu));
+          const narrowed = createdType !== "all" || createdSbu !== "all";
           const isPub = (t: Task) => t.status === "Published/Scheduled";
           const list = mineCreated.filter((t) => createdFilter === "all" || (createdFilter === "published" ? isPub(t) : !isPub(t)));
           const STEPS = ["Content", "Approved", "Making", "Ready", "Published"];
@@ -3239,7 +3519,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           const counts = { open: mineCreated.filter((t) => !isPub(t)).length, published: mineCreated.filter(isPub).length, all: mineCreated.length };
           return (
             <div className="card pad" style={{ marginTop: "1rem" }}>
-              <div className="colhead">
+              <div className="colhead created-head">
                 <h3>Tasks I created</h3>
                 <div className="task-tabs" style={{ marginBottom: 0 }}>
                   {(["open", "published", "all"] as const).map((f) => (
@@ -3249,7 +3529,47 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   ))}
                 </div>
               </div>
-              {list.length === 0 ? <div className="empty">Nothing here.</div> : (
+              {/* Filters on their own line — three dropdowns and the tabs crammed into
+                  the heading row left nothing room to breathe. */}
+              <div className="created-filters">
+                {/* The window the counts are measured over. It used to be a fixed,
+                    invisible 60 days, so "All 76" read like a lifetime total. */}
+                <label className="created-f">
+                  <span className="created-f-lbl">When</span>
+                  <PreviewSelect className="created-range" value={createdRange} onChange={(v) => setCreatedRange(v as CreatedRange)}
+                    options={CREATED_RANGE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
+                </label>
+                {createdRange === "custom" && (
+                  <label className="created-f created-custom">
+                    <span className="created-f-lbl">Last</span>
+                    <input className="nt-input created-amt" type="number" min={1} max={CUSTOM_UNIT_MAX[createdUnit]}
+                      value={createdAmtText} onChange={(e) => setCreatedAmtText(e.target.value)}
+                      aria-label={`How many ${createdUnit}`} />
+                    <PreviewSelect className="created-unit" value={createdUnit} onChange={(v) => setCreatedUnit(v as "hours" | "days")}
+                      options={[{ value: "hours", label: "hours" }, { value: "days", label: "days" }]} />
+                  </label>
+                )}
+                <label className="created-f">
+                  <span className="created-f-lbl">Type</span>
+                  <PreviewSelect className="created-type" value={createdType} onChange={setCreatedType}
+                    options={[{ value: "all", label: "All types" }, ...CC_TYPES.map((t) => ({ value: t, label: t }))]} />
+                </label>
+                <label className="created-f">
+                  <span className="created-f-lbl">SBU</span>
+                  <PreviewSelect className="created-sbu" value={createdSbu} onChange={setCreatedSbu}
+                    options={[{ value: "all", label: "All SBUs" }, ...CC_SBUS.map((s) => ({ value: s, label: s }))]} />
+                </label>
+                {narrowed && (
+                  <button type="button" className="btn sm created-clear" onClick={() => { setCreatedType("all"); setCreatedSbu("all"); }}>Clear filters</button>
+                )}
+              </div>
+              {createdCapped && (
+                <div className="created-cap">Showing the 500 most recent — narrow the range to see the rest.</div>
+              )}
+              {createdBusy && list.length === 0 ? <div className="empty">Loading…</div>
+                : list.length === 0 ? <div className="empty">{narrowed
+                    ? "Nothing matches these filters — try widening the type, SBU or range."
+                    : <>You haven&apos;t created anything {CREATED_RANGE_OPTIONS.find((o) => o.value === createdRange)?.empty || "in this period"}.</>}</div> : (
                 <div className="tasklist">
                   {list.map((t) => {
                     const step = stepOf(t.status);
@@ -3435,7 +3755,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       )}
 
       {/* CREATE-TASK MODAL — writer only; runs the Type→owner routing on submit */}
-      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreate={createTask} />}
 
       {/* CLAIM POOL modal — editors pick up video work; claiming moves it to My tasks */}
       {showClaimPool && (
@@ -3632,14 +3951,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   <div className="lbl" style={{ marginBottom: ".3rem" }}>Move one of his NOT-started tasks (the one he&rsquo;s on is locked)</div>
                   <div className="claim-list" style={{ marginBottom: "1rem" }}>
                     {day.candidates.length ? day.candidates.map((c) => (
-                      <div key={c.id} className="claim-card">
-                        <div style={{ minWidth: 0 }}>
+                      <div key={c.id} className="claim-card move-row">
+                        <div className="move-main">
                           <div className="claim-title">{c.label}</div>
                           <div className="claim-meta">{fmtMins(c.dur)}{c.due ? ` · due ${c.due}` : ""}</div>
                         </div>
-                        <div style={{ display: "flex", gap: ".4rem", alignItems: "center", flexShrink: 0 }}>
+                        <div className="move-act">
                           <button className="btn primary sm" onClick={() => moveCand(c.id, c.due, plus1(c.due))}>Move → next day</button>
-                          <input type="date" className="nt-input" style={{ width: 148, padding: ".3rem .5rem" }} onChange={(e) => { if (e.target.value) moveCand(c.id, c.due, e.target.value); }} title="Pick a date" />
+                          <input type="date" className="nt-input" onChange={(e) => { if (e.target.value) moveCand(c.id, c.due, e.target.value); }} title="Pick a date" />
                         </div>
                       </div>
                     )) : <div className="empty" style={{ padding: "1rem 0" }}>Everything he has left is in progress — nothing can move.</div>}
@@ -3829,6 +4148,28 @@ const CSS = `
 .hmd .work .detail::-webkit-scrollbar{width:6px}
 .hmd .work .detail::-webkit-scrollbar-thumb{background:var(--cE3E6EE);border-radius:3px}
 .hmd .colhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+/* "Tasks I created" header: range picker + the status tabs, wrapping to their own
+   line on a narrow card rather than crushing the heading. */
+.hmd .created-head{gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem}
+/* Filter bar: its own line, with room between each control. */
+.hmd .created-filters{display:flex;align-items:flex-end;gap:.9rem;flex-wrap:wrap;padding:.75rem .85rem;margin-bottom:.9rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
+.hmd .created-f{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.hmd .created-f-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.hmd .created-custom{flex-direction:row;align-items:center;gap:.4rem}
+.hmd .created-custom .created-f-lbl{align-self:center}
+.hmd .created-range{min-width:150px}
+.hmd .created-type{min-width:170px}
+.hmd .created-sbu{min-width:210px}
+.hmd .created-unit{min-width:95px}
+.hmd .created-amt{width:84px;padding:.38rem .5rem}
+.hmd .created-clear{margin-left:auto;align-self:center}
+.hmd .created-cap{font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:.4rem .6rem;margin-bottom:.6rem}
+@media(max-width:760px){
+  .hmd .created-filters{gap:.7rem}
+  .hmd .created-f{flex:1 1 100%}
+  .hmd .created-range,.hmd .created-type,.hmd .created-sbu{min-width:0;width:100%}
+  .hmd .created-clear{margin-left:0;width:100%}
+}
 .hmd .colhead h3{margin:0;font-size:16px}
 /* Left "My tasks" card fills the column height (mirrors the sticky detail) so the
    list uses the whole screen instead of a fixed 460px box with dead space below.
@@ -3888,6 +4229,20 @@ const CSS = `
 .hmd .claim-card{display:flex;align-items:center;gap:.7rem;border:1px solid var(--line);border-radius:11px;padding:.7rem .85rem}
 .hmd .claim-card:hover{border-color:var(--cD9DEEA);background:var(--panel-2)}
 .hmd .claim-card .btn{margin-left:auto;flex-shrink:0}
+/* "Move one of his not-started tasks" rows. The title is the only elastic part, and
+   the action pair is a FIXED width pushed to the right edge — so the buttons and date
+   fields line up in two straight columns however long the task names are. */
+.hmd .claim-card.move-row{gap:.85rem}
+.hmd .claim-card.move-row .move-main{flex:1;min-width:0}
+.hmd .claim-card.move-row .move-act{display:flex;align-items:center;gap:.45rem;margin-left:auto;flex-shrink:0}
+.hmd .claim-card.move-row .move-act .btn{margin-left:0;width:150px;text-align:center;justify-content:center}
+.hmd .claim-card.move-row .move-act .nt-input{width:148px;padding:.3rem .5rem;flex:none}
+@media(max-width:620px){
+  .hmd .claim-card.move-row{flex-wrap:wrap}
+  .hmd .claim-card.move-row .move-main{flex:1 1 100%}
+  .hmd .claim-card.move-row .move-act{margin-left:0;width:100%}
+  .hmd .claim-card.move-row .move-act .btn,.hmd .claim-card.move-row .move-act .nt-input{flex:1 1 0;width:auto}
+}
 .hmd .apprstrip{width:100%;margin-top:1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;border:1px solid var(--cE9ECFB);border-left:3px solid var(--brand);background:var(--panel);border-radius:12px;padding:.7rem .95rem;cursor:pointer;transition:all .12s;text-align:left}
 .hmd .apprstrip:hover{background:var(--cFAFBFF);border-color:var(--cD9DEEA)}
 .hmd .apprstrip-l{display:flex;align-items:center;gap:.55rem;color:var(--c232D42);font-size:14px}
@@ -4156,6 +4511,42 @@ const CSS = `
 .hmd .nt-assign .status-dot{margin-top:.35rem}
 .hmd .nt-assign b{color:var(--ink)}
 .hmd .nt-actions{display:flex;justify-content:flex-end;gap:.6rem}
+/* ── Create form, now inside the right-hand panel ───────────────────────── */
+.hmd .nt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:1.1rem}
+.hmd .nt-x{width:26px;height:26px;flex:none;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.hmd .nt-x:hover{border-color:var(--cD9DEEA);color:var(--ink)}
+/* Live routing card — what the task's Type + Status mean for who gets it. */
+.hmd .nt-route{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:.75rem .8rem;margin:.2rem 0 1.1rem}
+.hmd .nt-route-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem}
+.hmd .nt-route-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
+.hmd .nt-route-dot.on{background:var(--good)}
+.hmd .nt-route-dot.pool{background:var(--brand)}
+.hmd .nt-route-dot.wait{background:var(--warn)}
+.hmd .nt-route-headline{font-size:13.5px;font-weight:600;color:var(--ink)}
+.hmd .nt-route-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem .9rem}
+.hmd .nt-route-why{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.hmd .collab-chip.off{opacity:.45;filter:grayscale(1)}
+.hmd .collab-auto{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;margin-left:.1rem}
+/* The panel at rest — nothing open, so it offers the one thing you'd want next. */
+.hmd .panel-rest{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;text-align:center;padding:3.2rem 1rem;min-height:220px}
+.hmd .panel-rest-title{font-size:15px;font-weight:600;color:var(--ink-soft)}
+.hmd .panel-rest-sub{font-size:13px;color:var(--muted);max-width:34ch;line-height:1.45}
+.hmd .panel-rest .btn{margin-top:.5rem}
+/* ── Grouped reminders ──────────────────────────────────────────────────── */
+.hmd .rem-group{overflow:hidden}
+.hmd .rem-head{display:flex;align-items:center;gap:.5rem;width:100%;border:0;background:transparent;font:inherit;text-align:left;padding:.7rem .9rem;cursor:pointer;color:var(--ink)}
+.hmd .rem-head:hover{background:var(--panel-2)}
+.hmd .rem-caret{display:inline-block;color:var(--faint);font-size:15px;line-height:1;transition:transform .15s ease;flex:none}
+.hmd .rem-caret.on{transform:rotate(90deg)}
+.hmd .rem-head-lbl{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);flex:none}
+.hmd .rem-head-peek{font-size:13px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.hmd .rem-head-act{font-size:12px;font-weight:600;color:var(--brand);margin-left:auto;flex:none}
+.hmd .rem-body{padding:0 .9rem .8rem;border-top:1px solid var(--line)}
+.hmd .rem-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:.45rem 0;border-bottom:1px solid var(--line-2)}
+.hmd .rem-row:last-child{border-bottom:0}
+.hmd .rem-txt{font-size:13px;color:var(--ink);min-width:0}
+.hmd .rem-why{color:var(--cB0203A)}
+@media(prefers-reduced-motion:reduce){.hmd .rem-caret{transition:none}}
 .hmd .refs{display:flex;flex-wrap:wrap;gap:.7rem;align-items:flex-start}
 .hmd .refs .ref-thumb{position:relative}
 .hmd .ref-thumb .thumb-img{background-color:var(--panel-2)}
