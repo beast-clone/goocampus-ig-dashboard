@@ -44,7 +44,14 @@ type Chan = {
   rows: { k: string; v: React.ReactNode }[];
 };
 
-export function ExecutiveOverview({ range, rangeLabel, accountId }: { range: Range; rangeLabel: string; accountId: string }) {
+export type ExecData = { d: Record<string, unknown> | null; failed: string[] };
+
+/**
+ * One fetch for both halves of the page. The executive summary and the channel
+ * cards read the same six APIs, so the parent calls this once and hands the result
+ * to each — rather than each component fetching the same endpoints over again.
+ */
+export function useExecData({ range, accountId }: { range: Range; accountId: string }): ExecData {
   const [d, setD] = useState<Record<string, unknown> | null>(null);
   const [failed, setFailed] = useState<string[]>([]);
 
@@ -92,7 +99,11 @@ export function ExecutiveOverview({ range, rangeLabel, accountId }: { range: Ran
     return () => { alive = false; };
   }, [urls]);
 
-  if (!d) return <div className="exo"><LoadingBlock /></div>;
+  return { d, failed };
+}
+
+/** Shared derivation, so both halves read the same numbers from the same payload. */
+function derive(d: Record<string, unknown>) {
 
   /* ── pull the headline figures, defensively ─────────────────────────── */
   const ig = (d.ig || {}) as Record<string, Record<string, number>>;
@@ -175,6 +186,21 @@ export function ExecutiveOverview({ range, rangeLabel, accountId }: { range: Ran
   const cpl = paidLeads && spend != null ? spend / paidLeads : null;
   const blendedCpl = totalLeads && spend != null ? spend / totalLeads : null;
 
+  return { channels, totalAudience, igT, igD, fbIns, fbFollowers, ads,
+    paidLeads, paidReach, spend, organicLeads, organicReach, totalLeads,
+    paidPer1k, orgPer1k, cpl, blendedCpl };
+}
+
+/**
+ * The executive half: what the spend returned. No per-channel breakdown — that is
+ * detail, and it lives in the Detailed Overview below.
+ */
+export function ExecutiveOverview({ rangeLabel, data }: { rangeLabel: string; data: ExecData }) {
+  const { d, failed } = data;
+  if (!d) return <div className="exo" id="executive-overview"><LoadingBlock /><style jsx global>{EXO_CSS}</style></div>;
+  const { igT, igD, fbIns, fbFollowers, ads, paidLeads, paidReach, spend,
+    organicLeads, organicReach, totalLeads, paidPer1k, orgPer1k, cpl, blendedCpl } = derive(d);
+
   return (
     <div className="exo" id="executive-overview">
       {failed.length > 0 && (
@@ -183,33 +209,6 @@ export function ExecutiveOverview({ range, rangeLabel, accountId }: { range: Ran
           Everything below is built from what did load, so some figures are missing rather than wrong.
         </div>
       )}
-
-      {/* ── 1 · CHANNELS ────────────────────────────────────────────── */}
-      <SectionTitle>Channels<Em>{totalAudience ? `— ${fmt(totalAudience)} people follow you across four. Open a tab to go deeper.` : "— open a tab to go deeper."}</Em></SectionTitle>
-      <div className="exo-chans">
-        {channels.map((c) => (
-          <div key={c.key} className="exo-chan">
-            <div className="exo-chan-top">
-              <span className="exo-ic" style={{ background: c.colour }}>{c.badge}</span>
-              <div><div className="exo-nm">{c.name}</div><div className="exo-acct">{c.account}</div></div>
-              {c.audience && totalAudience ? (
-                <span className="exo-share">{Math.round((c.audience / totalAudience) * 100)}% of audience</span>
-              ) : null}
-            </div>
-            <div className="exo-rows">
-              {c.rows.map((r) => (
-                <div key={r.k} className="exo-row"><span className="exo-k">{r.k}</span><span className="exo-v">{r.v}</span></div>
-              ))}
-            </div>
-            <div className="exo-foot"><a href={c.href}>Open {c.name} →</a></div>
-          </div>
-        ))}
-      </div>
-      <p className="exo-note">
-        Organic reach below is Instagram reach + LinkedIn impressions + YouTube views. Facebook reach
-        returns nothing from the API, so Facebook is not in that figure and the real total is higher
-        by an unknown amount.
-      </p>
 
       {/* ── 2 · PAID vs ORGANIC ─────────────────────────────────────── */}
       <SectionTitle>Paid against organic<Em>— where the results actually came from</Em></SectionTitle>
@@ -322,6 +321,49 @@ export function ExecutiveOverview({ range, rangeLabel, accountId }: { range: Ran
           ) : null}
         </div>
       </div>
+
+      <style jsx global>{EXO_CSS}</style>
+    </div>
+  );
+}
+
+
+/**
+ * The per-channel breakdown. This is detail, not summary — it sits in the Detailed
+ * Overview, under the executive half that reads the spend.
+ */
+export function ChannelBreakdown({ data }: { data: ExecData }) {
+  const { d } = data;
+  if (!d) return <div className="exo"><LoadingBlock /><style jsx global>{EXO_CSS}</style></div>;
+  const { channels, totalAudience } = derive(d);
+  return (
+    <div className="exo">
+      {/* ── 1 · CHANNELS ────────────────────────────────────────────── */}
+      <SectionTitle>Channels<Em>{totalAudience ? `— ${fmt(totalAudience)} people follow you across four. Open a tab to go deeper.` : "— open a tab to go deeper."}</Em></SectionTitle>
+      <div className="exo-chans">
+        {channels.map((c) => (
+          <div key={c.key} className="exo-chan">
+            <div className="exo-chan-top">
+              <span className="exo-ic" style={{ background: c.colour }}>{c.badge}</span>
+              <div><div className="exo-nm">{c.name}</div><div className="exo-acct">{c.account}</div></div>
+              {c.audience && totalAudience ? (
+                <span className="exo-share">{Math.round((c.audience / totalAudience) * 100)}% of audience</span>
+              ) : null}
+            </div>
+            <div className="exo-rows">
+              {c.rows.map((r) => (
+                <div key={r.k} className="exo-row"><span className="exo-k">{r.k}</span><span className="exo-v">{r.v}</span></div>
+              ))}
+            </div>
+            <div className="exo-foot"><a href={c.href}>Open {c.name} →</a></div>
+          </div>
+        ))}
+      </div>
+      <p className="exo-note">
+        Organic reach below is Instagram reach + LinkedIn impressions + YouTube views. Facebook reach
+        returns nothing from the API, so Facebook is not in that figure and the real total is higher
+        by an unknown amount.
+      </p>
 
       <style jsx global>{EXO_CSS}</style>
     </div>

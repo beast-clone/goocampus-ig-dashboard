@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fmtDateShort } from "@/lib/date";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { ExecutiveOverview } from "./ExecutiveOverview";
+import { ExecutiveOverview, ChannelBreakdown, useExecData } from "./ExecutiveOverview";
 import {
   IconLayoutGrid, IconChartLine, IconCalendarEvent,
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
@@ -218,6 +218,10 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     const days = rangeKey === "7d" ? 7 : rangeKey === "60d" ? 60 : rangeKey === "90d" ? 90 : rangeKey === "1y" ? 365 : 30;
     return { from: ymdLocal(new Date(now.getTime() - days * 86_400_000)), to: todayStr };
   }, [isMonthly, selFrom, selTo, rangeKey, custom, now, todayStr]);
+
+  // Executive summary and channel breakdown read the same six APIs; fetch once here
+  // and hand the result to each, so the two halves can never disagree.
+  const execData = useExecData({ range, accountId });
   const rangeLabel = isMonthly && selectedMonth
     ? `${selectedMonth.full}${selectedMonth.isCurrent ? " (so far)" : ""}`
     : rangeKey === "custom" ? (custom.from && custom.to ? `${custom.from} → ${custom.to}` : "custom range")
@@ -520,13 +524,15 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               {/* Executive overview — every channel plus the spend, straight under the
                   greeting. The Instagram detail that used to start here is still below
                   it, now labelled so the two don't read as one long page. */}
-              <ExecutiveOverview range={range} rangeLabel={rangeLabel} accountId={accountId} />
+              <ExecutiveOverview rangeLabel={rangeLabel} data={execData} />
 
               <div id="detailed-overview" style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 -4px", scrollMarginTop: 80 }}>
                 <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "#A6ACBE", margin: 0 }}>Detailed overview</h2>
                 <span style={{ fontSize: 12, color: "#A6ACBE" }}>— {currentAccount.handle} in full</span>
                 <span style={{ flex: 1, height: 1, background: C.line }} />
               </div>
+
+              <ChannelBreakdown data={execData} />
 
               {/* Stat cards — now with description + AI action, matching the real Overview */}
               <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 18 }}>
