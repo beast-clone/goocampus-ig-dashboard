@@ -360,13 +360,13 @@ const CSS = `
   flex:1;min-width:0;height:100vh;overflow-y:auto;background:var(--canvas);padding:22px 26px 60px;font-family:Inter,system-ui,sans-serif;color:var(--ink)}
 .tcmd *{box-sizing:border-box}
 .tcmd .tc-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 20px;flex-wrap:wrap}
-.tcmd .tc-h1{display:flex;align-items:center;gap:9px;font-size:1.35rem;font-weight:600}
+.tcmd .tc-h1{display:flex;align-items:center;gap:9px;font-size:1.15rem;font-weight:600}
 .tcmd .tc-h1 svg{color:var(--brand)}
 .tcmd .tc-sub{font-size:14px;color:var(--soft);margin-top:3px}
 .tcmd .tc-live{color:var(--dk-tcmd-1AA053)}
 .tcmd .tc-hstats{display:flex;align-items:center;gap:20px}
 .tcmd .tc-stat{text-align:center;min-width:50px}
-.tcmd .tc-stat .n{font-size:1.5rem;font-weight:600;line-height:1}
+.tcmd .tc-stat .n{font-size:1.28rem;font-weight:600;line-height:1}
 .tcmd .tc-stat .of{font-size:14px;color:var(--soft);font-weight:500}
 .tcmd .tc-stat .k{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin-top:4px;font-weight:600}
 .tcmd .tc-stat.warn .n{color:var(--dk-tcmd-B0203A)}.tcmd .tc-stat.danger .n{color:#C0392B}

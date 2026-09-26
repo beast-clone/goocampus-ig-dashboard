@@ -1256,7 +1256,7 @@ html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-ra
 .mhcal-hero::before{content:"";position:absolute;right:120px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 62%)}
 .mhcal-hero-txt{position:relative;z-index:1;max-width:640px}
 .mhcal-hero-tag{display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:rgba(255,255,255,.22);padding:.22rem .6rem;border-radius:20px;margin-bottom:.5rem}
-.mhcal-hero-txt h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-.018em;line-height:1.15;color:#fff}
+.mhcal-hero-txt h1{margin:0;font-size:1.35rem;font-weight:800;letter-spacing:-.018em;line-height:1.15;color:#fff}
 .mhcal-hero-txt p{margin:.32rem 0 0;font-size:.88rem;color:rgba(255,255,255,.95);line-height:1.45}
 .mhcal-hero-stat{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:.7rem 1rem;border-radius:12px;backdrop-filter:blur(2px);min-width:125px}
 .mhcal-hero-statv{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}

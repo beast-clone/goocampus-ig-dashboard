@@ -124,6 +124,8 @@ export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative
       createdAt: r.created_at || "",
       startAt: r.start_at || "",
       endAt: r.end_at || "",
+      // Why the allotted time was raised, and by how much, each time it happened.
+      extensions: Array.isArray(r.custom?.time_extensions) ? (r.custom.time_extensions as unknown[]) : [],
       duration: r.duration_min ?? undefined,
       createdBy: r.created_by || "",               // username of whoever created it
       ownerKey: r.owner_key || "",

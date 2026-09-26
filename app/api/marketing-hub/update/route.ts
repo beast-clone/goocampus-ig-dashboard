@@ -255,10 +255,24 @@ export async function PATCH(req: Request) {
     if (typeof clean.status === "string" && DONE_STATES.has(clean.status) && !before.data.end_at) {
       await sb.from("mh_posts").update({ end_at: new Date().toISOString() }).eq("id", body.id);
     }
-    // START the task clock the moment a producer moves it to "Output - In Progress"
-    // — this stamp is what the live My Day timer counts from (planned vs on-the-clock).
-    if (clean.status === "Output - In Progress" && before.data.status !== "Output - In Progress" && !before.data.start_at) {
-      await sb.from("mh_posts").update({ start_at: new Date().toISOString() }).eq("id", body.id);
+    // START the task clock when it moves to "Output - In Progress" — this stamp is what
+    // the live My Day timer counts from (planned vs on-the-clock).
+    //
+    // It used to stamp only when start_at was EMPTY, which quietly killed the timer for
+    // any task carrying an older stamp — imported rows (whose start_at and end_at are
+    // the same instant) and anything picked back up on a later day. My Day only ticks a
+    // task started today, so those sat at "In Progress" with a dead clock.
+    // A task entering In Progress is a working session starting NOW, so a stamp from
+    // another day is replaced, and the stale end_at that went with it is cleared —
+    // otherwise "Time taken" would read from an end that happened before this start.
+    if (clean.status === "Output - In Progress" && before.data.status !== "Output - In Progress") {
+      const now = new Date();
+      const prev = before.data.start_at ? new Date(before.data.start_at) : null;
+      const staleStart = !prev || Number.isNaN(prev.getTime())
+        || prev.getFullYear() !== now.getFullYear() || prev.getMonth() !== now.getMonth() || prev.getDate() !== now.getDate();
+      if (staleStart) {
+        await sb.from("mh_posts").update({ start_at: now.toISOString(), end_at: null }).eq("id", body.id);
+      }
     }
 
     // Auto-handoff when status becomes "Content - Approved" (assignment + collaborator

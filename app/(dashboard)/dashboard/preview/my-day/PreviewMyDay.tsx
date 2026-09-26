@@ -141,6 +141,9 @@ type Task = {
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
     createdAt?: string; modifiedAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
+    // Every time the allotted minutes were raised, and why — written by the timer
+    // strip's Extend control, read back so the task can show the trail.
+    extensions?: { at: string; by: string; fromMin: number; toMin: number; reason: string }[];
     feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
     presenter?: string;                                   // member key of whoever registered to present it
   };
@@ -610,20 +613,41 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
 // Each pick ADDS to the current planned duration (accumulates) → onExtend, which
 // persists the new duration and reshuffles Today's plan. The overrun vs the
 // original estimate stays visible in the Created/Started/Time-taken record.
-function ExtendPicker({ onExtend }: { onExtend: (mins: number) => void }) {
+// Extending the time now asks WHY. Overruns were invisible before — the minutes just
+// went up and nobody could tell a fiddly brief from a slow afternoon. The reason is
+// required, because an optional one is never filled in.
+function ExtendPicker({ onExtend }: { onExtend: (mins: number, reason: string) => void }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
-  const add = (m: number) => { if (m > 0) { onExtend(m); setCustom(""); setOpen(false); } };
+  const [mins, setMins] = useState<number | null>(null);   // the chosen amount, pending a reason
+  const [reason, setReason] = useState("");
+  const close = () => { setOpen(false); setMins(null); setReason(""); setCustom(""); };
+  const commit = () => { if (mins && reason.trim()) { onExtend(mins, reason.trim()); close(); } };
   return (
     <span className="ext-wrap">
-      <button className="btn sm" onClick={() => setOpen((o) => !o)}>+ Extend {CHEV}</button>
+      <button className="btn sm" onClick={() => (open ? close() : setOpen(true))}>+ Extend {CHEV}</button>
       {open && (
         <div className="ext-menu" onClick={(e) => e.stopPropagation()}>
-          <div className="ext-row">{[15, 30, 45, 60, 90].map((m) => <button key={m} className="btn sm" onClick={() => add(m)}>+{m}m</button>)}</div>
+          <div className="ext-row">{[15, 30, 45, 60, 90].map((m) => (
+            <button key={m} className={`btn sm ${mins === m ? "primary" : ""}`} onClick={() => setMins(m)}>+{m}m</button>
+          ))}</div>
           <div className="ext-row">
-            <input className="nt-input ext-in" inputMode="numeric" placeholder="custom min" value={custom} onChange={(e) => setCustom(e.target.value.replace(/[^0-9]/g, ""))} />
-            <button className="btn sm primary" disabled={!custom} onClick={() => add(parseInt(custom || "0", 10))}>Add time</button>
+            <input className="nt-input ext-in" inputMode="numeric" placeholder="custom min" value={custom}
+              onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ""); setCustom(v); setMins(v ? parseInt(v, 10) : null); }} />
           </div>
+          {mins ? (
+            <div className="ext-reason">
+              <label className="nt-label">Why the extra {fmtMins(mins)}? <span className="nt-req">required</span></label>
+              <textarea className="nt-input nt-textarea" rows={2} autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. client sent new copy · 3 extra slides · export kept failing"
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commit(); }} />
+              <div className="ext-row" style={{ justifyContent: "flex-end" }}>
+                <button className="btn sm" onClick={close}>Cancel</button>
+                <button className="btn sm primary" disabled={!reason.trim()} onClick={commit}
+                  title={reason.trim() ? undefined : "Add a reason first"}>Add {fmtMins(mins)}</button>
+              </div>
+            </div>
+          ) : <div className="nt-hint" style={{ display: "block", marginTop: ".4rem" }}>Pick how much time, then say why.</div>}
         </div>
       )}
     </span>
@@ -662,7 +686,7 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
   };
 }
 
-function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
   const actor = uploadedBy || "maheen";
@@ -935,9 +959,26 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             <span className="timer-acts">
               <span>{timing.elapsed >= timing.planned ? `Over by ${fmtMins(timing.elapsed - timing.planned)} — wrap up or add time?` : `~${fmtMins(timing.planned - timing.elapsed)} left — done, or need more time?`}</span>
               <button className="btn sm primary" onClick={() => onStatusChange("Output - Ready")}>✓ Output ready</button>
-              <ExtendPicker onExtend={(m) => onSetDuration(timing.planned + m)} />
+              <ExtendPicker onExtend={(m, why) => onSetDuration(timing.planned + m, why)} />
             </span>
           )}
+        </div>
+      )}
+
+      {/* Why this task got more time. Visible on the task itself, so an overrun is a
+          short explanation anyone can read rather than a number nobody can account for. */}
+      {(task.detail.extensions?.length ?? 0) > 0 && (
+        <div className="ext-log">
+          <div className="mlbl" style={{ marginBottom: ".4rem" }}>
+            Time added · {fmtMins((task.detail.extensions!.at(-1)!.toMin) - (task.detail.extensions![0].fromMin))} over {task.detail.extensions!.length} {task.detail.extensions!.length === 1 ? "change" : "changes"}
+          </div>
+          {task.detail.extensions!.map((x, i) => (
+            <div key={i} className="ext-log-row">
+              <span className="ext-log-amt">+{fmtMins(x.toMin - x.fromMin)}</span>
+              <span className="ext-log-why">{x.reason}</span>
+              <span className="ext-log-who">{PPL[x.by]?.name || x.by} · {fmtDT(x.at)}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -2510,6 +2551,38 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const planned = t.detail.duration || estMins(t.detail.typeLine);
     return { planned, elapsed: Math.max(0, elapsed) };
   };
+  // ── The 15-minutes-left warning, wherever they are ─────────────────────────
+  // The prompt used to live only inside the open task, so a producer working from
+  // the plan or another tab never saw their time run out. Now every running task of
+  // theirs is watched once a minute and raises a real notification — one at 15
+  // minutes left, one when it goes over, and never the same one twice.
+  const timeAlerted = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (nowMin == null) return;
+    for (const t of [...tasks, ...claimedTasks]) {
+      if (t.detail.ownerKey !== person) continue;
+      const tm = taskTiming(t);
+      if (!tm) continue;                                   // not running
+      const over = tm.elapsed >= tm.planned;
+      const soon = tm.elapsed >= tm.planned - 15;
+      if (!soon) continue;
+      const key = `${t.id}:${over ? "over" : "soon"}`;
+      if (timeAlerted.current.has(key)) continue;
+      timeAlerted.current.add(key);
+      addNotif({
+        id: `time-${key}`,
+        kind: over ? "urgent" : "message",
+        emoji: over ? "⏰" : "⏳",
+        title: over ? `Over time — ${t.title}` : `15 minutes left — ${t.title}`,
+        sub: over
+          ? `${fmtMins(tm.planned)} planned, ${fmtMins(tm.elapsed)} on the clock. Finished, or add time with a reason?`
+          : `${fmtMins(tm.planned)} planned. Wrap up, or add time with a reason?`,
+        task: t,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nowMin, tasks, claimedTasks, person]);
+
   const movePlan = (key: string, dir: number) => setPlan((arr) => { const i = arr.findIndex((p) => p.key === key); const j = i + dir; if (i < 0 || j < 0 || j >= arr.length) return arr; const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; saveOrder(c); return c; });
   // Where a dragged block's LEFT EDGE would land, given the cursor. We subtract the
   // grab offset (where inside the block you picked it up) so the block tracks the
@@ -2644,9 +2717,20 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   };
 
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
-  const setDuration = (id: string, mins: number) => {
+  const setDuration = (id: string, mins: number, reason?: string) => {
     const prevT = [...tasks, ...claimedTasks].find((t) => t.id === id);
     const prevDur = prevT?.detail.duration ?? null;
+    // An extension carries a reason (the timer strip requires one). Keep the whole
+    // history on the task, not just the latest: three +15s with three different
+    // excuses is a different story from one clean +45.
+    if (reason && prevDur != null) {
+      const entry = { at: new Date().toISOString(), by: person, fromMin: prevDur, toMin: mins, reason };
+      const prevLog = Array.isArray(prevT?.detail.extensions) ? prevT!.detail.extensions : [];
+      fetch("/api/marketing-hub/update", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, actor: person, fields: { custom: { time_extensions: [...prevLog, entry] } } }),
+      }).catch(() => { /* the minutes still save below; the note is a courtesy trail */ });
+    }
     setTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setPlan((p) => {
@@ -2746,6 +2830,40 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const canDeleteTasks = can("delete_tasks");  // remove a task
   const canAssignTasks = can("assign_tasks");  // hand to a teammate
   const isAdmin = canSchedule; // preserve existing prop name below
+
+  // ── Auto-start the clock ───────────────────────────────────────────────────
+  // The timer used to run ONLY if someone remembered to set the task to "In
+  // Progress". Nobody did, so the commonest path — open the task, do the work, mark
+  // it Output Ready — recorded nothing at all (no start_at ⇒ "Time taken" showed a
+  // dash), and the 15-minutes-left prompt never fired either.
+  //
+  // Opening a task that is waiting on YOU now starts it. That flips the status the
+  // normal way, so start_at, the day plan, the timer and the prompt all follow with
+  // no extra machinery. It is announced and undoable, because opening a task to look
+  // at it is not always the same as starting work.
+  const autoStarted = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const t = task;
+    if (!t || !nowMin) return;
+    // Only work that is genuinely waiting on this person to make it:
+    //  · they own it,
+    //  · it sits at a status where the ball is in their court, and
+    //  · it is on THEIR side of the handoff — onTimelineFor keeps the writer out, so
+    //    Manya opening her own approved video (still awaiting an editor's claim)
+    //    never starts a clock on work she isn't doing.
+    const mine = t.detail.ownerKey === person;
+    const waiting = t.status === "Content - Approved" || t.status === "Incorporating Feedback";
+    if (!mine || !waiting || !onTimelineFor(PPL[person]?.name || "", t.status)) return;
+    if (!canEditTasks || autoStarted.current.has(t.id)) return;
+    autoStarted.current.add(t.id);
+    doSetTaskStatus(t.id, "Output - In Progress");
+    setToast({
+      who: "Timer started", color: "#3A57E8", av: PPL[person]?.av || "•",
+      body: `“${t.title}” is now In Progress. Only looking? Put it back to ${STATUS[t.status].label}.`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id, task?.status, person, canEditTasks, nowMin !== null]);
+
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
   // Capacity-gated: a new task starts on Manya (writer) — warn if her day is full.
@@ -3420,15 +3538,21 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 const di = dueInfo(t.due, todayStr);
                 return (
                   <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
-                    <div className="task-top">
-                      <div className="tt">{t.title}</div>
-                      <DueChip due={t.due} today={todayStr} />
-                    </div>
-                    <div className="mm">{t.meta}</div>
-                    <div style={{ display: "flex", gap: ".35rem", alignItems: "center" }}>
-                      {isHot(t.detail.priority) && <span className="pill" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg, display: "inline-flex", alignItems: "center", gap: 3 }}><IconBolt size={12} stroke={1.9} /> {t.detail.priority}</span>}
-                      <span className="pill" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
-                      {claimed && <span className="pill" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
+                    {/* Two columns: the task on the left, its dates and state stacked on
+                        the right. The status pill used to sit after the meta text, so it
+                        landed at a different spot on every row — now due and status line
+                        up in one straight right-hand column down the whole list. */}
+                    <div className="task-row">
+                      <div className="task-main">
+                        <div className="tt">{t.title}</div>
+                        <div className="mm">{t.meta}</div>
+                      </div>
+                      <div className="task-side">
+                        <DueChip due={t.due} today={todayStr} />
+                        <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
+                        {isHot(t.detail.priority) && <span className="pill xs" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg, display: "inline-flex", alignItems: "center", gap: 3 }}><IconBolt size={11} stroke={1.9} /> {t.detail.priority}</span>}
+                        {claimed && <span className="pill xs" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
+                      </div>
                     </div>
                   </div>
                 );
@@ -3487,7 +3611,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <TaskBody task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
               </>
             ) : null; })() || (task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m) => setDuration(task.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why) => setDuration(task.id, m, why)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
             ) : (
               // One entry point only: "+ New task" sits in the My tasks header, so the
               // resting panel stays empty rather than repeating the same button.
@@ -3709,7 +3833,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close"><IconX size={14} stroke={2} /></button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m) => setDuration(planModalTask.id, m)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m, why) => setDuration(planModalTask.id, m, why)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
@@ -4088,12 +4212,12 @@ const CSS = `
 .hmd .switch button.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
 .hmd .stats{display:flex;gap:1.4rem;justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:900px){.hmd .stats{justify-content:flex-start}}
-.hmd .stat .n{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.hmd .stat .n{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
 .hmd .stat .n.g{color:var(--good)}.hmd .stat .n.w{color:var(--warn)}.hmd .stat .n.b{color:var(--brand)}
 .hmd .stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:.1rem}
 .hmd .hero{margin-top:.6rem}
 .hmd .hero-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.45rem}
-.hmd .hero-head h2{margin:0;font-size:16px}
+.hmd .hero-head h2{margin:0;font-size:14.5px}
 .hmd .hero-head .prog{font-size:12px;color:var(--muted)}
 .hmd .qmark{cursor:help;font-size:12px;border:1px solid var(--line);border-radius:50%;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
 .hmd .legend{display:flex;gap:.8rem;font-size:12px;color:var(--muted);align-items:center}
@@ -4170,7 +4294,7 @@ const CSS = `
   .hmd .created-range,.hmd .created-type,.hmd .created-sbu{min-width:0;width:100%}
   .hmd .created-clear{margin-left:0;width:100%}
 }
-.hmd .colhead h3{margin:0;font-size:16px}
+.hmd .colhead h3{margin:0;font-size:14.5px}
 /* Left "My tasks" card fills the column height (mirrors the sticky detail) so the
    list uses the whole screen instead of a fixed 460px box with dead space below.
    The header + tabs stay pinned; only the list scrolls. */
@@ -4214,6 +4338,15 @@ const CSS = `
 .hmd .due-chip.od{color:#C03221}
 .hmd .task .tt{font-weight:600;font-size:14px;line-height:1.25}
 .hmd .task .mm{font-size:12px;color:var(--muted);margin:.2rem 0 .35rem}
+/* One line for "Carousel · owned by Praveen" + the status pill, so each card is a
+   row shorter and more tasks fit without scrolling. */
+.hmd .task .task-row{display:flex;align-items:flex-start;gap:.6rem}
+.hmd .task .task-main{flex:1;min-width:0}
+.hmd .task .task-main .mm{margin:.15rem 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Dates and state, right-aligned in their own column so they line up row to row. */
+.hmd .task .task-side{display:flex;flex-direction:column;align-items:flex-end;gap:.25rem;flex:none}
+/* A quieter pill for the list — the status is context here, not the headline. */
+.hmd .pill.xs{font-size:11px;font-weight:600;padding:.1em .42em;border-radius:5px}
 .hmd .detail .d-title{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
 .hmd .d-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
 .hmd .d-head-main{min-width:0}
@@ -4406,7 +4539,7 @@ const CSS = `
 .hmd .chatpanel{position:fixed;top:0;right:0;height:100vh;width:clamp(296px,19vw,348px);background:var(--panel);border-left:1px solid var(--line);box-shadow:-14px 0 44px rgba(20,22,40,.10);display:flex;flex-direction:column;transform:translateX(101%);transition:transform .28s cubic-bezier(.4,0,.2,1);z-index:40}
 .hmd .chatpanel.open{transform:translateX(0)}
 .hmd .chat-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem .75rem;border-bottom:1px solid var(--line)}
-.hmd .chat-head h3{margin:0;font-size:16px;display:flex;align-items:center;gap:.5rem}
+.hmd .chat-head h3{margin:0;font-size:14.5px;display:flex;align-items:center;gap:.5rem}
 .hmd .chat-head-acts{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
 .hmd .pinbtn{font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:.3em .55em;cursor:pointer;display:inline-flex;align-items:center;gap:.3em;white-space:nowrap;flex-shrink:0}
 .hmd .pinbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
@@ -4653,6 +4786,16 @@ const CSS = `
 .hmd .ext-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(35,45,66,.12);padding:.5rem;display:flex;flex-direction:column;gap:.4rem;min-width:214px}
 .hmd .ext-row{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
 .hmd .ext-in{width:96px;padding:.3rem .5rem}
+/* The "why" step of an extension, and the trail it leaves on the task. */
+.hmd .ext-menu{min-width:260px}
+.hmd .ext-reason{display:flex;flex-direction:column;gap:.35rem;border-top:1px solid var(--line);padding-top:.5rem;margin-top:.15rem}
+.hmd .ext-reason .nt-textarea{min-height:52px;font-size:13px}
+.hmd .ext-log{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:.65rem .8rem;margin:.7rem 0 .2rem}
+.hmd .ext-log-row{display:flex;align-items:baseline;gap:.6rem;padding:.3rem 0;border-bottom:1px solid var(--line-2);font-size:13px;flex-wrap:wrap}
+.hmd .ext-log-row:last-child{border-bottom:0}
+.hmd .ext-log-amt{font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;flex:none}
+.hmd .ext-log-why{color:var(--ink);flex:1;min-width:0}
+.hmd .ext-log-who{font-size:12px;color:var(--muted);flex:none}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:var(--cD9DEEA)}
 .hmd .tcp-title{font-size:1.2rem;font-weight:700}
