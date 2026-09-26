@@ -33,3 +33,8 @@ public/pdf.worker.min.mjs
 
 # never track .env.local backups (they hold real secrets)
 .env.local*
+
+# Local tooling output and scratch work — useful on one machine, noise in the repo.
+.playwright-cli/
+scratchpad/
+supabase/.temp/
