@@ -156,16 +156,23 @@ export function PreviewSidebar() {
   // that, the Scheduler opens collapsed and everywhere else opens wide, which is
   // what Business Suite does: the rail is for the tab you compose in.
   const [collapsed, setCollapsed] = useState<boolean | null>(null);
+  // Hover-peek: while locked to the rail, hovering floats the full sidebar open
+  // over the page (without shoving content); leaving snaps it back to the rail.
+  const [peek, setPeek] = useState(false);
+  // The lock is the ONLY thing that persists, and it's read once — it no longer
+  // re-opens on its own when you switch tabs (it used to auto-collapse on the
+  // Scheduler and expand elsewhere, which read as "it opens by itself").
   useEffect(() => {
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(NAV_COLLAPSED_KEY) : null;
-    setCollapsed(stored !== null ? stored === "1" : pathname.includes("/scheduler"));
-  }, [pathname]);
+    setCollapsed(stored === "1"); // default: locked open
+  }, []);
   useEffect(() => {
     if (collapsed === null) return;
     document.body.classList.toggle("nav-collapsed", collapsed);
   }, [collapsed]);
   useEffect(() => () => document.body.classList.remove("nav-collapsed"), []);
   const toggleCollapsed = () => {
+    setPeek(false); // clicking the lock is a decision — don't leave a hover-peek half-open
     setCollapsed((c) => {
       const next = !c;
       try { window.localStorage.setItem(NAV_COLLAPSED_KEY, next ? "1" : "0"); } catch {}
@@ -304,7 +311,16 @@ export function PreviewSidebar() {
   };
 
   return (
-    <aside className="hsidebar" ref={asideRef}>
+    <>
+    {/* Holds the rail's 56px in the page flow while the real sidebar floats above
+        it (position:fixed) — so a hover-peek overlays the content instead of shoving it. */}
+    <div className="hsidebar-spacer" aria-hidden="true" />
+    <aside
+      className={`hsidebar${collapsed && peek ? " peek" : ""}`}
+      ref={asideRef}
+      onMouseEnter={() => { if (collapsed) setPeek(true); }}
+      onMouseLeave={() => setPeek(false)}
+    >
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
         {/* Logo → Overview (the main page). */}
@@ -336,6 +352,7 @@ export function PreviewSidebar() {
       {/* Light / Dark / System (also on the Account page). */}
       <div className="htheme"><span className="hnavgroup" style={{ padding: 0 }}>Theme</span><ThemeToggle compact /></div>
     </aside>
+    </>
   );
 }
 
@@ -346,7 +363,8 @@ const SIDEBAR_CSS = `
   width:236px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--sb-panel);border-right:1px solid var(--sb-line);padding:0 11px 16px;font-family:Inter,system-ui,sans-serif}
 .hsidebar *{box-sizing:border-box}
 .hsidebar .htheme{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 4px 0;padding:12px 6px 0;border-top:1px solid var(--sb-line)}
-body.nav-collapsed .hsidebar .htheme{display:none}
+body.nav-collapsed .hsidebar:not(.peek) .htheme{display:none}
+.hsidebar-spacer{display:none;flex:0 0 0}
 .hsidebar::-webkit-scrollbar{width:6px}.hsidebar::-webkit-scrollbar-thumb{background:#E3E6EE;border-radius:3px}
 @media(max-width:980px){.hsidebar{display:none}}
 .hsidebar .hbrand{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 4px 14px;position:sticky;top:0;background:var(--sb-panel);z-index:2}

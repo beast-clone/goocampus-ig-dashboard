@@ -1592,6 +1592,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
   const [created, setCreated] = useState<Task[]>([]);                 // tasks anyone created (last 60 days) — filtered to the viewed person below
   const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("open");
+  const [openCreatedId, setOpenCreatedId] = useState<string | null>(null); // click a "Tasks I created" row to see it
   const [samvaya, setSamvaya] = useState<Task[]>([]);                 // Nandu's Samvaya / other-platform tasks (spec §14, kept separate)
   const [loading, setLoading] = useState(true);                       // first live load in flight
   const [taskTab, setTaskTab] = useState("approved");                  // status tab (per-person)
@@ -3254,7 +3255,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     const step = stepOf(t.status);
                     const withWho = t.detail.ownerKey && t.detail.ownerKey !== person ? t.detail.owner : "you";
                     return (
-                      <div key={t.id} className="task">
+                      <div key={t.id} className={`task${openCreatedId === t.id ? " sel" : ""}`} style={{ cursor: "pointer" }} onClick={() => setOpenCreatedId(openCreatedId === t.id ? null : t.id)}>
                         <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{t.detail.publishes}</span></div>
                         <div className="mm">{t.detail.typeLine} · {t.detail.brand} · with {withWho}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
@@ -3264,8 +3265,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                               {i < STEPS.length - 1 && <span style={{ width: 14, height: 1, background: i < step ? "#3A57E8" : "#E3E5EE" }} />}
                             </span>
                           ))}
-                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
+                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ marginLeft: "auto", fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
                         </div>
+                        {openCreatedId === t.id && (
+                          <div style={{ marginTop: ".8rem", borderTop: "1px solid var(--line, #EEF0F4)", paddingTop: ".8rem" }} onClick={(e) => e.stopPropagation()}>
+                            <TaskBody task={t} label="Tracking · read-only" uploadedBy={person} />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
