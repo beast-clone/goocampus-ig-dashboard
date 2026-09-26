@@ -22,6 +22,8 @@ const siblingOf = (k: string) => (k === "nandu" ? "nikhil" : k === "nikhil" ? "n
 type Act = {
   id: number; post_id: string; actor_key: string | null; action: string;
   from_value: string | null; to_value: string | null; created_at: string;
+  // Free-form payload per action — a time_extended row carries its minutes and reason.
+  detail?: { minutes?: number; reason?: string; undo?: boolean } | null;
 };
 type Post = { id: string; particulars: string | null; owner_key: string | null; type: string | null };
 export type SwapCand = { id: string; title: string; dur: number; due?: string };
@@ -43,7 +45,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
     .from("mh_activity")
     .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")
     // All edits now log as status_changed / owner_changed / claim (app-attributed).
-    .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested", "date_change_requested"])
+    .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested", "date_change_requested", "time_extended"])
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(160);
@@ -140,6 +142,19 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
           n = { cat: "action", kind: "message", emoji: "🔁", title: `${nameOf(e.actor_key)} is packed — pick a task to move`, sub: `Offers ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} to swap for "${short}".`, postId: e.post_id, swap: { from: e.actor_key, candidates } };
         }
       }
+    } else if (e.action === "time_extended") {
+      // Everyone else on the team, because a day that just got longer changes what
+      // the rest of them can expect from it. The actor is filtered out below.
+      target = ["manya", "praveen", "nikhil", "nandu", "maheen"];
+      // Somebody needed longer on a task. Everyone else sees it, because a day that
+      // just got longer changes what the rest of the team can expect from it.
+      const mins = Number(e.detail?.minutes ?? 0);
+      const why = String(e.detail?.reason || "");
+      const abs = Math.abs(mins);
+      const asText = abs >= 60 ? `${Math.floor(abs / 60)}h${abs % 60 ? ` ${abs % 60}m` : ""}` : `${abs}m`;
+      n = mins < 0
+        ? { cat: "progress", kind: "message", emoji: "↩️", title: `Time taken back — ${asText}`, sub: `${nameOf(e.actor_key)} removed ${asText} from “${short}”${why ? ` — ${why}` : ""}.`, postId: e.post_id }
+        : { cat: "progress", kind: "message", emoji: "⏱️", title: `Task extended — +${asText}`, sub: `${nameOf(e.actor_key)} needs ${asText} longer on “${short}”${why ? ` — ${why}` : ""}.`, postId: e.post_id };
     } else if (e.action === "due_date_changed" || e.action === "rescheduled") {
       // A producer moved a date (e.g. make-room rolled a task to tomorrow) →
       // Manya, who created/plans the work, gets the change request in HER

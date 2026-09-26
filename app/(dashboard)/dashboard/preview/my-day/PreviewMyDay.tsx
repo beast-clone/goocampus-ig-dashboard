@@ -115,13 +115,16 @@ function matchesTab(t: { status: string; detail: { typeLine: string } }, tab: Ta
   if (tab.nonVideoOnly && isVideoTask(t.detail.typeLine)) return false;
   return true;
 }
-function dueInfo(due: string, today: string): { label: string; overdue: boolean } {
-  if (!due) return { label: "", overdue: false };
+// `today` is its own state, not a flavour of overdue: work due today is still savable,
+// work that is late already isn't. They were rendered identically, so a task you could
+// still finish looked exactly like one you had already missed.
+function dueInfo(due: string, today: string): { label: string; overdue: boolean; today: boolean } {
+  if (!due) return { label: "", overdue: false, today: false };
   const d = Math.round((new Date(due + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86_400_000);
-  if (d < 0) return { label: d === -1 ? "Overdue · yesterday" : `Overdue · ${-d} days`, overdue: true };
-  if (d === 0) return { label: "Due today", overdue: false };
-  if (d === 1) return { label: "Due tomorrow", overdue: false };
-  return { label: `Due in ${d} days`, overdue: false };
+  if (d < 0) return { label: d === -1 ? "Overdue · yesterday" : `Overdue · ${-d} days`, overdue: true, today: false };
+  if (d === 0) return { label: "Due today", overdue: false, today: true };
+  if (d === 1) return { label: "Due tomorrow", overdue: false, today: false };
+  return { label: `Due in ${d} days`, overdue: false, today: false };
 }
 // A reference the team drops on a task — either a URL (mood board, doc, tweet…) or
 // an image. Mirrors the Airtable "References" field.
@@ -143,7 +146,10 @@ type Task = {
     createdAt?: string; modifiedAt?: string; startAt?: string; endAt?: string; // task clock (captured on create → done)
     // Every time the allotted minutes were raised, and why — written by the timer
     // strip's Extend control, read back so the task can show the trail.
-    extensions?: { at: string; by: string; fromMin: number; toMin: number; reason: string }[];
+    // `undoOf` carries the `at` of the entry this one reverses. Undoing never deletes:
+    // it appends a correction, so an overrun added by mistake is still visible as
+    // something that happened and was put right, not something that quietly vanished.
+    extensions?: { at: string; by: string; fromMin: number; toMin: number; reason: string; undoOf?: string }[];
     feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
     presenter?: string;                                   // member key of whoever registered to present it
   };
@@ -294,6 +300,9 @@ const onTimelineFor = (name: string, status: string) =>
 // estimated length is identical in My Day and Workload.
 const estMins = estimateTaskMinutes;
 function fmtMins(m: number): string { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; }
+// A duration CHANGE, with its sign. fmtMins alone can't take a negative (-30 comes out
+// as "-1h -30m"), and a correction in the time log has to read as a subtraction.
+const signedMins = (m: number): string => `${m < 0 ? "−" : "+"}${fmtMins(Math.abs(m))}`;
 // minutes-past-9AM of the finish time → "6:30 PM"
 function finishLabel(committed: number, addMin: number): string {
   const total = 9 * 60 + committed + addMin + 60; // + 1h lunch
@@ -320,7 +329,10 @@ const MOVABLE = [
 
 // A notification in the chat-panel stack. `urgent`/`freed` carry an action.
 type SwapCand = { id: string; title: string; dur: number; due?: string };
-type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] } };
+type Notif = { id: string; kind: "urgent" | "claim" | "message" | "freed"; emoji: string; title: string; sub: string; task?: Task; postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] };
+  // The time-is-nearly-up alert answers itself: finished, or extend. Both act on
+  // the task from wherever the person happens to be looking.
+  timeUp?: { taskId: string } };
 
 function greetingFor(h: number) {
   if (h < 5) return { word: "Hello", emoji: "👋" };
@@ -343,14 +355,26 @@ const IPOWER = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style
 const IUSERS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M15.5 5.9a3 3 0 0 1 0 5.2M16 14.2A5.5 5.5 0 0 1 19.5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
 const CHEV = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: "-1px", opacity: 0.55 }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const IPLAY = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l11-6.8a1 1 0 0 0 0-1.7l-11-6.8A1 1 0 0 0 8 5.2Z" /></svg>;
+const ILOCK = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" strokeWidth="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
 const ISTOP = <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>;
 
 // One due-date chip everywhere so the clock icon + label read uniformly on every
 // task card (My tasks, claimable, Output-Ready). Renders nothing when there's no due.
+// Pull the "+15m" / "-30m" out of an event line and colour it, so how much time was
+// added (or given back) is the thing the eye lands on.
+function highlightMins(text: string): React.ReactNode {
+  const parts = text.split(/([+−-]\d+(?:h(?:\s?\d+m)?|m))/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    /^[+−-]\d+(h(\s?\d+m)?|m)$/.test(part)
+      ? <b key={i} className={`chat-mins ${part.startsWith("+") ? "up" : "down"}`}>{part}</b>
+      : <span key={i}>{part}</span>);
+}
+
 function DueChip({ due, today }: { due: string; today: string }) {
   const di = dueInfo(due, today);
   if (!di.label) return null;
-  return <span className={`due-chip ${di.overdue ? "od" : ""}`}>{CLOCK}{di.label}</span>;
+  return <span className={`due-chip ${di.overdue ? "od" : di.today ? "today" : ""}`}>{CLOCK}{di.label}</span>;
 }
 
 // The full task detail — shared by the inline "Up next" panel and the Today's-plan
@@ -686,7 +710,7 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
   };
 }
 
-function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
+function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
   const actor = uploadedBy || "maheen";
@@ -785,15 +809,42 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               <span className="pill cap" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
             )}
             {onSetDuration && (
-              <DurationPicker value={task.detail.duration} onChange={(m) => onSetDuration(m)} />
+              // Set duration is the PLAN — what the task should take. It is free to set
+              // BEFORE work starts, and locked once the clock is running: an accidental
+              // click on it must not be able to move the target. From then on the only
+              // way to add time is "+ Extend", which always asks why.
+              timing ? (
+                <span className="cap dur-locked" title={`Locked while the clock runs — use + Extend to add time (with a reason)`}>
+                  {ICLOCK} {fmtMins(timing.planned)} {ILOCK}
+                </span>
+              ) : (
+                <DurationPicker value={task.detail.duration} onChange={(m) => onSetDuration(m)} />
+              )
             )}
             {/* Stopwatch: Content-Approved → Start (begins the clock); running → Stop
                 (marks Output-Ready). Sits right after Set duration, per the agreed order. */}
             {onStatusChange && task.status === "Content - Approved" && (
               <button className="cap sw-btn start" title="Start working — starts the timer" onClick={() => onStatusChange("Output - In Progress")}>{IPLAY} Start</button>
             )}
+            {/* "Stop" said one thing and did another — it marked the task finished. Next
+                to a running clock that reads as "stop the timer", which is how a task
+                nobody had finished got marked Output-Ready. It says Done now. */}
             {onStatusChange && timing && (
-              <button className="cap sw-btn stop" title="Mark output ready — stops the timer" onClick={() => onStatusChange("Output - Ready")}>{ISTOP} Stop</button>
+              <button className="cap sw-btn stop" title="Finished — marks it Output Ready and stops the clock" onClick={() => onStatusChange("Output - Ready")}>{ISTOP} Done</button>
+            )}
+            {/* The way out of an accidental start. Opening a task starts it, so there has
+                to be one obvious button that says "I'm not working on this" — putting it
+                back where it was and wiping the clock, in a single click. */}
+            {onStatusChange && timing && (
+              <button className="cap sw-btn cancel" title="Not working on this — put it back and clear the clock"
+                onClick={async () => {
+                  if (!(await confirmDialog({
+                    title: "Not working on this?",
+                    body: `The clock will be cleared (${fmtMins(timing.elapsed)} so far) and the task goes back to ${STATUS["Content - Approved"].label}. Nothing else changes.`,
+                    action: "Put it back",
+                  }))) return;
+                  onStatusChange("Content - Approved");
+                }}>{<IconX size={12} stroke={2.4} />} Cancel</button>
             )}
             {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
             {timing && (
@@ -967,20 +1018,48 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       {/* Why this task got more time. Visible on the task itself, so an overrun is a
           short explanation anyone can read rather than a number nobody can account for. */}
-      {(task.detail.extensions?.length ?? 0) > 0 && (
-        <div className="ext-log">
-          <div className="mlbl" style={{ marginBottom: ".4rem" }}>
-            Time added · {fmtMins((task.detail.extensions!.at(-1)!.toMin) - (task.detail.extensions![0].fromMin))} over {task.detail.extensions!.length} {task.detail.extensions!.length === 1 ? "change" : "changes"}
-          </div>
-          {task.detail.extensions!.map((x, i) => (
-            <div key={i} className="ext-log-row">
-              <span className="ext-log-amt">+{fmtMins(x.toMin - x.fromMin)}</span>
-              <span className="ext-log-why">{x.reason}</span>
-              <span className="ext-log-who">{PPL[x.by]?.name || x.by} · {fmtDT(x.at)}</span>
+      {(task.detail.extensions?.length ?? 0) > 0 && (() => {
+        const log = task.detail.extensions!;
+        // Net, not total: two +15s and one −30 is a task that ended up where it started,
+        // and the header should say so rather than claiming half an hour was added.
+        const net = log.at(-1)!.toMin - log[0].fromMin;
+        const undone = new Set(log.map((e) => e.undoOf).filter(Boolean) as string[]);
+        return (
+          <div className="ext-log">
+            <div className="mlbl" style={{ marginBottom: ".4rem" }}>
+              {net === 0 ? "Time changed · back where it started" : `Time ${net > 0 ? "added" : "removed"} · ${signedMins(net)}`}
+              {" "}over {log.length} {log.length === 1 ? "change" : "changes"}
             </div>
-          ))}
-        </div>
-      )}
+            {log.map((x, i) => {
+              const delta = x.toMin - x.fromMin;
+              const isUndo = !!x.undoOf;
+              const wasUndone = undone.has(x.at);
+              return (
+                <div key={i} className={`ext-log-row${wasUndone ? " undone" : ""}`}>
+                  <span className={`ext-log-amt${delta < 0 ? " neg" : ""}`}>{signedMins(delta)}</span>
+                  <span className="ext-log-why">{isUndo && <span className="ext-log-tag">correction</span>}{x.reason}</span>
+                  <span className="ext-log-who">{PPL[x.by]?.name || x.by} · {fmtDT(x.at)}</span>
+                  {/* Only a real increase that hasn't been reversed can be undone, and
+                      undoing appends the reversal rather than removing this row. */}
+                  {onSetDuration && delta > 0 && !wasUndone && (
+                    <button type="button" className="ext-log-undo" title={`Put back the ${signedMins(delta)}`}
+                      onClick={async () => {
+                        const why = await promptDialog({
+                          title: `Take back ${signedMins(delta)}?`,
+                          body: "This doesn't erase the original entry — it records a correction underneath it, so the task still shows what happened.",
+                          action: "Take it back", defaultValue: "Added by mistake",
+                        });
+                        if (!why || !why.trim()) return;
+                        onSetDuration(x.toMin - delta, why.trim(), x.at);
+                      }}>Undo</button>
+                  )}
+                  {wasUndone && <span className="ext-log-undone-tag">taken back</span>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Incorporating-Feedback notes from Manya (spec §7) — highlighted so the
           producer can't miss what to fix. */}
@@ -1434,7 +1513,7 @@ function NewTaskPanel({ writer, onClose, onCreate, onDirty }: {
 // The notification stack — sits at the TOP of the chat panel and pushes the chat
 // down (never overlays it). Urgent/freed notifications carry an Accept & Work
 // action; claims and messages are informational.
-function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs: Notif[]; onAccept: (n: Notif) => void; onDismiss: (id: string) => void; onClearAll: () => void }) {
+function NotificationStack({ notifs, onAccept, onDismiss, onClearAll, onTimeUp }: { notifs: Notif[]; onAccept: (n: Notif) => void; onDismiss: (id: string) => void; onClearAll: () => void; onTimeUp?: (n: Notif, choice: "done" | "extend") => void }) {
   if (!notifs.length) return null;
   return (
     <div className="notif-stack">
@@ -1446,7 +1525,12 @@ function NotificationStack({ notifs, onAccept, onDismiss, onClearAll }: { notifs
             {n.kind === "urgent" && <div className="pn-eyebrow">Urgent · must publish today</div>}
             <div className="pn-title">{n.title}</div>
             <div className="pn-sub">{n.sub}</div>
-            {(n.kind === "urgent" || n.kind === "freed" || n.accept) && (
+            {n.timeUp ? (
+              <div className="pn-acts">
+                <button className="btn primary sm" onClick={() => onTimeUp?.(n, "done")}>Task completed</button>
+                <button className="btn sm" onClick={() => onTimeUp?.(n, "extend")}>Extend</button>
+              </div>
+            ) : (n.kind === "urgent" || n.kind === "freed" || n.accept) && (
               <div className="pn-acts">
                 <button className="btn primary sm" onClick={() => onAccept(n)}>Accept &amp; work</button>
                 {n.kind === "urgent" && <button className="btn sm" onClick={() => onDismiss(n.id)}>Later</button>}
@@ -1701,41 +1785,119 @@ function TeamCapacityPage({ onBack, tasks, nowMin, logins }: { onBack: () => voi
 }
 
 // End-today wrap-up — confirm what's done; unchecked tasks roll to tomorrow.
-function EndTodayModal({ tasks, onEnd, onClose }: { tasks: { id: string; title: string }[]; onEnd: (done: number, roll: number, rolled: { id: string; title: string; reason: string }[]) => void; onClose: () => void }) {
-  const [done, setDone] = useState<Set<string>>(new Set(tasks.slice(0, Math.ceil(tasks.length / 2)).map((t) => t.id)));
+type EodTask = { id: string; title: string; status: CCStatus; due: string; typeLine: string; publishes: string };
+
+/**
+ * Has THIS person finished with the task? Not "is the task finished" — the two are
+ * different, and conflating them is what made the old wrap-up ask the writer to
+ * account for work that left her desk hours ago.
+ *   · the writer is done once the content is approved and off to a producer
+ *   · a producer is done once the output is ready
+ * Incorporating Feedback is the exception on both sides: it is back in someone's
+ * court by definition, so it always counts as outstanding.
+ */
+// "Sep 25, 2026" told you the date but not what it meant. Near dates get named —
+// Today / Tomorrow / Yesterday — and everything else is a short day-and-month, with
+// the year only when it isn't this one.
+function publishLabel(due: string, today: string): string {
+  if (!due) return "No date";
+  const d = Math.round((new Date(due + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86_400_000);
+  if (d === 0) return "Today";
+  if (d === 1) return "Tomorrow";
+  if (d === -1) return "Yesterday";
+  const dt = new Date(due + "T00:00:00");
+  const sameYear = dt.getFullYear() === new Date(today + "T00:00:00").getFullYear();
+  const short = dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+  return d < 0 ? `${short} · late` : short;
+}
+
+function finishedForRole(status: CCStatus, isWriter: boolean): boolean {
+  if (status === "Incorporating Feedback") return false;
+  return isWriter
+    ? STATUS[status].stage >= 2
+    : status === "Output - Ready" || status === "Ready to Publish" || status === "Published/Scheduled";
+}
+
+/**
+ * Wrap up your day.
+ *
+ * It used to list EVERY open task — fifty-odd rows in one column — so the one question
+ * it asks ("what did you finish today?") was buried. It now shows today's work only,
+ * grouped by status so the list reads in blocks instead of a jumble, with the
+ * publishing date on each line.
+ */
+function EndTodayModal({ tasks, isWriter, today, onEnd, onClose }: { tasks: EodTask[]; isWriter: boolean; today: string; onEnd: (done: number, roll: number, rolled: { id: string; title: string; reason: string }[]) => void; onClose: () => void }) {
+  const [done, setDone] = useState<Set<string>>(new Set(tasks.filter((t) => finishedForRole(t.status, isWriter)).map((t) => t.id)));
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const toggle = (id: string) => setDone((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setDone((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const doneN = done.size, rollN = tasks.length - doneN;
   // Spec §10: every task that rolls to tomorrow needs a reason before the day can end.
   const rolling = tasks.filter((t) => !done.has(t.id));
   const missing = rolling.some((t) => !(reasons[t.id] || "").trim());
+
+  // Grouped by status, and the groups that still need something come first — the work
+  // you have to act on shouldn't be scattered between the work you've already closed.
+  const groups = useMemo(() => {
+    const by = new Map<CCStatus, EodTask[]>();
+    for (const t of tasks) by.set(t.status, [...(by.get(t.status) || []), t]);
+    return [...by.entries()].sort(([a], [b]) => {
+      const aDone = finishedForRole(a, isWriter) ? 1 : 0, bDone = finishedForRole(b, isWriter) ? 1 : 0;
+      return aDone - bDone || STATUS[a].stage - STATUS[b].stage;
+    });
+  }, [tasks, isWriter]);
+
   return (
     <div className="modal" onClick={onClose}>
-      <div className="modal-card aw-card" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card eod-card" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} title="Close"><IconX size={14} stroke={2} /></button>
         <div className="aw-h">Wrap up your day</div>
-        <p className="aw-p">Confirm what you finished. Anything unchecked rolls to tomorrow — say why so it&apos;s tracked.</p>
-        {tasks.length === 0 && <div className="empty" style={{ padding: "1rem 0" }}>No tasks on your plate today.</div>}
-        {tasks.map((t) => {
-          const isDone = done.has(t.id);
-          return (
-            <div key={t.id}>
-              <div className={`eod-row ${isDone ? "" : "roll"}`}>
-                <span className={`eod-cb ${isDone ? "on" : ""}`} onClick={() => toggle(t.id)}>{isDone ? "✓" : ""}</span>
-                <span className="eod-title">{t.title}</span>
-                <span className={`eod-tag ${isDone ? "done" : "roll"}`}>{isDone ? "Done" : "→ Tomorrow"}</span>
-              </div>
-              {!isDone && (
-                <input
-                  className="eod-reason"
-                  value={reasons[t.id] || ""}
-                  onChange={(e) => setReasons((r) => ({ ...r, [t.id]: e.target.value }))}
-                  placeholder="Why isn't this done? (required to roll it over)"
-                />
-              )}
-            </div>
-          );
-        })}
+        <p className="aw-p">Today&apos;s work only. {isWriter ? "Approved content is already off your desk" : "Anything you’ve made ready is counted"} — tick anything else you finished, and say why the rest is rolling.</p>
+        {tasks.length === 0 && <div className="empty" style={{ padding: "1.4rem 0" }}>Nothing was due today ✓</div>}
+        {tasks.length > 0 && (
+          <div className="eod-list">
+            <table className="eod-table">
+              <thead>
+                <tr><th className="c-cb" /><th className="c-task">Task</th><th className="c-pub">Publishing</th><th className="c-act">Finished?</th></tr>
+              </thead>
+              {groups.map(([status, rows]) => {
+                const st = STATUS[status];
+                return (
+                  <tbody key={status}>
+                    <tr className="eod-grouprow">
+                      <td colSpan={4}>
+                        <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
+                        <span className="eod-group-n">{rows.length}</span>
+                      </td>
+                    </tr>
+                    {rows.map((t) => {
+                      const isDone = done.has(t.id);
+                      return (
+                        <tr key={t.id} className={`eod-line ${isDone ? "done" : "roll"}`}>
+                          <td className="c-cb">
+                            <button type="button" className={`eod-cb ${isDone ? "on" : ""}`} onClick={() => toggle(t.id)}
+                              aria-pressed={isDone} title={isDone ? "Mark as not finished" : "Mark as finished"}>{isDone ? "✓" : ""}</button>
+                          </td>
+                          <td className="c-task"><span className="eod-title" title={t.title}>{t.title}</span></td>
+                          <td className={`c-pub${t.due && t.due <= today ? " near" : ""}`}>{publishLabel(t.due, today)}</td>
+                          <td className="c-act">
+                            {isDone
+                              ? <span className="eod-tag done">Done</span>
+                              : <input
+                                  className="eod-reason"
+                                  value={reasons[t.id] || ""}
+                                  onChange={(e) => setReasons((r) => ({ ...r, [t.id]: e.target.value }))}
+                                  placeholder="Why not? It moves to tomorrow"
+                                />}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                );
+              })}
+            </table>
+          </div>
+        )}
         <div className="eod-foot">
           <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
           <div style={{ display: "flex", gap: ".5rem" }}>
@@ -2201,6 +2363,26 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const shownTasks = useMemo(() => {
     return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
   }, [workingTasks, taskTab, cmpTasks]);
+  // What "Wrap up your day" asks about: today's work only, taken from My tasks (so
+  // Pending / Approved / Feedback / Claimed — never "Tasks I created", which is other
+  // people's work to follow, not hers to finish).
+  //   · due today, or overdue and still open — today's business either way
+  //   · no publishing date at all — undated work is outstanding until someone says so
+  //   · started today — if she worked on it, the day should account for it
+  // Anything dated tomorrow onward is left out; it isn't today's to close.
+  const eodTasks = useMemo(() => {
+    if (!todayStr) return [];
+    return workingTasks
+      .filter((t) => {
+        if (!t.due) return true;                                   // undated → still outstanding
+        if (t.due <= todayStr) return true;                        // due today or overdue
+        const s = t.detail.startAt ? String(t.detail.startAt).slice(0, 10) : "";
+        return s === todayStr;                                     // worked on today
+      })
+      .sort(cmpTasks)
+      .map((t) => ({ id: t.id, title: t.title, status: t.status, due: t.due, typeLine: t.detail.typeLine, publishes: t.detail.publishes || "No date" }));
+  }, [workingTasks, todayStr, cmpTasks]);
+
   // No fallback to the first row: nothing is open until the person opens something.
   const task = sel === null ? null : shownTasks[sel] || null;
   // A claimable video opened for a look before claiming (Nandu: "I want to open and
@@ -2283,8 +2465,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Completeness-gate block (server 422): the move was refused because required fields
   // are missing. `gate` = which transition, `missing` = the human-readable list.
   const [gateBlock, setGateBlock] = useState<GateBlock | null>(null);
+  // Tasks whose clock must not be auto-started again this session: either they were
+  // already auto-started, or someone explicitly said they aren't working on them.
+  const autoStarted = useRef<Set<string>>(new Set());
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
+    // Moving a running task back to a content stage is someone saying "I'm not working
+    // on this". Remember it, or the auto-start effect — which fires on the task that is
+    // open in the panel — would read the new status as work waiting and start it again
+    // on the spot, undoing the cancel the moment it happened.
+    if (cur?.status === "Output - In Progress" && (status === "Content - Approved" || status === "Content - In Progress" || status === "Content - Pending")) {
+      autoStarted.current.add(id);
+    }
     if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
       const handoff = autoAssign(cur.detail.typeLine);
       if (handoff && !handoff.toPool && handoff.owner !== "Manya") {
@@ -2573,11 +2765,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         id: `time-${key}`,
         kind: over ? "urgent" : "message",
         emoji: over ? "⏰" : "⏳",
-        title: over ? `Over time — ${t.title}` : `15 minutes left — ${t.title}`,
+        title: over ? `Over time — ${t.title}` : `${fmtMins(tm.planned - tm.elapsed)} left — ${t.title}`,
         sub: over
-          ? `${fmtMins(tm.planned)} planned, ${fmtMins(tm.elapsed)} on the clock. Finished, or add time with a reason?`
-          : `${fmtMins(tm.planned)} planned. Wrap up, or add time with a reason?`,
+          ? `${fmtMins(tm.planned)} planned, ${fmtMins(tm.elapsed)} on the clock. Is it done, or do you need longer?`
+          : `${fmtMins(tm.planned)} planned. Is it done, or do you need longer?`,
         task: t,
+        timeUp: { taskId: t.id },
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2717,19 +2910,28 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   };
 
   // The producer sets how long a task takes → store it AND add/update it on Today's plan.
-  const setDuration = (id: string, mins: number, reason?: string) => {
+  const setDuration = (id: string, mins: number, reason?: string, undoOf?: string) => {
     const prevT = [...tasks, ...claimedTasks].find((t) => t.id === id);
     const prevDur = prevT?.detail.duration ?? null;
     // An extension carries a reason (the timer strip requires one). Keep the whole
     // history on the task, not just the latest: three +15s with three different
     // excuses is a different story from one clean +45.
     if (reason && prevDur != null) {
-      const entry = { at: new Date().toISOString(), by: person, fromMin: prevDur, toMin: mins, reason };
+      const entry = { at: new Date().toISOString(), by: person, fromMin: prevDur, toMin: mins, reason, ...(undoOf ? { undoOf } : {}) };
       const prevLog = Array.isArray(prevT?.detail.extensions) ? prevT!.detail.extensions : [];
+      const nextLog = [...prevLog, entry];
+      // Show the new row straight away. The write below is what makes it real, but
+      // without this the panel keeps rendering the old log until the next poll — the
+      // entry looked like it hadn't saved when it had.
+      const withLog = (t: Task) => (t.id === id ? { ...t, detail: { ...t.detail, extensions: nextLog } } : t);
+      setTasks((a) => a.map(withLog));
+      setClaimedTasks((a) => a.map(withLog));
       fetch("/api/marketing-hub/update", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, actor: person, fields: { custom: { time_extensions: [...prevLog, entry] } } }),
-      }).catch(() => { /* the minutes still save below; the note is a courtesy trail */ });
+        body: JSON.stringify({ id, actor: person, fields: { custom: { time_extensions: nextLog } } }),
+      })
+        .then(() => load())   // resync so the trail matches the server, not just the guess
+        .catch(() => { /* the minutes still save below; the note is a courtesy trail */ });
     }
     setTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
     setClaimedTasks((a) => a.map((t) => (t.id === id ? { ...t, detail: { ...t.detail, duration: mins } } : t)));
@@ -2841,7 +3043,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // normal way, so start_at, the day plan, the timer and the prompt all follow with
   // no extra machinery. It is announced and undoable, because opening a task to look
   // at it is not always the same as starting work.
-  const autoStarted = useRef<Set<string>>(new Set());
   useEffect(() => {
     const t = task;
     if (!t || !nowMin) return;
@@ -2957,6 +3158,34 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // `workMin` (minutes booked on Today's plan) is the person's committed load.
   const addNotif = (n: Notif) => setNotifs((ns) => [n, ...ns.filter((x) => x.id !== n.id)]);
   const dismissNotif = (id: string) => setNotifs((ns) => ns.filter((n) => n.id !== id));
+  // The two answers to "your time is nearly up", handled from the notification itself so
+  // nobody has to go hunting for the task first.
+  //   Task completed → move it on, which stops the clock.
+  //   Extend         → ask how long and why, then add it. Same rule as "+ Extend": no
+  //                    reason, no extra time.
+  const onTimeUpChoice = async (n: Notif, choice: "done" | "extend") => {
+    const id = n.timeUp?.taskId;
+    const t = id ? [...tasks, ...claimedTasks].find((x) => x.id === id) : null;
+    if (!t) { dismissNotif(n.id); return; }
+    if (choice === "done") {
+      dismissNotif(n.id);
+      setTaskStatus(t.id, "Output - Ready");
+      return;
+    }
+    const tm = taskTiming(t);
+    const planned = tm?.planned ?? t.detail.duration ?? estMins(t.detail.typeLine);
+    const mins = await promptDialog({ title: "How much longer?", body: "Minutes to add.", action: "Next", defaultValue: "15" });
+    const add = Math.floor(Number(mins));
+    if (!Number.isFinite(add) || add < 1) return;         // cancelled or nonsense
+    const why = await promptDialog({
+      title: `Why the extra ${fmtMins(add)}?`,
+      body: "It stays on the task, so the overrun can be accounted for later.",
+      action: "Add time", placeholder: "e.g. client sent new copy · 3 extra slides",
+    });
+    if (!why || !why.trim()) return;                      // no reason, no extra time
+    dismissNotif(n.id);
+    setDuration(t.id, planned + add, why.trim());
+  };
   const onAcceptNotif = (n: Notif) => {
     if (n.task) { setAcceptTask(n.task); return; }
     // Pipelined handoff (server notification with postId): accepting IS the
@@ -3072,7 +3301,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       try {
         const r = await fetch(`/api/my-day/notifications?person=${person}`, { cache: "no-store" });
         const d = await r.json();
-        if (alive && r.ok) setNotifs((d.notifs as Notif[]) || []);
+        // Keep the clock alerts. They are raised in the browser from the running timer,
+        // so the server knows nothing about them — replacing the list wholesale wiped
+        // each "time is nearly up" the moment the next poll landed, seconds later.
+        if (alive && r.ok) setNotifs((prev) => {
+          const localAlerts = prev.filter((n) => n.timeUp);
+          const fromServer = ((d.notifs as Notif[]) || []).filter((s) => !localAlerts.some((l) => l.id === s.id));
+          return [...localAlerts, ...fromServer];
+        });
       } catch { /* keep the last batch on a transient error */ }
     };
     pull();
@@ -3481,11 +3717,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               )}
               {planBlocks.map((b) => {
                 // The block kind is "reel" for every task; show the task's real type.
-                const typeName = [...tasks, ...claimedTasks].find((t) => t.id === b.taskId)?.detail.typeLine || "Task";
+                const blkTask = [...tasks, ...claimedTasks].find((t) => t.id === b.taskId);
+                const typeName = blkTask?.detail.typeLine || "Task";
+                // Time added after the task was first planned, badged on the block — so a
+                // day that grew says so, instead of just silently taking up more room.
+                const log = blkTask?.detail.extensions || [];
+                const addedMin = log.length ? Math.max(0, (blkTask!.detail.duration ?? 0) - log[0].fromMin) : 0;
                 return (
                 <div
                   key={`${b.kind}-${b.key || b.taskId || ""}-${b.start}`}
-                  className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.samvaya ? "samvaya" : ""} ${b.kind === "reel" ? "clickable" : ""}`}
+                  className={`tl-blk ${b.kind} ${b.high ? "high" : ""} ${b.samvaya ? "samvaya" : ""} ${b.kind === "reel" ? "clickable" : ""} ${addedMin > 0 ? "has-ext" : ""}`}
                   draggable={b.kind === "reel"}
                   onDragStart={b.kind === "reel" ? (e) => { dragKey.current = b.key!; grabDX.current = e.clientX - e.currentTarget.getBoundingClientRect().left; } : undefined}
                   onDragEnd={b.kind === "reel" ? () => { dragKey.current = null; setDropAt(null); } : undefined}
@@ -3493,6 +3734,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }}
                   title={b.kind === "reel" ? "Drag along the timeline to start it later · click to open" : b.kind === "lunch" ? "Protected lunch" : "Emergency buffer — only Urgent/High tasks are planned into this hour"}
                 >
+                  {b.kind === "reel" && addedMin > 0 && (
+                    // A small badge on the right edge, not a band across the block: the
+                    // band covered the task name, which is the one thing the block is
+                    // there to tell you.
+                    <span className="tl-ext" title={`${fmtMins(addedMin)} added after this was planned`}>
+                      +{fmtMins(addedMin)}
+                    </span>
+                  )}
                   {b.kind === "reel" && (
                     <>
                       <button className="tl-nudge l" title="Move earlier" onClick={(e) => { e.stopPropagation(); movePlan(b.key!, -1); }}>‹</button>
@@ -3537,7 +3786,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : di.today ? "duetoday" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
                     {/* Two columns: the task on the left, its dates and state stacked on
                         the right. The status pill used to sit after the meta text, so it
                         landed at a different spot on every row — now due and status line
@@ -3611,7 +3860,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <TaskBody task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
               </>
             ) : null; })() || (task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why) => setDuration(task.id, m, why)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
+              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why, undoOf) => setDuration(task.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
             ) : (
               // One entry point only: "+ New task" sits in the My tasks header, so the
               // resting panel stays empty rather than repeating the same button.
@@ -3753,7 +4002,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
 
       {/* TEAM CHAT — collapsible slide-in panel */}
       <aside className={`chatpanel ${chatOpen ? "open" : ""}`}>
-        <NotificationStack notifs={notifs} onAccept={onAcceptNotif} onDismiss={dismissNotif} onClearAll={() => setNotifs([])} />
+        <NotificationStack notifs={notifs} onAccept={onAcceptNotif} onDismiss={dismissNotif} onClearAll={() => setNotifs([])} onTimeUp={onTimeUpChoice} />
         {(() => {
           const active = activeChat ? convos[activeChat] : null;
           return (
@@ -3802,8 +4051,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <div className="chat-day">Today</div>
                     {active.msgs.length === 0 && <div className="empty">No messages yet — say hi</div>}
                     {active.msgs.map((m, i) => m.sys ? (
-                      /* server-posted pipeline event (handoff / claim / publish) */
-                      <div key={i} className="chat-sys"><span>{m.body}</span><span className="chat-sys-tm">{m.tm}</span></div>
+                      /* A pipeline event (handoff / claim / extension). It reads as a
+                         message in a chat, so it looks like one: a left-side bubble,
+                         tinted to mark it as the system talking rather than a person.
+                         It used to be a centred grey pill, which nobody read as chat. */
+                      <div key={i} className="bubble-row sys">
+                        <div className="bubble sys">
+                          <span className="bubble-body">{highlightMins(m.body)}</span>
+                          <span className="bubble-tm">{m.tm}</span>
+                        </div>
+                      </div>
                     ) : (
                       <div key={i} className={`bubble-row ${m.me ? "me" : ""}`}>
                         {!m.me && active.group && <span className="av bubble-av" style={{ background: m.color }}>{m.av}</span>}
@@ -3833,7 +4090,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close"><IconX size={14} stroke={2} /></button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m, why) => setDuration(planModalTask.id, m, why)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
+            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m, why, undoOf) => setDuration(planModalTask.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
@@ -4131,7 +4388,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {askManya && <AskManyaModal onSend={sendToManya} onClose={() => setAskManya(false)} />}
 
       {/* END TODAY — wrap-up checklist */}
-      {showEod && <EndTodayModal tasks={workingTasks.map((t) => ({ id: t.id, title: t.title }))} onEnd={endToday} onClose={() => setShowEod(false)} />}
+      {showEod && <EndTodayModal tasks={eodTasks} today={todayStr} isWriter={(me.role || "").toLowerCase().includes("writer")} onEnd={endToday} onClose={() => setShowEod(false)} />}
 
 
     </div>
@@ -4240,6 +4497,15 @@ const CSS = `
 .hmd .tl-ticks span{flex:1;font-size:12px;color:var(--faint);font-family:var(--mono)}
 .hmd .tl-track{position:relative;height:58px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);overflow:hidden}
 .hmd .tl-blk{position:absolute;top:0;height:100%;border-radius:0;padding:.35rem .6rem;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff;font-size:12px;transition:filter .12s;border-right:1px solid rgba(255,255,255,.16)}
+/* Time added after planning: a small solid badge on the block's right edge. Amber
+   on blue so it is obviously not part of the original plan, and small enough that the
+   task name underneath stays readable. */
+/* Keep the title clear of the badge instead of letting it run underneath. */
+.hmd .tl-blk.has-ext .tl-t,.hmd .tl-blk.has-ext .tl-m{padding-right:52px}
+.hmd .tl-ext{position:absolute;top:50%;right:5px;transform:translateY(-50%);z-index:2;pointer-events:none;
+  background:#FFC24D;color:#4A3000;border:1px solid rgba(255,255,255,.65);border-radius:6px;
+  font-size:11px;font-weight:700;line-height:1;padding:.22em .42em;white-space:nowrap;font-variant-numeric:tabular-nums;
+  box-shadow:0 1px 2px rgba(20,22,40,.22)}
 .hmd .tl-blk:last-child{border-right:0}
 .hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab}
 .hmd .tl-blk.reel:hover{filter:brightness(1.05)}
@@ -4434,6 +4700,11 @@ const CSS = `
 .hmd .sw-btn.start:hover{background:#2138B0}
 .hmd .sw-btn.stop{background:var(--cFCEBEC);color:var(--cC0201F);border-color:var(--cF3C6CE)}
 .hmd .sw-btn.stop:hover{background:var(--cF9DADE)}
+/* Cancel is the quiet one of the three: it undoes a mistake, it isn't a step forward. */
+.hmd .sw-btn.cancel{background:var(--panel);color:var(--muted);border-color:var(--line)}
+.hmd .sw-btn.cancel:hover{background:var(--panel-2);color:var(--ink-soft);border-color:var(--cD9DEEA)}
+/* The planned time while the clock runs: shown, not editable. */
+.hmd .dur-locked{display:inline-flex;align-items:center;gap:.35rem;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:0 .7rem;font-size:13px;font-weight:600;white-space:nowrap;cursor:default}
 .hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid var(--cD5DCF8);border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:14px;font-weight:700;white-space:nowrap}
 .hmd .cap-timer.over{background:var(--warn-soft);border-color:var(--cF3D9AE);color:var(--c8A5A00)}
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
@@ -4550,6 +4821,13 @@ const CSS = `
 .hmd .chat-foot{padding:.7rem 1.1rem;border-top:1px solid var(--line)}
 .hmd .chat-day{text-align:center;font-size:12px;color:var(--faint);margin:.7rem 0 .3rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
 .hmd .chat-sys{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.45rem 0;text-align:center}
+/* System events as chat bubbles: same shape as a person's message, tinted and with a
+   left rail so it still reads as the system rather than a teammate. */
+.hmd .bubble-row.sys{justify-content:flex-start}
+.hmd .bubble.sys{background:var(--cFAFBFF);border:1px solid var(--line);border-left:3px solid var(--brand);color:var(--ink-soft);border-radius:13px 13px 13px 5px;max-width:88%}
+.hmd .chat-mins{font-variant-numeric:tabular-nums;border-radius:5px;padding:0 .25em}
+.hmd .chat-mins.up{color:var(--c8A5A00);background:var(--warn-soft)}
+.hmd .chat-mins.down{color:var(--c0F6E3C);background:var(--good-soft)}
 .hmd .chat-sys span:first-child{background:var(--panel-2);border:1px solid var(--line);border-radius:99px;padding:.28rem .7rem;font-size:12px;color:var(--ink-soft);max-width:86%}
 .hmd .chat-sys-tm{font-size:12px;color:var(--faint)}
 .hmd .chat-msg{display:flex;gap:.5rem;padding:.28rem 0;font-size:14px;border-bottom:1px solid var(--line-2)}
@@ -4794,6 +5072,13 @@ const CSS = `
 .hmd .ext-log-row{display:flex;align-items:baseline;gap:.6rem;padding:.3rem 0;border-bottom:1px solid var(--line-2);font-size:13px;flex-wrap:wrap}
 .hmd .ext-log-row:last-child{border-bottom:0}
 .hmd .ext-log-amt{font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;flex:none}
+.hmd .ext-log-amt.neg{color:var(--good)}
+/* An entry that was taken back stays on the record, just quietened and struck through. */
+.hmd .ext-log-row.undone .ext-log-amt,.hmd .ext-log-row.undone .ext-log-why{text-decoration:line-through;opacity:.55}
+.hmd .ext-log-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--good);background:var(--good-soft);border-radius:5px;padding:.1em .35em;margin-right:.4rem}
+.hmd .ext-log-undone-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;flex:none}
+.hmd .ext-log-undo{border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font:inherit;font-size:11px;font-weight:600;border-radius:6px;padding:.12em .5em;cursor:pointer;flex:none}
+.hmd .ext-log-undo:hover{border-color:var(--brand);color:var(--brand)}
 .hmd .ext-log-why{color:var(--ink);flex:1;min-width:0}
 .hmd .ext-log-who{font-size:12px;color:var(--muted);flex:none}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
@@ -4846,6 +5131,36 @@ const CSS = `
 .hmd .eod-tag{font-size:12px;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
 .hmd .eod-tag.done{background:var(--good-soft);color:var(--c0F6E3C)}.hmd .eod-tag.roll{background:var(--warn-soft);color:var(--c7A4E0B)}
 .hmd .eod-reason{width:100%;margin:.1rem 0 .55rem 2rem;max-width:calc(100% - 2rem);border:1px solid var(--line);border-radius:8px;padding:.4rem .55rem;font-size:12px;color:var(--ink-soft);background:var(--panel-2)}
+/* ── Wrap up your day: one task per line ─────────────────────────────────── */
+.hmd .eod-card{max-width:1020px;width:min(1020px,95vw)}
+/* A real table: column headers, aligned columns, one row per task. */
+/* Fixed layout: the columns keep their widths and a long task name truncates,
+   instead of one headline stretching the table into a sideways scroll. */
+.hmd .eod-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px}
+.hmd .eod-table thead th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+.hmd .eod-table td{padding:.4rem .5rem;border-bottom:1px solid var(--line-2);vertical-align:middle;overflow:hidden}
+.hmd .eod-table .c-cb{width:34px}
+.hmd .eod-table .c-pub{width:130px;color:var(--ink-soft);white-space:nowrap}
+.hmd .eod-table .c-pub.near{color:var(--c8A5A00);font-weight:600}
+.hmd .eod-table .c-act{width:270px}
+.hmd .eod-table th.c-pub,.hmd .eod-table th.c-act{text-align:left}
+.hmd .eod-grouprow td{background:var(--panel-2);border-bottom:1px solid var(--line);padding:.35rem .5rem}
+.hmd .eod-grouprow .eod-group-n{margin-left:.4rem}
+.hmd .eod-table .eod-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ink)}
+.hmd .eod-table tr.done .eod-title{color:var(--muted);font-weight:500}
+.hmd .eod-table .eod-reason{margin:0;width:100%;max-width:100%;padding:.3rem .5rem;font-size:12px}
+.hmd .eod-group{margin-bottom:.5rem}
+.hmd .eod-group-head{display:flex;align-items:center;gap:.45rem;padding:.5rem .15rem .3rem;border-bottom:1px solid var(--line);margin-bottom:.15rem;position:sticky;top:0;background:var(--panel);z-index:1}
+.hmd .eod-group-n{font-size:11px;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:7px;padding:0 .4em}
+.hmd .eod-group-note{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-left:auto}
+/* The publishing date, in its own column so the eye can run down it. */
+.hmd .eod-list{max-height:56vh;overflow-y:auto;overflow-x:hidden;margin:.2rem 0 .1rem}
+/* Due TODAY is not the same as already late: amber, and the row is tinted so it reads
+   as "today's problem" rather than sitting quietly among work due next week. */
+.hmd .due-chip.today{color:var(--c8A5A00)}
+.hmd .task.duetoday{background:linear-gradient(180deg,var(--cFEF6F0),var(--panel));border-color:var(--cF3DCB4)}
+.hmd .task.duetoday:hover{border-color:var(--cF3C6CE)}
+.hmd .task.duetoday.sel{border-color:var(--brand)}
 .hmd .eod-reason:focus{outline:none;border-color:var(--brand);background:var(--panel)}
 .hmd .btn.rose:disabled{opacity:.45;cursor:default}
 .hmd .eod-foot{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}

@@ -52,6 +52,10 @@ const OWNER_ALIASES: Record<string, string> = {
   "maheen ejaz": "maheen", "maheen": "maheen",
 };
 
+// One entry in a task's time_extensions log: the allotted minutes before and after,
+// why, and — for a correction — which entry it reverses.
+type TimeExtension = { fromMin: number; toMin: number; reason: string; undoOf?: string };
+
 export async function PATCH(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
@@ -92,8 +96,18 @@ export async function PATCH(req: Request) {
     // `custom` is a jsonb bag (collaborator / claim_role / incorporating_feedback).
     // Merge, never overwrite, so setting one key doesn't drop the others.
     const customPatch = (body.fields as { custom?: Record<string, unknown> }).custom;
+    // A new entry in time_extensions means someone added (or took back) time on a
+    // running task. Picked up here, where the entry actually lands, so the team hears
+    // about it once — from the write itself — rather than the client having to
+    // remember to announce it separately.
+    let newExtension: TimeExtension | null = null;
     if (customPatch && typeof customPatch === "object" && !Array.isArray(customPatch)) {
       const { data: cur } = await sb.from("mh_posts").select("custom").eq("id", body.id).single();
+      const prevLog = (cur?.custom as Record<string, unknown>)?.time_extensions;
+      const nextLog = customPatch.time_extensions;
+      if (Array.isArray(nextLog) && nextLog.length > (Array.isArray(prevLog) ? prevLog.length : 0)) {
+        newExtension = nextLog[nextLog.length - 1] as TimeExtension;
+      }
       clean.custom = { ...((cur?.custom as Record<string, unknown>) || {}), ...customPatch };
     }
 
@@ -130,7 +144,13 @@ export async function PATCH(req: Request) {
     const filled = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
 
     // A) Content-Approved: the brief must be complete before it hands off to a producer.
-    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved") {
+    // Only on the way FORWARD. A task stepping back from production — most often an
+    // accidental start being put back — is not being approved: it was approved once
+    // already and nothing about the brief has changed. Re-running the gate there made
+    // "put it back" impossible on any task whose brief had since lost a required field
+    // (a removed collaborator was enough), leaving it stuck In Progress with no way out.
+    const APPROVAL_COMES_FROM = new Set(["Content - Pending", "Content - In Progress", "Incorporating Feedback"]);
+    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved" && APPROVAL_COMES_FROM.has(wasStatus)) {
       const missing: string[] = [];
       if (!filled(eff("content")) && !filled(eff("caption"))) missing.push("Content (the brief)");
       if (!filled(eff("sbu"))) missing.push("SBU");
@@ -274,6 +294,14 @@ export async function PATCH(req: Request) {
         await sb.from("mh_posts").update({ start_at: now.toISOString(), end_at: null }).eq("id", body.id);
       }
     }
+    // CANCEL a start. Going from In Progress back to a content stage means the work
+    // never actually began — most often the task was opened by accident, which starts
+    // it. Wipe the clock so the task doesn't keep a start time for work nobody did,
+    // and so "Time taken" can't later be measured from it.
+    const PRE_WORK = new Set(["Content - Pending", "Content - In Progress", "Content - Approved"]);
+    if (typeof clean.status === "string" && PRE_WORK.has(clean.status) && before.data.status === "Output - In Progress") {
+      await sb.from("mh_posts").update({ start_at: null, end_at: null }).eq("id", body.id);
+    }
 
     // Auto-handoff when status becomes "Content - Approved" (assignment + collaborator
     // only — the status_changed / owner_changed rows above already record it, and the
@@ -285,14 +313,41 @@ export async function PATCH(req: Request) {
     // handoff also lands as a message, not just a bell notification.
     const chatActor = actor || before.data.owner_key || "maheen";
     const title = String(data.particulars || "a task");
+
+    // TIME EXTENDED — the team hears it, and it lands in everyone else's notifications
+    // (the feed is built from mh_activity, so the row below is what makes that happen).
+    if (newExtension) {
+      const delta = Number(newExtension.toMin) - Number(newExtension.fromMin);
+      const mins = Math.abs(delta);
+      const asText = mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ""}` : `${mins}m`;
+      const who = MH_NAME[chatActor] || chatActor;
+      try {
+        await sb.from("mh_activity").insert({
+          post_id: body.id, actor_key: chatActor, action: "time_extended",
+          from_value: String(newExtension.fromMin), to_value: String(newExtension.toMin),
+          detail: { reason: newExtension.reason, minutes: delta, undo: !!newExtension.undoOf },
+        });
+      } catch { /* courtesy trail */ }
+      await postTeamMessage(sb, chatActor, newExtension.undoOf
+        ? `↩️ ${who} took back ${asText} on “${title}” — ${newExtension.reason}`
+        : `⏱️ Task extended — “${title}” +${asText}. ${who}: ${newExtension.reason}`);
+    }
     if (typeof clean.status === "string" && clean.status !== before.data.status) {
-      if (clean.status === "Content - Approved") {
+      // Announce an approval only when the task is actually BEING approved — moving
+      // forward out of the content stages. A task stepping back from production (an
+      // accidental start being put back) lands on the same status without anyone
+      // approving anything, and announcing it produced the nonsense line
+      // "Praveen approved X — design work, handed to Praveen".
+      if (clean.status === "Content - Approved" && APPROVAL_COMES_FROM.has(String(before.data.status))) {
         const isVideo = VIDEO_TYPES.has(String(data.type || ""));
+        const who = MH_NAME[chatActor] || chatActor;
+        // And don't tell someone they were handed their own work.
+        const handedTo = chatActor === "praveen" ? "design work, it's yours." : "design work, handed to Praveen.";
         await postTeamMessage(sb, chatActor, isVideo
-          ? `${MH_NAME[chatActor] || chatActor} approved “${title}” — video work, up for grabs in the editors' pool.`
+          ? `${who} approved “${title}” — video work, up for grabs in the editors' pool.`
           : (body as { deferHandoff?: boolean }).deferHandoff
-          ? `${MH_NAME[chatActor] || chatActor} approved “${title}” — Praveen's day is full, so it's WAITING in his pipeline until he accepts.`
-          : `${MH_NAME[chatActor] || chatActor} approved “${title}” — design work, handed to Praveen.`);
+          ? `${who} approved “${title}” — Praveen's day is full, so it's WAITING in his pipeline until he accepts.`
+          : `${who} approved “${title}” — ${handedTo}`);
       } else if (clean.status === "Ready to Publish") {
         await postTeamMessage(sb, chatActor, `“${title}” is ready to publish.`);
       } else if (clean.status === "Incorporating Feedback") {
