@@ -350,7 +350,7 @@ function Delta({ pctv, abs }: { pctv?: number | null; abs?: number | null }) {
 }
 
 const EXO_CSS = `
-.exo{margin:18px 0 6px}
+.exo{margin:18px 0 6px;scroll-margin-top:80px}
 .exo .exo-h2{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
   color:#A6ACBE;margin:26px 0 10px;display:flex;align-items:baseline;gap:9px}
 .exo .exo-h2 em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:500;

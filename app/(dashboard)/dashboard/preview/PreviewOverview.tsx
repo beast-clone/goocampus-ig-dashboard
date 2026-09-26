@@ -522,7 +522,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   it, now labelled so the two don't read as one long page. */}
               <ExecutiveOverview range={range} rangeLabel={rangeLabel} accountId={accountId} />
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 -4px" }}>
+              <div id="detailed-overview" style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 -4px", scrollMarginTop: 80 }}>
                 <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "#A6ACBE", margin: 0 }}>Detailed overview</h2>
                 <span style={{ fontSize: 12, color: "#A6ACBE" }}>— {currentAccount.handle} in full</span>
                 <span style={{ flex: 1, height: 1, background: C.line }} />
