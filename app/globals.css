@@ -1152,3 +1152,15 @@ html[data-theme="dark"] .preview-root [style*="; color: #C13584" i] { color:#F48
 html[data-theme="dark"] .preview-root [style*="solid #D1D5DB" i],
 html[data-theme="dark"] .preview-root [style*="solid #DDE1EC" i] { border-color:var(--line-2) !important; }
 html[data-theme="dark"] .preview-root [style*="solid #F3C6CE" i] { border-color:rgba(192,57,43,.4) !important; }
+
+/* Printing a deleted-task report should print the REPORT, not the dashboard sitting
+   behind the overlay. Hide everything, then bring the report card back. */
+@media print {
+  body:has(.report-overlay) > * { visibility: hidden !important; }
+  body:has(.report-overlay) .report-overlay,
+  body:has(.report-overlay) .report-overlay * { visibility: visible !important; }
+  .report-overlay { position: absolute !important; inset: 0 auto auto 0 !important;
+    background: #fff !important; padding: 0 !important; overflow: visible !important; }
+  .report-overlay > div { box-shadow: none !important; max-width: 100% !important; margin: 0 !important; }
+  .report-overlay button { display: none !important; }
+}

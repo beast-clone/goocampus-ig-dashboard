@@ -123,10 +123,11 @@ const GROUPS: Group[] = [
     { key: "reports", label: "Reports", icon: IconArchive, href: `${HUB}/ai-reports`, children: [
       { label: "Monthly Reports",      href: `${HUB}/ai-reports`,     icon: IconReportAnalytics },
       { label: "Social Media Reports", href: `${HUB}/reports/social`, icon: IconDeviceMobile },
-      { label: "Recycle Bin",          href: `${HUB}/reports/trash`,  icon: IconTrash },
+      { label: "Deleted Reports",      href: `${HUB}/reports/trash`,  icon: IconTrash },
     ] },
   ] },
   { label: "System", sec: "system", items: [
+    { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },

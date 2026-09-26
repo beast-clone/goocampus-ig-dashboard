@@ -4,11 +4,12 @@ import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { getSessionUserId } from "@/lib/auth";
 import { requireCapability, requireSection } from "@/lib/api-guard";
-import { purgeTasks, TrashNotReady } from "@/lib/task-trash";
+import { purgeTasks, TrashNotReady, PurgeNotReady } from "@/lib/task-trash";
 
 // POST /api/marketing-hub/trash/purge  { ids: string[] }
-// The ONLY permanent delete: removes tasks from the recycle bin for good.
-// Same `delete_tasks` capability as deleting.
+// "Delete forever" from the recycle bin — which no longer means forever. The snapshot
+// is stamped as archived, not destroyed, and stays recoverable by an admin. Same
+// `delete_tasks` capability as deleting. See sql/019_trash_two_tier.sql.
 export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
@@ -20,11 +21,12 @@ export async function POST(req: Request) {
     if (!ids.length) return NextResponse.json({ error: "ids required" }, { status: 400 });
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    const out = await purgeTasks(sb, ids);
+    const actor = (await getSessionUserId()) || "unknown";
+    const out = await purgeTasks(sb, ids, actor);
     if (out.done.length) bustMarketingHubCache();
     return NextResponse.json({ ok: out.failed.length === 0, done: out.done.length, missing: out.missing, failed: out.failed });
   } catch (err) {
-    if (err instanceof TrashNotReady) return NextResponse.json({ error: err.message, notReady: true }, { status: 409 });
+    if (err instanceof TrashNotReady || err instanceof PurgeNotReady) return NextResponse.json({ error: err.message, notReady: true }, { status: 409 });
     return NextResponse.json(safeError(err, "Delete forever failed"), { status: 502 });
   }
 }
