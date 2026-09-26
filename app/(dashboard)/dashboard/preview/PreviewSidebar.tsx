@@ -38,6 +38,10 @@ const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 
 const HUB = "/dashboard/preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
+// Every channel plus the ad spend on one screen. It lives at the top of the Overview
+// page rather than in a page of its own — the detail underneath is the same data in
+// full, and splitting them would mean two places to keep in step.
+const EXECUTIVE: Leaf = { label: "Executive Overview", href: `${HUB}#executive-overview`, icon: IconChartBar };
 // Admin-only cockpit — rendered right under Overview when the viewer is an admin.
 // Carries the approvals notification badge (approvals live inside this page).
 const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
@@ -342,6 +346,7 @@ export function PreviewSidebar() {
       </div>
       <div className="hglobalsearch"><GlobalSearch /></div>
       {canOverview && <LeafRow leaf={OVERVIEW} />}
+      {canOverview && <LeafRow leaf={EXECUTIVE} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} />}
       {groups.map((g) => (
