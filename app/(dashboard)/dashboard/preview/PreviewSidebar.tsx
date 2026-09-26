@@ -37,16 +37,7 @@ type Group = { label?: string; sec: Section; items: (Leaf | Folder)[] };
 const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 
 const HUB = "/dashboard/preview";
-// Overview is one page with two halves — the executive summary across all channels,
-// and the channel detail under it. They are sub-items rather than two top-level rows,
-// which read as two separate destinations when they are two parts of one screen.
-const OVERVIEW: Folder = {
-  key: "overview", label: "Overview", href: HUB, icon: IconLayoutGrid,
-  children: [
-    { label: "Executive Overview", href: `${HUB}#executive-overview`, icon: IconChartBar },
-    { label: "Detailed Overview", href: `${HUB}#detailed-overview`, icon: IconLayoutGrid },
-  ],
-};
+const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
 // Admin-only cockpit — rendered right under Overview when the viewer is an admin.
 // Carries the approvals notification badge (approvals live inside this page).
 const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
@@ -333,9 +324,8 @@ export function PreviewSidebar() {
     >
       <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
       <div className="hbrand">
-        {/* Logo → Overview (the main page). HUB, not OVERVIEW.href: Overview is a
-            folder now and a folder's href is optional, so this would be string|undefined. */}
-        <Link href={HUB} aria-label="Go to Overview" className="hlogo-link">
+        {/* Logo → Overview (the main page). */}
+        <Link href={OVERVIEW.href} aria-label="Go to Overview" className="hlogo-link">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/goocampus-logo.png" alt="GooCampus" className="hlogo-img hlogo-light" />
           {/* White logo for the dark theme (globals.css swaps them). */}
@@ -351,7 +341,7 @@ export function PreviewSidebar() {
         </button>
       </div>
       <div className="hglobalsearch"><GlobalSearch /></div>
-      {canOverview && <FolderRow f={OVERVIEW} />}
+      {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} />}
       {groups.map((g) => (
