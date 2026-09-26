@@ -46,7 +46,10 @@ export const SHELL_CSS = `
   --bg:#F5F6FA;--panel:#FFFFFF;--panel-2:#F7F8FC;
   --ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;
   --line:#EEF0F4;--line-2:#F3F5F9;
+  /* Both forms, kept in step: the hex for this stylesheet's own var(--brand),
+     the channels for Tailwind's bg-brand/text-brand inside this shell. */
   --brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;
+  --brand-rgb:58 87 232;--brand-dark-rgb:33 56 176;--brand-light-rgb:233 236 251;
   --good:#1AA053;--good-soft:#E3F5EA;--warn:#D97706;--warn-soft:#FEF3E2;--rose:#E11D48;--rose-soft:#FCE8EC;
   --sky:#0EA5E9;--sky-soft:#E4F4FD;--violet:#6E48F8;--violet-soft:#EFEBFE;
   --shadow:0 10px 30px rgba(35,45,66,0.06);

@@ -5,21 +5,33 @@
 html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 
 /* Brand accent as CSS vars — defaults reproduce the original violet exactly
-   (#6E48F8 / #4A2EC4 / #EDE7FE). Every `brand`/`brand-dark`/`brand-light`
-   Tailwind utility (incl. opacity variants) resolves through these. */
+   (#6E48F8 / #4A2EC4 / #EDE7FE).
+   Each accent is declared TWICE, on purpose:
+     --brand-rgb   bare channels, for Tailwind's rgb(var(…) / <alpha>) utilities
+     --brand       a real colour, for hand-written `background: var(--brand)`
+   One name serving both is what caused white-on-white buttons: a scope that set it
+   to channels broke every plain var(--brand), and a scope that set it to a hex broke
+   every bg-brand inside it. Neither failed loudly — invalid colours just vanish.
+   Keep the pair in step when re-theming. */
 :root {
-  --brand: 110 72 248;
-  --brand-dark: 74 46 196;
-  --brand-light: 237 231 254;
+  --brand-rgb: 110 72 248;
+  --brand-dark-rgb: 74 46 196;
+  --brand-light-rgb: 237 231 254;
+  --brand: #6E48F8;
+  --brand-dark: #4A2EC4;
+  --brand-light: #EDE7FE;
 }
 
 /* Dashboard reskin scope — flips the brand accent to brand blue (#3A57E8) for any
    subtree wrapped in .preview-scope, so shared Overview components (post-mix,
    cadence, best-times) render in brand blue ONLY inside the preview. */
 .preview-scope {
-  --brand: 58 87 232;
-  --brand-dark: 33 56 176;
-  --brand-light: 233 236 251;
+  --brand-rgb: 58 87 232;
+  --brand-dark-rgb: 33 56 176;
+  --brand-light-rgb: 233 236 251;
+  --brand: #3A57E8;
+  --brand-dark: #2138B0;
+  --brand-light: #E9ECFB;
 }
 /* The ER trend chart hardcodes #6D5AE6 as SVG presentation attributes; CSS
    overrides win over presentation attributes, so recolor them to brand blue. */
@@ -405,7 +417,9 @@ html[data-theme="dark"] {
   --d-brand-text:#8497FF;
 }
 html[data-theme="dark"], html[data-theme="dark"] body { background:var(--d-canvas) !important; color:var(--d-ink2); }
-html[data-theme="dark"] .preview-scope { --brand-light: 44 54 102; color:var(--d-muted); }
+/* Dark mode dims the brand-light tint. Both forms, so bg-brand-light and any
+   plain var(--brand-light) agree. */
+html[data-theme="dark"] .preview-scope { --brand-light-rgb: 44 54 102; --brand-light: #2C3666; color:var(--d-muted); }
 html[data-theme="dark"] .preview-scope h1, html[data-theme="dark"] .preview-scope h2, html[data-theme="dark"] .preview-scope h3,
 html[data-theme="dark"] .preview-scope h4, html[data-theme="dark"] .preview-scope h5, html[data-theme="dark"] .preview-scope h6 { color:var(--d-ink); }
 

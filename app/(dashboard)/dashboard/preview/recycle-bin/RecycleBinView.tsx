@@ -173,13 +173,13 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
 
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button onClick={() => switchTab("bin")}
-            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "bin" ? "bg-[#E9ECFB] border-[#3A57E8] text-[#2138B0]" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "bin" ? "bg-brand-light border-brand text-brand-dark" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
             <IconTrash size={16} stroke={1.8} />Recycle bin
             <span className="text-[11px] opacity-70">{bin?.length ?? ""}</span>
           </button>
           {isAdmin && (
             <button onClick={() => switchTab("archive")}
-              className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "archive" ? "bg-[#E9ECFB] border-[#3A57E8] text-[#2138B0]" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+              className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "archive" ? "bg-brand-light border-brand text-brand-dark" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
               <IconArchive size={16} stroke={1.8} />Deleted archive
               <span className="text-[11px] opacity-70">{archive?.length ?? ""}</span>
             </button>
@@ -189,7 +189,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
               so the only route to it is through the report itself. */}
           {tab === "bin" && chosen.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
-              <button disabled={busy} onClick={restore} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-[#3A57E8] hover:bg-[#2138B0] disabled:opacity-50">
+              <button disabled={busy} onClick={restore} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-50">
                 <IconRestore size={16} stroke={1.8} />Restore {chosen.length}
               </button>
               <button disabled={busy} onClick={empty} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-[#C0392B] border border-[#F3C6CE] bg-white hover:bg-[#FDECEA] disabled:opacity-50">
@@ -338,7 +338,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
                     await load();
                   } finally { setBusy(false); }
                 }}>Put back in bin</button>
-              <button onClick={() => setReport(null)} className="h-9 px-3 rounded text-[13.5px] font-medium text-white bg-[#3A57E8] hover:bg-[#2138B0]">Done</button>
+              <button onClick={() => setReport(null)} className="h-9 px-3 rounded text-[13.5px] font-medium text-white bg-brand hover:bg-brand-dark">Done</button>
             </div>
           </div>
         </div>

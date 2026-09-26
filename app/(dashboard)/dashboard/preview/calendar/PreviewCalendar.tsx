@@ -821,7 +821,7 @@ const HCAL_CSS = `
    every background:var(--brand) went invalid and fell back to transparent — the nav
    arrows, the active view, today's badge and the primary buttons all turned
    white-on-white. Team Command (.tcmd) and Social Leads (.sl) solve it the same way. */
-.hcal{--brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;color:var(--ink)}
+.hcal{--brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;--brand-rgb:58 87 232;--brand-dark-rgb:33 56 176;--brand-light-rgb:233 236 251;color:var(--ink)}
 .hcal button{font-family:inherit;cursor:pointer}
 /* hero band — mirrors the theme reference navbar-header */
 .hcal-hero{position:relative;background:linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%);border-radius:16px;padding:1.6rem 1.8rem 3.4rem;color:#fff;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}

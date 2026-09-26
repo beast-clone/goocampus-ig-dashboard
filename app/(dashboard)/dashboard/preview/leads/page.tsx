@@ -383,7 +383,7 @@ function AIRail({ lines }: { lines: string[] }) {
 }
 
 const CSS = `
-.sl{--brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;--ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;--line:#EEF0F4;--line2:#F3F5F9;--panel:#FFF;--panel2:#F7F8FC;--good:#1AA053;--rose:#D6336C;--rose-soft:#FBE4EC;font-size:14.5px}
+.sl{--brand:#3A57E8;--brand-soft:#E9ECFB;--brand-ink:#2138B0;--brand-rgb:58 87 232;--brand-dark-rgb:33 56 176;--brand-light-rgb:233 236 251;--ink:#232D42;--ink-soft:#4A5468;--muted:#8A92A6;--faint:#A6ACBE;--line:#EEF0F4;--line2:#F3F5F9;--panel:#FFF;--panel2:#F7F8FC;--good:#1AA053;--rose:#D6336C;--rose-soft:#FBE4EC;font-size:14.5px}
 .sl *{box-sizing:border-box}
 .sl h3{margin:0}
 .sl-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
