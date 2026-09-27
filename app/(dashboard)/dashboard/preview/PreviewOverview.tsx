@@ -87,6 +87,38 @@ function HeaderClock() {
   );
 }
 
+// The brand's own logo in the switcher, with its initials as the fallback.
+//
+// Deliberately NOT a platform icon. The Overview shows Instagram, Facebook,
+// LinkedIn and YouTube side by side, so badging the brand with any one of their
+// marks says something untrue about what you are looking at.
+//
+// A plain <img>: these are base64 data URIs, so next/image has nothing to optimise
+// and would only add a loader in front of bytes that are already here.
+function BrandLogo({ src, label, size }: { src?: string; label: string; size: number }) {
+  const radius = Math.round(size * 0.27);
+  const base = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    width: size, height: size, borderRadius: radius, flexShrink: 0, overflow: "hidden",
+  } as const;
+  if (src) {
+    return (
+      <span style={{ ...base, border: `1px solid ${C.line}`, background: C.card }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" width={size} height={size} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </span>
+    );
+  }
+  // Two initials — "GooCampus World" → GW, "12thPlus.com" → 12.
+  const initials = label.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).slice(0, 2)
+    .map((w) => (/^\d/.test(w) ? w.slice(0, 2) : w[0])).join("").toUpperCase().slice(0, 2);
+  return (
+    <span style={{ ...base, background: "#E9ECFB", color: C.primaryDark, fontSize: Math.round(size * 0.42), fontWeight: 600 }}>
+      {initials}
+    </span>
+  );
+}
+
 // Brands you can switch between on the analytics tabs. Samvaya is a separate
 // business but is included on request (comments, 22 Sep) — it carries its own
 // `platforms` whitelist in lib/accounts.ts, so only the channels it really has
@@ -220,6 +252,21 @@ type RangeKey = "7d" | "30d" | "60d" | "90d" | "1y" | "custom";
 export function PreviewOverview({ person = "" }: { person?: string }) {
   const [accountId, setAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
   const [brandOpen, setBrandOpen] = useState(false);
+  // Each brand's own profile picture for the switcher. The picker covers all four
+  // platforms, so an Instagram glyph on it was simply the wrong badge — GooCampus
+  // World is not "an Instagram account", it is a brand with four channels. The
+  // pictures come from Instagram because that is the one place all four brands have
+  // a maintained logo; /api/account-avatars already inlines them as data URIs and
+  // caches them for a day, so this costs nothing per page load.
+  const [brandLogos, setBrandLogos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/account-avatars")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j?.avatars) setBrandLogos(j.avatars as Record<string, string>); })
+      .catch(() => { /* initials instead — the picker still works */ });
+    return () => { alive = false; };
+  }, []);
   const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
   // Only offer the platforms this brand actually has. No `platforms` list = all
   // four, which is how every GooCampus brand behaves.
@@ -452,9 +499,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               onClick={() => setBrandOpen((o) => !o)}
               style={{ display: "inline-flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${brandOpen ? C.primary : C.line}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", boxShadow: brandOpen ? `0 0 0 3px ${C.primary}22` : "none", transition: "all .15s" }}
             >
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 7, background: "#E9ECFB" }}>
-                <IconBrandInstagram size={16} stroke={1.9} style={{ color: C.primary }} />
-              </span>
+              <BrandLogo src={brandLogos[currentAccount.id]} label={currentAccount.label} size={26} />
               <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{currentAccount.label}</span>
@@ -475,9 +520,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                         onMouseEnter={(e) => { if (!on) (e.currentTarget.style.background = C.bg); }}
                         onMouseLeave={(e) => { if (!on) (e.currentTarget.style.background = "transparent"); }}
                       >
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, background: "#E9ECFB", flexShrink: 0 }}>
-                          <IconBrandInstagram size={17} stroke={1.9} style={{ color: C.primary }} />
-                        </span>
+                        <BrandLogo src={brandLogos[a.id]} label={a.label} size={30} />
                         <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
                           <span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{a.label}</span>
                           <span style={{ fontSize: 12, color: C.muted }}>{a.handle}</span>

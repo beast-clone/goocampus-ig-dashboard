@@ -49,6 +49,12 @@ export const RELEASES: Release[] = [
         where: "My Account",
       },
       {
+        kind: "changed",
+        what: "The brand picker shows each brand's own logo",
+        detail: "It used to badge every brand with an Instagram glyph, which was misleading — the Overview shows Instagram, Facebook, LinkedIn and YouTube together, not just Instagram. GooCampus, GooCampus World, 12thPlus and Samvaya now each carry their real profile picture.",
+        where: "Overview",
+      },
+      {
         kind: "new",
         what: "The time, in the Overview header",
         detail: "A digital clock next to the notification bell showing the day, the full date and the running time, always in IST — it reads the same whatever timezone the laptop is set to. It has nothing to do with attendance: it isn't recorded anywhere.",
