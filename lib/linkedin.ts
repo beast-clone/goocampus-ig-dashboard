@@ -421,6 +421,13 @@ async function resolveAsset(token: string, urn: string): Promise<{ imageUrl: str
   } catch { return { imageUrl: null, fileUrl: null }; }
 }
 
+// Exported so the published-link matcher can ask for an org's recent posts without
+// running buildLive(), which also pulls growth, demographics and page stats — all of
+// it irrelevant when the only fields needed are the text, the date and the permalink.
+export async function fetchOrgPosts(token: string, orgUrn: string): Promise<LivePost[]> {
+  return fetchPosts(token, orgUrn);
+}
+
 async function fetchPosts(token: string, orgUrn: string): Promise<LivePost[]> {
   const enc = encodeURIComponent(orgUrn);
   const postsData = await liGet(`/posts?q=author&author=${enc}&count=25&sortBy=LAST_MODIFIED`, token);
