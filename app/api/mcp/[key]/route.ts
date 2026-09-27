@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { CORS } from "@/lib/mcp-server";
-import { serve } from "../route";
+import { serve, CORS } from "@/lib/mcp-server";
 
 // Claude connector — key in the URL.
 //

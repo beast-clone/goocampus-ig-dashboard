@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+import { userForKey } from "@/lib/claude-connector";
 import { rosterById } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
@@ -201,3 +203,30 @@ export const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
   "Access-Control-Max-Age": "86400",
 };
+
+/**
+ * One request, whichever URL it arrived on.
+ *
+ * Lives here rather than in a route file because a Next route module may only export
+ * route handlers — exporting a helper from one breaks the production type check, which
+ * is exactly how this got caught.
+ */
+export async function serve(req: Request, key: string) {
+  const userId = await userForKey(key);
+  if (!userId) {
+    return NextResponse.json(
+      fail(null, -32001, "Invalid or revoked key — create a new one on My Account → Connect Claude (needs the “Connect Claude” permission)."),
+      { status: 401, headers: CORS },
+    );
+  }
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json(fail(null, -32700, "Parse error"), { status: 400, headers: CORS });
+
+  const origin = new URL(req.url).origin;
+  const msgs: Rpc[] = Array.isArray(body) ? body : [body];
+  const replies = [];
+  // Notifications carry no id and expect no reply.
+  for (const m of msgs) if (m && m.id !== undefined && m.id !== null) replies.push(await handleRpc(m, userId, origin));
+  if (!replies.length) return new NextResponse(null, { status: 202, headers: CORS });
+  return NextResponse.json(Array.isArray(body) ? replies : replies[0], { headers: CORS });
+}
