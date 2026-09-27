@@ -500,9 +500,17 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               style={{ display: "inline-flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${brandOpen ? C.primary : C.line}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", boxShadow: brandOpen ? `0 0 0 3px ${C.primary}22` : "none", transition: "all .15s" }}
             >
               <BrandLogo src={brandLogos[currentAccount.id]} label={currentAccount.label} size={26} />
-              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Brand</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: C.heading }}>{currentAccount.label}</span>
+              {/* Fixed width so the button is the same size for every brand — it used to
+                  grow and shrink as you switched, nudging the whole header around.
+                  Measured against the longest label we carry, "Samvaya Matrimony", which
+                  needs ~145px at this size — anything tighter truncates it. */}
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.2, width: 152, minWidth: 0 }}>
+                {/* "BRAND" is the caption, not the point — the brand name is. It was the
+                    heavier of the two, which read backwards. */}
+                <span style={{ fontSize: 9.5, fontWeight: 500, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Brand</span>
+                <span style={{ fontSize: 14.5, fontWeight: 600, color: C.heading, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {currentAccount.label}
+                </span>
               </span>
               <IconChevronDown size={16} stroke={2} style={{ color: C.muted, transform: brandOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
             </button>
