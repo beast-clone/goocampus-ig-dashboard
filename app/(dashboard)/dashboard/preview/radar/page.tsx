@@ -226,7 +226,14 @@ function Radar() {
   }, [alerts]);
 
   // Which source tile is selected, or null for everything.
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  // Opens on Google News rather than everything at once.
+  //
+  // The merged list puts news, Reddit threads, Google reviews and rising searches in one
+  // column, and each kind carries its own badge and its own actions — so the first thing
+  // you saw was four different row shapes interleaved, which reads as noise before it
+  // reads as a ranking. One source to land on; the tiles above switch to any other, and
+  // "Show everything" brings the merged view back.
+  const [sourceFilter, setSourceFilter] = useState<string | null>("Google News");
   // Google's own sort options, because this is the list people are used to reading on
   // Google and arriving at a different vocabulary for the same four choices helps nobody.
   const [reviewSort, setReviewSort] = useState<ReviewSort>("needs_reply");
@@ -504,10 +511,14 @@ function Radar() {
               )}
             </p>
           ) : (
-            <p className="text-[12px] text-[#8A92A6] mb-3">
-              Published in the last {MAX_AGE_DAYS} days.
-              {droppedOld > 0 && <> {droppedOld} older {droppedOld === 1 ? "story is" : "stories are"} left out — not news any more.</>}
-            </p>
+            // Only true of the news lane. Shown over a Reddit or Trends list it claimed
+            // "29 older stories are left out" about a list that has no stories in it.
+            (!sourceFilter || sourceFilter === "Google News") ? (
+              <p className="text-[12px] text-[#8A92A6] mb-3">
+                Published in the last {MAX_AGE_DAYS} days.
+                {droppedOld > 0 && <> {droppedOld} older {droppedOld === 1 ? "story is" : "stories are"} left out — not news any more.</>}
+              </p>
+            ) : <div className="mb-3" />
           )}
 
           <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
