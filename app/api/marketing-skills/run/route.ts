@@ -37,9 +37,19 @@ export async function POST(req: Request) {
         { status: 401 },
       );
     }
-    if (/quota|insufficient|\b402\b|\b429\b/i.test(msg)) {
+    // Rate-limited and out-of-credit are NOT the same thing, and lumping them together
+    // told people to top up an account that had money in it. Running a few playbooks at
+    // once trips Perplexity's rate limit — each framework is ~12k characters, so this is
+    // easy to hit by clicking around, and it clears on its own within seconds.
+    if (/\b429\b|rate.?limit|too many requests/i.test(msg)) {
       return NextResponse.json(
-        { error: "Perplexity is out of quota — top up your Perplexity API plan at perplexity.ai/settings/api to run playbooks." },
+        { error: "Too many playbooks at once — Perplexity rate-limited this one. Wait a few seconds and run it again; there is nothing wrong with your account." },
+        { status: 429 },
+      );
+    }
+    if (/quota|insufficient|credit|\b402\b/i.test(msg)) {
+      return NextResponse.json(
+        { error: "Perplexity is out of credit — top up your Perplexity API plan at perplexity.ai/settings/api to run playbooks." },
         { status: 402 },
       );
     }
