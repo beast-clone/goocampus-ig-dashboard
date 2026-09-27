@@ -62,6 +62,30 @@ export default function RadarPage() {
   );
 }
 
+// Anything older than this is not news and does not belong in a list headed "what to
+// write about". The feed carried a 2012 Dubai licensing piece and 29 items over a month
+// old, sitting alongside today's stories with nothing to separate them — Google News
+// returns whatever it has for a quiet search term, and nothing was filtering it.
+const MAX_AGE_DAYS = 30;
+const ageDays = (iso: string) => (Date.now() - new Date(iso).getTime()) / 86_400_000;
+
+// Every place the radar listens. Shown whether or not it found anything: a source that
+// is quiet today is information, and hiding it teaches the team to watch three tiles and
+// ignore the rest.
+type SourceTile = {
+  name: string; n: number | null; unit: string; what: string; dim?: boolean; note?: string;
+};
+
+// Which site lane a mention came from, as a tile name.
+function laneOf(source: string | null): string {
+  const s = (source || "").toLowerCase();
+  if (s.includes("reddit")) return "Reddit";
+  if (s.includes("quora")) return "Quora";
+  if (s.includes("mouthshut")) return "MouthShut";
+  if (s.includes("valuemd")) return "ValueMD";
+  return "Google News";
+}
+
 function Radar() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -167,6 +191,68 @@ function Radar() {
     return ["all", ...Array.from(set).sort()];
   }, [alerts]);
 
+  // Which source tile is selected, or null for everything.
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+
+  // News, minus anything too old to be news. Done here rather than in the query so the
+  // tile can still say how many were dropped.
+  const freshNews = useMemo(() => items.filter((i) => ageDays(i.publishedAt) <= MAX_AGE_DAYS), [items]);
+  const droppedOld = items.length - freshNews.length;
+
+  // Memoised: `brand?.mentions || []` is a fresh array every render, which would make
+  // every list below it recompute on every keystroke elsewhere on the page.
+  const mentions = useMemo(() => brand?.mentions || [], [brand]);
+  const mentionsByLane = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const x of mentions) m[laneOf(x.source)] = (m[laneOf(x.source)] || 0) + 1;
+    return m;
+  }, [mentions]);
+  const risingTerms = useMemo(() => {
+    const seen = new Set<string>();
+    for (const g of trends?.ideas || []) for (const i of g.ideas) seen.add(i.toLowerCase().trim());
+    return Array.from(seen);
+  }, [trends]);
+
+  const tiles = useMemo<SourceTile[]>(() => [
+    { name: "Google News", n: freshNews.length, unit: "headlines", what: "news in your field" },
+    { name: "Reddit", n: mentionsByLane["Reddit"] || 0, unit: "threads", what: "brand + topic talk" },
+    { name: "Google Trends", n: risingTerms.length, unit: "rising searches", what: "what people search" },
+    { name: "Quora", n: mentionsByLane["Quora"] || 0, unit: "threads", what: "questions being asked" },
+    { name: "MouthShut", n: mentionsByLane["MouthShut"] || 0, unit: "threads", what: "consumer reviews" },
+    { name: "ValueMD", n: mentionsByLane["ValueMD"] || 0, unit: "threads", what: "IMG forums" },
+    { name: "Search Console", n: null, unit: "your own site", what: "see the SEO tab", dim: true },
+    { name: "Google Reviews", n: null, unit: "not connected", what: "star ratings", dim: true },
+  ], [freshNews.length, mentionsByLane, risingTerms.length]);
+
+  // One list. A story, a thread and a rising search are all the same thing here —
+  // something you could write about today — so they are ranked together rather than
+  // filed into separate panels the reader has to reconcile.
+  type Merged =
+    | { key: string; kind: "news"; src: string; rank: number; at: number; item: FeedItem }
+    | { key: string; kind: "mention"; src: string; rank: number; at: number; m: WebMention }
+    | { key: string; kind: "search"; src: string; rank: number; at: number; term: string };
+
+  const merged = useMemo<Merged[]>(() => {
+    const out: Merged[] = [];
+    for (const m of mentions) {
+      const neg = m.sentiment === "negative";
+      out.push({ key: `m${m.url}`, kind: "mention", src: laneOf(m.source), rank: neg ? 0 : 2,
+                 at: +new Date(m.publishedAt || 0) || 0, m });
+    }
+    for (const it of freshNews) {
+      out.push({ key: `n${it.id}`, kind: "news", src: "Google News", rank: rankOf(it) === 0 ? 1 : 3,
+                 at: +new Date(it.publishedAt) || 0, item: it });
+    }
+    for (const term of risingTerms) {
+      out.push({ key: `s${term}`, kind: "search", src: "Google Trends", rank: 2.5, at: 0, term });
+    }
+    return out.sort((a, b) => a.rank - b.rank || b.at - a.at);
+  }, [mentions, freshNews, risingTerms]);
+
+  const shown = useMemo(
+    () => merged.filter((r) => !sourceFilter || r.src === sourceFilter),
+    [merged, sourceFilter]);
+
   return (
     <>
       {/* Header */}
@@ -176,9 +262,9 @@ function Radar() {
               beneath them — "Brand mentions 10" above the list of 10. One line
               instead, and Breakouts is gone until there actually is one. */}
           <div className="text-xs text-[#8A92A6]">
-            <b className="font-semibold text-[#232D42] tabular-nums">{items.length}</b> headline{items.length === 1 ? "" : "s"}
+            <b className="font-semibold text-[#232D42] tabular-nums">{freshNews.length}</b> headline{freshNews.length === 1 ? "" : "s"}
             {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
-            {trends ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0))}</b> rising search{(trends.breakouts.length + trends.ideas.reduce((n, g) => n + g.ideas.length, 0)) === 1 ? "" : "es"}</> : null}
+            {risingTerms.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{risingTerms.length}</b> rising search{risingTerms.length === 1 ? "" : "es"}</> : null}
             {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} active
           </div>
         </div>
@@ -212,67 +298,83 @@ function Radar() {
         <EmptyState onOpenSettings={() => setSettingsOpen(true)} />
       )}
 
-      {/* Two-column: unified feed (left) + rising / SEO sidebar (right) */}
+      {/* Where we looked. Every source, including the quiet ones — a tile reading 0 is
+          information, and folding them away teaches the team to watch three and ignore
+          the rest. Tapping one filters the list below, so this doubles as the only
+          navigation the page needs. */}
       {alerts.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] gap-4 items-start">
-          {/* LEFT — News feed */}
-          <section id="sec-headlines" className="scroll-mt-24 bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 flex-wrap">
-              <IconNews size={17} stroke={1.8} className="text-brand" />
-              <h2 className="text-base font-medium text-[#232D42]">Latest in your domain</h2>
-              <span className="text-xs text-[#8A92A6]">· {items.length} news headline{items.length === 1 ? "" : "s"}</span>
-              {interestChips.length > 1 && (
-                <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-                  {interestChips.map((i) => (
-                    <button key={i} onClick={() => setActiveInterest(i)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
-                        activeInterest === i ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand/40"
-                      }`}>
-                      {i === "all" ? "All" : i}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {items.length === 0 && !loading ? (
-              <div className="p-8 text-center">
-                <div className="text-sm text-[#232D42] mb-1">No cached items yet.</div>
-                <div className="text-xs text-[#8A92A6] mb-4">Hit &quot;Pull latest from Google&quot; to fetch your feeds for the first time.</div>
-                <button onClick={refreshAll} disabled={refreshing}
-                  className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50">
-                  {refreshing ? "Fetching…" : "Pull latest from Google"}
+        <>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A6ACBE] mb-2">
+            Where we looked · tap one to see only that
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+            {tiles.map((s) => {
+              const on = sourceFilter === s.name;
+              const clickable = !s.dim;
+              return (
+                <button key={s.name} type="button"
+                  onClick={() => clickable && setSourceFilter(on ? null : s.name)}
+                  className={`text-left rounded-xl border px-3 py-2.5 transition ${
+                    on ? "border-brand bg-brand-light"
+                       : s.dim ? "border-dashed border-gray-200 bg-[#FCFCFE] cursor-default"
+                               : "border-gray-100 bg-white hover:border-[#C7CEDD]"}`}>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      s.dim ? "bg-[#D9DEEA]" : (s.n || 0) > 0 ? "bg-[#1AA053]" : "bg-[#D9DEEA]"}`} />
+                    <span className="text-[11.5px] font-semibold text-[#232D42]">{s.name}</span>
+                  </div>
+                  <div className={`text-[1.15rem] font-bold leading-tight ${
+                    s.n === null || s.n === 0 ? "text-[#A6ACBE]" : "text-[#232D42]"}`}>
+                    {s.n === null ? "—" : s.n}
+                  </div>
+                  <div className="text-[11px] text-[#8A92A6] leading-snug">{s.unit}</div>
+                  <div className="text-[10.5px] text-[#A6ACBE] mt-0.5">{s.what}</div>
                 </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-baseline gap-2 flex-wrap mb-2">
+            <h2 className="text-base font-medium text-[#232D42]">
+              {sourceFilter ? `From ${sourceFilter}` : "What to write about"}
+            </h2>
+            <span className="text-xs text-[#8A92A6]">
+              · {shown.length} {sourceFilter ? "items" : "most urgent first"}
+            </span>
+            {sourceFilter && (
+              <button onClick={() => setSourceFilter(null)}
+                className="ml-auto text-xs text-brand hover:underline">Show everything</button>
+            )}
+          </div>
+          {/* Said out loud, because a list that silently hides things is worse than one
+              that shows too much — the reader has no way to tell the difference. */}
+          <p className="text-[12px] text-[#8A92A6] mb-3">
+            Published in the last {MAX_AGE_DAYS} days.
+            {droppedOld > 0 && <> {droppedOld} older {droppedOld === 1 ? "story is" : "stories are"} left out — not news any more.</>}
+          </p>
+
+          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            {shown.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="text-sm text-[#232D42] mb-1">Nothing here right now.</div>
+                <div className="text-xs text-[#8A92A6]">
+                  {sourceFilter ? "That source is quiet today." : "The radar refreshes every hour."}
+                </div>
               </div>
             ) : (
-              <>
-                <ul className="divide-y divide-gray-100">
-                  {newsShown.map((it) => (
-                    <FeedRow key={it.id} item={it} onRead={() => setReaderItem(it)} showTopic={activeInterest === "all"} />
+              <ul className="divide-y divide-gray-100">
+                {shown.map((r) =>
+                  r.kind === "news" ? (
+                    <FeedRow key={r.key} item={r.item} onRead={() => setReaderItem(r.item)} showTopic={activeInterest === "all"} />
+                  ) : r.kind === "mention" ? (
+                    <RadarMentionRow key={r.key} m={r.m} lane={r.src} />
+                  ) : (
+                    <RadarSearchRow key={r.key} term={r.term} />
                   ))}
-                </ul>
-                {items.length > NEWS_PREVIEW && (
-                  <button onClick={() => setShowAllNews((v) => !v)}
-                    className="w-full text-left px-5 py-2.5 border-t border-gray-100 bg-[#FCFCFE] text-[12.5px] font-medium text-brand hover:bg-brand-light/40">
-                    {showAllNews
-                      ? "Show fewer"
-                      : `Show all ${items.length} headlines — ${items.length - NEWS_PREVIEW} more`}
-                  </button>
-                )}
-              </>
+              </ul>
             )}
           </section>
-
-          {/* RIGHT — what people search for, then what they say about us. Both
-              were full-width bands further down the page before, which is what
-              made the layout change shape halfway through. */}
-          <aside className="flex flex-col gap-4">
-            <div id="sec-rising" className="scroll-mt-24">
-              <SearchDemand trends={trends} refreshing={trendsRefreshing} onRefresh={() => loadTrends(true)} />
-            </div>
-            <SeoLanes />
-            <div id="sec-mentions" className="scroll-mt-24"><KeywordIntel /></div>
-          </aside>
-        </div>
+        </>
       )}
 
       {/* Settings modal */}
@@ -492,7 +594,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
             ? "text-[#A6ACBE] hover:text-brand hover:bg-brand-light"
             : "text-brand border border-gray-100 hover:bg-brand-light hover:border-brand/30"
         }`}>
-        <IconSparkles size={13} stroke={1.8} /> {busy ? "Creating…" : "Make content"}
+        <IconSparkles size={13} stroke={1.8} /> {busy ? "Creating…" : "Write this"}
       </button>
 
       {/* Centred dialog rather than a menu hanging off the button: anchored to a
@@ -509,7 +611,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
               <span className="w-7 h-7 rounded-lg bg-brand-light text-brand grid place-items-center shrink-0">
                 <IconSparkles size={15} stroke={1.8} />
               </span>
-              <h3 className="text-[14px] font-medium text-[#232D42]">Make content from this</h3>
+              <h3 className="text-[14px] font-medium text-[#232D42]">Write this</h3>
               <button onClick={() => setPicking(false)} aria-label="Close"
                 className="ml-auto text-[#A6ACBE] hover:text-[#232D42] rounded-lg p-1 hover:bg-[#F6F7FB]">
                 <IconX size={16} stroke={2} />
@@ -577,10 +679,7 @@ function FeedRow({ item, onRead, showTopic }: { item: FeedItem; onRead: () => vo
 
   return (
     <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
-      <span className="w-[34px] h-[34px] rounded-lg grid place-items-center text-[13px] font-semibold text-white shrink-0"
-        style={{ background: avatarColor(src) }}>
-        {src.replace(/^www\./, "").charAt(0).toUpperCase()}
-      </span>
+      <SourceIcon url={item.link} label={src} />
       <button type="button" onClick={onRead} className="flex-1 min-w-0 text-left group flex flex-col gap-1">
         <div className="text-sm font-medium text-[#232D42] group-hover:text-brand leading-snug">
           {flag && (
@@ -616,6 +715,105 @@ function FeedRow({ item, onRead, showTopic }: { item: FeedItem; onRead: () => vo
         </div>
       </button>
       <MakeTaskButton item={item} quiet />
+    </li>
+  );
+}
+
+// The real publisher's mark, not a coloured letter. A row of "D", "N", "R" squares reads
+// as filler; the NDTV and Reddit marks are recognised instantly, which is the whole job
+// of an icon in a list you are scanning.
+//
+// The host is taken from the item's own URL rather than its `source` string, because
+// source is sometimes a domain ("msn.com") and sometimes a display name ("India Today")
+// and only the URL is always there. Falls back to the coloured letter when a site has no
+// icon or the request fails, so a missing favicon never leaves a hole in the row.
+function SourceIcon({ url, label, size = 36 }: { url: string; label: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const host = useMemo(() => {
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
+  }, [url]);
+  const letter = (label || host || "?").replace(/^www\./, "").charAt(0).toUpperCase();
+
+  if (!host || failed) {
+    return (
+      <span className="rounded-lg grid place-items-center text-[13px] font-semibold text-white shrink-0"
+        style={{ width: size, height: size, background: avatarColor(label || host || "?") }}>{letter}</span>
+    );
+  }
+  return (
+    <span className="rounded-lg grid place-items-center shrink-0 bg-white border border-gray-100 overflow-hidden"
+      style={{ width: size, height: size }} title={host}>
+      {/* Asking for 128 and drawing at 24: the 64px file was being shrunk into a 20px box
+          and small marks like Deccan Chronicle's came out as specks. object-contain keeps
+          wide wordmarks from being squashed to fit a square. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`}
+        alt="" width={size - 10} height={size - 10} className="object-contain"
+        onError={() => setFailed(true)} loading="lazy" />
+    </span>
+  );
+}
+
+// A brand or topic thread, in the one list. Says which lane it came from and WHY it is
+// worth writing — the old page showed mentions in a panel of their own, where "someone
+// is publicly doubting us" sat at the same weight as a rising search.
+function RadarMentionRow({ m, lane }: { m: WebMention; lane: string }) {
+  const neg = m.sentiment === "negative";
+  const brandish = /goocampus|goo campus/i.test(`${m.title} ${m.snippet || ""}`);
+  const label = neg ? "Someone doubted us" : brandish ? "Someone asked about us" : "Students are discussing this";
+  const tone = neg ? "bg-[#FBE7E4] text-[#C03221]"
+             : brandish ? "bg-[#FDECEA] text-[#C0392B]"
+                        : "bg-[#E3F5EA] text-[#0F6E3C]";
+  return (
+    <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
+      <SourceIcon url={m.url} label={lane} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-[#232D42] leading-snug">
+          <span className={`inline-block align-[2px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full ${tone}`}>{label}</span>
+          {m.title}
+        </div>
+        <div className="flex items-center gap-2 text-[11.5px] text-[#8A92A6] flex-wrap mt-1">
+          <span className="font-medium text-[#4A5468]">{lane}</span>
+          {m.snippet && <><span className="opacity-50">·</span><span className="truncate max-w-[42ch]">{m.snippet}</span></>}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5 shrink-0 items-end">
+        <Link href={draftFromQuery(m.title, `From web mention: ${m.title}
+Source: ${m.source || lane}
+URL: ${m.url}`)}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          <IconPencil size={13} stroke={1.8} /> Write this
+        </Link>
+        <a href={m.url} target="_blank" rel="noreferrer"
+          className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
+      </div>
+    </li>
+  );
+}
+
+// A rising search. No date and no article behind it — it is demand, not an event — so
+// it carries neither an age nor an "Open".
+function RadarSearchRow({ term }: { term: string }) {
+  return (
+    <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
+      <SourceIcon url="https://trends.google.com" label="Google Trends" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-[#232D42] leading-snug">
+          <span className="inline-block align-[2px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full bg-brand-light text-[#2138B0]">
+            People are searching this
+          </span>
+          {term}
+        </div>
+        <div className="text-[11.5px] text-[#8A92A6] mt-1">
+          <span className="font-medium text-[#4A5468]">Google Trends</span>
+          <span className="opacity-50"> · </span>rising in India — nothing from you on this yet
+        </div>
+      </div>
+      <Link href={draftFromQuery(term, `Rising search: ${term}
+Source: Google Trends`)}
+        className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap mt-0.5">
+        <IconPencil size={13} stroke={1.8} /> Write this
+      </Link>
     </li>
   );
 }
@@ -1609,7 +1807,7 @@ function MentionModal({ m, onClose }: { m: WebMention; onClose: () => void }) {
           `}</style>
         </div>
         <div className="px-6 py-3 border-t border-gray-100 bg-[#FCFCFE] flex items-center gap-3">
-          <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"><IconPencil size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Turn into post</Link>
+          <Link href={draftFromQuery(m.title, `From web mention: ${m.title}\nSource: ${m.source || host}\nURL: ${finalUrl}\n\n${m.snippet || ""}`)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"><IconPencil size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Write this</Link>
           <a href={thread?.permalink || finalUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand-light text-brand border border-brand/20 px-3 py-1.5 rounded-md hover:bg-brand hover:text-white transition">{isReddit ? <><IconBook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Read full thread on Reddit ↗</> : `Open on ${host} ↗`}</a>
           <button onClick={onClose} className="ml-auto text-xs text-[#8A92A6] hover:text-[#232D42]">Close</button>
         </div>
