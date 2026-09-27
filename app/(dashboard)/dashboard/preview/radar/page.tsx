@@ -693,6 +693,21 @@ function rankOf(item: FeedItem): number {
   return f ? TIER[f.tone] : 3;
 }
 
+// Every "Write this" on this page now goes to the same place. A news headline used to
+// open a little owner/brand picker and create the task on the spot — so the same button
+// meant "open the Studio" on one row and "file a task right now" on the row above it,
+// and a news story was the one kind of item that never got fact-checked before someone
+// started writing it.
+function studioHref(item: FeedItem): string {
+  const p = new URLSearchParams({ title: item.title });
+  if (item.link) p.set("url", item.link);
+  const src = item.source || item.alertName;
+  if (src) p.set("source", src);
+  const sbu = sbuFor(item.primaryInterest);
+  if (sbu) p.set("sbu", sbu);
+  return `/dashboard/preview/content-studio?${p.toString()}`;
+}
+
 // Raises a real task on the board from a headline, and then points at it.
 //
 // Shared by the feed row and the article reader so both behave identically —
@@ -887,7 +902,10 @@ function FeedRow({ item, onRead, showTopic, acts }: { item: FeedItem; onRead: ()
       {/* Write it, or say in one tap that you looked and it isn't worth writing. Both
           clear the row tonight; only one of them costs you an hour. */}
       <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <MakeTaskButton item={item} quiet />
+        <Link href={studioHref(item)}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          <IconPencil size={13} stroke={1.8} /> Write this
+        </Link>
         <Thumbs state={acts} kind="news" rawKey={item.id} />
       </div>
     </li>
@@ -1103,8 +1121,27 @@ type TrendsResp = { breakouts: TrendBreakout[]; ideas: TrendIdeaGroup[]; geos: s
 // Build a Scheduler draft link from a trending query or headline — same target
 // the alert feed's "Turn into post" uses, so the whole Radar feeds one funnel.
 function draftFromQuery(query: string, brief: string) {
-  const p = new URLSearchParams({ title: query, brief });
-  return `/dashboard/scheduler?draft=${encodeURIComponent(p.toString())}`;
+  // Content Studio, not the Scheduler.
+  //
+  // This pointed at /dashboard/scheduler?draft=<everything> and NOTHING in the app ever
+  // read that parameter — so every "Write this" on this page carefully packed up the
+  // headline, the source and the brief, and then threw all of it away on arrival. The
+  // Studio reads these, so the work actually starts where you land.
+  const p = new URLSearchParams({ title: query });
+  const url = firstUrl(brief);
+  const src = firstSource(brief);
+  if (url) p.set("url", url);
+  if (src) p.set("source", src);
+  return `/dashboard/preview/content-studio?${p.toString()}`;
+}
+
+// The briefs above are hand-built multi-line strings carrying a "Source:" line and a
+// URL. Rather than rewrite every call site, pull those two fields back out of them.
+function firstUrl(brief: string): string | null {
+  return brief.match(/https?:\/\/\S+/)?.[0] || null;
+}
+function firstSource(brief: string): string | null {
+  return brief.match(/^Source:\s*(.+)$/m)?.[1]?.trim() || null;
 }
 
 /* -------- Keyword & brand intelligence search (free: Google News + sentiment) -------- */
@@ -1972,7 +2009,10 @@ function ReaderModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           {/* The same control as the feed row. This used to be a link that
               generated a draft and navigated away, so one headline behaved two
               different ways depending on where you clicked it. */}
-          <MakeTaskButton item={item} />
+          <Link href={studioHref(item)}
+            className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark">
+            <IconPencil size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Write this
+          </Link>
           <a
             href={finalUrl}
             target="_blank"
