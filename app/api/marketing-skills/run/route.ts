@@ -3,7 +3,8 @@ import { runSkill } from "@/lib/marketing-skills";
 import { guardRate, requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 
-// POST /api/marketing-skills/run { slug, task } → { output, citations, model }
+// POST /api/marketing-skills/run { slug, task, customPrompt? } → { output, citations, model, kind }
+// customPrompt REPLACES the playbook's framework — see runSkill.
 // Runs a marketing-skill framework through Perplexity, tailored to GooCampus.
 // Rate-limited — it's a paid Perplexity call.
 export const dynamic = "force-dynamic";
@@ -16,13 +17,15 @@ export async function POST(req: Request) {
   const limited = guardRate(req, "marketing-skill", 20, 300_000);
   if (limited) return limited;
   try {
-    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string; engine?: string };
+    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string; engine?: string; customPrompt?: string };
     const slug = (b.slug || "").trim();
     const task = (b.task || "").trim();
     const engine = b.engine === "claude" ? "claude" : "sonar"; // default Sonar; only "claude" opts into Claude-via-Perplexity
     if (!slug || !task) return NextResponse.json({ error: "slug and task are required" }, { status: 400 });
     if (task.length > 4000) return NextResponse.json({ error: "task too long (max 4000 chars)" }, { status: 400 });
-    const res = await runSkill(slug, task, engine);
+    const custom = (b.customPrompt || "").trim();
+    if (custom.length > 8000) return NextResponse.json({ error: "custom prompt too long (max 8000 chars)" }, { status: 400 });
+    const res = await runSkill(slug, task, engine, custom || null);
     return NextResponse.json(res);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";

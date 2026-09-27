@@ -267,16 +267,22 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [citations, setCitations] = useState<string[]>([]);
+  // What the run produced — "copy" is the deliverable itself (an SMS, an email),
+  // "research" is material you could build content from. See lib/marketing-skills.
+  const [kind, setKind] = useState<"copy" | "research">("research");
+  // Their own instructions instead of the playbook's framework.
+  const [useCustom, setUseCustom] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   // "Choose your output" step (V2)
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deriving, setDeriving] = useState(false);
   const [derived, setDerived] = useState<DeriveDraft[]>([]);
   const [deriveErr, setDeriveErr] = useState<string | null>(null);
-  // Engine: Perplexity Sonar (default) vs Claude Sonnet 4.5 resold via Perplexity.
+  // Playbooks always run on Perplexity Sonar — see the note by "Your task" below.
   // Both bill to the same Perplexity balance; Claude writes better but costs more.
-  const [engine, setEngine] = useState<"sonar" | "claude">("sonar");
-  const [resultEngine, setResultEngine] = useState<"sonar" | "claude" | null>(null);
+  const engine = "sonar" as const;
+  const [ran, setRan] = useState(false);
   // Token usage so the team can see what each generation costs (Perplexity billing).
   const [runTokens, setRunTokens] = useState<number | null>(null);
   const [runCost, setRunCost] = useState<number | null>(null);
@@ -290,6 +296,14 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
   const col1Ref = useRef<HTMLDivElement>(null);
   const [colOf, setColOf] = useState<Record<string, 0 | 1>>({});
 
+  // "Verified" needs BOTH: sources came back AND the output is the kind of thing
+  // sources can verify. Perplexity searches on every call, so a request to write three
+  // WhatsApp reminders still came back with 15 citations — and the panel then stamped
+  // "Verified — 15 live sources" across three message templates. Nothing in them was a
+  // factual claim those pages had confirmed. Sources READ is not output VERIFIED, and a
+  // badge that cannot tell the difference teaches people to ignore it.
+  const verified = kind === "research" && citations.length > 0;
+
   const run = async () => {
     const t = task.trim();
     if (!t || loading) return;
@@ -297,12 +311,13 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
     setSelected(new Set()); setDerived([]); setDeriveErr(null); setRunTokens(null); setRunCost(null); setDeriveTokens(0); setNewFormats(new Set()); setColOf({});
     try {
       const r = await fetch("/api/marketing-skills/run", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t, engine }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t, engine, customPrompt: useCustom ? customPrompt : undefined }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
       setOutput(d.output || "—"); setCitations(d.citations || []); setRunTokens(typeof d.tokens === "number" ? d.tokens : 0);
-      setRunCost(typeof d.cost === "number" ? d.cost : null); setResultEngine(d.engine === "claude" ? "claude" : "sonar");
+      setKind(d.kind === "copy" ? "copy" : "research");
+      setRunCost(typeof d.cost === "number" ? d.cost : null); setRan(true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -357,9 +372,9 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconSparkles size={16} /></span>
           <div className="text-[16px] font-medium text-[#232D42]">{skill.name}</div>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#F1F3F9] text-[#6B7280]">{skill.category}</span>
-          {resultEngine && (
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${resultEngine === "claude" ? "bg-brand-light text-brand" : "bg-[#EAF6EE] text-emerald-700"}`}>
-              {resultEngine === "claude" ? "Claude via Perplexity" : "Perplexity Sonar"}
+          {ran && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#EAF6EE] text-emerald-700">
+              Perplexity Sonar
             </span>
           )}
           {runTokens !== null && (
@@ -402,26 +417,14 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
       })()}
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 mb-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <label className="text-[12px] font-semibold text-[#232D42] uppercase tracking-wide">Your task</label>
-          <div className="inline-flex items-center gap-2">
-            <span className="text-[11px] text-[#8A92A6]">Engine</span>
-            <div className="inline-flex rounded-lg border border-gray-200 bg-[#F6F7FB] p-0.5">
-              <button
-                onClick={() => setEngine("sonar")}
-                className={`px-3 py-1 rounded-md text-[12px] font-medium transition ${engine === "sonar" ? "bg-white text-[#232D42] border border-gray-200" : "text-[#8A92A6] border border-transparent"}`}
-              >Perplexity</button>
-              <button
-                onClick={() => setEngine("claude")}
-                className={`px-3 py-1 rounded-md text-[12px] font-medium transition ${engine === "claude" ? "bg-white text-brand border border-brand/40" : "text-[#8A92A6] border border-transparent"}`}
-              >Claude via Perplexity</button>
-            </div>
-          </div>
-        </div>
+        {/* One engine here, no picker.
+            A playbook produces research and strategy — the thing Perplexity is for,
+            because it reads live sources and cites them. Claude does the writing, in
+            Content Studio's Create tab. Offering both here made every run a decision
+            about model choice before you had even typed the task. */}
+        <label className="text-[12px] font-semibold text-[#232D42] uppercase tracking-wide">Your task</label>
         <div className="mt-1.5 text-[11.5px] text-[#8A92A6] leading-snug">
-          {engine === "claude"
-            ? "Claude Sonnet 4.5 (resold via Perplexity) — same playbook framework + GooCampus voice, but a stronger writer. Billed to your Perplexity balance; costs more than Sonar."
-            : "Perplexity Sonar Pro — the playbook framework grounded in live web sources. Cheapest and fast."}
+          Perplexity Sonar Pro — the playbook framework grounded in live web sources.
         </div>
         <textarea
           value={task}
@@ -430,22 +433,63 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
           rows={4}
           className="w-full mt-2 rounded-xl border border-gray-200 focus:border-brand outline-none p-3 text-[13.5px] text-[#232D42] resize-y"
         />
-        <div className="flex justify-end mt-3">
+        {/* Your own instructions instead of the playbook's.
+            It REPLACES the framework rather than being added to it — the playbook is
+            roughly ten thousand characters of instruction, so anything appended to it
+            loses every disagreement. Off by default: the playbook is the reason to be
+            on this screen. */}
+        {useCustom ? (
+          <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/30 p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[12px] font-semibold text-[#232D42]">Your prompt</span>
+              <span className="text-[11.5px] text-[#8A92A6]">used instead of the {skill.name} framework</span>
+              <button onClick={() => setUseCustom(false)}
+                className="ml-auto text-[11.5px] text-[#8A92A6] hover:text-brand underline">
+                Use the playbook instead
+              </button>
+            </div>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder={"Tell it how to write this. e.g. \"You are a WhatsApp copywriter for an Indian medical-education consultancy. Write short messages, no emojis, one clear action per message.\""}
+              rows={4}
+              className="w-full rounded-lg border border-gray-200 focus:border-brand outline-none p-3 text-[13px] text-[#232D42] resize-y bg-white"
+            />
+            <div className="text-[11.5px] text-[#A6ACBE] mt-1.5">
+              GooCampus context is still added for you — you do not need to explain the business.
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setUseCustom(true)}
+            className="mt-2.5 text-[12px] text-[#8A92A6] hover:text-brand underline">
+            Add a custom prompt instead
+          </button>
+        )}
+
+        <div className="flex items-center gap-2 mt-3">
+          {useCustom && !customPrompt.trim() && (
+            <span className="text-[11.5px] text-[#C03221]">Write the prompt, or switch back to the playbook.</span>
+          )}
           <button
             onClick={run}
-            disabled={!task.trim() || loading}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 disabled:opacity-40 hover:bg-brand-dark transition"
+            disabled={!task.trim() || loading || (useCustom && !customPrompt.trim())}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-brand text-white text-[13px] font-medium px-4 py-2 disabled:opacity-40 hover:bg-brand-dark transition"
           >
-            <IconPlayerPlayFilled size={13} /> {loading ? "Running…" : "Run playbook"}
+            <IconPlayerPlayFilled size={13} /> {loading ? "Running…" : useCustom ? "Run your prompt" : "Run playbook"}
           </button>
         </div>
       </div>
 
-      {loading && <div className="rounded-2xl border border-gray-100 bg-white p-5 text-[13px] text-[#8A92A6]">Applying the {skill.name} framework via {engine === "claude" ? "Claude (Sonnet 4.5, through Perplexity)" : "Perplexity Sonar"}… this can take 20–40s.</div>}
+      {loading && <div className="rounded-2xl border border-gray-100 bg-white p-5 text-[13px] text-[#8A92A6]">{useCustom ? "Running your prompt" : `Applying the ${skill.name} framework`} via Perplexity Sonar… this can take 20–40s.</div>}
       {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t run — {error}</div>}
       {output && (
         <>
-          {/* Choose what to make — compact bar; already-made formats show as done */}
+          {/* Choose what to make — but only when there IS something to make.
+              A playbook that writes an SMS, an email or an ad has already produced the
+              finished thing in its own channel; offering to turn a WhatsApp reminder
+              into an Instagram carousel is not a choice anybody wants. Those runs get
+              the copy and nothing else. */}
+          {kind === "research" && (
           <div className="rounded-2xl border border-gray-100 bg-white px-5 py-4 mb-4">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[13px] font-medium text-[#232D42] mr-1">Make from this:</span>
@@ -477,23 +521,39 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
             </div>
             <div className="text-[11.5px] text-[#8A92A6] mt-2">Pick any format and generate — new outputs add to the board below, they don&rsquo;t replace what&rsquo;s there. Not happy with one? Click <span className="font-medium text-[#4A5468]">Edit</span> on it to tweak the text or give a custom prompt. Approve to assign it to a producer — nothing publishes directly.</div>
           </div>
+          )}
 
           {deriveErr && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-5 py-4 text-sm">Couldn&rsquo;t generate — {deriveErr}</div>}
 
-          {/* Source — full width, full content (no internal scroll) */}
-          <div className="rounded-2xl border border-emerald-200 bg-white p-5 mb-4">
+          {/* The result.
+              "Verified" is claimed only when sources actually came back. It used to be
+              unconditional, so a WhatsApp template that cited nothing still carried a
+              green tick reading "Verified — 0 live sources", which is worse than no
+              badge: it teaches people the badge means nothing. */}
+          <div className={`rounded-2xl border bg-white p-5 mb-4 ${verified ? "border-emerald-200" : "border-gray-100"}`}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-              <div className="text-[10.5px] uppercase tracking-wide text-emerald-700 font-semibold">Source · verified</div>
-              <div className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1"><IconCircleCheck size={14} /> Verified — {citations.length} live source{citations.length === 1 ? "" : "s"}</div>
+              <div className={`text-[10.5px] uppercase tracking-wide font-semibold ${verified ? "text-emerald-700" : "text-[#8A92A6]"}`}>
+                {verified ? "Source · verified" : kind === "copy" ? "Ready to use" : "Result"}
+              </div>
+              {verified ? (
+                <div className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1"><IconCircleCheck size={14} /> Verified — {citations.length} live source{citations.length === 1 ? "" : "s"}</div>
+              ) : kind === "copy" ? (
+                <div className="text-[11.5px] text-[#A6ACBE]">Copy, written for you — nothing here is a claim to check</div>
+              ) : (
+                <div className="text-[11.5px] text-[#A6ACBE]">No sources came back for this one</div>
+              )}
             </div>
             <MarkdownLite text={output} />
             {citations.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1">
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                {!verified && <div className="text-[11px] text-[#A6ACBE] mb-1">What it read while writing this:</div>}
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {citations.slice(0, 8).map((c, i) => (
                   <a key={i} href={c} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-brand hover:underline inline-flex items-center gap-1 max-w-[300px] truncate">
                     <IconExternalLink size={10} className="shrink-0" /> <span className="truncate">{c}</span>
                   </a>
                 ))}
+              </div>
               </div>
             )}
           </div>

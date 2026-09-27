@@ -47,13 +47,41 @@ export function getSkillDoc(slug: string): string | null {
 const GC_CONTEXT =
   "GooCampus guides Indian medical students and doctors on NEET (UG/PG), MBBS/MD abroad, medical PG abroad, and international licensing (PLAB UK, AMC Australia, USMLE, Gulf/DHA). Audience: Indian medical aspirants and IMG doctors. Voice: warm, credible, specific, never hyped. Never invent statistics or dates.";
 
-export type RunResult = { output: string; citations: string[]; model: string; tokens: number; cost?: number | null; engine: Engine };
+export type RunResult = { output: string; citations: string[]; model: string; tokens: number; cost?: number | null; engine: Engine; kind: OutputKind };
+
+/**
+ * What a playbook actually hands back, which is not the same for all of them.
+ *
+ *  · "copy"     — the deliverable itself, already in its channel: an SMS, a WhatsApp
+ *                 message, an email, an ad. There is nothing to turn it into and
+ *                 nothing to verify; the whole point is the words.
+ *  · "research" — strategy, audits, plans. Grounded in live sources, and raw material
+ *                 that a carousel or a post could be built from.
+ *
+ * The UI was treating everything as "research": it offered to turn a WhatsApp reminder
+ * into an Instagram carousel, and stamped "Verified — 0 live sources" on a message
+ * template that cited nothing and needed to cite nothing.
+ */
+export type OutputKind = "copy" | "research";
+
+// By slug, because the category is too coarse — "Content & Copy" holds both
+// pillar-content (a researched long-form explainer) and sms (three text messages).
+const COPY_SKILLS = new Set([
+  "sms", "emails", "cold-email", "social", "image", "video",
+  "ad-creative", "copy-editing", "popups", "offers",
+]);
+
+export function outputKind(slug: string): OutputKind {
+  return COPY_SKILLS.has(slug) ? "copy" : "research";
+}
 
 // Run a skill's framework against the user's task, tailored to GooCampus. Engine
 // picks the writer: "sonar" (Perplexity, default) or "claude" (Claude Sonnet 4.5 via
 // Perplexity — stronger writing, same key/bill). Same framework + GooCampus context
 // go in either way, so switching engines is a true like-for-like comparison.
-export async function runSkill(slug: string, task: string, engine: Engine = "sonar"): Promise<RunResult> {
+export async function runSkill(
+  slug: string, task: string, engine: Engine = "sonar", customPrompt?: string | null,
+): Promise<RunResult> {
   const doc = getSkillDoc(slug);
   if (!doc) throw new Error("Unknown skill");
   const meta = listSkills().find((s) => s.slug === slug)!;
@@ -65,7 +93,12 @@ export async function runSkill(slug: string, task: string, engine: Engine = "son
     "Style: write like a senior professional — clean, confident, specific. NEVER use emojis or decorative symbols. Structure with simple markdown only: short '## ' section headings, '- ' bullet lists, and '**bold**' just for key labels. Do NOT stack symbols or write markdown noise, and do NOT put inline citation markers like [1][2] in the body. Deliver polished, ready-to-use copy.",
   ].join("\n");
 
-  const user = `FRAMEWORK — "${meta.name}":\n\n${doc}\n\n---\n\nTASK:\n${task}\n\nApply the framework above to this task for GooCampus and return the finished deliverable.`;
+  // A custom prompt replaces the framework rather than being appended to it. Appending
+  // would leave the playbook's instructions fighting the person's own, and the playbook
+  // is ~10k characters — it would win every disagreement.
+  const user = customPrompt?.trim()
+    ? `${customPrompt.trim()}\n\n---\n\nTASK:\n${task}`
+    : `FRAMEWORK — "${meta.name}":\n\n${doc}\n\n---\n\nTASK:\n${task}\n\nApply the framework above to this task for GooCampus and return the finished deliverable.`;
 
   // Pillar Content is the deep explainer — give it a much larger budget so it can go long.
   const isPillar = slug === "pillar-content";
@@ -76,11 +109,11 @@ export async function runSkill(slug: string, task: string, engine: Engine = "son
     const { text, citations, usage } = await askClaudeViaPerplexity(system, user, {
       model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
     });
-    return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine };
+    return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
   }
 
   const { text, citations, usage } = await askPerplexity(system, user, {
     model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
   });
-  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine };
+  return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
 }
