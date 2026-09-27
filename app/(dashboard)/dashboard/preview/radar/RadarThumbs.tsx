@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { IconThumbUp, IconThumbDown } from "@tabler/icons-react";
 
 // The one-tap answer on a radar row.
 //
@@ -70,23 +71,32 @@ export function useRadarActions(): RadarActionsState {
   return { actions, logged, set, key: radarItemKey };
 }
 
-/** 👍 / 👎 as they were approved: a small pair, quiet until pressed. */
+/** The approved pair, drawn as line icons rather than emoji — emoji are somebody else's
+ *  artwork at somebody else's weight, and they sat in a row of Tabler outline icons
+ *  looking like clip art. Filled on the pressed state so an answer is legible at a glance
+ *  without relying on the background tint alone. */
 export function Thumbs({ state, kind, rawKey }: { state: RadarActionsState; kind: RadarItemKind; rawKey: string }) {
   const key = radarItemKey(kind, rawKey);
   const current = state.actions[key]?.action;
-  const base = "w-[30px] h-[26px] grid place-items-center rounded-lg border text-[13px] leading-none transition";
+  const base = "w-[30px] h-[26px] grid place-items-center rounded-lg border transition";
+  const up = current === "useful";
+  const down = current === "not_useful";
   return (
     <div className="flex gap-1">
       <button type="button" title="Useful — worth writing, just not now"
         onClick={() => state.set(kind, rawKey, "useful")}
-        className={`${base} ${current === "useful"
+        className={`${base} ${up
           ? "bg-[#E3F5EA] border-[#BFE6CD] text-[#0F6E3C]"
-          : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200"}`}>👍</button>
+          : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200 hover:text-[#4A5468]"}`}>
+        <IconThumbUp size={15} stroke={1.8} fill={up ? "currentColor" : "none"} />
+      </button>
       <button type="button" title="Not useful — nothing for us here"
         onClick={() => state.set(kind, rawKey, "not_useful")}
-        className={`${base} ${current === "not_useful"
+        className={`${base} ${down
           ? "bg-[#FBE7E4] border-[#F1C4BD] text-[#C03221]"
-          : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200"}`}>👎</button>
+          : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200 hover:text-[#4A5468]"}`}>
+        <IconThumbDown size={15} stroke={1.8} fill={down ? "currentColor" : "none"} />
+      </button>
     </div>
   );
 }
