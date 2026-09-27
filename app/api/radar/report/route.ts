@@ -18,7 +18,7 @@ type Row = {
   day: string; item_key: string; item_kind: string; title: string;
   source: string | null; url: string | null; interest: string | null;
   time_sensitive: boolean; action: string | null; actor_key: string | null; task_id: string | null;
-  created_at: string;
+  reason: string | null; created_at: string;
 };
 
 export async function GET(req: Request) {
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await sb
       .from("radar_day_log")
-      .select("day, item_key, item_kind, title, source, url, interest, time_sensitive, action, actor_key, task_id, created_at")
+      .select("day, item_key, item_kind, title, source, url, interest, time_sensitive, action, actor_key, task_id, reason, created_at")
       .gte("day", from)
       .order("day", { ascending: false })
       .order("action", { ascending: true, nullsFirst: false });
@@ -66,6 +66,8 @@ export async function GET(req: Request) {
         source: r.source, url: r.url, interest: r.interest,
         timeSensitive: r.time_sensitive,
         action: r.action,
+        // Why it was turned down, when somebody said. Optional by design — see sql/025.
+        reason: r.reason,
         // A name, not an id — the report is read by a person.
         by: r.actor_key ? getUserById(r.actor_key)?.name || r.actor_key : null,
         taskId: r.task_id,

@@ -201,15 +201,34 @@ function Radar() {
   );
   const newsShown = showAllNews ? newsOrdered : newsOrdered.slice(0, NEWS_PREVIEW);
 
+  // Refresh everything, not just the news.
+  //
+  // This button used to say "Pull latest from Google" and only refreshed the news
+  // topics, which left the obvious question — "what about Reddit?" — with no visible
+  // answer. It has one now: Reddit, Quora, MouthShut and ValueMD are a LIVE search on
+  // every page load, so they are never stale and there is nothing to pull. Only news,
+  // Trends and Reviews are cached, and this forces all three plus a re-search.
   async function refreshAll() {
     setRefreshing(true);
     setBanner(null);
     try {
-      const r = await fetch("/api/radar/refresh", { method: "POST" });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-      const errCount = (d.errors || []).length;
-      setBanner(`Refreshed ${d.alerts} feed${d.alerts === 1 ? "" : "s"} · ${d.inserted} new item${d.inserted === 1 ? "" : "s"}${errCount ? ` · ${errCount} feed${errCount === 1 ? "" : "s"} errored (see settings)` : ""}`);
+      // In parallel — they hit four unrelated upstreams, and run one at a time this
+      // took long enough that people pressed it twice.
+      const [newsRes] = await Promise.all([
+        fetch("/api/radar/refresh", { method: "POST" }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
+        fetch("/api/radar/trends?force=1").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setTrends(d as TrendsResp); }).catch(() => {}),
+        fetch("/api/radar/reviews?force=1", { cache: "no-store", credentials: "same-origin" })
+          .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setReviews(d); }).catch(() => {}),
+        fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
+          .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setBrand(d as MentionResult); }).catch(() => {}),
+      ]);
+      if (!newsRes.ok) throw new Error(newsRes.d?.error || "News refresh failed");
+      const errCount = (newsRes.d.errors || []).length;
+      setBanner(
+        `Everything refreshed — ${newsRes.d.alerts} news topic${newsRes.d.alerts === 1 ? "" : "s"}, ` +
+        `${newsRes.d.inserted} new headline${newsRes.d.inserted === 1 ? "" : "s"}, plus Reddit, Trends and Reviews` +
+        (errCount ? ` · ${errCount} topic${errCount === 1 ? "" : "s"} errored (see Topics)` : ""),
+      );
       await load();
     } catch (e) {
       setBanner((e as Error).message);
@@ -414,7 +433,7 @@ function Radar() {
             disabled={refreshing}
             className="text-xs font-medium bg-white text-brand border border-brand/30 px-3 py-1.5 rounded-lg hover:bg-brand-light disabled:opacity-50"
           >
-            {refreshing ? "Refreshing feeds…" : "↻ Pull latest from Google"}
+            {refreshing ? "Refreshing everything…" : "↻ Refresh everything"}
           </button>
           {isAdmin && (
             <Link href="/dashboard/preview/radar/report"

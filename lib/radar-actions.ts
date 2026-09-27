@@ -24,6 +24,8 @@ export async function recordRadarAction(args: {
   action: RadarAction;
   actorKey: string | null;
   taskId?: string | null;
+  /** Why it was turned down. Always optional — see sql/025. */
+  reason?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const sb = getSupabase();
   if (!sb) return { ok: false, error: "Supabase not configured" };
@@ -37,6 +39,7 @@ export async function recordRadarAction(args: {
       action: args.action,
       actor_key: args.actorKey,
       task_id: args.taskId || null,
+      reason: args.reason?.trim() ? args.reason.trim().slice(0, 300) : null,
       created_at: new Date().toISOString(),
     },
     { onConflict: "item_key,actor_key" },
@@ -45,14 +48,14 @@ export async function recordRadarAction(args: {
   return { ok: true };
 }
 
-export type RadarActionRow = { item_key: string; action: RadarAction; actor_key: string | null; task_id: string | null };
+export type RadarActionRow = { item_key: string; action: RadarAction; actor_key: string | null; task_id: string | null; reason: string | null };
 
 /** Every action taken so far, by item. The radar reads this to show what it already
  *  knows, so a thumb stays pressed across a reload instead of looking un-saved. */
 export async function actionsByItem(): Promise<Record<string, RadarActionRow>> {
   const sb = getSupabase();
   if (!sb) return {};
-  const { data } = await sb.from("radar_actions").select("item_key, action, actor_key, task_id");
+  const { data } = await sb.from("radar_actions").select("item_key, action, actor_key, task_id, reason");
   const out: Record<string, RadarActionRow> = {};
   for (const r of (data as RadarActionRow[] | null) || []) out[r.item_key] = r;
   return out;

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
   try {
-    const b = (await req.json()) as { itemKey?: string; itemKind?: string; action?: string | null; taskId?: string };
+    const b = (await req.json()) as { itemKey?: string; itemKind?: string; action?: string | null; taskId?: string; reason?: string };
     if (!b.itemKey) return NextResponse.json({ error: "itemKey is required" }, { status: 400 });
     if (!b.itemKind || !KINDS.has(b.itemKind as RadarItemKind)) {
       return NextResponse.json({ error: "itemKind must be news | mention | search | review" }, { status: 400 });
@@ -58,6 +58,7 @@ export async function POST(req: Request) {
       // filled in on someone else's behalf.
       actorKey: actor,
       taskId: b.taskId || null,
+      reason: b.reason || null,
     });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 502 });
     return NextResponse.json({ ok: true });

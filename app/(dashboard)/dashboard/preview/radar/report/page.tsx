@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { IconArrowLeft, IconAlertTriangle } from "@tabler/icons-react";
 import { ReportDownload } from "@/app/(dashboard)/dashboard/preview/ReportDownload";
@@ -19,6 +19,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 type Item = {
   itemKey: string; kind: string; title: string; source: string | null; url: string | null;
   interest: string | null; timeSensitive: boolean; action: string | null; by: string | null; taskId: string | null;
+  reason: string | null;
 };
 type Day = {
   day: string; shown: number; written: number; useful: number; notUseful: number;
@@ -48,6 +49,10 @@ export default function RadarReportPage() {
 function RadarReport() {
   const [days, setDays] = useState<Day[] | null>(null);
   const [range, setRange] = useState<number>(14);
+  // Two views of the same rows. The report answers "what did we do about it"; the log
+  // answers "what did the radar actually produce that day" and carries no verdicts —
+  // it is the record you reach for when somebody says they never saw something.
+  const [view, setView] = useState<"report" | "log">("report");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,11 +80,20 @@ function RadarReport() {
         </Link>
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex gap-1">
+          {(["report", "log"] as const).map((v) => (
+            <button key={v} onClick={() => setView(v)}
+              className={`text-[12.5px] font-medium px-3 py-1.5 rounded-lg border transition ${
+                view === v ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-200"}`}>
+              {v === "report" ? "Report" : "Log"}
+            </button>
+          ))}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <ReportDownload
-            filename={`goocampus-radar-report-${range}d-${fileStamp()}`}
+            filename={`goocampus-radar-${view}-${range}d-${fileStamp()}`}
             disabled={!days || days.length === 0}
-            build={() => buildExport(days!, range)} />
+            build={() => (view === "log" ? buildLogExport(days!, range) : buildExport(days!, range))} />
         <div className="flex gap-1">
           {RANGES.map((r) => (
             <button key={r} onClick={() => setRange(r)}
@@ -124,7 +138,43 @@ function RadarReport() {
         </div>
       )}
 
-      {!error && days && days.length > 0 && (
+      {!error && days && days.length > 0 && view === "log" && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-[#F7F8FC]">
+                {["Source", "What it found", "Topic", ""].map((h) => (
+                  <th key={h} className="text-left text-[11.5px] font-semibold uppercase tracking-wider text-[#8A92A6] px-4 py-2.5 border-b border-gray-100">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((d) => (
+                <Fragment key={d.day}>
+                  <tr>
+                    <td colSpan={4} className="bg-[#FAFBFF] px-4 py-2.5 text-[13px] font-semibold text-[#232D42] border-b border-gray-100">
+                      {dayLabel(d.day)}
+                      <span className="ml-2 font-normal text-[12.5px] text-[#8A92A6]">{d.shown} item{d.shown === 1 ? "" : "s"}</span>
+                    </td>
+                  </tr>
+                  {d.items.map((it) => (
+                    <tr key={it.itemKey} className="border-b border-gray-100 last:border-0">
+                      <td className="px-4 py-2.5 text-[12.5px] text-[#8A92A6] align-top whitespace-nowrap">{it.source || it.kind}</td>
+                      <td className="px-4 py-2.5 text-[13.5px] text-[#232D42] align-top">{it.title}</td>
+                      <td className="px-4 py-2.5 text-[12.5px] text-[#8A92A6] align-top whitespace-nowrap">{it.interest || "—"}</td>
+                      <td className="px-4 py-2.5 align-top whitespace-nowrap">
+                        {it.url && <a href={it.url} target="_blank" rel="noreferrer" className="text-[12px] text-brand hover:underline">Open</a>}
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!error && days && days.length > 0 && view === "report" && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <table className="w-full border-collapse">
             <thead>
@@ -180,6 +230,22 @@ function buildExport(days: Day[], range: number): ExportReport {
   };
 }
 
+// The log as a file: everything shown, by day, no verdicts.
+function buildLogExport(days: Day[], range: number): ExportReport {
+  const total = days.reduce((n, d) => n + d.shown, 0);
+  return {
+    title: "Content Radar — daily log",
+    subtitle: `Everything the radar produced, last ${range} days`,
+    meta: [`${total} items across ${days.length} day${days.length === 1 ? "" : "s"}`],
+    columns: ["Source", "What it found", "Topic", "Link"],
+    sections: days.map((d) => ({
+      heading: dayLabel(d.day),
+      note: `${d.shown} item${d.shown === 1 ? "" : "s"}`,
+      rows: d.items.map((it) => [it.source || it.kind, it.title, it.interest, it.url]),
+    })),
+  };
+}
+
 function FragmentDay({ d }: { d: Day }) {
   return (
     <>
@@ -212,8 +278,11 @@ function FragmentDay({ d }: { d: Day }) {
               ) : it.title}
             </td>
             <td className="px-4 py-2.5 text-[13px] text-[#8A92A6] align-top whitespace-nowrap">{it.source || it.kind}</td>
-            <td className="px-4 py-2.5 align-top whitespace-nowrap">
+            <td className="px-4 py-2.5 align-top">
               <span className={`inline-flex items-center text-[12px] font-medium rounded-md px-2 py-[3px] ${st.cls}`}>{st.label}</span>
+              {/* The reason is the point of a rejection — "not useful" on its own tells
+                  you nothing you could act on. */}
+              {it.reason && <div className="text-[11.5px] text-[#8A92A6] mt-1">{it.reason}</div>}
             </td>
             <td className="px-4 py-2.5 text-[13px] text-[#8A92A6] align-top whitespace-nowrap">
               {/* A claim of work links to the work. "Written" with nothing behind it is

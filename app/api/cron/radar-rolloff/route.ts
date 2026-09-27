@@ -4,6 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import { listItems } from "@/lib/content-radar";
 import { searchWebMentions } from "@/lib/web-mentions";
 import { getReviews, isNegativeReview } from "@/lib/google-reviews";
+import { listAlerts } from "@/lib/content-radar";
+import { getDomainTrends } from "@/lib/google-trends";
 import { actionsByItem, loggedKeys, radarItemKey } from "@/lib/radar-actions";
 
 // End of day: close the radar and write down what happened.
@@ -46,6 +48,7 @@ type LogRow = {
   day: string; item_key: string; item_kind: string; title: string;
   source: string | null; url: string | null; interest: string | null;
   time_sensitive: boolean; action: string | null; actor_key: string | null; task_id: string | null;
+  reason: string | null;
 };
 
 export async function GET(req: Request) {
@@ -63,10 +66,15 @@ export async function GET(req: Request) {
     // this is today; run late it still closes the day it belongs to.
     const day = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-    const [news, brand, revs, actions, already] = await Promise.all([
+    const [news, brand, revs, trends, actions, already] = await Promise.all([
       listItems({ limit: 500 }),
       searchWebMentions(BRAND_QUERY, { limit: 30 }).catch(() => null),
       getReviews().catch(() => null),
+      // Same seeds the Trends lane uses on the page — the topics being watched.
+      listAlerts()
+        .then((a) => a.filter((x) => x.active).map((x) => x.searchQuery || x.name).filter(Boolean) as string[])
+        .then((seeds) => getDomainTrends({ seeds: seeds.length ? seeds : ["NEET PG 2026", "AMC exam", "PLAB 2"] }))
+        .catch(() => null),
       actionsByItem(),
       loggedKeys(),
     ]);
@@ -85,6 +93,7 @@ export async function GET(req: Request) {
         source, url: link, interest, time_sensitive: urgent,
         // NULL is the point of this whole job: shown, and nothing was done.
         action: a?.action || null, actor_key: a?.actor_key || null, task_id: a?.task_id || null,
+        reason: a?.reason || null,
       });
     };
 
@@ -107,14 +116,22 @@ export async function GET(req: Request) {
       push("mention", m.url, m.title, m.source, m.url, "Brand", m.sentiment === "negative");
     }
 
-    // Only the complaints. A five-star review needs nobody to do anything, so logging it
-    // as "no action taken" would fill the report with failures that were not failures.
     for (const r of revs?.reviews || []) {
-      if (!isNegativeReview(r)) continue;
+      // All reviews are logged now, not only complaints — the Log tab is a record of
+      // everything the radar produced that day. Only a complaint is time_sensitive
+      // though, so the report and the briefing still chase only those.
       // Same 90-day window the Radar shows them in — see the page's NEGATIVE_WINDOW_DAYS.
       if (r.publishedAt && ageDays(r.publishedAt) > 90) continue;
       push("review", r.id, r.text || `${r.rating}-star rating, no comment`,
-           "Google Reviews", r.link, "Brand", true);
+           "Google Reviews", r.link, `${r.rating}-star`, isNegativeReview(r));
+    }
+
+    // Google Trends rising searches. They were never logged, so a day's record was
+    // missing an entire lane — one that the Radar shows and people can act on.
+    for (const g of trends?.ideas || []) {
+      for (const term of g.ideas || []) {
+        push("search", term, term, "Google Trends", null, "Rising search", false);
+      }
     }
 
     if (dry) {

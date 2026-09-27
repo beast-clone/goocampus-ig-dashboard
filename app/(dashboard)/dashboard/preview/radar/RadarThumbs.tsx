@@ -13,7 +13,7 @@ import { IconThumbUp, IconThumbDown } from "@tabler/icons-react";
 export type RadarItemKind = "news" | "mention" | "search" | "review";
 export type RadarAction = "written" | "useful" | "not_useful";
 
-type ActionsMap = Record<string, { action: RadarAction }>;
+type ActionsMap = Record<string, { action: RadarAction; reason?: string | null }>;
 
 export type RadarActionsState = {
   /** Answers already given, so a thumb stays pressed across a reload. */
@@ -22,6 +22,8 @@ export type RadarActionsState = {
   logged: Set<string>;
   /** Record an answer. Tapping the same thumb again clears it. */
   set: (kind: RadarItemKind, rawKey: string, action: RadarAction) => void;
+  /** Attach a reason to an answer already given. Never blocks the thumb. */
+  setReason: (kind: RadarItemKind, rawKey: string, reason: string) => void;
   key: (kind: RadarItemKind, rawKey: string) => string;
 };
 
@@ -80,8 +82,29 @@ export function useRadarActions(): RadarActionsState {
       }));
   }, [actions]);
 
-  return { actions, logged, set, key: radarItemKey };
+  // Sent after the thumb, never before it. The thumb is already saved by this point,
+  // so a failed reason leaves the rejection intact — which is the right way round.
+  const setReason = useCallback((kind: RadarItemKind, rawKey: string, reason: string) => {
+    const key = radarItemKey(kind, rawKey);
+    const cur = actions[key];
+    if (!cur) return;
+    setActions((prev) => ({ ...prev, [key]: { ...prev[key], reason } }));
+    fetch("/api/radar/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ itemKey: key, itemKind: kind, action: cur.action, reason }),
+    }).catch(() => {});
+  }, [actions]);
+
+  return { actions, logged, set, setReason, key: radarItemKey };
 }
+
+// The reasons people actually give, as one-tap chips. Free text was considered and
+// rejected: the value of the thumb is that it costs one tap, and anything that turns
+// rejecting into writing a sentence means people stop rejecting — which is the exact
+// problem the thumbs were built to solve.
+const REASONS = ["Not our audience", "Too old", "Competitor news", "Already covered", "Not accurate"];
 
 /** The approved pair, drawn as line icons rather than emoji — emoji are somebody else's
  *  artwork at somebody else's weight, and they sat in a row of Tabler outline icons
@@ -89,12 +112,20 @@ export function useRadarActions(): RadarActionsState {
  *  without relying on the background tint alone. */
 export function Thumbs({ state, kind, rawKey }: { state: RadarActionsState; kind: RadarItemKind; rawKey: string }) {
   const key = radarItemKey(kind, rawKey);
-  const current = state.actions[key]?.action;
+  const entry = state.actions[key];
+  const current = entry?.action;
   const base = "w-[30px] h-[26px] grid place-items-center rounded-lg border transition";
   const up = current === "useful";
   const down = current === "not_useful";
+  // Offered only after a thumbs-down, and only until a reason is given.
+  const [asking, setAsking] = useState(false);
+  // Their own words, for the times none of the five chips is the real reason.
+  const [typing, setTyping] = useState(false);
+  const [own, setOwn] = useState("");
+  useEffect(() => { if (!down) { setAsking(false); setTyping(false); setOwn(""); } }, [down]);
+
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 relative">
       <button type="button" title="Useful — worth writing, just not now"
         onClick={() => state.set(kind, rawKey, "useful")}
         className={`${base} ${up
@@ -102,13 +133,61 @@ export function Thumbs({ state, kind, rawKey }: { state: RadarActionsState; kind
           : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200 hover:text-[#4A5468]"}`}>
         <IconThumbUp size={15} stroke={1.8} fill={up ? "currentColor" : "none"} />
       </button>
-      <button type="button" title="Not useful — nothing for us here"
-        onClick={() => state.set(kind, rawKey, "not_useful")}
+      <button type="button" title={entry?.reason ? `Not useful — ${entry.reason}` : "Not useful — nothing for us here"}
+        onClick={() => { state.set(kind, rawKey, "not_useful"); setAsking(!down); }}
         className={`${base} ${down
           ? "bg-[#FBE7E4] border-[#F1C4BD] text-[#C03221]"
           : "bg-white border-gray-100 text-[#A6ACBE] hover:border-gray-200 hover:text-[#4A5468]"}`}>
         <IconThumbDown size={15} stroke={1.8} fill={down ? "currentColor" : "none"} />
       </button>
+
+      {/* Already rejected and already saved — this is a bonus, not a gate. */}
+      {asking && down && !entry?.reason && (
+        <div className="absolute top-full right-0 mt-1.5 z-20 bg-white border border-gray-200 rounded-xl p-2.5 w-[230px]">
+          <div className="text-[11px] text-[#8A92A6] mb-1.5">Why not? <span className="text-[#C7CEDD]">optional</span></div>
+          {typing ? (
+            <>
+              <textarea autoFocus value={own} onChange={(e) => setOwn(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter saves; Shift+Enter is a newline, in case the reason runs long.
+                  if (e.key === "Enter" && !e.shiftKey && own.trim()) {
+                    e.preventDefault(); state.setReason(kind, rawKey, own.trim()); setAsking(false);
+                  }
+                  if (e.key === "Escape") setTyping(false);
+                }}
+                rows={2} placeholder="In your own words…"
+                className="w-full text-[12px] border border-gray-200 rounded-lg px-2 py-1.5 text-[#232D42] outline-none focus:border-brand resize-none" />
+              <div className="flex items-center gap-2 mt-1.5">
+                <button type="button" disabled={!own.trim()}
+                  onClick={() => { state.setReason(kind, rawKey, own.trim()); setAsking(false); }}
+                  className="text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1 disabled:opacity-40 hover:bg-brand-dark">
+                  Save
+                </button>
+                <button type="button" onClick={() => setTyping(false)}
+                  className="text-[11px] text-[#A6ACBE] hover:text-[#232D42]">Back</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1">
+                {REASONS.map((r) => (
+                  <button key={r} type="button"
+                    onClick={() => { state.setReason(kind, rawKey, r); setAsking(false); }}
+                    className="text-[11.5px] border border-gray-200 rounded-lg px-2 py-1 text-[#4A5468] hover:border-brand hover:text-brand">
+                    {r}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setTyping(true)}
+                  className="text-[11.5px] border border-dashed border-gray-300 rounded-lg px-2 py-1 text-[#8A92A6] hover:border-brand hover:text-brand">
+                  Something else…
+                </button>
+              </div>
+              <button type="button" onClick={() => setAsking(false)}
+                className="text-[11px] text-[#A6ACBE] hover:text-[#232D42] mt-1.5">Skip</button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
