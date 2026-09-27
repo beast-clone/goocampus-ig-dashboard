@@ -2,6 +2,16 @@
   command = "npm run build"
   publish = ".next"
 
+  [build.environment]
+    # Pinned, not left to Netlify's default.
+    #
+    # Nothing in this repo stated a Node version — no engines field, no .nvmrc — so
+    # production ran whatever Netlify happened to default to that week, and could change
+    # under us without a commit. That matters here: jsdom's dependency tree is ESM-only
+    # in places, and require(esm) only works from Node 22.12, so a default that drifted
+    # below that would silently break the Content Radar article reader.
+    NODE_VERSION = "22.20.0"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

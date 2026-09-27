@@ -903,7 +903,7 @@ function FeedRow({ item, onRead, showTopic, acts }: { item: FeedItem; onRead: ()
           clear the row tonight; only one of them costs you an hour. */}
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <Link href={studioHref(item)}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
           <IconPencil size={13} stroke={1.8} /> Write this
         </Link>
         <Thumbs state={acts} kind="news" rawKey={item.id} />
@@ -992,7 +992,7 @@ function RadarMentionRow({ m, lane, acts }: { m: WebMention; lane: string; acts:
         <Link href={draftFromQuery(m.title, `From web mention: ${m.title}
 Source: ${m.source || lane}
 URL: ${m.url}`)}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
           <IconPencil size={13} stroke={1.8} /> Write this
         </Link>
         <a href={m.url} target="_blank" rel="noreferrer"
@@ -1059,7 +1059,7 @@ function RadarReviewRow({ r, acts, mapsUrl }: {
           <Link href={draftFromQuery(`What our students say`, `Google review by ${r.author} (${r.rating}/5)
 ${r.text}
 ${r.link || mapsUrl || ""}`)}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+            className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
             <IconPencil size={13} stroke={1.8} /> Write this
           </Link>
         )}
@@ -1098,7 +1098,7 @@ function RadarSearchRow({ term, acts }: { term: string; acts: RadarActionsState 
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <Link href={draftFromQuery(term, `Rising search: ${term}
 Source: Google Trends`)}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
           <IconPencil size={13} stroke={1.8} /> Write this
         </Link>
         <Thumbs state={acts} kind="search" rawKey={term} />
