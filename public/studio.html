@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Studio — proposed</title>
+<style>
+  :root{
+    --brand:#3A57E8; --brand-dark:#2138B0; --brand-light:#E9ECFB;
+    --ink:#232D42; --body:#3B4457; --muted:#8A92A6; --faint:#A6ACBE;
+    --line:#EEF0F4; --line-2:#F3F5F9; --panel:#FFFFFF; --bg:#F6F7FB;
+    --rose:#C03221; --rose-soft:#FBE7E4; --good:#0F6E3C; --good-soft:#E3F5EA;
+    --amber:#B7791F; --amber-soft:#FDF6E7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       font-size:14px;line-height:1.5;padding:1.5rem 1rem 5rem}
+  .wrap{max-width:1000px;margin:0 auto}
+
+  .hero{background:linear-gradient(101deg,#3A57E8,#5A72EE);border-radius:14px;
+        padding:1.15rem 1.5rem;color:#fff;margin-bottom:1rem}
+  .hero h1{margin:0;font-size:1.3rem;font-weight:700}
+  .hero p{margin:.25rem 0 0;font-size:13px;opacity:.9}
+
+  .tabs{display:flex;gap:.5rem;margin-bottom:1.1rem}
+  .tabs button{border:1px solid var(--line);background:var(--panel);border-radius:11px;
+               padding:.5rem 1rem;font:inherit;font-size:13px;font-weight:500;color:#4A5468;cursor:pointer}
+  .tabs button.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+
+  .stage{display:none} .stage.on{display:block}
+
+  /* ---- the piece being worked on ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:.85rem}
+  .card-pad{padding:1rem 1.15rem}
+
+  .from{display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.15rem}
+  .fav{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);flex:none;
+       display:grid;place-items:center;font-size:15px;background:#fff}
+  .from h2{margin:0;font-size:15px;font-weight:600;line-height:1.35}
+  .from .meta{font-size:12px;color:var(--faint);margin-top:.22rem}
+  .pill{display:inline-block;font-size:10px;font-weight:600;border-radius:99px;padding:.16em .6em;
+        vertical-align:2px;margin-right:.45rem}
+  .pill.now{background:var(--rose-soft);color:var(--rose)}
+
+  /* ---- numbered steps ---- */
+  .step{display:flex;gap:.9rem;padding:1rem 1.15rem;border-top:1px solid var(--line-2)}
+  .n{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;
+     font-size:11.5px;font-weight:700;background:var(--brand-light);color:var(--brand-dark);margin-top:.05rem}
+  .n.done{background:var(--good-soft);color:var(--good)}
+  .n.idle{background:var(--line-2);color:var(--faint)}
+  .step-body{flex:1;min-width:0}
+  .step h3{margin:0 0 .15rem;font-size:13.5px;font-weight:600}
+  .step .sub{font-size:12.5px;color:var(--muted);margin:0 0 .6rem}
+
+  .verdict{border-radius:10px;padding:.7rem .85rem;font-size:13px;line-height:1.55}
+  .verdict.warn{background:var(--amber-soft);color:#6B4A12}
+  .verdict b{font-weight:600}
+  .srcline{font-size:12px;color:var(--faint);margin-top:.5rem}
+  .srcline a{color:var(--brand);text-decoration:none}
+  .srcline a:hover{text-decoration:underline}
+
+  .chips{display:flex;flex-wrap:wrap;gap:.4rem}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:.32rem .65rem;
+        font-size:12.5px;color:#4A5468;cursor:pointer}
+  .chip:hover{border-color:#C7CEDD}
+  .chip.on{background:var(--brand-light);border-color:#C5CEF6;color:var(--brand-dark);font-weight:600}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+       color:var(--faint);margin:0 0 .35rem}
+  .row2{display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:.7rem}
+
+  .prompt{background:#FAFBFF;border:1px solid var(--line);border-radius:10px;padding:.8rem .9rem;
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.65;
+          color:var(--body);white-space:pre-wrap;max-height:170px;overflow:auto}
+  .btns{display:flex;gap:.5rem;align-items:center;margin-top:.6rem;flex-wrap:wrap}
+  .btn{border:0;border-radius:9px;background:var(--brand);color:#fff;font:inherit;font-size:13px;
+       font-weight:600;padding:.5rem .95rem;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem}
+  .btn:hover{background:var(--brand-dark)}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:#4A5468;font-weight:500}
+  .btn.ghost:hover{border-color:#C7CEDD}
+  .hint{font-size:12px;color:var(--faint)}
+
+  textarea{width:100%;border:1px solid #D9DEEA;border-radius:10px;padding:.7rem .85rem;font:inherit;
+           font-size:13px;line-height:1.6;color:var(--body);outline:none;resize:vertical;min-height:92px}
+  textarea:focus{border-color:var(--brand)}
+
+  .done-row{display:flex;align-items:center;gap:.6rem;background:var(--good-soft);border-radius:10px;
+            padding:.65rem .85rem;font-size:13px;color:var(--good)}
+
+  /* ---- playbooks ---- */
+  .pbhead{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .7rem}
+  .pbhead h2{margin:0;font-size:15px;font-weight:600}
+  .pbhead span{font-size:12.5px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.6rem}
+  .pb{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.8rem .9rem;cursor:pointer}
+  .pb:hover{border-color:#C7CEDD}
+  .pb h4{margin:0 0 .15rem;font-size:13px;font-weight:600}
+  .pb p{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+  .pb .used{font-size:11px;color:var(--faint);margin-top:.4rem}
+  .cat{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+       color:var(--faint);margin:1.2rem 0 .5rem}
+  .cat:first-of-type{margin-top:.2rem}
+
+  /* All three choices on one line. Every list is complete — a short row of chips reads as
+     "these are your options", which is how three angles came to look like all of them. */
+  .pick3{display:flex;gap:.75rem;flex-wrap:wrap}
+  .pick3 label{flex:1;min-width:190px;display:block}
+  .pick3 .lbl{display:block}
+  .pick3 select{width:100%;border:1px solid #D9DEEA;border-radius:9px;padding:.48rem .6rem;
+                font:inherit;font-size:13px;color:var(--ink);background:#fff;outline:none}
+  .pick3 select:focus{border-color:var(--brand)}
+
+  /* Verify-before-create sheet */
+  .veil{position:fixed;inset:0;background:rgba(20,22,40,.45);display:none;
+        align-items:flex-start;justify-content:center;padding:2.5rem 1rem;overflow:auto;z-index:50}
+  .veil.on{display:flex}
+  .sheet{background:var(--panel);border-radius:16px;width:100%;max-width:620px}
+  .sheet-h{padding:1.05rem 1.3rem .85rem;border-bottom:1px solid var(--line)}
+  .sheet-h h3{margin:0;font-size:1.05rem;font-weight:700}
+  .sheet-h p{margin:.2rem 0 0;font-size:12.5px;color:var(--muted)}
+  .f{padding:.7rem 1.3rem;border-bottom:1px solid var(--line-2);display:flex;gap:1rem;align-items:flex-start}
+  .f:last-of-type{border-bottom:0}
+  .f .k{width:120px;flex:none;font-size:12px;color:var(--muted);padding-top:.45rem}
+  .f .v{flex:1;min-width:0}
+  .f input,.f textarea,.f select{width:100%;border:1px solid transparent;border-radius:8px;
+        padding:.4rem .5rem;font:inherit;font-size:13.5px;color:var(--ink);background:transparent;
+        outline:none;resize:vertical}
+  .f input:hover,.f textarea:hover,.f select:hover{border-color:var(--line)}
+  .f input:focus,.f textarea:focus,.f select:focus{border-color:var(--brand);background:#fff}
+  .f .why{font-size:11.5px;color:var(--faint);margin:.15rem 0 0 .5rem}
+  .f.flag .v input,.f.flag .v textarea{border-color:#F1C4BD;background:#FFF9F8}
+  .f.flag .why{color:var(--rose)}
+  .sheet-f{display:flex;align-items:center;gap:.6rem;padding:.85rem 1.3rem;background:#FAFBFF;
+           border-top:1px solid var(--line);border-radius:0 0 16px 16px}
+  .sheet-f .hint{margin-right:auto}
+
+  /* Start-it-yourself row */
+  .manual{display:flex;align-items:center;gap:.6rem;background:var(--panel);border:1px dashed #D9DEEA;
+          border-radius:12px;padding:.7rem 1rem;margin-bottom:.85rem;font-size:13px;color:var(--muted)}
+  .manual b{color:var(--ink);font-weight:600}
+  .manual button{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:9px;
+                 padding:.42rem .85rem;font:inherit;font-size:12.5px;font-weight:600;color:#4A5468;cursor:pointer}
+  .manual button:hover{border-color:#C7CEDD;color:var(--brand)}
+
+  .note{max-width:1000px;margin:2rem auto 0;border-top:1px dashed #D9DEEA;padding-top:1rem;
+        font-size:12.5px;color:var(--faint);line-height:1.75}
+  .note b{color:var(--muted)} .note s{color:#C2C8D6}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Content Studio</h1>
+    <p>Where something from the Radar becomes a task on the board — checked first, written in Claude, filed with the caption already in it.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="on" data-s="create">Create</button>
+    <button data-s="playbooks">Playbooks</button>
+  </div>
+
+  <!-- ============================ CREATE ============================ -->
+  <div class="stage on" id="s-create">
+
+    <div class="manual">
+      <span>Working on something that didn&rsquo;t come from the Radar?</span>
+      <b>Start it yourself</b>
+      <button>Type a topic</button>
+    </div>
+
+    <div class="card">
+      <div class="from">
+        <span class="fav">📰</span>
+        <div>
+          <h2><span class="pill now">Time-sensitive</span>NEET PG 2026 answer key live: Response sheet anytime soon, check expected date and time</h2>
+          <div class="meta">msn.com · 4 days ago · NEET PG · arrived from Content Radar</div>
+        </div>
+      </div>
+
+      <!-- 1 -->
+      <div class="step">
+        <span class="n done">1</span>
+        <div class="step-body">
+          <h3>Checked the facts</h3>
+          <p class="sub">Perplexity read the live sources before anybody writes a word.</p>
+          <div class="verdict warn">
+            <b>Careful — the headline overstates it.</b> NBEMS has not officially released the NEET PG
+            answer key or response sheet yet, and no exact release time has been announced. The strongest
+            verified claim is that the official display is expected on or after 1 October 2026 — not “live” right now.
+          </div>
+          <div class="srcline">Read 15 sources · <a href="#">indianexpress.com</a>, <a href="#">ndtv.com</a>, <a href="#">careers360</a> and 12 more</div>
+        </div>
+      </div>
+
+      <!-- 2 -->
+      <div class="step">
+        <span class="n done">2</span>
+        <div class="step-body">
+          <h3>What are we making?</h3>
+          <p class="sub">Your own Content Calendar types — the same list the task will carry.</p>
+          <div class="pick3">
+            <label>
+              <span class="lbl">Format</span>
+              <select>
+                <option>Post</option><option selected>Carousel</option><option>Reel - Original</option>
+                <option>Reel - Cut</option><option>Reel Thumbnail</option><option>YouTube Long-Form</option>
+                <option>YouTube Shorts</option><option>YouTube Thumbnail</option><option>Meta Ads</option>
+                <option>Meta Ads - Video</option><option>Story (Image)</option><option>Story (Video)</option>
+                <option>Atomic Essay</option>
+              </select>
+            </label>
+            <label>
+              <span class="lbl">Brand</span>
+              <select>
+                <option selected>India NEET PG Consulting</option><option>Australia-PGCP</option>
+                <option>UAE / Gulf</option><option>12Plus / GC India</option>
+              </select>
+            </label>
+            <label>
+              <span class="lbl">Angle &mdash; from Playbooks</span>
+              <select>
+                <option selected>Carousel &mdash; Myth vs fact</option>
+                <option>Carousel &mdash; Deadline explainer</option>
+                <option>Reel &mdash; Student question</option>
+                <option>Reel &mdash; Counsellor on camera</option>
+                <option>Post &mdash; Result / cut-off card</option>
+                <option>Atomic Essay &mdash; Pathway deep dive</option>
+                <option>Reply to a bad review</option>
+                <option>Reply on Reddit / Quora</option>
+                <option>Turn praise into a testimonial</option>
+                <option>&mdash; no playbook, write it plain &mdash;</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <div class="step">
+        <span class="n">3</span>
+        <div class="step-body">
+          <h3>Push it to Claude</h3>
+          <p class="sub">The brief, the checked facts and the sources, assembled into one prompt. Copy it into Claude and write there.</p>
+          <div class="prompt">Write an Instagram <b>carousel</b> (6 slides) for <b>India NEET PG Consulting</b>,
+in the "Myth vs fact" angle.
+
+TOPIC
+NEET PG 2026 answer key / response sheet — expected release.
+
+WHAT IS ACTUALLY TRUE (verified, do not contradict)
+· NBEMS has NOT released the answer key or response sheet yet.
+· No exact release time has been announced.
+· Official display is expected on or after 1 October 2026.
+· Headlines saying it is "live" are wrong.
+
+THE JOB
+Slide 1 is the hook. Correct the false urgency without being
+preachy. End on what a candidate should actually do now.
+Indian medical-graduate audience. No emojis in slide text.
+
+SOURCES
+indianexpress.com/... · ndtv.com/... · careers360.com/...</div>
+          <div class="btns">
+            <button class="btn">Copy prompt &amp; open Claude</button>
+            <button class="btn ghost">Copy only</button>
+            <span class="hint">Opens claude.ai in a new tab with the prompt on your clipboard.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 -->
+      <div class="step">
+        <span class="n idle">4</span>
+        <div class="step-body">
+          <h3>Paste what Claude wrote</h3>
+          <p class="sub">Nothing is generated here — this is your copy, exactly as you approved it.</p>
+          <textarea placeholder="Paste the carousel copy here…"></textarea>
+        </div>
+      </div>
+
+      <!-- 5 -->
+      <div class="step">
+        <span class="n idle">5</span>
+        <div class="step-body">
+          <h3>Send it to the board</h3>
+          <p class="sub">Creates the Content Calendar task with the caption already filled in, the source link in the brief, and the fact-check attached.</p>
+          <div class="btns">
+            <button class="btn" id="openVerify">Review &amp; create task</button>
+            <span class="hint">Nothing is created until you have seen every field.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad">
+      <div class="pbhead"><h2>Earlier today</h2><span>3 pieces sent to the board</span></div>
+      <div class="hint">Was “Your content” — a table of AI jobs with a Status column.
+        Now it is just what went out, newest first, each linking to its task.</div>
+    </div>
+
+  </div>
+
+  <!-- ============================ PLAYBOOKS ============================ -->
+  <div class="stage" id="s-playbooks">
+    <div class="card card-pad">
+      <div class="pbhead">
+        <h2>Playbooks</h2>
+        <span>How we write each thing — the angle picker in step 2 reads from this list.</span>
+      </div>
+
+      <p class="cat">Formats we actually make</p>
+      <div class="grid">
+        <div class="pb"><h4>Carousel — Myth vs fact</h4><p>Slide 1 states the myth, slide 2 corrects it, then the proof.</p><p class="used">Used 14 times · last Fri</p></div>
+        <div class="pb"><h4>Carousel — Deadline explainer</h4><p>What closes, when, what you need ready, what happens if you miss it.</p><p class="used">Used 9 times</p></div>
+        <div class="pb"><h4>Reel — Student question</h4><p>Open on the question in their words, answer in 30 seconds.</p><p class="used">Used 21 times · last Mon</p></div>
+        <div class="pb"><h4>Reel — Counsellor on camera</h4><p>One counsellor, one claim, one piece of evidence.</p><p class="used">Used 6 times</p></div>
+        <div class="pb"><h4>Post — Result / cut-off card</h4><p>The number, the comparison to last year, the takeaway.</p><p class="used">Used 11 times</p></div>
+        <div class="pb"><h4>Atomic Essay — Pathway deep dive</h4><p>One route abroad, start to licence, in 300 words.</p><p class="used">Used 4 times</p></div>
+      </div>
+
+      <p class="cat">Answering people</p>
+      <div class="grid">
+        <div class="pb"><h4>Reply to a bad review</h4><p>Acknowledge, state what actually happened, offer a name to contact.</p><p class="used">Used 3 times</p></div>
+        <div class="pb"><h4>Reply on Reddit / Quora</h4><p>Answer the question first. Mention us only if it is the honest answer.</p><p class="used">Used 7 times</p></div>
+        <div class="pb"><h4>Turn praise into a testimonial</h4><p>Their words, their permission, our design.</p><p class="used">Used 5 times</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== VERIFY BEFORE CREATE ==================== -->
+  <div class="veil" id="veil">
+    <div class="sheet">
+      <div class="sheet-h">
+        <h3>Check this before it goes on the board</h3>
+        <p>Everything here is editable. Whatever you change is what gets saved &mdash; nothing is locked because it was filled in for you.</p>
+      </div>
+
+      <div class="f">
+        <span class="k">Particulars</span>
+        <div class="v"><input value="NEET PG 2026 answer key &mdash; what is actually confirmed" /></div>
+      </div>
+      <div class="f">
+        <span class="k">Type</span>
+        <div class="v"><select><option>Carousel</option><option>Post</option><option>Reel - Original</option><option>Reel - Cut</option><option>YouTube Shorts</option><option>Story (Image)</option><option>Atomic Essay</option><option>Meta Ads</option></select></div>
+      </div>
+      <div class="f">
+        <span class="k">Brand</span>
+        <div class="v"><select><option>India NEET PG Consulting</option><option>Australia-PGCP</option><option>UAE / Gulf</option></select></div>
+      </div>
+      <div class="f">
+        <span class="k">Owner</span>
+        <div class="v"><select><option>Manya</option><option>Praveen</option><option>Nikhil</option><option>Nandu</option></select></div>
+      </div>
+      <div class="f flag">
+        <span class="k">Publishing date</span>
+        <div class="v">
+          <input value="" placeholder="dd / mm / yyyy &mdash; not set" />
+          <p class="why">Nothing filled this in. A time-sensitive piece with no date is how one gets missed.</p>
+        </div>
+      </div>
+      <div class="f">
+        <span class="k">Caption</span>
+        <div class="v"><textarea rows="4">Slide 1 &mdash; "The NEET PG answer key is live." It isn't.
+
+Slide 2 &mdash; NBEMS has not released the answer key or the response sheet. No release time has been announced&hellip;</textarea>
+        <p class="why">Pasted from Claude. Edit freely &mdash; this is the copy that lands on the task.</p></div>
+      </div>
+      <div class="f">
+        <span class="k">Source link</span>
+        <div class="v"><input value="https://www.msn.com/en-in/news/other/neet-pg-2026-answer-key-live" /></div>
+      </div>
+      <div class="f">
+        <span class="k">Fact-check</span>
+        <div class="v"><textarea rows="2">NBEMS has not officially released the answer key or response sheet. Official display expected on or after 1 Oct 2026.</textarea>
+        <p class="why">Travels with the task, so whoever designs it knows what not to claim.</p></div>
+      </div>
+
+      <div class="sheet-f">
+        <span class="hint">Lands as <b>Content&nbsp;-&nbsp;Pending</b> on Manya's board.</span>
+        <button class="btn ghost" id="closeVerify">Cancel</button>
+        <button class="btn">Create task</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Prototype — nothing built.</b> Perplexity checks, Claude writes, the board receives.
+    <br><br>
+    Gone: the <s>six trending cards</s> at the top (a second, worse Content Radar — today all six are NEET PG and three
+    are near-duplicates), the <s>“Research your own topic”</s> box with its ₹10–30 warning, the
+    <s>“Your content” job table</s> with its Status column, the <s>wall of 15 raw URLs</s>, and all
+    <s>50 SaaS playbooks</s> — ASO, paywalls, in-app upsells and the rest describe a company you are not.
+    <br><br>
+    Kept, because they are the two things in there that genuinely earn their place: the <b>fact-check</b>,
+    now promoted to step 1 where it can stop a wrong post before it is written, and the <b>source list</b>,
+    reduced to a line.
+    <br><br>
+    Changed since the last pass: format, brand and angle are now <b>complete dropdowns on one line</b>.
+    They were chips, and three angles side by side read as "these are your options" rather than "here are
+    three of them". The angle list is the Playbooks list, plus a way to opt out of it.
+    <br><br>
+    Added since the first pass: nothing is created until the <b>check sheet</b> has been seen, every field on it
+    is editable, and a piece that did not come from the Radar can be <b>started by hand</b>. The sheet flags what
+    was left blank rather than filing it quietly &mdash; above, a time-sensitive piece with no publishing date.
+    <br><br>
+    The <b>Playbooks list above is my invention</b> and is the one part I cannot guess — it is drawn from your
+    thirteen Content Calendar types and the work I can see on the board. Tell me what it should really say,
+    or point me at where it is written down, and I will build that instead.
+  </div>
+
+</div>
+
+<script>
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".stage").forEach(s=>s.classList.toggle("on",s.id==="s-"+b.dataset.s));
+});
+const veil=document.getElementById("veil");
+document.getElementById("openVerify").onclick=()=>veil.classList.add("on");
+document.getElementById("closeVerify").onclick=()=>veil.classList.remove("on");
+veil.onclick=(e)=>{ if(e.target===veil) veil.classList.remove("on"); };
+
+document.querySelectorAll(".chips").forEach(group=>{
+  group.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
+    group.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));
+    c.classList.add("on");
+  });
+});
+</script>
+</body>
+</html>
