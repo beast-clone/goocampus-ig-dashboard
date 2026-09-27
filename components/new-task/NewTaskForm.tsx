@@ -1,0 +1,264 @@
+"use client";
+import { useEffect, useState } from "react";
+import { IconX } from "@tabler/icons-react";
+import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
+import { SBU_OPTIONS } from "@/lib/sbus";
+import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
+import {
+  Avatar, DatePicker, MenuDropdown, PendingAssets, PPL, EMPTY_ASSET,
+  type PendingAsset, type NewTaskAssets,
+} from "./parts";
+
+// THE create-task form for the whole dashboard. It began life inside My Day and
+// now lives here so every screen that creates a task uses this one — My Day's
+// right-hand panel, and (through NewTaskDialog) the Marketing Hub + Content
+// Calendar. One form means the field list, the required-field rules and the
+// routing preview cannot drift apart between screens, which is exactly how the
+// type list drifted before it was shared.
+//
+// The form owns what a task IS; it does not own what happens after. It hands the
+// host a NewTaskDraft and the host decides where to put it, so My Day can keep
+// its optimistic insert and the calendar can just POST and refresh.
+
+const CC_TYPES: readonly string[] = [...CONTENT_TYPES];
+const isVideoType = (t: string) => VIDEO_TYPE_SET.has(t);
+const CC_SBUS = SBU_OPTIONS;
+
+// The three statuses a task can be CREATED at. The rest of the pipeline is reached
+// by moving the task on, not by filing it there on day one. Their labels are the
+// status names themselves, so the dropdown needs no separate label map.
+export type NewTaskStatus = "Content - Pending" | "Content - In Progress" | "Content - Approved";
+const NEW_TASK_STATUSES: NewTaskStatus[] = ["Content - Pending", "Content - In Progress", "Content - Approved"];
+
+export type NewTaskRoute = {
+  ownerKey: string | null; ownerLabel: string; pool: boolean;
+  collaborators: string[]; headline: string; why: string;
+};
+
+// What the form produces. Deliberately not My Day's `Task`: this is just the
+// answers, and each host turns them into whatever it needs.
+export type NewTaskDraft = {
+  title: string; type: string; sbu: string;
+  priority: "Urgent" | "High" | "Medium" | "Low";
+  status: NewTaskStatus;
+  content: string; publishDate: string;
+  collaborators: string[];
+  assets: NewTaskAssets;
+  route: NewTaskRoute;
+};
+
+/**
+ * Where a task lands the moment it is saved, worked out from Type + Status with the
+ * SAME rule the server uses — api/marketing-hub/update's Content-Approved handoff and
+ * the mh_design_owner DB trigger (sql/013_design_work_owner.sql):
+ *   · below Content - Approved → nobody is assigned yet; it sits with the writer.
+ *   · Content - Approved + design type → owner becomes Praveen, the writer joins as collaborator.
+ *   · Content - Approved + video type → owner STAYS with the writer; Nikhil/Nandu claim it from the pool.
+ * Maheen is never auto-added by either side.
+ * This function only DESCRIBES that rule so the creator can check the routing before
+ * saving — it does not decide anything. The server still does the assigning.
+ */
+// `status` is a plain string, not NewTaskStatus: the board also asks this for tasks
+// already past the create stage, and the only thing the rule looks at is whether the
+// status is exactly "Content - Approved".
+export function routeFor(type: string, status: string, writer: string): NewTaskRoute {
+  const video = isVideoType(type);
+  const approved = status === "Content - Approved";
+  if (!approved) {
+    return {
+      ownerKey: writer, ownerLabel: PPL[writer]?.name || writer, pool: false, collaborators: [],
+      headline: `Starts with ${PPL[writer]?.name || writer}; assigns on approval.`,
+      why: `Nothing is handed over below Content - Approved — ${PPL[writer]?.name || writer} keeps it while the content is written.`,
+    };
+  }
+  if (video) {
+    return {
+      ownerKey: writer, ownerLabel: `${PPL[writer]?.name || writer} — until an editor claims it`, pool: true, collaborators: [],
+      headline: "Editors' claim pool — Nikhil / Nandu claim it.",
+      why: `${type} is video work, so it is never auto-assigned: it goes into the shared pool and stays with ${PPL[writer]?.name || writer} until Nikhil or Nandu claims it.`,
+    };
+  }
+  // Name the writer rather than calling them "the writer" — the person reading this is
+  // checking a routing decision, and a role is one more step to translate.
+  const writerName = PPL[writer]?.name || writer;
+  const selfOwned = writer === "praveen"; // Praveen filing his own design work: no collaborator to name
+  return {
+    ownerKey: "praveen", ownerLabel: "Praveen", pool: false, collaborators: selfOwned ? [] : [writer],
+    headline: selfOwned ? "Owner: Praveen." : `Owner: Praveen · Collaborator: ${writerName}.`,
+    why: `${type} is design work, so on approval it is handed straight to Praveen${selfOwned ? "." : ` and ${writerName} stays on as collaborator.`}`,
+  };
+}
+
+/**
+ * The create form. Lives INSIDE the right-hand detail panel (it used to be a centred
+ * modal): the panel is empty until you ask for either a task or a new one, so the
+ * form gets the full width of the panel and the task list stays readable beside it.
+ */
+export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
+  writer: string;
+  onClose: () => void;
+  initial?: { publishDate?: string; sbu?: string };
+  onCreate: (draft: NewTaskDraft) => void;
+  onDirty?: (dirty: boolean) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<string>("Reel Thumbnail");
+  const [sbu, setSbu] = useState<string>(initial?.sbu || CC_SBUS[0]);
+  const [priority, setPriority] = useState<"Urgent" | "High" | "Medium" | "Low">("Medium");
+  const [status, setStatus] = useState<NewTaskStatus>("Content - Pending");
+  const [content, setContent] = useState("");
+  // Pre-filled when the host already knows the date — the Content Calendar's "+" on
+  // a day means the writer has picked it by clicking there. Everywhere else it starts
+  // empty: the writer sets it, there is no auto-date.
+  const [publishDate, setPublishDate] = useState(initial?.publishDate || "");
+  const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
+  const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if the writer does it herself
+  // People added by hand, on top of whoever the routing rule attaches.
+  const [extraCollabs, setExtraCollabs] = useState<string[]>([]);
+  const [addingCollab, setAddingCollab] = useState(false);
+  const writerName = PPL[writer]?.name || writer;
+
+  const route = routeFor(type, status, writer);
+  // Everyone on the task once it saves: the rule's collaborators + the hand-picked
+  // ones, minus whoever ends up owning it (nobody is both owner and collaborator).
+  const collabKeys = Array.from(new Set([...route.collaborators, ...extraCollabs])).filter((k) => k !== route.ownerKey);
+  const notOnIt = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k) && !(route.pool && (k === "nikhil" || k === "nandu")));
+  const addable = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k));
+
+  // What's still missing, in the order the fields appear in the form. Drives both the
+  // button state and the popup — a disabled "Create task" now explains itself.
+  const missing = [
+    !title.trim() && "Particulars (the title)",
+    !publishDate && "Publishing date",
+    !sbu && "SBU (which brand it's for)",
+    !content.trim() && "Content (the brief)",
+  ].filter((x): x is string => !!x);
+  const canSubmit = missing.length === 0;
+  const [gate, setGate] = useState(false);
+  // Tell the panel whether there is anything worth warning about before discarding.
+  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || extraCollabs.length);
+  useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
+
+  function create() {
+    if (!canSubmit) { setGate(true); return; }
+    // Content-first: whatever status is chosen here, the task is always SAVED at
+    // "Content - Pending" on the writer, and the host moves it on afterwards through
+    // the same status route the board uses — so the Content-Approved handoff fires
+    // exactly as this form's routing preview promised, and only once.
+    onCreate({
+      title: title.trim(),
+      type, sbu, priority, status,
+      content: content.trim(),
+      publishDate,
+      collaborators: collabKeys,
+      assets: {
+        refLinks: refs.links,
+        refFiles: refs.files.map((f) => f.file),
+        outLink: output.links[0] || "",
+        outFiles: output.files.map((f) => f.file),
+      },
+      route,
+    });
+  }
+  return (
+    <>
+      <div className="nt-head">
+        <div>
+          <div className="lbl" style={{ marginBottom: ".35rem" }}>New task · created by {writerName}</div>
+          <div className="d-title">Create a content task</div>
+        </div>
+        <button className="nt-x" onClick={onClose} title="Close without creating"><IconX size={14} stroke={2} /></button>
+      </div>
+      <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
+      <div className="nt-row">
+        <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
+        <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
+      </div>
+      <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
+      <div className="nt-row">
+        <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={CC_SBUS.map((s) => ({ value: s, label: s }))} /></div>
+        <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as NewTaskStatus)} options={NEW_TASK_STATUSES.map((s) => ({ value: s, label: s }))} /></div>
+      </div>
+
+      {/* Live routing — recomputes on every Type / Status change so the creator can see
+          where the task actually lands BEFORE saving it. */}
+      <div className="nt-route">
+        <div className="nt-route-head">
+          <span className={`nt-route-dot ${route.pool ? "pool" : status === "Content - Approved" ? "on" : "wait"}`} />
+          <span className="nt-route-headline">{route.headline}</span>
+        </div>
+        <div className="nt-route-grid">
+          <div>
+            <div className="mlbl">Owner</div>
+            <div className="collab-cell">
+              {route.ownerKey ? <><Avatar p={PPL[route.ownerKey]} /><span className="collab-names">{route.ownerLabel}</span></> : <span className="collab-names">Unassigned</span>}
+            </div>
+          </div>
+          <div>
+            <div className="mlbl">Collaborators</div>
+            <div className="collab-cell" style={{ position: "relative" }}>
+              {collabKeys.length ? collabKeys.map((k) => {
+                // Rule-attached people (the writer on design work) are added by the
+                // server's own handoff — the form can't take them off, so the chip says
+                // "auto" instead of offering a × that wouldn't hold.
+                const auto = route.collaborators.includes(k);
+                return (
+                  <span key={k} className="collab-chip">
+                    <Avatar p={PPL[k]} />
+                    <span className="collab-names">{PPL[k].name}</span>
+                    {auto
+                      ? <span className="collab-auto" title="Added automatically on approval">auto</span>
+                      : <button type="button" className="collab-del" title={`Remove ${PPL[k].name}`} onClick={() => setExtraCollabs((xs) => xs.filter((x) => x !== k))}>×</button>}
+                  </span>
+                );
+              }) : <span className="collab-names" style={{ color: "var(--faint)" }}>None yet</span>}
+              {addable.length > 0 && <button type="button" className="collab-add" title="Add a collaborator" onClick={() => setAddingCollab((v) => !v)}>+</button>}
+              {addingCollab && (
+                <div className="collab-menu">
+                  {addable.map((k) => (
+                    <button key={k} type="button" className="collab-opt" onClick={() => { setExtraCollabs((xs) => [...xs, k]); setAddingCollab(false); }}>
+                      <Avatar p={PPL[k]} />{PPL[k].name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {route.pool && (
+            <div>
+              <div className="mlbl">Claim pool</div>
+              <div className="collab-cell">
+                <span className="collab-chip"><Avatar p={PPL.nikhil} /><span className="collab-names">Nikhil</span></span>
+                <span className="collab-chip"><Avatar p={PPL.nandu} /><span className="collab-names">Nandu</span></span>
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="mlbl">Not on this task</div>
+            <div className="collab-cell">
+              {notOnIt.length ? notOnIt.map((k) => (
+                <span key={k} className="collab-chip off" title={`${PPL[k].name} is not involved`}><Avatar p={PPL[k]} /><span className="collab-names">{PPL[k].name}</span></span>
+              )) : <span className="collab-names" style={{ color: "var(--faint)" }}>Everyone is on it</span>}
+            </div>
+          </div>
+        </div>
+        <div className="nt-route-why">{route.why}</div>
+      </div>
+
+      <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+      <div className="nt-field">
+        <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
+        <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />
+      </div>
+      <div className="nt-field">
+        <label className="nt-label">Output <span className="nt-hint">finishing it yourself? drop the ready creative here</span></label>
+        <PendingAssets oneLink hint="Upload the ready creative (images) + its Drive/Canva link — for tasks you can complete without a designer." value={output} onChange={setOutput} />
+      </div>
+      <div className="nt-actions">
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={create} style={canSubmit ? undefined : { opacity: .55 }} title={canSubmit ? undefined : `Still missing: ${missing.join(", ")}`}>Create task</button>
+      </div>
+      {gate && <MissingFieldsModal gate="create" missing={missing} title={title.trim() || "This task"} onClose={() => setGate(false)} />}
+    </>
+  );
+}

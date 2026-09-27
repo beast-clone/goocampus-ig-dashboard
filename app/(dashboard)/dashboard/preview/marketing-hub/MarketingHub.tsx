@@ -9,7 +9,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { NewTaskButton, NewTaskModal } from "@/components/NewTaskModal";
+import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
@@ -482,7 +482,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
 
       {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
 
-      <NewTaskButton facets={data?.facets} onCreated={refresh} />
+      <HubNewTaskButton onCreated={refresh} />
 
       {data && (
         <div className="text-xs text-gray-400 text-right">
@@ -1704,9 +1704,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       })()}
       <SaveFailureOverlay failure={failure} onClose={() => setFailure(null)} />
       {createDate && (
-        <NewTaskModal facets={facets} onClose={() => setCreateDate(null)}
+        <NewTaskDialog onClose={() => setCreateDate(null)}
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
-          initial={{ publishingDate: createDate, sbu: activeBrand || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
+          initial={{ publishDate: createDate, sbu: activeBrand || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
       )}
     </div>
   );
@@ -3660,5 +3660,23 @@ function LinkRow({ label, href }: { label: string; href: string }) {
       <span className="text-gray-500 w-20">{label}</span>
       <a href={href} target="_blank" rel="noreferrer" className="text-brand hover:underline truncate">{href}</a>
     </div>
+  );
+}
+
+// The hub's own "+ New task" affordance. It only owns the button and the open/closed
+// state — the form inside is the shared one, the same component My Day renders, so
+// the two can't drift apart.
+function HubNewTaskButton({ onCreated }: { onCreated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-20 right-5 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
+      >
+        <span className="text-lg leading-none">+</span> New task
+      </button>
+      {open && <NewTaskDialog onClose={() => setOpen(false)} onCreated={onCreated} />}
+    </>
   );
 }

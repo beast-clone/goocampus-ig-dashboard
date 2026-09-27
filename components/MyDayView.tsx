@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import { NewTaskButton } from "@/components/NewTaskModal";
+import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { useApi } from "@/lib/use-api";
 import { IconPin, IconClipboardList, IconMovie, IconUsers, IconPaperclip, IconCloudUpload, IconCheck, IconTrash, IconMessageCircle, IconCalendar, IconSun, IconCloud, IconCloudRain, IconMoon, IconNote, IconClipboardText, IconClockHour4, IconPlus, IconSend } from "@tabler/icons-react";
 import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -335,7 +335,7 @@ export function MyDayView({ range, lockedPersonKey }: { range: { from: string; t
           <div className="bg-white border border-gray-100 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-base font-medium">My tasks <span className="text-xs text-gray-400 font-normal">· {mine.length}</span></div>
-              {person.key === "manya" && <NewTaskButton onCreated={refresh} variant="inline" label="Create task" />}
+              {person.key === "manya" && <V1CreateTaskButton onCreated={refresh} />}
             </div>
             {mine.length === 0 && (
               <div className="text-sm text-gray-400 py-10 text-center">{isLoading ? "Loading…" : "Nothing on your plate right now."}</div>
@@ -1811,5 +1811,23 @@ function EditForm({ row, accent, currentRank, onClose, onCancel, onSaved }: {
         </button>
       </div>
     </div>
+  );
+}
+
+// V1's "Create task" opens the same shared form the V2 My Day panel and the Content
+// Calendar use — one form everywhere, so the fields and the routing preview can't
+// drift between the old view and the new one.
+function V1CreateTaskButton({ onCreated }: { onCreated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="bg-brand text-white rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90 transition flex items-center gap-2 shadow-sm"
+      >
+        <span className="text-lg leading-none">+</span> Create task
+      </button>
+      {open && <NewTaskDialog onClose={() => setOpen(false)} onCreated={onCreated} />}
+    </>
   );
 }
