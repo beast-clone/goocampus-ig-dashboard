@@ -1,0 +1,217 @@
+import { getSupabase } from "@/lib/supabase";
+import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { normalizeOwner } from "@/lib/task-create";
+import { CONTENT_TYPES } from "@/lib/mh-content-types";
+import { SBU_OPTIONS } from "@/lib/sbus";
+import { listItems } from "@/lib/content-radar";
+
+// The read and update half of the Claude connector.
+//
+// create_task alone meant Claude could put things on the board but never look at it —
+// so it could not answer "what is Manya working on", and every update had to be done by
+// hand in the dashboard afterwards. These give it eyes, and one carefully limited hand.
+//
+// Deliberately no delete. Agreed with Praveen L on 27 Sep 2026: a model that can remove
+// a task is one bad instruction away from removing the wrong one, and the recycle bin is
+// a dashboard feature a person should be choosing to use.
+
+const sb = () => {
+  const c = getSupabase();
+  if (!c) throw new Error("Supabase not configured");
+  return c;
+};
+
+/** The columns a person actually needs to see. Not select("*") — the row carries caches,
+ *  attempt counters and Slack blobs that are noise in a chat reply. */
+const COLS = "id, particulars, type, status, sbu, owner_key, priority, publishing_date, due_date, caption, content, instagram_url, facebook_url, linkedin_url, created_at, updated_at";
+
+type Row = {
+  id: string; particulars: string | null; type: string | null; status: string | null;
+  sbu: string | null; owner_key: string | null; priority: string | null;
+  publishing_date: string | null; due_date: string | null;
+  caption: string | null; content: string | null;
+  instagram_url: string | null; facebook_url: string | null; linkedin_url: string | null;
+  created_at: string; updated_at: string | null;
+};
+
+/** One task, flattened for a chat reply. Long fields are trimmed — Claude can ask for
+ *  the full text with get_task if it needs it, and a list of twenty full captions is
+ *  unreadable either way. */
+function brief(r: Row, origin: string, full = false) {
+  const cut = (s: string | null, n: number) => (!s ? null : s.length > n ? `${s.slice(0, n)}…` : s);
+  return {
+    id: r.id,
+    title: r.particulars,
+    type: r.type,
+    status: r.status,
+    brand: r.sbu,
+    owner: r.owner_key,
+    priority: r.priority,
+    publishing_date: r.publishing_date,
+    due_date: r.due_date,
+    caption: full ? r.caption : cut(r.caption, 160),
+    content: full ? r.content : cut(r.content, 160),
+    published: [r.instagram_url, r.facebook_url, r.linkedin_url].filter(Boolean),
+    link: `${origin}/dashboard/preview/marketing-hub?tab=master&open=${r.id}`,
+  };
+}
+
+export async function listTasks(args: Record<string, unknown>, origin: string) {
+  const s = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
+  const limit = Math.min(50, Math.max(1, Number(args.limit) || 20));
+
+  let q = sb().from("mh_posts").select(COLS);
+  const owner = normalizeOwner(s("owner")) || s("owner");
+  if (owner) q = q.eq("owner_key", owner);
+  if (s("status")) q = q.eq("status", s("status"));
+  if (s("brand")) q = q.eq("sbu", s("brand"));
+  if (s("type")) q = q.eq("type", s("type"));
+  if (s("from")) q = q.gte("publishing_date", s("from"));
+  if (s("to")) q = q.lte("publishing_date", s("to"));
+
+  const { data, error } = await q.order("publishing_date", { ascending: true, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  const rows = (data as Row[] | null) || [];
+  return { count: rows.length, tasks: rows.map((r) => brief(r, origin)) };
+}
+
+export async function getTask(args: Record<string, unknown>, origin: string) {
+  const id = typeof args.id === "string" ? args.id.trim() : "";
+  if (!id) throw new Error("id is required");
+  const { data, error } = await sb().from("mh_posts").select(COLS).eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`No task with id ${id}.`);
+  return brief(data as Row, origin, true);
+}
+
+export async function searchTasks(args: Record<string, unknown>, origin: string) {
+  const q = typeof args.query === "string" ? args.query.trim() : "";
+  if (!q) throw new Error("query is required");
+  const limit = Math.min(50, Math.max(1, Number(args.limit) || 20));
+  // Escape the PostgREST or() separators so a query containing a comma or a bracket
+  // cannot break out of the filter it is embedded in.
+  const safe = q.replace(/[(),*]/g, " ").trim();
+  if (!safe) throw new Error("query had nothing searchable in it");
+  const { data, error } = await sb()
+    .from("mh_posts").select(COLS)
+    .or(`particulars.ilike.%${safe}%,caption.ilike.%${safe}%,content.ilike.%${safe}%`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  const rows = (data as Row[] | null) || [];
+  return { count: rows.length, query: q, tasks: rows.map((r) => brief(r, origin)) };
+}
+
+export async function whatsDue(args: Record<string, unknown>, origin: string) {
+  const days = Math.min(30, Math.max(0, Number(args.days ?? 1)));
+  // The team's day, in IST — "due tomorrow" has to mean their tomorrow.
+  const istNow = Date.now() + 5.5 * 3_600_000;
+  const today = new Date(istNow).toISOString().slice(0, 10);
+  const until = new Date(istNow + days * 86_400_000).toISOString().slice(0, 10);
+
+  const { data, error } = await sb()
+    .from("mh_posts").select(COLS)
+    .lte("publishing_date", until)
+    .not("publishing_date", "is", null)
+    .order("publishing_date", { ascending: true })
+    .limit(60);
+  if (error) throw new Error(error.message);
+
+  const rows = (data as Row[] | null) || [];
+  const done = new Set(["Published/Scheduled", "Ready to Publish"]);
+  const open = rows.filter((r) => !done.has(r.status || ""));
+  return {
+    today, until,
+    overdue: open.filter((r) => (r.publishing_date || "") < today).map((r) => brief(r, origin)),
+    due: open.filter((r) => (r.publishing_date || "") >= today).map((r) => brief(r, origin)),
+  };
+}
+
+// The fields Claude may change. Content and caption are here because rewriting copy is
+// the point of the thing; the brand is NOT, because moving a task between brands changes
+// who is accountable for it and which page it publishes to.
+const UPDATABLE = ["status", "publishing_date", "due_date", "priority", "owner", "caption", "content", "type"] as const;
+
+export async function updateTask(args: Record<string, unknown>, userId: string, origin: string) {
+  const id = typeof args.id === "string" ? args.id.trim() : "";
+  if (!id) throw new Error("id is required");
+
+  const s = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : undefined);
+  const patch: Record<string, unknown> = {};
+
+  if (s("status") !== undefined) patch.status = s("status");
+  if (s("priority") !== undefined) patch.priority = s("priority");
+  if (s("caption") !== undefined) patch.caption = s("caption");
+  if (s("content") !== undefined) patch.content = s("content");
+  if (s("type") !== undefined) {
+    const t = s("type")!;
+    if (!(CONTENT_TYPES as readonly string[]).includes(t)) {
+      throw new Error(`"${t}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}`);
+    }
+    patch.type = t;
+  }
+  for (const [k, col] of [["publishing_date", "publishing_date"], ["due_date", "due_date"]] as const) {
+    const v = s(k);
+    if (v !== undefined) {
+      if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error(`${k} must be YYYY-MM-DD.`);
+      patch[col] = v || null;
+    }
+  }
+  if (s("owner") !== undefined) {
+    const o = normalizeOwner(s("owner"));
+    if (!o) throw new Error(`"${s("owner")}" isn't someone on the team.`);
+    patch.owner_key = o;
+  }
+
+  if (!Object.keys(patch).length) {
+    throw new Error(`Nothing to change. You can set: ${UPDATABLE.join(", ")}.`);
+  }
+
+  const before = await sb().from("mh_posts").select(COLS).eq("id", id).maybeSingle();
+  if (before.error) throw new Error(before.error.message);
+  if (!before.data) throw new Error(`No task with id ${id}.`);
+
+  patch.updated_at = new Date().toISOString();
+  const { data, error } = await sb().from("mh_posts").update(patch).eq("id", id).select(COLS).single();
+  if (error) throw new Error(error.message);
+
+  // The trail matters more here than anywhere else in the dashboard: this is a change
+  // nobody watched happen. Best-effort, because the edit is already committed and a
+  // logging hiccup must not report a successful change as failed.
+  try {
+    const changed = Object.keys(patch).filter((k) => k !== "updated_at");
+    await sb().from("mh_activity").insert({
+      post_id: id, actor_key: userId, action: "updated",
+      to_value: changed.join(", "),
+      detail: { source: "claude-connector", fields: changed },
+    });
+  } catch { /* courtesy trail */ }
+  bustMarketingHubCache();
+
+  return {
+    updated: Object.keys(patch).filter((k) => k !== "updated_at"),
+    task: brief(data as Row, origin, true),
+  };
+}
+
+/** What Content Radar is showing right now. Read-only — acting on an item is
+ *  create_task's job, so that the usual rules and the activity trail still apply. */
+export async function listRadar(args: Record<string, unknown>) {
+  const limit = Math.min(50, Math.max(1, Number(args.limit) || 15));
+  const items = await listItems({ limit: limit * 2 });
+  const MAX_AGE_DAYS = 30;
+  const fresh = items.filter((i) => (Date.now() - new Date(i.publishedAt).getTime()) / 86_400_000 <= MAX_AGE_DAYS);
+  return {
+    count: Math.min(fresh.length, limit),
+    items: fresh.slice(0, limit).map((i) => ({
+      title: i.title,
+      source: i.source || i.alertName,
+      topic: i.primaryInterest,
+      published: i.publishedAt,
+      url: i.link,
+      snippet: i.snippet ? i.snippet.slice(0, 200) : null,
+    })),
+  };
+}
+
+export const VALID_BRANDS = SBU_OPTIONS;

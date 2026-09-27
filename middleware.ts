@@ -25,6 +25,16 @@ const PUBLIC_API_ROUTES = new Set<string>([
 // CRON routes that auth themselves via x-cron-secret header — middleware should NOT gate them
 const CRON_PREFIX = "/api/cron";
 
+// The Claude connector authenticates with a personal key, either in the Authorization
+// header (/api/mcp) or in the path (/api/mcp/<key>, for Claude Desktop and claude.ai,
+// which give you nowhere to put a header). A prefix rather than an exact match, because
+// the key form puts the credential IN the path — so "/api/mcp" alone never matches it.
+//
+// It is also exempt from the CSRF origin check below: these requests come from a
+// desktop app or a server, so there is no same-origin header to compare, and the key
+// is doing the job the cookie would have done.
+const MCP_PREFIX = "/api/mcp";
+
 const MUTATING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
 // Hex-encoded HMAC-SHA256 of `payload` using `secret`.
@@ -84,7 +94,8 @@ export async function middleware(req: NextRequest) {
   if (
     MUTATING_METHODS.has(method) &&
     !PUBLIC_API_ROUTES.has(pathname) &&
-    !pathname.startsWith(CRON_PREFIX)
+    !pathname.startsWith(CRON_PREFIX) &&
+    !pathname.startsWith(MCP_PREFIX)
   ) {
     const origin = req.headers.get("origin") || req.headers.get("referer") || "";
     const host = req.headers.get("host") || "";
@@ -116,6 +127,11 @@ export async function middleware(req: NextRequest) {
 
   // Cron routes auth themselves
   if (pathname.startsWith(CRON_PREFIX)) {
+    return NextResponse.next();
+  }
+
+  // So does the Claude connector, by key.
+  if (pathname.startsWith(MCP_PREFIX)) {
     return NextResponse.next();
   }
 
