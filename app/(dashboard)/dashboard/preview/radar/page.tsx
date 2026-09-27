@@ -901,7 +901,7 @@ function FeedRow({ item, onRead, showTopic, acts }: { item: FeedItem; onRead: ()
       </button>
       {/* Write it, or say in one tap that you looked and it isn't worth writing. Both
           clear the row tonight; only one of them costs you an hour. */}
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         <Link href={studioHref(item)}
           className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
           <IconPencil size={13} stroke={1.8} /> Write this
@@ -988,7 +988,7 @@ function RadarMentionRow({ m, lane, acts }: { m: WebMention; lane: string; acts:
           {m.snippet && <><span className="opacity-50">·</span><span className="truncate max-w-[42ch]">{m.snippet}</span></>}
         </div>
       </div>
-      <div className="flex flex-col gap-1.5 shrink-0 items-end">
+      <div className="flex items-center gap-1.5 shrink-0">
         <Link href={draftFromQuery(m.title, `From web mention: ${m.title}
 Source: ${m.source || lane}
 URL: ${m.url}`)}
@@ -1045,7 +1045,7 @@ function RadarReviewRow({ r, acts, mapsUrl }: {
           <span className="opacity-50">·</span><span>Google Reviews</span>
         </div>
       </div>
-      <div className="flex flex-col gap-1.5 shrink-0 items-end">
+      <div className="flex items-center gap-1.5 shrink-0">
         {bad ? (
           <a href={r.link || mapsUrl || "#"} target="_blank" rel="noreferrer"
             className="inline-flex items-center gap-1 text-[11px] font-medium text-[#C03221] hover:underline whitespace-nowrap">
@@ -1095,7 +1095,7 @@ function RadarSearchRow({ term, acts }: { term: string; acts: RadarActionsState 
           <span className="opacity-50"> · </span>rising in India — nothing from you on this yet
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         <Link href={draftFromQuery(term, `Rising search: ${term}
 Source: Google Trends`)}
           className="inline-flex items-center justify-center gap-1 text-[11.5px] font-medium bg-brand text-white rounded-lg px-2.5 py-1.5 hover:bg-brand-dark whitespace-nowrap">
