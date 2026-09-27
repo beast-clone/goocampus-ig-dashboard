@@ -113,6 +113,18 @@ export async function runSkill(
     ? `${customPrompt.trim()}\n\n---\n\nTASK:\n${task}`
     : `FRAMEWORK — "${meta.name}":\n\n${doc}\n\n---\n\nTASK:\n${task}\n\nApply the framework above to this task for GooCampus and return the finished deliverable.`;
 
+  // Everything the usage report needs to say what this run was, gathered once and
+  // handed to whichever engine runs it. Without it every playbook row reads "playbook"
+  // and the report cannot tell a WhatsApp template from a 90-day marketing plan.
+  const detail = {
+    slug,
+    label: meta.name,
+    taskText: task,
+    usedCustom: !!customPrompt?.trim(),
+    customPrompt: customPrompt?.trim() || undefined,
+  };
+  const startedAt = Date.now();
+
   // Pillar Content is the deep explainer — give it a much larger budget so it can go long.
   const isPillar = slug === "pillar-content";
   const maxTokens = isPillar ? 4200 : 2800;
@@ -121,12 +133,15 @@ export async function runSkill(
   if (engine === "claude") {
     const { text, citations, usage } = await askClaudeViaPerplexity(system, user, {
       model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
+      detail: Object.assign(detail, { get durationMs() { return Date.now() - startedAt; } }),
     });
     return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
   }
 
   const { text, citations, usage } = await askPerplexity(system, user, {
     model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
+    // durationMs is read when the row is written, which is after the call returns.
+    detail: Object.assign(detail, { get durationMs() { return Date.now() - startedAt; } }),
   });
   return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
 }

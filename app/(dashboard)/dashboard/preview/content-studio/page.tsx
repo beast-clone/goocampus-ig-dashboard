@@ -4,6 +4,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { useSearchParams } from "next/navigation";
 import { PlaybooksLibrary } from "./PlaybooksLibrary";
 import { StudioCreate } from "./StudioCreate";
+import { UsageReport } from "./UsageReport";
 
 // Content Studio — where a story becomes a task.
 //
@@ -26,8 +27,21 @@ type SkillMeta = { slug: string; name: string; category: string; description: st
 
 function StudioTabs() {
   const sp = useSearchParams();
-  const [tab, setTab] = useState<"create" | "playbooks">(sp.get("tab") === "playbooks" ? "playbooks" : "create");
+  const initial = sp.get("tab");
+  const [tab, setTab] = useState<"create" | "playbooks" | "report">(
+    initial === "playbooks" ? "playbooks" : initial === "report" ? "report" : "create");
   const [skills, setSkills] = useState<SkillMeta[]>([]);
+  // The Report tab is admin-only and simply is not shown to anyone else — the endpoint
+  // refuses them, so a visible tab would be a door that never opens.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setIsAdmin(!!d?.user?.isAdmin); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -46,15 +60,17 @@ function StudioTabs() {
   return (
     <div className="preview-scope">
       <div className="flex items-center gap-2 mb-5">
-        {(["create", "playbooks"] as const).map((k) => (
+        {(["create", "playbooks", ...(isAdmin ? ["report" as const] : [])] as const).map((k) => (
           <button key={k} onClick={() => setTab(k)}
             className={`text-[13px] font-medium px-4 py-2 rounded-xl border transition ${
               tab === k ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-gray-300"}`}>
-            {k === "create" ? "Create" : "Playbooks"}
+            {k === "create" ? "Create" : k === "playbooks" ? "Playbooks" : "Report"}
           </button>
         ))}
       </div>
-      {tab === "create" ? <StudioCreate playbooks={writing} /> : <PlaybooksLibrary />}
+      {tab === "create" ? <StudioCreate playbooks={writing} />
+        : tab === "playbooks" ? <PlaybooksLibrary />
+        : <UsageReport />}
     </div>
   );
 }

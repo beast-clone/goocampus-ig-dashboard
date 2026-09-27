@@ -51,8 +51,13 @@ export async function factCheck(title: string, url?: string | null): Promise<Fac
     "Is this accurate as written, right now? What is actually confirmed?",
   ].filter(Boolean).join("\n");
 
+  const startedAt = Date.now();
   const { text, citations } = await askPerplexity(system, user, {
     model: "sonar-pro", maxTokens: 900, temperature: 0.1, timeoutMs: 40_000, feature: "studio-factcheck",
+    detail: {
+      slug: "factcheck", label: "Fact-check", taskText: title, usedCustom: false,
+      get durationMs() { return Date.now() - startedAt; },
+    },
   });
 
   const parsed = looseJson(text);
@@ -175,8 +180,19 @@ export async function writeDraft(b: Brief): Promise<{ text: string; model: strin
     "You are a senior content writer for an education consultancy. You produce finished, publishable copy.",
     "Never ask questions. Never explain your reasoning. Return only the copy itself.",
   ].join("\n");
+  const startedAt = Date.now();
   const { text } = await askClaudeViaPerplexity(system, buildPrompt(b), {
     maxTokens: 2200, temperature: 0.6, timeoutMs: 90_000, feature: "studio-write",
+    detail: {
+      slug: b.playbook || "write",
+      // The format and brand are the useful label here — "Carousel · India NEET PG
+      // Consulting" says more in a report row than the word "write".
+      label: `${b.format} · ${b.brand}`,
+      taskText: b.title,
+      usedCustom: !!b.extra?.trim(),
+      customPrompt: b.extra?.trim() || undefined,
+      get durationMs() { return Date.now() - startedAt; },
+    },
   });
   return { text: text.trim(), model: "claude-sonnet-4-5" };
 }

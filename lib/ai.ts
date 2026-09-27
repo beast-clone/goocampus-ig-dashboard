@@ -20,8 +20,23 @@ export type Usage = { prompt: number; completion: number; total: number; cost?: 
 // Every call below writes one row to Supabase `ai_usage` (sql/012_ai_usage.sql):
 // feature, signed-in user, model, tokens and the dollar cost Perplexity reports.
 // Never throws and never delays the caller — a logging failure must not break AI.
-type CallOpts = { feature?: string };
-function recordUsage(feature: string | undefined, model: string, usage: Usage | null, error?: unknown) {
+/**
+ * What the run was, not just what it cost.
+ *
+ * `feature` alone made every playbook row identical — 'playbook', 200 times — so the
+ * bill was visible and the work behind it was not. See sql/024_ai_usage_detail.sql.
+ */
+export type UsageDetail = {
+  slug?: string;          // which playbook, or which Studio step
+  label?: string;         // its name at the time, so a rename cannot orphan old rows
+  taskText?: string;      // what the person typed
+  usedCustom?: boolean;   // did they replace the framework with their own prompt
+  customPrompt?: string;  // and what it said
+  durationMs?: number;    // wall-clock, filled in by the caller
+};
+type CallOpts = { feature?: string; detail?: UsageDetail };
+
+function recordUsage(feature: string | undefined, model: string, usage: Usage | null, error?: unknown, detail?: UsageDetail) {
   void (async () => {
     try {
       const sb = getSupabase();
@@ -33,6 +48,13 @@ function recordUsage(feature: string | undefined, model: string, usage: Usage | 
         prompt_tokens: usage?.prompt || 0, completion_tokens: usage?.completion || 0,
         cost_usd: usage?.cost ?? null, ok: !error,
         error: error ? String(error instanceof Error ? error.message : error).slice(0, 300) : null,
+        slug: detail?.slug || null,
+        label: detail?.label || null,
+        // Capped: these are free text and the report renders them in a table.
+        task_text: detail?.taskText ? detail.taskText.slice(0, 4000) : null,
+        used_custom: detail?.usedCustom === true,
+        custom_prompt: detail?.usedCustom && detail?.customPrompt ? detail.customPrompt.slice(0, 8000) : null,
+        duration_ms: typeof detail?.durationMs === "number" ? Math.round(detail.durationMs) : null,
       });
     } catch { /* table missing or Supabase down — skip */ }
   })();
@@ -67,10 +89,10 @@ export async function askPerplexity(
     const citations: string[] = j.citations || (j.search_results || []).map((s: { url: string }) => s.url) || [];
     const u = j.usage || {};
     const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
-    recordUsage(opts?.feature, model, usage);
+    recordUsage(opts?.feature, model, usage, undefined, opts?.detail);
     return { text: j.choices?.[0]?.message?.content || "", citations, usage };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e);
+    recordUsage(opts?.feature, model, null, e, opts?.detail);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -121,10 +143,10 @@ export async function askClaudeViaPerplexity(
       .filter(Boolean);
     const u = j.usage || {};
     const usage: Usage = { prompt: u.input_tokens || 0, completion: u.output_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
-    recordUsage(opts?.feature, model, usage);
+    recordUsage(opts?.feature, model, usage, undefined, opts?.detail);
     return { text, citations, usage };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e);
+    recordUsage(opts?.feature, model, null, e, opts?.detail);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -143,10 +165,10 @@ export async function askPerplexityAsync(
   const model = opts?.model || "sonar-deep-research";
   try {
     const out = await askPerplexityAsyncInner(system, user, model, opts);
-    recordUsage(opts?.feature, model, out.usage);
+    recordUsage(opts?.feature, model, out.usage, undefined, opts?.detail);
     return { text: out.text, citations: out.citations };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e);
+    recordUsage(opts?.feature, model, null, e, opts?.detail);
     throw e;
   }
 }
