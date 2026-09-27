@@ -76,7 +76,7 @@ jumping to Praveen once it passes Content - Approved.
 - The claiming editor is not offered "give it to the other editor". Only themselves or
   Praveen, as agreed.
 
-## Open problem: a second, invisible thumbnail spawner
+## Resolved: the second, invisible thumbnail spawner
 
 Found while testing on 27 Sep 2026. Creating a reel produced **two** thumbnail
 tasks, not one:
@@ -89,10 +89,15 @@ That second one is not created by this codebase. It is not in `app/`, not in `sq
 not anywhere in git history, and there is no n8n workflow for it — so it is a trigger
 or function living directly in the Supabase database, added outside this repo.
 
-It is almost certainly the reason thumbnails kept landing on Praveen no matter what
-the team wanted, which is the complaint this whole flow exists to fix. **Until it is
-removed, every video task gets a duplicate thumbnail and Praveen is still assigned one
-automatically.**
+Identified on 27 Sep 2026 as the trigger `mh_trg_spawn_thumbnail`. It fired on every
+insert of a reel or YouTube video — including rows from the Airtable sync and n8n —
+and always set the owner to Praveen. It IS the reason thumbnails kept landing on him
+regardless of intent.
+
+`sql/021_thumbnail_flow_db.sql` removes it, and also stops `mh_fn_assign_owner` (a
+second rule, found at the same time) from grabbing a parked thumbnail whose null owner
+means "not decided yet". Every trigger on the table is now written up in
+docs/DB_TRIGGERS.md.
 
 To find it:
 
