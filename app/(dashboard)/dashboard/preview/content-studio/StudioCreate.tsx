@@ -363,7 +363,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
           <h3 className="text-[15px] font-semibold text-[#232D42] mb-1">It&apos;s on the board</h3>
           <p className="text-[13px] text-[#8A92A6] mb-4">{particulars}</p>
           <div className="flex gap-2 justify-center">
-            <Link href={`/dashboard/preview/marketing-hub?open=${made}`}
+            <Link href={`/dashboard/preview/marketing-hub?tab=master&open=${made}`}
               className="text-[13px] font-semibold bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark">Open the task</Link>
             <button onClick={onClose} className="text-[13px] text-[#8A92A6] px-3 hover:text-[#232D42]">Done</button>
           </div>

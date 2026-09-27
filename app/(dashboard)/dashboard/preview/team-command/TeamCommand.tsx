@@ -219,7 +219,7 @@ export function TeamCommand() {
                 <div className="tc-appr-top">
                   <div className="tc-appr-ico"><IconCalendarDue size={18} stroke={1.8} /></div>
                   <div className="tc-appr-hd">
-                    <a className="tc-appr-title" href={`/dashboard/preview/marketing-hub?open=${r.postId}`}>{r.title}</a>
+                    <a className="tc-appr-title" href={`/dashboard/preview/marketing-hub?tab=master&open=${r.postId}`}>{r.title}</a>
                     <div className="tc-appr-sub">{r.type || "Task"}{r.createdAt ? ` · created ${fmtFull(r.createdAt)}` : ""}</div>
                   </div>
                   <span className="tc-appr-flag">Awaiting you</span>
@@ -299,7 +299,7 @@ export function TeamCommand() {
                 <span className="tc-now-lbl"><IconClock size={13} stroke={1.9} /> Now</span>
                 {/* Plain <a> (full nav) — the Marketing Hub opens the task modal from
                     ?open= on load; a client-side Link doesn't re-trigger that fetch. */}
-                <a href={`/dashboard/preview/marketing-hub?open=${cur.current!.id}`} className="tc-now-task">{cur.current!.title}</a>
+                <a href={`/dashboard/preview/marketing-hub?tab=master&open=${cur.current!.id}`} className="tc-now-task">{cur.current!.title}</a>
                 {rl
                   ? <span className="tc-long">{rl.stuck ? "Stuck since a previous day" : `${fmtDur(rl.over)} over the ${fmtDur(plannedFor(cur.current!))} estimate`}</span>
                   : <span className="tc-ok">{fmtDur(elapsedMin(cur.current!.detail.startAt))} in · on track</span>}
@@ -332,7 +332,7 @@ export function TeamCommand() {
               {cur.tasks.map((t) => {
                 const st = statusStyle(t.status); const overdue = !!t.due && t.due < today; const rl = runLong(t, today);
                 return (
-                  <a key={t.id} href={`/dashboard/preview/marketing-hub?open=${t.id}`} className="tc-taskrow">
+                  <a key={t.id} href={`/dashboard/preview/marketing-hub?tab=master&open=${t.id}`} className="tc-taskrow">
                     <span className="tc-t-main">
                       <span className="tc-t-title">{t.title}</span>
                       <span className="tc-t-meta">{t.detail.typeLine} · {t.detail.brand}</span>

@@ -33,7 +33,10 @@ const MAX_VISIBLE = 3;
 export const NOTIF_REFRESH = "gc-notif-refresh"; // fire after changing state elsewhere
 export const NOTIF_COUNT = "gc-notif-count";     // detail: { unread, action }
 export const NOTIF_CENTER = "/dashboard/preview/notifications";
-export const taskHref = (postId: string) => `/dashboard/preview/marketing-hub?open=${postId}`;
+// tab=master matters: without it the task modal opens over the Workload view, which is
+// a day-capacity planner — so closing the modal leaves you on somebody's timeline
+// rather than on the task you just opened.
+export const taskHref = (postId: string) => `/dashboard/preview/marketing-hub?tab=master&open=${postId}`;
 
 export async function patchNotifs(body: { op: "read" | "dismiss" | "popped" | "delete"; ids?: string[]; all?: boolean; category?: string }) {
   const r = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

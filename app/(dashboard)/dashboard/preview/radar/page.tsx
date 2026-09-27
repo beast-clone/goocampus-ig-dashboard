@@ -759,7 +759,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
   // excludes it, so this always lands on the task itself.
   if (madeId) {
     return (
-      <Link href={`/dashboard/preview/marketing-hub?open=${madeId}`}
+      <Link href={`/dashboard/preview/marketing-hub?tab=master&open=${madeId}`}
         className="shrink-0 self-center inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[#2F9E6F] bg-[#E8F6F0] hover:bg-[#d9f0e6] px-3 py-1.5 rounded-lg whitespace-nowrap">
         <IconCheck size={13} stroke={2.2} /> Task created — open it
       </Link>

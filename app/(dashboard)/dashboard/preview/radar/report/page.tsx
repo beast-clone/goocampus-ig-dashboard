@@ -177,7 +177,7 @@ function FragmentDay({ d }: { d: Day }) {
               {/* A claim of work links to the work. "Written" with nothing behind it is
                   exactly the kind of number this report exists to stop. */}
               {it.taskId ? (
-                <Link href={`/dashboard/preview/marketing-hub?open=${it.taskId}`} className="text-brand hover:underline">
+                <Link href={`/dashboard/preview/marketing-hub?tab=master&open=${it.taskId}`} className="text-brand hover:underline">
                   {it.by || "Open task"}
                 </Link>
               ) : it.by || "—"}
