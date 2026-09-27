@@ -125,11 +125,21 @@ function ClaudeConnector() {
       <Step n={1} title="Get your key">
         {key ? (
           <>
-            <p className="text-[12.5px] text-[#C03221] mb-2 flex items-start gap-1.5">
-              <IconAlertTriangle size={14} className="shrink-0 mt-0.5" />
-              This is the only time you&apos;ll see it. Copy it now — if you lose it, make a new one.
+            <p className="text-[13px] text-[#0F6E3C] bg-[#E3F5EA] border border-[#BFE6CD] rounded-lg px-3 py-2 mb-2 flex items-start gap-1.5">
+              <IconCheck size={15} stroke={2.2} className="shrink-0 mt-0.5" />
+              <span>
+                <b className="font-semibold">Done — your key is ready.</b> You don&apos;t need to copy it
+                or type it anywhere: it&apos;s already inside the link in step&nbsp;2. Just hit Copy there.
+              </span>
             </p>
-            <CopyBox value={key} />
+            <p className="text-[12px] text-[#8A92A6] flex items-start gap-1.5">
+              <IconAlertTriangle size={13} className="shrink-0 mt-0.5 text-[#C03221]" />
+              This is the only time it&apos;s shown. You don&apos;t have to save it — if you ever need it
+              again, just make a new one.
+            </p>
+            <code className="mt-1.5 block break-all rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-1.5 text-[11.5px] text-[#8A92A6] font-mono select-all">
+              {key}
+            </code>
           </>
         ) : st.connected ? (
           <div className="flex items-center gap-3 flex-wrap">
@@ -173,8 +183,12 @@ function ClaudeConnector() {
         {platform === "terminal" ? (
           <>
             <Num n="1">Open your terminal.</Num>
-            <Num n="2">Paste this line and press Enter:</Num>
-            <div className="ml-6 mb-2"><CopyBox value={cmd} mono /></div>
+            <Num n="2">
+              Paste this whole line and press Enter — {key
+                ? "your key is already in it."
+                : <>make a key in step&nbsp;1 first so this comes out ready to run.</>}
+            </Num>
+            <div className="ml-6 mb-2"><CopyBox value={cmd} mono ready={!!key} /></div>
             <Num n="3">Restart Claude Code. Type <b className="font-medium text-[#4A5468]">/mcp</b> to check it says <i>goocampus</i>.</Num>
           </>
         ) : (
@@ -185,13 +199,14 @@ function ClaudeConnector() {
                 : "Open claude.ai, click your name at the bottom left, then Settings → Connectors."}
             </Num>
             <Num n="2">Click <b className="font-medium text-[#4A5468]">Add custom connector</b>.</Num>
-            <Num n="3">Name it <b className="font-medium text-[#4A5468]">GooCampus</b> and paste this as the URL:</Num>
-            <div className="ml-6 mb-2"><CopyBox value={url} mono /></div>
-            <Num n="4">
-              Click Add. {key
-                ? "Your key is already in that link — that's what signs you in."
-                : "Replace YOUR-KEY with the key from step 1 — that's what signs you in."}
+            <Num n="3">
+              Name it <b className="font-medium text-[#4A5468]">GooCampus</b>, then paste this whole line
+              into the URL box — {key
+                ? "it already has your key in it, so there is nothing to fill in."
+                : <>make a key in step&nbsp;1 first and this becomes a finished link you can copy.</>}
             </Num>
+            <div className="ml-6 mb-2"><CopyBox value={url} mono ready={!!key} /></div>
+            <Num n="4">Click Add.</Num>
             <Num n="5">Start a new chat and ask <i>&ldquo;what&apos;s on the content board?&rdquo;</i> to check it worked.</Num>
           </>
         )}
@@ -290,7 +305,7 @@ function Can({ yes, children }: { yes?: boolean; children: React.ReactNode }) {
   );
 }
 
-function CopyBox({ value, mono }: { value: string; mono?: boolean }) {
+function CopyBox({ value, mono, ready }: { value: string; mono?: boolean; ready?: boolean }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try { await navigator.clipboard.writeText(value); } catch { /* the text is selectable either way */ }
@@ -298,12 +313,15 @@ function CopyBox({ value, mono }: { value: string; mono?: boolean }) {
   };
   return (
     <div className="flex items-start gap-2">
-      <code className={`flex-1 min-w-0 break-all rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-2 text-[12px] text-[#232D42] ${mono ? "font-mono" : ""}`}>
+      <code className={`flex-1 min-w-0 break-all rounded-lg px-3 py-2 text-[12px] text-[#232D42] border ${
+        ready ? "bg-brand-light border-[#C7CFF2]" : "bg-[#F6F7FB] border-gray-100"} ${mono ? "font-mono" : ""}`}>
         {value}
       </code>
       <button onClick={copy}
         className={`h-9 px-3 rounded-lg border text-[12.5px] font-medium shrink-0 inline-flex items-center gap-1.5 transition ${
-          copied ? "border-[#BFE6CD] bg-[#E3F5EA] text-[#0F6E3C]" : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
+          copied ? "border-[#BFE6CD] bg-[#E3F5EA] text-[#0F6E3C]"
+          : ready ? "bg-brand border-brand text-white hover:bg-brand-dark"
+          : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
         {copied ? <IconCheck size={14} stroke={2} /> : <IconCopy size={14} stroke={1.8} />}
         {copied ? "Copied" : "Copy"}
       </button>
