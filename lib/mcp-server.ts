@@ -200,7 +200,11 @@ export async function handleRpc(msg: Rpc, userId: string, origin: string) {
 export const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+  // Every header name a client might carry the key in. Claude Desktop's picker
+  // refuses Authorization (reserved for OAuth) and offers these instead, so a
+  // browser-based client would fail preflight without them listed here.
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, MCP-Protocol-Version, x-api-key, api-key, apikey, x-apikey, x-api-token, api-token, x-auth-token",
   "Access-Control-Max-Age": "86400",
 };
 

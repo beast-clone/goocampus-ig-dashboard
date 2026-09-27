@@ -105,7 +105,9 @@ function ClaudeConnector() {
   }
 
   // The key is shown once, at creation. After that we only know that one exists.
-  const url = key ? `${origin}/api/mcp/${key}` : `${origin}/api/mcp/YOUR-KEY`;
+  const baseUrl = `${origin}/api/mcp`;
+  // Fallback form for any client that can only give a URL and no header.
+  const url = key ? `${baseUrl}/${key}` : `${baseUrl}/YOUR-KEY`;
   const cmd = key
     ? `claude mcp add --transport http --scope user goocampus ${origin}/api/mcp --header "Authorization: Bearer ${key}"`
     : `claude mcp add --transport http --scope user goocampus ${origin}/api/mcp --header "Authorization: Bearer YOUR-KEY"`;
@@ -128,8 +130,8 @@ function ClaudeConnector() {
             <p className="text-[13px] text-[#0F6E3C] bg-[#E3F5EA] border border-[#BFE6CD] rounded-lg px-3 py-2 mb-2 flex items-start gap-1.5">
               <IconCheck size={15} stroke={2.2} className="shrink-0 mt-0.5" />
               <span>
-                <b className="font-semibold">Done — your key is ready.</b> You don&apos;t need to copy it
-                or type it anywhere: it&apos;s already inside the link in step&nbsp;2. Just hit Copy there.
+                <b className="font-semibold">Done — your key is ready.</b> Step&nbsp;2 tells you exactly
+                where each part goes, with a Copy button beside it. Nothing to type out by hand.
               </span>
             </p>
             <p className="text-[12px] text-[#8A92A6] flex items-start gap-1.5">
@@ -199,15 +201,29 @@ function ClaudeConnector() {
                 : "Open claude.ai, click your name at the bottom left, then Settings → Connectors."}
             </Num>
             <Num n="2">Click <b className="font-medium text-[#4A5468]">Add custom connector</b>.</Num>
-            <Num n="3">
-              Name it <b className="font-medium text-[#4A5468]">GooCampus</b>, then paste this whole line
-              into the URL box — {key
-                ? "it already has your key in it, so there is nothing to fill in."
-                : <>make a key in step&nbsp;1 first and this becomes a finished link you can copy.</>}
+            <Num n="3">Name it <b className="font-medium text-[#4A5468]">GooCampus</b> and paste this as the URL:</Num>
+            <div className="ml-6 mb-2"><CopyBox value={baseUrl} mono /></div>
+            <Num n="4">
+              Leave <b className="font-medium text-[#4A5468]">No sign-in</b> selected. That setting is about
+              Google-style sign-in, which we don&apos;t use — your key below is what signs you in.
             </Num>
-            <div className="ml-6 mb-2"><CopyBox value={url} mono ready={!!key} /></div>
-            <Num n="4">Click Add.</Num>
-            <Num n="5">Start a new chat and ask <i>&ldquo;what&apos;s on the content board?&rdquo;</i> to check it worked.</Num>
+            <Num n="5">
+              Click <b className="font-medium text-[#4A5468]">+ Add header</b>. Pick
+              <b className="font-medium text-[#4A5468]"> x-api-key</b> from the list
+              {" "}(Claude won&apos;t let you pick <i>Authorization</i> — it keeps that one for itself),
+              and paste this as the value:
+            </Num>
+            <div className="ml-6 mb-2">
+              <CopyBox value={key || "— make a key in step 1 first —"} mono ready={!!key} />
+            </div>
+            <Num n="6">Click Add.</Num>
+            <Num n="7">Start a new chat and ask <i>&ldquo;what&apos;s on the content board?&rdquo;</i> to check it worked.</Num>
+            <p className="text-[12px] text-[#8A92A6] mt-2 ml-6">
+              Putting the key in a header keeps it out of the web address, so it can&apos;t leak through
+              history, logs or a shared screenshot. If your version of Claude has no header box, you can
+              instead paste <code className="font-mono text-[11.5px]">{url}</code> as the URL on its own —
+              it works, it&apos;s just less private.
+            </p>
           </>
         )}
       </Step>
