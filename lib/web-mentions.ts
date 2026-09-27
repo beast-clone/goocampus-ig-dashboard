@@ -141,12 +141,34 @@ export async function searchWebMentions(query: string, opts: { limit?: number } 
     sentiment: scoreSentiment(`${s.title} ${s.snippet}`),
   }));
 
-  // Dedup by URL; news (dated) first by recency, undated site hits after.
+  // Dedup by URL, then give each lane its own share of the room.
+  //
+  // This used to be one sort by date across both lanes, then a slice. Forum hits carry
+  // no date (the search engine gives none), so they scored 0, sorted to the bottom and
+  // were cut off entirely whenever news filled the limit. Searching the brand hid it —
+  // "GooCampus" has almost no news, so Reddit always fitted. Searching a TOPIC exposed
+  // it: "NEET PG" returned 30 news articles and not one of the Reddit or Quora threads,
+  // even though the engine had returned them.
+  //
+  // Forum threads are the scarce, hard-to-find half of this feature — a news article is
+  // findable anywhere, a student asking "is this course worth it" is not — so they get a
+  // guaranteed share rather than competing on a date they do not have. Whatever one lane
+  // does not use, the other takes.
   const seen = new Set<string>();
-  const mentions = [...news, ...siteMentions]
-    .filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)))
-    .sort((a, b) => (+new Date(b.publishedAt) || 0) - (+new Date(a.publishedAt) || 0))
-    .slice(0, limit);
+  const dedup = (arr: WebMention[]) => arr.filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)));
+  const newsSorted = dedup([...news].sort((a, b) => (+new Date(b.publishedAt) || 0) - (+new Date(a.publishedAt) || 0)));
+  const siteSorted = dedup(siteMentions);
+
+  const siteShare = Math.max(1, Math.ceil(limit / 3));
+  const siteTake = siteSorted.slice(0, siteShare);
+  const newsTake = newsSorted.slice(0, limit - siteTake.length);
+  const mentions = [
+    ...siteTake,
+    ...newsTake,
+    // Backfill from whichever lane still has more, so a quiet lane never wastes room.
+    ...siteSorted.slice(siteTake.length),
+    ...newsSorted.slice(newsTake.length),
+  ].slice(0, limit);
 
   const counts = {
     positive: mentions.filter((m) => m.sentiment === "positive").length,
