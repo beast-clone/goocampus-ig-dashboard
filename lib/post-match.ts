@@ -1,4 +1,5 @@
 import { pageForSbu } from "@/lib/sbu-pages";
+import { VIDEO_TYPES } from "@/lib/mh-content-types";
 
 // Matching a Content Calendar task to the post that actually went live.
 //
@@ -59,16 +60,47 @@ export type MatchTask = {
   particulars: string | null;
   caption: string | null;
   publishing_date: string | null;
+  /** The Content Calendar type. Used only to rule a match OUT — see formatClash. */
+  type?: string | null;
 };
+
+// A reel is not a carousel. Instagram and Facebook both say which a post is in its
+// permalink (/reel/ vs /p/ or /posts/), and the task says what was commissioned, so a
+// disagreement is real evidence the two are different things.
+//
+// It is used to veto, never to confirm: a task can legitimately be filed as a carousel
+// and go out as a reel, so this does not prove a match is wrong — it proves it is not
+// CERTAIN, which is enough to hand the decision to a person instead of writing it in
+// unattended. Found on "Career Quiz - Carousel", which matched a reel on caption alone.
+export function formatClash(taskType: string | null | undefined, url: string): boolean {
+  if (!taskType) return false;
+  const postIsVideo = /\/reel(s)?\//i.test(url);
+  const postIsStatic = /\/p\/|\/posts\//i.test(url);
+  if (!postIsVideo && !postIsStatic) return false;   // LinkedIn, or a shape we don't read
+  const taskIsVideo = VIDEO_TYPES.has(taskType);
+  return taskIsVideo ? postIsStatic : postIsVideo;
+}
 export type MatchPost = {
   id: string;
   caption?: string | null;
   permalink?: string | null;
   timestamp?: string | null;
 };
-export type Candidate = { id: string; url: string; caption: string; timestamp: string | null; score: number };
+export type Candidate = { id: string; url: string; caption: string; timestamp: string | null; score: number; formatClash?: boolean };
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// How far either side of the publishing date to look. A post can slip a day or go out
+// early; beyond this the text match is doing all the work anyway and the extra posts
+// only add things to be confused with. Shared so the modal and the nightly job search
+// the same span — a link the job would not make should not appear on a button either.
+export const WINDOW_DAYS = 3;
+
+export function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * Rank the live posts against one task.
@@ -102,6 +134,7 @@ export function rankPosts(task: MatchTask, posts: MatchPost[]): Candidate[] {
         caption: (p.caption || "").split("\n")[0].slice(0, 120),
         timestamp: p.timestamp || null,
         score: Math.max(0, Math.min(1, score)),
+        formatClash: formatClash(task.type, p.permalink as string),
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -122,12 +155,12 @@ export function matchPost(task: MatchTask, posts: MatchPost[]): MatchResult {
   // Only one post from this brand in the whole window — there is nothing it could be
   // confused with, so a weaker text match is still safe.
   if (ranked.length === 1) {
-    return ranked[0].score >= 0.25
+    return ranked[0].score >= 0.25 && !ranked[0].formatClash
       ? { confident: ranked[0], candidates: ranked }
       : { confident: null, candidates: ranked };
   }
 
   const [best, second] = ranked;
-  const sure = best.score >= SURE_SCORE && best.score - second.score >= SURE_LEAD;
+  const sure = best.score >= SURE_SCORE && best.score - second.score >= SURE_LEAD && !best.formatClash;
   return { confident: sure ? best : null, candidates: ranked.slice(0, 8) };
 }
