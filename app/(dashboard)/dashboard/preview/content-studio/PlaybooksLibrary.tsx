@@ -2,12 +2,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   IconSearch, IconArrowLeft, IconSparkles, IconPlayerPlayFilled, IconExternalLink,
-  IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt, IconBulb,
+  IconLayoutGrid, IconMovie, IconFileText, IconBrandLinkedin, IconBrandInstagram, IconPalette, IconCircleCheck, IconPencil, IconBolt, IconBulb, IconRefresh,
 } from "@tabler/icons-react";
 import { PLAYBOOK_GUIDES } from "@/lib/playbook-guides";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 
 // The marketing library (Corey Haines' open pack + a Pillar Content skill), run via
 // Perplexity. Lives inside Content Studio as the "Playbooks" tab. After a result,
@@ -130,7 +131,20 @@ function MarkdownLite({ text }: { text: string }) {
   };
   lines.forEach((raw, i) => {
     const line = raw.replace(/\s+$/, "");
-    if (/^#{1,6}\s+/.test(line)) { flush(String(i)); out.push(<div key={i} className="font-semibold text-[#232D42] text-[14px] mt-4 mb-1.5 first:mt-0">{inlineMd(line.replace(/^#{1,6}\s+/, ""), `h-${i}`)}</div>); }
+    // A line that is nothing but bold — "**Follow-up 2**" — is a section heading, and
+    // the model writes them that way constantly. Rendered as an ordinary paragraph it
+    // got the same 6px margin as body text, so three emails ran together in one wall
+    // with no visible seam between them.
+    const soloBold = line.match(/^\*\*(.+?)\*\*:?\s*$/);
+    if (/^#{1,6}\s+/.test(line) || soloBold) {
+      flush(String(i));
+      const label = soloBold ? soloBold[1] : line.replace(/^#{1,6}\s+/, "");
+      out.push(
+        <div key={i} className="font-semibold text-[#232D42] text-[14px] mt-5 mb-2 pt-4 border-t border-gray-100 first:mt-0 first:pt-0 first:border-t-0">
+          {inlineMd(label, `h-${i}`)}
+        </div>,
+      );
+    }
     else if (/^\s*[-*]\s+/.test(line)) { bullets.push(line.replace(/^\s*[-*]\s+/, "")); }
     else if (line.trim() === "") { flush(String(i)); }
     else { flush(String(i)); out.push(<p key={i} className="my-1.5">{inlineMd(line, `p-${i}`)}</p>); }
@@ -273,6 +287,8 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
   // Their own instructions instead of the playbook's framework.
   const [useCustom, setUseCustom] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
+  // Voice for the run. Empty = whatever the playbook itself says.
+  const [tone, setTone] = useState("");
   const [error, setError] = useState<string | null>(null);
   // "Choose your output" step (V2)
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -311,7 +327,7 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
     setSelected(new Set()); setDerived([]); setDeriveErr(null); setRunTokens(null); setRunCost(null); setDeriveTokens(0); setNewFormats(new Set()); setColOf({});
     try {
       const r = await fetch("/api/marketing-skills/run", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t, engine, customPrompt: useCustom ? customPrompt : undefined }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: skill.slug, task: t, engine, customPrompt: useCustom ? customPrompt : undefined, tone: tone || undefined }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
@@ -459,14 +475,18 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
               GooCampus context is still added for you — you do not need to explain the business.
             </div>
           </div>
-        ) : (
-          <button onClick={() => setUseCustom(true)}
-            className="mt-2.5 text-[12px] text-[#8A92A6] hover:text-brand underline">
-            Add a custom prompt instead
-          </button>
-        )}
+        ) : null}
 
-        <div className="flex items-center gap-2 mt-3">
+        {/* The two controls sit on one line, both as buttons. The custom-prompt option
+            was an underlined link floating on its own above an empty row — it read as a
+            footnote rather than the other way to run this. */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {!useCustom && (
+            <button onClick={() => setUseCustom(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white text-[13px] font-medium text-[#4A5468] px-3.5 py-2 hover:border-brand hover:text-brand transition">
+              <IconPencil size={13} /> Add a custom prompt
+            </button>
+          )}
           {useCustom && !customPrompt.trim() && (
             <span className="text-[11.5px] text-[#C03221]">Write the prompt, or switch back to the playbook.</span>
           )}
@@ -537,10 +557,21 @@ function SkillRunner({ skill, onBack }: { skill: SkillMeta; onBack: () => void }
               </div>
               {verified ? (
                 <div className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1"><IconCircleCheck size={14} /> Verified — {citations.length} live source{citations.length === 1 ? "" : "s"}</div>
-              ) : kind === "copy" ? (
-                <div className="text-[11.5px] text-[#A6ACBE]">Copy, written for you — nothing here is a claim to check</div>
               ) : (
-                <div className="text-[11.5px] text-[#A6ACBE]">No sources came back for this one</div>
+                // Not happy with it? Change the voice and run it again, right here —
+                // rather than scrolling back up to the task box to find the button.
+                <div className="inline-flex items-center gap-2">
+                  <PreviewSelect className="w-[150px]" value={tone} onChange={setTone}
+                    options={[{ value: "", label: "Default tone" },
+                              { value: "professional", label: "Professional" },
+                              { value: "friendly", label: "Friendly" },
+                              { value: "direct", label: "Direct" },
+                              { value: "warm", label: "Warm" }]} />
+                  <button onClick={run} disabled={loading}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] font-medium text-[#4A5468] px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40 transition">
+                    <IconRefresh size={13} /> {loading ? "Regenerating…" : "Regenerate"}
+                  </button>
+                </div>
               )}
             </div>
             <MarkdownLite text={output} />

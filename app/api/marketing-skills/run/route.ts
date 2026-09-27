@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runSkill } from "@/lib/marketing-skills";
+import { runSkill, TONES, type Tone } from "@/lib/marketing-skills";
 import { guardRate, requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const limited = guardRate(req, "marketing-skill", 20, 300_000);
   if (limited) return limited;
   try {
-    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string; engine?: string; customPrompt?: string };
+    const b = (await req.json().catch(() => ({}))) as { slug?: string; task?: string; engine?: string; customPrompt?: string; tone?: string };
     const slug = (b.slug || "").trim();
     const task = (b.task || "").trim();
     const engine = b.engine === "claude" ? "claude" : "sonar"; // default Sonar; only "claude" opts into Claude-via-Perplexity
@@ -25,7 +25,8 @@ export async function POST(req: Request) {
     if (task.length > 4000) return NextResponse.json({ error: "task too long (max 4000 chars)" }, { status: 400 });
     const custom = (b.customPrompt || "").trim();
     if (custom.length > 8000) return NextResponse.json({ error: "custom prompt too long (max 8000 chars)" }, { status: 400 });
-    const res = await runSkill(slug, task, engine, custom || null);
+    const tone = TONES.includes(b.tone as Tone) ? (b.tone as Tone) : null;
+    const res = await runSkill(slug, task, engine, custom || null, tone);
     return NextResponse.json(res);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";

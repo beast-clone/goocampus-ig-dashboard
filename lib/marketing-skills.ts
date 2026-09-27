@@ -79,8 +79,20 @@ export function outputKind(slug: string): OutputKind {
 // picks the writer: "sonar" (Perplexity, default) or "claude" (Claude Sonnet 4.5 via
 // Perplexity — stronger writing, same key/bill). Same framework + GooCampus context
 // go in either way, so switching engines is a true like-for-like comparison.
+// The voices a run can be asked for. Kept short on purpose — a long list is a menu
+// nobody reads, and these are the four that actually change how a message lands.
+export const TONES = ["professional", "friendly", "direct", "warm"] as const;
+export type Tone = (typeof TONES)[number];
+
+const TONE_RULE: Record<Tone, string> = {
+  professional: "Tone: professional. Precise and businesslike. No slang, no exclamation marks.",
+  friendly: "Tone: friendly. Warm and conversational, like a person who knows them. Still no hype.",
+  direct: "Tone: direct. Short sentences, the point first, nothing decorative.",
+  warm: "Tone: warm. Reassuring and human — these readers are anxious about their careers.",
+};
+
 export async function runSkill(
-  slug: string, task: string, engine: Engine = "sonar", customPrompt?: string | null,
+  slug: string, task: string, engine: Engine = "sonar", customPrompt?: string | null, tone?: Tone | null,
 ): Promise<RunResult> {
   const doc = getSkillDoc(slug);
   if (!doc) throw new Error("Unknown skill");
@@ -90,8 +102,9 @@ export async function runSkill(
     "You are an elite marketing operator. Apply the FRAMEWORK provided by the user to produce a concrete, usable deliverable.",
     `Business context — ${GC_CONTEXT}`,
     "Rules: produce the actual deliverable directly. Do NOT ask the user questions, do NOT say you need more info, do NOT mention reading files or other skills — assume the GooCampus context above.",
+    tone && TONE_RULE[tone] ? TONE_RULE[tone] : "",
     "Style: write like a senior professional — clean, confident, specific. NEVER use emojis or decorative symbols. Structure with simple markdown only: short '## ' section headings, '- ' bullet lists, and '**bold**' just for key labels. Do NOT stack symbols or write markdown noise, and do NOT put inline citation markers like [1][2] in the body. Deliver polished, ready-to-use copy.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   // A custom prompt replaces the framework rather than being appended to it. Appending
   // would leave the playbook's instructions fighting the person's own, and the playbook
