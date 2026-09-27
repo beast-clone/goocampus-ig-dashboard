@@ -39,6 +39,8 @@ export async function writeBackLink(args: {
   airtableRecordId?: string;
   platform: LinkPlatform;
   url: string;
+  /** Who filled it in. Omitted for automation, which the feed renders as "System". */
+  actor?: string | null;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const sb = getSupabase();
   if (!sb) return { ok: false, error: "Supabase not configured" };
@@ -61,7 +63,7 @@ export async function writeBackLink(args: {
   if ((prev || null) !== args.url) {
     await sb.from("mh_activity").insert({
       post_id: id,
-      actor_key: null, // automation → renders as "System" in the feed
+      actor_key: args.actor || null, // no actor → automation → "System" in the feed
       action: ACTION[args.platform],
       from_value: prev || null,
       to_value: args.url,

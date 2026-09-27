@@ -3211,6 +3211,22 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     }
     await loadDetail();
   };
+  // Filling a published link is NOT an ordinary field edit: it also means the post is
+  // live, so published_at gets stamped and the read cache is busted. Going through the
+  // same seam the publishers and the nightly job use is what stops two kinds of linked
+  // task existing — one stamped, one not, depending on who filled it.
+  const saveLink = async (platform: "instagram" | "facebook" | "linkedin", url: string) => {
+    const res = await fetch("/api/scheduler/link-back", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: row.id, platform, url, actor: activeAuthor }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+      return;
+    }
+    await loadDetail();
+  };
   const togglePlatform = (p: string) => {
     const next = platformsCur.includes(p) ? platformsCur.filter((x) => x !== p) : [...platformsCur, p];
     saveOne("platforms", next);
@@ -3247,7 +3263,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         if (res.confident) {
           // Applied one at a time so each write is its own logged change, exactly as
           // if a person had pasted it.
-          await saveOne(pf.field, res.confident.url);
+          await saveLink(pf.key, res.confident.url);
           linked.push(pf.label);
         } else if (res.candidates && res.candidates.length) {
           picks.push({ ...pf, candidates: res.candidates });
@@ -3613,7 +3629,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                             {pick.candidates.map((c) => (
                               <button key={c.id}
                                 onClick={async () => {
-                                  await saveOne(pick.field, c.url);
+                                  await saveLink(pick.key, c.url);
                                   setLinkHunt((h) => ({ ...h, picks: h.picks.filter((x) => x.key !== pick.key), note: "Linked." }));
                                 }}
                                 className="block w-full text-left border border-gray-200 rounded-lg px-2.5 py-2 hover:border-brand transition">

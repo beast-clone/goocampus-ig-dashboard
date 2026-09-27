@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   if (__denied) return __denied;
 
   try {
-    const b = (await req.json()) as { postId?: string; airtableRecordId?: string; platform?: string; url?: string };
+    const b = (await req.json()) as { postId?: string; airtableRecordId?: string; platform?: string; url?: string; actor?: string };
     if (!b.platform || !PLATFORMS.has(b.platform)) {
       return NextResponse.json({ error: "platform must be instagram | facebook | linkedin" }, { status: 400 });
     }
@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       airtableRecordId: b.airtableRecordId,
       platform: b.platform as LinkPlatform,
       url: b.url || "",
+      actor: b.actor || null,
     });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
     return NextResponse.json({ ok: true, id: res.id });
