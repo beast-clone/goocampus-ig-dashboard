@@ -4,7 +4,7 @@ import { userForAccessToken, issuer } from "@/lib/oauth";
 import { rosterById } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
-import { createTask } from "@/lib/task-create";
+import { createTask, normalizeOwner } from "@/lib/task-create";
 import { listTasks, getTask, searchTasks, updateTask, whatsDue, listRadar } from "@/lib/mcp-tools";
 
 // The Claude connector, protocol and all.
@@ -26,13 +26,18 @@ export const fail = (id: Rpc["id"], code: number, message: string) => ({ jsonrpc
 const say = (id: Rpc["id"], t: string, isError = false) => ok(id, { content: [{ type: "text", text: t }], isError });
 const json = (id: Rpc["id"], v: unknown) => say(id, JSON.stringify(v, null, 1));
 
+/** The people a task can be assigned to. One list, because it appears in several
+ *  tool schemas and they must not drift apart. */
+const TEAM = ["manya", "praveen", "nikhil", "nandu", "maheen"] as const;
+
 const TOOLS = [
   {
     name: "create_task",
     title: "Create a task in GooCampus Marketing OS",
     description:
       "Create ONE content task in the GooCampus Marketing OS dashboard (lands in the Master sheet as \"Content - Pending\", created by the connected person). " +
-      "primary_interest and content_type are REQUIRED: if the user hasn't clearly said them, ASK the user — never guess or pick a default. " +
+      "primary_interest, content_type and owner are REQUIRED: if the user hasn't clearly said them, ASK the user — never guess or pick a default. " +
+      "In particular do NOT assume the person talking to you is the owner — here, work is usually created by one person for someone else to do. " +
       "Put the post body / script / slide text in `content` and the social caption in `caption` — they are DIFFERENT fields; never merge them or copy one into the other. " +
       "If the user gave you content but no caption, ASK whether they want one before calling: offer to write it, or to leave it empty for the writer. " +
       "Do not invent a caption silently, and do not block on it — if they say skip, leave it empty and create the task. " +
@@ -49,10 +54,10 @@ const TOOLS = [
         caption: { type: "string", description: "The caption that gets published with the post — separate from `content`, which is the script/slide text. Ask the user for it if they gave content but no caption; leave empty if they decline or the format has no caption." },
         publishing_date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Planned publishing date, YYYY-MM-DD." },
         priority: { type: "string", enum: ["Low", "Medium", "High"], description: "Defaults to Medium." },
-        owner: { type: "string", enum: ["manya", "praveen", "nikhil", "nandu", "maheen"], description: "Who works on it next. Defaults to the connected person." },
+        owner: { type: "string", enum: [...TEAM], description: "Who does the work next. REQUIRED — ask the user, don't assume it's them. Creating a task and owning it are usually different people here." },
         platforms: { type: "array", items: { type: "string", enum: ["Instagram", "Facebook", "YouTube", "LinkedIn"] }, description: "Defaults to Instagram, Facebook, LinkedIn." },
       },
-      required: ["title", "primary_interest", "content_type"],
+      required: ["title", "primary_interest", "content_type", "owner"],
       additionalProperties: false,
     },
   },
@@ -63,7 +68,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        owner: { type: "string", enum: ["manya", "praveen", "nikhil", "nandu", "maheen"] },
+        owner: { type: "string", enum: [...TEAM] },
         status: { type: "string", description: "e.g. \"Content - Pending\", \"Content - Approved\", \"Ready to Publish\"." },
         brand: { type: "string", enum: [...SBU_OPTIONS] },
         type: { type: "string", enum: [...CONTENT_TYPES] },
@@ -105,7 +110,7 @@ const TOOLS = [
         publishing_date: { type: "string", description: "YYYY-MM-DD, or empty string to clear." },
         due_date: { type: "string", description: "YYYY-MM-DD, or empty string to clear." },
         priority: { type: "string", enum: ["Low", "Medium", "High"] },
-        owner: { type: "string", enum: ["manya", "praveen", "nikhil", "nandu", "maheen"] },
+        owner: { type: "string", enum: [...TEAM] },
         caption: { type: "string" },
         content: { type: "string" },
         type: { type: "string", enum: [...CONTENT_TYPES] },
@@ -134,20 +139,29 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
   }
   const s = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
   const title = s("title"), sbu = s("primary_interest"), type = s("content_type"), date = s("publishing_date");
+  const owner = s("owner");
 
   // These come back as questions for Claude to put to the user, not as failures —
   // "which brand is this for?" is the single most common thing people forget to say.
-  const missing = [!title && "title", !sbu && "primary_interest", !type && "content_type"].filter(Boolean);
+  //
+  // owner is in this list as of 27 Sep 2026. It used to fall back to whoever was
+  // connected, which quietly assumed the person creating a task is the person doing
+  // the work — usually wrong here, since Praveen and Maheen mostly create work for
+  // Manya, Nikhil and Nandu. A wrong owner is worse than no owner: it lands in
+  // somebody's workload and neither of them finds out.
+  const missing = [!title && "title", !sbu && "primary_interest", !type && "content_type", !owner && "owner"].filter(Boolean);
   if (missing.length) return say(id, `Missing required field(s): ${missing.join(", ")}. Ask the user for them, then call create_task again.`, true);
   if (!(SBU_OPTIONS as readonly string[]).includes(sbu)) return say(id, `"${sbu}" isn't a primary interest in the dashboard. Valid options: ${SBU_OPTIONS.join(", ")}. Ask the user which one.`, true);
   if (!(CONTENT_TYPES as readonly string[]).includes(type)) return say(id, `"${type}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}. Ask the user which one.`, true);
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return say(id, "publishing_date must be YYYY-MM-DD.", true);
+  const ownerKey = normalizeOwner(owner);
+  if (!ownerKey) return say(id, `"${owner}" isn't someone on the team. Ask the user who should own this — one of: ${TEAM.join(", ")}.`, true);
 
   const task = await createTask({
     title, sbu, type,
     content: s("content") || undefined, caption: s("caption") || undefined,
     publishingDate: date || undefined, priority: s("priority") || "Medium",
-    owner: s("owner") || userId,
+    owner: ownerKey,
     platforms: Array.isArray(args.platforms) ? (args.platforms as unknown[]).filter((p): p is string => typeof p === "string") : undefined,
   }, userId, "claude-connector");
 
