@@ -54,38 +54,42 @@ function HeaderClock() {
 
   // Empty on the server: the server's clock is UTC and React would flag the
   // mismatch, so the first paint comes from the browser.
-  if (!now) return <span style={{ width: 150 }} aria-hidden />;
+  if (!now) return <span style={{ width: 300 }} aria-hidden />;
 
   const t = now.toLocaleTimeString("en-IN", {
     timeZone: IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
   });
-  // en-IN gives "09:13:42 pm" — split the am/pm off so it can sit smaller.
+  // en-IN gives "09:15:59 pm" — split the am/pm off so it can sit smaller.
   const [hms, ampm] = t.split(" ");
-  const day = now.toLocaleDateString("en-IN", {
-    timeZone: IST, weekday: "short", day: "numeric", month: "short",
-  });
+  const weekday = now.toLocaleDateString("en-IN", { timeZone: IST, weekday: "long" });
+  const date = now.toLocaleDateString("en-IN", { timeZone: IST, day: "numeric", month: "long", year: "numeric" });
 
   return (
     <div
-      title={`${day} · ${t} India Standard Time`}
+      title={`${weekday}, ${date} · ${t} India Standard Time`}
       style={{
-        display: "flex", alignItems: "center", gap: 10,
-        background: C.card, border: `1px solid ${C.line}`, borderRadius: 10,
-        padding: "6px 12px",
+        display: "flex", alignItems: "center", gap: 12,
+        background: "#E9ECFB", borderRadius: 10, padding: "7px 14px",
       }}
     >
-      <IconClockHour4 size={18} stroke={1.8} style={{ color: C.primary, flexShrink: 0 }} />
+      <IconClockHour4 size={20} stroke={1.8} style={{ color: C.primary, flexShrink: 0 }} />
+
+      {/* Date, given the same weight as the time — both are the point. */}
       <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-        <span style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-          <span style={{ fontSize: 17, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>
-            {hms}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase" }}>{ampm}</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: C.primary, background: "#E9ECFB", borderRadius: 4, padding: "1px 5px", marginLeft: 2 }}>
-            IST
-          </span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: C.primaryDark, whiteSpace: "nowrap" }}>{weekday}</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: C.primary, whiteSpace: "nowrap" }}>{date}</span>
+      </span>
+
+      <span style={{ width: 1, alignSelf: "stretch", background: "#C7CFF2" }} />
+
+      <span style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+        <span style={{ fontSize: 22, fontWeight: 600, color: C.primaryDark, fontVariantNumeric: "tabular-nums", letterSpacing: "0.5px" }}>
+          {hms}
         </span>
-        <span style={{ fontSize: 11, color: C.muted }}>{day}</span>
+        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.primary, textTransform: "uppercase" }}>{ampm}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.primary, opacity: 0.75 }}>IST</span>
+        </span>
       </span>
     </div>
   );

@@ -51,7 +51,7 @@ export const RELEASES: Release[] = [
       {
         kind: "new",
         what: "The time, in the Overview header",
-        detail: "A normal ticking clock next to the notification bell, always in IST — it reads the same whatever timezone the laptop is set to. It has nothing to do with attendance: it isn't recorded anywhere.",
+        detail: "A digital clock next to the notification bell showing the day, the full date and the running time, always in IST — it reads the same whatever timezone the laptop is set to. It has nothing to do with attendance: it isn't recorded anywhere.",
         where: "Overview",
       },
     ],
