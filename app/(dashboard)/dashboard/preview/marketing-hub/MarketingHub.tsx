@@ -16,7 +16,7 @@ import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFil
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
-import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight } from "@tabler/icons-react";
+import { IconRestore, IconSearch, IconPaperclip, IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconFilter, IconLayoutList, IconPalette, IconBookmark, IconDeviceFloppy, IconUser, IconUsers, IconLock, IconDots, IconPencil, IconFileDescription, IconCopy, IconClipboardCopy, IconUserShare, IconDownload, IconPrinter, IconTrash, IconCheck, IconPlus, IconPhoto, IconCloudUpload, IconMessageCircle2, IconHistory, IconCalendarEvent, IconExternalLink, IconFileText, IconChevronLeft, IconChevronRight, IconChevronDown, IconX, IconPlayerPlay, IconArrowsSort, IconColumns, IconAlertTriangle, IconArrowRight, IconLink } from "@tabler/icons-react";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
@@ -394,6 +394,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   });
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  // The task you arrived for. Survives the modal closing, so the sheet can still say
+  // "this one" — otherwise a freshly created task is a row like any other in 145.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -418,6 +421,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   useEffect(() => {
     if (openParam && data?.openId) {
       setOpenId(data.openId);
+      setHighlightId(data.openId);
       // strip ?open so closing the modal doesn't reopen it and a manual refresh stays put
       if (typeof window !== "undefined") {
         const u = new URL(window.location.href);
@@ -465,7 +469,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
           Calendar's clean layout. Master/Workload/Pipeline have their own controls. */}
 
       {tab === "master" && (
-        <MasterTab allRows={data?.rows || []} facets={data?.facets} range={range} setRange={setRange} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
+        <MasterTab allRows={data?.rows || []} facets={data?.facets} range={range} setRange={setRange} onOpen={setOpenId} onSaved={refresh} loading={isLoading} highlightId={highlightId} />
       )}
 
       {tab === "team" && (
@@ -2214,9 +2218,9 @@ function AddColumnModal({ onClose, onCreated }: { onClose: () => void; onCreated
   );
 }
 
-export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading }: {
+export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, loading, highlightId }: {
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
-  onOpen: (id: string) => void; onSaved: () => void; loading: boolean;
+  onOpen: (id: string) => void; onSaved: () => void; loading: boolean; highlightId?: string | null;
 }) {
   const [activeId, setActiveId] = useState("all");
   const [search, setSearch] = useState("");
@@ -2468,7 +2472,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
             </div>
           )}
           <MasterSheet rows={rows} facets={facets} onOpen={onOpen} onSaved={onSaved} loading={loading} bare visibleCols={visibleCols} colorField={colorField} groupField={groupField} customCols={customCols}
-            picked={canDelete ? picked : undefined} onPick={canDelete ? onPick : undefined} />
+            picked={canDelete ? picked : undefined} onPick={canDelete ? onPick : undefined} highlightId={highlightId} />
         </div>
       </div>
       </>)}
@@ -2746,7 +2750,7 @@ function NewViewModal({ config, fields, totalCols, onClose, onCreated }: {
 }
 
 // `picked` + `onPick` switch on the checkbox column (only passed when the viewer may delete).
-function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, groupField, customCols, picked, onPick }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; groupField?: string; customCols?: CustomColumn[]; picked?: Set<string>; onPick?: (ids: string[], on: boolean) => void }) {
+function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols, colorField, groupField, customCols, picked, onPick, highlightId }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean; bare?: boolean; visibleCols?: string[]; colorField?: string; groupField?: string; customCols?: CustomColumn[]; picked?: Set<string>; onPick?: (ids: string[], on: boolean) => void; highlightId?: string | null }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggleGroup = (k: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const allSbus = facets?.sbu || [];
@@ -2818,10 +2822,25 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     }
   };
 
+  // Scroll it into view once it exists. Runs on highlightId rather than on mount
+  // because the rows arrive from a fetch, so the element is not there on the first pass.
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => highlightRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }), 120);
+    return () => clearTimeout(t);
+  }, [highlightId, rows]);
+
   const rowEl = (r: Row) => {
     const cc = colorOf(r);
+    const lit = r.id === highlightId;
     return (
-      <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" style={cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
+      // The row you came for keeps a brand tint and a left bar until you navigate away.
+      // Deliberately not a fading flash: the point is to still be findable in a minute,
+      // when you have read the task, closed it and are looking for where it went.
+      <tr key={r.id} ref={lit ? highlightRef : undefined} onClick={() => onOpen(r.id)}
+        className={`border-b border-gray-50 cursor-pointer ${lit ? "bg-brand-light/60 hover:bg-brand-light" : "hover:bg-gray-50"}`}
+        style={lit ? { boxShadow: "inset 3px 0 0 #3A57E8" } : cc ? { boxShadow: `inset 3px 0 0 ${cc}` } : undefined}>
         {selectable && (
           <td className="pl-4 pr-0 py-2.5 w-8" onClick={(e) => { e.stopPropagation(); onPick!([r.id], !picked!.has(r.id)); }}>
             <PickBox on={picked!.has(r.id)} label={`Select ${r.particulars || "task"}`} />
@@ -3110,6 +3129,44 @@ const PILL_FIELDS = new Set(["status_changed"]);
 type FeedItem =
   | { id: string; kind: "activity"; at: string; name: string; key: string | null; action: string; from: string | null; to: string | null }
   | { id: string; kind: "comment"; at: string; name: string; key: string | null; body: string; resolved: boolean };
+
+// A shareable link to one task, the way Airtable gives you a record link.
+//
+// Before this the only way to point somebody at a task was to tell them its name and
+// let them search a 145-row sheet for it. The URL already worked as a deep link — it
+// just lived in the address bar, where nobody thought to look, and got stripped once
+// the modal opened (so by the time you thought to copy it, it was gone).
+//
+// Absolute, because this gets pasted into Slack and WhatsApp.
+function CopyTaskLink({ id }: { id: string }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    const href = `${window.location.origin}/dashboard/preview/marketing-hub?tab=master&open=${id}`;
+    try {
+      await navigator.clipboard.writeText(href);
+    } catch {
+      // Clipboard needs a secure context and permission; neither is guaranteed. Fall
+      // back to a selected textarea so the link is still copyable by hand rather than
+      // the button silently doing nothing.
+      const t = document.createElement("textarea");
+      t.value = href; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); } catch { /* user copies it themselves */ }
+      document.body.removeChild(t);
+    }
+    setDone(true);
+    setTimeout(() => setDone(false), 2000);
+  };
+  return (
+    <button onClick={copy} title="Copy a link to this task — paste it in Slack or WhatsApp"
+      className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-lg px-2.5 py-1.5 border transition ${
+        done ? "border-[#BFE6CD] bg-[#E3F5EA] text-[#0F6E3C]"
+             : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
+      {done ? <IconCheck size={14} stroke={2} /> : <IconLink size={14} stroke={1.8} />}
+      {done ? "Copied" : "Copy link"}
+    </button>
+  );
+}
 
 export function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
@@ -3428,7 +3485,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none flex-shrink-0">×</button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <CopyTaskLink id={row.id} />
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+          </div>
         </div>
 
         {/* Body — light canvas so the white cards read as real sections.
