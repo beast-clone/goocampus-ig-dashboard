@@ -88,20 +88,49 @@ export async function toggleAlert(id: string, active: boolean): Promise<void> {
 /* -------- item cache + refresh -------- */
 
 // Pull the latest N items across all active alerts, optionally filtered by interest.
+// Same story, twice. refreshAlert dedupes within ONE alert's fetch, but nothing
+// dedupes ACROSS alerts — so two alerts that overlap both store their own copy and the
+// reader sees the headline twice. It showed up the moment the hourly refresh started
+// bringing real news in: "Neet PG" and "NEET PG" are two alerts differing only by a
+// capital letter, and every story arrived in pairs.
+//
+// Deactivating that one alert fixes today. This fixes the class: overlapping alerts are
+// legitimate — "NEET PG" and "NEET PG counselling" SHOULD both catch some of the same
+// stories — and the reader should still only ever see a story once.
+//
+// Matched on the link first, then on a normalised title, because the same story reaches
+// us through different aggregator URLs.
+function dedupeItems(items: ContentAlertItem[]): ContentAlertItem[] {
+  const seenLinks = new Set<string>();
+  const seenTitles = new Set<string>();
+  return items.filter((it) => {
+    const link = (it.link || "").trim().toLowerCase();
+    const title = (it.title || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (link && seenLinks.has(link)) return false;
+    if (title && seenTitles.has(title)) return false;
+    if (link) seenLinks.add(link);
+    if (title) seenTitles.add(title);
+    return true;
+  });
+}
+
 export async function listItems(opts: { interest?: string; limit?: number } = {}): Promise<ContentAlertItem[]> {
   const limit = opts.limit ?? 200;
+  // Over-fetch, because the duplicates are removed AFTER the database has counted them
+  // — asking for exactly `limit` would return fewer than asked for once they are dropped.
+  const fetchLimit = Math.min(limit * 2, 1000);
   let q = db()
     .from("content_alert_items")
     .select("id, alert_id, title, link, source, snippet, published_at, fetched_at, content_alerts!inner(name, primary_interest, active)")
     .eq("content_alerts.active", true)
     .order("published_at", { ascending: false })
-    .limit(limit);
+    .limit(fetchLimit);
   if (opts.interest && opts.interest !== "all") {
     q = q.eq("content_alerts.primary_interest", opts.interest);
   }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data || []).map((r: Record<string, unknown>) => {
+  const mapped = (data || []).map((r: Record<string, unknown>) => {
     const alert = r.content_alerts as { name: string; primary_interest: string } | null;
     return {
       id: r.id as string,
@@ -116,6 +145,7 @@ export async function listItems(opts: { interest?: string; limit?: number } = {}
       fetchedAt: r.fetched_at as string,
     };
   });
+  return dedupeItems(mapped).slice(0, limit);
 }
 
 // Fetch the feed URL, upsert new items, stamp last_fetched_at / last_error on the
