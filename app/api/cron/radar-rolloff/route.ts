@@ -3,6 +3,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { listItems } from "@/lib/content-radar";
 import { searchWebMentions } from "@/lib/web-mentions";
+import { getReviews, isNegativeReview } from "@/lib/google-reviews";
 import { actionsByItem, loggedKeys, radarItemKey } from "@/lib/radar-actions";
 
 // End of day: close the radar and write down what happened.
@@ -62,16 +63,17 @@ export async function GET(req: Request) {
     // this is today; run late it still closes the day it belongs to.
     const day = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-    const [news, brand, actions, already] = await Promise.all([
+    const [news, brand, revs, actions, already] = await Promise.all([
       listItems({ limit: 500 }),
       searchWebMentions(BRAND_QUERY, { limit: 30 }).catch(() => null),
+      getReviews().catch(() => null),
       actionsByItem(),
       loggedKeys(),
     ]);
 
     const rows: LogRow[] = [];
     const push = (
-      kind: "news" | "mention" | "search", rawKey: string, title: string,
+      kind: "news" | "mention" | "search" | "review", rawKey: string, title: string,
       source: string | null, link: string | null, interest: string | null, urgent: boolean,
     ) => {
       const key = radarItemKey(kind, rawKey);
@@ -103,6 +105,16 @@ export async function GET(req: Request) {
       // A negative mention is chased like a deadline: it is the one that costs money
       // while nobody answers it.
       push("mention", m.url, m.title, m.source, m.url, "Brand", m.sentiment === "negative");
+    }
+
+    // Only the complaints. A five-star review needs nobody to do anything, so logging it
+    // as "no action taken" would fill the report with failures that were not failures.
+    for (const r of revs?.reviews || []) {
+      if (!isNegativeReview(r)) continue;
+      // Same 90-day window the Radar shows them in — see the page's NEGATIVE_WINDOW_DAYS.
+      if (r.publishedAt && ageDays(r.publishedAt) > 90) continue;
+      push("review", r.id, r.text || `${r.rating}-star rating, no comment`,
+           "Google Reviews", r.link, "Brand", true);
     }
 
     if (dry) {

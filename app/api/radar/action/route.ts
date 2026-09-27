@@ -18,7 +18,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const KINDS = new Set<RadarItemKind>(["news", "mention", "search"]);
+const KINDS = new Set<RadarItemKind>(["news", "mention", "search", "review"]);
 const ACTIONS = new Set<RadarAction>(["written", "useful", "not_useful"]);
 
 export async function GET() {
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const b = (await req.json()) as { itemKey?: string; itemKind?: string; action?: string | null; taskId?: string };
     if (!b.itemKey) return NextResponse.json({ error: "itemKey is required" }, { status: 400 });
     if (!b.itemKind || !KINDS.has(b.itemKind as RadarItemKind)) {
-      return NextResponse.json({ error: "itemKind must be news | mention | search" }, { status: 400 });
+      return NextResponse.json({ error: "itemKind must be news | mention | search | review" }, { status: 400 });
     }
     const actor = getSessionUserId() || null;
     if (b.action === null) {

@@ -73,6 +73,17 @@ const ageDays = (iso: string) => (Date.now() - new Date(iso).getTime()) / 86_400
 // Every place the radar listens. Shown whether or not it found anything: a source that
 // is quiet today is information, and hiding it teaches the team to watch three tiles and
 // ignore the rest.
+type GoogleReviewLite = {
+  id: string; rating: number; publishedAt: string | null; relative: string | null;
+  text: string; author: string; authorPhoto: string | null; link: string | null;
+};
+type ReviewsResp = {
+  place: { title: string; rating: number | null; ratingCount: number | null; cid: string | null } | null;
+  reviews: GoogleReviewLite[];
+  configured: boolean;
+  error: string | null;
+};
+
 type SourceTile = {
   name: string; n: number | null; unit: string; what: string; dim?: boolean; note?: string;
 };
@@ -108,6 +119,7 @@ function Radar() {
   const [trendsRefreshing, setTrendsRefreshing] = useState(false);
   // Real brand mentions (Google News search for the brand) — powers the pulse
   // row's brand tile and the Brand-watch card.
+  const [reviews, setReviews] = useState<ReviewsResp | null>(null);
   const [brand, setBrand] = useState<MentionResult | null>(null);
   // Separate loading flag so the pulse tile shows a skeleton (not a hard "0
   // mentions") while the brand search is in flight; brand === null alone can't
@@ -124,6 +136,17 @@ function Radar() {
     finally { setTrendsRefreshing(false); }
   }, []);
   useEffect(() => { loadTrends(); }, [loadTrends]);
+
+  // Google Maps reviews. Served from a shared hourly cache, so this costs nothing per
+  // page load — see lib/google-reviews.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/radar/reviews", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setReviews(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
@@ -237,6 +260,28 @@ function Radar() {
     return Array.from(seen);
   }, [trends]);
 
+  // A complaint does not go stale the way a news story does — it stays at the top of our
+  // Google listing being read by people deciding whether to call us, whether it was left
+  // last week or last quarter. So negatives get a longer window than the rest of the
+  // Radar. Praise does expire as *content*: a five-star review from March is not news and
+  // there are hundreds of them, so those keep the same 30 days as everything else and are
+  // capped, or they would bury the page.
+  const NEGATIVE_WINDOW_DAYS = 90;
+  const PRAISE_MAX = 3;
+
+  const reviewRows = useMemo(() => {
+    const all = reviews?.reviews || [];
+    const bad = all
+      .filter((r) => r.rating > 0 && r.rating <= 3)
+      .filter((r) => !r.publishedAt || ageDays(r.publishedAt) <= NEGATIVE_WINDOW_DAYS);
+    const good = all
+      // A bare five stars with no words is not a testimonial — there is nothing to post.
+      .filter((r) => r.rating >= 5 && r.text.length > 40)
+      .filter((r) => r.publishedAt && ageDays(r.publishedAt) <= MAX_AGE_DAYS)
+      .slice(0, PRAISE_MAX);
+    return { bad, good, all: [...bad, ...good] };
+  }, [reviews]);
+
   const tiles = useMemo<SourceTile[]>(() => [
     { name: "Google News", n: freshNews.length, unit: "headlines", what: "news in your field" },
     { name: "Reddit", n: mentionsByLane["Reddit"] || 0, unit: "threads", what: "brand + topic talk" },
@@ -245,8 +290,20 @@ function Radar() {
     { name: "MouthShut", n: mentionsByLane["MouthShut"] || 0, unit: "threads", what: "consumer reviews" },
     { name: "ValueMD", n: mentionsByLane["ValueMD"] || 0, unit: "threads", what: "IMG forums" },
     { name: "Search Console", n: null, unit: "your own site", what: "see the SEO tab", dim: true },
-    { name: "Google Reviews", n: null, unit: "not connected", what: "star ratings", dim: true },
-  ], [freshNews.length, mentionsByLane, risingTerms.length]);
+    // Counts the complaints, not the reviews. 378 reviews at 4.9 stars is a fact about
+    // the business; the number that should make someone click is the number needing an
+    // answer. The overall score rides along on the description line.
+    reviews?.configured
+      ? {
+          name: "Google Reviews",
+          n: reviewRows.bad.length,
+          unit: reviewRows.bad.length === 1 ? "needs a reply" : "need a reply",
+          what: reviews.place?.rating
+            ? `${reviews.place.rating}★ from ${reviews.place.ratingCount ?? "?"}`
+            : "star ratings",
+        }
+      : { name: "Google Reviews", n: null, unit: "not connected", what: "star ratings", dim: true },
+  ], [freshNews.length, mentionsByLane, risingTerms.length, reviews, reviewRows.bad.length]);
 
   // One list. A story, a thread and a rising search are all the same thing here —
   // something you could write about today — so they are ranked together rather than
@@ -257,7 +314,8 @@ function Radar() {
   type Merged =
     | { key: string; actionKey: string; kind: "news"; src: string; rank: number; at: number; item: FeedItem }
     | { key: string; actionKey: string; kind: "mention"; src: string; rank: number; at: number; m: WebMention }
-    | { key: string; actionKey: string; kind: "search"; src: string; rank: number; at: number; term: string };
+    | { key: string; actionKey: string; kind: "search"; src: string; rank: number; at: number; term: string }
+    | { key: string; actionKey: string; kind: "review"; src: string; rank: number; at: number; review: GoogleReviewLite };
 
   const merged = useMemo<Merged[]>(() => {
     const out: Merged[] = [];
@@ -272,12 +330,22 @@ function Radar() {
                  src: "Google News", rank: rankOf(it) === 0 ? 1 : 3,
                  at: +new Date(it.publishedAt) || 0, item: it });
     }
+    for (const r of reviewRows.all) {
+      const bad = r.rating <= 3;
+      out.push({
+        key: `r${r.id}`, actionKey: `review:${r.id}`, kind: "review", src: "Google Reviews",
+        // A complaint outranks everything. It is the only item on this page where doing
+        // nothing keeps costing us money for as long as it stays unanswered.
+        rank: bad ? -1 : 2.6,
+        at: +new Date(r.publishedAt || 0) || 0, review: r,
+      });
+    }
     for (const term of risingTerms) {
       out.push({ key: `s${term}`, actionKey: `search:${term.trim().toLowerCase()}`, kind: "search",
                  src: "Google Trends", rank: 2.5, at: 0, term });
     }
     return out.sort((a, b) => a.rank - b.rank || b.at - a.at);
-  }, [mentions, freshNews, risingTerms]);
+  }, [mentions, freshNews, risingTerms, reviewRows.all]);
 
   // Anything already written into a past day's report is gone from here. It had its day;
   // it now lives in the report. Without this the tab is a pile that only grows, which is
@@ -406,6 +474,9 @@ function Radar() {
                   r.kind === "news" ? (
                     <FeedRow key={r.key} item={r.item} onRead={() => setReaderItem(r.item)}
                       showTopic={activeInterest === "all"} acts={acts} />
+                  ) : r.kind === "review" ? (
+                    <RadarReviewRow key={r.key} r={r.review} acts={acts}
+                      mapsUrl={reviews?.place?.cid ? `https://www.google.com/maps?cid=${reviews.place.cid}` : null} />
                   ) : r.kind === "mention" ? (
                     <RadarMentionRow key={r.key} m={r.m} lane={r.src} acts={acts} />
                   ) : (
@@ -841,6 +912,67 @@ URL: ${m.url}`)}
         <a href={m.url} target="_blank" rel="noreferrer"
           className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
         <Thumbs state={acts} kind="mention" rawKey={m.url} />
+      </div>
+    </li>
+  );
+}
+
+// A Google review. The one row on this page where the useful action is usually not
+// "write a post" — a complaint needs answering where it was left, in public, which is why
+// the primary link goes to Google Maps rather than to the Scheduler. Praise keeps "Write
+// this", because a testimonial in a customer's own words is the post.
+function RadarReviewRow({ r, acts, mapsUrl }: {
+  r: GoogleReviewLite; acts: RadarActionsState; mapsUrl: string | null;
+}) {
+  const bad = r.rating <= 3;
+  // Google's own "5 months ago" is the fallback, because Serper does not always resolve
+  // a review to a real date and "—" reads as broken.
+  const when = r.publishedAt ? fmtDateShort(r.publishedAt) : r.relative || "";
+  return (
+    <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
+      {/* Google's own mark, not the Maps pin. The pin is the icon for directions; what
+          this row is, is a review left on Google. */}
+      <SourceIcon url="https://www.google.com" label="Google Reviews" />
+      <div className="flex-1 min-w-0">
+        {/* Clamped to three lines. The review is the headline here — there is no other
+            title — but a five-line row next to one-line headlines makes the whole list
+            look lopsided, and the rest of it is one click away on Google. */}
+        <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-3">
+          <span className={`inline-block align-[2px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full ${
+            bad ? "bg-[#FBE7E4] text-[#C03221]" : "bg-[#E3F5EA] text-[#0F6E3C]"}`}>
+            {bad ? "Unhappy customer" : "Happy customer"}
+          </span>
+          {/* Stars, because a rating read as "3" alone is ambiguous out of what. */}
+          <span className="mr-1.5 text-[#E8A33D] tracking-tight" title={`${r.rating} out of 5`}>
+            {"\u2605".repeat(r.rating)}<span className="text-[#DDE1EA]">{"\u2605".repeat(5 - r.rating)}</span>
+          </span>
+          {/* The review itself is the headline — there is no other title. A rating with no
+              words still needs saying, so it says so rather than rendering a blank line. */}
+          {r.text || <span className="text-[#8A92A6] italic font-normal">Left a rating with no comment</span>}
+        </div>
+        <div className="flex items-center gap-2 text-[11.5px] text-[#8A92A6] flex-wrap mt-1">
+          <span className="font-medium text-[#4A5468]">{r.author}</span>
+          {when && <><span className="opacity-50">·</span><span>{when}</span></>}
+          <span className="opacity-50">·</span><span>Google Reviews</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5 shrink-0 items-end">
+        {bad ? (
+          <a href={r.link || mapsUrl || "#"} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#C03221] hover:underline whitespace-nowrap">
+            <IconMessage2 size={13} stroke={1.8} /> Reply on Google
+          </a>
+        ) : (
+          <Link href={draftFromQuery(`What our students say`, `Google review by ${r.author} (${r.rating}/5)
+${r.text}
+${r.link || mapsUrl || ""}`)}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+            <IconPencil size={13} stroke={1.8} /> Write this
+          </Link>
+        )}
+        <a href={r.link || mapsUrl || "#"} target="_blank" rel="noreferrer"
+          className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
+        <Thumbs state={acts} kind="review" rawKey={r.id} />
       </div>
     </li>
   );

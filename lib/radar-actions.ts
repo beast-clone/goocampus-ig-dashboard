@@ -8,12 +8,12 @@ import { getSupabase } from "@/lib/supabase";
 // "not useful" is a real answer and takes one tap, where writing the post is the only
 // other way to clear something — and if that is the only way, people ignore the tab.
 
-export type RadarItemKind = "news" | "mention" | "search";
+export type RadarItemKind = "news" | "mention" | "search" | "review";
 export type RadarAction = "written" | "useful" | "not_useful";
 
-/** A stable identity for the thing that was shown, whatever kind it is. Two of the
- *  three never exist as rows here — a Reddit thread and a search term are passing
- *  through — so the key is derived rather than referenced. */
+/** A stable identity for the thing that was shown, whatever kind it is. Most of these
+ *  never exist as rows here — a Reddit thread, a search term and a Google review are all
+ *  passing through — so the key is derived rather than referenced. */
 export function radarItemKey(kind: RadarItemKind, raw: string): string {
   return kind === "search" ? `search:${raw.trim().toLowerCase()}` : `${kind}:${raw.trim()}`;
 }

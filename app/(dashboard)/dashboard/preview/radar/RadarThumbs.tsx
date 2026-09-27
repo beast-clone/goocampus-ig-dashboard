@@ -10,7 +10,7 @@ import { IconThumbUp, IconThumbDown } from "@tabler/icons-react";
 // and the list only ever grew. "Not useful" is a real answer and it takes one tap.
 // The answers are what the nightly report is made of; see sql/022_radar_report.sql.
 
-export type RadarItemKind = "news" | "mention" | "search";
+export type RadarItemKind = "news" | "mention" | "search" | "review";
 export type RadarAction = "written" | "useful" | "not_useful";
 
 type ActionsMap = Record<string, { action: RadarAction }>;
@@ -50,22 +50,34 @@ export function useRadarActions(): RadarActionsState {
 
   const set = useCallback((kind: RadarItemKind, rawKey: string, action: RadarAction) => {
     const key = radarItemKey(kind, rawKey);
-    // Painted immediately — a tap that waits on the network reads as a dead button, and
-    // people tap it again. The row is unchanged if the save fails, so nothing is claimed
-    // that was not recorded.
+    const before = actions[key];
+    const same = before?.action === action;
+
+    // Painted immediately — a tap that waits on the network reads as a dead button and
+    // people tap it twice.
     setActions((prev) => {
       const next = { ...prev };
-      if (prev[key]?.action === action) delete next[key];
+      if (same) delete next[key];
       else next[key] = { action };
       return next;
     });
-    const same = actions[key]?.action === action;
+
     fetch("/api/radar/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       // Un-tapping sends the answer back to nothing by clearing it server-side.
       body: JSON.stringify(same ? { itemKey: key, itemKind: kind, action: null } : { itemKey: key, itemKind: kind, action }),
-    }).catch(() => {});
+    })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
+      // Put it back the way it was. An optimistic paint that survives a failed save is
+      // worse than no paint at all: the answer looks recorded, the report never sees it,
+      // and the first anyone knows is that the thumb is gone after a reload.
+      .catch(() => setActions((prev) => {
+        const next = { ...prev };
+        if (before) next[key] = before; else delete next[key];
+        return next;
+      }));
   }, [actions]);
 
   return { actions, logged, set, key: radarItemKey };
