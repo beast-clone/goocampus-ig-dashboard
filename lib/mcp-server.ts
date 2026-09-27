@@ -33,7 +33,11 @@ const TOOLS = [
     description:
       "Create ONE content task in the GooCampus Marketing OS dashboard (lands in the Master sheet as \"Content - Pending\", created by the connected person). " +
       "primary_interest and content_type are REQUIRED: if the user hasn't clearly said them, ASK the user — never guess or pick a default. " +
-      "Put the post body / script / slide text in `content` and the social caption in `caption` — they are different fields; don't merge them. " +
+      "Put the post body / script / slide text in `content` and the social caption in `caption` — they are DIFFERENT fields; never merge them or copy one into the other. " +
+      "If the user gave you content but no caption, ASK whether they want one before calling: offer to write it, or to leave it empty for the writer. " +
+      "Do not invent a caption silently, and do not block on it — if they say skip, leave it empty and create the task. " +
+      "Formats that carry no caption of their own (Reel Thumbnail, YouTube Thumbnail, Meta Ads) don't need the question — leave caption empty for those. " +
+      "Ask everything you are missing in ONE message rather than one question at a time. " +
       "Confirm the title, primary interest, content type and publishing date with the user before calling if anything is ambiguous.",
     inputSchema: {
       type: "object",
@@ -42,7 +46,7 @@ const TOOLS = [
         primary_interest: { type: "string", enum: [...SBU_OPTIONS], description: "Which brand / SBU the task is for. Ask the user if not given." },
         content_type: { type: "string", enum: [...CONTENT_TYPES], description: "Format of the content. Ask the user (carousel, reel, YouTube…) if not given." },
         content: { type: "string", description: "The finalised content: post copy, carousel slide text or video script." },
-        caption: { type: "string", description: "The caption to publish with the post (separate from the content)." },
+        caption: { type: "string", description: "The caption that gets published with the post — separate from `content`, which is the script/slide text. Ask the user for it if they gave content but no caption; leave empty if they decline or the format has no caption." },
         publishing_date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Planned publishing date, YYYY-MM-DD." },
         priority: { type: "string", enum: ["Low", "Medium", "High"], description: "Defaults to Medium." },
         owner: { type: "string", enum: ["manya", "praveen", "nikhil", "nandu", "maheen"], description: "Who works on it next. Defaults to the connected person." },
