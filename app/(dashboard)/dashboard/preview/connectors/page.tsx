@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
-  IconSparkles, IconCopy, IconCheck, IconPlus, IconTerminal2, IconDeviceDesktop,
+  IconCopy, IconCheck, IconPlus, IconTerminal2, IconDeviceDesktop,
   IconWorld, IconAlertTriangle, IconLock, IconPlugConnected,
 } from "@tabler/icons-react";
 
@@ -33,10 +33,8 @@ export default function ConnectorsPage() {
 function Connectors() {
   return (
     <div className="space-y-3">
-      <ClaudeConnector />
-
-      {/* The empty slot is the point of the page — it says more can go here, without
-          pretending something is coming that nobody has agreed to build. */}
+      {/* Adding one comes first: this page exists to get people connected, and the
+          list below it is the record of what already is. */}
       <div className="bg-white border border-dashed border-[#D9DEEA] rounded-2xl p-5 flex items-center gap-3">
         <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#F6F7FB] text-[#A6ACBE] shrink-0">
           <IconPlus size={18} stroke={1.8} />
@@ -44,10 +42,15 @@ function Connectors() {
         <div className="min-w-0">
           <div className="text-[13.5px] font-semibold text-[#232D42]">Add another connector</div>
           <p className="text-[12.5px] text-[#8A92A6] mt-0.5">
-            Nothing else is connected yet. Anything that should read or write this dashboard from
-            outside — n8n, Zapier, another AI tool — gets set up here. Ask Praveen to add it.
+            Anything that should read or write this dashboard from outside — n8n, Zapier,
+            another AI tool — gets set up here. Ask Praveen to add it.
           </p>
         </div>
+      </div>
+
+      <div className="pt-1">
+        <h2 className="text-[11.5px] font-semibold text-[#8A92A6] uppercase tracking-wider px-1 mb-2">Connected</h2>
+        <ClaudeConnector />
       </div>
     </div>
   );
@@ -218,6 +221,21 @@ function ClaudeConnector() {
 
 /* ---------------------------------------------------------------- bits */
 
+// Claude's own logomark, in Anthropic's own colour, rather than a generic sparkle —
+// a connector should look like the thing it connects to, so it is recognisable at a
+// glance in a list. Inline SVG so it needs no network fetch and can't 404.
+//
+// Any connector added here should bring its official mark the same way: an inline
+// path in its brand colour, falling back to a neutral glyph only if there isn't one.
+function ClaudeMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#D97757" aria-label="Claude" role="img">
+      <path d="M4.709 15.955l4.72-2.647.079-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.415 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.607.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" />
+    </svg>
+  );
+}
+
+
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="bg-white border border-gray-100 rounded-2xl p-5">{children}</div>;
 }
@@ -225,8 +243,8 @@ function Card({ children }: { children: React.ReactNode }) {
 function Head({ connected }: { connected: boolean }) {
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="grid place-items-center w-9 h-9 rounded-lg bg-brand-light text-brand shrink-0">
-        <IconSparkles size={18} stroke={1.8} />
+      <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#F5EEE9] shrink-0">
+        <ClaudeMark size={19} />
       </span>
       <div>
         <h2 className="text-[14.5px] font-semibold text-[#232D42]">Claude</h2>

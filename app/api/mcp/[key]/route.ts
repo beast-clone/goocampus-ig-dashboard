@@ -12,7 +12,7 @@ import { serve, CORS } from "@/lib/mcp-server";
 // A key in a URL is weaker than a key in a header — it can land in browser history and
 // in logs, and anyone holding the URL is holding the credential. Three things bound the
 // damage, and they were the condition for doing it this way at all:
-//   · one key per person, revocable in a click from My Account → Connect Claude
+//   · one key per person, revocable in a click from System → Connectors
 //   · the tools cannot delete anything
 //   · the tools cannot move a task to another brand
 // Treat the URL like a password.

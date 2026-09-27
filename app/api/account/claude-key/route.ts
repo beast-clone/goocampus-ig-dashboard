@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth";
 import { canUseConnector, connectorStatus, issueKey, revokeKey } from "@/lib/claude-connector";
 
-// GET    → { allowed, connected, createdAt, lastUsedAt }   (My Account → Connect Claude)
+// GET    → { allowed, connected, createdAt, lastUsedAt }   (System → Connectors)
 // POST   → { key }  a new personal key (shown once; replaces any old one)
 // DELETE → revoke the key
 // Allowed only with the "Connect Claude" permission (Team page) or for admins.

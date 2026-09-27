@@ -215,7 +215,7 @@ export async function serve(req: Request, key: string) {
   const userId = await userForKey(key);
   if (!userId) {
     return NextResponse.json(
-      fail(null, -32001, "Invalid or revoked key — create a new one on My Account → Connect Claude (needs the “Connect Claude” permission)."),
+      fail(null, -32001, "Invalid or revoked key — create a new one on System → Connectors in the dashboard (needs the “Connect Claude” permission)."),
       { status: 401, headers: CORS },
     );
   }
