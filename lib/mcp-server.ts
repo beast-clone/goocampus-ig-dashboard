@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { userForKey } from "@/lib/claude-connector";
+import { userForAccessToken, issuer } from "@/lib/oauth";
 import { rosterById } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
@@ -205,6 +206,9 @@ export const CORS = {
   // browser-based client would fail preflight without them listed here.
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, MCP-Protocol-Version, x-api-key, api-key, apikey, x-apikey, x-api-token, api-token, x-auth-token",
+  // Without this a browser-based client cannot read the header that tells it where
+  // to sign in — the response arrives but the useful part is hidden from the script.
+  "Access-Control-Expose-Headers": "WWW-Authenticate",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -216,11 +220,26 @@ export const CORS = {
  * is exactly how this got caught.
  */
 export async function serve(req: Request, key: string) {
-  const userId = await userForKey(key);
+  // Two ways in. A personal key (gck_…) is what Claude Code uses and what the
+  // /api/mcp/<key> URL carries; an OAuth access token is what the desktop app and
+  // claude.ai get after someone approves. Both arrive in the same place, so try the
+  // cheap prefix check first and fall through.
+  const userId = key.startsWith("gck_") ? await userForKey(key) : await userForAccessToken(key);
   if (!userId) {
+    // A bare 401 is what broke the first desktop setup: the client read it as "this
+    // server wants OAuth", went looking for a sign-in service, found nothing and gave
+    // up with "couldn't register". WWW-Authenticate points at the metadata that says
+    // where to sign in, which is the trail the spec expects a client to follow.
+    const iss = issuer(req.url);
     return NextResponse.json(
-      fail(null, -32001, "Invalid or revoked key — create a new one on System → Connectors in the dashboard (needs the “Connect Claude” permission)."),
-      { status: 401, headers: CORS },
+      fail(null, -32001, "Not signed in. Connect the GooCampus connector in Claude, or create a personal key on System → Connectors (needs the “Connect Claude” permission)."),
+      {
+        status: 401,
+        headers: {
+          ...CORS,
+          "WWW-Authenticate": `Bearer realm="GooCampus Marketing OS", resource_metadata="${iss}/.well-known/oauth-protected-resource"`,
+        },
+      },
     );
   }
   const body = await req.json().catch(() => null);

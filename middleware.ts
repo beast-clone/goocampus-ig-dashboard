@@ -35,6 +35,21 @@ const CRON_PREFIX = "/api/cron";
 // is doing the job the cookie would have done.
 const MCP_PREFIX = "/api/mcp";
 
+// OAuth endpoints Claude's own servers call: no session cookie to send, and no
+// same-origin header either, so they sit outside both gates. Safe to open because
+// none of them grants anything on its own — /register hands out a client_id, which is
+// not a credential, and /token only works with a code that a signed-in person approved
+// on the consent screen, proved by PKCE.
+//
+// /api/oauth/approve is deliberately NOT here: that one is driven by a person in a
+// browser and must keep both the session check and the CSRF check.
+const OAUTH_PUBLIC = new Set<string>([
+  "/api/oauth/metadata",
+  "/api/oauth/resource",
+  "/api/oauth/register",
+  "/api/oauth/token",
+]);
+
 const MUTATING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
 // Hex-encoded HMAC-SHA256 of `payload` using `secret`.
@@ -95,7 +110,8 @@ export async function middleware(req: NextRequest) {
     MUTATING_METHODS.has(method) &&
     !PUBLIC_API_ROUTES.has(pathname) &&
     !pathname.startsWith(CRON_PREFIX) &&
-    !pathname.startsWith(MCP_PREFIX)
+    !pathname.startsWith(MCP_PREFIX) &&
+    !OAUTH_PUBLIC.has(pathname)
   ) {
     const origin = req.headers.get("origin") || req.headers.get("referer") || "";
     const host = req.headers.get("host") || "";
@@ -132,6 +148,11 @@ export async function middleware(req: NextRequest) {
 
   // So does the Claude connector, by key.
   if (pathname.startsWith(MCP_PREFIX)) {
+    return NextResponse.next();
+  }
+
+  // And so does the OAuth handshake.
+  if (OAUTH_PUBLIC.has(pathname)) {
     return NextResponse.next();
   }
 

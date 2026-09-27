@@ -32,6 +32,22 @@ const nextConfig = {
       { protocol: "https", hostname: "*.apify.com" },
     ],
   },
+  // OAuth discovery has to live at the domain root — a client looks at
+  // /.well-known/… and nowhere else. These resolve to the root because BASE_PATH is
+  // empty in every environment we actually run (that is why the live site serves at
+  // /dashboard/... and not /gc-dashboard/dashboard/...). `basePath: false` would be
+  // the belt-and-braces version but Next only allows it on external destinations.
+  //
+  // The "/api/mcp"-suffixed forms are what a client sends when the protected resource
+  // sits on a path rather than at the root — both spellings are in the wild.
+  async rewrites() {
+    return [
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-authorization-server/api/mcp", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/resource" },
+      { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/oauth/resource" },
+    ];
+  },
   webpack: (config) => {
     // pdfjs-dist references its worker via `new URL("pdf.worker.min.mjs", import.meta.url)`;
     // webpack emits that worker as a chunk and Terser then fails minifying it

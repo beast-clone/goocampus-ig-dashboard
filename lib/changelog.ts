@@ -33,6 +33,31 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-27",
+    title: "Connect Claude by signing in",
+    summary: "No more keys to copy. Click Connect, sign in, approve — the way Airtable and Notion do it.",
+    changes: [
+      {
+        kind: "new",
+        what: "Claude connects with a sign-in, not a key",
+        detail: "In Claude, add the connector and click Connect. A GooCampus screen opens, you sign in with the login you already have, click Approve, done. There is no key to copy, keep or lose.",
+        where: "Connectors",
+      },
+      {
+        kind: "changed",
+        what: "The personal key is now the fallback, not the main way",
+        detail: "It still works and existing setups are untouched, but it's tucked behind “I need a personal key instead”. Handing people a secret to carry is how one ended up pasted into a chat window on day one.",
+        where: "Connectors",
+      },
+      {
+        kind: "new",
+        what: "You can see and cut off what's connected",
+        detail: "Connectors lists each Claude that has access and when it connected. “Disconnect everything” kills them all instantly — not at the next expiry, immediately.",
+        where: "Connectors",
+      },
+    ],
+  },
+  {
+    date: "2026-09-27",
     title: "Connectors, and a clock",
     summary: "Setting Claude up has its own page now, with the steps for the app and the website — not just the terminal.",
     changes: [

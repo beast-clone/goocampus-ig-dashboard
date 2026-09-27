@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import {
-  IconCopy, IconCheck, IconPlus, IconTerminal2, IconDeviceDesktop,
+  IconCopy, IconChevronRight, IconCheck, IconPlus, IconTerminal2, IconDeviceDesktop,
   IconWorld, IconAlertTriangle, IconLock, IconPlugConnected,
 } from "@tabler/icons-react";
 
@@ -19,7 +19,8 @@ import {
 // here telling them how. Hence one card per platform, written for somebody who has
 // never set up a connector before.
 
-type KeyState = { allowed: boolean; connected: boolean; createdAt?: string; lastUsedAt?: string };
+type Grant = { clientId: string; name: string; createdAt: string };
+type KeyState = { allowed: boolean; connected: boolean; createdAt?: string; lastUsedAt?: string; grants?: Grant[] };
 
 export default function ConnectorsPage() {
   return (
@@ -81,7 +82,7 @@ function ClaudeConnector() {
   const disconnect = async () => {
     if (!(await confirmDialog({
       title: "Disconnect Claude?",
-      body: "Claude will stop being able to read or change anything here until you create a new key.",
+      body: "Every Claude connection and any personal key stop working immediately. You can connect again any time.",
       action: "Disconnect", danger: true,
     }))) return;
     await fetch("/api/account/claude-key", { method: "DELETE", credentials: "same-origin" });
@@ -106,8 +107,6 @@ function ClaudeConnector() {
 
   // The key is shown once, at creation. After that we only know that one exists.
   const baseUrl = `${origin}/api/mcp`;
-  // Fallback form for any client that can only give a URL and no header.
-  const url = key ? `${baseUrl}/${key}` : `${baseUrl}/YOUR-KEY`;
   const cmd = key
     ? `claude mcp add --transport http --scope user goocampus ${origin}/api/mcp --header "Authorization: Bearer ${key}"`
     : `claude mcp add --transport http --scope user goocampus ${origin}/api/mcp --header "Authorization: Bearer YOUR-KEY"`;
@@ -123,51 +122,7 @@ function ClaudeConnector() {
         working on&rdquo;</i>, <i>&ldquo;what&apos;s overdue&rdquo;</i>, <i>&ldquo;move that to Friday&rdquo;</i>.
       </p>
 
-      {/* Step 1 — the key */}
-      <Step n={1} title="Get your key">
-        {key ? (
-          <>
-            <p className="text-[13px] text-[#0F6E3C] bg-[#E3F5EA] border border-[#BFE6CD] rounded-lg px-3 py-2 mb-2 flex items-start gap-1.5">
-              <IconCheck size={15} stroke={2.2} className="shrink-0 mt-0.5" />
-              <span>
-                <b className="font-semibold">Done — your key is ready.</b> Step&nbsp;2 tells you exactly
-                where each part goes, with a Copy button beside it. Nothing to type out by hand.
-              </span>
-            </p>
-            <p className="text-[12px] text-[#8A92A6] flex items-start gap-1.5">
-              <IconAlertTriangle size={13} className="shrink-0 mt-0.5 text-[#C03221]" />
-              This is the only time it&apos;s shown. You don&apos;t have to save it — if you ever need it
-              again, just make a new one.
-            </p>
-            <code className="mt-1.5 block break-all rounded-lg bg-[#F6F7FB] border border-gray-100 px-3 py-1.5 text-[11.5px] text-[#8A92A6] font-mono select-all">
-              {key}
-            </code>
-          </>
-        ) : st.connected ? (
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[12.5px] text-[#8A92A6]">
-              You already have one — created {when(st.createdAt)}, last used {when(st.lastUsedAt)}.
-            </span>
-            <button onClick={create} disabled={busy}
-              className="ml-auto text-[12.5px] font-medium border border-gray-200 rounded-lg px-3 py-1.5 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
-              {busy ? "Creating…" : "Make a new one"}
-            </button>
-            <button onClick={disconnect}
-              className="text-[12.5px] text-[#8A92A6] hover:text-[#C03221] px-1">Disconnect</button>
-          </div>
-        ) : (
-          <button onClick={create} disabled={busy}
-            className="text-[13px] font-semibold bg-brand text-white rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50">
-            {busy ? "Creating…" : "Create my key"}
-          </button>
-        )}
-        {st.connected && key && (
-          <p className="text-[12px] text-[#A6ACBE] mt-1.5">Your previous key stopped working the moment this one was made.</p>
-        )}
-      </Step>
-
-      {/* Step 2 — where you use Claude */}
-      <Step n={2} title="Where do you use Claude?">
+      <Step n={1} title="Set it up in Claude">
         <div className="flex gap-1.5 mb-3 flex-wrap">
           {([
             ["desktop", "Claude app", IconDeviceDesktop],
@@ -184,14 +139,10 @@ function ClaudeConnector() {
 
         {platform === "terminal" ? (
           <>
-            <Num n="1">Open your terminal.</Num>
-            <Num n="2">
-              Paste this whole line and press Enter — {key
-                ? "your key is already in it."
-                : <>make a key in step&nbsp;1 first so this comes out ready to run.</>}
-            </Num>
-            <div className="ml-6 mb-2"><CopyBox value={cmd} mono ready={!!key} /></div>
-            <Num n="3">Restart Claude Code. Type <b className="font-medium text-[#4A5468]">/mcp</b> to check it says <i>goocampus</i>.</Num>
+            <Num n="1">Open your terminal and run:</Num>
+            <div className="ml-6 mb-2"><CopyBox value={`claude mcp add --transport http --scope user goocampus ${baseUrl}`} mono ready /></div>
+            <Num n="2">Restart Claude Code, then type <b className="font-medium text-[#4A5468]">/mcp</b> and pick <i>goocampus</i> to sign in.</Num>
+            <Num n="3">Your browser opens on a GooCampus screen. Click <b className="font-medium text-[#4A5468]">Approve</b>.</Num>
           </>
         ) : (
           <>
@@ -202,34 +153,78 @@ function ClaudeConnector() {
             </Num>
             <Num n="2">Click <b className="font-medium text-[#4A5468]">Add custom connector</b>.</Num>
             <Num n="3">Name it <b className="font-medium text-[#4A5468]">GooCampus</b> and paste this as the URL:</Num>
-            <div className="ml-6 mb-2"><CopyBox value={baseUrl} mono /></div>
-            <Num n="4">
-              Leave <b className="font-medium text-[#4A5468]">No sign-in</b> selected. That setting is about
-              Google-style sign-in, which we don&apos;t use — your key below is what signs you in.
-            </Num>
-            <Num n="5">
-              Click <b className="font-medium text-[#4A5468]">+ Add header</b>. Pick
-              <b className="font-medium text-[#4A5468]"> x-api-key</b> from the list
-              {" "}(Claude won&apos;t let you pick <i>Authorization</i> — it keeps that one for itself),
-              and paste this as the value:
-            </Num>
-            <div className="ml-6 mb-2">
-              <CopyBox value={key || "— make a key in step 1 first —"} mono ready={!!key} />
-            </div>
-            <Num n="6">Click Add.</Num>
-            <Num n="7">Start a new chat and ask <i>&ldquo;what&apos;s on the content board?&rdquo;</i> to check it worked.</Num>
-            <p className="text-[12px] text-[#8A92A6] mt-2 ml-6">
-              Putting the key in a header keeps it out of the web address, so it can&apos;t leak through
-              history, logs or a shared screenshot. If your version of Claude has no header box, you can
-              instead paste <code className="font-mono text-[11.5px]">{url}</code> as the URL on its own —
-              it works, it&apos;s just less private.
-            </p>
+            <div className="ml-6 mb-2"><CopyBox value={baseUrl} mono ready /></div>
+            <Num n="4">Click <b className="font-medium text-[#4A5468]">Add</b>, then <b className="font-medium text-[#4A5468]">Connect</b>.</Num>
+            <Num n="5">A GooCampus screen opens. Click <b className="font-medium text-[#4A5468]">Approve</b>. That&apos;s it — you&apos;re connected.</Num>
           </>
         )}
+
+        <p className="text-[12px] text-[#8A92A6] mt-2.5 flex items-start gap-1.5">
+          <IconLock size={13} className="shrink-0 mt-0.5 text-[#A6ACBE]" />
+          There is no key to copy or keep anywhere. You sign in with the GooCampus login you
+          already have, and Claude gets access that expires and renews on its own.
+        </p>
+      </Step>
+
+      <Step n={2} title="Your connections">
+        {st.grants?.length ? (
+          <div className="space-y-1.5 mb-2">
+            {st.grants.map((g) => (
+              <div key={g.clientId} className="flex items-center gap-2 text-[13px] text-[#3B4457]">
+                <IconCheck size={14} stroke={2.2} className="text-[#0F6E3C] shrink-0" />
+                <b className="font-medium">{g.name}</b>
+                <span className="text-[#8A92A6]">connected {when(g.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12.5px] text-[#8A92A6] mb-2">
+            Nothing connected yet. Follow step 1 and it&apos;ll show up here.
+          </p>
+        )}
+
+        {(st.connected || st.grants?.length) ? (
+          <button onClick={disconnect}
+            className="text-[12.5px] font-medium border border-gray-200 rounded-lg px-3 py-1.5 text-[#4A5468] hover:border-[#C03221] hover:text-[#C03221] transition">
+            Disconnect everything
+          </button>
+        ) : null}
+
+        {/* The old way, kept for anything that can't do the sign-in dance. Tucked
+            away on purpose: handing someone a secret to carry is how a key ended up
+            pasted into a chat window on day one. */}
+        <details className="mt-3 group">
+          <summary className="text-[12px] text-[#8A92A6] cursor-pointer hover:text-brand list-none flex items-center gap-1">
+            <IconChevronRight size={12} className="group-open:rotate-90 transition" />
+            I need a personal key instead
+          </summary>
+          <div className="mt-2 pl-4 border-l-2 border-[#F3F5F9]">
+            <p className="text-[12px] text-[#8A92A6] mb-2">
+              Only for tools that can&apos;t sign in through a browser. A key is a password in plain
+              text — don&apos;t paste it into a chat or a screenshot.
+            </p>
+            {key ? (
+              <>
+                <CopyBox value={`${baseUrl}/${key}`} mono ready />
+                <p className="text-[11.5px] text-[#C03221] mt-1.5">Shown once. Make another if you lose it.</p>
+              </>
+            ) : (
+              <button onClick={create} disabled={busy}
+                className="text-[12.5px] font-medium border border-gray-200 rounded-lg px-3 py-1.5 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
+                {busy ? "Creating…" : st.connected ? "Replace my key" : "Create a key"}
+              </button>
+            )}
+            {st.connected && !key && (
+              <p className="text-[11.5px] text-[#A6ACBE] mt-1.5">
+                You have one — made {when(st.createdAt)}, last used {when(st.lastUsedAt)}.
+              </p>
+            )}
+          </div>
+        </details>
       </Step>
 
       {/* Step 3 — what it can and can't do, so nobody has to find out */}
-      <Step n={3} title="What Claude can and can't do" last>
+      <Step n={3} title="What Claude can and can&apos;t do" last>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
           <Can yes>Create a task on the board</Can>
           <Can yes>Read tasks, search them, see what&apos;s overdue</Can>
