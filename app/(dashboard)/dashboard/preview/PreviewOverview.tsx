@@ -504,10 +504,14 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                   grow and shrink as you switched, nudging the whole header around.
                   Measured against the longest label we carry, "Samvaya Matrimony", which
                   needs ~145px at this size — anything tighter truncates it. */}
-              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.2, width: 152, minWidth: 0 }}>
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.2, width: 152, minWidth: 0, textAlign: "left" }}>
                 {/* "BRAND" is the caption, not the point — the brand name is. It was the
                     heavier of the two, which read backwards. */}
                 <span style={{ fontSize: 9.5, fontWeight: 500, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Brand</span>
+                {/* textAlign is set on the column: this span is the full 152px while the
+                    caption above shrinks to its text, so a <button>'s inherited
+                    text-align:center pushed the name right and the two stopped
+                    lining up. */}
                 <span style={{ fontSize: 14.5, fontWeight: 600, color: C.heading, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {currentAccount.label}
                 </span>
