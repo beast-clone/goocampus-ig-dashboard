@@ -84,6 +84,16 @@ type ReviewsResp = {
   error: string | null;
 };
 
+type ReviewSort = "needs_reply" | "newest" | "highest" | "lowest";
+const REVIEW_SORTS: { value: ReviewSort; label: string }[] = [
+  // The default is the one Google does not offer, because Google is not trying to get
+  // anybody to answer these — it is the whole reason the tile exists.
+  { value: "needs_reply", label: "Needs a reply first" },
+  { value: "newest", label: "Newest first" },
+  { value: "lowest", label: "Lowest rated" },
+  { value: "highest", label: "Highest rated" },
+];
+
 type SourceTile = {
   name: string; n: number | null; unit: string; what: string; dim?: boolean; note?: string;
 };
@@ -217,6 +227,9 @@ function Radar() {
 
   // Which source tile is selected, or null for everything.
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  // Google's own sort options, because this is the list people are used to reading on
+  // Google and arriving at a different vocabulary for the same four choices helps nobody.
+  const [reviewSort, setReviewSort] = useState<ReviewSort>("needs_reply");
 
   // Thumbs, and the keys already closed into a past day's report.
   const acts = useRadarActions();
@@ -269,18 +282,23 @@ function Radar() {
   const NEGATIVE_WINDOW_DAYS = 90;
   const PRAISE_MAX = 3;
 
+  const viewingReviews = sourceFilter === "Google Reviews";
+  const allReviews = useMemo(() => reviews?.reviews || [], [reviews]);
+
   const reviewRows = useMemo(() => {
-    const all = reviews?.reviews || [];
-    const bad = all
+    const bad = allReviews
       .filter((r) => r.rating > 0 && r.rating <= 3)
       .filter((r) => !r.publishedAt || ageDays(r.publishedAt) <= NEGATIVE_WINDOW_DAYS);
-    const good = all
+    const good = allReviews
       // A bare five stars with no words is not a testimonial — there is nothing to post.
       .filter((r) => r.rating >= 5 && r.text.length > 40)
       .filter((r) => r.publishedAt && ageDays(r.publishedAt) <= MAX_AGE_DAYS)
       .slice(0, PRAISE_MAX);
-    return { bad, good, all: [...bad, ...good] };
-  }, [reviews]);
+    // Filtered to this source on purpose? Then show everything we hold, not the handful
+    // the Radar picked out. The tile is a summary; clicking it is asking to look properly.
+    const all = viewingReviews ? [...allReviews] : [...bad, ...good];
+    return { bad, good, all };
+  }, [viewingReviews, allReviews]);
 
   const tiles = useMemo<SourceTile[]>(() => [
     { name: "Google News", n: freshNews.length, unit: "headlines", what: "news in your field" },
@@ -350,9 +368,22 @@ function Radar() {
   // Anything already written into a past day's report is gone from here. It had its day;
   // it now lives in the report. Without this the tab is a pile that only grows, which is
   // exactly why nobody was clearing it.
-  const shown = useMemo(
-    () => merged.filter((r) => (!sourceFilter || r.src === sourceFilter) && !acts.logged.has(r.actionKey)),
-    [merged, sourceFilter, acts.logged]);
+  const shown = useMemo(() => {
+    const rows = merged.filter((r) => (!sourceFilter || r.src === sourceFilter) && !acts.logged.has(r.actionKey));
+    if (!viewingReviews) return rows;
+    // Only meaningful once the list is all reviews — sorting a mixed list by star rating
+    // would silently drop every row that has no stars to the bottom.
+    const at = (r: Merged) => (r.kind === "review" ? +new Date(r.review.publishedAt || 0) || 0 : 0);
+    const stars = (r: Merged) => (r.kind === "review" ? r.review.rating : 0);
+    const copy = [...rows];
+    if (reviewSort === "newest") copy.sort((a, b) => at(b) - at(a));
+    else if (reviewSort === "lowest") copy.sort((a, b) => stars(a) - stars(b) || at(b) - at(a));
+    else if (reviewSort === "highest") copy.sort((a, b) => stars(b) - stars(a) || at(b) - at(a));
+    // needs_reply: complaints first, newest of those at the top — the order you would
+    // work through them in.
+    else copy.sort((a, b) => Number(stars(a) > 3) - Number(stars(b) > 3) || at(b) - at(a));
+    return copy;
+  }, [merged, sourceFilter, acts.logged, viewingReviews, reviewSort]);
 
   return (
     <>
@@ -448,17 +479,36 @@ function Radar() {
             <span className="text-xs text-[#8A92A6]">
               · {shown.length} {sourceFilter ? "items" : "most urgent first"}
             </span>
+            {/* Google's own four choices, in Google's own words, because this is the list
+                people already know how to read there. */}
+            {viewingReviews && (
+              <PreviewSelect className="ml-auto w-[180px]" value={reviewSort}
+                onChange={(v) => setReviewSort(v as ReviewSort)} options={REVIEW_SORTS} />
+            )}
             {sourceFilter && (
               <button onClick={() => setSourceFilter(null)}
-                className="ml-auto text-xs text-brand hover:underline">Show everything</button>
+                className={`text-xs text-brand hover:underline ${viewingReviews ? "" : "ml-auto"}`}>Show everything</button>
             )}
           </div>
           {/* Said out loud, because a list that silently hides things is worse than one
               that shows too much — the reader has no way to tell the difference. */}
-          <p className="text-[12px] text-[#8A92A6] mb-3">
-            Published in the last {MAX_AGE_DAYS} days.
-            {droppedOld > 0 && <> {droppedOld} older {droppedOld === 1 ? "story is" : "stories are"} left out — not news any more.</>}
-          </p>
+          {viewingReviews ? (
+            // Say how many of how many. "36 reviews" next to a tile reading "4.9 from 378"
+            // invites the reader to assume the rest were hidden for a reason.
+            <p className="text-[12px] text-[#8A92A6] mb-3">
+              The {shown.length} most recent and lowest-rated of{" "}
+              {reviews?.place?.ratingCount ?? "all"} reviews.
+              {reviews?.place?.cid && (
+                <> <a className="text-brand hover:underline" target="_blank" rel="noreferrer"
+                  href={`https://www.google.com/maps?cid=${reviews.place.cid}`}>See them all on Google</a>.</>
+              )}
+            </p>
+          ) : (
+            <p className="text-[12px] text-[#8A92A6] mb-3">
+              Published in the last {MAX_AGE_DAYS} days.
+              {droppedOld > 0 && <> {droppedOld} older {droppedOld === 1 ? "story is" : "stories are"} left out — not news any more.</>}
+            </p>
+          )}
 
           <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             {shown.length === 0 ? (
@@ -879,6 +929,24 @@ function SourceIcon({ url, label, size = 36 }: { url: string; label: string; siz
   );
 }
 
+// Google's official four-colour "G", drawn as vector rather than pulled from the favicon
+// service the other rows use. Every other source here is somebody else's site and a
+// favicon is the best mark available for it; Google's own logo is a known shape, and the
+// 128px bitmap came back soft next to the crisp Reddit and NDTV marks beside it.
+function GoogleMark({ size = 36 }: { size?: number }) {
+  return (
+    <span className="rounded-lg grid place-items-center shrink-0 bg-white border border-gray-100 overflow-hidden"
+      style={{ width: size, height: size }} title="Google">
+      <svg width={size - 14} height={size - 14} viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+      </svg>
+    </span>
+  );
+}
+
 // A brand or topic thread, in the one list. Says which lane it came from and WHY it is
 // worth writing — the old page showed mentions in a panel of their own, where "someone
 // is publicly doubting us" sat at the same weight as a rising search.
@@ -932,7 +1000,7 @@ function RadarReviewRow({ r, acts, mapsUrl }: {
     <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
       {/* Google's own mark, not the Maps pin. The pin is the icon for directions; what
           this row is, is a review left on Google. */}
-      <SourceIcon url="https://www.google.com" label="Google Reviews" />
+      <GoogleMark />
       <div className="flex-1 min-w-0">
         {/* Clamped to three lines. The review is the headline here — there is no other
             title — but a five-line row next to one-line headlines makes the whole list
@@ -962,6 +1030,10 @@ function RadarReviewRow({ r, acts, mapsUrl }: {
             className="inline-flex items-center gap-1 text-[11px] font-medium text-[#C03221] hover:underline whitespace-nowrap">
             <IconMessage2 size={13} stroke={1.8} /> Reply on Google
           </a>
+        ) : !r.text ? (
+          // Five stars and no words. There is nothing to quote, so offering "Write this"
+          // would be a button that opens an empty draft.
+          null
         ) : (
           <Link href={draftFromQuery(`What our students say`, `Google review by ${r.author} (${r.rating}/5)
 ${r.text}
