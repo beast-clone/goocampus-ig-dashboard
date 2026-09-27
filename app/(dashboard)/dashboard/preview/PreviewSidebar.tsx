@@ -127,6 +127,9 @@ const GROUPS: Group[] = [
     ] },
   ] },
   { label: "System", sec: "system", items: [
+    // Everyone sees this one — it exists so the team finds out what changed without
+    // being told one by one.
+    { label: "What's new",   href: `${HUB}/changelog`,    icon: IconSparkles },
     { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
