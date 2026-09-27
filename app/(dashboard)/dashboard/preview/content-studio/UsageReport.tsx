@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { IconAlertTriangle, IconChevronDown, IconCircleCheck, IconCoin, IconClock } from "@tabler/icons-react";
+import { ReportDownload } from "@/app/(dashboard)/dashboard/preview/ReportDownload";
+import { fileStamp, type ExportReport } from "@/lib/report-export";
 
 // What every AI run in Content Studio actually did — Playbooks and Create together.
 //
@@ -75,7 +77,12 @@ export function UsageReport() {
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="text-[15px] font-semibold text-[#232D42]">What the AI has been doing</h2>
         <span className="text-[12.5px] text-[#8A92A6]">Playbooks and Create, newest first</span>
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex items-center gap-2">
+          <ReportDownload
+            filename={`goocampus-ai-usage-${days}d-${fileStamp()}`}
+            disabled={!data || data.runs.length === 0}
+            build={() => buildExport(data!, days)} />
+        <div className="flex gap-1">
           {RANGES.map((r) => (
             <button key={r} onClick={() => setDays(r)}
               className={`text-[12px] font-medium px-2.5 py-1 rounded-lg border transition ${
@@ -83,6 +90,7 @@ export function UsageReport() {
               {r} days
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -129,6 +137,31 @@ export function UsageReport() {
       )}
     </div>
   );
+}
+
+// The downloadable version. Full task text and full custom prompt go in — the table on
+// screen truncates them to stay a table, but a report someone takes away should not be
+// missing the very thing it is reporting on.
+function buildExport(d: Resp, days: number): ExportReport {
+  return {
+    title: "Content Studio — AI usage",
+    subtitle: `Playbooks and Create, last ${days} days`,
+    meta: [
+      `${d.totals.runs} runs · ${d.totals.tokens.toLocaleString()} tokens · ${money(d.totals.cost)}`,
+      `${d.totals.custom} run with a custom prompt · ${d.totals.failed} failed`,
+    ],
+    columns: ["When", "Where", "What", "Asked for", "Own prompt", "Tokens", "Cost", "Took", "By"],
+    sections: [{
+      rows: d.runs.map((r) => [
+        when(r.at), r.where, r.what, r.task, r.usedCustom ? "Yes" : "No",
+        r.tokens.toLocaleString(), r.cost != null ? money(r.cost) : null,
+        r.seconds != null ? `${r.seconds}s` : null, r.by,
+      ]),
+    }],
+    appendix: d.runs
+      .filter((r) => r.usedCustom && r.customPrompt)
+      .map((r) => ({ heading: `Custom prompt — ${r.what}, ${when(r.at)}`, body: r.customPrompt as string })),
+  };
 }
 
 function RunRow({ r, open, onToggle }: { r: Run; open: boolean; onToggle: () => void }) {

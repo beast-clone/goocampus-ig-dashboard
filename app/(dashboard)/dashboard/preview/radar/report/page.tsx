@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconArrowLeft, IconAlertTriangle } from "@tabler/icons-react";
+import { ReportDownload } from "@/app/(dashboard)/dashboard/preview/ReportDownload";
+import { fileStamp, type ExportReport } from "@/lib/report-export";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 
 // The radar report — Maheen's screen.
@@ -72,8 +74,13 @@ function RadarReport() {
           <IconArrowLeft size={14} stroke={1.8} /> Content Radar
         </Link>
       </div>
-      <div className="flex items-baseline gap-3 mb-4 flex-wrap">
-        <div className="ml-auto flex gap-1">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="ml-auto flex items-center gap-2">
+          <ReportDownload
+            filename={`goocampus-radar-report-${range}d-${fileStamp()}`}
+            disabled={!days || days.length === 0}
+            build={() => buildExport(days!, range)} />
+        <div className="flex gap-1">
           {RANGES.map((r) => (
             <button key={r} onClick={() => setRange(r)}
               className={`text-[12px] font-medium px-2.5 py-1 rounded-lg border transition ${
@@ -81,6 +88,7 @@ function RadarReport() {
               {r} days
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -136,6 +144,40 @@ function RadarReport() {
       )}
     </>
   );
+}
+
+// The downloadable version — same days, same order, with the status written out in
+// words rather than as a coloured pill, because a pill does not survive a PDF.
+function buildExport(days: Day[], range: number): ExportReport {
+  const missed = days.reduce((n, d) => n + d.missedUrgent, 0);
+  const shown = days.reduce((n, d) => n + d.shown, 0);
+  const written = days.reduce((n, d) => n + d.written, 0);
+  return {
+    title: "Content Radar — what was shown, and what was done",
+    subtitle: `Last ${range} days`,
+    meta: [
+      `${shown} items shown · ${written} written · ${missed} time-sensitive went past with no action`,
+      `${days.length} day${days.length === 1 ? "" : "s"} logged`,
+    ],
+    columns: ["What the radar showed", "Source", "What was done", "By"],
+    sections: days.map((d) => ({
+      heading: dayLabel(d.day),
+      note: [
+        `${d.shown} shown`,
+        d.written ? `${d.written} written` : "",
+        d.useful ? `${d.useful} useful` : "",
+        d.notUseful ? `${d.notUseful} not useful` : "",
+        d.noAction ? `${d.noAction} no action` : "",
+      ].filter(Boolean).join(" · "),
+      rows: d.items.map((it) => [
+        // The urgency flag has to survive as text; in the table it is a red badge.
+        (it.timeSensitive && !it.action ? "[WAS URGENT] " : "") + it.title,
+        it.source || it.kind,
+        it.action ? (STATUS[it.action]?.label || it.action) : NONE.label,
+        it.by,
+      ]),
+    })),
+  };
 }
 
 function FragmentDay({ d }: { d: Day }) {
