@@ -31,39 +31,60 @@ function clampToTodayISO(d: string): string {
   return d && d > t ? t : d;
 }
 
-// The wall clock in the header. Asked for on 27 Sep 2026 — plainly the current time,
-// not attendance: nothing here is logged or read back, it is the same clock as the one
-// in the corner of the screen, at a size you can read across a desk.
+// The wall clock in the Overview header. Asked for on 27 Sep 2026 — plainly the
+// current time, NOT login/logout: nothing here is recorded or read back.
 //
-// Ticks on the minute rather than the second: a seconds hand re-renders this header
-// sixty times a minute for no one's benefit.
+// Always IST, never the laptop's clock. A browser set to another timezone (or a
+// machine with the wrong one, which is how this normally goes wrong) would otherwise
+// quietly show a different time to different people, and the whole point is that the
+// team is reading the same clock. timeZone pins it to Asia/Kolkata, and the label
+// says IST so nobody has to trust that it did.
+//
+// Ticks every second, because a clock that doesn't tick reads as a stale timestamp.
+// It is a leaf component, so the second only re-renders these few spans.
+const IST = "Asia/Kolkata";
+
 function HeaderClock() {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     setNow(new Date());
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const d = new Date();
-      setNow(d);
-      // Line up with the next minute boundary so the display flips when the
-      // minute actually changes, not a drifting 60s after mount.
-      timer = setTimeout(tick, 60_000 - (d.getSeconds() * 1000 + d.getMilliseconds()));
-    };
-    timer = setTimeout(tick, 60_000 - (Date.now() % 60_000));
-    return () => clearTimeout(timer);
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Rendered empty on the server: the server's clock is UTC and would flash the
-  // wrong time for a beat before the browser corrected it.
-  if (!now) return <span style={{ width: 132 }} aria-hidden />;
+  // Empty on the server: the server's clock is UTC and React would flag the
+  // mismatch, so the first paint comes from the browser.
+  if (!now) return <span style={{ width: 150 }} aria-hidden />;
 
-  const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
-  const day = now.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const t = now.toLocaleTimeString("en-IN", {
+    timeZone: IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
+  });
+  // en-IN gives "09:13:42 pm" — split the am/pm off so it can sit smaller.
+  const [hms, ampm] = t.split(" ");
+  const day = now.toLocaleDateString("en-IN", {
+    timeZone: IST, weekday: "short", day: "numeric", month: "short",
+  });
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={`${day} · ${time}`}>
-      <IconClockHour4 size={17} stroke={1.8} style={{ color: C.primary, flexShrink: 0 }} />
-      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{time}</span>
+    <div
+      title={`${day} · ${t} India Standard Time`}
+      style={{
+        display: "flex", alignItems: "center", gap: 10,
+        background: C.card, border: `1px solid ${C.line}`, borderRadius: 10,
+        padding: "6px 12px",
+      }}
+    >
+      <IconClockHour4 size={18} stroke={1.8} style={{ color: C.primary, flexShrink: 0 }} />
+      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+          <span style={{ fontSize: 17, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>
+            {hms}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase" }}>{ampm}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.primary, background: "#E9ECFB", borderRadius: 4, padding: "1px 5px", marginLeft: 2 }}>
+            IST
+          </span>
+        </span>
         <span style={{ fontSize: 11, color: C.muted }}>{day}</span>
       </span>
     </div>
