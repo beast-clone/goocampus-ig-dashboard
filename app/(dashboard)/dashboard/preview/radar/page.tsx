@@ -1002,11 +1002,14 @@ function RadarReviewRow({ r, acts, mapsUrl }: {
           this row is, is a review left on Google. */}
       <GoogleMark />
       <div className="flex-1 min-w-0">
-        {/* Clamped to three lines. The review is the headline here — there is no other
-            title — but a five-line row next to one-line headlines makes the whole list
-            look lopsided, and the rest of it is one click away on Google. */}
-        <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-3">
-          <span className={`inline-block align-[2px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full ${
+        {/* Two lines, at reading weight, with room before the buttons.
+            A review is a paragraph, not a headline: set in medium like the news titles it
+            sits beside, the whole thing read as emphasis and there was nothing left to
+            emphasise the badge and stars against. It also ran the full width of the card
+            and stopped a few pixels short of "Write this", which made the row look like it
+            had overflowed. The rest of the text is one click away on Google. */}
+        <div className="text-[13px] text-[#3B4457] leading-relaxed line-clamp-2 pr-8">
+          <span className={`inline-block align-[1px] mr-2 text-[10px] font-medium px-2 py-[2px] rounded-full ${
             bad ? "bg-[#FBE7E4] text-[#C03221]" : "bg-[#E3F5EA] text-[#0F6E3C]"}`}>
             {bad ? "Unhappy customer" : "Happy customer"}
           </span>
@@ -1042,8 +1045,14 @@ ${r.link || mapsUrl || ""}`)}
             <IconPencil size={13} stroke={1.8} /> Write this
           </Link>
         )}
-        <a href={r.link || mapsUrl || "#"} target="_blank" rel="noreferrer"
-          className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
+        {/* No "Open" under "Reply on Google" — they were the same link twice, which made
+            the wordless one-star rows three controls tall for one line of content. Praise
+            keeps it, because there "Write this" goes to the Scheduler and Open goes to
+            Google: two different places. */}
+        {!bad && (
+          <a href={r.link || mapsUrl || "#"} target="_blank" rel="noreferrer"
+            className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
+        )}
         <Thumbs state={acts} kind="review" rawKey={r.id} />
       </div>
     </li>
