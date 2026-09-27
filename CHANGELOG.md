@@ -3,6 +3,134 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-09-27 — Claude connector + OAuth, Content Studio rebuild, Content Radar report loop
+
+Long day. Three production deploys (Netlify CLI — git auto-deploy is still broken). Roughly in order:
+
+### Task + thumbnail flow
+
+- **One shared new-task form everywhere**, including the Content Calendar, which had its own
+  divergent copy (`566ff2b`).
+- **Thumbnail flow reworked**: ask at creation, decide who makes it at claim, rather than deciding
+  up front (`e278d29`). The capacity check is now charged to whoever actually receives the task
+  (`2a74379`), and the **DB rules that silently overrode who makes a thumbnail were removed**
+  (`5313d84`) — behaviour that lived only in Supabase and not in this repo. The approval handoff
+  also stopped stealing an editor's thumbnail (`b2f6b3a`).
+- **Activity feed** reads top-to-bottom as a timeline with real names (`b4f0312`), and full-screen
+  overlays stopped being pushed off the viewport (`ef2b517`).
+
+### Published links
+
+- Find the **Instagram** link for a published task instead of asking a person for it (`ed79c48`),
+  then **Facebook and LinkedIn** too (`b5a1319`). A nightly job fills them in unprompted
+  (`50a1e40`), and all of it goes through **one write path** whoever fills it (`70dda34`).
+
+### Content Radar
+
+- Hourly refresh instead of waiting for a button press (`ec8e051`); news stopped crowding forum
+  threads out of brand/topic search (`b0e406c`); a story caught by several alerts shows **once**
+  (`1f7bebc`).
+- **One list, real source logos, nothing older than a month** (`7d4d171`). Topics screen rebuilt
+  (`ccafe0a`); thumbs became line icons rather than emoji (`005897c`).
+- **Close the day and report on it** (`ab87da5`) — 11:59 PM IST roll-off into Supabase, a morning
+  breadcrumb, and a Maheen-only report.
+- Polish: "Write this" is a button and Node is pinned so the article reader works (`d193cd1`);
+  row actions sit on one line (`97798e6`); opens on Google News (`d934f0d`); **one** refresh button
+  named after what it refreshes, and Topics is now **Google Alerts** (`f0323ba`, `7f09215`);
+  refresh-everything with per-lane logging and a rejection reason asked after the fact (`d3b43a9`).
+
+### Google Reviews
+
+- Connected via the existing Serper key — **no new credential** (`b5ee6d2`). Official Google logo
+  (not a Maps pin) and Google's own sort options (`53811eb`); review rows read as quotes rather
+  than headlines (`6f9271f`).
+
+### Content Studio — rebuilt
+
+- Prototype first, nothing wired (`5fd33ca`), then built: **Perplexity fact-checks, Claude writes,
+  the board receives** (`538c450`). Fixed the dead `?draft=` link from Radar along the way.
+- **Playbooks honesty pass**: stopped claiming verification it had not done and stopped offering
+  formats the playbook does not produce (`cff786b`); regenerate with a tone, custom prompts
+  (`faca647`); a rate limit is no longer reported as "out of quota" (`2602201`).
+- **Usage report** (admin-only) showing task, playbook, prompt, tokens and duration (`89041d2`).
+  Timing moved into `lib/ai.ts` because `Object.assign` **evaluates** getters rather than copying
+  them, which was recording `duration_ms: 1` for a 20-second call (`8e14aee`).
+- Reports download as **Markdown or PDF** (real text, not a screenshot) (`5ec7597`).
+
+### Marketing Hub
+
+- A shareable link per task, and the app opens the one you came for (`bd4bef3`); task links land on
+  the **master sheet**, not the workload planner (`191854f`, 8 files).
+
+### System
+
+- **What's new** — a hand-written changelog for the team, distinct from this file (`4587522`).
+- `.backup` files excluded from lint; one was failing the production build (`bc53474`).
+
+### Claude connector
+
+- **Seven tools** — create, list, get, search, update, what's due, radar — and a URL form so
+  clients that cannot set a header can still be added (`7e824f8`). **No delete tool, deliberately.**
+  Brand is not updatable: moving a task between brands changes who is accountable for it.
+- `serve()` moved out of the route file: a Next route module may only export route handlers, and
+  exporting a helper breaks the production type check (`df092f8`).
+- **Connectors page** under System, with per-platform setup, and the Overview clock (`7fb2261`).
+- Setup fixes found by walking a real install: the page handed over a bare key next to a second
+  Copy button holding the actual URL, so the key got pasted where a URL belonged — bare-key button
+  removed (`895a25d`). Claude Desktop **greys out `Authorization`** (reserved for its own OAuth
+  flow), so the endpoint now accepts `x-api-key` and the other names its picker offers (`ab1ad0c`).
+  Add-a-connector moved to the top of the page, official Claude logomark, and a stale pointer to
+  the old My Account location fixed (`f3c443d`).
+- **OAuth** (`32f42c8`) — the real fix. A bare 401 made clients hunt for a sign-in service that did
+  not exist ("couldn't register with Marketing OS's sign-in service"). Now: discovery at
+  `/.well-known/oauth-authorization-server` and `/oauth-protected-resource` (root rewrites),
+  dynamic client registration, a consent screen that works without JS, PKCE **S256 only**, 8h
+  access tokens with rotating 90-day refresh tokens, and a 401 carrying `WWW-Authenticate`.
+  Revocation works by **generation counter** — tokens are stored hashed, so they cannot be
+  enumerated per person; Disconnect increments the generation and every token that person holds
+  dies at once. Permission is re-checked on every call. A wrong PKCE verifier **burns the code**.
+  The personal key still works, kept for Claude Code and demoted to a disclosure on the page.
+- `create_task` now **asks for the caption** instead of creating a half-empty task (`966b482`),
+  and **asks who owns it** instead of defaulting to whoever is connected (`81fb3f2`) — the old
+  fallback assumed the creator does the work, which is usually wrong here.
+
+### Overview
+
+- **IST clock** in the header (`ca6c43d`, `df75814`, `a107308`) — the first version formatted in
+  en-IN but never pinned the timezone, so it showed the *browser's* clock in Indian formatting.
+  Now `timeZone: "Asia/Kolkata"` with an IST badge, ticking, sized to the notification bell.
+- **Brand picker shows each brand's own logo** instead of an Instagram glyph (`4bd689d`) — the tab
+  shows four platforms, so badging every brand with one platform's mark was misleading. Label
+  hierarchy fixed and the button width pinned (`15954c7`), which then exposed a centring bug the
+  fixed width had introduced (`96b84a4`).
+
+### Known / unresolved
+
+- **One `create_task` call produced two identical rows.** The board is full of
+  `Auto-spawned thumbnail task for post: …` rows, so a Supabase trigger demonstrably does create
+  companion tasks — but those are Thumbnail-type and the duplicate was two identical Posts, so
+  that is evidence, not an answer. Could not read `pg_trigger` (MCP permission denied).
+- Three test tasks left on the live board: two `Connector test - safe to delete`, one NEET PG demo.
+- **Per-tab briefings**: 7 of 42 tabs have one. Machinery exists (`TabIntro.tsx`,
+  `lib/onboarding.ts`); the remaining work is writing.
+
+## 2026-09-26 — My Day rebuild, dashboard-wide recycle bin, Overview experiment reverted
+
+- **My Day**: in-panel task composer with a live routing preview and a filterable "Tasks I created"
+  (`ace1296`); the task clock starts automatically, extending requires a reason, type scale
+  tightened (`a3e0aae`); planned time is locked, extensions are announced, and the wrap-up was
+  rebuilt as a table (`0477e12`).
+- **Recycle bin** — dashboard-wide and two-tier, with a report on anything deleted for good
+  (`5d5b347`), then narrowed to **one** route into the archive, through the report (`2bfae90`).
+- **Sidebar** hover-peek + lock; My Day created-tasks open; dark-mode inline colours (`3b802e7`).
+- **`--brand` stopped meaning two incompatible things** (`b3e5a5d`).
+- **Overview experiment, built and reverted the same evening**: an executive overview putting every
+  channel and the ad spend on one screen (`ef9d377`), Overview collapsed to one nav item with two
+  sub-items (`b9249ee`), channel cards moved into Detailed Overview (`2ad554e`) — then **reverted**,
+  Overview restored as it was (`38fd416`).
+- Fixed the Content Radar reader failing with "Unexpected end of JSON input" (`6a88f92`).
+- Tracked two stray source files; ignored local tooling output (`5b8f2c6`).
+
 ## 2026-09-14 — GO LIVE: first production deploy of the reskin + Google login
 
 Took the dashboard live for the team to test. See `docs/HANDOFF_2026-09-14.md` for the full state.
