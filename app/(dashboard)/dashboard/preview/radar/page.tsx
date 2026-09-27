@@ -198,6 +198,14 @@ function Radar() {
   // Thumbs, and the keys already closed into a past day's report.
   const acts = useRadarActions();
 
+  // How many stories each topic has actually found. The Topics screen used to list the
+  // words being searched and nothing about whether searching them was working.
+  const countsByAlert = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const i of items) m[i.alertId] = (m[i.alertId] || 0) + 1;
+    return m;
+  }, [items]);
+
   // Only admins are shown the way into the report — it says who ignored what, and the
   // endpoint refuses everyone else, so a link for them would only be a dead end.
   const [isAdmin, setIsAdmin] = useState(false);
@@ -290,7 +298,7 @@ function Radar() {
             <b className="font-semibold text-[#232D42] tabular-nums">{freshNews.length}</b> headline{freshNews.length === 1 ? "" : "s"}
             {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
             {risingTerms.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{risingTerms.length}</b> rising search{risingTerms.length === 1 ? "" : "es"}</> : null}
-            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} active
+            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> topic{alerts.filter((a) => a.active).length === 1 ? "" : "s"} watched
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -312,7 +320,7 @@ function Radar() {
             onClick={() => setSettingsOpen(true)}
             className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark"
           >
-            <IconSettings size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Manage alerts
+            <IconSettings size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Topics
           </button>
         </div>
       </div>
@@ -413,6 +421,7 @@ function Radar() {
       {settingsOpen && (
         <SettingsModal
           alerts={alerts}
+          counts={countsByAlert}
           onClose={() => setSettingsOpen(false)}
           onChanged={load}
         />
@@ -1361,44 +1370,88 @@ function EmptyState({ onOpenSettings }: { onOpenSettings: () => void }) {
           onClick={onOpenSettings}
           className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark"
         >
-          + Track a topic
+          + Add a topic
         </button>
       </div>
     </div>
   );
 }
 
-function SettingsModal({ alerts, onClose, onChanged }: {
+// The topics screen — "Manage alerts" as it was redesigned.
+//
+// The old one said everything twice. A row carried a name, then "tracking: <the same
+// words>" underneath it, then an optional label field that defaulted to the topic, then
+// a per-row Pull button that had stopped meaning anything once the refresh went hourly.
+// Four controls and three names for one idea.
+//
+// What is left is what a topic actually is: the words we search for, the brand its
+// stories file under, whether it is on, and how to remove it. The word "alert" is gone
+// — it was Google's word for the plumbing, never the team's word for the thing.
+function SettingsModal({ alerts, counts, onClose, onChanged }: {
   alerts: Alert[];
+  /** Stories found per topic, for the one line under each name. */
+  counts: Record<string, number>;
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [interest, setInterest] = useState(INTEREST_OPTIONS[0]);
   const [searchQuery, setSearchQuery] = useState("");
-  // Advanced: paste a Google Alerts RSS URL instead of using topic search.
+  const [interest, setInterest] = useState(INTEREST_OPTIONS[0]);
+  // Pasting a Google Alerts RSS URL still works, but it is one person's one-off setup
+  // rather than the way topics are added, so it stays behind a line of text.
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [feedUrl, setFeedUrl] = useState("");
+  const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
 
-  async function addAlert(e: React.FormEvent) {
+  // A paused topic with the same words as a live one looks broken rather than chosen —
+  // that is exactly how the stray "Neet PG" read. Say which one it repeats.
+  const dupeOf = useMemo(() => {
+    const live = new Map<string, string>();
+    for (const a of alerts) {
+      if (!a.active) continue;
+      const k = (a.searchQuery || a.name || "").trim().toLowerCase();
+      if (k) live.set(k, a.name);
+    }
+    const out: Record<string, string> = {};
+    for (const a of alerts) {
+      if (a.active) continue;
+      const k = (a.searchQuery || a.name || "").trim().toLowerCase();
+      const match = k ? live.get(k) : undefined;
+      if (match) out[a.id] = match;
+    }
+    return out;
+  }, [alerts]);
+
+  // It runs hourly, so the date is always today and printing it is noise. Show the time
+  // alone unless the last run somehow was not today, in which case the date is the news.
+  const lastRun = useMemo(() => {
+    const times = alerts.map((a) => a.lastFetchedAt).filter(Boolean) as string[];
+    if (!times.length) return null;
+    const d = new Date(times.sort().slice(-1)[0]);
+    const today = d.toDateString() === new Date().toDateString();
+    return today
+      ? d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true })
+      : fmtDateTime(d.toISOString());
+  }, [alerts]);
+
+  async function addTopic(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      // Auto-fill the friendly name from the topic if the user left it blank.
-      const finalName = name.trim() || searchQuery.trim() || "Untitled alert";
-      const payload: Record<string, string> = {
-        name: finalName,
-        primaryInterest: interest,
-      };
+      const payload: Record<string, string> = { primaryInterest: interest };
       if (showAdvanced && feedUrl.trim()) {
+        if (!name.trim()) throw new Error("Give the feed a name");
+        payload.name = name.trim();
         payload.feedUrl = feedUrl.trim();
       } else if (searchQuery.trim()) {
+        // The topic IS the name. The old optional label existed so the two could differ,
+        // and in practice they never did — it only ever produced a second thing to read.
+        payload.name = searchQuery.trim();
         payload.searchQuery = searchQuery.trim();
       } else {
-        throw new Error("Type a topic to track");
+        throw new Error("Type a topic to watch");
       }
       const r = await fetch("/api/radar/alerts", {
         method: "POST",
@@ -1407,7 +1460,7 @@ function SettingsModal({ alerts, onClose, onChanged }: {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-      setName(""); setSearchQuery(""); setFeedUrl("");
+      setSearchQuery(""); setFeedUrl(""); setName("");
       onChanged();
     } catch (e) {
       setError((e as Error).message);
@@ -1428,8 +1481,12 @@ function SettingsModal({ alerts, onClose, onChanged }: {
     } finally { setRowBusy(null); }
   }
 
-  async function del(id: string) {
-    if (!await confirmDialog({ title: "Delete this alert?", body: "Its cached items are deleted too.", action: "Delete", danger: true })) return;
+  async function del(id: string, label: string) {
+    if (!await confirmDialog({
+      title: `Stop watching “${label}”?`,
+      body: "The stories it already found are removed from the Radar too.",
+      action: "Delete", danger: true,
+    })) return;
     setRowBusy(id);
     try {
       await fetch(`/api/radar/alerts/${id}`, { method: "DELETE" });
@@ -1437,147 +1494,126 @@ function SettingsModal({ alerts, onClose, onChanged }: {
     } finally { setRowBusy(null); }
   }
 
-  async function pullOne(id: string) {
-    setRowBusy(id);
-    try {
-      await fetch("/api/radar/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      onChanged();
-    } finally { setRowBusy(null); }
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <div className="text-sm font-semibold"><IconSettings size={15} stroke={1.8} className="inline -mt-0.5 mr-1" />Track topics</div>
-            <div className="text-xs text-[#8A92A6]">Type a topic — we&apos;ll pull fresh news for it. No leaving the dashboard.</div>
+            <div className="text-[1.05rem] font-semibold text-[#232D42]">Topics you&apos;re watching</div>
+            <div className="text-[13px] text-[#8A92A6] mt-0.5">
+              Each topic is searched for news every hour. Results land in Content Radar.
+            </div>
           </div>
-          <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-xl">×</button>
+          <button onClick={onClose} className="text-[#A6ACBE] hover:text-[#232D42] text-xl leading-none -mt-1">×</button>
         </div>
 
-        <form onSubmit={addAlert} className="px-5 py-4 border-b border-gray-100 bg-[#FCFCFE]">
-          <div className="text-xs font-medium text-[#8A92A6] uppercase tracking-wide mb-2">Add a topic</div>
-          {!showAdvanced && (
+        {/* Add — two fields, nothing optional. */}
+        <form onSubmit={addTopic} className="px-5 py-4 border-b border-gray-100 bg-[#FAFBFF]">
+          {!showAdvanced ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2">
+              <div className="flex gap-2">
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="What to track — e.g. AMC exam 2026, DHA licensing, NEET PG cutoff"
-                  className="text-sm px-3 py-2 rounded-md border border-gray-200 bg-white"
-                  required={!showAdvanced}
+                  placeholder="Add a topic — e.g. AMC exam 2026"
+                  className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border border-[#D9DEEA] bg-white focus:border-brand outline-none"
                   autoFocus
                 />
-                <PreviewSelect value={interest} onChange={setInterest} options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                <PreviewSelect className="w-[170px] shrink-0" value={interest} onChange={setInterest}
+                  options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                <button type="submit" disabled={saving}
+                  className="shrink-0 text-[13.5px] font-semibold bg-brand text-white px-4 rounded-lg hover:bg-brand-dark disabled:opacity-50">
+                  {saving ? "Adding…" : "Add"}
+                </button>
               </div>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Optional label (defaults to the topic)"
-                className="w-full mt-2 text-xs px-3 py-2 rounded-md border border-gray-200 bg-white"
-              />
+              <p className="text-[12px] text-[#A6ACBE] mt-2">
+                The brand decides where its stories file, and which brand is pre-filled when you write one.
+              </p>
             </>
-          )}
-          {showAdvanced && (
+          ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2">
+              <div className="flex gap-2">
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Friendly name — e.g. AMC registration updates"
-                  className="text-xs px-3 py-2 rounded-md border border-gray-200 bg-white"
-                  required
+                  placeholder="Name this feed"
+                  className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border border-[#D9DEEA] bg-white focus:border-brand outline-none"
                 />
-                <PreviewSelect value={interest} onChange={setInterest} options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                <PreviewSelect className="w-[170px] shrink-0" value={interest} onChange={setInterest}
+                  options={INTEREST_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                <button type="submit" disabled={saving}
+                  className="shrink-0 text-[13.5px] font-semibold bg-brand text-white px-4 rounded-lg hover:bg-brand-dark disabled:opacity-50">
+                  {saving ? "Adding…" : "Add"}
+                </button>
               </div>
               <input
                 value={feedUrl}
                 onChange={(e) => setFeedUrl(e.target.value)}
                 placeholder="https://www.google.com/alerts/feeds/…/…"
-                className="w-full mt-2 text-xs px-3 py-2 rounded-md border border-gray-200 bg-white font-mono"
-                required
+                className="w-full mt-2 text-xs px-3 py-2 rounded-lg border border-[#D9DEEA] bg-white font-mono focus:border-brand outline-none"
               />
-              <div className="text-xs text-[#8A92A6] mt-1.5">
-                Advanced: paste an RSS URL from a Google Alert you set up manually.
-              </div>
             </>
           )}
-          {error && <div className="text-xs text-rose-600 mt-2">{error}</div>}
-          <div className="flex items-center justify-between mt-3">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs text-[#8A92A6] hover:text-brand underline"
-            >
-              {showAdvanced ? "← Use topic search instead" : "Use a Google Alerts RSS URL instead →"}
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-md hover:bg-brand-dark disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save & fetch"}
+          {error && <div className="text-xs text-[#C03221] mt-2">{error}</div>}
+          <div className="mt-2">
+            <button type="button" onClick={() => { setShowAdvanced(!showAdvanced); setError(null); }}
+              className="text-[12px] text-[#8A92A6] underline hover:text-brand">
+              {showAdvanced ? "Back to adding a topic" : "Paste a Google Alerts link instead"}
             </button>
           </div>
         </form>
 
+        {/* Rows — one topic, one line. */}
         {alerts.length === 0 ? (
-          <div className="px-5 py-8 text-center text-xs text-[#8A92A6]">No alerts yet.</div>
+          <div className="px-5 py-8 text-center text-[13px] text-[#8A92A6]">
+            Nothing is being watched yet.
+          </div>
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {alerts.map((a) => (
-              <li key={a.id} className="px-5 py-3 flex items-start gap-3">
-                <label className={`shrink-0 w-8 h-4 rounded-full relative cursor-pointer transition ${a.active ? "bg-brand" : "bg-[#C9CDD8]"}`}>
-                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition ${a.active ? "left-4" : "left-0.5"}`} />
-                  <input type="checkbox" className="sr-only" checked={a.active} disabled={rowBusy === a.id} onChange={(e) => toggle(a.id, e.target.checked)} />
-                </label>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[#232D42]">{a.name}</div>
-                  <div className="text-xs text-[#8A92A6]">
-                    <span className="text-brand">{a.primaryInterest}</span>
-                    <span className="mx-1.5">·</span>
-                    {a.searchQuery ? (
-                      <span><IconSearch size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />tracking: <span className="text-[#232D42]">{a.searchQuery}</span></span>
-                    ) : a.feedUrl ? (
-                      <span><IconRss size={12} stroke={1.8} className="inline -mt-0.5 mr-1" /><span className="font-mono">{a.feedUrl.replace(/^https?:\/\//, "").slice(0, 60)}</span></span>
-                    ) : (
-                      <span className="text-rose-600">no source configured</span>
-                    )}
+          <ul>
+            {alerts.map((a) => {
+              const n = counts[a.id] || 0;
+              const dupe = dupeOf[a.id];
+              return (
+                <li key={a.id} className="flex items-center gap-3 px-5 py-3 border-b border-[#F3F5F9] last:border-b-0">
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${a.active ? "text-[#232D42]" : "text-[#8A92A6]"}`}>{a.name}</p>
+                    <p className="text-[12.5px] text-[#A6ACBE] mt-0.5 truncate">
+                      <b className="font-medium text-[#8A92A6]">{a.primaryInterest}</b>
+                      {a.lastError
+                        ? <> · <span className="text-[#C03221]">{a.lastError}</span></>
+                        : dupe
+                          ? <> · paused — same as “{dupe}”</>
+                          : a.active
+                            ? <> · {n} {n === 1 ? "story" : "stories"}</>
+                            : <> · paused</>}
+                    </p>
                   </div>
-                  {a.lastError && (
-                    <div className="text-xs text-rose-600 mt-1"><IconAlertTriangle size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{a.lastError}</div>
-                  )}
-                  {a.lastFetchedAt && !a.lastError && (
-                    <div className="text-xs text-[#A6ACBE] mt-0.5">
-                      Last pulled {fmtDateTime(a.lastFetchedAt)}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => pullOne(a.id)}
-                    disabled={rowBusy === a.id}
-                    className="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-[#F6F7FB] disabled:opacity-50"
-                  >
-                    {rowBusy === a.id ? "…" : "↻ Pull"}
+                  {/* The word, not a bare switch. An unlabelled toggle in the off position
+                      reads as broken rather than chosen. */}
+                  <button onClick={() => toggle(a.id, !a.active)} disabled={rowBusy === a.id}
+                    className={`shrink-0 text-[12.5px] font-semibold px-2 py-1 rounded-md hover:bg-[#F3F5F9] disabled:opacity-50 ${
+                      a.active ? "text-[#1AA053]" : "text-[#8A92A6]"}`}>
+                    {a.active ? "Watching" : "Paused"}
                   </button>
-                  <button
-                    onClick={() => del(a.id)}
-                    disabled={rowBusy === a.id}
-                    className="text-xs px-2.5 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                  >
+                  <button onClick={() => del(a.id, a.name)} disabled={rowBusy === a.id}
+                    className="shrink-0 text-[12.5px] text-[#A6ACBE] px-1.5 py-1 rounded-md hover:text-[#C03221] hover:bg-[#FDECEA] disabled:opacity-50">
                     Delete
                   </button>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
+
+        {/* Said out loud so nobody goes hunting for the Pull button that used to be on
+            every row — it refreshes itself now. */}
+        <div className="flex items-center gap-2 px-5 py-3 bg-[#FAFBFF] border-t border-gray-100 text-[12.5px] text-[#A6ACBE]">
+          Checked every hour{lastRun && <> · last run {lastRun}</>}
+          <button onClick={onClose}
+            className="ml-auto text-[13px] font-semibold bg-brand text-white px-4 py-1.5 rounded-lg hover:bg-brand-dark">
+            Done
+          </button>
+        </div>
       </div>
     </div>
   );
