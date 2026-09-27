@@ -208,28 +208,51 @@ function Radar() {
   // answer. It has one now: Reddit, Quora, MouthShut and ValueMD are a LIVE search on
   // every page load, so they are never stale and there is nothing to pull. Only news,
   // Trends and Reviews are cached, and this forces all three plus a re-search.
+
   async function refreshAll() {
     setRefreshing(true);
     setBanner(null);
     try {
-      // In parallel — they hit four unrelated upstreams, and run one at a time this
-      // took long enough that people pressed it twice.
+      const only = sourceFilter;
+      const doNews = !only || only === "Google News";
+      const doTrends = !only || only === "Google Trends";
+      const doReviews = !only || only === "Google Reviews";
+      // Live lanes — re-searched whenever the whole board is refreshed.
+      const doSearch = !only;
+
+      // In parallel: they hit unrelated upstreams, and run one at a time this took long
+      // enough that people pressed it twice.
       const [newsRes] = await Promise.all([
-        fetch("/api/radar/refresh", { method: "POST" }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
-        fetch("/api/radar/trends?force=1").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setTrends(d as TrendsResp); }).catch(() => {}),
-        fetch("/api/radar/reviews?force=1", { cache: "no-store", credentials: "same-origin" })
-          .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setReviews(d); }).catch(() => {}),
-        fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
-          .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setBrand(d as MentionResult); }).catch(() => {}),
+        doNews
+          ? fetch("/api/radar/refresh", { method: "POST" }).then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+          : Promise.resolve(null),
+        doTrends
+          ? fetch("/api/radar/trends?force=1").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setTrends(d as TrendsResp); }).catch(() => {})
+          : Promise.resolve(),
+        doReviews
+          ? fetch("/api/radar/reviews?force=1", { cache: "no-store", credentials: "same-origin" })
+              .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setReviews(d); }).catch(() => {})
+          : Promise.resolve(),
+        doSearch
+          ? fetch(`/api/radar/search?q=${encodeURIComponent(BRAND_QUERY)}`)
+              .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setBrand(d as MentionResult); }).catch(() => {})
+          : Promise.resolve(),
       ]);
-      if (!newsRes.ok) throw new Error(newsRes.d?.error || "News refresh failed");
-      const errCount = (newsRes.d.errors || []).length;
-      setBanner(
-        `Everything refreshed — ${newsRes.d.alerts} news topic${newsRes.d.alerts === 1 ? "" : "s"}, ` +
-        `${newsRes.d.inserted} new headline${newsRes.d.inserted === 1 ? "" : "s"}, plus Reddit, Trends and Reviews` +
-        (errCount ? ` · ${errCount} topic${errCount === 1 ? "" : "s"} errored (see Topics)` : ""),
-      );
-      await load();
+
+      if (newsRes && !newsRes.ok) throw new Error(newsRes.d?.error || "News refresh failed");
+      if (newsRes) {
+        const errCount = (newsRes.d.errors || []).length;
+        setBanner(
+          (only ? "Google News refreshed" : "Everything refreshed") +
+          ` — ${newsRes.d.alerts} topic${newsRes.d.alerts === 1 ? "" : "s"}, ` +
+          `${newsRes.d.inserted} new headline${newsRes.d.inserted === 1 ? "" : "s"}` +
+          (only ? "" : ", plus Reddit, Trends and Reviews") +
+          (errCount ? ` · ${errCount} topic${errCount === 1 ? "" : "s"} errored (see Google Alerts)` : ""),
+        );
+      } else {
+        setBanner(`${only} refreshed.`);
+      }
+      if (doNews) await load();
     } catch (e) {
       setBanner((e as Error).message);
     } finally {
@@ -253,6 +276,21 @@ function Radar() {
   // reads as a ranking. One source to land on; the tiles above switch to any other, and
   // "Show everything" brings the merged view back.
   const [sourceFilter, setSourceFilter] = useState<string | null>("Google News");
+
+  // What the one refresh button does depends on which lane you are in — refreshing
+  // Google Trends while you are reading Google News is work nobody asked for, and a
+  // button that always says "everything" cannot tell you it just refreshed the thing
+  // in front of you.
+  //
+  // Reddit, Quora, MouthShut and ValueMD are absent on purpose: they are a live search
+  // on every page load, so there is nothing to pull and a button would be a lie.
+  const REFRESHABLE: Record<string, string> = {
+    "Google News": "Refresh Google News",
+    "Google Trends": "Refresh Google Trends",
+    "Google Reviews": "Refresh Google Reviews",
+  };
+  const refreshLabel = sourceFilter ? REFRESHABLE[sourceFilter] : "Refresh everything";
+  const canRefresh = !!refreshLabel;
   // Google's own sort options, because this is the list people are used to reading on
   // Google and arriving at a different vocabulary for the same four choices helps nobody.
   const [reviewSort, setReviewSort] = useState<ReviewSort>("needs_reply");
@@ -423,18 +461,22 @@ function Radar() {
             <b className="font-semibold text-[#232D42] tabular-nums">{freshNews.length}</b> headline{freshNews.length === 1 ? "" : "s"}
             {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
             {risingTerms.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{risingTerms.length}</b> rising search{risingTerms.length === 1 ? "" : "es"}</> : null}
-            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> topic{alerts.filter((a) => a.active).length === 1 ? "" : "s"} watched
+            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} watched
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} onRefresh={load} error={loadError} />
-          <button
-            onClick={refreshAll}
-            disabled={refreshing}
-            className="text-xs font-medium bg-white text-brand border border-brand/30 px-3 py-1.5 rounded-lg hover:bg-brand-light disabled:opacity-50"
-          >
-            {refreshing ? "Refreshing everything…" : "↻ Refresh everything"}
-          </button>
+          <LiveIndicator fetchedAt={fetchedAt} latencyMs={latencyMs} loading={loading} error={loadError} />
+          {/* Hidden entirely on the live-search lanes — no button beats a button that
+              cannot do anything. */}
+          {canRefresh && (
+            <button
+              onClick={refreshAll}
+              disabled={refreshing}
+              className="text-xs font-medium bg-white text-brand border border-brand/30 px-3 py-1.5 rounded-lg hover:bg-brand-light disabled:opacity-50"
+            >
+              {refreshing ? "Refreshing…" : `↻ ${refreshLabel}`}
+            </button>
+          )}
           {isAdmin && (
             <Link href="/dashboard/preview/radar/report"
               className="text-xs font-medium bg-white text-[#4A5468] border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand hover:text-brand">
@@ -445,7 +487,7 @@ function Radar() {
             onClick={() => setSettingsOpen(true)}
             className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark"
           >
-            <IconSettings size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Topics
+            <IconSettings size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Google Alerts
           </button>
         </div>
       </div>

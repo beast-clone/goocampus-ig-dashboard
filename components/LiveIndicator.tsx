@@ -16,7 +16,8 @@ export function LiveIndicator({
   fetchedAt?: number | null;
   latencyMs?: number | null;
   loading: boolean;
-  onRefresh: () => void;
+  /** Omit to hide the refresh control — for pages that own their own refresh button. */
+  onRefresh?: () => void;
   error?: string | null;
 }) {
   const [, setTick] = useState(0);
@@ -62,6 +63,7 @@ export function LiveIndicator({
           )}
         </div>
       )}
+      {onRefresh && (
       <button
         onClick={onRefresh}
         disabled={loading}
@@ -76,6 +78,7 @@ export function LiveIndicator({
           <>↻ Refresh now</>
         )}
       </button>
+      )}
     </div>
   );
 }
