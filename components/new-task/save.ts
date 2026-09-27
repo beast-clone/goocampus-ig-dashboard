@@ -1,4 +1,4 @@
-import type { NewTaskDraft } from "./NewTaskForm";
+import type { NewTaskDraft, NewTaskThumbnail } from "./NewTaskForm";
 
 // The network sequence that turns a NewTaskDraft into a real row, in the one order
 // that is safe. It mirrors My Day's own create path step for step:
@@ -31,7 +31,63 @@ export type SaveResult = {
   status: string;
   /** True when a later status was asked for and the move did not go through. */
   statusMoveFailed: boolean;
+  /** Set when a thumbnail was asked for: who holds it now, or null while it waits. */
+  thumbnail?: { id: string; owner: string | null };
 };
+
+// Creates the companion thumbnail task and ties the two rows together.
+//
+// Owner: only the "Praveen" answer names one. "editor" and "ask" leave it UNOWNED on
+// purpose — the editor who claims the video hasn't been decided yet, and an unowned
+// row shows up in nobody's task list while still existing, so the brief can't be lost.
+// It doesn't reach the claim pool either: the pool is video work, and a thumbnail is
+// not a video type. See docs/THUMBNAIL_FLOW_SPEC.md.
+//
+// The link lives in the existing `custom` jsonb bag rather than a new column:
+//   thumbnail row → custom.thumbnail_for = <video id>
+//   video row     → custom.thumbnail     = { taskId, decision, type }
+// `custom.thumbnail_for` is also what tells the database trigger (sql/020) to stop
+// forcing this task onto Praveen — without it, an editor's thumbnail is taken away
+// again the moment it passes Content - Approved.
+export async function attachThumbnailTask(
+  v: { thumbnail: NewTaskThumbnail; sbu: string; publishDate: string; priority: string },
+  videoId: string, writerKey: string,
+): Promise<{ id: string; owner: string | null } | null> {
+  const thumb = v.thumbnail;
+  const owner = thumb.who === "praveen" ? "praveen" : null;
+  const res = await fetch("/api/marketing-hub/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: thumb.title,
+      type: thumb.type,
+      sbu: v.sbu,
+      owner: owner || undefined,
+      publishingDate: v.publishDate || undefined,
+      dueDate: v.publishDate || undefined,
+      priority: v.priority,
+      content: thumb.content,
+    }),
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const j = (await res.json().catch(() => ({}))) as { id?: string };
+  if (!j.id) return null;
+
+  await fetch("/api/marketing-hub/update", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: j.id, actor: writerKey, fields: { custom: { thumbnail_for: videoId } } }),
+  }).catch(() => {});
+  await fetch("/api/marketing-hub/update", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: videoId, actor: writerKey,
+      fields: { custom: { thumbnail: { taskId: j.id, decision: thumb.who, type: thumb.type } } },
+    }),
+  }).catch(() => {});
+  return { id: j.id, owner };
+}
 
 export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promise<SaveResult> {
   const res = await fetch("/api/marketing-hub/create", {
@@ -91,6 +147,7 @@ export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promi
   }
 
   // 4 — filed at a later status → move it there now.
+  let statusMoveFailed = false;
   if (draft.status !== "Content - Pending") {
     const moved = await fetch("/api/marketing-hub/update", {
       method: "PATCH",
@@ -98,8 +155,47 @@ export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promi
       body: JSON.stringify({ id: postId, actor: writerKey, fields: { status: draft.status } }),
     }).catch(() => null);
     if (!moved || !moved.ok) {
-      return { id: postId, status: "Content - Pending", statusMoveFailed: true };
+      statusMoveFailed = true;
     }
   }
-  return { id: postId, status: draft.status, statusMoveFailed: false };
+
+  // 5 — the companion thumbnail, last: the video is the thing being created, and a
+  // thumbnail that fails must not cost the writer the task she just filled in.
+  let thumbnail: { id: string; owner: string | null } | undefined;
+  if (draft.thumbnail) {
+    thumbnail = (await attachThumbnailTask(
+      { thumbnail: draft.thumbnail, sbu: draft.sbu, publishDate: draft.publishDate, priority: draft.priority },
+      postId, writerKey,
+    )) || undefined;
+  }
+  return {
+    id: postId,
+    status: statusMoveFailed ? "Content - Pending" : draft.status,
+    statusMoveFailed,
+    thumbnail,
+  };
+}
+
+// Settles who owns a companion thumbnail, once that is actually known — either the
+// editor claimed the video and the answer was "whoever edits it", or they were asked
+// and chose. Writes both halves: the owner on the thumbnail, and the decision back
+// onto the video so the claim screen never asks a second time.
+export async function assignThumbnail(
+  thumbId: string, videoId: string, ownerKey: string, actorKey: string,
+): Promise<boolean> {
+  const res = await fetch("/api/marketing-hub/takeover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId: thumbId, newOwnerKey: ownerKey }),
+  }).catch(() => null);
+  if (!res || !res.ok) return false;
+  await fetch("/api/marketing-hub/update", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: videoId, actor: actorKey,
+      fields: { custom: { thumbnail: { taskId: thumbId, decision: ownerKey } } },
+    }),
+  }).catch(() => {});
+  return true;
 }

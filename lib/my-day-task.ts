@@ -126,6 +126,12 @@ export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative
       endAt: r.end_at || "",
       // Why the allotted time was raised, and by how much, each time it happened.
       extensions: Array.isArray(r.custom?.time_extensions) ? (r.custom.time_extensions as unknown[]) : [],
+      // The companion thumbnail this video carries, if the writer asked for one. The
+      // claim screen needs it to know whether to hand the thumbnail over with the video
+      // or ask who should make it — docs/THUMBNAIL_FLOW_SPEC.md.
+      thumbnail: (r.custom?.thumbnail && typeof r.custom.thumbnail === "object")
+        ? (r.custom.thumbnail as { taskId?: string; decision?: string; type?: string })
+        : null,
       duration: r.duration_min ?? undefined,
       createdBy: r.created_by || "",               // username of whoever created it
       ownerKey: r.owner_key || "",

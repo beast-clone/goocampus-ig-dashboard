@@ -21,6 +21,29 @@ import {
 // its optimistic insert and the calendar can just POST and refresh.
 
 const CC_TYPES: readonly string[] = [...CONTENT_TYPES];
+
+// Only these three get asked "does this also need a thumbnail?". Shorts, story videos
+// and Meta video ads don't get a separate thumbnail, so asking would be noise.
+// docs/THUMBNAIL_FLOW_SPEC.md.
+const THUMBNAIL_ELIGIBLE = new Set(["Reel - Original", "Reel - Cut", "YouTube Long-Form"]);
+const thumbnailTypeFor = (videoType: string) =>
+  /youtube/i.test(videoType) ? "YouTube Thumbnail" : "Reel Thumbnail";
+
+// Who makes the thumbnail. "editor" and "ask" both leave it unowned until the video is
+// claimed — the difference is whether the claiming editor gets a say.
+export type ThumbnailWho = "editor" | "praveen" | "ask";
+const THUMB_WHO: { value: ThumbnailWho; label: string; sub: string }[] = [
+  { value: "editor",  label: "Whoever edits the video", sub: "The editor who claims it makes the thumbnail too. Nobody is asked." },
+  { value: "ask",     label: "Let them decide",         sub: "The editor who claims it chooses: themselves, or Praveen." },
+  { value: "praveen", label: "Praveen",                 sub: "Goes straight to Praveen now, without waiting for the video to be claimed." },
+];
+
+export type NewTaskThumbnail = {
+  type: string;          // Reel Thumbnail | YouTube Thumbnail — follows the video
+  title: string;
+  content: string;
+  who: ThumbnailWho;
+};
 const isVideoType = (t: string) => VIDEO_TYPE_SET.has(t);
 const CC_SBUS = SBU_OPTIONS;
 
@@ -45,6 +68,8 @@ export type NewTaskDraft = {
   collaborators: string[];
   assets: NewTaskAssets;
   route: NewTaskRoute;
+  /** Set only when the writer ticked "this also needs a thumbnail". */
+  thumbnail?: NewTaskThumbnail;
 };
 
 /**
@@ -114,6 +139,11 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
   const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if the writer does it herself
   // People added by hand, on top of whoever the routing rule attaches.
+  // "Does this also need a thumbnail?" — only offered for the eligible video types.
+  const [wantsThumb, setWantsThumb] = useState(false);
+  const [thumbTitle, setThumbTitle] = useState("");
+  const [thumbContent, setThumbContent] = useState("");
+  const [thumbWho, setThumbWho] = useState<ThumbnailWho>("ask");
   const [extraCollabs, setExtraCollabs] = useState<string[]>([]);
   const [addingCollab, setAddingCollab] = useState(false);
   const writerName = PPL[writer]?.name || writer;
@@ -127,16 +157,26 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
 
   // What's still missing, in the order the fields appear in the form. Drives both the
   // button state and the popup — a disabled "Create task" now explains itself.
+  // The tick only exists for eligible types, so switching away from one has to clear
+  // it — otherwise a Carousel could be saved carrying a reel thumbnail.
+  const canHaveThumb = THUMBNAIL_ELIGIBLE.has(type);
+  useEffect(() => { if (!canHaveThumb) setWantsThumb(false); }, [canHaveThumb]);
+  const thumbType = thumbnailTypeFor(type);
+  // Left blank, the thumbnail is named after the video — which is what it is.
+  const thumbTitleFinal = thumbTitle.trim() || (title.trim() ? `${title.trim()} — Thumbnail` : "");
+  const thumbOn = canHaveThumb && wantsThumb;
+
   const missing = [
     !title.trim() && "Particulars (the title)",
     !publishDate && "Publishing date",
     !sbu && "SBU (which brand it's for)",
     !content.trim() && "Content (the brief)",
+    thumbOn && !thumbContent.trim() && "Thumbnail brief",
   ].filter((x): x is string => !!x);
   const canSubmit = missing.length === 0;
   const [gate, setGate] = useState(false);
   // Tell the panel whether there is anything worth warning about before discarding.
-  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || extraCollabs.length);
+  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || extraCollabs.length || wantsThumb);
   useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
 
   function create() {
@@ -158,6 +198,9 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         outFiles: output.files.map((f) => f.file),
       },
       route,
+      thumbnail: thumbOn
+        ? { type: thumbType, title: thumbTitleFinal, content: thumbContent.trim(), who: thumbWho }
+        : undefined,
     });
   }
   return (
@@ -246,6 +289,52 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
       </div>
 
       <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+      {/* Reels + YouTube long-form: the thumbnail is part of the same job, so it is
+          asked here rather than filed as an unrelated task later. Who MAKES it is a
+          separate question, because these days the editor who cuts the reel usually
+          makes its thumbnail too — see docs/THUMBNAIL_FLOW_SPEC.md. */}
+      {canHaveThumb && (
+        <div className="nt-thumb">
+          <label className="nt-thumb-ask">
+            <input type="checkbox" checked={wantsThumb} onChange={(e) => setWantsThumb(e.target.checked)} />
+            <span className="nt-thumb-asktext">Does this also need a thumbnail?</span>
+            <span className="nt-thumb-type">{thumbType}</span>
+          </label>
+          {wantsThumb && (
+            <div className="nt-thumb-body">
+              <div className="nt-field">
+                <label className="nt-label">Thumbnail particulars <span className="nt-hint">leave blank to name it after the video</span></label>
+                <input className="nt-input" value={thumbTitle} onChange={(e) => setThumbTitle(e.target.value)} placeholder={thumbTitleFinal || "e.g. AMC Exam Guide — Thumbnail"} />
+              </div>
+              <div className="nt-field">
+                <label className="nt-label">Thumbnail brief <span className="nt-req">required</span> <span className="nt-hint">headline text, key visual, reference</span></label>
+                <textarea className="nt-input nt-textarea" value={thumbContent} onChange={(e) => setThumbContent(e.target.value)} rows={3} placeholder="What should the thumbnail say and show?" />
+              </div>
+              <div className="nt-field">
+                <label className="nt-label">Who makes it</label>
+                <div className="nt-thumb-who">
+                  {THUMB_WHO.map((o) => (
+                    <button type="button" key={o.value}
+                      className={`nt-thumb-opt ${thumbWho === o.value ? "on" : ""}`}
+                      onClick={() => setThumbWho(o.value)}>
+                      <span className="nt-thumb-opt-lbl">{o.label}</span>
+                      <span className="nt-thumb-opt-sub">{o.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* The publishing date, SBU and priority are the video's — the thumbnail
+                  ships with it, so there is nothing separate to set. */}
+              <div className="nt-thumb-note">
+                It takes the video&apos;s SBU, publishing date and priority. {thumbWho === "praveen"
+                  ? "Praveen gets it as soon as you save."
+                  : "It is saved now and stays out of everyone's list until the video is claimed."}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="nt-field">
         <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
         <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />

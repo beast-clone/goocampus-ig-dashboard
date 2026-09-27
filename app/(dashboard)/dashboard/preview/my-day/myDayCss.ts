@@ -505,6 +505,19 @@ export const MY_DAY_CSS = `
 .hmd .nt-textarea{resize:vertical;min-height:98px;line-height:1.5}
 .hmd .nt-hint{font-weight:400;font-size:12px;color:var(--faint);text-transform:none;letter-spacing:0;margin-left:.4rem}
 .hmd .nt-req{font-weight:600;font-size:12px;color:#C03221;background:var(--cFBE7E4);border-radius:5px;padding:.05em .4em;text-transform:uppercase;letter-spacing:.03em;margin-left:.35rem}
+.hmd .nt-thumb{border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:.8rem .9rem;margin-bottom:.9rem}
+.hmd .nt-thumb-ask{display:flex;align-items:center;gap:.5rem;cursor:pointer}
+.hmd .nt-thumb-asktext{font-size:14px;font-weight:600;color:var(--ink)}
+.hmd .nt-thumb-type{font-size:12px;font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:.1em .45em}
+.hmd .nt-thumb-body{margin-top:.85rem;padding-top:.85rem;border-top:1px solid var(--line)}
+.hmd .nt-thumb-who{display:grid;gap:.45rem}
+.hmd .nt-thumb-opt{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:.55rem .7rem;font:inherit;cursor:pointer;transition:border-color .12s,background .12s}
+.hmd .nt-thumb-opt:hover{border-color:var(--cD9DEEA)}
+.hmd .nt-thumb-opt.on{border-color:var(--brand);background:var(--brand-soft)}
+.hmd .nt-thumb-opt-lbl{display:block;font-size:14px;font-weight:600;color:var(--ink)}
+.hmd .nt-thumb-opt-sub{display:block;font-size:12px;color:var(--muted);margin-top:.15rem;line-height:1.45}
+.hmd .nt-thumb-opt.on .nt-thumb-opt-sub{color:var(--brand-ink)}
+.hmd .nt-thumb-note{font-size:12px;color:var(--muted);line-height:1.5}
 .hmd .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 /* custom Themed date picker */
 .hmd .dp{position:relative}

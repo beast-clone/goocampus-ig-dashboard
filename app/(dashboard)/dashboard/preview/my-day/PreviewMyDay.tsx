@@ -14,6 +14,7 @@ import { showToast } from "../Toast";
 import { notifIconFor } from "../NotifIcon";
 import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
+import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
@@ -137,6 +138,7 @@ type Task = {
     // it appends a correction, so an overrun added by mistake is still visible as
     // something that happened and was put right, not something that quietly vanished.
     extensions?: { at: string; by: string; fromMin: number; toMin: number; reason: string; undoOf?: string }[];
+    thumbnail?: { taskId?: string; decision?: string; type?: string } | null;
     feedback?: string;                                    // Manya's Incorporating-Feedback notes (spec §7)
     presenter?: string;                                   // member key of whoever registered to present it
   };
@@ -1576,6 +1578,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal (legacy)
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
   const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
+  // "This video also has a thumbnail — who makes it?", asked only when the writer
+  // left that open ("let them decide"). docs/THUMBNAIL_FLOW_SPEC.md.
+  const [thumbAsk, setThumbAsk] = useState<{ thumbId: string; videoId: string; videoTitle: string; type: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
   const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("open");
   // "Tasks I created" loads separately from /api/my-day/created so the range picker
@@ -2713,18 +2718,20 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         activity: [{ who: creatorName, text: "created the task", time: "now" }],
       },
     };
-    createTask(t, d.status, d.collaborators, d.assets);
+    createTask(t, d.status, d.collaborators, d.assets,
+      d.thumbnail ? { thumbnail: d.thumbnail, sbu: d.sbu, publishDate: d.publishDate, priority: d.priority } : undefined);
   };
-  const createTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets) => {
+  type ThumbSpec = Parameters<typeof attachThumbnailTask>[0];
+  const createTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets, thumb?: ThumbSpec) => {
     const add = estMins(t.detail.typeLine);
     const committed = committedFor(creatorName);
     if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: creatorName, committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, status, collaborators, assets) });
+      setAssignWarn({ name: creatorName, committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, status, collaborators, assets, thumb) });
       return;
     }
-    doCreateTask(t, status, collaborators, assets);
+    doCreateTask(t, status, collaborators, assets, thumb);
   };
-  const doCreateTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets) => {
+  const doCreateTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets, thumb?: ThumbSpec) => {
     closeComposer();
     // Persist to mh_posts. Content-first: the row is always CREATED on the writer at
     // "Content - Pending" (the create route files it that way), and if the form asked
@@ -2778,6 +2785,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         if (postId && collaborators.length) {
           await fetch("/api/marketing-hub/collaborators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, memberKeys: collaborators }) }).catch(() => {});
         }
+        // The companion thumbnail, when the writer asked for one. Same helper the
+        // Content Calendar's dialog uses, so the two rows are linked the same way and
+        // the claim screen can find it later.
+        if (postId && thumb) await attachThumbnailTask(thumb, postId, person).catch(() => null);
         // Filed at a later status → move it there now. This is the ordinary status
         // route, so the server does the assigning; the form only predicted it.
         let statusNote = `starts with ${creatorName} (Content - Pending)`;
@@ -2997,11 +3008,44 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       body: JSON.stringify({ postId: v.id, newOwnerKey: person }),
     })
       .then(async (res) => {
-        if (res.ok) { load(); return; }
+        if (res.ok) {
+          // The video is claimed. If it carries a thumbnail, this is the moment its
+          // owner gets settled — either it follows the editor automatically, or they
+          // are asked. A thumbnail already given to Praveen needs nothing.
+          const th = v.detail.thumbnail;
+          if (th?.taskId && th.decision === "editor") {
+            const ok = await assignThumbnail(th.taskId, v.id, person, person);
+            setToast(ok
+              ? { who: "Thumbnail too", color: me.color, av: me.av, body: `The ${th.type || "thumbnail"} for “${v.title}” is yours as well — it's in My tasks.` }
+              : { who: "Thumbnail not moved", color: "#C03221", av: "!", body: `You own “${v.title}”, but its thumbnail couldn't be assigned. Open it and take it by hand.` });
+          } else if (th?.taskId && th.decision === "ask") {
+            setThumbAsk({ thumbId: th.taskId, videoId: v.id, videoTitle: v.title, type: th.type || "Thumbnail" });
+          }
+          load();
+          return;
+        }
         const j = await res.json().catch(() => ({}));
         rollback(j.error || `HTTP ${res.status}`);
       })
       .catch((e) => rollback(String(e)));
+  };
+  // Answer to "who makes the thumbnail?" — whoever is chosen gets it in their own list.
+  const settleThumb = async (ownerKey: string) => {
+    if (!thumbAsk) return;
+    const { thumbId, videoId, videoTitle, type } = thumbAsk;
+    setThumbAsk(null);
+    const ok = await assignThumbnail(thumbId, videoId, ownerKey, person);
+    setToast(ok
+      ? {
+          who: ownerKey === person ? "Thumbnail yours" : "Sent to Praveen",
+          color: ownerKey === person ? me.color : (PPL.praveen?.color || "#C2410C"),
+          av: ownerKey === person ? me.av : "P",
+          body: ownerKey === person
+            ? `The ${type} for “${videoTitle}” is in My tasks.`
+            : `Praveen has the ${type} for “${videoTitle}” — it's in his list now.`,
+        }
+      : { who: "Couldn't assign it", color: "#C03221", av: "!", body: `The ${type} for “${videoTitle}” stayed where it was. Try from the task itself.` });
+    load();
   };
   // Inline claim confirm (spec §8), with the owner/collaborator rule agreed 22 Sep.
   //
@@ -4009,6 +4053,33 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       {gateBlock && <MissingFieldsModal {...gateBlock} onClose={() => setGateBlock(null)} />}
 
       {/* ASSIGN-SIDE CAPACITY WARNING — "X's day is already full" confirm */}
+      {/* Asked right after a claim, when the writer left the thumbnail owner open.
+          Two answers only, as agreed: the editor who just claimed the video, or
+          Praveen. No "give it to the other editor". */}
+      {thumbAsk && (
+        <div className="modal">
+          <div className="modal-card" style={{ maxWidth: 470 }} onClick={(e) => e.stopPropagation()}>
+            <div className="lbl" style={{ marginBottom: ".4rem" }}>Also on this task</div>
+            <div className="d-title" style={{ marginBottom: ".7rem" }}>This video has a {thumbAsk.type.toLowerCase()} too</div>
+            <div className="nt-thumb-note" style={{ marginBottom: "1.1rem" }}>
+              “{thumbAsk.videoTitle}” is yours now. Manya left it open who makes the {thumbAsk.type.toLowerCase()} — it goes into whoever&rsquo;s list you pick.
+            </div>
+            <div className="nt-thumb-who" style={{ marginBottom: "1.1rem" }}>
+              <button type="button" className="nt-thumb-opt" onClick={() => void settleThumb(person)}>
+                <span className="nt-thumb-opt-lbl">I&rsquo;ll make it</span>
+                <span className="nt-thumb-opt-sub">It joins My tasks alongside the video.</span>
+              </button>
+              <button type="button" className="nt-thumb-opt" onClick={() => void settleThumb("praveen")}>
+                <span className="nt-thumb-opt-lbl">Praveen makes it</span>
+                <span className="nt-thumb-opt-sub">It shows up in his task list straight away.</span>
+              </button>
+            </div>
+            {/* No dismiss: the question has to be answered, otherwise the thumbnail is
+                left owned by nobody and quietly never gets made. */}
+          </div>
+        </div>
+      )}
+
       {assignWarn && (
         <div className="modal" onClick={() => setAssignWarn(null)}>
           <div className="modal-card" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
