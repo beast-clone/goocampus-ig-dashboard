@@ -32,11 +32,16 @@ export type UsageDetail = {
   taskText?: string;      // what the person typed
   usedCustom?: boolean;   // did they replace the framework with their own prompt
   customPrompt?: string;  // and what it said
-  durationMs?: number;    // wall-clock, filled in by the caller
+  // durationMs is NOT set by callers — it is measured around the fetch below, which is
+  // the only place that knows when the request actually started and finished.
+  durationMs?: number;
 };
 type CallOpts = { feature?: string; detail?: UsageDetail };
 
-function recordUsage(feature: string | undefined, model: string, usage: Usage | null, error?: unknown, detail?: UsageDetail) {
+function recordUsage(
+  feature: string | undefined, model: string, usage: Usage | null,
+  error?: unknown, detail?: UsageDetail, durationMs?: number,
+) {
   void (async () => {
     try {
       const sb = getSupabase();
@@ -54,7 +59,7 @@ function recordUsage(feature: string | undefined, model: string, usage: Usage | 
         task_text: detail?.taskText ? detail.taskText.slice(0, 4000) : null,
         used_custom: detail?.usedCustom === true,
         custom_prompt: detail?.usedCustom && detail?.customPrompt ? detail.customPrompt.slice(0, 8000) : null,
-        duration_ms: typeof detail?.durationMs === "number" ? Math.round(detail.durationMs) : null,
+        duration_ms: typeof durationMs === "number" ? Math.round(durationMs) : null,
       });
     } catch { /* table missing or Supabase down — skip */ }
   })();
@@ -68,6 +73,7 @@ export async function askPerplexity(
   // Bound every call so a slow/stuck upstream can never hang a route.
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 25_000);
+  const startedAt = Date.now();
   const model = opts?.model || "sonar";
   try {
     const res = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -89,10 +95,10 @@ export async function askPerplexity(
     const citations: string[] = j.citations || (j.search_results || []).map((s: { url: string }) => s.url) || [];
     const u = j.usage || {};
     const usage: Usage = { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
-    recordUsage(opts?.feature, model, usage, undefined, opts?.detail);
+    recordUsage(opts?.feature, model, usage, undefined, opts?.detail, Date.now() - startedAt);
     return { text: j.choices?.[0]?.message?.content || "", citations, usage };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e, opts?.detail);
+    recordUsage(opts?.feature, model, null, e, opts?.detail, Date.now() - startedAt);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -112,6 +118,7 @@ export async function askClaudeViaPerplexity(
 ): Promise<{ text: string; citations: string[]; usage: Usage }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 90_000);
+  const startedAt = Date.now();
   const model = opts?.model || "anthropic/claude-sonnet-4-5";
   try {
     const res = await fetch("https://api.perplexity.ai/v1/responses", {
@@ -143,10 +150,10 @@ export async function askClaudeViaPerplexity(
       .filter(Boolean);
     const u = j.usage || {};
     const usage: Usage = { prompt: u.input_tokens || 0, completion: u.output_tokens || 0, total: u.total_tokens || 0, cost: u.cost?.total_cost };
-    recordUsage(opts?.feature, model, usage, undefined, opts?.detail);
+    recordUsage(opts?.feature, model, usage, undefined, opts?.detail, Date.now() - startedAt);
     return { text, citations, usage };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e, opts?.detail);
+    recordUsage(opts?.feature, model, null, e, opts?.detail, Date.now() - startedAt);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -163,12 +170,13 @@ export async function askPerplexityAsync(
   opts?: { model?: string; maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number } & CallOpts,
 ): Promise<{ text: string; citations: string[] }> {
   const model = opts?.model || "sonar-deep-research";
+  const startedAt = Date.now();
   try {
     const out = await askPerplexityAsyncInner(system, user, model, opts);
-    recordUsage(opts?.feature, model, out.usage, undefined, opts?.detail);
+    recordUsage(opts?.feature, model, out.usage, undefined, opts?.detail, Date.now() - startedAt);
     return { text: out.text, citations: out.citations };
   } catch (e) {
-    recordUsage(opts?.feature, model, null, e, opts?.detail);
+    recordUsage(opts?.feature, model, null, e, opts?.detail, Date.now() - startedAt);
     throw e;
   }
 }

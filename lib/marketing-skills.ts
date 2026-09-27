@@ -123,7 +123,6 @@ export async function runSkill(
     usedCustom: !!customPrompt?.trim(),
     customPrompt: customPrompt?.trim() || undefined,
   };
-  const startedAt = Date.now();
 
   // Pillar Content is the deep explainer — give it a much larger budget so it can go long.
   const isPillar = slug === "pillar-content";
@@ -133,15 +132,14 @@ export async function runSkill(
   if (engine === "claude") {
     const { text, citations, usage } = await askClaudeViaPerplexity(system, user, {
       model: "anthropic/claude-sonnet-4-5", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
-      detail: Object.assign(detail, { get durationMs() { return Date.now() - startedAt; } }),
+      detail,
     });
     return { output: (text || "").trim(), citations: citations || [], model: "claude-sonnet-4-5", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
   }
 
   const { text, citations, usage } = await askPerplexity(system, user, {
     model: "sonar-pro", maxTokens, temperature: 0.4, timeoutMs, feature: "playbook",
-    // durationMs is read when the row is written, which is after the call returns.
-    detail: Object.assign(detail, { get durationMs() { return Date.now() - startedAt; } }),
+    detail,
   });
   return { output: (text || "").trim(), citations: citations || [], model: "sonar-pro", tokens: usage.total, cost: usage.cost ?? null, engine, kind: outputKind(slug) };
 }
