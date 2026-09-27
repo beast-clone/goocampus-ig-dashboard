@@ -3096,6 +3096,15 @@ const ACT_VERB: Record<string, string> = {
   reference_added: "added a reference", reference_removed: "removed a reference", reference_links_changed: "updated the references",
   instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
 };
+// People's names, written the way a name is written. The activity feed reads them
+// from the team table, where several are stored lower-cased, and a key ("nikhil") is
+// used when there is no display name at all — so the history said "nikhil claimed
+// this". Only all-lowercase words are touched, which leaves "Manya B M" and any
+// deliberate casing exactly as entered.
+export function properName(n: string): string {
+  return (n || "").split(" ").map((w) => (w && w === w.toLowerCase() ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ");
+}
+
 const DIFF_FIELDS = new Set(["content_edited", "caption_edited", "notes_edited"]);
 const PILL_FIELDS = new Set(["status_changed"]);
 type FeedItem =
@@ -3149,8 +3158,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     let items: FeedItem[] = [...acts, ...coms];
     if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");
     else if (feedFilter === "comments") items = items.filter((i) => i.kind === "comment");
+    // Newest first HERE so "show more" always reveals older entries; the timeline
+    // below flips it to read top-to-bottom.
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [detail, feedFilter, showResolved]);
+  // What the timeline actually renders: the most recent `feedLimit` entries, oldest
+  // at the top. A history you have to read bottom-up is a history nobody reads — this
+  // runs the way the events happened, like a delivery tracker.
+  const feedShown = useMemo(() => feed.slice(0, feedLimit).slice().reverse(), [feed, feedLimit]);
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
   // The SAVED status once the detail has loaded, falling back to the board row.
   // Reading row.status directly left the pill showing the old stage after a change
@@ -3546,19 +3561,38 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {loadingDetail ? <LoadingBlock className="!py-6" size={28} />
                   : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
                   : (
-                    <div className="space-y-4">
-                      {feed.slice(0, feedLimit).map((it) => {
+                    <div>
+                      {/* Older entries live ABOVE, so the button that reveals them
+                          belongs at the top — otherwise it scrolls the list away from
+                          what it just added. */}
+                      {feed.length > feedLimit && (
+                        <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline mb-4">
+                          Show earlier activity ({feed.length - feedLimit})
+                        </button>
+                      )}
+                      {/* The rail. It sits under the avatars, which each carry a white
+                          ring so the line reads as a series of stops rather than one
+                          unbroken stroke. */}
+                      <div className="relative">
+                        <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-300" aria-hidden />
+                        <div className="space-y-5 relative">
+                      {feedShown.map((it, idx) => {
                         const av = feedAvatar(it.key, it.name);
+                        const isLatest = idx === feedShown.length - 1;
                         const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
                         const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
                         return (
                           <div key={it.id} className="flex gap-2.5">
-                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : it.name}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5 ring-[3px] ring-white relative z-10" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : properName(it.name)}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
                             <div className="min-w-0 flex-1">
                               <div className="text-[14px] text-gray-700">
-                                <span className="font-medium text-[#232D42]">{av.system ? "System" : it.name}</span>{" "}
+                                <span className="font-medium text-[#232D42]">{av.system ? "System" : properName(it.name)}</span>{" "}
                                 {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
-                                <span className="text-gray-400"> · {relTime(it.at)}</span>
+                                <span className="text-gray-400" title={new Date(it.at).toLocaleString("en-IN")}> · {relTime(it.at)}</span>
+                                {/* The bottom of a top-to-bottom timeline is where it
+                                    is up to, so say so rather than making people work
+                                    it out from the timestamps. */}
+                                {isLatest && <span className="ml-1.5 text-[10px] bg-brand-light text-[#2138B0] px-1.5 py-0.5 rounded-full font-medium">latest</span>}
                                 {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
                               </div>
                               {it.kind === "comment" ? (
@@ -3585,9 +3619,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                           </div>
                         );
                       })}
-                      {feed.length > feedLimit && (
-                        <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline">Show more ({feed.length - feedLimit})</button>
-                      )}
+                        </div>
+                      </div>
                     </div>
                   )}
 

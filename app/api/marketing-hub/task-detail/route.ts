@@ -42,7 +42,11 @@ export async function GET(req: Request) {
     const team = (teamRes.data as Team[] | null) || [];
     const teamMap = new Map(team.map((t) => [t.key, t]));
 
-    const nameOf = (k: string | null) => (k && teamMap.get(k)?.display_name) || k || "—";
+    // Proper-cased, because several display_names are stored lower-cased and the
+    // fallback is the raw key ("nikhil"). Only all-lowercase words are capitalised, so
+    // "Manya B M" survives untouched.
+    const titleCase = (s: string) => s.split(" ").map((w) => (w && w === w.toLowerCase() ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ");
+    const nameOf = (k: string | null) => titleCase((k && teamMap.get(k)?.display_name) || k || "—");
     const roleOf = (k: string | null) => (k && teamMap.get(k)?.role) || null;
 
     const ownerKey = ownerRes.data?.owner_key || null;
