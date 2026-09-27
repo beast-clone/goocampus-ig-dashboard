@@ -367,6 +367,16 @@ body.nav-collapsed .hsidebar:not(.peek) .hglobalsearch { display: none; }
    next to a 485px Post mix card in the same column. Nested scopes fill their
    parent instead. */
 .preview-scope .preview-scope { max-width: none; margin-inline: 0; width: 100%; }
+/* An overlay pinned to all four edges of the viewport is out of the page flow, so a
+   parent's spacing utility must never move it. The Marketing Hub task modal is a
+   child of a `space-y-6` column, and space-y works by adding margin-top to every
+   sibling after the first — so the backdrop was pushed 24px down AND, because
+   inset:0 pins the bottom too, lost 24px of height. On screen that read as the dim
+   starting below the logo and stopping short of the bottom, with the page showing
+   through in a strip along the top.
+   A margin on something fixed to all four insets is always a mistake, so this is
+   stated once here rather than fixed per modal. */
+.fixed.inset-0 { margin: 0 !important; }
 /* My Day is a three-column working screen — task list, task detail and the chat
    pane — so the column that helps everywhere else is just a margin it cannot use. */
 .preview-scope.hmd { max-width: none; }
