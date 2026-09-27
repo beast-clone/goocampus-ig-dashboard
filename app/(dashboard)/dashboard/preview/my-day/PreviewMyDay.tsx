@@ -16,6 +16,7 @@ import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASS
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
 import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
+import RadarCrumb from "./RadarCrumb";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -3338,6 +3339,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             <span className="apprstrip-cta">Review <IconArrowsExchange size={14} stroke={1.8} /></span>
           </button>
         )}
+
+        {/* YESTERDAY'S RADAR — one line, and only when the roll-off actually ran. Self-hides
+            for anyone without Content access (the endpoint refuses them) and on a clean day
+            it says so rather than going quiet. */}
+        <RadarCrumb />
 
         {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}
         {person === "manya" && pipeline === "waiting" && (

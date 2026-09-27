@@ -260,6 +260,36 @@ export const MY_DAY_CSS = `
 .hmd .apprstrip-l b{font-weight:600}
 .hmd .apprstrip-l svg{color:var(--brand);flex-shrink:0}
 .hmd .apprstrip-cta{display:inline-flex;align-items:center;gap:.3rem;color:var(--brand);font-weight:600;font-size:12px;flex-shrink:0}
+
+/* Yesterday's radar, one line. Deliberately lighter than .apprstrip — an approval is
+   waiting ON you, where this is a thing that already happened. The only colour is one
+   dot; the bordered-banner version of this was rejected for shouting. */
+.hmd .rcrumb-wrap{margin-top:1rem}
+.hmd .rcrumb{width:100%;display:flex;align-items:center;gap:.55rem;background:var(--panel);
+  border:1px solid var(--line);border-radius:11px;padding:.62rem 1rem;text-align:left;
+  font:inherit;cursor:pointer;transition:border-color .12s;margin-top:1rem}
+.hmd .rcrumb-wrap .rcrumb{margin-top:0}
+.hmd .rcrumb:hover{border-color:var(--cD9DEEA)}
+.hmd .rcrumb.open{border-radius:11px 11px 0 0;border-bottom-color:transparent}
+.hmd .rcrumb-dot{width:7px;height:7px;border-radius:50%;background:#C03221;flex:none}
+.hmd .rcrumb-dot.ok{background:#1AA053}
+.hmd .rcrumb-txt{flex:1;font-size:13.8px;color:var(--c232D42)}
+.hmd .rcrumb-txt b{font-weight:700}
+.hmd .rcrumb-sep{color:var(--faint);font-size:13px}
+.hmd .rcrumb-when{font-size:12.5px;color:var(--faint)}
+.hmd .rcrumb-chev{color:var(--muted);font-size:12px;transition:transform .15s}
+.hmd .rcrumb.open .rcrumb-chev{transform:rotate(90deg)}
+.hmd .rcrumb-drop{background:var(--panel);border:1px solid var(--line);border-top:0;
+  border-radius:0 0 11px 11px;padding:.1rem 1rem .75rem}
+.hmd .rcrumb-item{display:flex;align-items:baseline;gap:.7rem;padding:.5rem 0;
+  border-top:1px solid var(--line-2);font-size:14px}
+.hmd .rcrumb-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c232D42)}
+.hmd .rcrumb-src{font-size:12px;color:var(--faint);white-space:nowrap}
+.hmd .rcrumb-write{font-size:13px;font-weight:600;color:var(--brand);white-space:nowrap;text-decoration:none}
+.hmd .rcrumb-write:hover{text-decoration:underline}
+.hmd .rcrumb-foot{padding-top:.6rem;margin-top:.15rem;border-top:1px solid var(--line-2);
+  font-size:12.5px;color:var(--faint)}
+.hmd .rcrumb-foot a{color:var(--brand);text-decoration:none}
 .hmd .appr-card{display:flex;flex-direction:column;gap:.4rem;border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem}
 .hmd .appr-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 .hmd .appr-title{font-size:14px;font-weight:600;color:var(--c232D42);text-decoration:none;border-bottom:1px dashed var(--cB9C2E0)}

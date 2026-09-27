@@ -1,6 +1,7 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRadarActions, Thumbs, type RadarActionsState } from "./RadarThumbs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -9,7 +10,7 @@ import type { Sbu } from "@/lib/sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { LiveIndicator } from "@/components/LiveIndicator";
-import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX, IconAlertTriangle, IconBook, IconBroadcast, IconRss, IconSettings } from "@tabler/icons-react";
+import { IconBrandGoogle, IconBrandReddit, IconCheck, IconFlame, IconMessage2, IconMessageQuestion, IconNews, IconPencil, IconRefresh, IconSearch, IconSeo, IconShieldCheck, IconSparkles, IconStar, IconStethoscope, IconTargetArrow, IconTrendingUp, IconWorldSearch, IconX, IconAlertTriangle, IconBook, IconClipboardText, IconBroadcast, IconRss, IconSettings } from "@tabler/icons-react";
 import type { Icon as TablerIcon } from "@tabler/icons-react";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -194,6 +195,21 @@ function Radar() {
   // Which source tile is selected, or null for everything.
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
+  // Thumbs, and the keys already closed into a past day's report.
+  const acts = useRadarActions();
+
+  // Only admins are shown the way into the report — it says who ignored what, and the
+  // endpoint refuses everyone else, so a link for them would only be a dead end.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setIsAdmin(!!d?.user?.isAdmin); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // News, minus anything too old to be news. Done here rather than in the query so the
   // tile can still say how many were dropped.
   const freshNews = useMemo(() => items.filter((i) => ageDays(i.publishedAt) <= MAX_AGE_DAYS), [items]);
@@ -227,31 +243,40 @@ function Radar() {
   // One list. A story, a thread and a rising search are all the same thing here —
   // something you could write about today — so they are ranked together rather than
   // filed into separate panels the reader has to reconcile.
+  // actionKey is the identity the thumbs and the nightly report both use — it has to be
+  // derived the same way here as in lib/radar-actions.ts, or a row answered on this page
+  // would not be the row the report closes.
   type Merged =
-    | { key: string; kind: "news"; src: string; rank: number; at: number; item: FeedItem }
-    | { key: string; kind: "mention"; src: string; rank: number; at: number; m: WebMention }
-    | { key: string; kind: "search"; src: string; rank: number; at: number; term: string };
+    | { key: string; actionKey: string; kind: "news"; src: string; rank: number; at: number; item: FeedItem }
+    | { key: string; actionKey: string; kind: "mention"; src: string; rank: number; at: number; m: WebMention }
+    | { key: string; actionKey: string; kind: "search"; src: string; rank: number; at: number; term: string };
 
   const merged = useMemo<Merged[]>(() => {
     const out: Merged[] = [];
     for (const m of mentions) {
       const neg = m.sentiment === "negative";
-      out.push({ key: `m${m.url}`, kind: "mention", src: laneOf(m.source), rank: neg ? 0 : 2,
+      out.push({ key: `m${m.url}`, actionKey: `mention:${m.url.trim()}`, kind: "mention",
+                 src: laneOf(m.source), rank: neg ? 0 : 2,
                  at: +new Date(m.publishedAt || 0) || 0, m });
     }
     for (const it of freshNews) {
-      out.push({ key: `n${it.id}`, kind: "news", src: "Google News", rank: rankOf(it) === 0 ? 1 : 3,
+      out.push({ key: `n${it.id}`, actionKey: `news:${it.id.trim()}`, kind: "news",
+                 src: "Google News", rank: rankOf(it) === 0 ? 1 : 3,
                  at: +new Date(it.publishedAt) || 0, item: it });
     }
     for (const term of risingTerms) {
-      out.push({ key: `s${term}`, kind: "search", src: "Google Trends", rank: 2.5, at: 0, term });
+      out.push({ key: `s${term}`, actionKey: `search:${term.trim().toLowerCase()}`, kind: "search",
+                 src: "Google Trends", rank: 2.5, at: 0, term });
     }
     return out.sort((a, b) => a.rank - b.rank || b.at - a.at);
   }, [mentions, freshNews, risingTerms]);
 
+  // Anything already written into a past day's report is gone from here. It had its day;
+  // it now lives in the report. Without this the tab is a pile that only grows, which is
+  // exactly why nobody was clearing it.
   const shown = useMemo(
-    () => merged.filter((r) => !sourceFilter || r.src === sourceFilter),
-    [merged, sourceFilter]);
+    () => merged.filter((r) => (!sourceFilter || r.src === sourceFilter) && !acts.logged.has(r.actionKey)),
+    [merged, sourceFilter, acts.logged]);
 
   return (
     <>
@@ -277,6 +302,12 @@ function Radar() {
           >
             {refreshing ? "Refreshing feeds…" : "↻ Pull latest from Google"}
           </button>
+          {isAdmin && (
+            <Link href="/dashboard/preview/radar/report"
+              className="text-xs font-medium bg-white text-[#4A5468] border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand hover:text-brand">
+              <IconClipboardText size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Report
+            </Link>
+          )}
           <button
             onClick={() => setSettingsOpen(true)}
             className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark"
@@ -365,11 +396,12 @@ function Radar() {
               <ul className="divide-y divide-gray-100">
                 {shown.map((r) =>
                   r.kind === "news" ? (
-                    <FeedRow key={r.key} item={r.item} onRead={() => setReaderItem(r.item)} showTopic={activeInterest === "all"} />
+                    <FeedRow key={r.key} item={r.item} onRead={() => setReaderItem(r.item)}
+                      showTopic={activeInterest === "all"} acts={acts} />
                   ) : r.kind === "mention" ? (
-                    <RadarMentionRow key={r.key} m={r.m} lane={r.src} />
+                    <RadarMentionRow key={r.key} m={r.m} lane={r.src} acts={acts} />
                   ) : (
-                    <RadarSearchRow key={r.key} term={r.term} />
+                    <RadarSearchRow key={r.key} term={r.term} acts={acts} />
                   ))}
               </ul>
             )}
@@ -562,6 +594,14 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
       if (!r.ok) throw new Error(d?.error || `Couldn't create the task (${r.status})`);
       setMadeId(d?.id || null);
       setPicking(false);
+      // Tell the log this headline was acted on, and which task came out of it — so the
+      // report can point at the work rather than just claim it happened. Deliberately
+      // not awaited: the task exists, and a failed bookkeeping write must not make a
+      // successful creation look like it failed.
+      fetch("/api/radar/action", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ itemKey: `news:${item.id.trim()}`, itemKind: "news", action: "written", taskId: d?.id || null }),
+      }).catch(() => {});
     } catch (e) {
       setFailed((e as Error).message);
     } finally {
@@ -660,7 +700,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
   );
 }
 
-function FeedRow({ item, onRead, showTopic }: { item: FeedItem; onRead: () => void; showTopic: boolean }) {
+function FeedRow({ item, onRead, showTopic, acts }: { item: FeedItem; onRead: () => void; showTopic: boolean; acts: RadarActionsState }) {
   const router = useRouter();
   const [making, setMaking] = useState(false);
   const relative = useMemo(() => {
@@ -714,7 +754,12 @@ function FeedRow({ item, onRead, showTopic }: { item: FeedItem; onRead: () => vo
           )}
         </div>
       </button>
-      <MakeTaskButton item={item} quiet />
+      {/* Write it, or say in one tap that you looked and it isn't worth writing. Both
+          clear the row tonight; only one of them costs you an hour. */}
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <MakeTaskButton item={item} quiet />
+        <Thumbs state={acts} kind="news" rawKey={item.id} />
+      </div>
     </li>
   );
 }
@@ -757,7 +802,7 @@ function SourceIcon({ url, label, size = 36 }: { url: string; label: string; siz
 // A brand or topic thread, in the one list. Says which lane it came from and WHY it is
 // worth writing — the old page showed mentions in a panel of their own, where "someone
 // is publicly doubting us" sat at the same weight as a rising search.
-function RadarMentionRow({ m, lane }: { m: WebMention; lane: string }) {
+function RadarMentionRow({ m, lane, acts }: { m: WebMention; lane: string; acts: RadarActionsState }) {
   const neg = m.sentiment === "negative";
   const brandish = /goocampus|goo campus/i.test(`${m.title} ${m.snippet || ""}`);
   const label = neg ? "Someone doubted us" : brandish ? "Someone asked about us" : "Students are discussing this";
@@ -786,6 +831,7 @@ URL: ${m.url}`)}
         </Link>
         <a href={m.url} target="_blank" rel="noreferrer"
           className="text-[11px] text-[#8A92A6] hover:text-brand whitespace-nowrap">Open</a>
+        <Thumbs state={acts} kind="mention" rawKey={m.url} />
       </div>
     </li>
   );
@@ -793,7 +839,7 @@ URL: ${m.url}`)}
 
 // A rising search. No date and no article behind it — it is demand, not an event — so
 // it carries neither an age nor an "Open".
-function RadarSearchRow({ term }: { term: string }) {
+function RadarSearchRow({ term, acts }: { term: string; acts: RadarActionsState }) {
   return (
     <li className="flex gap-3 px-5 py-3.5 hover:bg-[#FBFCFE] transition items-start">
       <SourceIcon url="https://trends.google.com" label="Google Trends" />
@@ -809,11 +855,14 @@ function RadarSearchRow({ term }: { term: string }) {
           <span className="opacity-50"> · </span>rising in India — nothing from you on this yet
         </div>
       </div>
-      <Link href={draftFromQuery(term, `Rising search: ${term}
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <Link href={draftFromQuery(term, `Rising search: ${term}
 Source: Google Trends`)}
-        className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap mt-0.5">
-        <IconPencil size={13} stroke={1.8} /> Write this
-      </Link>
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline whitespace-nowrap">
+          <IconPencil size={13} stroke={1.8} /> Write this
+        </Link>
+        <Thumbs state={acts} kind="search" rawKey={term} />
+      </div>
     </li>
   );
 }
