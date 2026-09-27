@@ -3132,6 +3132,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const feedFilterBtnRef = useRef<HTMLButtonElement>(null);
   const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
   const [feedLimit, setFeedLimit] = useState(25);
+  // "Which live post is this?" — see app/api/marketing-hub/link-suggest.
+  type LinkCandidate = { id: string; url: string; caption: string; timestamp: string | null; score: number };
+  const [linkHunt, setLinkHunt] = useState<{ state: "idle" | "looking" | "done"; candidates: LinkCandidate[]; note: string }>({ state: "idle", candidates: [], note: "" });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -3212,6 +3215,35 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     saveOne("platforms", next);
   };
   const platformChips = Array.from(new Set(["Instagram", "Facebook", "LinkedIn", ...platformsCur]));
+  // Ask the server which live post this task is. A certain answer is applied straight
+  // away — that is the whole point, nobody should have to paste a link they already
+  // published. An uncertain one is offered as a list instead of guessed, because a
+  // wrong link looks right and so never gets re-checked.
+  const findPublishedPost = async () => {
+    setLinkHunt({ state: "looking", candidates: [], note: "" });
+    try {
+      const r = await fetch(`/api/marketing-hub/link-suggest?id=${row.id}`, { cache: "no-store" });
+      const j = await r.json() as { confident?: LinkCandidate | null; candidates?: LinkCandidate[]; reason?: string; alreadyLinked?: boolean; error?: string; scanned?: number };
+      if (!r.ok) { setLinkHunt({ state: "done", candidates: [], note: j.error || `Couldn't look it up (HTTP ${r.status}).` }); return; }
+      if (j.alreadyLinked) { setLinkHunt({ state: "done", candidates: [], note: "This one already has a link." }); return; }
+      if (j.reason === "no-publishing-date") { setLinkHunt({ state: "done", candidates: [], note: "No publishing date on this task, so there's nothing to search around." }); return; }
+      if (j.reason === "no-account-for-brand") { setLinkHunt({ state: "done", candidates: [], note: "This brand doesn't go out on any of our Instagram accounts." }); return; }
+      if (j.confident) {
+        await saveOne("instagram_url", j.confident.url);
+        setLinkHunt({ state: "done", candidates: [], note: `Linked — “${j.confident.caption}”.` });
+        return;
+      }
+      const list = j.candidates || [];
+      setLinkHunt({
+        state: "done",
+        candidates: list,
+        note: list.length ? "Not certain which one — pick the right post:" : `Nothing matching was found on that account around this date${j.scanned ? ` (checked ${j.scanned} posts)` : ""}.`,
+      });
+    } catch (e) {
+      setLinkHunt({ state: "done", candidates: [], note: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
   const urlRow = (field: string, label: string, value: string, Icon?: typeof IconBrandInstagram) => (
     <div className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0 text-[14px]">
       <span className="text-[#8A92A6] flex items-center gap-2 flex-shrink-0">{Icon && <Icon size={16} stroke={1.8} />}{label}</span>
@@ -3533,6 +3565,35 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {urlRow("instagram_url", "Instagram", igUrl, IconBrandInstagram)}
                 {urlRow("facebook_url", "Facebook", fbUrl, IconBrandFacebook)}
                 {urlRow("linkedin_url", "LinkedIn", liUrl, IconBrandLinkedin)}
+                {/* Offered only when there is a gap to fill: the task went out but
+                    nothing reported the link back, which is the normal case for
+                    anything published from Instagram rather than from here. */}
+                {!igUrl && (
+                  <div className="pt-3 mt-1 border-t border-gray-50">
+                    {linkHunt.state === "idle" ? (
+                      <button onClick={findPublishedPost} className="text-[13px] text-brand hover:underline inline-flex items-center gap-1.5">
+                        <IconSearch size={13} stroke={1.8} /> Find the published post
+                      </button>
+                    ) : linkHunt.state === "looking" ? (
+                      <div className="text-[13px] text-[#8A92A6]">Checking what actually went out…</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {linkHunt.note && <div className="text-[13px] text-[#8A92A6]">{linkHunt.note}</div>}
+                        {linkHunt.candidates.map((c) => (
+                          <button key={c.id}
+                            onClick={async () => { await saveOne("instagram_url", c.url); setLinkHunt({ state: "done", candidates: [], note: "Linked." }); }}
+                            className="block w-full text-left border border-gray-200 rounded-lg px-2.5 py-2 hover:border-brand transition">
+                            <span className="block text-[13px] text-[#232D42] truncate">{c.caption || "(no caption)"}</span>
+                            <span className="block text-[11px] text-[#8A92A6] mt-0.5">
+                              {c.timestamp ? new Date(c.timestamp).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}
+                            </span>
+                          </button>
+                        ))}
+                        <button onClick={() => setLinkHunt({ state: "idle", candidates: [], note: "" })} className="text-[12px] text-[#8A92A6] hover:text-brand">Close</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Panel>
           </div>
           <div className="w-[287px] flex-shrink-0 border-l border-gray-100 overflow-auto px-2 py-4">
