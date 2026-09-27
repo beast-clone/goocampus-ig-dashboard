@@ -461,7 +461,7 @@ function Radar() {
             <b className="font-semibold text-[#232D42] tabular-nums">{freshNews.length}</b> headline{freshNews.length === 1 ? "" : "s"}
             {brand?.mentions?.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{brand.mentions.length}</b> brand mention{brand.mentions.length === 1 ? "" : "s"}</> : null}
             {risingTerms.length ? <> · <b className="font-semibold text-[#232D42] tabular-nums">{risingTerms.length}</b> rising search{risingTerms.length === 1 ? "" : "es"}</> : null}
-            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} watched
+            {" · "}<b className="font-semibold text-[#232D42] tabular-nums">{alerts.filter((a) => a.active).length}</b> Google Alert{alerts.filter((a) => a.active).length === 1 ? "" : "s"} watched
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
