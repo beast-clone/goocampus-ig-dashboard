@@ -33,6 +33,31 @@ export type Release = {
 export const RELEASES: Release[] = [
   {
     date: "2026-09-27",
+    title: "Connectors, and a clock",
+    summary: "Setting Claude up has its own page now, with the steps for the app and the website — not just the terminal.",
+    changes: [
+      {
+        kind: "new",
+        what: "Connectors has its own page under System",
+        detail: "Claude sits there with step-by-step setup for whichever one you use: the Claude desktop app, claude.ai in a browser, or Claude Code in a terminal. It also spells out what Claude is and isn't allowed to do here, so nobody has to find out by trying.",
+        where: "System",
+      },
+      {
+        kind: "changed",
+        what: "Connecting Claude moved off My Account",
+        detail: "It used to be a box at the bottom of My Account that only ever explained the terminal, which is no use if you use the Claude app. Same key, same button — it's under System → Connectors now.",
+        where: "My Account",
+      },
+      {
+        kind: "new",
+        what: "The time, in the Overview header",
+        detail: "A plain clock next to the notification bell. It has nothing to do with attendance — it isn't recorded and nobody can see it but you.",
+        where: "Overview",
+      },
+    ],
+  },
+  {
+    date: "2026-09-27",
     title: "Content Studio, rebuilt",
     summary: "Perplexity checks whether it's true, Claude writes it, and it lands on the board with the caption already in it.",
     changes: [

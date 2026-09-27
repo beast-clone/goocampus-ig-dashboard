@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NOTIF_COUNT } from "./NotificationHost";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
@@ -130,6 +130,7 @@ const GROUPS: Group[] = [
     // Everyone sees this one — it exists so the team finds out what changed without
     // being told one by one.
     { label: "What's new",   href: `${HUB}/changelog`,    icon: IconSparkles },
+    { label: "Connectors",   href: `${HUB}/connectors`,   icon: IconPlugConnected },
     { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },

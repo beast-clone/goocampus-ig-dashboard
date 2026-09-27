@@ -7,7 +7,7 @@ import {
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconChartBar, IconTrophy, IconBookmark, IconShare3,
-  IconChevronDown, IconCheck,
+  IconChevronDown, IconCheck, IconClockHour4,
 } from "@tabler/icons-react";
 import { PreviewDatePicker } from "./PreviewDatePicker";
 import HubNotificationBell from "@/components/HubNotificationBell";
@@ -29,6 +29,45 @@ function todayLocalISO(): string {
 function clampToTodayISO(d: string): string {
   const t = todayLocalISO();
   return d && d > t ? t : d;
+}
+
+// The wall clock in the header. Asked for on 27 Sep 2026 — plainly the current time,
+// not attendance: nothing here is logged or read back, it is the same clock as the one
+// in the corner of the screen, at a size you can read across a desk.
+//
+// Ticks on the minute rather than the second: a seconds hand re-renders this header
+// sixty times a minute for no one's benefit.
+function HeaderClock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const d = new Date();
+      setNow(d);
+      // Line up with the next minute boundary so the display flips when the
+      // minute actually changes, not a drifting 60s after mount.
+      timer = setTimeout(tick, 60_000 - (d.getSeconds() * 1000 + d.getMilliseconds()));
+    };
+    timer = setTimeout(tick, 60_000 - (Date.now() % 60_000));
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Rendered empty on the server: the server's clock is UTC and would flash the
+  // wrong time for a beat before the browser corrected it.
+  if (!now) return <span style={{ width: 132 }} aria-hidden />;
+
+  const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  const day = now.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={`${day} · ${time}`}>
+      <IconClockHour4 size={17} stroke={1.8} style={{ color: C.primary, flexShrink: 0 }} />
+      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: C.heading, fontVariantNumeric: "tabular-nums" }}>{time}</span>
+        <span style={{ fontSize: 11, color: C.muted }}>{day}</span>
+      </span>
+    </div>
+  );
 }
 
 // Brands you can switch between on the analytics tabs. Samvaya is a separate
@@ -435,6 +474,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
             )}
           </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
+            <HeaderClock />
             <HubNotificationBell />
             <HeaderProfile />
           </div>
