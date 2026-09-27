@@ -129,7 +129,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -359,7 +359,18 @@ export async function PATCH(req: Request) {
     // we do NOT auto-assign — the task stays with the writer, the producer gets the
     // notification/chat ping, and ownership only moves when THEY accept (takeover).
     const deferHandoff = (body as { deferHandoff?: boolean }).deferHandoff === true;
-    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff) {
+    // A thumbnail created by the thumbnail flow is the one kind of design work that is
+    // NOT automatically Praveen's: someone was asked who should make it and answered,
+    // and these days the editor cutting the reel usually makes its thumbnail too.
+    // Handing it over here would silently overrule that answer.
+    //
+    // This is the THIRD place that had to learn the exception — sql/020 and sql/021
+    // cover the two database triggers. Anything that reassigns on approval needs it,
+    // and this one is the application's own handoff, so a migration could never have
+    // fixed it. docs/THUMBNAIL_FLOW_SPEC.md.
+    const beforeCustom = (before.data as { custom?: Record<string, unknown> }).custom;
+    const isOwnedThumbnail = !!(beforeCustom && typeof beforeCustom.thumbnail_for === "string" && beforeCustom.thumbnail_for);
+    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff && !isOwnedThumbnail) {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;
       if (!isVideo) {

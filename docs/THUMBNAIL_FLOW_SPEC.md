@@ -125,3 +125,30 @@ select prosrc from pg_proc where proname = '<function_name>';
    collaborator is skipped when it would be the owner — so a task Manya creates and
    approves herself has none, and stayed at Content - Pending while the form had
    promised the claim pool. The form now asks for a collaborator up front in that case.
+
+## Three places reassign on approval, not one
+
+Verified end to end on 27 Sep 2026. Getting an editor's thumbnail to STAY with them
+needed the same exception in three separate places, each found only when the previous
+fix turned out not to be enough:
+
+1. `mh_enforce_design_owner` — database trigger → `sql/020`
+2. `mh_fn_assign_owner` — database trigger → `sql/021`
+3. **the approval handoff in `app/api/marketing-hub/update/route.ts`** — the
+   application's own code, which no migration could ever have fixed
+
+All three now skip a task carrying `custom.thumbnail_for`. Anything added later that
+reassigns on approval needs the same test.
+
+## Verified
+
+Ran the whole flow twice against the live database:
+
+- The question appears only for the three eligible types, with the right thumbnail
+  name, and only one thumbnail task is created now that `mh_trg_spawn_thumbnail` is
+  gone (it used to make a second one and give it to Praveen).
+- "Let them decide" → the claiming editor is asked, and the answer is recorded.
+- "Whoever edits the video" → the thumbnail follows the claimer silently.
+- **The thumbnail then survives approval.** Before the third fix it jumped to Praveen
+  the moment it was approved; after, it stayed with Nikhil across a full page reload.
+- No capacity warning is shown to the writer for work headed to the claim pool.
