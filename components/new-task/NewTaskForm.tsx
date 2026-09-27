@@ -172,6 +172,11 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
     !sbu && "SBU (which brand it's for)",
     !content.trim() && "Content (the brief)",
     thumbOn && !thumbContent.trim() && "Thumbnail brief",
+    // The server refuses to approve a task with nobody attached to it, so filing one
+    // straight at Content - Approved needs a collaborator now. Without this the form
+    // happily promises a handoff ("goes to the claim pool") that the save then can't
+    // deliver, and the task quietly stays at Content - Pending with the writer.
+    status === "Content - Approved" && collabKeys.length === 0 && "At least one collaborator (needed to approve)",
   ].filter((x): x is string => !!x);
   const canSubmit = missing.length === 0;
   const [gate, setGate] = useState(false);

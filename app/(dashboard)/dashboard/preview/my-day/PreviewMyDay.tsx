@@ -2719,14 +2719,24 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       },
     };
     createTask(t, d.status, d.collaborators, d.assets,
-      d.thumbnail ? { thumbnail: d.thumbnail, sbu: d.sbu, publishDate: d.publishDate, priority: d.priority } : undefined);
+      d.thumbnail ? { thumbnail: d.thumbnail, sbu: d.sbu, publishDate: d.publishDate, priority: d.priority } : undefined,
+      // The routing card already worked out where this lands — use the same answer
+      // rather than assuming it stays with whoever typed it.
+      d.route.pool ? null : (d.route.ownerKey ? (PPL[d.route.ownerKey]?.name || creatorName) : null));
   };
   type ThumbSpec = Parameters<typeof attachThumbnailTask>[0];
-  const createTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets, thumb?: ThumbSpec) => {
+  // `chargeTo` is the person whose day this task will actually land on — NOT whoever
+  // is filling the form. Creating a task and doing it are different things: an
+  // approved video goes to the editors' claim pool, and approved design work goes to
+  // Praveen, so warning Manya that HER day is full would be about work she is not
+  // going to do. null means nobody owns it yet (the claim pool), so there is no day
+  // to check against.
+  const createTask = (t: Task, status: CCStatus, collaborators: string[], assets?: NewTaskAssets, thumb?: ThumbSpec, chargeTo?: string | null) => {
+    const who = chargeTo === undefined ? creatorName : chargeTo;
     const add = estMins(t.detail.typeLine);
-    const committed = committedFor(creatorName);
-    if (committed + add > WORK_MIN) {
-      setAssignWarn({ name: creatorName, committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, status, collaborators, assets, thumb) });
+    const committed = who ? committedFor(who) : 0;
+    if (who && committed + add > WORK_MIN) {
+      setAssignWarn({ name: who, committed, add, cta: "Create anyway", proceed: () => doCreateTask(t, status, collaborators, assets, thumb) });
       return;
     }
     doCreateTask(t, status, collaborators, assets, thumb);

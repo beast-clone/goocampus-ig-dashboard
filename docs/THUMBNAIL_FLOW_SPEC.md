@@ -75,3 +75,48 @@ jumping to Praveen once it passes Content - Approved.
   already does — it is the same form, so it behaves the same everywhere.
 - The claiming editor is not offered "give it to the other editor". Only themselves or
   Praveen, as agreed.
+
+## Open problem: a second, invisible thumbnail spawner
+
+Found while testing on 27 Sep 2026. Creating a reel produced **two** thumbnail
+tasks, not one:
+
+- the one this flow creates (unowned, waiting for the editor to be asked), and
+- one owned by Praveen whose brief reads *"Auto-spawned thumbnail task for post
+  &lt;title&gt;"*.
+
+That second one is not created by this codebase. It is not in `app/`, not in `sql/`,
+not anywhere in git history, and there is no n8n workflow for it — so it is a trigger
+or function living directly in the Supabase database, added outside this repo.
+
+It is almost certainly the reason thumbnails kept landing on Praveen no matter what
+the team wanted, which is the complaint this whole flow exists to fix. **Until it is
+removed, every video task gets a duplicate thumbnail and Praveen is still assigned one
+automatically.**
+
+To find it:
+
+```sql
+select t.tgname as trigger_name, p.proname as function_name
+from pg_trigger t
+join pg_class c on c.oid = t.tgrelid
+join pg_proc p on p.oid = t.tgfoid
+where c.relname = 'mh_posts' and not t.tgisinternal;
+
+-- then read the one that looks responsible:
+select prosrc from pg_proc where proname = '<function_name>';
+```
+
+## Two things the test also exposed
+
+1. **The capacity warning named the wrong person.** Creating a task always checked the
+   creator's day, even when the task was headed for the claim pool or for Praveen.
+   Manya was being warned her day was full over video editing she does not do. It now
+   checks whoever the routing card says will actually own it, and checks nobody when
+   the task is going to the pool.
+
+2. **Filing a task straight at "Content - Approved" silently failed.** The server
+   refuses to approve a task with no collaborator attached, and the default
+   collaborator is skipped when it would be the owner — so a task Manya creates and
+   approves herself has none, and stayed at Content - Pending while the form had
+   promised the claim pool. The form now asks for a collaborator up front in that case.
