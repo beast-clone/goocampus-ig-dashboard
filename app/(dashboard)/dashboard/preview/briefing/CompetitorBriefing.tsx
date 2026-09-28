@@ -5,7 +5,7 @@ import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
-  IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText, IconSparkles,
+  IconFlame, IconStar,
   IconArrowRight,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -23,15 +23,13 @@ type Competitor = {
   recent: Media[]; engagementRatePct: number; postsLast30d: number;
   avgLikesRecent: number; avgCommentsRecent: number;
 };
-type BenchmarkData = { competitors: (Competitor | { error: string; username: string })[] };
+type BenchmarkData = {
+  competitors: (Competitor | { error: string; username: string })[];
+  sourceAccount?: { id: string; handle: string };
+};
 // A post flattened with its author so cards/modal know who posted it.
 type Post = Media & { author: string; authorPic?: string };
 type YtVid = { id: string; title: string; channel: string; thumbnail: string; publishedAt: string; views: number; url: string };
-// Google Trends (free) — audience demand, from /api/radar/trends.
-type TrendBreakout = { title: string; trafficNum?: number; traffic?: string; articles?: { title: string; url: string; source: string | null }[] };
-type TrendsResp = { breakouts: TrendBreakout[]; ideas: { seed: string; ideas: string[] }[]; fetchedAt?: string };
-// Web mentions about competitors (news/web + sentiment), from /api/radar/search.
-type Mention = { platform: string; title: string; url: string; source: string | null; publishedAt: string; snippet: string; sentiment: "positive" | "negative" | "neutral"; about?: string };
 
 const isComp = (c: BenchmarkData["competitors"][number]): c is Competitor => !("error" in c);
 const nfmt = (n: number | undefined) => (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}k` : String(n ?? 0);
@@ -71,7 +69,13 @@ export function CompetitorBriefing() {
     trackedHandles.length
       ? `/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(trackedHandles.join(","))}`
       : `/api/benchmark?accountId=goocampus`);
-  const competitors = useMemo(() => (data?.competitors || []).filter(isComp), [data]);
+  // People track their own handle on the Competitors tab — it belongs in the
+  // compare table there. Here it does not: this page says it is about them, not
+  // us, and ten of our own posts under "Top competitor content" made a liar of it.
+  const ourHandle = (data?.sourceAccount?.handle || "").replace(/^@/, "").toLowerCase();
+  const competitors = useMemo(
+    () => (data?.competitors || []).filter(isComp).filter((c) => c.username.toLowerCase() !== ourHandle),
+    [data, ourHandle]);
 
   // Every competitor post, tagged with its author.
   const allPosts: Post[] = useMemo(() =>
@@ -84,31 +88,26 @@ export function CompetitorBriefing() {
   const { data: ytData, isLoading: ytLoading } = useApi<{ videos: YtVid[] }>(`/api/benchmark/youtube`);
   const ytVideos = ytData?.videos || [];
 
-  // Google Trends — what the audience is searching (demand, not competitor data).
-  const { data: trends } = useApi<TrendsResp>(`/api/radar/trends`);
-  const risingQueries = useMemo(() => {
-    const seen = new Set<string>(); const out: string[] = [];
-    for (const g of trends?.ideas || []) for (const q of g.ideas) {
-      const k = q.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(q); }
-    }
-    return out.slice(0, 18);
-  }, [trends]);
-
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
-  const [openTrend, setOpenTrend] = useState<string | null>(null);
-
-  // Six full-width bands stacked in one column came to 5.2 screens of scrolling,
-  // all shouting equally — "completely cluttered" (Praveen, 28 Sept). Same six
-  // blocks, nothing removed; you now pick one instead of scrolling past all of
-  // them. Opens on Competitors, which is what the page is named after.
+
+  // Six full-width bands stacked in one column came to 5.2 screens of scrolling,
+  // all shouting equally — "completely cluttered" (Praveen, 28 Sept).
+  //
+  // Tabs alone were not the answer: two of the four were Content Radar wearing a
+  // different hat — same /api/radar/trends and /api/radar/search, fewer sources,
+  // and a panel telling you to go to "Content Radar → Manage alerts" to change
+  // them. Hiding a duplicate behind a tab still leaves a duplicate. They are gone
+  // from here; Content Radar keeps them, with the eight sources this never had.
+  //
+  // What is left is what only this page does: who they are, and what they posted.
   const [tab, setTab] = useState<BriefTab>("competitors");
 
   return (
-    <div className="preview-scope space-y-6">
-      <TabBar tab={tab} onChange={setTab} />
-
-      {tab === "competitors" && (<>
+    <div className="preview-scope space-y-6">
+      <TabBar tab={tab} onChange={setTab} />
+
+      {tab === "competitors" && (<>
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Instagram"
         right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · click one for the full profile · last 30 days`}
@@ -143,9 +142,9 @@ export function CompetitorBriefing() {
       </Section>
 
       {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
-      </>)}
-
-      {tab === "posts" && (<>
+      </>)}
+
+      {tab === "posts" && (<>
       <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={18} />} accent="#6E48F8">
         {isLoading ? <CardSkeleton /> : igLatest.length === 0 ? (
           <Empty>No competitor Instagram posts loaded yet.</Empty>
@@ -168,9 +167,9 @@ export function CompetitorBriefing() {
       </Section>
 
       {/* Top competitor content — same card style as the latest-posts grid */}
-      </>)}
-
-      {tab === "competitors" && (<>
+      </>)}
+
+      {tab === "competitors" && (<>
       <Section title="Top competitor content" badge="Instagram" right="most engagement · recent · click to open here" icon={<IconStar size={18} />} accent="#0EA5E9">
         {isLoading ? <CardSkeleton /> : topByReach.length === 0 ? (
           <Empty>No competitor content loaded yet.</Empty>
@@ -181,80 +180,41 @@ export function CompetitorBriefing() {
         )}
       </Section>
 
-      {/* What students are searching now — Google Trends, enlarged. Seeds come from the
-          topics you track in Content Radar → Manage alerts. */}
-      </>)}
-
-      {tab === "trends" && (<>
-      <Section title="What students are searching now" badge="Google Trends" right="audience demand · add keywords in Content Radar → Manage alerts" icon={<IconSearch size={18} />} accent="#3A57E8" flat>
-        {(trends?.breakouts?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
-            {trends!.breakouts.slice(0, 6).map((b, i) => (
-              <button key={i} onClick={() => setOpenTrend(b.title)} className="text-left border border-gray-100 rounded-xl p-3.5 hover:border-brand transition block w-full">
-                <div className="text-[13.5px] font-medium text-[#232D42]">{b.title}</div>
-                {(b.traffic || b.trafficNum) && <div className="text-[12px] text-emerald-600 mt-0.5">↑ {b.traffic || `${(b.trafficNum || 0).toLocaleString()}+ searches`}</div>}
-              </button>
-            ))}
-          </div>
-        )}
-        {risingQueries.length > 0 ? (
-          <div className="flex flex-wrap gap-2.5">
-            {risingQueries.map((q, i) => (
-              <button key={i} onClick={() => setOpenTrend(q)}
-                className="inline-flex items-center gap-1.5 text-[13.5px] bg-white border border-gray-200 hover:border-brand hover:bg-brand-light/40 text-[#232D42] rounded-full px-4 py-2 transition">
-                <IconTrendingUp size={13} className="text-brand" /> {q}
-              </button>
-            ))}
-          </div>
-        ) : <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading rising searches…" />}
-        <div className="text-[12px] text-gray-400 mt-4">Real rising queries around your tracked topics (Google Autocomplete + Daily Trends, free). Click one to preview; add or change topics in <b>Content Radar → Manage alerts</b>.</div>
-      </Section>
-
-      {/* What people are saying — full width */}
-      </>)}
-
-      {tab === "mentions" && (<>
-      <Section title="What people are saying" badge="News & web" right="about your competitors" icon={<IconMessages size={18} />} accent="#079AA2" flat>
-        <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
-      </Section>
+      </>)}
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
-      </>)}
-
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
-      {openTrend && <TrendModal q={openTrend} onClose={() => setOpenTrend(null)} />}
     </div>
   );
 }
 
-// The four views. Order is how you'd actually work: who they are, what they just
-// posted, what the audience is searching, what is being said about them.
-type BriefTab = "competitors" | "posts" | "trends" | "mentions";
-const BRIEF_TABS: { key: BriefTab; label: string; hint: string }[] = [
-  { key: "competitors", label: "Competitors",   hint: "who is growing, and their best content" },
-  { key: "posts",       label: "Their posts",   hint: "latest on Instagram and YouTube" },
-  { key: "trends",      label: "Search trends", hint: "what students are searching for" },
-  { key: "mentions",    label: "What's said",   hint: "news and web mentions" },
-];
-
-function TabBar({ tab, onChange }: { tab: BriefTab; onChange: (t: BriefTab) => void }) {
-  const active = BRIEF_TABS.find((t) => t.key === tab);
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl px-2 py-2">
-      <div className="flex items-center gap-1 flex-wrap">
-        {BRIEF_TABS.map((t) => (
-          <button key={t.key} onClick={() => onChange(t.key)}
-            className={`h-9 px-3.5 rounded-lg text-[13.5px] font-medium transition ${
-              t.key === tab ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {active && <div className="text-[12px] text-[#8A92A6] px-2 pt-1.5">{active.hint}</div>}
-    </div>
-  );
-}
-
+// Two views, in the order you'd actually work: who they are, then what they just
+// posted. Search trends and web mentions used to be here as a third and fourth —
+// they are Content Radar's, and they are back there now.
+type BriefTab = "competitors" | "posts";
+const BRIEF_TABS: { key: BriefTab; label: string; hint: string }[] = [
+  { key: "competitors", label: "Competitors", hint: "who is growing, and their best content" },
+  { key: "posts",       label: "Their posts", hint: "latest on Instagram and YouTube" },
+];
+
+function TabBar({ tab, onChange }: { tab: BriefTab; onChange: (t: BriefTab) => void }) {
+  const active = BRIEF_TABS.find((t) => t.key === tab);
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl px-2 py-2">
+      <div className="flex items-center gap-1 flex-wrap">
+        {BRIEF_TABS.map((t) => (
+          <button key={t.key} onClick={() => onChange(t.key)}
+            className={`h-9 px-3.5 rounded-lg text-[13.5px] font-medium transition ${
+              t.key === tab ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {active && <div className="text-[12px] text-[#8A92A6] px-2 pt-1.5">{active.hint}</div>}
+    </div>
+  );
+}
+
 // ── building blocks ──
 // Prominent, colour-coded section header so each block is instantly distinguishable.
 function Section({ title, badge, right, icon, children, flat, accent = "#3A57E8" }: { title: string; badge?: string; right?: string; icon?: React.ReactNode; children: React.ReactNode; flat?: boolean; accent?: string }) {
@@ -409,333 +369,6 @@ function YtModal({ v, onClose }: { v: YtVid; onClose: () => void }) {
 // Rising-search results — the actual Google results shown INSIDE the dashboard (via
 // Serper; Google's own page can't be embedded). People-also-ask + related searches are
 // clickable to keep browsing without leaving. Only a result / "Open in Google" leaves.
-type SerpResult = { position?: number; title: string; link: string; domain: string; snippet: string };
-type RankReport = { keyword: string; organic: SerpResult[]; peopleAlsoAsk: string[]; relatedSearches: string[]; error?: string };
-
-// Source rating — so the team knows whether a result is worth taking data from.
-// Rule-based (no AI), judged on TWO grounds, both derived from what Google returns
-// (the domain + the title/snippet) — we do NOT open each page:
-//   1. Authority: official exam/regulatory bodies > third-party info sites > competitor/social.
-//   2. Content signal: a login / expired / 404 page is downgraded even on an official
-//      domain, because there's nothing useful to read there.
-type SourceRating = { level: "high" | "medium" | "low"; label: string; short: string; why: string };
-function sourcePriority(link: string, title = "", snippet = ""): SourceRating {
-  let host = "";
-  try { host = new URL(link).hostname.replace(/^www\./, "").toLowerCase(); } catch { host = String(link).toLowerCase(); }
-  const is = (arr: string[]) => arr.some((d) => host === d || host.endsWith("." + d));
-  const text = `${title} ${snippet}`.toLowerCase();
-
-  const official = ["natboard.edu.in", "nbe.edu.in", "nmc.org.in", "mcc.nic.in", "nta.ac.in", "aiimsexams.ac.in", "dghs.gov.in", "mciindia.org", "digialm.com", "nlmc.gov.in"];
-  const officialTld = host.endsWith(".gov.in") || host.endsWith(".nic.in") || host.endsWith(".edu.in") || host.endsWith(".ac.in");
-  const isOfficial = is(official) || officialTld;
-  const social = ["instagram.com", "facebook.com", "youtube.com", "linkedin.com", "twitter.com", "x.com", "t.me", "threads.net"];
-  const competitor = ["hellomentor.in", "hellomentor.ai", "academically.com", "academically.global"];
-
-  // Content signal — transactional / dead pages have no readable info to take.
-  const dead = /\b(date expired|no longer available|form is no longer|expired|log ?in|sign ?in|user id|password|register here|404|page not found)\b/i.test(text);
-  if (dead) return { level: "low", label: "Not important", short: "Login / expired page", why: "Reads like a login or expired-form page — nothing useful to take, even though the site itself is official." };
-  if (is(social)) return { level: "low", label: "Not important", short: "Social profile", why: "A social-media profile — promotional, not a neutral source." };
-  if (is(competitor)) return { level: "low", label: "Not important", short: "Competitor page", why: "A competitor's own page — promotional, not a neutral source." };
-  if (isOfficial) return { level: "high", label: "Really important", short: "Official source", why: "Published by the exam board / regulator — authoritative, safe to quote directly." };
-  return { level: "medium", label: "Important", short: "3rd-party reference", why: "A third-party news / info site — useful, but verify against the official source." };
-}
-function PriorityPill({ p, mini }: { p: SourceRating; mini?: boolean }) {
-  const cls = p.level === "high" ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    : p.level === "medium" ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-gray-100 text-gray-500 border-gray-200";
-  const dot = p.level === "high" ? "bg-emerald-500" : p.level === "medium" ? "bg-amber-500" : "bg-gray-400";
-  return (
-    <span title={p.why} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 font-medium shrink-0 ${cls} ${mini ? "text-[10px]" : "text-[11px]"}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />{p.label}
-    </span>
-  );
-}
-// One search-result row — badge + short reason sit on the right so the grounds are
-// visible and the empty right-hand space is used.
-function ResultRow({ o, onOpen }: { o: SerpResult; onOpen: () => void }) {
-  const rt = sourcePriority(o.link, o.title, o.snippet);
-  return (
-    <button onClick={onOpen} className="block w-full text-left py-3 px-2 -mx-2 rounded-lg hover:bg-brand-light/30 transition">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] text-gray-400 truncate">{o.domain}</div>
-          <div className="text-[14.5px] text-[#2138B0] font-medium leading-snug">{o.title}</div>
-          {o.snippet && <div className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{o.snippet}</div>}
-        </div>
-        <div className="shrink-0 w-[132px] flex flex-col items-end gap-1 pt-0.5">
-          <PriorityPill p={rt} />
-          <span className="text-[10px] text-gray-400 text-right leading-tight">{rt.short}</span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function TrendModal({ q, onClose }: { q: string; onClose: () => void }) {
-  const [cur, setCur] = useState(q);
-  const [rep, setRep] = useState<RankReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [reader, setReader] = useState<{ url: string; title: string } | null>(null);
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true); setRep(null);
-    fetch(`/api/seo/rank?q=${encodeURIComponent(cur)}`, { credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) { setRep(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setRep({ keyword: cur, organic: [], peopleAlsoAsk: [], relatedSearches: [], error: "Could not load results" }); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [cur]);
-
-  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(cur)}`;
-  return (
-    <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconSearch size={16} /></span>
-          <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-[#232D42] truncate">{cur}</div>
-            <div className="text-[11px] text-gray-400">Google results · what students find when they search this</div>
-          </div>
-          <a href={googleUrl} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open in Google <IconExternalLink size={12} /></a>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
-        </div>
-        <div className="overflow-y-auto px-5 py-4">
-          {loading ? (
-            <LoadingBlock className="!py-8" size={24} />
-          ) : rep?.error || !rep?.organic?.length ? (
-            <div className="text-center py-10 text-[13px] text-gray-500">{rep?.error || "No results to show."}<div className="mt-2"><a href={googleUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">Open in Google ↗</a></div></div>
-          ) : (
-            <>
-              <div className="flex flex-col divide-y divide-gray-50">
-                {rep.organic.map((o, i) => (
-                  <ResultRow key={i} o={o} onOpen={() => setReader({ url: o.link, title: o.title })} />
-                ))}
-              </div>
-              {rep.peopleAlsoAsk?.length > 0 && (
-                <div className="mt-5">
-                  <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">People also ask</div>
-                  <div className="flex flex-col gap-1.5">
-                    {rep.peopleAlsoAsk.map((p, i) => (
-                      <button key={i} onClick={() => setCur(p)} className="text-left text-[12.5px] text-[#232D42] border border-gray-100 rounded-lg px-3 py-2 hover:border-brand hover:bg-brand-light/30 transition">{p}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {rep.relatedSearches?.length > 0 && (
-                <div className="mt-5">
-                  <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Related searches</div>
-                  <div className="flex flex-wrap gap-2">
-                    {rep.relatedSearches.map((r, i) => (
-                      <button key={i} onClick={() => setCur(r)} className="text-[12px] bg-gray-50 hover:bg-brand-light text-[#4A5468] rounded-full px-3 py-1.5 transition">{r}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      {reader && <PageReader url={reader.url} title={reader.title} onClose={() => setReader(null)} />}
-    </div>
-  );
-}
-
-// In-dashboard page reader — fetches any public URL server-side (Mozilla Readability
-// via /api/radar/article), strips scripts, and renders the cleaned article inline so a
-// clicked result opens INSIDE the dashboard. External deep-dive only via "Open full page".
-function PageReader({ url, title, onClose }: { url: string; title?: string; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [rawHtml, setRawHtml] = useState("");
-  const [artTitle, setArtTitle] = useState<string | null>(title || null);
-  const [site, setSite] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-  useEffect(() => {
-    const ctrl = new AbortController();
-    setLoading(true); setError(null); setPdfUrl(null); setRawHtml("");
-    fetch(`/api/radar/article?url=${encodeURIComponent(url)}`, { signal: ctrl.signal, credentials: "same-origin" })
-      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
-      .then((d: { html?: string; title?: string | null; siteName?: string | null; error?: string; isPdf?: boolean; finalUrl?: string }) => {
-        if (d.isPdf) { setPdfUrl(d.finalUrl || url); return; }
-        setRawHtml(d.html || ""); if (d.title) setArtTitle(d.title); setSite(d.siteName || null);
-        if (d.error && !d.html) setError(d.error);
-      })
-      .catch((e) => { if (e.name !== "AbortError") setError((e as Error).message); })
-      .finally(() => setLoading(false));
-    return () => ctrl.abort();
-  }, [url]);
-  // AI verdict ("Approach B"): rate this page ON OPEN by reading its real text, cached
-  // per-URL server-side. Until it lands (or if AI is unavailable) we show the instant
-  // rule-based estimate; the AI verdict replaces it and is marked as read-checked.
-  const [ai, setAi] = useState<(SourceRating & { relevance?: number; cached?: boolean }) | null>(null);
-  const [aiState, setAiState] = useState<"loading" | "done" | "off">("loading");
-  useEffect(() => {
-    const ctrl = new AbortController();
-    setAi(null); setAiState("loading");
-    fetch(`/api/benchmark/rate?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || "")}`, { signal: ctrl.signal, credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((d: { ai?: boolean; level?: "high" | "medium" | "low"; label?: string; why?: string; relevance?: number; cached?: boolean }) => {
-        if (d.ai && d.level && d.label) { setAi({ level: d.level, label: d.label, short: "AI-checked", why: d.why || "", relevance: d.relevance, cached: d.cached }); setAiState("done"); }
-        else setAiState("off");
-      })
-      .catch((e) => { if (e.name !== "AbortError") setAiState("off"); });
-    return () => ctrl.abort();
-  }, [url, title]);
-
-  const html = useMemo(() => rawHtml ? rawHtml.replace(/<(script|iframe|object|embed|noscript)[\s\S]*?<\/\1>/gi, "").replace(/\son\w+="[^"]*"/gi, "") : "", [rawHtml]);
-  const host = useMemo(() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }, [url]);
-  const rating = useMemo(() => sourcePriority(url, title || ""), [url, title]);
-  const shown = ai || rating;
-  const banner = shown.level === "high" ? "bg-emerald-50/70 border-emerald-100" : shown.level === "medium" ? "bg-amber-50/70 border-amber-100" : "bg-gray-50 border-gray-100";
-  return (
-    <div className="fixed inset-0 !mt-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-light text-brand shrink-0"><IconFileText size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13.5px] font-semibold text-[#232D42] truncate">{artTitle || host}{pdfUrl ? " (PDF)" : ""}</div>
-            <div className="text-[11px] text-gray-400 truncate">{site || host} · reading inside the dashboard</div>
-          </div>
-          <a href={pdfUrl || url} target="_blank" rel="noreferrer" className="text-[12px] text-brand inline-flex items-center gap-1 border border-brand/40 rounded-lg px-2.5 py-1 hover:bg-brand-light shrink-0">Open full page <IconExternalLink size={12} /></a>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><IconX size={18} /></button>
-        </div>
-        {/* Source-quality banner — how much to trust this link. Rule-based estimate first,
-            then upgraded to an AI verdict that actually read the page (cached per URL). */}
-        <div className={`flex items-center gap-2 px-5 py-2 border-b ${banner} shrink-0`}>
-          <PriorityPill p={shown} />
-          <span className="text-[12px] text-gray-500 min-w-0 truncate flex-1">{shown.why}</span>
-          {ai ? (
-            <span className="inline-flex items-center gap-1 text-[10.5px] text-emerald-600 shrink-0" title={`Rated by reading the page${ai.cached ? " (cached)" : ""}`}>
-              <IconSparkles size={12} />{typeof ai.relevance === "number" ? `${ai.relevance}% relevant` : "AI-checked"}
-            </span>
-          ) : aiState === "loading" ? (
-            <span className="inline-flex items-center gap-1 text-[10.5px] text-gray-400 shrink-0"><span className="w-3 h-3 border-2 border-gray-200 border-t-brand rounded-full animate-spin" />reading…</span>
-          ) : (
-            <span className="text-[10.5px] text-gray-400 shrink-0" title="AI credit unavailable — showing a quick estimate from the domain + headline">quick estimate</span>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading ? (
-            <LoadingBlock className="!py-12" label="Loading the page inside the dashboard…" />
-          ) : pdfUrl ? (
-            <iframe title="PDF preview" src={`/api/radar/pdf?url=${encodeURIComponent(pdfUrl)}`} className="w-full h-[74vh] rounded-lg border border-gray-100" />
-          ) : html ? (
-            <article className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />
-          ) : (
-            <div className="text-center py-10 text-[13px] text-gray-500">{error || "This page couldn't be shown inline."}<div className="mt-2"><a href={url} target="_blank" rel="noreferrer" className="text-brand hover:underline">Open full page ↗</a></div></div>
-          )}
-          <style jsx>{`
-            :global(.reader-content) { color: #1F2937; font-size: 14.5px; line-height: 1.7; }
-            :global(.reader-content h1) { font-size: 22px; font-weight: 600; margin: 24px 0 12px; color: #111827; line-height: 1.3; }
-            :global(.reader-content h2) { font-size: 18px; font-weight: 600; margin: 22px 0 10px; color: #111827; line-height: 1.35; }
-            :global(.reader-content h3) { font-size: 16px; font-weight: 600; margin: 18px 0 8px; color: #111827; }
-            :global(.reader-content p) { margin: 12px 0; }
-            :global(.reader-content a) { color: #3A57E8; text-decoration: underline; text-underline-offset: 2px; }
-            :global(.reader-content a:hover) { color: #2138B0; }
-            :global(.reader-content ul), :global(.reader-content ol) { margin: 12px 0; padding-left: 24px; }
-            :global(.reader-content li) { margin: 4px 0; }
-            :global(.reader-content blockquote) { border-left: 3px solid #E5E7EB; padding: 4px 0 4px 14px; margin: 14px 0; color: #4B5563; font-style: italic; }
-            :global(.reader-content img) { max-width: 100%; height: auto; border-radius: 8px; margin: 14px 0; }
-            :global(.reader-content table) { border-collapse: collapse; margin: 14px 0; width: 100%; }
-            :global(.reader-content th), :global(.reader-content td) { border: 1px solid #E5E7EB; padding: 6px 10px; text-align: left; font-size: 13px; }
-            :global(.reader-content th) { background: #F9FAFB; font-weight: 600; }
-          `}</style>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Live competitor mentions — searches each competitor name via /api/radar/search
-// (Google News + web) and shows recent items with sentiment.
-function MentionsSection({ names }: { names: string[] }) {
-  const [mentions, setMentions] = useState<Mention[] | null>(null);
-  const [openM, setOpenM] = useState<Mention | null>(null);
-  const key = names.join("|");
-  useEffect(() => {
-    if (!names.length) { setMentions([]); return; }
-    let cancelled = false;
-    // Serper (Google Search) → real snippets + direct links.
-    fetch(`/api/benchmark/mentions?names=${encodeURIComponent(names.join(","))}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : { mentions: [] }))
-      .then((d) => { if (!cancelled) setMentions((d.mentions || []).slice(0, 10)); })
-      .catch(() => { if (!cancelled) setMentions([]); });
-    return () => { cancelled = true; };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!mentions) return <LoadingBlock className="!py-6" size={22} />;
-  if (mentions.length === 0) return <div className="text-[13px] text-gray-400 py-4 text-center">No recent mentions found for these competitors.</div>;
-
-  const dot = (s: Mention["sentiment"]) => s === "positive" ? "bg-emerald-500" : s === "negative" ? "bg-rose-500" : "bg-gray-300";
-  return (
-    <>
-      <div className="flex flex-col divide-y divide-gray-50">
-        {mentions.map((m, i) => (
-          <button key={i} onClick={() => setOpenM(m)} className="flex items-start gap-2.5 py-2.5 hover:bg-brand-light/40 rounded-lg px-1 transition text-left w-full">
-            <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot(m.sentiment)}`} title={m.sentiment} />
-            <div className="min-w-0 flex-1">
-              <div className="text-[12.5px] text-[#232D42] leading-snug line-clamp-2">{m.title}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}{m.publishedAt ? ` · ${m.publishedAt}` : ""}</div>
-            </div>
-            <IconChevronRight size={13} className="text-gray-300 mt-1 shrink-0" />
-          </button>
-        ))}
-      </div>
-      {openM && <MentionModal m={openM} onClose={() => setOpenM(null)} />}
-    </>
-  );
-}
-
-// Mention preview — opens INSIDE the dashboard. The article opens externally only via
-// the explicit "Open article" button.
-function MentionModal({ m, onClose }: { m: Mention; onClose: () => void }) {
-  const [reader, setReader] = useState(false);
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-  const s = m.sentiment;
-  const pill = s === "positive" ? "bg-emerald-50 text-emerald-700" : s === "negative" ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-500";
-  return (
-    <div className="fixed inset-0 !mt-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 shrink-0">
-          <span className={`text-[11px] font-medium rounded-full px-2.5 py-1 capitalize ${pill}`}>{s}</span>
-          <span className="text-[12px] text-gray-400 truncate">{m.about && <span className="text-brand">{m.about}</span>}{m.about ? " · " : ""}{m.source || m.platform}</span>
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700"><IconX size={18} /></button>
-        </div>
-        <div className="px-5 py-5 overflow-y-auto">
-          <div className="text-[16px] font-semibold text-[#232D42] leading-snug">{m.title}</div>
-          {m.snippet
-            ? <div className="text-[13.5px] text-gray-700 leading-relaxed mt-2.5">{m.snippet}</div>
-            : <div className="text-[13px] text-gray-400 mt-2.5">No preview text — open the article to read the full story.</div>}
-          <div className="text-[11.5px] text-gray-400 mt-3">{m.source || m.platform}{m.publishedAt ? ` · ${m.publishedAt}` : ""}</div>
-          <div className="mt-4 flex items-center gap-2">
-            <button onClick={() => setReader(true)} className="inline-flex items-center gap-1.5 bg-brand text-white rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-brand-dark">
-              <IconFileText size={15} /> Read here
-            </button>
-            <a href={m.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-gray-200 text-[#4A5468] rounded-xl px-4 py-2.5 text-[13px] font-medium hover:bg-gray-50">
-              <IconExternalLink size={15} /> Open on the site
-            </a>
-          </div>
-        </div>
-      </div>
-      {reader && <PageReader url={m.url} title={m.title} onClose={() => setReader(false)} />}
-    </div>
-  );
-}
-
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center text-[13px] text-gray-400">{children}</div>;
 }
