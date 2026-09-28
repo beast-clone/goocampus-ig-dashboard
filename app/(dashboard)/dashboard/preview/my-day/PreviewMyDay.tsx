@@ -20,6 +20,7 @@ import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/
 import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
 import RadarCrumb from "./RadarCrumb";
+import { ACT_VERB, relTime, properName } from "../marketing-hub/MarketingHub";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -1036,13 +1037,45 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <div className="section-lbl">Recent activity</div>
-      <div className="activity">
-        {task.detail.activity.map((a, i) => (
-          <div key={i} className="act-row"><b>{a.who}</b> {a.text}<span className="act-time"> · {a.time}</span></div>
-        ))}
-      </div>
+      <TaskHistory postId={task.id} local={task.detail.activity} />
 
     </>
+  );
+}
+
+// The task's history, from mh_activity via the Master sheet's own detail endpoint.
+// My Day used to render task.detail.activity only, which the server always sends
+// empty — so every task here showed a blank history (Praveen, 28 Sep) while the
+// same task in the Master sheet showed it. Entries made in this session (e.g.
+// "Timer started") are kept on top until the server catches up.
+function TaskHistory({ postId, local }: { postId: string; local: { who: string; text: string; time: string }[] }) {
+  type Row = { id: string; actor_key: string | null; actorName: string | null; action: string; from_value: string | null; to_value: string | null; created_at: string };
+  const [rows, setRows] = useState<Row[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setRows(null);
+    fetch(`/api/marketing-hub/task-detail?id=${encodeURIComponent(postId)}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setRows(d && Array.isArray(d.activity) ? d.activity : []); })
+      .catch(() => { if (alive) setRows([]); });
+    return () => { alive = false; };
+  }, [postId]);
+  const who = (r: Row) => (r.actor_key ? properName(r.actorName || r.actor_key) : "System");
+  const what = (r: Row) => {
+    const verb = ACT_VERB[r.action] || r.action.replace(/_/g, " ");
+    return r.action === "status_changed" && r.to_value ? `${verb}${r.from_value ? ` from ${r.from_value}` : ""} to ${r.to_value}` : verb;
+  };
+  return (
+    <div className="activity">
+      {local.map((a, i) => (
+        <div key={`l${i}`} className="act-row"><b>{a.who}</b> {a.text}<span className="act-time"> · {a.time}</span></div>
+      ))}
+      {rows === null && <div className="act-row">Loading history…</div>}
+      {rows?.map((r) => (
+        <div key={r.id} className="act-row"><b>{who(r)}</b> {what(r)}<span className="act-time"> · {relTime(r.created_at)}</span></div>
+      ))}
+      {rows && rows.length === 0 && local.length === 0 && <div className="act-row">No history yet.</div>}
+    </div>
   );
 }
 

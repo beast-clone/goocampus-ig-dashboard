@@ -3137,7 +3137,7 @@ function feedAvatar(key: string | null, name: string): { bg: string; fg: string;
   const [bg, fg] = FEED_AV[h % FEED_AV.length].split(":");
   return { bg, fg, initials, system: false };
 }
-function relTime(iso: string): string {
+export function relTime(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "just now";
   const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
@@ -3172,7 +3172,7 @@ function wordDiff(oldStr: string, newStr: string): React.ReactNode {
   while (j < m) { push(b[j], "bg-emerald-50 text-emerald-700"); j++; }
   return <span className="whitespace-pre-wrap break-words leading-relaxed">{out}</span>;
 }
-const ACT_VERB: Record<string, string> = {
+export const ACT_VERB: Record<string, string> = {
   created: "created this", status_changed: "changed the status", owner_changed: "reassigned this",
   rescheduled: "rescheduled this", due_date_changed: "changed the due date", renamed: "renamed this",
   priority_changed: "changed the priority", type_changed: "changed the type", content_edited: "edited the content",
