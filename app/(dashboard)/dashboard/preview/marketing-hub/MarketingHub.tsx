@@ -164,8 +164,10 @@ function blockColor(type: string): { bg: string; fg: string } {
 // which also includes "Content - In Progress" — a real stage that has no column.
 // Anything outside this set is rejected by the API with a 400.
 const STATUS_CHOICES = [
-  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+  "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+  "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Rejected/Not Published", "Failed",
 ];
 
 // Muted, cohesive stage palette (all one tone — no neon, no harsh navy).
@@ -177,6 +179,37 @@ const PIPELINE_STAGES = [
   { key: "Output - Ready",        label: "Output Ready",        color: "#6F9BD1" },
   { key: "Ready to Publish",      label: "Ready to Publish",    color: "#5FB196" },
   { key: "Published/Scheduled",   label: "Published",           color: "#7A74C9" },
+];
+
+// The board above is the seven columns people drag between. The SIDEBAR lists every
+// status a task can be in — all eleven Airtable offers — because a status with no
+// board column (Needs Approval, Rejected, Failed) is exactly the one you go looking
+// for and cannot find (the team, 28 Sep).
+/** One hue per content family — reels blue, carousels violet, and so on. */
+function typeColour(t: string): string {
+  const s = t.toLowerCase();
+  if (s.includes("thumbnail")) return "#0F9E75";
+  if (s.includes("reel")) return "#3A57E8";
+  if (s.includes("carousel")) return "#6D5CE7";
+  if (s.includes("youtube") || s.includes("long-form") || s.includes("short")) return "#2138B0";
+  if (s.includes("story")) return "#C2410C";
+  if (s.includes("ad")) return "#B0778A";
+  if (s.includes("essay")) return "#8A92A6";
+  return "#E0791F";
+}
+
+const ALL_STATUSES = [
+  { key: "Content - Pending",      label: "Content Pending",      color: "#94A3B8" },
+  { key: "Content - In Progress",  label: "Content In Progress",  color: "#B8927A" },
+  { key: "Content - Needs Approval", label: "Needs Approval",     color: "#C9954F" },
+  { key: "Content - Approved",     label: "Approved",             color: "#D9A05B" },
+  { key: "Output - In Progress",   label: "In Progress",          color: "#D9836E" },
+  { key: "Incorporating Feedback", label: "Incorporating Feedback", color: "#DD6B7B" },
+  { key: "Output - Ready",         label: "Output Ready",         color: "#6F9BD1" },
+  { key: "Ready to Publish",       label: "Ready to Publish",     color: "#5FB196" },
+  { key: "Published/Scheduled",    label: "Published",            color: "#7A74C9" },
+  { key: "Rejected/Not Published", label: "Rejected",             color: "#B0778A" },
+  { key: "Failed",                 label: "Failed",               color: "#C0392B" },
 ];
 
 // SINGLE source of truth for status pill colours — soft themed pills, each hue
@@ -2253,14 +2286,22 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const oneCond = (field: string, value: string): FilterModel => ({ conjunction: "and", conditions: [{ field, op: "is", value }] });
   const allView: MasterViewDef = { id: "all", label: "Master sheet", color: "#3A57E8", filter: EMPTY_FILTER };
   const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, filter: oneCond("owner", m.key) }));
-  const statusViews: MasterViewDef[] = PIPELINE_STAGES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, filter: oneCond("status", s.key) }));
-  const typeViews: MasterViewDef[] = [
-    { id: "type-reel", label: "Reels", color: "#3A57E8", match: (r) => /reel/i.test(r.type) },
-    { id: "type-carousel", label: "Carousels", color: "#6D5CE7", match: (r) => /carousel/i.test(r.type) },
-    { id: "type-video", label: "Long videos", color: "#2138B0", match: (r) => /youtube|long-form|short-form/i.test(r.type) },
-    { id: "type-thumb", label: "Thumbnails", color: "#0F9E75", match: (r) => /thumbnail/i.test(r.type) },
-    { id: "type-post", label: "Posts & stories", color: "#E0791F", match: (r) => /post|story|\btext\b/i.test(r.type) },
-  ];
+  const statusViews: MasterViewDef[] = ALL_STATUSES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, filter: oneCond("status", s.key) }));
+  // Every content type actually in the sheet, one row each — not five buckets that
+  // lumped a Reel Thumbnail in with a YouTube Long-Form (the team, 28 Sep). Read
+  // from the rows rather than a hard-coded list, so a type added in Airtable turns
+  // up here on its own and a type nobody uses never clutters the rail.
+  const typeViews: MasterViewDef[] = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const r of allRows) {
+      const t = (r.type || "").trim();
+      if (t) seen.set(t, (seen.get(t) || 0) + 1);
+    }
+    return [...seen.keys()].sort((a, b) => a.localeCompare(b)).map((t) => ({
+      id: `type-${t}`, label: t, color: typeColour(t),
+      match: (r: Row) => (r.type || "").trim() === t,
+    }));
+  }, [allRows]);
   const everyDef = [allView, ...teamViews, ...statusViews, ...typeViews];
   const curDef = everyDef.find((v) => v.id === activeId);
   const activeCustom = custom.find((c) => c.id === activeId);
@@ -2367,10 +2408,6 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
           className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[14px] font-medium hover:brightness-105">
           <IconPlus size={15} stroke={2} />New view
         </button>
-        <Section title="Default" views={[allView]} />
-        <Section title="Team" views={teamViews} />
-        <Section title="By status" views={statusViews} />
-        <Section title="By content type" views={typeViews} />
         {custom.length > 0 && (
           <div className="mb-2">
             <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">My views</div>
@@ -2390,6 +2427,10 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
             })}
           </div>
         )}
+        <Section title="Default" views={[allView]} />
+        <Section title="Team" views={teamViews} />
+        <Section title="By status" views={statusViews} />
+        <Section title="By content type" views={typeViews} />
         {canDelete && (
           <div className="mt-1 pt-1 border-t border-gray-100">
             <button onClick={() => setActiveId("trash")}

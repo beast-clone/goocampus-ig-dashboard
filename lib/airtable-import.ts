@@ -15,18 +15,18 @@ import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { trashedAirtableIds } from "@/lib/task-trash";
 
-// Supabase's mh_status is an enum of 8; Airtable's Status offers 11. Writing one of
-// the extra three fails the whole row with an opaque Postgres error, so they are
-// mapped to their nearest equivalent — and the original is kept in
-// custom.airtable_status so nothing is silently rewritten out of existence.
-const STATUS_MAP: Record<string, string> = {
-  "content - needs approval": "Content - In Progress",
-  "rejected/not published": "Incorporating Feedback",
-  "failed": "Incorporating Feedback",
-};
+// The dashboard now carries Airtable's whole vocabulary (sql/018). It used to hold
+// eight of the eleven and rewrite the other three to their nearest neighbour, which
+// left thirteen tasks showing the team a status Airtable disagreed with.
+//
+// STATUS_MAP is kept for Airtable's own older spellings only — never to squash a
+// status the enum can hold.
+const STATUS_MAP: Record<string, string> = {};
 const VALID_STATUS = new Set([
-  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+  "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+  "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Rejected/Not Published", "Failed",
 ]);
 
 // Airtable stores the owner as a collaborator record; the dashboard keys people by
