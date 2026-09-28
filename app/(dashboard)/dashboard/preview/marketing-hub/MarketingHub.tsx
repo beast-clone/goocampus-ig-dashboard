@@ -3499,6 +3499,27 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     }
     await loadDetail();
   };
+  // Everyone on the roster who is not already on this task, and not its owner —
+  // owner and collaborator are different jobs, never the same person.
+  const addableCollaborators = TEAM.filter((m) =>
+    !(collaborators || []).some((c) => c.key === m.key) && !ownerMatchesKey(row.owner || "", m.key));
+  const postCollaborators = async (method: "POST" | "DELETE", memberKey: string) => {
+    const url = method === "DELETE"
+      ? `/api/marketing-hub/collaborators?postId=${encodeURIComponent(row.id)}&memberKey=${encodeURIComponent(memberKey)}`
+      : "/api/marketing-hub/collaborators";
+    const res = await fetch(url, method === "DELETE" ? { method } : {
+      method, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: row.id, memberKey }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+      return;
+    }
+    await loadDetail();
+  };
+  const addCollaborator = (memberKey: string) => postCollaborators("POST", memberKey);
+  const removeCollaborator = (memberKey: string) => postCollaborators("DELETE", memberKey);
   const togglePlatform = (p: string) => {
     const next = platformsCur.includes(p) ? platformsCur.filter((x) => x !== p) : [...platformsCur, p];
     saveOne("platforms", next);
@@ -3848,18 +3869,34 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {detailRow("Created", row.createdDate ? fmtWhen(row.createdDate) : null)}
                 {detailRow("Last modified", row.lastModified ? fmtWhen(row.lastModified) : null)}
 
-              {collaborators && (
-                <Panel icon={IconUsers} title="Collaborators">
-                  <div className="space-y-2">
-                    {collaborators.map((c) => (
-                      <div key={c.key} className="flex items-center gap-2 text-[14px]">
-                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
-                        <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </Panel>
-              )}
+              {/* Add and remove, not just read: "Give delete or add collaborator
+                  button" (Nandu, 26 Sept). The API already did both — only the
+                  controls were missing. Shown even with nobody on it yet, so the
+                  first collaborator can be added from here too. */}
+              <Panel icon={IconUsers} title="Collaborators">
+                <div className="space-y-2">
+                  {(collaborators || []).map((c) => (
+                    <div key={c.key} className="flex items-center gap-2 text-[14px] group">
+                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{c.name.trim().slice(0, 1).toUpperCase()}</span>
+                      <span className="text-[#232D42]">{c.name}</span>{c.role && <span className="text-[11px] text-gray-400">· {c.role}</span>}
+                      <button onClick={() => removeCollaborator(c.key)} title={`Remove ${c.name}`}
+                        className="ml-auto opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-rose-500 transition">
+                        <IconX size={14} stroke={2} />
+                      </button>
+                    </div>
+                  ))}
+                  {!(collaborators || []).length && (
+                    <div className="text-[13px] text-gray-400 italic">Nobody yet.</div>
+                  )}
+                  {addableCollaborators.length > 0 && (
+                    <div className="pt-1">
+                      <PreviewSelect value="" onChange={(k) => k && addCollaborator(k)}
+                        placeholder="+ Add collaborator"
+                        options={[{ value: "", label: "+ Add collaborator" }, ...addableCollaborators.map((m) => ({ value: m.key, label: m.label }))]} />
+                    </div>
+                  )}
+                </div>
+              </Panel>
 
               {/* Published-post links — its own section. Paste the live URL once published;
                   a weekly job can later find these + compress the creative images. */}
