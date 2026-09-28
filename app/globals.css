@@ -1203,7 +1203,7 @@ html[data-theme="dark"] .preview-root [style*="solid #F3C6CE" i] { border-color:
   82%  { transform: rotate(-3deg); }
   100% { transform: rotate(0); }
 }
-.gc-bell-ring { animation: gc-bell-ring .9s ease-in-out; transform-origin: 50% 12%; }
+.gc-bell-ring { animation: gc-bell-ring .9s ease-in-out; transform-origin: 50% 15%; transform-box: fill-box; display: inline-block; }
 
 /* The count lands at the same moment — a quick swell, so the eye follows the
    number rather than only the movement. */

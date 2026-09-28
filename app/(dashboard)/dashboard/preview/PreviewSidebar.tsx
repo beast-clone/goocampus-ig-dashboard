@@ -298,9 +298,7 @@ export function PreviewSidebar() {
     const Icon = leaf.icon;
     return (
       <Link href={leaf.href} prefetch title={leaf.label} className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
-        <span className={shake ? "gc-bell-ring" : undefined} style={{ display: "inline-flex" }}>
-          <Icon size={indent ? 15 : 16} stroke={1.8} />
-        </span>
+        <Icon size={indent ? 15 : 16} stroke={1.8} className={shake ? "gc-bell-ring" : undefined} />
         <span>{leaf.label}</span>
         {badge ? <span className={`hnavbadge ${shake ? "gc-badge-pop" : ""}`}>{badge}</span> : null}
       </Link>
