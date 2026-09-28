@@ -210,6 +210,14 @@ type ChatMsg = { who: string; av: string; color: string; tm: string; body: strin
 type Convo = { id: string; name: string; group?: boolean; av?: string; color?: string; online?: boolean; unread: number; msgs: ChatMsg[] };
 type ServerMsg = { id: string; convo: string; sender: string; body: string; kind: "chat" | "system"; at: string };
 const dmConvo = (a: string, b: string) => [a, b].sort().join("~");
+// One card per task, however many lists it arrived in. The claim buffer and the
+// server list could both hold a task — and a repeated claim added another copy —
+// so the same video showed three times in Approved (Praveen, 28 Sep). The first
+// copy wins; callers put the claim buffer first, as before.
+const uniqById = <T extends { id: string }>(list: T[]): T[] => {
+  const seen = new Set<string>();
+  return list.filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+};
 
 const TONE: Record<Tone, { bg: string; fg: string }> = {
   // bg/fg read --tone-* (defined only in the dark theme) and fall back to the light colour.
@@ -1623,6 +1631,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [claimPool, setClaimPool] = useState<Task[]>([]);             // videos up for grabs (live)
   const [showClaimPool, setShowClaimPool] = useState(false);          // editors' claim-pool modal (legacy)
   const [claimedTasks, setClaimedTasks] = useState<Task[]>([]);        // videos I claimed this session
+  // Claims whose save hasn't answered yet. Only these may outlive a refetch that
+  // shows someone else as owner — once saved, the server is the truth. Without this
+  // a claim later undone elsewhere (e.g. an Airtable sync resetting the owner) stayed
+  // on the board for the rest of the session, next to the server's own copy.
+  const claimsInFlight = useRef<Set<string>>(new Set());
   const [claimConfirm, setClaimConfirm] = useState<string | null>(null); // inline "Claim? Y/N" — the pool-video id being confirmed
   // "This video also has a thumbnail — who makes it?", asked only when the writer
   // left that open ("let them decide"). docs/THUMBNAIL_FLOW_SPEC.md.
@@ -1900,7 +1913,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           // still lives in the pool; treating it as "gone" would wipe the in-flight
           // claim from both lists (audit finding).
           const server = fetched.find((t) => t.id === c.id) || ((d.pool as Task[]) || []).find((t) => t.id === c.id);
-          return !!server && server.detail.owner !== meNameRef.current;
+          return !!server && server.detail.owner !== meNameRef.current && claimsInFlight.current.has(c.id);
         }));
       }
     } catch { /* keep whatever we last had */ } finally { setLoading(false); }
@@ -1993,7 +2006,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // becomes the collaborator, so an approved task still shows on her board too.
   const isMine = (t: Task) => t.detail.owner === me.name || (t.detail.collaborators || []).some((c) => c.name === me.name);
   const workingTasks = useMemo(
-    () => [...claimedTasks, ...tasks].filter((t) =>
+    () => uniqById([...claimedTasks, ...tasks]).filter((t) =>
       isMine(t) && STATUS[t.status].inView &&
       (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress"))),
     [claimedTasks, tasks, me.name],
@@ -2004,7 +2017,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   useEffect(() => { if (!myTabs.some((tb) => tb.key === taskTab)) setTaskTab(myTabs[0].key); }, [myTabs, taskTab]);
   // Header stat tiles — live, for the person being viewed.
   const stats = useMemo(() => {
-    const mine = [...claimedTasks, ...tasks].filter((t) => t.detail.owner === me.name);
+    const mine = uniqById([...claimedTasks, ...tasks]).filter((t) => t.detail.owner === me.name);
     const n = (fn: (s: CCStatus) => boolean) => mine.filter((t) => fn(t.status)).length;
     return {
       // Content phase belongs to the writer (Manya). Producers don't work
@@ -2105,7 +2118,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Role rule applies here too: a producer's committed load counts ONLY approved
   // work (Content-Approved / Incorporating Feedback) — content-phase tasks are
   // Manya's, whoever the owner field names.
-  const committedFor = useCallback((name: string) => [...claimedTasks, ...tasks]
+  const committedFor = useCallback((name: string) => uniqById([...claimedTasks, ...tasks])
     .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
       (name === "Manya"
         ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
@@ -2258,7 +2271,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // Nandu's Samvaya / other-platform work also lands on HIS timeline (spec §14) — it's
     // real time on his day — while staying out of everyone else's board and out of the
     // GooCampus lists. The dedicated Samvaya section below still shows the detail.
-    const base = me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks];
+    const base = uniqById(me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks]);
     const mine = base.filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
       onTimelineFor(me.name, t.status));
     setPlan((p) => {
@@ -2308,7 +2321,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Today's plan is PER-PERSON: only the current person's own, still-in-production
   // tasks land on their timeline (output-ready/published/other people's are excluded).
   const myPlan = useMemo(() => {
-    const all = me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks];
+    const all = uniqById(me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks]);
     return plan.flatMap((p) => {
       const t = all.find((x) => x.id === p.taskId);
       if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
@@ -3072,13 +3085,15 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // cutting for a while), matching what the takeover write persists on the server.
     setClaimPool((p) => p.filter((x) => x.id !== v.id));
     const claimed: Task = { ...v, status: "Content - Approved", meta: `${v.detail.typeLine} · you claimed this`, detail: { ...v.detail, owner: me.name } };
-    setClaimedTasks((c) => [claimed, ...c]);
+    setClaimedTasks((c) => [claimed, ...c.filter((x) => x.id !== v.id)]);
+    claimsInFlight.current.add(v.id);
     setSel(0); // open the freshly claimed task in "Up next"
     setToast({ who: "Claimed", color: me.color, av: me.av, body: `You claimed “${v.title}” — it's yours now, added to My tasks.` });
     // Persist the ownership takeover, then reconcile with server truth. On failure,
     // roll back the optimistic claim (restore it to the pool) and surface the error —
     // never leave the editor believing they own a video the server never took over.
     const rollback = (body: string) => {
+      claimsInFlight.current.delete(v.id);
       setClaimedTasks((c) => c.filter((x) => x.id !== v.id));
       setClaimPool((p) => (p.some((x) => x.id === v.id) ? p : [v, ...p]));
       setToast({ who: "Claim failed", color: "#C03221", av: "!", body });
@@ -3102,6 +3117,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           } else if (th?.taskId && th.decision === "ask") {
             setThumbAsk({ thumbId: th.taskId, videoId: v.id, videoTitle: v.title, type: th.type || "Thumbnail" });
           }
+          claimsInFlight.current.delete(v.id);
           load();
           return;
         }
