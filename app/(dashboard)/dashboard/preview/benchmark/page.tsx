@@ -103,6 +103,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   // false until sql/029_competitors.sql has been run — then this page keeps its old
   // per-browser behaviour instead of silently dropping what people add.
   const [serverTracked, setServerTracked] = useState(true);
+  const [trackedReady, setTrackedReady] = useState(false);
 
   const readLocal = useCallback((): Tracked[] => {
     try {
@@ -119,7 +120,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     try {
       const r = await fetch(`/api/benchmark/tracked?accountId=${encodeURIComponent(accountId)}`, { cache: "no-store" });
       const j = await r.json();
-      if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); return; }
+      if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); return; }
       setServerTracked(true);
       const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string }) =>
         ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "" }));
@@ -133,11 +134,13 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
           body: JSON.stringify({ accountId, items: missing }),
         }).catch(() => {});
         setTracked([...rows, ...missing]);
+        setTrackedReady(true);
         try { localStorage.removeItem(`bm-tracked-${accountId}`); } catch { /* private mode */ }
         return;
       }
       setTracked(rows);
-    } catch { setServerTracked(false); setTracked(readLocal()); }
+      setTrackedReady(true);
+    } catch { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); }
   }, [accountId, readLocal]);
   useEffect(() => { loadTracked(); }, [loadTracked]);
 
@@ -197,7 +200,18 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     setNiche("__tracked__");
   };
 
-  useEffect(() => { if (data?.niche && !niche) setNiche(data.niche); }, [data, niche]);
+  // Open on YOUR competitors when you have any, and only fall back to the built-in
+  // list (competitors.json) when you don't. Adding two competitors and still seeing
+  // hellomentor / academically after a reload reads as "my additions did nothing"
+  // (Praveen, 28 Sept) — they were there, just behind the Tracked chip.
+  //
+  // Waits for the tracked list to load first: otherwise whichever fetch landed
+  // first decided the view, which is how it ended up on the built-in one.
+  useEffect(() => {
+    if (!trackedReady || niche) return;
+    if (tracked.length) setNiche("__tracked__");
+    else if (data?.niche) setNiche(data.niche);
+  }, [trackedReady, tracked.length, data?.niche, niche]);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
   void mutate;
 
