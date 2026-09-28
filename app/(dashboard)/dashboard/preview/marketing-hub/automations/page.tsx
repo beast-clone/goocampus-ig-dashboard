@@ -30,11 +30,14 @@ const GROUP_ICON: Record<string, typeof IconUserCheck> = {
   publish: IconSend,
 };
 
+// The badge answers one question and one only: if this rule is wrong, who can
+// change it? The first labels said "Anyone" and "Needs a migration", which meant
+// nothing to the person reading (Praveen, 28 Sep) — these say what to DO.
 const EDIT_META: Record<RuleEditability, { label: string; hint: string; icon: typeof IconLock; cls: string }> = {
-  team: { label: "Anyone", hint: "The team can change this from the dashboard today.", icon: IconPencil, cls: "bg-[#E8F6F0] text-[#2F9E6F] border-[#CDE9DC]" },
-  airtable: { label: "In Airtable", hint: "Changed in Airtable; the dashboard follows.", icon: IconTable, cls: "bg-[#FDF3E7] text-[#C2410C] border-[#F3D3BE]" },
-  code: { label: "Needs a developer", hint: "Lives in code — changing it means an edit and a deploy.", icon: IconLock, cls: "bg-[#F6F7FB] text-[#6B7385] border-gray-200" },
-  database: { label: "Needs a migration", hint: "Lives in a database trigger — changing it means SQL run against production.", icon: IconDatabase, cls: "bg-[#FDECEA] text-[#C0392B] border-[#F6CFCA]" },
+  team: { label: "You can change this", hint: "Change it yourself, from the dropdowns at the top of this page. Takes effect on the next task.", icon: IconPencil, cls: "bg-[#E8F6F0] text-[#2F9E6F] border-[#CDE9DC]" },
+  airtable: { label: "Change it in Airtable", hint: "This is decided in Airtable. Change it there and the dashboard follows.", icon: IconTable, cls: "bg-[#FDF3E7] text-[#C2410C] border-[#F3D3BE]" },
+  code: { label: "Ask a developer", hint: "Written into the code. Changing it means editing the app and releasing a new version.", icon: IconLock, cls: "bg-[#F6F7FB] text-[#6B7385] border-gray-200" },
+  database: { label: "Ask a developer — database", hint: "Built into the database itself. Changing it means running SQL against live data.", icon: IconDatabase, cls: "bg-[#FDECEA] text-[#C0392B] border-[#F6CFCA]" },
 };
 
 export default function AutomationsPage() {
@@ -48,7 +51,6 @@ export default function AutomationsPage() {
     code: all.filter((r) => r.editable === "code").length,
     database: all.filter((r) => r.editable === "database").length,
   };
-  const locked = counts.code + counts.database;
 
   const groups = RULE_GROUPS
     .map((g) => ({ ...g, rules: filter === "all" ? g.rules : g.rules.filter((r) => r.editable === filter) }))
@@ -67,14 +69,18 @@ export default function AutomationsPage() {
           {/* The reason this page exists, said plainly rather than left to be inferred. */}
           <div className="bg-white border border-gray-100 rounded-xl p-4">
             <div className="text-[14px] text-[#232D42] mb-1 font-medium">
-              {locked} of these {counts.all} can&rsquo;t be changed without a developer.
+              Everything the Hub does on its own
             </div>
-            <p className="text-[13px] text-[#4A5468] leading-relaxed max-w-3xl">
-              That is the problem worth fixing. A rule like &ldquo;12thPlus work goes to Nandu&rdquo; is a fact about
-              the team this month, not about the software — when someone joins or leaves it should be a dropdown,
-              not a code change and a deploy. This page is the full list, so we can agree which ones become
-              editable rows before building anything.
+            <p className="text-[13px] text-[#4A5468] leading-relaxed max-w-3xl mb-3">
+              These things happen by themselves — nobody clicks them. A task gets handed to someone on approval,
+              a collaborator is attached, Airtable syncs on the hour, a notification is aimed at a person.
+              The tag on each one says <b>who can change it if it is wrong</b>.
             </p>
+            <div className="flex flex-col gap-1.5 text-[12.5px] text-[#4A5468]">
+              <span><b className="text-[#2F9E6F]">You can change this</b> — from the dropdowns at the top of this page. {counts.team} of them.</span>
+              <span><b className="text-[#C2410C]">Change it in Airtable</b> — decided there; the dashboard follows. {counts.airtable}.</span>
+              <span><b className="text-[#6B7385]">Ask a developer</b> — written into the code, so it needs a new version of the app. {counts.code + counts.database}.</span>
+            </div>
           </div>
 
           {/* The live part. Everything below it is description. */}
@@ -88,10 +94,10 @@ export default function AutomationsPage() {
           <div className="flex gap-1.5 flex-wrap">
             {([
               ["all", `All ${counts.all}`],
-              ["team", `Anyone ${counts.team}`],
+              ["team", `You can change ${counts.team}`],
               ["airtable", `In Airtable ${counts.airtable}`],
-              ["code", `Needs a developer ${counts.code}`],
-              ["database", `Needs a migration ${counts.database}`],
+              ["code", `Ask a developer ${counts.code}`],
+              ...(counts.database ? [["database", `Database ${counts.database}`] as [RuleEditability, string]] : []),
             ] as [RuleEditability | "all", string][]).map(([key, label]) => (
               <button key={key} onClick={() => setFilter(key)}
                 className={`text-[12.5px] font-medium rounded-lg px-3 py-1.5 border transition ${
