@@ -754,7 +754,11 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
     ([, p]) => p.name !== task.detail.owner && !collabs.some((c) => c.name === p.name),
   );
   return (
-    <>
+    // Two columns, like the Master sheet's task popup: the task on the left, its
+    // history + comments on the right. flex-wrap drops the column underneath where
+    // the panel is too narrow for both (the plan popup, a small screen).
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", alignItems: "flex-start" }}>
+    <div style={{ flex: "1 1 460px", minWidth: 0 }}>
       {/* Header — title + sub on the left, STATUS dropdown pinned top-right (above owner) */}
       <div className="d-head">
         <div className="d-head-main">
@@ -826,7 +830,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
-            <button className="btn sm" onClick={() => document.getElementById(`feed-${task.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}><IconHistory size={14} stroke={1.8} /> History</button>
           </div>
 
 
@@ -1043,13 +1046,13 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
-      {/* The same activity timeline + comments as the Master sheet's task popup.
-          The History button beside Edit / Reassign / Delete jumps here. */}
-      <div id={`feed-${task.id}`} className="section-lbl" style={{ scrollMarginTop: "1rem" }}>History &amp; comments</div>
+
+    </div>
+    <aside style={{ flex: "0 1 300px", minWidth: 260, borderLeft: "1px solid var(--line)", paddingLeft: "1rem" }}>
+      <div className="section-lbl" style={{ marginTop: 0 }}>History &amp; comments</div>
       <TaskFeed key={`feed-${task.id}`} postId={task.id} />
-
-
-    </>
+    </aside>
+    </div>
   );
 }
 
@@ -1072,7 +1075,7 @@ function TaskFeed({ postId }: { postId: string }) {
   }, [postId]);
   useEffect(() => { reload(); }, [reload]);
   return (
-    <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem .7rem", marginTop: ".4rem" }}>
+    <div style={{ marginTop: ".4rem" }}>
       {err && <div style={{ color: "#C03221", fontSize: ".78rem", marginBottom: ".4rem" }}>{err}</div>}
       <TaskActivityFeed postId={postId} detail={detail} loading={loading} reload={reload}
         author={detail?.me || "maheen"} authorLabel={(k) => PPL[k]?.name || properName(k)} onError={setErr} />
