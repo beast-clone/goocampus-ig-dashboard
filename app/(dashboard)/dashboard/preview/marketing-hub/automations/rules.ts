@@ -11,6 +11,11 @@
 
 export type RuleEditability = "team" | "airtable" | "code" | "database";
 
+// NOTE: the owner and collaborator rules people actually change are NOT in this
+// list — they are rows in mh_rules, edited at the top of the page. Describing them
+// here as well meant reading the same rule twice, once as a control and once as
+// prose (Praveen, 28 Sep).
+
 export type Rule = {
   id: string;
   /** What it does, in the words someone would use to describe it out loud. */
@@ -42,20 +47,6 @@ export const RULE_GROUPS: RuleGroup[] = [
         editable: "code",
       },
       {
-        id: "owner-design",
-        what: "At Content - Approved or later, a non-video task becomes Praveen's.",
-        why: "Carousels, posts and thumbnails are design work, and design work has one owner.",
-        where: "A rule in this tab — the database trigger reads it (sql/019)",
-        editable: "team",
-      },
-      {
-        id: "owner-video",
-        what: "At Content - Approved, a video stays with the writer and appears in the editors' claim pool until Nikhil or Nandu claims it.",
-        why: "Video is never auto-assigned — whoever has room takes it.",
-        where: "A rule in this tab — \u201cno owner\u201d is what sends it to the pool (sql/019)",
-        editable: "team",
-      },
-      {
         id: "owner-claim",
         what: "Claiming a task makes the claimer the owner, and the previous owner stays on as a collaborator — unless they are the other editor, who is released.",
         where: "/api/marketing-hub/takeover",
@@ -75,13 +66,6 @@ export const RULE_GROUPS: RuleGroup[] = [
     title: "Who else is attached",
     blurb: "Collaborators are added automatically so the right person keeps an eye on the work.",
     rules: [
-      {
-        id: "collab-default",
-        what: "Every new task gets Manya as collaborator — except 12thPlus.com and India NEET UG tasks, which get Nandu instead.",
-        why: "The person who follows a piece of content differs by brand.",
-        where: "A rule in this tab (sql/019); the old pair is only a fallback if the table cannot be read",
-        editable: "team",
-      },
       {
         id: "collab-never-owner",
         what: "Nobody is ever both owner and collaborator. If the default collaborator already owns the task, it simply starts with none.",
