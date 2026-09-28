@@ -14,7 +14,8 @@ import { showToast } from "../Toast";
 import { playChime } from "../notifChime";
 import { NOTIF_COUNT, NOTIF_CENTER } from "../NotificationHost";
 import { notifIconFor } from "../NotifIcon";
-import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
+import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, usePplTeam, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
+import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
 import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
@@ -149,6 +150,8 @@ type Task = {
 
 const PIPELINE = ["Draft", "In progress", "Approved", "Output ready", "Published"];
 
+// The person switcher. Anyone added on the Team page is appended at runtime
+// (PreviewMyDay → mergeTeam), Maheen left out as before — she has no producer day.
 const TEAM = [
   { key: "manya", name: "Manya", role: "Content writer", av: "M", color: "#E0791F" },
   { key: "praveen", name: "Praveen", role: "Designer", av: "P", color: "#C2410C" },
@@ -206,7 +209,6 @@ type ChatMsg = { who: string; av: string; color: string; tm: string; body: strin
 type Convo = { id: string; name: string; group?: boolean; av?: string; color?: string; online?: boolean; unread: number; msgs: ChatMsg[] };
 type ServerMsg = { id: string; convo: string; sender: string; body: string; kind: "chat" | "system"; at: string };
 const dmConvo = (a: string, b: string) => [a, b].sort().join("~");
-const CHAT_IDS = ["manya", "praveen", "nikhil", "nandu", "maheen"] as const;
 
 const TONE: Record<Tone, { bg: string; fg: string }> = {
   // bg/fg read --tone-* (defined only in the dark theme) and fall back to the light colour.
@@ -1540,6 +1542,14 @@ function EndTodayModal({ tasks, isWriter, today, onEnd, onClose }: { tasks: EodT
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
 export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, viewerId }: { initialPerson?: string; isAdmin?: boolean; viewerId?: string } = {}) {
+  // Team-page newcomers: into PPL (chips, chat) and the person switcher.
+  usePplTeam();
+  const rosterTeam = useTeam();
+  const [, bumpTeam] = useState(0);
+  useEffect(() => {
+    if (mergeTeam(TEAM, rosterTeam, (t) => t.key,
+      (p) => ({ key: p.id, name: p.first, role: p.role, av: p.first.charAt(0).toUpperCase(), color: NEWCOMER_COLOR }), ["maheen"])) bumpTeam((n) => n + 1);
+  }, [rosterTeam]);
   const sbus = useSbus();   // live brand list (sql/027)
   // Profile pictures (Account page) → PHOTOS, so every <Avatar> shows them.
   const [, setPhotosVer] = useState(0);
@@ -1891,7 +1901,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     return () => clearTimeout(id);
   }, [createdAmtText, createdUnit, createdRange]);
 
-  const me = useMemo(() => TEAM.find((t) => t.key === person) || TEAM[3], [person]);
+  // A newcomer not yet merged into TEAM gets a card from PPL, not Nandu's (was TEAM[3]).
+  const me = useMemo(() => TEAM.find((t) => t.key === person)
+    || { key: person, name: PPL[person]?.name || person, role: "", av: PPL[person]?.av || person.charAt(0).toUpperCase(), color: PPL[person]?.color || NEWCOMER_COLOR },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [person, TEAM.length]);
   meNameRef.current = me.name;
   const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
   const showPool = isEditor && claimPool.length > 0;
@@ -3116,7 +3130,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const out: Record<string, Convo> = {
       team: { id: "team", name: "Team chat", group: true, unread: 0, msgs: [] },
     };
-    for (const k of CHAT_IDS) {
+    // Everyone in PPL — today's team plus Team-page newcomers (usePplTeam).
+    for (const k of Object.keys(PPL)) {
       if (k === person) continue;
       out[k] = { id: k, name: PPL[k].name, av: PPL[k].av, color: PPL[k].color, unread: 0, msgs: [] };
     }

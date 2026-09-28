@@ -22,6 +22,8 @@ import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dash
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
 import { showToast } from "../Toast";
+import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
+import { hubRoleFor } from "@/lib/hub-role";
 
 export type Row = {
   id: string;
@@ -98,6 +100,9 @@ type TeamMember = { key: string; label: string; role: Role; aliases: string[]; c
 // Same roster + roles/colours/avatars as the My Day team (PreviewMyDay.tsx), so the
 // workload reads consistently with the team's day view. Maheen assigns work, doesn't
 // receive it — kept out of the workload cards.
+// Today's team, with the colours/aliases the roster doesn't carry. Anyone added on
+// the Team page is appended at runtime by MarketingHubShell (mergeTeam), so they
+// appear in the owner picker, filters, views and Team tab without a code change.
 const TEAM: TeamMember[] = [
   { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#E0791F", displayRole: "Content writer", av: "M" },
   { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#C2410C", displayRole: "Designer", av: "P" },
@@ -118,6 +123,21 @@ const ROLE_HIGHLIGHT: Record<Role, string> = {
   editor: "Videos to edit",
   manager: "Awaiting approval",
 };
+
+function newcomer(p: TeamPerson): TeamMember {
+  return { key: p.id, label: p.first, role: hubRoleFor(p.role), aliases: [p.name, p.first],
+    color: NEWCOMER_COLOR, displayRole: p.role, av: p.initials || p.first.charAt(0).toUpperCase() };
+}
+
+/** Add Team-page newcomers to TEAM and re-render once they arrive. Call at the top
+ *  of any screen built from this file (the Hub itself, My Day's MemberHub). */
+export function useHubTeam() {
+  const team = useTeam();
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (mergeTeam(TEAM, team, (m) => m.key, newcomer, ["maheen"])) bump((n) => n + 1);
+  }, [team]);
+}
 
 function ownerMatches(owner: string, m: TeamMember): boolean {
   if (!owner) return false;
@@ -265,6 +285,7 @@ const SUBTAB_SUBTITLE: Record<string, string> = {
 };
 
 function MarketingHubShell() {
+  useHubTeam();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") || "team";
   const tab = ["team", "master", "pipeline", "calendar"].includes(tabParam) ? tabParam : "master";
@@ -581,7 +602,9 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
       roleHighlight = rows.filter((r) => r.needsReview).length;
     }
     return { member: m, mine, today: today_, week, overdue: overdue_, done: done_, roleHighlight };
-  }), [rows, today, weekAgo, weekStart, weekEnd]);
+    // TEAM.length: a Team-page newcomer is appended to TEAM after load (useHubTeam).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rows, today, weekAgo, weekStart, weekEnd, TEAM.length]);
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-lg"><LoadingBlock label="Loading team…" /></div>;
@@ -2994,7 +3017,6 @@ type TaskDetail = {
   scheduler: { syncedToScheduler: boolean; startAt: string | null };
   me?: string | null;
 };
-const COMMENT_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 // "Mon 17 Aug, 9:51 pm" — the year only when it is not the current one. The shared
 // fmtDateTime spells the weekday and month out in full, which is more than this
 // 240px column can hold.
@@ -3281,9 +3303,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   // Account-specific: every comment + edit is stamped with the LOGGED-IN user
   // (detail.me from the session), never a manual picker. Whoever is signed in owns
   // the action, so the feed reads by their real name.
-  const activeAuthor = (detail?.me && COMMENT_KEYS.has(detail.me)) ? detail.me : "maheen";
+  const activeAuthor = (detail?.me && (detail.me === "maheen" || TEAM.some((m) => m.key === detail.me))) ? detail.me : "maheen";
   const AUTHOR_LABELS: Record<string, string> = { manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen" };
-  const authorLabel = (k: string) => AUTHOR_LABELS[k] || k;
+  const authorLabel = (k: string) => AUTHOR_LABELS[k] || TEAM.find((m) => m.key === k)?.label || k;
 
   // Editable post URLs + platforms (Instagram / Facebook / LinkedIn). Read fresh
   // from detail after a save, falling back to the list row.

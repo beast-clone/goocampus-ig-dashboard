@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconLink } from "@tabler/icons-react";
+import { useTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 
 // Presentational pieces the new-task form is built from, lifted out of
 // PreviewMyDay so the form can be rendered on more than one screen.
@@ -71,6 +72,8 @@ export function DatePicker({ value, onChange }: { value: string; onChange: (v: s
 }
 
 // The team, by key. Owner / collaborator chips read names and colours from here.
+// Today's team is typed for its colours; anyone added on the Team page is added at
+// runtime by usePplTeam() — named from the roster, neutral colour.
 export const PPL: Record<string, Person> = {
   manya: { name: "Manya", av: "M", color: "#E0791F" },
   praveen: { name: "Praveen", av: "P", color: "#C2410C" },
@@ -78,6 +81,22 @@ export const PPL: Record<string, Person> = {
   nandu: { name: "Nandu", av: "N", color: "#6E48F8" },
   maheen: { name: "Maheen", av: "M", color: "#2F9E6F" },
 };
+
+/** Add Team-page newcomers to PPL and re-render once they arrive. Call at the top of
+ *  any screen that lists people from PPL (My Day, the New task form). */
+export function usePplTeam() {
+  const team = useTeam();
+  const [, bump] = useState(0);
+  useEffect(() => {
+    let added = false;
+    for (const p of team) {
+      if (!p.active || PPL[p.id]) continue;
+      PPL[p.id] = { name: p.first, av: (p.first || p.id).charAt(0).toUpperCase(), color: NEWCOMER_COLOR };
+      added = true;
+    }
+    if (added) bump((n) => n + 1);
+  }, [team]);
+}
 
 export function MenuDropdown({ value, options, onChange, placeholder = "Select…", icon, wide, align = "right" }: {
   value: string | number | "";

@@ -6,7 +6,7 @@ import { SBU_OPTIONS } from "@/lib/sbus";
 import { useSbus } from "@/lib/use-sbus";
 import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
 import {
-  Avatar, DatePicker, MenuDropdown, PendingAssets, PPL, EMPTY_ASSET,
+  Avatar, DatePicker, MenuDropdown, PendingAssets, PPL, EMPTY_ASSET, usePplTeam,
   type PendingAsset, type NewTaskAssets,
 } from "./parts";
 
@@ -127,6 +127,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   onCreate: (draft: NewTaskDraft) => void;
   onDirty?: (dirty: boolean) => void;
 }) {
+  usePplTeam();   // collaborator picker lists Team-page newcomers too
   const sbus = useSbus();   // live brand list (sql/027)
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("Reel Thumbnail");

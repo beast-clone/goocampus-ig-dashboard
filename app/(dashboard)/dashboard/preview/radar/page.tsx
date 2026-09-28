@@ -5,7 +5,7 @@ import { useRadarActions, Thumbs, type RadarActionsState } from "./RadarThumbs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { TEAM_USERS } from "@/lib/users";
+import { useTeam } from "@/lib/use-team";
 import type { Sbu } from "@/lib/sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
@@ -787,6 +787,7 @@ function studioHref(item: FeedItem): string {
 // Studio" path, which meant the same headline did two different things
 // depending on where you clicked it.
 function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
+  const team = useTeam();   // the Team page roster (was lib/users.ts)
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState("manya");   // the content writer owns Content-Pending
@@ -883,7 +884,7 @@ function MakeTaskButton({ item, quiet }: { item: FeedItem; quiet?: boolean }) {
               <label className="block">
                 <span className="block text-[11px] font-medium text-[#8A92A6] mb-1.5">Who writes it</span>
                 <PreviewSelect value={owner} onChange={setOwner}
-                  options={TEAM_USERS.map((u) => ({ value: u.id, label: `${u.name} — ${u.role}` }))} />
+                  options={team.filter((u) => u.active).map((u) => ({ value: u.id, label: `${u.name} — ${u.role}` }))} />
               </label>
 
               <label className="block">

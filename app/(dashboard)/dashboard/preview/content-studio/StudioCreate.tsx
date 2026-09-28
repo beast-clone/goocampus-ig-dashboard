@@ -11,7 +11,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { useSbus } from "@/lib/use-sbus";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
-import { TEAM_USERS } from "@/lib/users";
+import { useTeam } from "@/lib/use-team";
 
 // Create — one thing from the Radar becoming one task on the board.
 //
@@ -322,6 +322,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
   brief: { title: string; url: string | null; source: string | null; format: string; brand: string };
   draft: string; check: FactCheck | null; onClose: () => void;
 }) {
+  const team = useTeam();   // the Team page roster (was lib/users.ts)
   const sbus = useSbus();   // live brand list (sql/027)
   const [particulars, setParticulars] = useState(brief.title);
   const [type, setType] = useState(brief.format);
@@ -400,7 +401,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
         </Row>
         <Row label="Owner">
           <PreviewSelect value={owner} onChange={setOwner}
-            options={TEAM_USERS.map((u) => ({ value: u.id, label: u.name }))} />
+            options={team.filter((u) => u.active).map((u) => ({ value: u.id, label: u.name }))} />
         </Row>
         <Row label="Publishing date" flag={!date}
           why={!date ? "Nothing filled this in. A piece with no date is how one gets forgotten." : undefined}>

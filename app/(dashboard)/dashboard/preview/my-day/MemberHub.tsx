@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import {
   MasterTab, TeamView, PipelineView, CalendarView, DetailModal,
-  ownerMatchesKey, ymd, type Data,
+  ownerMatchesKey, ymd, type Data, useHubTeam,
 } from "../marketing-hub/MarketingHub";
 
 export type MemberTab = "team" | "master" | "pipeline" | "calendar";
@@ -13,6 +13,7 @@ export type MemberTab = "team" | "master" | "pipeline" | "calendar";
 // the exact admin Hub components; only the data is pre-filtered by owner, so a member sees
 // only their own tasks and never the team-wide Hub or a person-picker.
 export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
+  useHubTeam();   // newcomers from the Team page
   const [range, setRange] = useState(() => ({
     from: ymd(new Date(Date.now() - 30 * 86_400_000)),
     to: ymd(new Date()),

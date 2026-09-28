@@ -5,6 +5,7 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { TEAM_NAMES } from "@/lib/team-names";
+import { hubRoleFor } from "@/lib/hub-role";
 import { TEAM_USERS, type TeamUser } from "@/lib/users";
 import { cleanPermissions, cleanSections, type Permissions, type Sections } from "@/lib/permissions";
 
@@ -113,14 +114,6 @@ export async function teamFirstNames(): Promise<Record<string, string>> {
   return out;
 }
 
-/** The Marketing Hub's own role (enum mh_role), guessed from a job title. */
-export function hubRoleFor(title: string | null | undefined): "writer" | "designer" | "editor" | "manager" {
-  const t = (title || "").toLowerCase();
-  if (/design/.test(t)) return "designer";
-  if (/video|edit|production|presenter/.test(t)) return "editor";
-  if (/founder|manager|head|lead|cmo|ceo|director/.test(t)) return "manager";
-  return "writer";
-}
 
 // The Marketing Hub keeps its own people table, mh_team_members, and task owners,
 // collaborators and comment authors point at it — so a person must be there before

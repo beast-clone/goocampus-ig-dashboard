@@ -4,6 +4,7 @@ import Link from "next/link";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClock, IconChecks, IconLayoutList, IconExternalLink, IconCalendarDue } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
+import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 
 // Team Command — the admin's cockpit. A master–detail report: pick a person on the
 // left rail, see their full day on the right — attendance, workload, and their whole
@@ -16,6 +17,7 @@ type AttRow = { key: string; name: string; role: string; loginAt: string | null;
 type MyDayTask = { id: string; title: string; status: string; due: string; detail: { typeLine: string; owner: string; priority: string; brand: string; startAt: string; endAt: string; duration?: number } };
 type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string };
 
+// Today's team with colours; Team-page newcomers are appended in TeamCommand.
 const ROSTER = [
   { key: "manya", name: "Manya", role: "Content writer", color: "#E0791F", av: "M" },
   { key: "praveen", name: "Praveen", role: "Designer", color: "#C2410C", av: "P" },
@@ -109,6 +111,12 @@ function buildPlan(tasks: MyDayTask[]): { blocks: Blk[]; overflow: number; freeM
 }
 
 export function TeamCommand() {
+  const rosterTeam = useTeam();
+  const [, bumpTeam] = useState(0);
+  useEffect(() => {
+    if (mergeTeam(ROSTER, rosterTeam, (p) => p.key,
+      (p) => ({ key: p.id, name: p.first, role: p.role, color: NEWCOMER_COLOR, av: p.first.charAt(0).toUpperCase() }), ["maheen"])) bumpTeam((n) => n + 1);
+  }, [rosterTeam]);
   const [att, setAtt] = useState<AttRow[] | null>(null);
   const [tasks, setTasks] = useState<MyDayTask[] | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
@@ -164,7 +172,8 @@ export function TeamCommand() {
       pct: Math.min(100, Math.round((plannedMin / CAP_MIN) * 100)), over: plannedMin > CAP_MIN,
       current, longs, overdue, tasks: mine,
     };
-  }), [att, tasks, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [att, tasks, today, ROSTER.length]);
 
   const team = useMemo(() => ({
     present: people.filter((p) => p.present).length,

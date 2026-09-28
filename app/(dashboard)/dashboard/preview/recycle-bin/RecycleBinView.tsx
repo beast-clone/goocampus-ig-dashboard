@@ -5,7 +5,9 @@ import { PreviewShell } from "../PreviewShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "../ConfirmDialog";
 import type { TrashItem } from "@/lib/task-trash";
+import { useTeam } from "@/lib/use-team";
 
+// Names for who deleted what; Team-page newcomers are added in RecycleBinView.
 const TEAM_LABEL: Record<string, string> = {
   manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
 };
@@ -96,6 +98,13 @@ ${r.lastActivity.length ? `<h2>What happened before it was deleted</h2><ol>${r.l
  * archive, which only an admin can open, and from there it can always come back.
  */
 export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
+  const rosterTeam = useTeam();
+  const [, bumpTeam] = useState(0);
+  useEffect(() => {
+    let added = false;
+    for (const p of rosterTeam) if (!TEAM_LABEL[p.id]) { TEAM_LABEL[p.id] = p.first; added = true; }
+    if (added) bumpTeam((n) => n + 1);
+  }, [rosterTeam]);
   const [tab, setTab] = useState<Tab>("bin");
   const [bin, setBin] = useState<TrashItem[] | undefined>();
   const [archive, setArchive] = useState<TrashItem[] | undefined>();

@@ -9,6 +9,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { useSbus } from "@/lib/use-sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { useTeam, mergeTeam } from "@/lib/use-team";
 
 // The marketing library (Corey Haines' open pack + a Pillar Content skill), run via
 // Perplexity. Lives inside Content Studio as the "Playbooks" tab. After a result,
@@ -30,6 +31,7 @@ const FORMATS = [
 ];
 
 // Producers a piece can be assigned to on approval (same roster the Create tab uses).
+// Plus anyone added on the Team page (appended in DerivedCard).
 const TEAM = [
   { key: "manya", label: "Manya" },
   { key: "praveen", label: "Praveen" },
@@ -157,6 +159,11 @@ function MarkdownLite({ text }: { text: string }) {
 // a Content-Pending item in the pipeline (reuses /api/marketing-hub/create, the same
 // hand-off the Create tab uses). It never publishes directly.
 function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft; skillName: string; source: string; isNew?: boolean; onTokens?: (n: number) => void }) {
+  const rosterTeam = useTeam();
+  const [, bumpTeam] = useState(0);
+  useEffect(() => {
+    if (mergeTeam(TEAM, rosterTeam, (t) => t.key, (p) => ({ key: p.id, label: p.first }), ["maheen"])) bumpTeam((n) => n + 1);
+  }, [rosterTeam]);
   const sbus = useSbus();   // live brand list (sql/027)
   const [text, setText] = useState(d.content);
   const [editing, setEditing] = useState(false);
