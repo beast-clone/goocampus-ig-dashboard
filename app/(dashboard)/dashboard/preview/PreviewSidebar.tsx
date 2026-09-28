@@ -15,8 +15,7 @@ import {
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
-  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp,
-} from "@tabler/icons-react";
+  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft} from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
 /** Remembered across tabs and reloads once the button has been used. */
@@ -56,6 +55,7 @@ const GROUPS: Group[] = [
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
       { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
+      { label: "Automations",      href: `${HUB}/marketing-hub/automations`,  icon: IconRouteAltLeft },
     ] },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
