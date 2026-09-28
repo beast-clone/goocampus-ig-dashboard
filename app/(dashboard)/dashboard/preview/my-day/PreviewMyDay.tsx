@@ -12,7 +12,7 @@ import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { playChime } from "../notifChime";
-import { NOTIF_COUNT } from "../NotificationHost";
+import { NOTIF_COUNT, NOTIF_CENTER } from "../NotificationHost";
 import { notifIconFor } from "../NotifIcon";
 import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
@@ -1635,10 +1635,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // four unread is not news) and not when it falls (reading something is not an
   // event). Praveen asked for it here rather than only in the sidebar (28 Sep).
   const [bellRinging, setBellRinging] = useState(false);
+  const [notifUnread, setNotifUnread] = useState(0);
   const lastUnreadSeen = useRef<number | null>(null);
   useEffect(() => {
     const on = (e: Event) => {
       const n = (e as CustomEvent<{ unread: number }>).detail?.unread || 0;
+      setNotifUnread(n);
       const was = lastUnreadSeen.current;
       lastUnreadSeen.current = n;
       if (was === null || n <= was) return;
@@ -3215,8 +3217,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               <button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button>
             </span>
             <span className="topdivider" aria-hidden="true" />
-            <button className={`iconbtn ${panel === "notif" ? "on" : ""} ${bellRinging ? "gc-bell-ring" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
-              {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
+            <button className="iconbtn" title={notifUnread ? `${notifUnread} unread notification${notifUnread === 1 ? "" : "s"}` : "Notifications"}
+              onClick={() => { window.location.href = NOTIF_CENTER; }}>
+              <span className={bellRinging ? "gc-bell-ring" : undefined} style={{ display: "inline-flex" }}>{BELL}</span>
+              {notifUnread > 0 && <span className={`badge rose ${bellRinging ? "gc-badge-pop" : ""}`}>{notifUnread}</span>}
             </button>
             <button className={`iconbtn ${chatOpen ? "on" : ""}`} title="Team chat" onClick={() => (chatOpen ? closeChat() : openChat())}>
               {CHATIC}{!chatOpen && totalUnread > 0 && <span className="badge rose">{totalUnread}</span>}

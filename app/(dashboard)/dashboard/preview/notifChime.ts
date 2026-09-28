@@ -22,13 +22,20 @@ export function setChimeMuted(muted: boolean) {
 let ctx: AudioContext | null = null;
 
 /**
- * Three notes, struck and left to ring — the shape of a phone's message tone
- * rather than a soft two-note ding, which Praveen found too easy to miss (28 Sep).
+ * Three notes, struck on something metal.
  *
- * Each note is a sine with a quieter octave above it: a pure sine reads as a test
- * tone, and the octave is what makes it sound struck, like a chime bar. Six
- * milliseconds to full, then a fast exponential tail, so it is percussive rather
- * than a hum.
+ * The first version stacked a note with its own octave, which is a HARMONIC
+ * stack — that is a flute or an organ pipe, and it sounded like one. A bell is
+ * inharmonic: the partials sit at ratios that are deliberately not whole
+ * numbers, and that clash is the entire reason a bell sounds like a bell. The
+ * ratios below are a struck bar — the family a phone's message tone belongs to.
+ *
+ * Each partial also decays at its OWN rate, the high ones fastest. A bell has a
+ * bright clang that dies immediately over a hum that rings on; decay them all
+ * together and you get a beep.
+ *
+ * This is not Apple's tone — that file is theirs. It is the same idea: three
+ * notes rising, struck and left to ring.
  */
 export function playChime() {
   if (chimeMuted()) return;
@@ -39,28 +46,31 @@ export function playChime() {
     if (ctx.state === "suspended") void ctx.resume();
     const t0 = ctx.currentTime + 0.02;
 
-    // Up, up, and settle — the figure a message tone makes.
-    // A5, D6, A6, then back to D6 so it lands rather than trails off.
-    const notes: [number, number, number][] = [
-      [880.0, 0.00, 0.26],
-      [1174.7, 0.11, 0.26],
-      [1760.0, 0.22, 0.30],
-      [1174.7, 0.33, 0.70],
+    // ratio from the fundamental, how loud, how long it rings
+    const PARTIALS: [number, number, number][] = [
+      [1.00, 0.20, 1.30],   // the hum — quietest to fade
+      [2.00, 0.11, 0.85],
+      [2.76, 0.09, 0.55],   // the inharmonic ones: what makes it metal
+      [4.07, 0.06, 0.32],
+      [5.43, 0.03, 0.18],   // the initial clang, gone almost at once
     ];
+    // Up three, the way a message tone goes. C#6, E6, A6.
+    const NOTES: [number, number][] = [[1108.7, 0.00], [1318.5, 0.13], [1760.0, 0.26]];
 
-    for (const [freq, at, len] of notes) {
+    for (const [freq, at] of NOTES) {
       const start = t0 + at;
-      for (const [mult, level] of [[1, 0.17], [2, 0.05]] as [number, number][]) {
+      for (const [ratio, level, ring] of PARTIALS) {
         const osc = ctx.createOscillator();
         const vol = ctx.createGain();
         osc.type = "sine";
-        osc.frequency.value = freq * mult;
+        osc.frequency.value = freq * ratio;
+        // 4 ms to full: a strike, not a swell.
         vol.gain.setValueAtTime(0.0001, start);
-        vol.gain.exponentialRampToValueAtTime(level, start + 0.006);
-        vol.gain.exponentialRampToValueAtTime(0.0001, start + len);
+        vol.gain.exponentialRampToValueAtTime(level, start + 0.004);
+        vol.gain.exponentialRampToValueAtTime(0.0001, start + ring);
         osc.connect(vol).connect(ctx.destination);
         osc.start(start);
-        osc.stop(start + len + 0.02);
+        osc.stop(start + ring + 0.02);
       }
     }
   } catch { /* no audio on this device — the shake still carries it */ }
