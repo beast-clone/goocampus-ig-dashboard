@@ -49,7 +49,22 @@ export function CompetitorBriefing() {
   // they are rows now rather than browser storage (sql/029).
   const { data: trackedResp } = useApi<{ available: boolean; items: { handle: string }[] }>(
     `/api/benchmark/tracked?accountId=goocampus`);
-  const trackedHandles = (trackedResp?.items || []).map((t) => t.handle).filter(Boolean);
+  // Until the competitors table exists they are still in the browser, where the
+  // Competitors tab put them — and this page runs in the browser too, so it can
+  // read them from there. No migration needed for the scoreboard to follow what
+  // you track; the table only adds sharing them across people and devices.
+  const [localHandles, setLocalHandles] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("bm-tracked-goocampus");
+      const parsed = raw ? JSON.parse(raw) : [];
+      setLocalHandles(Array.isArray(parsed)
+        ? parsed.map((x: unknown) => (typeof x === "string" ? x : (x as { handle?: string })?.handle || "")).filter(Boolean)
+        : []);
+    } catch { /* private mode */ }
+  }, []);
+  const serverHandles = (trackedResp?.items || []).map((t) => t.handle).filter(Boolean);
+  const trackedHandles = serverHandles.length ? serverHandles : localHandles;
   const { data, isLoading } = useApi<BenchmarkData>(
     trackedHandles.length
       ? `/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(trackedHandles.join(","))}`
