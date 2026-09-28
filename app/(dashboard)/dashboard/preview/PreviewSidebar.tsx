@@ -54,9 +54,12 @@ const GROUPS: Group[] = [
       { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
-      { label: "Content calendar", href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
       { label: "Automations",      href: `${HUB}/marketing-hub/automations`,  icon: IconRouteAltLeft },
     ] },
+    // Its own tab rather than buried under My Workspace — "Move content calendar
+    // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
+    // calendar view of the Marketing Hub; only where you reach it from changed.
+    { label: "Content calendar",    href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
   ] },
