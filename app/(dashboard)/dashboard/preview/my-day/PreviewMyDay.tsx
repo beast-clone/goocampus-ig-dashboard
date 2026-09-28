@@ -1,7 +1,7 @@
 "use client";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
@@ -678,6 +678,9 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  // History sits behind its own button beside Edit / Reassign / Delete. At the foot
+  // of the panel, under the brief, creatives and references, nobody found it.
+  const [showHistory, setShowHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [prio, setPrio] = useState(task.detail.priority);
   const [due, setDue] = useState(task.due || "");
@@ -817,8 +820,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         </div>
       </div>
 
-      {(canEdit || canAssign || canDelete) && (
-        <>
+      <>
           <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap", marginTop: ".7rem", alignItems: "center" }}>
             {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
             {canEdit && editing && <>
@@ -827,7 +829,15 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
+            <button className={`btn sm${showHistory ? " primary" : ""}`} onClick={() => setShowHistory((h) => !h)}><IconHistory size={14} stroke={1.8} /> History</button>
           </div>
+
+          {showHistory && (
+            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
+              <div className="mlbl" style={{ marginBottom: ".45rem" }}>History</div>
+              <TaskHistory postId={task.id} local={task.detail.activity} />
+            </div>
+          )}
 
 
 
@@ -870,7 +880,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </Overlay>
           )}
         </>
-      )}
 
       {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
       <div className="meta-grid" style={{ marginTop: "1.1rem" }}>
@@ -1044,8 +1053,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
-      <div className="section-lbl">Recent activity</div>
-      <TaskHistory postId={task.id} local={task.detail.activity} />
 
     </>
   );
@@ -2768,6 +2775,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const waiting = t.status === "Content - Approved" || t.status === "Incorporating Feedback";
     if (!mine || !waiting || !onTimelineFor(PPL[person]?.name || "", t.status)) return;
     if (!canEditTasks || autoStarted.current.has(t.id)) return;
+    // Only when the signed-in person opens THEIR OWN task. `person` is whose day is on
+    // screen; an admin looking at Nandu's day and opening a task started Nandu's clock,
+    // logged as Nandu (28 Sep). Looking at someone else's work must never start it.
+    if (!viewerId || viewerId !== person) return;
     autoStarted.current.add(t.id);
     doSetTaskStatus(t.id, "Output - In Progress");
     setToast({
@@ -2775,7 +2786,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       body: `“${t.title}” is now In Progress. Only looking? Put it back to ${STATUS[t.status].label}.`,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, task?.status, person, canEditTasks, nowMin !== null]);
+  }, [task?.id, task?.status, person, viewerId, canEditTasks, nowMin !== null]);
 
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
