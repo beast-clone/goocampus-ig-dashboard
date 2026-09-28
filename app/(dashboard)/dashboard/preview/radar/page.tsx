@@ -264,8 +264,11 @@ function Radar() {
   // has actually subscribed to) plus "all".
   const interestChips = useMemo(() => {
     const set = new Set(alerts.filter((a) => a.active).map((a) => a.primaryInterest));
-    return ["all", ...Array.from(set).sort()];
-  }, [alerts]);
+    // Also whatever the stories themselves carry: an alert can be switched off, or
+    // never created, and the news for that interest is still sitting in the list.
+    for (const f of items) if (f.primaryInterest) set.add(f.primaryInterest);
+    return ["all", ...Array.from(set).filter(Boolean).sort()];
+  }, [alerts, items]);
 
   // Which source tile is selected, or null for everything.
   // Opens on Google News rather than everything at once.
@@ -552,6 +555,13 @@ function Radar() {
             {viewingReviews && (
               <PreviewSelect className="ml-auto w-[180px]" value={reviewSort}
                 onChange={(v) => setReviewSort(v as ReviewSort)} options={REVIEW_SORTS} />
+            )}
+            {/* Narrow the board to one brand. The list was already fetched per
+                interest — there was simply no control to change it (Manya, 28 Sept). */}
+            {interestChips.length > 1 && (
+              <PreviewSelect className={`w-[210px] ${viewingReviews ? "" : "ml-auto"}`} value={activeInterest}
+                onChange={setActiveInterest}
+                options={interestChips.map((i) => ({ value: i, label: i === "all" ? "All interests" : i }))} />
             )}
             {sourceFilter && (
               <button onClick={() => setSourceFilter(null)}
