@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconBell, IconX } from "@tabler/icons-react";
 import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
+import { playChatChime } from "@/app/(dashboard)/dashboard/preview/notifChime";
 
 // On-screen notification pop-ups, on EVERY preview page (docs/NOTIFICATIONS_SPEC.md).
 // Mounted once in the preview layout, so it survives navigation and never doubles up.
@@ -121,6 +122,43 @@ export function NotificationHost() {
       arm();
     }
   }, [shown, hide]);
+
+  // A message in the team chat, heard from ANY tab — the chat panel itself only
+  // exists in My Day, so before this you had to be sitting on that page to know
+  // someone had written to you (Praveen, 28 Sep).
+  //
+  // This host is already mounted once in the layout and already polling, so it is
+  // the natural place for it. It tracks the newest message id it has seen rather
+  // than the unread count: read-state lives in My Day's own storage, and copying
+  // that here would be two things to keep in step.
+  useEffect(() => {
+    const SEEN = "gc-chat-last-seen";
+    let alive = true;
+    let me = "";
+    const tick = async () => {
+      try {
+        if (!me) {
+          const who = await fetch("/api/me", { cache: "no-store" }).then((r) => r.json());
+          me = (who?.user?.id || "").toLowerCase();
+          if (!me) return;
+        }
+        const d = await fetch("/api/my-day/chat", { cache: "no-store" }).then((r) => r.json());
+        const msgs = (d.messages || []) as { id: string; sender: string }[];
+        if (!msgs.length || !alive) return;
+        const newest = msgs[msgs.length - 1];
+        const seen = localStorage.getItem(SEEN);
+        localStorage.setItem(SEEN, newest.id);
+        // First run on a device has nothing to compare against — remember where we
+        // came in, and stay quiet. Your own messages never ring.
+        if (!seen || seen === newest.id) return;
+        if ((newest.sender || "").toLowerCase() === me) return;
+        playChatChime();
+      } catch { /* the chat is a nicety here; never let it break the bell */ }
+    };
+    tick();
+    const id = setInterval(() => { if (!document.hidden) tick(); }, POLL_MS);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   useEffect(() => {
     load();

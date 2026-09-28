@@ -1,4 +1,4 @@
-// The sound the bell makes.
+// The sounds the dashboard makes: the bell, and a message in the team chat.
 //
 // Praveen supplied the file (28 Sep), after three attempts at synthesising one
 // landed variously as a flute, a church bell and something that rang in the ears.
@@ -13,7 +13,9 @@
 // one is audible. Nothing here ever throws.
 
 const SOUND_URL = "/sounds/notification.mp3";
+const CHAT_SOUND_URL = "/sounds/chat.mp3";
 let el: HTMLAudioElement | null = null;
+let chatEl: HTMLAudioElement | null = null;
 
 const MUTE_KEY = "gc-notif-muted";
 
@@ -26,6 +28,18 @@ export function setChimeMuted(muted: boolean) {
 }
 
 let ctx: AudioContext | null = null;
+
+/** A message in the team chat. Its own sound, so you know which it was without looking. */
+export function playChatChime() {
+  if (chimeMuted()) return;
+  try {
+    chatEl = chatEl || new Audio(CHAT_SOUND_URL);
+    chatEl.volume = 0.55;
+    chatEl.currentTime = 0;
+    const p = chatEl.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch { /* silence is the only failure mode, and it is survivable */ }
+}
 
 /** The bell. The recording when it loads, the synthesised tone when it does not. */
 export function playChime() {
