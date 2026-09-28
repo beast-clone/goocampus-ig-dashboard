@@ -22,20 +22,23 @@ export function setChimeMuted(muted: boolean) {
 let ctx: AudioContext | null = null;
 
 /**
- * Three notes, struck on something metal.
+ * Three soft notes — a wooden bar, not a bell.
  *
- * The first version stacked a note with its own octave, which is a HARMONIC
- * stack — that is a flute or an organ pipe, and it sounded like one. A bell is
- * inharmonic: the partials sit at ratios that are deliberately not whole
- * numbers, and that clash is the entire reason a bell sounds like a bell. The
- * ratios below are a struck bar — the family a phone's message tone belongs to.
+ * The previous version rang in the ears (Praveen, 28 Sep) for three reasons, and
+ * all three are fixed here:
  *
- * Each partial also decays at its OWN rate, the high ones fastest. A bell has a
- * bright clang that dies immediately over a hum that rings on; decay them all
- * together and you get a beep.
+ *   · it was PITCHED TOO HIGH. Fundamentals above 1.1 kHz with partials reaching
+ *     9 kHz land right where the ear is most sensitive. Everything is down about
+ *     a fifth now, and nothing above 3 kHz survives the filter.
+ *   · it used INHARMONIC partials (2.76, 4.07). Those belong to a struck church
+ *     bell, and at that pitch they beat against each other and bite. A phone's
+ *     message tone is a marimba or a glockenspiel: fundamental, a quiet fourth
+ *     harmonic, and little else.
+ *   · it was simply LOUD — five partials summing near half of full scale.
  *
- * This is not Apple's tone — that file is theirs. It is the same idea: three
- * notes rising, struck and left to ring.
+ * A low-pass at 2.6 kHz takes the last of the edge off, and each note is given a
+ * gentle 12 ms attack rather than a 4 ms strike, which is the difference between
+ * a tap and a click.
  */
 export function playChime() {
   if (chimeMuted()) return;
@@ -46,16 +49,22 @@ export function playChime() {
     if (ctx.state === "suspended") void ctx.resume();
     const t0 = ctx.currentTime + 0.02;
 
-    // ratio from the fundamental, how loud, how long it rings
+    // One filter for the whole tone — the edge comes off everything at once.
+    const soft = ctx.createBiquadFilter();
+    soft.type = "lowpass";
+    soft.frequency.value = 2600;
+    soft.Q.value = 0.7;
+    const out = ctx.createGain();
+    out.gain.value = 0.55;            // quiet by default; it only has to be noticed
+    soft.connect(out).connect(ctx.destination);
+
+    // Marimba: the fundamental, and a fourth harmonic well underneath it.
     const PARTIALS: [number, number, number][] = [
-      [1.00, 0.20, 1.30],   // the hum — quietest to fade
-      [2.00, 0.11, 0.85],
-      [2.76, 0.09, 0.55],   // the inharmonic ones: what makes it metal
-      [4.07, 0.06, 0.32],
-      [5.43, 0.03, 0.18],   // the initial clang, gone almost at once
+      [1, 0.15, 0.90],
+      [4, 0.025, 0.28],
     ];
-    // Up three, the way a message tone goes. C#6, E6, A6.
-    const NOTES: [number, number][] = [[1108.7, 0.00], [1318.5, 0.13], [1760.0, 0.26]];
+    // E5, A5, C#6 — rising, and low enough to sit under the ear's sore spot.
+    const NOTES: [number, number][] = [[659.3, 0.00], [880.0, 0.15], [1108.7, 0.30]];
 
     for (const [freq, at] of NOTES) {
       const start = t0 + at;
@@ -64,11 +73,10 @@ export function playChime() {
         const vol = ctx.createGain();
         osc.type = "sine";
         osc.frequency.value = freq * ratio;
-        // 4 ms to full: a strike, not a swell.
         vol.gain.setValueAtTime(0.0001, start);
-        vol.gain.exponentialRampToValueAtTime(level, start + 0.004);
+        vol.gain.exponentialRampToValueAtTime(level, start + 0.012);
         vol.gain.exponentialRampToValueAtTime(0.0001, start + ring);
-        osc.connect(vol).connect(ctx.destination);
+        osc.connect(vol).connect(soft);
         osc.start(start);
         osc.stop(start + ring + 0.02);
       }
