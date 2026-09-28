@@ -26,6 +26,9 @@ create table if not exists mh_competitors (
   -- Primary interest / SBU. Free text on purpose: Manya asked for "just a box I
   -- will fill up by myself", and pinning it to mh_sbus would reject anything new.
   sbu         text,
+  -- Their YouTube channel (UC…), so the profile can show uploads beside Instagram.
+  -- Optional: plenty of competitors have no channel, and the panel is simply absent.
+  youtube_channel text,
   -- Days of history to compare over (30 / 60 / 90).
   period      int  not null default 30,
   added_by    text,

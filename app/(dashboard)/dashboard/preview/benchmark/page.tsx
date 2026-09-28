@@ -54,7 +54,16 @@ function fmt(n: number): string {
 }
 
 // A tracked competitor carries a manual category + a metrics period (days; 0 = all recent).
-type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string };
+type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string; youtube?: string };
+
+// People paste whatever the address bar gave them. Pull the UC… id out of a
+// channel URL; anything else is handed back trimmed and the API says if it is wrong.
+function ytId(raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  const m = v.match(/channel\/(UC[\w-]{20,})/) || v.match(/^(UC[\w-]{20,})$/);
+  return m ? m[1] : v;
+}
 const PERIODS: { value: number; label: string }[] = [
   { value: 7, label: "7 days" }, { value: 30, label: "30 days" }, { value: 90, label: "90 days" }, { value: 0, label: "All recent" },
 ];
@@ -86,6 +95,11 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   const [customHandles, setCustomHandles] = useState("");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [detail, setDetail] = useState<Competitor | null>(null);   // in-dashboard competitor drill-down
+  // Which competitor's profile is open, by handle. "" is the overview grid.
+  // Asked for as tabs carrying each brand's own logo and name, so adding more
+  // trackers stays readable (Praveen, 28 Sept).
+  const [profile, setProfile] = useState<string>("");
+  const [openMedia, setOpenMedia] = useState<CompetitorMedia | null>(null);
   // Tracked competitors are team data, so they are rows now, not localStorage.
   // They used to be saved per browser, which is why "I've added 2-3; now it's not
   // there" (Nandu, 26 Sept) — his list only ever existed in the browser he added it
@@ -94,6 +108,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   const [tracked, setTracked] = useState<Tracked[]>([]);
   const [trackCat, setTrackCat] = useState("");
   const [trackSbu, setTrackSbu] = useState("");
+  const [trackYt, setTrackYt] = useState("");
   const [trackPlatform, setTrackPlatform] = useState("instagram");
   const [trackPeriod, setTrackPeriod] = useState(30);
   // Narrow the tracked list. "create another filter for instagram and youtube to
@@ -122,8 +137,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       const j = await r.json();
       if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); return; }
       setServerTracked(true);
-      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string }) =>
-        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "" }));
+      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube_channel?: string | null }) =>
+        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube_channel || "" }));
       // One-time lift: whatever this browser still holds that the server doesn't.
       const local = readLocal();
       const known = new Set(rows.map((t) => t.handle.toLowerCase()));
@@ -194,9 +209,9 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     const cat = trackCat.trim() || "Uncategorized";
     const have = new Set(tracked.map((t) => t.handle.toLowerCase()));
     const fresh = adds.filter((h) => !have.has(h.toLowerCase()))
-      .map((h) => ({ handle: h, category: cat, period: trackPeriod, platform: trackPlatform, sbu: trackSbu.trim() }));
+      .map((h) => ({ handle: h, category: cat, period: trackPeriod, platform: trackPlatform, sbu: trackSbu.trim(), youtube: ytId(trackYt) }));
     saveTracked([...tracked, ...fresh], fresh);
-    setCustomHandles(""); setTrackCat(""); setTrackSbu("");
+    setCustomHandles(""); setTrackCat(""); setTrackSbu(""); setTrackYt("");
     setNiche("__tracked__");
   };
 
@@ -309,6 +324,15 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
             {/* "add a filter for me to select which primary interest when I am adding
                 the competitor name. Just add a box I will fill up by myself" (Manya,
                 28 Sept) — free text on purpose, so a new interest needs no code change. */}
+            {/* Paste the channel URL or the UC… id — ytId() takes either. Optional:
+                a competitor with no channel simply has no YouTube panel. */}
+            <input
+              value={trackYt}
+              onChange={(e) => setTrackYt(e.target.value)}
+              placeholder="YouTube channel (optional)"
+              className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-brand w-44"
+              onKeyDown={(e) => { if (e.key === "Enter") addTracked(); }}
+            />
             <input
               value={trackSbu}
               onChange={(e) => setTrackSbu(e.target.value)}
@@ -324,6 +348,30 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         )}
       </div>
 
+      {/* One tab per competitor, their own avatar as the logo. Scrolls sideways
+          rather than wrapping once there are more than a handful. */}
+      {valid.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-xl p-2 mb-4 overflow-x-auto">
+          <div className="flex items-center gap-1.5 min-w-max">
+            <button onClick={() => setProfile("")}
+              className={`h-10 px-3.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition ${
+                !profile ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+              All ({valid.length})
+            </button>
+            {valid.map((c) => (
+              <button key={c.username} onClick={() => setProfile(c.username)}
+                className={`h-10 pl-1.5 pr-3 rounded-lg text-[13px] font-medium whitespace-nowrap transition inline-flex items-center gap-2 ${
+                  profile === c.username ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                {c.profile_picture_url
+                  ? <img src={c.profile_picture_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                  : <span className="w-7 h-7 rounded-full bg-[#EEEDFE] text-[#3C3489] text-[11px] grid place-items-center flex-shrink-0">{c.username.slice(0, 1).toUpperCase()}</span>}
+                <span className="max-w-[160px] truncate" title={c.name || c.username}>{c.name || c.username}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5 text-sm">
           {error.message}
@@ -334,8 +382,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         <div className="bg-white rounded-2xl p-10 text-center text-gray-400 border border-gray-100">Querying Meta…</div>
       )}
 
-      {/* Summary strip */}
-      {valid.length > 0 && (
+      {/* Summary strip — across everyone shown, so hidden while one profile is open. */}
+      {valid.length > 0 && !profile && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
           <SummaryCard label="Competitors tracked" value={valid.length.toString()} />
           <SummaryCard label="Avg followers" value={fmt(Math.round(valid.reduce((s, c) => s + c.followers_count, 0) / valid.length))} />
@@ -344,8 +392,9 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         </div>
       )}
 
-      {/* Top competitor posts — best across everyone shown, ranked by engagement */}
-      {topPostsAll.length > 0 && (
+      {/* Top competitor posts — best across everyone shown, so it is hidden while a
+          single profile is open: "across all competitors" next to one brand misleads. */}
+      {topPostsAll.length > 0 && !profile && (
         <div className="bg-white rounded-2xl p-4 mb-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-medium text-[#232D42]"><IconTrophy size={16} stroke={1.8} className="inline -mt-0.5 mr-1 text-amber-500" />Top competitor posts</span>
@@ -375,6 +424,12 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         </div>
       )}
 
+
+      {/* One competitor, in full. */}
+      {profile && valid.some((c) => c.username === profile) ? (
+        <CompetitorProfile c={valid.find((c) => c.username === profile)!} medianER={medianER}
+          yt={trackedOf(profile)?.youtube} onOpenPost={(m) => setOpenMedia(m)} />
+      ) : (<>
       {/* Competitor grid */}
       {niche === "__tracked__" && tracked.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center text-gray-400 border border-gray-100">No tracked accounts yet — type a handle above and hit <b className="text-gray-600">+ Track</b>.</div>
@@ -397,6 +452,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         ))}
       </div>
       )}
+      </>)}
     </>
   );
 }
@@ -406,6 +462,133 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
     <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
       <div className="text-xs text-gray-500">{label}</div>
       <div className="text-2xl font-semibold mt-1 tabular-nums text-[#232D42]">{value}</div>
+    </div>
+  );
+}
+
+// One competitor, everything we can actually get about them, on one screen.
+//
+// Instagram is the substance — followers, cadence, engagement, their posts.
+// YouTube appears only when that competitor has a channel saved. There is no
+// Facebook panel: reading a Page you do not administer needs Meta's Page Public
+// Content Access, which this app does not have, and showing an empty box would
+// only imply the data is coming.
+function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
+  c: Competitor; medianER: number; yt?: string; onOpenPost: (m: CompetitorMedia) => void;
+}) {
+  const vsMedian = medianER ? c.engagementRatePct - medianER : 0;
+  return (
+    <div className="space-y-4">
+      {/* Who they are */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="flex items-start gap-4 flex-wrap">
+          {c.profile_picture_url
+            ? <img src={c.profile_picture_url} alt="" className="w-14 h-14 rounded-2xl object-cover flex-shrink-0" />
+            : <span className="w-14 h-14 rounded-2xl bg-[#EEEDFE] text-[#3C3489] text-lg grid place-items-center flex-shrink-0">{c.username.slice(0, 1).toUpperCase()}</span>}
+          <div className="min-w-0 flex-1">
+            <div className="text-[17px] font-medium text-[#232D42] leading-tight">{c.name || c.username}</div>
+            <a href={`https://instagram.com/${c.username}`} target="_blank" rel="noreferrer" className="text-[13px] text-brand hover:underline">@{c.username}</a>
+            {c.biography && <p className="text-[13px] text-[#5A6478] mt-1.5 leading-relaxed max-w-2xl">{c.biography}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Instagram */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs uppercase tracking-wider font-semibold text-brand">Instagram</span>
+          <span className="text-[12px] text-[#8A92A6]">last 30 days</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <ProfileStat label="Followers" value={fmt(c.followers_count)} />
+          <ProfileStat label="Posts / 30d" value={String(c.postsLast30d)} />
+          <ProfileStat label="Avg likes" value={fmt(c.avgLikesRecent)} />
+          <ProfileStat label="Avg comments" value={fmt(c.avgCommentsRecent)} />
+          <ProfileStat label="Eng. rate" value={`${c.engagementRatePct.toFixed(2)}%`}
+            hint={medianER ? `${vsMedian >= 0 ? "+" : ""}${vsMedian.toFixed(2)} vs median` : undefined} />
+        </div>
+        {c.recent.length > 0 && (
+          <div className="mt-5">
+            <div className="text-[12px] uppercase tracking-wide text-[#8A92A6] mb-2">Recent posts · click to open</div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+              {c.recent.slice(0, 12).map((m) => (
+                <button key={m.id} onClick={() => onOpenPost(m)} className="relative block rounded-lg overflow-hidden border border-gray-100 hover:border-brand transition">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.thumbnail_url || m.media_url} alt="" className="w-full aspect-square object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* YouTube — only when this competitor has a channel saved. */}
+      {yt ? <CompetitorYouTube channelId={yt} /> : (
+        <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-4 text-[13px] text-[#8A92A6]">
+          No YouTube channel saved for {c.name || c.username}. Add the channel ID when you track them and their uploads show here.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A competitor's YouTube channel. Public data, so an API key is enough.
+// Renders nothing at all when the channel id doesn't resolve — an empty panel
+// reads as "loading forever" rather than "that id is wrong".
+type YtChannel = {
+  found: boolean; reason?: string;
+  channel?: { id: string; title: string; thumbnail: string; subscribers: number; subscribersHidden: boolean; views: number; videoCount: number };
+  videos?: { id: string; title: string; thumbnail: string; publishedAt: string; views: number; url: string }[];
+};
+function CompetitorYouTube({ channelId }: { channelId: string }) {
+  const { data, isLoading } = useApi<YtChannel>(`/api/benchmark/youtube-channel?channelId=${encodeURIComponent(channelId)}`);
+  if (isLoading) return <div className="bg-white border border-gray-100 rounded-2xl p-5 text-[13px] text-[#8A92A6]">Reading their YouTube channel…</div>;
+  if (!data?.found || !data.channel) {
+    return (
+      <div className="bg-white border border-amber-200 rounded-2xl p-4 text-[13px] text-[#8A5B12]">
+        {data?.reason || "Couldn't read that YouTube channel."} Check the channel ID (it starts with UC).
+      </div>
+    );
+  }
+  const ch = data.channel;
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs uppercase tracking-wider font-semibold text-[#C0392B]">YouTube</span>
+        <a href={`https://www.youtube.com/channel/${ch.id}`} target="_blank" rel="noreferrer" className="text-[12px] text-brand hover:underline">{ch.title}</a>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <ProfileStat label="Subscribers" value={ch.subscribersHidden ? "hidden" : fmt(ch.subscribers)} />
+        <ProfileStat label="Total views" value={fmt(ch.views)} />
+        <ProfileStat label="Videos" value={fmt(ch.videoCount)} />
+      </div>
+      {(data.videos || []).length > 0 && (
+        <div className="mt-5">
+          <div className="text-[12px] uppercase tracking-wide text-[#8A92A6] mb-2">Recent uploads</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {(data.videos || []).map((v) => (
+              <a key={v.id} href={v.url} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-gray-100 hover:border-brand transition">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={v.thumbnail} alt="" className="w-full aspect-video object-cover" />
+                <div className="p-2">
+                  <div className="text-[12px] text-[#232D42] line-clamp-2 leading-snug">{v.title}</div>
+                  <div className="text-[11px] text-[#8A92A6] mt-1">{fmt(v.views)} views</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfileStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="border border-gray-100 rounded-xl p-3">
+      <div className="text-[11px] uppercase tracking-wide text-[#8A92A6]">{label}</div>
+      <div className="text-[19px] font-semibold text-[#232D42] tabular-nums mt-0.5">{value}</div>
+      {hint && <div className="text-[11px] text-[#8A92A6] mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -447,7 +630,7 @@ function CompetitorCard({ c, medianER, onOpen, onRemove, periodDays, category }:
         {c.biography && <p className="text-[11px] text-gray-500 mt-2 line-clamp-2">{c.biography}</p>}
 
         <div className="grid grid-cols-3 gap-2 mt-4">
-          <Stat label="Followers" value={fmt(c.followers_count)} />
+          <ProfileStat label="Followers" value={fmt(c.followers_count)} />
           <Stat label="Posts" value={fmt(c.media_count)} />
           <Stat label={pm && periodDays ? `Posts/${periodDays}d` : "Posts/30d"} value={(pm ? pm.posts : c.postsLast30d).toString()} />
         </div>

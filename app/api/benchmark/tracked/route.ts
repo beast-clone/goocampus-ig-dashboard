@@ -27,7 +27,7 @@ const TABLE = "mh_competitors";
 const MISSING = new Set(["PGRST205", "42P01"]);
 
 export type TrackedRow = {
-  handle: string; platform: string; category: string | null; sbu: string | null; period: number;
+  handle: string; platform: string; category: string | null; sbu: string | null; period: number; youtube?: string | null;
 };
 
 export async function GET(req: Request) {
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   if (!db) return NextResponse.json({ available: false, items: [], reason: "Supabase not configured" });
   const { data, error } = await db
     .from(TABLE)
-    .select("handle, platform, category, sbu, period")
+    .select("handle, platform, category, sbu, period, youtube_channel")
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
   if (error) {
@@ -68,6 +68,7 @@ export async function POST(req: Request) {
     platform: (x.platform === "youtube" ? "youtube" : "instagram"),
     category: x.category?.trim() || null,
     sbu: x.sbu?.trim() || null,
+    youtube_channel: x.youtube?.trim() || null,
     period: Number(x.period) || 30,
     added_by: actor,
   });
