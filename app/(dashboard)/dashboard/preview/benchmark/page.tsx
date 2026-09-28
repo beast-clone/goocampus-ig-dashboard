@@ -358,6 +358,13 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
                 !profile ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
               All ({valid.length})
             </button>
+            {valid.length > 1 && (
+              <button onClick={() => setProfile("__compare__")}
+                className={`h-10 px-3.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition ${
+                  profile === "__compare__" ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                Compare
+              </button>
+            )}
             {valid.map((c) => (
               <button key={c.username} onClick={() => setProfile(c.username)}
                 className={`h-10 pl-1.5 pr-3 rounded-lg text-[13px] font-medium whitespace-nowrap transition inline-flex items-center gap-2 ${
@@ -425,6 +432,11 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       )}
 
 
+      {/* Everyone on the same metrics, us included. */}
+      {profile === "__compare__" ? (
+        <CompetitorCompare brands={valid} ourHandle={data?.sourceAccount?.handle} accountId={accountId} />
+      ) : (
+      <>
       {/* One competitor, in full. */}
       {profile && valid.some((c) => c.username === profile) ? (
         <CompetitorProfile c={valid.find((c) => c.username === profile)!} medianER={medianER}
@@ -453,6 +465,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       </div>
       )}
       </>)}
+      </>
+      )}
     </>
   );
 }
@@ -473,6 +487,22 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 // Facebook panel: reading a Page you do not administer needs Meta's Page Public
 // Content Access, which this app does not have, and showing an empty box would
 // only imply the data is coming.
+// The AI route wants facts, not our view model.
+function brandOf(c: Competitor): Record<string, unknown> {
+  return {
+    name: c.name || c.username,
+    handle: c.username,
+    followers: c.followers_count,
+    postsPer30d: c.postsLast30d,
+    avgLikes: c.avgLikesRecent,
+    avgComments: c.avgCommentsRecent,
+    engagementRatePct: c.engagementRatePct,
+    // Their actual captions are the only way the model can say anything useful
+    // about CONTENT rather than just numbers.
+    topPostCaptions: (c.recent || []).slice(0, 5).map((m) => m.caption || "").filter(Boolean),
+  };
+}
+
 function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
   c: Competitor; medianER: number; yt?: string; onOpenPost: (m: CompetitorMedia) => void;
 }) {
@@ -525,12 +555,152 @@ function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
       {/* What the web says about them — Reddit, Quora, reviews and the rest. */}
       <CompetitorIntel name={searchName(c)} />
 
+      {/* The read: what to actually do about them. */}
+      <CompetitorAI brands={[brandOf(c)]} mode="profile" />
+
       {/* YouTube — only when this competitor has a channel saved. */}
       {yt ? <CompetitorYouTube channelId={yt} /> : (
         <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-4 text-[13px] text-[#8A92A6]">
           No YouTube channel saved for {c.name || c.username}. Add the channel ID when you track them and their uploads show here.
         </div>
       )}
+    </div>
+  );
+}
+
+// Everyone side by side on the metrics that matter, with us in the table when we
+// can read our own account. The numbers are free — we already have them — so only
+// the verdict costs anything, and that is behind a button.
+function CompetitorCompare({ brands, ourHandle, accountId }: { brands: Competitor[]; ourHandle?: string; accountId: string }) {
+  const own = (ourHandle || "").replace(/^@/, "");
+  // Our own account answers the same public endpoint as any competitor, so it can
+  // sit in the same table rather than being a special case.
+  const { data: usData } = useApi<BenchmarkData>(own ? `/api/benchmark?accountId=${encodeURIComponent(accountId)}&handles=${encodeURIComponent(own)}` : "");
+  const us = (usData?.competitors || []).find((c): c is Competitor => !isError(c));
+  // Our own handle is usually in the tracked list too — one row for it, not two.
+  const others = brands.filter((c) => c.username.toLowerCase() !== own.toLowerCase());
+  const rows = [...(us ? [{ c: us, isUs: true }] : []), ...others.map((c) => ({ c, isUs: false }))];
+  const best = (pick: (c: Competitor) => number) => Math.max(...rows.map((r) => pick(r.c)));
+  const cols: { label: string; pick: (c: Competitor) => number; fmtv: (n: number) => string }[] = [
+    { label: "Followers", pick: (c) => c.followers_count, fmtv: fmt },
+    { label: "Posts / 30d", pick: (c) => c.postsLast30d, fmtv: (n) => String(n) },
+    { label: "Avg likes", pick: (c) => c.avgLikesRecent, fmtv: fmt },
+    { label: "Avg comments", pick: (c) => c.avgCommentsRecent, fmtv: fmt },
+    { label: "Eng. rate", pick: (c) => c.engagementRatePct, fmtv: (n) => `${n.toFixed(2)}%` },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 overflow-x-auto">
+        <div className="text-xs uppercase tracking-wider font-semibold text-brand mb-4">Side by side · last 30 days</div>
+        <table className="w-full text-[13px] min-w-[560px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-[#8A92A6]">
+              <th className="pb-2 font-medium">Account</th>
+              {cols.map((col) => <th key={col.label} className="pb-2 font-medium text-right">{col.label}</th>)}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map(({ c, isUs }) => (
+              <tr key={c.username} className={isUs ? "bg-brand-light/40" : ""}>
+                <td className="py-2.5 pr-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {c.profile_picture_url
+                      ? <img src={c.profile_picture_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                      : <span className="w-6 h-6 rounded-full bg-[#EEEDFE] text-[#3C3489] text-[10px] grid place-items-center flex-shrink-0">{c.username.slice(0, 1).toUpperCase()}</span>}
+                    <span className="truncate text-[#232D42]">{searchName(c)}</span>
+                    {isUs && <span className="text-[10.5px] rounded-full px-2 py-0.5 bg-brand text-white flex-shrink-0">us</span>}
+                  </div>
+                </td>
+                {cols.map((col) => {
+                  const v = col.pick(c);
+                  const top = v > 0 && v === best(col.pick);
+                  return (
+                    <td key={col.label} className={`py-2.5 text-right tabular-nums ${top ? "font-semibold text-[#232D42]" : "text-[#5A6478]"}`}>
+                      {col.fmtv(v)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!us && (
+          <div className="text-[12px] text-[#8A92A6] mt-3">Our own account isn&rsquo;t in the table — it couldn&rsquo;t be read just now.</div>
+        )}
+      </div>
+
+      {others.length > 0 && <CompetitorAI mode="compare" brands={others.map(brandOf)} us={us ? brandOf(us) : undefined} />}
+    </div>
+  );
+}
+
+// The model answers in light markdown — ## headings, - bullets, **bold** — and
+// printing it raw put literal hashes on the page. Full markdown is more than this
+// needs, so handle exactly those three and leave everything else as text.
+function AiText({ text }: { text: string }) {
+  const bold = (t: string) =>
+    t.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <b key={i} className="font-medium text-[#232D42]">{part}</b> : part));
+  const lines = text.split(/\r?\n/);
+  const out: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (!bullets.length) return;
+    out.push(
+      <ul key={`u${out.length}`} className="list-disc pl-5 space-y-1 mb-3">
+        {bullets.map((b, i) => <li key={i} className="text-[13.5px] text-[#5A6478] leading-relaxed">{bold(b)}</li>)}
+      </ul>,
+    );
+    bullets = [];
+  };
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) { flush(); continue; }
+    const head = t.match(/^#{1,4}\s+(.*)$/);
+    if (head) {
+      flush();
+      out.push(<div key={`h${out.length}`} className="text-[13.5px] font-semibold text-[#232D42] mt-4 mb-1.5">{bold(head[1])}</div>);
+      continue;
+    }
+    const bullet = t.match(/^[-*\u2022]\s+(.*)$/);
+    if (bullet) { bullets.push(bullet[1]); continue; }
+    flush();
+    out.push(<p key={`p${out.length}`} className="text-[13.5px] text-[#5A6478] leading-relaxed mb-3">{bold(t)}</p>);
+  }
+  flush();
+  return <div className="[&>*:first-child]:mt-0">{out}</div>;
+}
+
+// The read. Not loaded until asked for: it is a paid model call, and most visits
+// to a profile are to look at the numbers, not to ask what to do about them.
+function CompetitorAI({ brands, us, mode }: { brands: Record<string, unknown>[]; us?: Record<string, unknown>; mode: "profile" | "compare" }) {
+  const [state, setState] = useState<{ loading: boolean; text?: string; error?: string; configured?: boolean }>({ loading: false });
+  const ask = async (force = false) => {
+    setState({ loading: true });
+    try {
+      const r = await fetch("/api/benchmark/profile-ai", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ mode, brands, us, force }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setState({ loading: false, text: j.text, configured: j.configured });
+    } catch (e) { setState({ loading: false, error: (e as Error).message }); }
+  };
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-xs uppercase tracking-wider font-semibold text-brand">The read</span>
+        <span className="text-[12px] text-[#8A92A6]">{mode === "compare" ? "where we stand, and what to do" : "what to copy, avoid, or do differently"}</span>
+        <button onClick={() => ask(state.text ? true : false)} disabled={state.loading}
+          className="ml-auto h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
+          {state.loading ? "Thinking…" : state.text ? "Ask again" : "Get the read"}
+        </button>
+      </div>
+      {state.configured === false && <div className="text-[13px] text-[#8A92A6]">No AI key configured.</div>}
+      {state.error && <div className="text-[13px] text-rose-600">{state.error}</div>}
+      {state.text
+        ? <AiText text={state.text} />
+        : !state.loading && !state.error && <div className="text-[13px] text-[#8A92A6]">Press <b className="font-medium text-[#232D42]">Get the read</b> — it looks at their numbers, their recent posts and what people say, then tells you what to do about it.</div>}
     </div>
   );
 }
