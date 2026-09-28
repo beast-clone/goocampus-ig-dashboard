@@ -3235,6 +3235,177 @@ function CopyTaskLink({ id }: { id: string }) {
   );
 }
 
+// The task's activity timeline + comments — the right-hand column of the Master
+// sheet's task popup, lifted out so My Day's task panel shows the SAME thing
+// (Praveen, 28 Sep: "how master sheet has that, I need it for this task also").
+// One component, so the two can't drift apart. The caller owns loading the detail
+// (/api/marketing-hub/task-detail) and says who is commenting.
+export function TaskActivityFeed({ postId, detail, loading, reload, author, authorLabel, onError }: {
+  postId: string;
+  detail: Pick<TaskDetail, "activity" | "comments"> | null;
+  loading: boolean;
+  reload: () => void | Promise<void>;
+  author: string;
+  authorLabel: (key: string) => string;
+  onError: (message: string) => void;
+}) {
+  // Filter (All activity / Revision history / Comments), resolved toggle,
+  // expand-diff set, and a Show-more cap.
+  const [feedFilter, setFeedFilter] = useState<"all" | "revisions" | "comments">("all");
+  const [showResolved, setShowResolved] = useState(true);
+  const [feedFilterOpen, setFeedFilterOpen] = useState(false);
+  const feedFilterBtnRef = useRef<HTMLButtonElement>(null);
+  const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+  const [feedLimit, setFeedLimit] = useState(25);
+  // Merge activity + comments into one chronological feed, honouring the filter.
+  const feed = useMemo<FeedItem[]>(() => {
+    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value }));
+    const coms: FeedItem[] = (detail?.comments || []).filter((c) => showResolved || !c.resolved).map((c) => ({ id: `c${c.id}`, kind: "comment", at: c.created_at, name: c.authorName, key: c.author_key, body: c.body, resolved: c.resolved }));
+    let items: FeedItem[] = [...acts, ...coms];
+    if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");
+    else if (feedFilter === "comments") items = items.filter((i) => i.kind === "comment");
+    // Newest first HERE so "show more" always reveals older entries; the timeline
+    // below flips it to read top-to-bottom.
+    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  }, [detail, feedFilter, showResolved]);
+  // What the timeline actually renders: the most recent `feedLimit` entries, oldest
+  // at the top. A history you have to read bottom-up is a history nobody reads — this
+  // runs the way the events happened, like a delivery tracker.
+  const feedShown = useMemo(() => feed.slice(0, feedLimit).slice().reverse(), [feed, feedLimit]);
+
+  // Post a comment as the selected author (the "acting as" picker).
+  const [commentText, setCommentText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const postComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    setPosting(true);
+    try {
+      const res = await fetch("/api/marketing-hub/comments", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, authorKey: author, body: text }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); onError((j as { error?: string }).error || "couldn't post that comment"); return; }
+      setCommentText("");
+      await reload();
+    } finally { setPosting(false); }
+  };
+
+  // Unified activity feed — edits + comments, filterable (Airtable-style). The
+  // filter sits alone at the top, the feed runs full width beneath it, the comment
+  // box closes it off.
+  return (
+    <div>
+      <div className="flex items-center mb-3 px-1">
+      <div className="relative">
+        <button ref={feedFilterBtnRef} onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
+          {feedFilter === "all" ? "All activity" : feedFilter === "revisions" ? "Revision history" : "Comments"}
+          <IconChevronDown size={12} />
+        </button>
+        <PortalMenu open={feedFilterOpen} onClose={() => setFeedFilterOpen(false)} anchorRef={feedFilterBtnRef} align="right">
+          <div className="w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1 text-[14px]">
+            {(([["all", "All activity"], ["revisions", "Revision history"], ["comments", "Comments"]]) as [typeof feedFilter, string][]).map(([v, l]) => (
+              <button key={v} onClick={() => { setFeedFilter(v); setFeedFilterOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between ${feedFilter === v ? "text-brand font-medium" : "text-gray-700"}`}>{l}{feedFilter === v && <IconCheck size={13} />}</button>
+            ))}
+            <div className="border-t border-gray-100 my-1" />
+            <button onClick={() => setShowResolved((s) => !s)} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between text-gray-700">Show resolved comments{showResolved && <IconCheck size={13} />}</button>
+          </div>
+        </PortalMenu>
+      </div>
+      </div>
+      {loading ? <LoadingBlock className="!py-6" size={28} />
+        : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
+        : (
+          <div>
+            {/* Older entries live ABOVE, so the button that reveals them
+                belongs at the top — otherwise it scrolls the list away from
+                what it just added. */}
+            {feed.length > feedLimit && (
+              <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline mb-4">
+                Show earlier activity ({feed.length - feedLimit})
+              </button>
+            )}
+            {/* The rail. It sits under the avatars, which each carry a white
+                ring so the line reads as a series of stops rather than one
+                unbroken stroke. */}
+            <div className="relative">
+              <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-300" aria-hidden />
+              <div className="space-y-5 relative">
+            {feedShown.map((it, idx) => {
+              const av = feedAvatar(it.key, it.name);
+              const isLatest = idx === feedShown.length - 1;
+              const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
+              const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
+              return (
+                <div key={it.id} className="flex gap-2.5">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5 ring-[3px] ring-white relative z-10" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : properName(it.name)}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] text-gray-700">
+                      <span className="font-medium text-[#232D42]">{av.system ? "System" : properName(it.name)}</span>{" "}
+                      {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
+                      <span className="text-gray-400" title={new Date(it.at).toLocaleString("en-IN")}> · {relTime(it.at)}</span>
+                      {/* The bottom of a top-to-bottom timeline is where it
+                          is up to, so say so rather than making people work
+                          it out from the timestamps. */}
+                      {isLatest && <span className="ml-1.5 text-[10px] bg-brand-light text-[#2138B0] px-1.5 py-0.5 rounded-full font-medium">latest</span>}
+                      {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
+                    </div>
+                    {it.kind === "comment" ? (
+                      <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
+                    ) : stFrom || stTo ? (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
+                        {it.from && it.to && <IconChevronRight size={12} className="text-gray-400" />}
+                        {it.to && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: stTo!.bg, color: stTo!.text }}>{it.to}</span>}
+                      </div>
+                    ) : DIFF_FIELDS.has(it.action) ? (
+                      <div className="mt-1">
+                        {expandedDiffs.has(it.id) && <div className="text-[14px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
+                        <button onClick={() => setExpandedDiffs((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })} className="text-[11px] text-brand hover:underline">{expandedDiffs.has(it.id) ? "Hide changes" : "Show what changed"}</button>
+                      </div>
+                    ) : (it.from || it.to) ? (
+                      <div className="text-[12px] mt-0.5">
+                        {it.from && <span className="line-through text-red-500">{it.from}</span>}
+                        {it.from && it.to && <span className="text-gray-400"> → </span>}
+                        {it.to && <span className="text-emerald-700">{it.to}</span>}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* Composer — account-specific: comments + edits are stamped with the
+          logged-in user (no manual picker). Extra spacing so the section breathes. */}
+      <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
+        <div className="flex items-center gap-1.5 text-[11.5px] text-gray-500">
+          {(() => { const a = feedAvatar(author, authorLabel(author)); return <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
+          <span>Commenting as <span className="font-medium text-[#232D42]">{authorLabel(author)}</span></span>
+        </div>
+        <div className="flex items-start gap-2.5">
+          {(() => { const a = feedAvatar(author, authorLabel(author)); return <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
+          <div className="flex-1 min-w-0">
+            <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={3}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
+              placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[14.5px] resize-none outline-none focus:border-brand" />
+            <div className="flex justify-end mt-2">
+              <button onClick={postComment} disabled={posting || !commentText.trim()}
+                className="bg-brand text-white text-[12px] font-medium rounded-lg px-4 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
+                {posting ? "Posting…" : "Comment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   // Refused save → the shared missing-fields popup (422) or a visible toast.
@@ -3248,14 +3419,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const [editSection, setEditSection] = useState<"content" | "caption" | null>(null);
   const [draft, setDraft] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  // Unified activity feed: filter (All activity / Revision history / Comments),
-  // resolved toggle, expand-diff set, and a Show-more cap.
-  const [feedFilter, setFeedFilter] = useState<"all" | "revisions" | "comments">("all");
-  const [showResolved, setShowResolved] = useState(true);
-  const [feedFilterOpen, setFeedFilterOpen] = useState(false);
-  const feedFilterBtnRef = useRef<HTMLButtonElement>(null);
-  const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
-  const [feedLimit, setFeedLimit] = useState(25);
   // "Which live post is this?" — see app/api/marketing-hub/link-suggest.
   type LinkCandidate = { id: string; url: string; caption: string; timestamp: string | null; score: number };
   type LinkPick = { key: "instagram" | "facebook" | "linkedin"; label: string; field: string; candidates: LinkCandidate[] };
@@ -3279,21 +3442,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const caption = (detail?.caption ?? row.caption ?? "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
 
-  // Merge activity + comments into one chronological feed, honouring the filter.
-  const feed = useMemo<FeedItem[]>(() => {
-    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value }));
-    const coms: FeedItem[] = (detail?.comments || []).filter((c) => showResolved || !c.resolved).map((c) => ({ id: `c${c.id}`, kind: "comment", at: c.created_at, name: c.authorName, key: c.author_key, body: c.body, resolved: c.resolved }));
-    let items: FeedItem[] = [...acts, ...coms];
-    if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");
-    else if (feedFilter === "comments") items = items.filter((i) => i.kind === "comment");
-    // Newest first HERE so "show more" always reveals older entries; the timeline
-    // below flips it to read top-to-bottom.
-    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [detail, feedFilter, showResolved]);
-  // What the timeline actually renders: the most recent `feedLimit` entries, oldest
-  // at the top. A history you have to read bottom-up is a history nobody reads — this
-  // runs the way the events happened, like a delivery tracker.
-  const feedShown = useMemo(() => feed.slice(0, feedLimit).slice().reverse(), [feed, feedLimit]);
   const collaborators = detail?.collaborators?.length ? detail.collaborators : null;
   // The SAVED status once the detail has loaded, falling back to the board row.
   // Reading row.status directly left the pill showing the old stage after a change
@@ -3504,23 +3652,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     </div>
   );
 
-  // Post a comment as the selected author (the "acting as" picker).
-  const [commentText, setCommentText] = useState("");
-  const [posting, setPosting] = useState(false);
-  const postComment = async () => {
-    const text = commentText.trim();
-    if (!text) return;
-    setPosting(true);
-    try {
-      const res = await fetch("/api/marketing-hub/comments", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId: row.id, authorKey: activeAuthor, body: text }),
-      });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't post that comment" }); return; }
-      setCommentText("");
-      await loadDetail();
-    } finally { setPosting(false); }
-  };
 
   const detailRow = (label: string, value: React.ReactNode) => (
     <div className="flex items-start py-2">
@@ -3777,117 +3908,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           </div>
           <div className="w-[287px] flex-shrink-0 border-l border-gray-100 overflow-auto px-2 py-4">
 
-              {/* Unified activity feed — edits + comments, filterable (Airtable-style) */}
-              {/* Airtable's right-hand pane: the filter sits alone at the top, the
-                  feed runs full width beneath it, the comment box closes it off. */}
-              <div>
-                <div className="flex items-center mb-3 px-1">
-                <div className="relative">
-                  <button ref={feedFilterBtnRef} onClick={() => setFeedFilterOpen((v) => !v)} className="text-[11px] text-gray-500 hover:text-gray-800 flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1">
-                    {feedFilter === "all" ? "All activity" : feedFilter === "revisions" ? "Revision history" : "Comments"}
-                    <IconChevronDown size={12} />
-                  </button>
-                  <PortalMenu open={feedFilterOpen} onClose={() => setFeedFilterOpen(false)} anchorRef={feedFilterBtnRef} align="right">
-                    <div className="w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1 text-[14px]">
-                      {(([["all", "All activity"], ["revisions", "Revision history"], ["comments", "Comments"]]) as [typeof feedFilter, string][]).map(([v, l]) => (
-                        <button key={v} onClick={() => { setFeedFilter(v); setFeedFilterOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between ${feedFilter === v ? "text-brand font-medium" : "text-gray-700"}`}>{l}{feedFilter === v && <IconCheck size={13} />}</button>
-                      ))}
-                      <div className="border-t border-gray-100 my-1" />
-                      <button onClick={() => setShowResolved((s) => !s)} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between text-gray-700">Show resolved comments{showResolved && <IconCheck size={13} />}</button>
-                    </div>
-                  </PortalMenu>
-                </div>
-                </div>
-                {loadingDetail ? <LoadingBlock className="!py-6" size={28} />
-                  : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
-                  : (
-                    <div>
-                      {/* Older entries live ABOVE, so the button that reveals them
-                          belongs at the top — otherwise it scrolls the list away from
-                          what it just added. */}
-                      {feed.length > feedLimit && (
-                        <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline mb-4">
-                          Show earlier activity ({feed.length - feedLimit})
-                        </button>
-                      )}
-                      {/* The rail. It sits under the avatars, which each carry a white
-                          ring so the line reads as a series of stops rather than one
-                          unbroken stroke. */}
-                      <div className="relative">
-                        <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-300" aria-hidden />
-                        <div className="space-y-5 relative">
-                      {feedShown.map((it, idx) => {
-                        const av = feedAvatar(it.key, it.name);
-                        const isLatest = idx === feedShown.length - 1;
-                        const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
-                        const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
-                        return (
-                          <div key={it.id} className="flex gap-2.5">
-                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5 ring-[3px] ring-white relative z-10" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : properName(it.name)}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[14px] text-gray-700">
-                                <span className="font-medium text-[#232D42]">{av.system ? "System" : properName(it.name)}</span>{" "}
-                                {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
-                                <span className="text-gray-400" title={new Date(it.at).toLocaleString("en-IN")}> · {relTime(it.at)}</span>
-                                {/* The bottom of a top-to-bottom timeline is where it
-                                    is up to, so say so rather than making people work
-                                    it out from the timestamps. */}
-                                {isLatest && <span className="ml-1.5 text-[10px] bg-brand-light text-[#2138B0] px-1.5 py-0.5 rounded-full font-medium">latest</span>}
-                                {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
-                              </div>
-                              {it.kind === "comment" ? (
-                                <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
-                              ) : stFrom || stTo ? (
-                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                  {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
-                                  {it.from && it.to && <IconChevronRight size={12} className="text-gray-400" />}
-                                  {it.to && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: stTo!.bg, color: stTo!.text }}>{it.to}</span>}
-                                </div>
-                              ) : DIFF_FIELDS.has(it.action) ? (
-                                <div className="mt-1">
-                                  {expandedDiffs.has(it.id) && <div className="text-[14px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
-                                  <button onClick={() => setExpandedDiffs((s) => { const n = new Set(s); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })} className="text-[11px] text-brand hover:underline">{expandedDiffs.has(it.id) ? "Hide changes" : "Show what changed"}</button>
-                                </div>
-                              ) : (it.from || it.to) ? (
-                                <div className="text-[12px] mt-0.5">
-                                  {it.from && <span className="line-through text-red-500">{it.from}</span>}
-                                  {it.from && it.to && <span className="text-gray-400"> → </span>}
-                                  {it.to && <span className="text-emerald-700">{it.to}</span>}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Composer — account-specific: comments + edits are stamped with the
-                    logged-in user (no manual picker). Extra spacing so the section breathes. */}
-                <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-gray-500">
-                    {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
-                    <span>Commenting as <span className="font-medium text-[#232D42]">{authorLabel(activeAuthor)}</span></span>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    {(() => { const a = feedAvatar(activeAuthor, authorLabel(activeAuthor)); return <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: a.bg, color: a.fg }}>{a.initials}</span>; })()}
-                    <div className="flex-1 min-w-0">
-                      <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows={3}
-                        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
-                        placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[14.5px] resize-none outline-none focus:border-brand" />
-                      <div className="flex justify-end mt-2">
-                        <button onClick={postComment} disabled={posting || !commentText.trim()}
-                          className="bg-brand text-white text-[12px] font-medium rounded-lg px-4 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
-                          {posting ? "Posting…" : "Comment"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <TaskActivityFeed postId={row.id} detail={detail} loading={loadingDetail} reload={loadDetail}
+                author={activeAuthor} authorLabel={authorLabel} onError={(message) => setFailure({ kind: "error", message })} />
             </div>
           </div>
         </div>

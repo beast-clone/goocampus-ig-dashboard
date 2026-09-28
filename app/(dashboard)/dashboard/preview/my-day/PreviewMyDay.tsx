@@ -20,7 +20,7 @@ import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/
 import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
 import RadarCrumb from "./RadarCrumb";
-import { ACT_VERB, relTime, properName } from "../marketing-hub/MarketingHub";
+import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -678,9 +678,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
-  // History sits behind its own button beside Edit / Reassign / Delete. At the foot
-  // of the panel, under the brief, creatives and references, nobody found it.
-  const [showHistory, setShowHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [prio, setPrio] = useState(task.detail.priority);
   const [due, setDue] = useState(task.due || "");
@@ -829,15 +826,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             </>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
-            <button className={`btn sm${showHistory ? " primary" : ""}`} onClick={() => setShowHistory((h) => !h)}><IconHistory size={14} stroke={1.8} /> History</button>
+            <button className="btn sm" onClick={() => document.getElementById(`feed-${task.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}><IconHistory size={14} stroke={1.8} /> History</button>
           </div>
-
-          {showHistory && (
-            <div style={{ marginTop: ".5rem", border: "1px solid var(--line)", borderRadius: 10, padding: ".7rem" }}>
-              <div className="mlbl" style={{ marginBottom: ".45rem" }}>History</div>
-              <TaskHistory postId={task.id} local={task.detail.activity} />
-            </div>
-          )}
 
 
 
@@ -1053,43 +1043,39 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
+      {/* The same activity timeline + comments as the Master sheet's task popup.
+          The History button beside Edit / Reassign / Delete jumps here. */}
+      <div id={`feed-${task.id}`} className="section-lbl" style={{ scrollMarginTop: "1rem" }}>History &amp; comments</div>
+      <TaskFeed key={`feed-${task.id}`} postId={task.id} />
+
 
     </>
   );
 }
 
-// The task's history, from mh_activity via the Master sheet's own detail endpoint.
-// My Day used to render task.detail.activity only, which the server always sends
-// empty — so every task here showed a blank history (Praveen, 28 Sep) while the
-// same task in the Master sheet showed it. Entries made in this session (e.g.
-// "Timer started") are kept on top until the server catches up.
-function TaskHistory({ postId, local }: { postId: string; local: { who: string; text: string; time: string }[] }) {
-  type Row = { id: string; actor_key: string | null; actorName: string | null; action: string; from_value: string | null; to_value: string | null; created_at: string };
-  const [rows, setRows] = useState<Row[] | null>(null);
-  useEffect(() => {
-    let alive = true;
-    setRows(null);
-    fetch(`/api/marketing-hub/task-detail?id=${encodeURIComponent(postId)}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setRows(d && Array.isArray(d.activity) ? d.activity : []); })
-      .catch(() => { if (alive) setRows([]); });
-    return () => { alive = false; };
+// My Day's copy of the Master sheet's activity timeline (TaskActivityFeed). My Day
+// used to render task.detail.activity, which the server always sends empty, so
+// every task here showed a blank history (Praveen, 28 Sep). This loads the same
+// task-detail the Master sheet popup does; comments are posted as whoever is
+// signed in (detail.me), exactly as there.
+function TaskFeed({ postId }: { postId: string }) {
+  type Detail = Parameters<typeof TaskActivityFeed>[0]["detail"] & { me?: string };
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/marketing-hub/task-detail?id=${encodeURIComponent(postId)}`, { credentials: "same-origin" });
+      setDetail(r.ok ? await r.json() : null);
+    } catch { setDetail(null); } finally { setLoading(false); }
   }, [postId]);
-  const who = (r: Row) => (r.actor_key ? properName(r.actorName || r.actor_key) : "System");
-  const what = (r: Row) => {
-    const verb = ACT_VERB[r.action] || r.action.replace(/_/g, " ");
-    return r.action === "status_changed" && r.to_value ? `${verb}${r.from_value ? ` from ${r.from_value}` : ""} to ${r.to_value}` : verb;
-  };
+  useEffect(() => { reload(); }, [reload]);
   return (
-    <div className="activity">
-      {local.map((a, i) => (
-        <div key={`l${i}`} className="act-row"><b>{a.who}</b> {a.text}<span className="act-time"> · {a.time}</span></div>
-      ))}
-      {rows === null && <div className="act-row">Loading history…</div>}
-      {rows?.map((r) => (
-        <div key={r.id} className="act-row"><b>{who(r)}</b> {what(r)}<span className="act-time"> · {relTime(r.created_at)}</span></div>
-      ))}
-      {rows && rows.length === 0 && local.length === 0 && <div className="act-row">No history yet.</div>}
+    <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: ".8rem .7rem", marginTop: ".4rem" }}>
+      {err && <div style={{ color: "#C03221", fontSize: ".78rem", marginBottom: ".4rem" }}>{err}</div>}
+      <TaskActivityFeed postId={postId} detail={detail} loading={loading} reload={reload}
+        author={detail?.me || "maheen"} authorLabel={(k) => PPL[k]?.name || properName(k)} onError={setErr} />
     </div>
   );
 }
