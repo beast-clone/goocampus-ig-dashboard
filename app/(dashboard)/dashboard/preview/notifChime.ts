@@ -1,13 +1,19 @@
 // The sound the bell makes.
 //
-// Synthesised rather than shipped as a file: it weighs nothing, there is no asset
-// to license, host or cache-bust, and Apple's own tones are theirs. This is the
-// same SHAPE as a phone message tone — three notes up and a settle — not a copy
-// of one.
+// Praveen supplied the file (28 Sep), after three attempts at synthesising one
+// landed variously as a flute, a church bell and something that rang in the ears.
+// A real recording ends that argument.
+//
+// The synthesised tone is kept as a fallback, for the case where the file cannot
+// be fetched — a cold cache on a bad connection, or an offline tab. A bell that
+// sometimes makes no sound is worse than one that occasionally sounds different.
 //
 // Browsers refuse to make noise before the person has interacted with the page, so
 // the first call may do nothing. That is fine: the bell still shakes, and the next
 // one is audible. Nothing here ever throws.
+
+const SOUND_URL = "/sounds/notification.mp3";
+let el: HTMLAudioElement | null = null;
 
 const MUTE_KEY = "gc-notif-muted";
 
@@ -21,8 +27,26 @@ export function setChimeMuted(muted: boolean) {
 
 let ctx: AudioContext | null = null;
 
+/** The bell. The recording when it loads, the synthesised tone when it does not. */
+export function playChime() {
+  if (chimeMuted()) return;
+  try {
+    el = el || new Audio(SOUND_URL);
+    el.volume = 0.6;
+    el.currentTime = 0;
+    const played = el.play();
+    // .play() rejects when the browser blocks autoplay, and ALSO when the file is
+    // missing — only the second is worth falling back for, and they are not
+    // distinguishable here. Falling back on both is harmless: a blocked page makes
+    // no sound either way.
+    if (played && typeof played.catch === "function") played.catch(() => playSynthesised());
+  } catch {
+    playSynthesised();
+  }
+}
+
 /**
- * Three soft notes — a wooden bar, not a bell.
+ * Fallback: three soft notes — a wooden bar, not a bell.
  *
  * The previous version rang in the ears (Praveen, 28 Sep) for three reasons, and
  * all three are fixed here:
@@ -40,8 +64,7 @@ let ctx: AudioContext | null = null;
  * gentle 12 ms attack rather than a 4 ms strike, which is the difference between
  * a tap and a click.
  */
-export function playChime() {
-  if (chimeMuted()) return;
+function playSynthesised() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
