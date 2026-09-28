@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconBell, IconCheck, IconChecks, IconExternalLink, IconTrash, IconPin } from "@tabler/icons-react";
+import { IconBell, IconBellOff, IconBellRinging, IconCheck, IconChecks, IconExternalLink, IconTrash, IconPin } from "@tabler/icons-react";
 import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
+import { chimeMuted, setChimeMuted, playChime } from "@/app/(dashboard)/dashboard/preview/notifChime";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useApi } from "@/lib/use-api";
@@ -70,10 +71,30 @@ function NotificationsList() {
   const pinned = items.filter(isOpenAction);
   const rest = items.filter((n) => !isOpenAction(n) && (cat === "all" || n.category === cat));
   // "All" reads as sections per category; a single category is one list.
+  // Sixteen rows all reading "Your task is approved" is a wall you scroll past, not
+  // a list you read (Praveen, 28 Sep). Same title, same category -> one row with a
+  // count, carrying the newest one's time and the others' subjects underneath.
+  const collapse = (rows: NotifItem[]): { n: NotifItem; also: NotifItem[] }[] => {
+    const byTitle = new Map<string, NotifItem[]>();
+    for (const n of rows) {
+      const k = n.title;
+      byTitle.set(k, [...(byTitle.get(k) || []), n]);
+    }
+    const out: { n: NotifItem; also: NotifItem[] }[] = [];
+    for (const group of byTitle.values()) {
+      const [first, ...also] = group;
+      out.push({ n: first, also });
+    }
+    // Newest group first, the way the flat list read.
+    return out.sort((a, b) => b.n.created_at.localeCompare(a.n.created_at));
+  };
   const sections = cat === "all"
-    ? CATS.map((c) => ({ key: c.key, label: c.label, rows: rest.filter((n) => n.category === c.key) })).filter((s) => s.rows.length)
-    : (rest.length ? [{ key: cat, label: label(cat), rows: rest }] : []);
+    ? CATS.map((c) => ({ key: c.key, label: c.label, rows: collapse(rest.filter((n) => n.category === c.key)) })).filter((s) => s.rows.length)
+    : (rest.length ? [{ key: cat, label: label(cat), rows: collapse(rest) }] : []);
   const showPinned = (cat === "all" || cat === "action") && pinned.length > 0;
+  // Read after mount — localStorage is not there during the server render.
+  const [muted, setMuted] = useState(false);
+  useEffect(() => { setMuted(chimeMuted()); }, []);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setFailed(null);
@@ -93,9 +114,16 @@ function NotificationsList() {
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-wrap">
           <IconBell size={20} stroke={1.8} className="text-brand" />
           <div className="text-[16px] font-medium text-[#232D42]">Your notifications</div>
+          {/* The chime is a nicety; someone in an open-plan office has to be able to
+              stop it, and the setting belongs where the notifications are. */}
+          <button onClick={() => { const next = !muted; setChimeMuted(next); setMuted(next); if (!next) playChime(); }}
+            title={muted ? "Sound is off — turn it back on" : "Play a sound when something new arrives"}
+            className="ml-auto h-9 w-9 rounded border border-gray-200 text-[#4A5468] inline-flex items-center justify-center hover:border-[#3A57E8] hover:text-brand">
+            {muted ? <IconBellOff size={16} stroke={1.8} /> : <IconBellRinging size={16} stroke={1.8} />}
+          </button>
           <button disabled={busy || unreadHere === 0}
             onClick={() => run(() => patchNotifs(cat === "all" ? { op: "read", all: true } : { op: "read", category: cat }))}
-            className="ml-auto h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] inline-flex items-center gap-1.5 hover:border-[#3A57E8] disabled:opacity-40">
+            className="h-9 px-3 rounded border border-gray-200 text-[14px] text-[#4A5468] inline-flex items-center gap-1.5 hover:border-[#3A57E8] disabled:opacity-40">
             <IconChecks size={16} stroke={1.8} /> Mark {cat === "all" ? "all" : `"${label(cat)}"`} read
           </button>
         </div>
@@ -129,7 +157,9 @@ function NotificationsList() {
           )}
           {sections.map((s) => (
             <Section key={s.key} title={s.label}>
-              {s.rows.map((n) => <Row key={n.id} n={n} busy={busy} onOpen={open} onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id] }))} onDelete={(x) => run(() => patchNotifs({ op: "delete", ids: [x.id] }))} />)}
+              {s.rows.map(({ n, also }) => <Row key={n.id} n={n} also={also} busy={busy} onOpen={open}
+                onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id, ...also.map((a) => a.id)] }))}
+                onDelete={(x) => run(() => patchNotifs({ op: "delete", ids: [x.id, ...also.map((a) => a.id)] }))} />)}
             </Section>
           ))}
           {!showPinned && sections.length === 0 && (
@@ -156,8 +186,9 @@ function Section({ title, sub, icon, accent, children }: { title: string; sub?: 
   );
 }
 
-function Row({ n, busy, onOpen, onRead, onDelete }: { n: NotifItem; busy: boolean; onOpen: (n: NotifItem) => void; onRead: (n: NotifItem) => void; onDelete: (n: NotifItem) => void }) {
-  const unread = !n.read_at;
+function Row({ n, also = [], busy, onOpen, onRead, onDelete }: { n: NotifItem; also?: NotifItem[]; busy: boolean; onOpen: (n: NotifItem) => void; onRead: (n: NotifItem) => void; onDelete: (n: NotifItem) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const unread = !n.read_at || also.some((a) => !a.read_at);
   const pendingAction = isOpenAction(n);
   return (
     <div className={`flex items-start gap-3 px-4 py-3 ${unread ? "" : "bg-[#F6F7FB]/50"}`}>
@@ -166,10 +197,28 @@ function Row({ n, busy, onOpen, onRead, onDelete }: { n: NotifItem; busy: boolea
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-[14px] ${unread ? "font-medium text-[#232D42]" : "text-[#4A5468]"}`}>{n.title}</span>
+          {also.length > 0 && (
+            <span className="text-[11px] rounded-full px-2 py-0.5 bg-brand-light text-brand-dark font-medium">×{also.length + 1}</span>
+          )}
           {n.action_needed && n.done_at && <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#E8F6F0] text-[#2F9E6F]">Done</span>}
           {n.dismissed_at && !n.read_at && <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#F6F7FB] text-[#8A92A6]">Dismissed</span>}
         </div>
         {n.sub && <div className="text-[13px] text-[#4A5468] mt-0.5 break-words">{n.sub}</div>}
+        {also.length > 0 && (
+          expanded ? (
+            <div className="mt-1.5 space-y-1 border-l-2 border-gray-100 pl-2.5">
+              {also.map((a) => (
+                <div key={a.id} className="text-[12.5px] text-[#4A5468] break-words">
+                  {a.sub} <span className="text-[#8A92A6]">· {when(a.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => setExpanded(true)} className="text-[12px] text-brand hover:underline mt-0.5">
+              and {also.length} more like this
+            </button>
+          )
+        )}
         <div className="text-[12px] text-[#6B7385] mt-1">{when(n.created_at)}</div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">

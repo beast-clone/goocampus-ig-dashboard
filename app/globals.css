@@ -1188,3 +1188,32 @@ html[data-theme="dark"] .preview-root [style*="solid #F3C6CE" i] { border-color:
   .report-overlay > div { box-shadow: none !important; max-width: 100% !important; margin: 0 !important; }
   .report-overlay button { display: none !important; }
 }
+
+/* The notification bell, when something new lands.
+   A bell swings from its crown, so the pivot is the top — rotating about the
+   centre reads as a wobble, not a ring. Two hard swings, then it settles.
+   Nothing moves for anyone who has asked for less motion. */
+@keyframes gc-bell-ring {
+  0%   { transform: rotate(0); }
+  12%  { transform: rotate(16deg); }
+  26%  { transform: rotate(-14deg); }
+  40%  { transform: rotate(11deg); }
+  54%  { transform: rotate(-8deg); }
+  68%  { transform: rotate(5deg); }
+  82%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0); }
+}
+.gc-bell-ring { animation: gc-bell-ring .9s ease-in-out; transform-origin: 50% 12%; }
+
+/* The count lands at the same moment — a quick swell, so the eye follows the
+   number rather than only the movement. */
+@keyframes gc-badge-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.gc-badge-pop { animation: gc-badge-pop .5s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-bell-ring, .gc-badge-pop { animation: none; }
+}

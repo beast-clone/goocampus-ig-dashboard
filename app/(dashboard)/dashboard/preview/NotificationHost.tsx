@@ -7,8 +7,9 @@ import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 // On-screen notification pop-ups, on EVERY preview page (docs/NOTIFICATIONS_SPEC.md).
 // Mounted once in the preview layout, so it survives navigation and never doubles up.
 //
-//   · a new notification pops up once
-//   · an ACTION-NEEDED one that is ignored pops again every ~90 s, with no limit,
+//   · ONLY an action-needed notification pops up. Anything that merely informs
+//     goes to the bell — it rings and shakes — and to the unread count
+//   · an action item that is ignored pops again every ~90 s, with no limit,
 //     until the person clicks "Go to notification center" (read) or "Dismiss"
 //   · no pop-ups in quiet hours — the server decides that, in IST
 //   · the unread count goes into the browser tab title and the sidebar badge
@@ -26,8 +27,6 @@ export type NotifItem = {
 const POLL_MS = 30_000;          // how often to look for new ones
 const REPOP_MS = 90_000;         // an ignored action item comes back after this
 const SHOW_MS = 15_000;          // a pop-up stays this long unless hovered
-const FYI_FRESH_MS = 12 * 3_600_000; // an FYI only pops if this recent — stops a first
-                                     // sync's 30-day backlog arriving as 40 pop-ups
 const MAX_VISIBLE = 3;
 
 export const NOTIF_REFRESH = "gc-notif-refresh"; // fire after changing state elsewhere
@@ -44,13 +43,17 @@ export async function patchNotifs(body: { op: "read" | "dismiss" | "popped" | "d
 }
 
 // Should this item be on screen right now?
+//
+// ONLY things that need a decision. An FYI — "your task is approved", "your task
+// is published" — used to pop as well, and for whoever creates the tasks that is
+// every status change in the company: Maheen had 30 of them, 29 unread, three
+// stacked over the page at a time (28 Sep). They are news, not a question, so they
+// go to the bell and the count and nowhere else.
 function wantsPop(n: NotifItem, now: number): boolean {
   if (n.read_at || n.dismissed_at) return false;
-  if (n.action_needed) {
-    if (n.done_at) return false;
-    return !n.last_popped_at || now - new Date(n.last_popped_at).getTime() >= REPOP_MS;
-  }
-  return !n.last_popped_at && now - new Date(n.created_at).getTime() <= FYI_FRESH_MS;
+  if (!n.action_needed) return false;
+  if (n.done_at) return false;
+  return !n.last_popped_at || now - new Date(n.last_popped_at).getTime() >= REPOP_MS;
 }
 
 export function NotificationHost() {

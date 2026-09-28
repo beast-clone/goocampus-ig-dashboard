@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NOTIF_COUNT } from "./NotificationHost";
+import { playChime } from "./notifChime";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
@@ -211,8 +212,22 @@ export function PreviewSidebar() {
   // Unread notifications — pushed by NotificationHost (mounted beside this sidebar in
   // the layout), so the badge costs no extra polling.
   const [notifUnread, setNotifUnread] = useState(0);
+  // The bell rings and shakes when the count GOES UP. Not on the first reading —
+  // arriving at a page with four unread already is not news — and not when it
+  // falls, because reading something is not an event.
+  const [ringing, setRinging] = useState(false);
+  const lastUnread = useRef<number | null>(null);
   useEffect(() => {
-    const on = (e: Event) => setNotifUnread((e as CustomEvent<{ unread: number }>).detail?.unread || 0);
+    const on = (e: Event) => {
+      const n = (e as CustomEvent<{ unread: number }>).detail?.unread || 0;
+      setNotifUnread(n);
+      const was = lastUnread.current;
+      lastUnread.current = n;
+      if (was === null || n <= was) return;
+      playChime();
+      setRinging(true);
+      setTimeout(() => setRinging(false), 900);
+    };
     window.addEventListener(NOTIF_COUNT, on);
     return () => window.removeEventListener(NOTIF_COUNT, on);
   }, []);
@@ -279,12 +294,15 @@ export function PreviewSidebar() {
   // That reflow was the jump; scroll position was never the whole story.
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
 
-  const LeafRow = ({ leaf, indent, badge }: { leaf: Leaf; indent?: boolean; badge?: number }) => {
+  const LeafRow = ({ leaf, indent, badge, shake }: { leaf: Leaf; indent?: boolean; badge?: number; shake?: boolean }) => {
     const Icon = leaf.icon;
     return (
       <Link href={leaf.href} prefetch title={leaf.label} className={`hnavitem ${indent ? "child" : ""} ${isActive(leaf.href) ? "active" : ""}`}>
-        <Icon size={indent ? 15 : 16} stroke={1.8} /> <span>{leaf.label}</span>
-        {badge ? <span className="hnavbadge">{badge}</span> : null}
+        <span className={shake ? "gc-bell-ring" : undefined} style={{ display: "inline-flex" }}>
+          <Icon size={indent ? 15 : 16} stroke={1.8} />
+        </span>
+        <span>{leaf.label}</span>
+        {badge ? <span className={`hnavbadge ${shake ? "gc-badge-pop" : ""}`}>{badge}</span> : null}
       </Link>
     );
   };
@@ -347,7 +365,7 @@ export function PreviewSidebar() {
       <div className="hglobalsearch"><GlobalSearch /></div>
       {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
-      {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} />}
+      {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} shake={ringing} />}
       {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}
