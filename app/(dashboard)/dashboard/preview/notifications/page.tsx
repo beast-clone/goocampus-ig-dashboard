@@ -14,13 +14,15 @@ import { NOTIF_REFRESH, patchNotifs, taskHref, type NotifItem } from "@/app/(das
 // Open action items are pinned at the top until the action is actually done;
 // reading one does not unpin it.
 
-type Cat = "all" | "action" | "assigned" | "pool" | "progress" | "dates";
+type Cat = "all" | "action" | "assigned" | "pool" | "progress" | "dates" | "reminder";
 const CATS: { key: Exclude<Cat, "all">; label: string }[] = [
   { key: "action",   label: "Action needed" },
   { key: "assigned", label: "Assigned to you" },
   { key: "pool",     label: "Claims & pool" },
   { key: "progress", label: "Your tasks' progress" },
   { key: "dates",    label: "Dates & schedule" },
+  // Reminders dismissed from My Day's strip land here, so dismissing never loses one.
+  { key: "reminder", label: "Reminders" },
 ];
 const label = (c: string) => CATS.find((x) => x.key === c)?.label || c;
 const isOpenAction = (n: NotifItem) => n.action_needed && !n.done_at;
@@ -105,6 +107,7 @@ function NotificationsList() {
   const open = (n: NotifItem) => run(async () => {
     if (!n.read_at) await patchNotifs({ op: "read", ids: [n.id] });
     if (n.post_id) router.push(taskHref(n.post_id));
+    else if (n.payload?.href) router.push(n.payload.href);
   });
   const unreadHere = cat === "all" ? counts.all.unread : counts[cat]?.unread || 0;
 
@@ -222,7 +225,7 @@ function Row({ n, also = [], busy, onOpen, onRead, onDelete }: { n: NotifItem; a
         <div className="text-[12px] text-[#6B7385] mt-1">{when(n.created_at)}</div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {n.post_id && (
+        {(n.post_id || n.payload?.href) && (
           <button disabled={busy} onClick={() => onOpen(n)} title="Open the task"
             className="h-8 px-2.5 rounded border border-gray-200 text-[13px] text-[#4A5468] inline-flex items-center gap-1 hover:border-[#3A57E8] hover:text-brand disabled:opacity-40">
             <IconExternalLink size={14} stroke={1.8} /> Open

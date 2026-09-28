@@ -1,7 +1,7 @@
 "use client";
 import type { Icon } from "@tabler/icons-react";
 import {
-  IconBell, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
+  IconBell, IconAlarm, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
   IconArrowsExchange, IconPin, IconCircleCheck, IconPalette, IconPackage, IconSend,
   IconUserCheck,
 } from "@tabler/icons-react";
@@ -11,6 +11,7 @@ import {
 // Stored rows still carry the emoji they were created with, so it stays the key.
 const BY_EMOJI: Record<string, Icon> = {
   "📅": IconCalendarEvent,   // a date moved, or work reached the Scheduler
+  "⏰": IconAlarm,           // a My Day reminder the person dismissed (kept here)
   "✓": IconUserCheck,        // someone claimed a video — a person took it
   "🎬": IconMovie,           // a video is up for grabs
   "⏳": IconHourglass,        // waiting in your pipeline

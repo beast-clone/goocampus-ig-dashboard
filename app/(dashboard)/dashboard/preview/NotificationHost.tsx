@@ -23,6 +23,8 @@ export type NotifItem = {
   emoji: string | null; title: string; sub: string | null; post_id: string | null;
   created_at: string; read_at: string | null; dismissed_at: string | null;
   last_popped_at: string | null; done_at: string | null;
+  /** href: where "Open" goes when there is no task (a saved Radar reminder). */
+  payload?: { href?: string } | null;
 };
 
 const POLL_MS = 30_000;          // how often to look for new ones

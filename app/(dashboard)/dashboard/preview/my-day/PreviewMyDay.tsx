@@ -19,7 +19,8 @@ import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
 import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
-import RadarCrumb from "./RadarCrumb";
+import { useRadarMissed, RadarMissedList, dayLabel } from "./RadarCrumb";
+import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationHost";
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
@@ -3208,14 +3209,32 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const openConvo = (id: string) => { setActiveChat(id); markRead(id); };
   openConvoRef.current = openConvo;
   const addReminder = () => { const t = newRem.trim(); if (!t) return; setReminders((r) => [{ text: t, done: false }, ...r]); setNewRem(""); };
-  // Dismiss a smart reminder from the strip: hide it here, but keep it in the 📋
-  // reminders popover (as a record) so it isn't lost — persisted per person.
+  // Dismiss from the Reminders strip: hide it here and file it in Notifications
+  // (the bell's Reminders tab), so dismissing never loses it (Praveen, 28 Sep). It
+  // used to go to the 📋 popover, which lived only in this browser.
+  const hideReminder = (id: string) =>
+    setDismissedNudges((d) => { const nx = d.includes(id) ? d : [...d, id]; try { localStorage.setItem(`hmd-dismissed-${person}`, JSON.stringify(nx)); } catch { /* private mode */ } return nx; });
+  const fileReminder = (body: { sourceId: string; title: string; sub?: string; postId?: string; href?: string }) =>
+    fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) })
+      .then((r) => { if (r.ok) window.dispatchEvent(new Event(NOTIF_REFRESH)); else setToast({ who: "Not saved", color: "#C03221", av: "!", body: "Hidden here, but it couldn't be copied to Notifications." }); })
+      .catch(() => setToast({ who: "Not saved", color: "#C03221", av: "!", body: "Hidden here, but it couldn't be copied to Notifications." }));
   const dismissNudge = (n: { id: string; title: string; text: string }) => {
-    setDismissedNudges((d) => { const nx = d.includes(n.id) ? d : [...d, n.id]; try { localStorage.setItem(`hmd-dismissed-${person}`, JSON.stringify(nx)); } catch { /* private mode */ } return nx; });
-    const text = `${n.title} — ${n.text}`;
-    setReminders((r) => r.some((x) => x.text === text) ? r : [{ text, done: false }, ...r]);
+    hideReminder(n.id);
+    fileReminder({ sourceId: `${n.id}:${todayStr}`, title: n.title, sub: n.text, postId: n.id });
   };
   const visibleNudges = nudges.filter((n) => !dismissedNudges.includes(n.id));
+  // Yesterday's Radar misses — the second kind of row in the same strip.
+  const radarMissed = useRadarMissed();
+  const [radarOpen, setRadarOpen] = useState(false);
+  const radarId = radarMissed ? `radar:${radarMissed.day}` : "";
+  const radarRow = radarMissed && !dismissedNudges.includes(radarId) ? radarMissed : null;
+  const radarLine = radarRow ? `${radarRow.missed.length} time-sensitive Radar item${radarRow.missed.length > 1 ? "s" : ""} went past ${dayLabel(radarRow.day)} with no action` : "";
+  const dismissRadar = () => {
+    if (!radarRow) return;
+    hideReminder(radarId);
+    fileReminder({ sourceId: radarId, title: radarLine, sub: radarRow.missed.slice(0, 3).map((m) => (m.title.length > 80 ? `${m.title.slice(0, 79)}…` : m.title)).join(" · "), href: "/dashboard/preview/radar/report" });
+  };
+  const reminderCount = visibleNudges.length + (radarRow ? 1 : 0);
   // The reminder group starts collapsed — the count is the headline, the list is
   // one click away.
   const [remOpenGroup, setRemOpenGroup] = useState(false);
@@ -3429,11 +3448,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           </button>
         )}
 
-        {/* YESTERDAY'S RADAR — one line, and only when the roll-off actually ran. Self-hides
-            for anyone without Content access (the endpoint refuses them) and on a clean day
-            it says so rather than going quiet. */}
-        <RadarCrumb />
-
         {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}
         {person === "manya" && pipeline === "waiting" && (
           <ManyaReschedule task={URGENT_TASK} editorName="Nandu" movedId={movedId} onMove={setMovedId} onConfirm={manyaConfirmMove} />
@@ -3443,15 +3457,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             Grouped behind one collapsed row: on a busy day this was a wall of red
             above the plan. The summary line carries the count and the first task's
             name, so a collapsed group still says what's waiting.
-            Dismissing one hides it here but keeps it in the 📋 reminders popover. */}
-        {visibleNudges.length > 0 && (
+            Yesterday's Radar misses are a row here too (they used to be a strip of their
+            own right above this one). Dismissing a row files it in Notifications. */}
+        {reminderCount > 0 && (
           <div className="card rem-group" style={{ marginTop: "1rem" }}>
             <button type="button" className="rem-head" aria-expanded={remOpenGroup} onClick={() => setRemOpenGroup((v) => !v)}>
               <span className={`rem-caret ${remOpenGroup ? "on" : ""}`} aria-hidden="true">›</span>
-              <span className="rem-head-lbl">{BELL} {visibleNudges.length} reminder{visibleNudges.length > 1 ? "s" : ""}</span>
+              <span className="rem-head-lbl">{BELL} {reminderCount} reminder{reminderCount > 1 ? "s" : ""}</span>
               {!remOpenGroup && (
                 <span className="rem-head-peek">
-                  {visibleNudges[0].title}{visibleNudges.length > 1 ? ` + ${visibleNudges.length - 1} more` : ""}
+                  {visibleNudges[0]?.title || radarLine}{reminderCount > 1 ? ` + ${reminderCount - 1} more` : ""}
                 </span>
               )}
               <span className="rem-head-act">{remOpenGroup ? "Hide" : "Show"}</span>
@@ -3464,6 +3479,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <button className="btn sm" style={{ flexShrink: 0 }} onClick={() => dismissNudge(n)}>Dismiss</button>
                   </div>
                 ))}
+                {radarRow && (
+                  <>
+                    <div className="rem-row">
+                      <div className="rem-txt"><span className="rcrumb-dot" style={{ display: "inline-block", marginRight: ".45rem", verticalAlign: "middle" }} /><b>{radarRow.missed.length} time-sensitive</b> Radar item{radarRow.missed.length > 1 ? "s" : ""} went past {dayLabel(radarRow.day)} with no action</div>
+                      <div style={{ display: "flex", gap: ".4rem", flexShrink: 0 }}>
+                        <button className="btn sm" onClick={() => setRadarOpen((v) => !v)}>{radarOpen ? "Hide" : "View"}</button>
+                        <button className="btn sm" onClick={dismissRadar}>Dismiss</button>
+                      </div>
+                    </div>
+                    {radarOpen && <RadarMissedList data={radarRow} />}
+                  </>
+                )}
               </div>
             )}
           </div>

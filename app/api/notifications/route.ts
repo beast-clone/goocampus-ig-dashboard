@@ -151,6 +151,47 @@ async function resolveDone(sb: NonNullable<ReturnType<typeof getSupabase>>, pers
   }
 }
 
+// Save a My Day reminder the person dismissed, so it lives on in the Notifications
+// tab instead of vanishing (Praveen, 28 Sep: "if they click on dismiss there then it
+// will go to notifications"). Stored already read and never an action item, so it
+// neither bumps the bell's count nor pops up — it is a record, not news.
+//   POST { sourceId, title, sub?, postId?, href? }
+export async function POST(req: Request) {
+  const __denied = await requireSection("content");
+  if (__denied) return __denied;
+  try {
+    const person = who();
+    if (!person) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    const sb = getSupabase();
+    if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    const b = (await req.json()) as { sourceId?: string; title?: string; sub?: string; postId?: string; href?: string };
+    const sourceId = String(b.sourceId || "").trim().slice(0, 200);
+    const title = String(b.title || "").trim().slice(0, 300);
+    if (!sourceId || !title) return NextResponse.json({ error: "sourceId and title are required" }, { status: 400 });
+    // Only same-site paths — this lands on an Open button.
+    const href = typeof b.href === "string" && b.href.startsWith("/") && !b.href.startsWith("//") ? b.href.slice(0, 500) : null;
+    const now = new Date().toISOString();
+    const { error } = await sb.from("mh_notifications").upsert({
+      recipient_key: person,
+      source_id: `reminder:${sourceId}`,
+      kind: "message",
+      category: "reminder",
+      action_needed: false,
+      emoji: "⏰",
+      title,
+      sub: b.sub ? String(b.sub).slice(0, 500) : null,
+      post_id: b.postId || null,
+      payload: href ? { href } : {},
+      created_at: now,
+      read_at: now,
+    }, { onConflict: "recipient_key,source_id", ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Failed to save the reminder"), { status: 502 });
+  }
+}
+
 export async function PATCH(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;

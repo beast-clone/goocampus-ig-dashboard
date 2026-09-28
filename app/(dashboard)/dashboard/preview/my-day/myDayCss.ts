@@ -279,6 +279,9 @@ export const MY_DAY_CSS = `
 .hmd .rcrumb-when{font-size:12.5px;color:var(--faint)}
 .hmd .rcrumb-chev{color:var(--muted);font-size:12px;transition:transform .15s}
 .hmd .rcrumb.open .rcrumb-chev{transform:rotate(90deg)}
+.hmd .rcrumb-list{padding:0 0 .45rem 1.05rem;border-bottom:1px solid var(--line-2)}
+/* width:0 + flex-basis 0 so a long title truncates instead of widening the whole page */
+.hmd .rcrumb-list .rcrumb-t{flex:1 1 0;width:0}
 .hmd .rcrumb-drop{background:var(--panel);border:1px solid var(--line);border-top:0;
   border-radius:0 0 11px 11px;padding:.1rem 1rem .75rem}
 .hmd .rcrumb-item{display:flex;align-items:baseline;gap:.7rem;padding:.5rem 0;
