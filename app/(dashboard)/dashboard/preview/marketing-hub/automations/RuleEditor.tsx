@@ -4,6 +4,7 @@ import { IconTrash, IconPlus, IconAlertTriangle } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { showToast } from "@/app/(dashboard)/dashboard/preview/Toast";
+import { CONTENT_TYPES } from "@/lib/mh-content-types";
 
 // The rules that name a person, as rows you can change.
 //
@@ -18,7 +19,7 @@ export type Rule = {
   id: string;
   kind: "owner" | "collaborator";
   sbu: string | null;
-  content_kind: "video" | "design" | null;
+  content_kind: string | null;   // "video" | "design" | an exact type | null
   assign_to: string | null;
   priority: number;
   active: boolean;
@@ -34,16 +35,22 @@ const PEOPLE = [
 ];
 const POOL = "__pool__";
 
-type Group = { key: string; sbu: string | null; kind: "video" | "design" | null; owner?: Rule; helper?: Rule };
+type Group = { key: string; sbu: string | null; kind: string | null; owner?: Rule; helper?: Rule };
 
 const keyOf = (sbu: string | null, kind: string | null) => `${sbu ?? ""}|${kind ?? ""}`;
-const KIND_LABEL = { design: "Design work", video: "Video", any: "All work" } as const;
-const label = (g: { sbu: string | null; kind: "video" | "design" | null }) =>
-  `${KIND_LABEL[g.kind ?? "any"]} for ${g.sbu ?? "any brand"}`;
+const KIND_LABEL: Record<string, string> = { design: "Design work", video: "Video" };
+const label = (g: { sbu: string | null; kind: string | null }) =>
+  `${g.kind ? KIND_LABEL[g.kind] ?? g.kind : "All work"} for ${g.sbu ?? "any brand"}`;
 
 const OWNER_OPTIONS = [{ value: "", label: "Not set" }, ...PEOPLE, { value: POOL, label: "Nobody — claim pool" }];
 const HELPER_OPTIONS = [{ value: "", label: "Not set" }, ...PEOPLE];
-const TYPE_OPTIONS = [{ value: "", label: "All work" }, { value: "design", label: "Design work" }, { value: "video", label: "Video" }];
+// The three broad choices first, then every exact type (sql/026).
+const TYPE_OPTIONS = [
+  { value: "", label: "All work" },
+  { value: "design", label: "Design work (any)" },
+  { value: "video", label: "Video (any)" },
+  ...CONTENT_TYPES.map((t) => ({ value: t, label: t })),
+];
 
 function groupRules(rules: Rule[]): Group[] {
   const m = new Map<string, Group>();
@@ -132,7 +139,7 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
   const groups = groupRules(rules);
 
   const add = async () => {
-    const kind = (newKind || null) as Group["kind"];
+    const kind = newKind || null;
     const sbu = newSbu || null;
     if (!newOwner && !newHelper) { setErr("Pick an owner, a collaborator, or both."); return; }
     if (groups.some((g) => g.key === keyOf(sbu, kind))) {
@@ -163,7 +170,7 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
           <div className="text-[12.5px] text-[#8A92A6] mt-0.5 leading-relaxed">
             <b className="font-medium text-[#4A5468]">Owner</b> — who the task is handed to once its content is approved.{" "}
             <b className="font-medium text-[#4A5468]">Collaborator</b> — who is added to the task when it is created.{" "}
-            A rule for a named brand wins over &ldquo;Any brand&rdquo;; &ldquo;Not set&rdquo; means the broader rule applies. Nobody is ever both owner and collaborator.
+            The most exact rule wins: a named brand first, then an exact type like &ldquo;Carousel&rdquo;, then design/video; &ldquo;Not set&rdquo; means the broader rule applies. Nobody is ever both owner and collaborator.
           </div>
         </div>
 
@@ -203,7 +210,7 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
                 <PreviewSelect className="w-[210px]" value={newSbu} onChange={setNewSbu}
                   options={[{ value: "", label: "Any brand" }, ...sbus.map((s) => ({ value: s, label: s }))]} /></label>
               <label><span className={fieldLabel}>Type of work</span>
-                <PreviewSelect className="w-[150px]" value={newKind} onChange={setNewKind} options={TYPE_OPTIONS} /></label>
+                <PreviewSelect className="w-[190px]" value={newKind} onChange={setNewKind} options={TYPE_OPTIONS} /></label>
               <label><span className={fieldLabel}>Owner</span>
                 <PreviewSelect className="w-[178px]" value={newOwner} onChange={setNewOwner} options={OWNER_OPTIONS} /></label>
               <label><span className={fieldLabel}>Collaborator</span>

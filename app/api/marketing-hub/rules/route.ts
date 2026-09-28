@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
+import { CONTENT_TYPES } from "@/lib/mh-content-types";
 
 // Owner and collaborator rules — the ones that name a person.
 //
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 const PEOPLE = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const KINDS = new Set(["owner", "collaborator"]);
-const CONTENT_KINDS = new Set(["video", "design"]);
+// design/video, or one exact type of work (sql/026).
+const CONTENT_KINDS = new Set<string>(["video", "design", ...CONTENT_TYPES]);
 
 export async function GET() {
   const __denied = await requireSection("content");
@@ -81,9 +83,11 @@ export async function POST(req: Request) {
     if (b.assign_to !== null && b.assign_to !== undefined && !PEOPLE.has(String(b.assign_to).toLowerCase())) {
       return NextResponse.json({ error: "That is not someone on the team." }, { status: 400 });
     }
-    const contentKind = b.content_kind ? String(b.content_kind).toLowerCase() : null;
+    // Exact types keep their spelling ("Reel - Cut"); only design/video are folded.
+    const raw = b.content_kind ? String(b.content_kind).trim() : "";
+    const contentKind = !raw ? null : ["video", "design"].includes(raw.toLowerCase()) ? raw.toLowerCase() : raw;
     if (contentKind && !CONTENT_KINDS.has(contentKind)) {
-      return NextResponse.json({ error: "content_kind must be video or design" }, { status: 400 });
+      return NextResponse.json({ error: "That is not a type of work the Hub knows." }, { status: 400 });
     }
 
     const sb = getSupabase();

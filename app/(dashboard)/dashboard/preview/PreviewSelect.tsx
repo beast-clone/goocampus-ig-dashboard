@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IconChevronDown, IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 
 // Themed custom dropdown (no native <select>). Shared by the Scheduler,
@@ -29,6 +29,13 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
   onRemoveOption?: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Open upwards on its own when the menu (max-h-72 = 288px) won't fit below the
+  // button but will above — a picker near the bottom of the screen otherwise opens
+  // off-screen and looks cut off (Automations › Add a rule). scrollIntoView was
+  // tried and scrolled the app shell itself.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [flip, setFlip] = useState(false);
+  const up = dropUp || flip;
   const [adding, setAdding] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const current = options.find((o) => o.value === value);
@@ -47,7 +54,12 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
   const isPlaceholder = !current && !!placeholder;
   return (
     <div className="relative">
-      <button type="button" onClick={() => { if (!disabled) { setOpen((o) => !o); setShowAdd(false); setAdding(""); } }} disabled={disabled}
+      <button ref={btnRef} type="button" onClick={() => {
+          if (disabled) return;
+          const r = btnRef.current?.getBoundingClientRect();
+          if (r) setFlip(window.innerHeight - r.bottom < 300 && r.top > window.innerHeight - r.bottom);
+          setOpen((o) => !o); setShowAdd(false); setAdding("");
+        }} disabled={disabled}
         className={`flex items-center gap-2 h-9 text-[14px] font-medium rounded-lg border border-gray-200 bg-white px-3 text-gray-800 ${
           disabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-300"} ${className || ""}`}>
         <Avatar src={current?.img} />
@@ -60,7 +72,7 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
           {/* Inline boxShadow — .preview-scope strips Tailwind shadow-* to none, so the
               menu would otherwise render flat. Inline styles survive the strip. */}
           <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
-            className={`absolute left-0 ${dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto`}>
+            className={`absolute left-0 ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto`}>
             {options.map((o) => (
               <div key={o.value} className={`group flex items-center rounded-lg ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
                 <button type="button" onClick={() => { onChange(o.value); setOpen(false); }}

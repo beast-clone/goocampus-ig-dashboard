@@ -53,12 +53,13 @@ export async function defaultCollaboratorFor(
         .select("sbu, content_kind, assign_to")
         .eq("kind", "collaborator").eq("active", true);
       const rows = (data || []) as { sbu: string | null; content_kind: string | null; assign_to: string | null }[];
-      // Same order as the owner trigger: brand beats type, both beat the catch-all.
-      // No type yet means only rules that don't care about type can match.
+      // Same order as the owner trigger (sql/026): brand, then exact type, then
+      // design/video, then the catch-all. No type yet → only type-less rules match.
       const kind = type ? (VIDEO_TYPES.has(type) ? "video" : "design") : null;
+      const spec = (ck: string | null) => (!ck ? 0 : ck === "video" || ck === "design" ? 1 : 2);
       const hit = rows
-        .filter((r) => (!r.sbu || r.sbu === sbu) && (!r.content_kind || r.content_kind === kind))
-        .sort((a, b) => Number(!!b.sbu) - Number(!!a.sbu) || Number(!!b.content_kind) - Number(!!a.content_kind))[0];
+        .filter((r) => (!r.sbu || r.sbu === sbu) && (!r.content_kind || r.content_kind === kind || (!!type && r.content_kind === type)))
+        .sort((a, b) => Number(!!b.sbu) - Number(!!a.sbu) || spec(b.content_kind) - spec(a.content_kind))[0];
       if (hit) key = hit.assign_to;
     }
   } catch { /* fall through to the old pair */ }
