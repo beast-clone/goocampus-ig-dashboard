@@ -292,6 +292,9 @@ function MarketingHubShell() {
   return (
     <PreviewDashboardShell
       active="marketing-hub"
+      // Each sub-tab its own intro: all four used to show the Master sheet's.
+      // A key with no TAB_INTRO entry (pipeline, calendar for now) shows none.
+      introTab={tab === "master" ? "marketing-hub" : `marketing-hub-${tab}`}
       title={`Marketing Hub › ${SUBTAB_LABEL[tab]}`}
       subtitle={SUBTAB_SUBTITLE[tab]}
       hideAccountPicker

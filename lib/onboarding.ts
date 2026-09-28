@@ -58,6 +58,14 @@ export const TAB_INTRO: Record<string, Intro> = {
       "Saved views remember your filters — make one for the slice you check daily.",
     ],
   },
+  "marketing-hub-team": {
+    title: "Who has what today",
+    body: "One card per teammate: their day laid out hour by hour, the tasks queued for it, and whether they're overbooked or have room for more.",
+    points: [
+      "Switch between Today and Week at the top.",
+      "A red \"Overbooked\" tag means their tasks don't fit in the day — move one to someone with free time.",
+    ],
+  },
   radar: {
     title: "What's happening in your industry right now",
     body: "News, rising Google searches and what people are saying about GooCampus online — gathered so you can turn any of it into a post.",
