@@ -5,6 +5,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { showToast } from "@/app/(dashboard)/dashboard/preview/Toast";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
+import { useSbus, addBrand } from "@/lib/use-sbus";
 
 // The rules that name a person, as rows you can change.
 //
@@ -58,7 +59,8 @@ function groupRules(rules: Rule[]): Group[] {
     (a.kind ?? "").localeCompare(b.kind ?? ""));
 }
 
-export function RuleEditor({ sbus }: { sbus: string[] }) {
+export function RuleEditor() {
+  const sbus = useSbus();   // live brand list (sql/027)
   const [rules, setRules] = useState<Rule[] | null>(null);
   // From the Team page's roster (via the rules API), so a new teammate appears here
   // on their own. Inactive people come too, only to label rules that still name them.
@@ -214,7 +216,14 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
             <div className="flex items-end gap-3 flex-wrap">
               <label><span className={fieldLabel}>Brand</span>
                 <PreviewSelect className="w-[210px]" value={newSbu} onChange={setNewSbu}
-                  options={[{ value: "", label: "Any brand" }, ...sbus.map((s) => ({ value: s, label: s }))]} /></label>
+                  options={[{ value: "", label: "Any brand" }, ...sbus.map((s) => ({ value: s, label: s }))]}
+                  addOption={{ label: "Add a brand", onAdd: (name) => {
+                    setErr(null);
+                    addBrand(name).then((saved) => {
+                      setNewSbu(saved);
+                      showToast({ who: "Brand added", body: `${saved} is now in every brand list.`, color: "#3A57E8", av: "✓" });
+                    }).catch((e) => setErr((e as Error).message));
+                  } }} /></label>
               <label><span className={fieldLabel}>Type of work</span>
                 <PreviewSelect className="w-[190px]" value={newKind} onChange={setNewKind} options={TYPE_OPTIONS} /></label>
               <label><span className={fieldLabel}>Owner</span>

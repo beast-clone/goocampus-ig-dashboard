@@ -3,6 +3,7 @@ import { userForKey } from "@/lib/claude-connector";
 import { userForAccessToken, issuer } from "@/lib/oauth";
 import { rosterById } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { fetchSbus } from "@/lib/sbus-db";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
 import { createTask, normalizeOwner } from "@/lib/task-create";
 import { listTasks, getTask, searchTasks, updateTask, whatsDue, listRadar } from "@/lib/mcp-tools";
@@ -132,6 +133,18 @@ const TOOLS = [
   },
 ];
 
+/** TOOLS with the brand lists filled from mh_sbus (sql/027), so a brand added in the
+ *  dashboard is offered to Claude without a deploy. SBU_OPTIONS above is only the
+ *  fallback baked into the static copy. */
+async function liveTools() {
+  const sbus = await fetchSbus();
+  return TOOLS.map((t) => {
+    const props = { ...(t.inputSchema.properties as unknown as Record<string, Record<string, unknown>>) };
+    for (const k of ["primary_interest", "brand"]) if (props[k]) props[k] = { ...props[k], enum: sbus };
+    return { ...t, inputSchema: { ...t.inputSchema, properties: props } };
+  });
+}
+
 async function createOne(id: Rpc["id"], userId: string, args: Record<string, unknown>, origin: string) {
   const me = await rosterById(userId);
   if (!me?.isAdmin && me?.permissions.create_tasks !== true) {
@@ -151,7 +164,8 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
   // somebody's workload and neither of them finds out.
   const missing = [!title && "title", !sbu && "primary_interest", !type && "content_type", !owner && "owner"].filter(Boolean);
   if (missing.length) return say(id, `Missing required field(s): ${missing.join(", ")}. Ask the user for them, then call create_task again.`, true);
-  if (!(SBU_OPTIONS as readonly string[]).includes(sbu)) return say(id, `"${sbu}" isn't a primary interest in the dashboard. Valid options: ${SBU_OPTIONS.join(", ")}. Ask the user which one.`, true);
+  const sbus = await fetchSbus();
+  if (!sbus.includes(sbu)) return say(id, `"${sbu}" isn't a primary interest in the dashboard. Valid options: ${sbus.join(", ")}. Ask the user which one.`, true);
   if (!(CONTENT_TYPES as readonly string[]).includes(type)) return say(id, `"${type}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}. Ask the user which one.`, true);
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return say(id, "publishing_date must be YYYY-MM-DD.", true);
   const ownerKey = normalizeOwner(owner);
@@ -204,7 +218,7 @@ export async function handleRpc(msg: Rpc, userId: string, origin: string) {
           "You cannot delete anything, and you cannot move a task to a different brand.",
       });
     case "ping": return ok(msg.id, {});
-    case "tools/list": return ok(msg.id, { tools: TOOLS });
+    case "tools/list": return ok(msg.id, { tools: await liveTools() });
     case "tools/call": {
       const p = msg.params || {};
       try { return await callTool(msg.id, userId, String(p.name || ""), (p.arguments as Record<string, unknown>) || {}, origin); }

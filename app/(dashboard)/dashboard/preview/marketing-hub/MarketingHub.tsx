@@ -10,7 +10,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
-import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
@@ -1418,6 +1418,7 @@ const PAGE_CHANNEL: Record<SbuPage, Exclude<CalChannel, "all">> = { "GooCampus M
 const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const p = pageForSbu(sbu); return p ? PAGE_CHANNEL[p] : null; };
 
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
   const [activeBrand, setActiveBrand] = useState<string>("");
@@ -1581,7 +1582,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                 belongs to, so the pick never lands on an empty calendar. */}
             <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v) ?? "all"); }}
               options={[{ value: "", label: `All SBUs (${channelRows.length})` },
-                ...Array.from(new Set([...allSbus, ...SBU_OPTIONS])).sort((a, b) => a.localeCompare(b))
+                ...Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
                   .map((x) => ({ value: x, label: `${x} (${rows.filter((r) => r.sbu === x).length})` }))]} />
           </div>
           <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>

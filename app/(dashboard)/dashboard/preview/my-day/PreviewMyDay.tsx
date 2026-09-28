@@ -7,7 +7,7 @@ import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-t
 import { MemberHub } from "./MemberHub";
 import type { Capability, Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
-import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
@@ -237,7 +237,6 @@ const isHot = (p: string) => p === "Urgent" || p === "High";
 const CC_TYPES: readonly string[] = [...CONTENT_TYPES];
 const DESIGN_TYPES: readonly string[] = CC_TYPES.filter((t) => !VIDEO_TYPE_SET.has(t));
 const isVideoType = (t: string) => VIDEO_TYPE_SET.has(t);
-const CC_SBUS = SBU_OPTIONS;
 
 // The auto-assignment rule: given a Type, who owns the task? Design/thumbnail work
 // auto-assigns to the single designer (Praveen); video work is NOT auto-assigned to
@@ -1541,6 +1540,7 @@ function EndTodayModal({ tasks, isWriter, today, onEnd, onClose }: { tasks: EodT
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
 export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, viewerId }: { initialPerson?: string; isAdmin?: boolean; viewerId?: string } = {}) {
+  const sbus = useSbus();   // live brand list (sql/027)
   // Profile pictures (Account page) → PHOTOS, so every <Avatar> shows them.
   const [, setPhotosVer] = useState(0);
   useEffect(() => {
@@ -3659,7 +3659,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <label className="created-f">
                   <span className="created-f-lbl">SBU</span>
                   <PreviewSelect className="created-sbu" value={createdSbu} onChange={setCreatedSbu}
-                    options={[{ value: "all", label: "All SBUs" }, ...CC_SBUS.map((s) => ({ value: s, label: s }))]} />
+                    options={[{ value: "all", label: "All SBUs" }, ...sbus.map((s) => ({ value: s, label: s }))]} />
                 </label>
                 {narrowed && (
                   <button type="button" className="btn sm created-clear" onClick={() => { setCreatedType("all"); setCreatedSbu("all"); }}>Clear filters</button>

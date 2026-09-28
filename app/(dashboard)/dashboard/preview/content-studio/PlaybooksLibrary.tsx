@@ -7,7 +7,7 @@ import {
 import { PLAYBOOK_GUIDES } from "@/lib/playbook-guides";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
-import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 
 // The marketing library (Corey Haines' open pack + a Pillar Content skill), run via
@@ -157,6 +157,7 @@ function MarkdownLite({ text }: { text: string }) {
 // a Content-Pending item in the pipeline (reuses /api/marketing-hub/create, the same
 // hand-off the Create tab uses). It never publishes directly.
 function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft; skillName: string; source: string; isNew?: boolean; onTokens?: (n: number) => void }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   const [text, setText] = useState(d.content);
   const [editing, setEditing] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -250,7 +251,7 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
               <select value={sbu} onChange={(e) => setSbu(e.target.value)} title="SBU — which brand this is for"
                 className="text-[12px] text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:border-brand outline-none max-w-[180px]">
                 <option value="">SBU…</option>
-                {SBU_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                {sbus.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
               <button onClick={approve} disabled={sending} className="text-[11.5px] inline-flex items-center gap-1 bg-brand text-white rounded-md px-3 py-1.5 hover:bg-brand-dark disabled:opacity-60">{sending ? "Sending…" : "Confirm"}</button>
               <button onClick={() => setPickOpen(false)} className="text-[11.5px] text-[#8A92A6] hover:text-[#232D42] px-1">Cancel</button>

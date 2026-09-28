@@ -9,7 +9,7 @@ import {
 } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
-import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
 import { TEAM_USERS } from "@/lib/users";
 
@@ -33,6 +33,7 @@ const VERDICT: Record<FactCheck["verdict"], { label: string; cls: string; ring: 
 };
 
 export function StudioCreate({ playbooks }: { playbooks: { slug: string; name: string }[] }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   const sp = useSearchParams();
 
   // The item under the knife. Arrives from a Radar "Write this", or typed here.
@@ -178,7 +179,7 @@ export function StudioCreate({ playbooks }: { playbooks: { slug: string; name: s
             </Field>
             <Field label="Brand">
               <PreviewSelect value={brand} onChange={setBrand}
-                options={SBU_OPTIONS.map((s) => ({ value: s, label: s }))} />
+                options={sbus.map((s) => ({ value: s, label: s }))} />
             </Field>
             <Field label="Angle — from Playbooks">
               <PreviewSelect value={playbook} onChange={setPlaybook}
@@ -321,6 +322,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
   brief: { title: string; url: string | null; source: string | null; format: string; brand: string };
   draft: string; check: FactCheck | null; onClose: () => void;
 }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   const [particulars, setParticulars] = useState(brief.title);
   const [type, setType] = useState(brief.format);
   const [sbu, setSbu] = useState(brief.brand);
@@ -394,7 +396,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
           <PreviewSelect value={type} onChange={setType} options={CONTENT_TYPES.map((t) => ({ value: t, label: t }))} />
         </Row>
         <Row label="Brand">
-          <PreviewSelect value={sbu} onChange={setSbu} options={SBU_OPTIONS.map((s) => ({ value: s, label: s }))} />
+          <PreviewSelect value={sbu} onChange={setSbu} options={sbus.map((s) => ({ value: s, label: s }))} />
         </Row>
         <Row label="Owner">
           <PreviewSelect value={owner} onChange={setOwner}

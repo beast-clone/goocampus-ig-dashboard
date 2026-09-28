@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
 import {
   Avatar, DatePicker, MenuDropdown, PendingAssets, PPL, EMPTY_ASSET,
@@ -126,6 +127,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   onCreate: (draft: NewTaskDraft) => void;
   onDirty?: (dirty: boolean) => void;
 }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("Reel Thumbnail");
   const [sbu, setSbu] = useState<string>(initial?.sbu || CC_SBUS[0]);
@@ -224,7 +226,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
       </div>
       <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
       <div className="nt-row">
-        <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={CC_SBUS.map((s) => ({ value: s, label: s }))} /></div>
+        <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={sbus.map((s) => ({ value: s, label: s }))} /></div>
         <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as NewTaskStatus)} options={NEW_TASK_STATUSES.map((s) => ({ value: s, label: s }))} /></div>
       </div>
 

@@ -4,7 +4,6 @@ import { IconChevronRight, IconLock } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { RULE_GROUPS } from "./rules";
 import { RuleEditor } from "./RuleEditor";
-import { SBU_OPTIONS } from "@/lib/sbus";
 
 // Marketing Hub → Automations.
 //
@@ -44,7 +43,7 @@ export default function AutomationsPage() {
             </p>
           </div>
 
-          <RuleEditor sbus={[...SBU_OPTIONS]} />
+          <RuleEditor />
 
           {/* Reference, folded away. It is here so nothing is hidden, not because
               anyone needs it open. */}

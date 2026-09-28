@@ -11,7 +11,7 @@ import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
 import { CopyrightCheck } from "./CopyrightCheck";
-import { SBU_OPTIONS } from "@/lib/sbus";
+import { useSbus } from "@/lib/use-sbus";
 import type { FacebookBaseline } from "@/lib/scheduler-helpers";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
@@ -175,6 +175,7 @@ function SchedulerTabs() {
 }
 
 function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
+  const sbus = useSbus();   // live brand list (sql/027)
   // Form state
   const [particulars, setParticulars] = useState("");
   const [publishToPage, setPublishToPage] = useState<PublishToPage>("GooCampus Main");
@@ -1531,7 +1532,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                   <div className="mt-1">
                     <PreviewSelect className="w-full justify-between" value={sbu} onChange={setSbu}
                       placeholder="Which brand or programme is this for?"
-                      options={SBU_OPTIONS.map((o) => ({ value: o, label: o }))} />
+                      options={sbus.map((o) => ({ value: o, label: o }))} />
                   </div>
                 </div>
                 <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
@@ -2948,46 +2949,86 @@ function AISuggestBar({
   void brand; // brand is used indirectly by parent's onFetch; keep for future signature changes
 }
 
-
-// Facebook's counterpart to the reach prediction.
-//
-// It states what the last posts got rather than forecasting, because Meta serves no
-// reach or impressions for Page posts on any current API version — there is nothing
-// to forecast from. When the totals are zero it says exactly that: a made-up
-// "expected ~0" on every caption would look broken and tell Nandu nothing.
-function FacebookBaselinePanel({ b }: { b: FacebookBaseline }) {
-  if (!b.available) {
-    return (
-      <div className="mt-3 rounded-xl border border-gray-200 bg-[#FAFBFC] p-3 text-xs text-gray-500">
-        <IconBrandFacebook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />
-        {b.reason || "No Facebook data for this brand."}
-      </div>
-    );
-  }
-  const total = b.likes + b.comments + b.shares;
-  return (
-    <div className="mt-3 rounded-xl border border-[#D6E0F5] bg-[#F5F8FF] p-3 space-y-2">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white text-[#244D82] border border-[#D6E0F5]">Facebook</span>
-        <span className="text-xs uppercase tracking-wide text-[#244D82] font-semibold">Last {b.posts} posts</span>
-        <span className="text-lg font-semibold tabular-nums text-[#244D82]">{total.toLocaleString("en-IN")}</span>
-        <span className="text-xs text-[#244D82]">engagements · {b.likes} likes · {b.comments} comments · {b.shares} shares</span>
-      </div>
-      {total > 0 ? (
-        <div className="text-xs text-[#244D82]/90">
-          That is {b.avgEngagement} per post on average.
-          {b.best && <> Best recent post got {b.best.engagement} — &ldquo;{b.best.message}&rdquo;</>}
-        </div>
-      ) : (
-        <div className="text-xs text-[#8A5B12] bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed">
-          Nothing at all on the last {b.posts} posts — no likes, comments or shares. So there is no
-          Facebook history to predict from yet, and no number here would mean anything.
-          Meta also serves no reach or impressions for Page posts, so that can&rsquo;t fill the gap.
-        </div>
-      )}
-    </div>
-  );
-}
+
+
+// Facebook's counterpart to the reach prediction.
+
+//
+
+// It states what the last posts got rather than forecasting, because Meta serves no
+
+// reach or impressions for Page posts on any current API version — there is nothing
+
+// to forecast from. When the totals are zero it says exactly that: a made-up
+
+// "expected ~0" on every caption would look broken and tell Nandu nothing.
+
+function FacebookBaselinePanel({ b }: { b: FacebookBaseline }) {
+
+  if (!b.available) {
+
+    return (
+
+      <div className="mt-3 rounded-xl border border-gray-200 bg-[#FAFBFC] p-3 text-xs text-gray-500">
+
+        <IconBrandFacebook size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />
+
+        {b.reason || "No Facebook data for this brand."}
+
+      </div>
+
+    );
+
+  }
+
+  const total = b.likes + b.comments + b.shares;
+
+  return (
+
+    <div className="mt-3 rounded-xl border border-[#D6E0F5] bg-[#F5F8FF] p-3 space-y-2">
+
+      <div className="flex items-baseline gap-2 flex-wrap">
+
+        <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white text-[#244D82] border border-[#D6E0F5]">Facebook</span>
+
+        <span className="text-xs uppercase tracking-wide text-[#244D82] font-semibold">Last {b.posts} posts</span>
+
+        <span className="text-lg font-semibold tabular-nums text-[#244D82]">{total.toLocaleString("en-IN")}</span>
+
+        <span className="text-xs text-[#244D82]">engagements · {b.likes} likes · {b.comments} comments · {b.shares} shares</span>
+
+      </div>
+
+      {total > 0 ? (
+
+        <div className="text-xs text-[#244D82]/90">
+
+          That is {b.avgEngagement} per post on average.
+
+          {b.best && <> Best recent post got {b.best.engagement} — &ldquo;{b.best.message}&rdquo;</>}
+
+        </div>
+
+      ) : (
+
+        <div className="text-xs text-[#8A5B12] bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed">
+
+          Nothing at all on the last {b.posts} posts — no likes, comments or shares. So there is no
+
+          Facebook history to predict from yet, and no number here would mean anything.
+
+          Meta also serves no reach or impressions for Page posts, so that can&rsquo;t fill the gap.
+
+        </div>
+
+      )}
+
+    </div>
+
+  );
+
+}
+
 function PredictionPanel({ loading, prediction, onAddHashtag }: {
   loading: boolean;
   prediction: Prediction | null;
