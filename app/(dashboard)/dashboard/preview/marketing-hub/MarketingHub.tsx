@@ -1776,6 +1776,28 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   );
 }
 
+// Content written in Airtable is plain text: blank lines between blocks, no tags.
+// Rendering that as HTML throws the line breaks away and everything runs together,
+// so text is shown as text and only real markup goes through the HTML path.
+// Paragraphs get space between them rather than one wall — "clean, neat and not
+// clumpsy with proper spacing" (Manya, 28 Sept).
+const LOOKS_LIKE_HTML = /<(p|div|br|ul|ol|li|h[1-6]|strong|em|b|i|a|table|span)\b[^>]*>/i;
+function RichText({ value }: { value: string }) {
+  if (LOOKS_LIKE_HTML.test(value)) {
+    return (
+      <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px] [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2"
+        dangerouslySetInnerHTML={{ __html: value }} />
+    );
+  }
+  // A blank line starts a new block; single newlines stay as line breaks inside it.
+  const blocks = value.replace(/\r\n/g, "\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <div className="text-[14px] leading-[22px] text-[#5A6478] space-y-3">
+      {blocks.map((b, i) => <p key={i} className="whitespace-pre-wrap">{b}</p>)}
+    </div>
+  );
+}
+
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
 function statusPill(s: string): { bg: string; text: string } {
   return STATUS_TINT[s] || STATUS_TINT_FALLBACK;
@@ -3813,7 +3835,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
                 {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px]" dangerouslySetInnerHTML={{ __html: content }} />
+                  : content ? <RichText value={content} />
                   : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
                   : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
               </Panel>
