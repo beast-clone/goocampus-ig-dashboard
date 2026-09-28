@@ -4,6 +4,7 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { accountIdForSbu, matchPost, WINDOW_DAYS, shiftDate, type Candidate, type MatchTask } from "@/lib/post-match";
 import { fetchLivePosts, type LinkPlatform } from "@/lib/published-posts";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // GET /api/marketing-hub/link-suggest?id=<mh_posts.id>
 //
@@ -44,6 +45,7 @@ const allNothing = (reason: string) => ({
 });
 
 export async function GET(req: Request) {
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

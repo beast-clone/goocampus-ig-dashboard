@@ -4,8 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
-import { CONTENT_TYPES } from "@/lib/mh-content-types";
 import { fetchRoster } from "@/lib/team-db";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // Owner and collaborator rules — the ones that name a person.
 //
@@ -24,8 +24,10 @@ async function activePeople(): Promise<Set<string>> {
   return new Set((await fetchRoster()).filter((u) => u.active).map((u) => u.id));
 }
 const KINDS = new Set(["owner", "collaborator"]);
-// design/video, or one exact type of work (sql/026).
-const CONTENT_KINDS = new Set<string>(["video", "design", ...CONTENT_TYPES]);
+// design/video, or one exact type of work (sql/026) — built-in or added (sql/028).
+async function contentKinds(): Promise<Set<string>> {
+  return new Set<string>(["video", "design", ...(await fetchContentTypes()).map((t) => t.name)]);
+}
 
 export async function GET() {
   const __denied = await requireSection("content");
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
     // Exact types keep their spelling ("Reel - Cut"); only design/video are folded.
     const raw = b.content_kind ? String(b.content_kind).trim() : "";
     const contentKind = !raw ? null : ["video", "design"].includes(raw.toLowerCase()) ? raw.toLowerCase() : raw;
-    if (contentKind && !CONTENT_KINDS.has(contentKind)) {
+    if (contentKind && !(await contentKinds()).has(contentKind)) {
       return NextResponse.json({ error: "That is not a type of work the Hub knows." }, { status: 400 });
     }
 

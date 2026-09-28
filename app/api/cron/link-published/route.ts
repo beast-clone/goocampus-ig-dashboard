@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { writeBackLink } from "@/lib/mh-linkback";
 import { accountIdForSbu, matchPost, WINDOW_DAYS, shiftDate, type MatchTask } from "@/lib/post-match";
 import { fetchLivePosts, withinDays, type LinkPlatform } from "@/lib/published-posts";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // Nightly: fill in the links for posts that went live today, without anyone asking.
 //   GET /api/cron/link-published   (header: x-cron-secret: <CRON_SECRET>)
@@ -39,6 +40,7 @@ type Row = {
 };
 
 export async function GET(req: Request) {
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const secret = process.env.CRON_SECRET;
   if (!secret) return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   if (req.headers.get("x-cron-secret") !== secret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

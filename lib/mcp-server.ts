@@ -4,9 +4,10 @@ import { userForAccessToken, issuer } from "@/lib/oauth";
 import { rosterById, fetchRoster, activeTeamIds } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { fetchSbus } from "@/lib/sbus-db";
-import { CONTENT_TYPES } from "@/lib/mh-content-types";
+import { CONTENT_TYPES, ALL_TYPES } from "@/lib/mh-content-types";
 import { createTask, normalizeOwner } from "@/lib/task-create";
 import { listTasks, getTask, searchTasks, updateTask, whatsDue, listRadar } from "@/lib/mcp-tools";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // The Claude connector, protocol and all.
 //
@@ -139,11 +140,14 @@ const TOOLS = [
  *  dashboard is offered to Claude without a deploy. SBU_OPTIONS above is only the
  *  fallback baked into the static copy. */
 async function liveTools() {
-  const [sbus, team] = await Promise.all([fetchSbus(), activeTeamIds().then((t) => [...t])]);
+  const [sbus, team, types] = await Promise.all([
+    fetchSbus(), activeTeamIds().then((t) => [...t]), fetchContentTypes().then((t) => t.map((x) => x.name)),
+  ]);
   return TOOLS.map((t) => {
     const props = { ...(t.inputSchema.properties as unknown as Record<string, Record<string, unknown>>) };
     for (const k of ["primary_interest", "brand"]) if (props[k]) props[k] = { ...props[k], enum: sbus };
     if (props.owner) props.owner = { ...props.owner, enum: team };
+    for (const k of ["content_type", "type"]) if (props[k]) props[k] = { ...props[k], enum: types };
     return { ...t, inputSchema: { ...t.inputSchema, properties: props } };
   });
 }
@@ -169,7 +173,7 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
   if (missing.length) return say(id, `Missing required field(s): ${missing.join(", ")}. Ask the user for them, then call create_task again.`, true);
   const sbus = await fetchSbus();
   if (!sbus.includes(sbu)) return say(id, `"${sbu}" isn't a primary interest in the dashboard. Valid options: ${sbus.join(", ")}. Ask the user which one.`, true);
-  if (!(CONTENT_TYPES as readonly string[]).includes(type)) return say(id, `"${type}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}. Ask the user which one.`, true);
+  if (!ALL_TYPES.includes(type)) return say(id, `"${type}" isn't a content type. Valid: ${ALL_TYPES.join(", ")}. Ask the user which one.`, true);
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return say(id, "publishing_date must be YYYY-MM-DD.", true);
   const ownerKey = normalizeOwner(owner);
   if (!ownerKey) return say(id, `"${owner}" isn't someone on the team. Ask the user who should own this — one of: ${[...(await activeTeamIds())].join(", ")}.`, true);
@@ -189,6 +193,7 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
 
 async function callTool(id: Rpc["id"], userId: string, name: string, args: Record<string, unknown>, origin: string) {
   await fetchRoster();   // owner names below resolve against the Team page roster
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   switch (name) {
     case "create_task":  return createOne(id, userId, args, origin);
     case "list_tasks":   return json(id, await listTasks(args, origin));

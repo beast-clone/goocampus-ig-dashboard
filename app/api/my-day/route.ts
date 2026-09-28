@@ -6,6 +6,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 // Row mapping is shared with /api/my-day/created — see lib/my-day-task.
 import { toTask, WORKING, isVideo, type Row, type RefItem, type Creative } from "@/lib/my-day-task";
 import { fetchRoster } from "@/lib/team-db";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // GET /api/my-day
 // Live per-person task data for the My Day cockpit, straight from mh_posts (Beast
@@ -18,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   await fetchRoster();   // fills the shared id → name map (lib/team-names.ts) for anyone new
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

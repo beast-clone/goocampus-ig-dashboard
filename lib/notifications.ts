@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { TEAM_NAMES } from "@/lib/team-names";
 import { activeTeamIds } from "@/lib/team-db";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // Notification GENERATION — who hears about what, derived from the mh_activity
 // event log (and mh_status_log for "your task moved"). Lifted verbatim out of
@@ -42,6 +43,7 @@ export const isActionNeeded = (n: Pick<Notif, "cat">) => n.cat === "action";
 /** Everything `person` should be told about since `since` (ISO). */
 export async function buildNotifs(sb: SupabaseClient, person: string, since: string): Promise<{ notifs: Notif[]; createdNotifs: Notif[] }> {
   const team = await activeTeamIds();   // also fills NAME for anyone new
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const { data: acts, error } = await sb
     .from("mh_activity")
     .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")

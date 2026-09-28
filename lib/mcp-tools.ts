@@ -1,7 +1,7 @@
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { normalizeOwner } from "@/lib/task-create";
-import { CONTENT_TYPES } from "@/lib/mh-content-types";
+import { ALL_TYPES } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { listItems } from "@/lib/content-radar";
 
@@ -145,8 +145,9 @@ export async function updateTask(args: Record<string, unknown>, userId: string, 
   if (s("content") !== undefined) patch.content = s("content");
   if (s("type") !== undefined) {
     const t = s("type")!;
-    if (!(CONTENT_TYPES as readonly string[]).includes(t)) {
-      throw new Error(`"${t}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}`);
+    // ALL_TYPES includes dashboard-added types; the MCP server warms it (fetchContentTypes).
+    if (!ALL_TYPES.includes(t)) {
+      throw new Error(`"${t}" isn't a content type. Valid: ${ALL_TYPES.join(", ")}`);
     }
     patch.type = t;
   }

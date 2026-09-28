@@ -4,6 +4,7 @@ import { pageForSbu } from "@/lib/sbu-pages";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { TEAM_NAMES } from "@/lib/team-names";
 import { fetchRoster } from "@/lib/team-db";
+import { fetchContentTypes } from "@/lib/content-types-db";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
 // (app/api/marketing-hub/create) and the Claude connector (app/api/mcp), so both
@@ -54,6 +55,7 @@ export async function defaultCollaboratorFor(
 ): Promise<string | null> {
   let key: string | null = null;
   try {
+    await fetchContentTypes();   // so VIDEO_TYPES knows dashboard-added types
     const sb = getSupabase();
     if (sb) {
       const { data } = await sb
@@ -84,6 +86,7 @@ export function missingForCreate(t: TaskInput): string[] {
 
 export async function createTask(t: TaskInput, actorId: string | null, source: string): Promise<CreatedTask> {
   await fetchRoster();   // so normalizeOwner knows anyone added on the Team page
+  await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb.from("mh_posts").insert({
