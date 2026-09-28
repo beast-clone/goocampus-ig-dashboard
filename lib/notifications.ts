@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
+import { TEAM_NAMES } from "@/lib/team-names";
+import { activeTeamIds } from "@/lib/team-db";
 
 // Notification GENERATION — who hears about what, derived from the mh_activity
 // event log (and mh_status_log for "your task moved"). Lifted verbatim out of
@@ -10,9 +12,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 // Each notification now also carries its category, whether it needs action, and
 // when the underlying event happened. See docs/NOTIFICATIONS_SPEC.md §2.
 
-const NAME: Record<string, string> = {
-  manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
-};
+const NAME = TEAM_NAMES;   // filled from the Team page roster (lib/team-names.ts)
 const EDITORS = ["nandu", "nikhil"];
 // No actor on the event = an automation did it (link write-backs, schedulers…)
 // → say "System", never a vague "Someone" (same convention as the activity feed).
@@ -41,6 +41,7 @@ export const isActionNeeded = (n: Pick<Notif, "cat">) => n.cat === "action";
 
 /** Everything `person` should be told about since `since` (ISO). */
 export async function buildNotifs(sb: SupabaseClient, person: string, since: string): Promise<{ notifs: Notif[]; createdNotifs: Notif[] }> {
+  const team = await activeTeamIds();   // also fills NAME for anyone new
   const { data: acts, error } = await sb
     .from("mh_activity")
     .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")
@@ -145,7 +146,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
     } else if (e.action === "time_extended") {
       // Everyone else on the team, because a day that just got longer changes what
       // the rest of them can expect from it. The actor is filtered out below.
-      target = ["manya", "praveen", "nikhil", "nandu", "maheen"];
+      target = [...team];
       // Somebody needed longer on a task. Everyone else sees it, because a day that
       // just got longer changes what the rest of the team can expect from it.
       const mins = Number(e.detail?.minutes ?? 0);

@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { toTask, type Row } from "@/lib/my-day-task";
+import { fetchRoster } from "@/lib/team-db";
 
 // GET /api/my-day/created?person=<key>&range=<key>
 //
@@ -66,6 +67,7 @@ function customFrom(url: URL): { amount: number; unit: "hours" | "days" } {
 }
 
 export async function GET(req: Request) {
+  await fetchRoster();   // fills the shared id → name map (lib/team-names.ts) for anyone new
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

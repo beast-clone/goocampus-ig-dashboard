@@ -10,6 +10,7 @@ import { getSupabase } from "@/lib/supabase";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { sendMail, hasEmail } from "@/lib/email";
 import { postSlack } from "@/lib/slack";
+import { fetchRoster } from "@/lib/team-db";
 
 type SB = NonNullable<ReturnType<typeof getSupabase>>;
 
@@ -45,6 +46,7 @@ const fmtDT = (d: string | null | undefined) => (d ? new Date(String(d)).toLocal
 
 // Raise (or replace) the pending request for a post + notify the approver.
 export async function requestDateChange(sb: SB, r: { postId: string; title: string; type?: string; owner?: string; createdAt?: string; from: string | null; to: string | null; reason?: string; requestedBy: string }): Promise<DateChangeRequest> {
+  await fetchRoster();   // fills the shared id → name map (lib/team-names.ts) for anyone new
   // Best-effort "who created it": the earliest actor in the task's activity log.
   let creator: string | undefined;
   try {
@@ -121,6 +123,7 @@ export async function getDateChange(sb: SB, postId: string): Promise<DateChangeR
 // and carry the approver's own note/reason (instructions on approve, why on reject)
 // through team chat, Slack, the bell (mh_activity) and the stored record.
 export async function resolveDateChange(sb: SB, opts: { postId: string; action: "approve" | "reject"; approverKey: string; note?: string }): Promise<{ ok: boolean; error?: string; request?: DateChangeRequest }> {
+  await fetchRoster();   // fills the shared id → name map (lib/team-names.ts) for anyone new
   const req = await getDateChange(sb, opts.postId);
   if (!req || req.status !== "pending") return { ok: false, error: "No pending date-change request for this task." };
 

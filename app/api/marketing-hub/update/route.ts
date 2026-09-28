@@ -7,6 +7,7 @@ import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, APPROVER_KEY } from "@/lib/date-approvals";
+import { fetchRoster } from "@/lib/team-db";
 
 // PATCH /api/marketing-hub/update
 // Updates ONE row in mh_posts (Supabase). Whitelist of fields to prevent
@@ -57,6 +58,7 @@ const OWNER_ALIASES: Record<string, string> = {
 type TimeExtension = { fromMin: number; toMin: number; reason: string; undoOf?: string };
 
 export async function PATCH(req: Request) {
+  await fetchRoster();   // fills the shared id → name map (lib/team-names.ts) for anyone new
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

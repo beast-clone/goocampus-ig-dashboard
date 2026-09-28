@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { requireCapability, requireSection } from "@/lib/api-guard";
+import { activeTeamIds } from "@/lib/team-db";
 
 // Simple CRUD on mh_post_collaborators for the Team pills in the detail panel.
 //   POST   /api/marketing-hub/collaborators  { postId, memberKey }
 //   POST   /api/marketing-hub/collaborators  { postId, memberKeys: [...] }   // bulk
 //   DELETE /api/marketing-hub/collaborators?postId=<uuid>&memberKey=<key>
 
-const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const VALID_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

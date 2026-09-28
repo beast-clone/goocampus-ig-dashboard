@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isLoggedIn, getSessionUserId } from "@/lib/auth";
-import { isValidUserId } from "@/lib/users";
+import { rosterById } from "@/lib/team-db";
 import WhoAmI from "@/components/WhoAmI";
 
 export const metadata: Metadata = {
@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 // page in /public/individual.html so its own styling stays isolated from the
 // main app's Tailwind globals. It reads identity via /api/me and persists
 // per-person data via /api/individual/*.
-export default function IndividualDashboardPage() {
+export default async function IndividualDashboardPage() {
   // Not signed in at all → send to login. Signed in but no identity yet
   // (e.g. a legacy session) → show the quick name-picker (no password re-entry).
   if (!isLoggedIn()) redirect("/login?next=/me");
-  if (!isValidUserId(getSessionUserId())) return <WhoAmI />;
+  if (!(await rosterById(getSessionUserId()))) return <WhoAmI />;
   return (
     <iframe
       src="/individual.html"

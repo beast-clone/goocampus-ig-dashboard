@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { activeTeamIds } from "@/lib/team-db";
 
 // POST /api/marketing-hub/comments  { postId, authorKey, body }
 // Adds one comment to mh_comments. Used by the inline comments thread.
 
-const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const VALID_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as { postId?: string; authorKey?: string; body?: string };
     if (!body.postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     if (!body.authorKey || !VALID_KEYS.has(body.authorKey)) {
-      return NextResponse.json({ error: "authorKey must be one of manya|praveen|nikhil|nandu|maheen" }, { status: 400 });
+      return NextResponse.json({ error: `authorKey must be one of ${[...VALID_KEYS].join("|")}` }, { status: 400 });
     }
     if (!body.body || body.body.trim().length === 0) {
       return NextResponse.json({ error: "body required" }, { status: 400 });

@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
+import { activeTeamIds } from "@/lib/team-db";
 
 // GET  /api/my-day/chat?person=nandu  → the person's conversations (team + DMs)
 // POST /api/my-day/chat {convo, sender, body} → send a message
@@ -12,8 +13,6 @@ import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 // server posts into the team convo — the client renders them as notices.
 export const dynamic = "force-dynamic";
 
-const TEAM_KEYS = ["manya", "praveen", "nikhil", "nandu", "maheen"] as const;
-const isTeamKey = (k: string): boolean => (TEAM_KEYS as readonly string[]).includes(k);
 export type ChatMessage = { id: string; convo: string; sender: string; body: string; kind: "chat" | "system"; at: string };
 
 // (not exported — route.ts may only export handlers)
@@ -22,6 +21,8 @@ function dmConvo(a: string, b: string): string {
 }
 
 export async function GET(req: Request) {
+  const TEAM_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
+  const isTeamKey = (k: string): boolean => TEAM_KEYS.has(k);
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const convos = ["team", ...TEAM_KEYS.filter((k) => k !== person).map((k) => dmConvo(person, k))];
+    const convos = ["team", ...[...TEAM_KEYS].filter((k) => k !== person).map((k) => dmConvo(person, k))];
     const { data, error } = await sb
       .from("mh_messages")
       .select("id, convo, sender_key, body, kind, created_at")
@@ -54,6 +55,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const TEAM_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
+  const isTeamKey = (k: string): boolean => TEAM_KEYS.has(k);
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

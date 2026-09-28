@@ -1,6 +1,6 @@
 import { PreviewMyDay } from "./PreviewMyDay";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { rosterById } from "@/lib/team-db";
 
 // Dashboard reskin — My Day (Version 2 preview). Self-contained: its own Themed
 // shell + the full decluttered My Day layout. Does not touch the shared
@@ -12,10 +12,11 @@ import { getUserById } from "@/lib/users";
 // the owner) keep the switcher to view any teammate's day.
 export const dynamic = "force-dynamic";
 
-export default function PreviewMyDayPage({ searchParams }: { searchParams?: { person?: string } }) {
+export default async function PreviewMyDayPage({ searchParams }: { searchParams?: { person?: string } }) {
   const uid = getSessionUserId();
   const admin = getSessionIsAdmin();
-  const user = getUserById(uid);
+  // The Team page roster, not lib/users.ts — else someone added there opens as Manya.
+  const user = await rosterById(uid);
   // A producer opens their own day (locked). An admin has no producer day of
   // their own, so they land on a default producer view + get the switcher — and
   // may deep-link a specific person via ?person= (e.g. from Team Command's

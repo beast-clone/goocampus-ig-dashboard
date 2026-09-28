@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth";
-import { fetchRoster, rosterById, invalidateRosterCache } from "@/lib/team-db";
+import { fetchRoster, rosterById, invalidateRosterCache, syncHubMember } from "@/lib/team-db";
 import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/passwords";
 import { cleanPermissions, cleanSections } from "@/lib/permissions";
@@ -94,6 +94,10 @@ export async function PATCH(req: Request) {
   const { error } = await sb.from("ind_users").update(updates).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   invalidateRosterCache();
+  // Keep the Marketing Hub's copy in step (name, email, switched on/off).
+  if ("name" in updates || "email" in updates || "active" in updates) {
+    try { await syncHubMember(id); } catch (e) { console.error("[team] hub sync", e); }
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -163,6 +167,10 @@ export async function POST(req: Request) {
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     invalidateRosterCache();
+    // Without this they can sign in but can't be given a task (sql FK → mh_team_members).
+    try { await syncHubMember(id); } catch (e) {
+      return NextResponse.json({ ok: true, warning: `Added, but not yet to the Marketing Hub: ${(e as Error).message}` });
+    }
     return NextResponse.json({ ok: true });
   }
 

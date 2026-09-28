@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
+import { fetchRoster } from "@/lib/team-db";
 
 // Team Attendance (admin-only). Login/logout are written by each person's My Day
 // and stored PERMANENTLY in the mh_attendance table (one row per person per day),
@@ -10,13 +11,21 @@ import { safeError } from "@/lib/errors";
 // and derives "done" from mh_activity and "pending" from mh_posts.
 export const dynamic = "force-dynamic";
 
-const PEOPLE = [
-  { key: "manya", name: "Manya", role: "Content writer" },
-  { key: "praveen", name: "Praveen", role: "Designer" },
-  { key: "nikhil", name: "Nikhil", role: "Video editor" },
-  { key: "nandu", name: "Nandu", role: "Video editor · late shift" },
-  { key: "maheen", name: "Maheen", role: "Admin" },
-];
+// Short role labels for today's team (Nandu's late shift matters on this board).
+// Anyone else comes from the Team page roster with their job title, so a new
+// teammate appears here without a code change.
+const ROLE_LABEL: Record<string, string> = {
+  manya: "Content writer", praveen: "Designer", nikhil: "Video editor",
+  nandu: "Video editor · late shift", maheen: "Admin",
+};
+async function people(): Promise<{ key: string; name: string; role: string }[]> {
+  // Same order as before (writer, designer, editors, admin); newcomers after.
+  const order = Object.keys(ROLE_LABEL);
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  return (await fetchRoster()).filter((u) => u.active)
+    .sort((a, b) => rank(a.id) - rank(b.id))
+    .map((u) => ({ key: u.id, name: u.first || u.name, role: ROLE_LABEL[u.id] ?? u.role }));
+}
 const WORKING_NON_DONE = ["Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress", "Incorporating Feedback", "Output - Ready"];
 const LUNCH_START = 240, LUNCH_END = 300, DAY_MINS = 600;
 
@@ -81,6 +90,7 @@ export async function POST(req: Request) {
 
 // GET — admin board. ?view=day|week|month & date=<anchor YYYY-MM-DD>
 export async function GET(req: Request) {
+  const PEOPLE = await people();
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

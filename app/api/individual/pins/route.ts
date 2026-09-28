@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { fetchRoster, rosterById } from "@/lib/team-db";
 
 // Cross-functional pin board for the individual dashboard. Shared by the team.
 // Middleware already requires a valid session; POST/DELETE are same-origin (CSRF-checked).
@@ -19,11 +19,12 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(60);
   if (error) return NextResponse.json({ configured: false, pins: [], error: error.message });
+  const byId = new Map((await fetchRoster()).map((u) => [u.id, u]));
   const pins = (data ?? []).map((r) => ({
     id: r.id,
     text: r.text,
-    initials: r.author_initials || getUserById(r.author_id)?.initials || "??",
-    author: getUserById(r.author_id)?.name ?? r.author_id,
+    initials: r.author_initials || byId.get(r.author_id)?.initials || "??",
+    author: byId.get(r.author_id)?.name ?? r.author_id,
     createdAt: r.created_at,
   }));
   return NextResponse.json({ configured: true, pins });
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
   const uid = getSessionUserId();
-  const me = getUserById(uid);
+  const me = await rosterById(uid);
   let text = "";
   try {
     const b = await req.json();

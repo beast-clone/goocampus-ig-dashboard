@@ -1,11 +1,11 @@
 import type { getSupabase } from "@/lib/supabase";
+import { TEAM_NAMES } from "@/lib/team-names";
 
 // Post a system message into the My Day team chat (mh_messages, convo 'team').
 // Fire-and-forget: chat is a courtesy mirror of the activity feed — a failure
 // here must never fail the write that triggered it.
-export const MH_NAME: Record<string, string> = {
-  manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
-};
+// Filled from the Team page roster whenever it is read (lib/team-names.ts).
+export const MH_NAME = TEAM_NAMES;
 
 export async function postTeamMessage(
   sb: NonNullable<ReturnType<typeof getSupabase>>,

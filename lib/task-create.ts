@@ -2,6 +2,8 @@ import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { pageForSbu } from "@/lib/sbu-pages";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
+import { TEAM_NAMES } from "@/lib/team-names";
+import { fetchRoster } from "@/lib/team-db";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
 // (app/api/marketing-hub/create) and the Claude connector (app/api/mcp), so both
@@ -25,7 +27,13 @@ const OWNER_ALIASES: Record<string, string> = {
 };
 export function normalizeOwner(v: string | undefined): string | null {
   if (!v) return null;
-  return OWNER_ALIASES[v.toLowerCase().trim()] || null;
+  const k = v.toLowerCase().trim();
+  if (OWNER_ALIASES[k]) return OWNER_ALIASES[k];
+  // Anyone on the Team page, by id or first name — so a new teammate can own work.
+  // TEAM_NAMES is filled by fetchRoster(); callers warm it first.
+  if (TEAM_NAMES[k]) return k;
+  const byFirst = Object.entries(TEAM_NAMES).find(([, first]) => first.toLowerCase() === k);
+  return byFirst ? byFirst[0] : null;
 }
 
 // Who is attached to a new task besides its owner.
@@ -75,6 +83,7 @@ export function missingForCreate(t: TaskInput): string[] {
 }
 
 export async function createTask(t: TaskInput, actorId: string | null, source: string): Promise<CreatedTask> {
+  await fetchRoster();   // so normalizeOwner knows anyone added on the Team page
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb.from("mh_posts").insert({

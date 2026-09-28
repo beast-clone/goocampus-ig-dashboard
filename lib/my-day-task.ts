@@ -1,3 +1,4 @@
+import { TEAM_NAMES } from "@/lib/team-names";
 // Shared My Day row mapping.
 //
 // mh_posts row -> the card shape the My Day client renders. It lives here rather than
@@ -6,9 +7,7 @@
 // not allow a route module to export anything but its handlers and route config.
 // One copy means the two endpoints can never drift into returning different shapes.
 
-const OWNER_NAME: Record<string, string> = {
-  manya: "Manya", praveen: "Praveen", nikhil: "Nikhil", nandu: "Nandu", maheen: "Maheen",
-};
+const OWNER_NAME = TEAM_NAMES;   // filled from the Team page roster (lib/team-names.ts)
 // Mirror of the client PPL map so a collaborator key resolves to the same avatar/colour.
 // `photo` (optional) rides along so the client avatar can show a profile picture
 // when one exists; today it's unset and the client falls back to the initial.
@@ -111,7 +110,9 @@ export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative
         const keys = new Set<string>(collabKeys.map((k) => k.toLowerCase().trim()));
         const c = typeof r.custom?.collaborator === "string" ? (r.custom.collaborator as string).toLowerCase().trim() : "";
         if (c) keys.add(c);
-        return [...keys].filter((k) => PPL_META[k]).map((k) => PPL_META[k]);
+        // Someone not in PPL_META (added on the Team page later) still gets a chip —
+        // named from the roster, initial as avatar, neutral colour — rather than vanishing.
+        return [...keys].map((k) => PPL_META[k] ?? { name: TEAM_NAMES[k] || k, av: (TEAM_NAMES[k] || k).charAt(0).toUpperCase(), color: "#8A92A6" });
       })(),
       // Who will be on camera, when someone registered for that without claiming
       // the task (the editor claims it and owns it; the presenter collaborates).

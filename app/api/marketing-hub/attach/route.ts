@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { activeTeamIds } from "@/lib/team-db";
 
 // POST /api/marketing-hub/attach
 // multipart/form-data:
@@ -12,10 +13,10 @@ import { getSupabase } from "@/lib/supabase";
 // Uploads to the scheduler-media bucket under mh-creatives/<postId>/<uuid>-<filename>,
 // then inserts a row into mh_attachments and returns it.
 
-const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 const MAX_MB = 25;
 
 export async function POST(req: Request) {
+  const VALID_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
     if (typeof postId !== "string" || !postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     if (typeof uploadedBy !== "string" || !VALID_KEYS.has(uploadedBy)) {
-      return NextResponse.json({ error: "uploadedBy must be manya|praveen|nikhil|nandu|maheen" }, { status: 400 });
+      return NextResponse.json({ error: `uploadedBy must be one of ${[...VALID_KEYS].join("|")}` }, { status: 400 });
     }
     if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 });
     if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `file exceeds ${MAX_MB}MB` }, { status: 413 });

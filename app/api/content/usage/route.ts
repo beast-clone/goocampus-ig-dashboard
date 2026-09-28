@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { fetchRoster } from "@/lib/team-db";
 
 // GET /api/content/usage?days=30
 //   Every AI run Content Studio has made — Playbooks and Create — with what was asked,
@@ -31,6 +31,8 @@ const WHERE_LABEL: Record<string, string> = {
 };
 
 export async function GET(req: Request) {
+  // Full names from the Team page roster (was lib/users.ts, which misses newcomers).
+  const fullNames = Object.fromEntries((await fetchRoster()).map((u) => [u.id, u.name])) as Record<string, string>;
   if (!getSessionIsAdmin()) return NextResponse.json({ error: "Admins only" }, { status: 403 });
   try {
     const sb = getSupabase();
@@ -69,7 +71,7 @@ export async function GET(req: Request) {
       completionTokens: r.completion_tokens || 0,
       cost: r.cost_usd,
       seconds: r.duration_ms != null ? Math.round(r.duration_ms / 100) / 10 : null,
-      by: r.actor ? getUserById(r.actor)?.name || r.actor : null,
+      by: r.actor ? (fullNames[r.actor] || r.actor) : null,
       model: r.model,
       ok: r.ok,
       error: r.error,

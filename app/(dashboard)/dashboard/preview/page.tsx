@@ -1,6 +1,6 @@
 import { PreviewOverview } from "./PreviewOverview";
 import { getSessionUserId } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { rosterById } from "@/lib/team-db";
 
 // Dashboard reskin — PROOF PAGE (Overview only).
 // Self-contained: its own themed shell + real @goocampus data. Does not touch
@@ -10,7 +10,7 @@ import { getUserById } from "@/lib/users";
 // Reads the session cookie to greet the signed-in person by name, so force-dynamic.
 export const dynamic = "force-dynamic";
 
-export default function PreviewPage() {
-  const user = getUserById(getSessionUserId());
+export default async function PreviewPage() {
+  const user = await rosterById(getSessionUserId());
   return <PreviewOverview person={user?.name || ""} />;
 }

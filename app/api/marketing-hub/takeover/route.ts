@@ -5,6 +5,7 @@ import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { defaultCollaboratorFor } from "@/lib/task-create";
+import { activeTeamIds } from "@/lib/team-db";
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey, role? }
 // Swaps ownership: the incoming person becomes the owner.
@@ -17,9 +18,9 @@ import { defaultCollaboratorFor } from "@/lib/task-create";
 // the collaborator list. Anyone outside that set is dropped, so the sibling
 // editor on standby releases the task unless they are the presenter.
 
-const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const VALID_KEYS = await activeTeamIds();   // the Team page roster, not a typed list
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

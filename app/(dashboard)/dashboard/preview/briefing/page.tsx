@@ -1,12 +1,12 @@
 import { BriefingClient } from "./BriefingClient";
 import { getSessionUserId } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { rosterById } from "@/lib/team-db";
 
 // My Workspace → Briefing: the competitor-radar morning start page. First thing a
 // member sees when they open My Workspace.
 export const dynamic = "force-dynamic";
 
-export default function BriefingPage() {
-  const user = getUserById(getSessionUserId());
+export default async function BriefingPage() {
+  const user = await rosterById(getSessionUserId());
   return <BriefingClient person={user?.first || ""} />;
 }

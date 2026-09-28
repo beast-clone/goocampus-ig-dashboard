@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin } from "@/lib/auth";
-import { getUserById } from "@/lib/users";
+import { fetchRoster } from "@/lib/team-db";
 
 // GET /api/radar/report?days=14
 //   The accountability report: every day the Radar was closed, what it showed, and what
@@ -22,6 +22,8 @@ type Row = {
 };
 
 export async function GET(req: Request) {
+  // Full names from the Team page roster (was lib/users.ts, which misses newcomers).
+  const fullNames = Object.fromEntries((await fetchRoster()).map((u) => [u.id, u.name])) as Record<string, string>;
   if (!getSessionIsAdmin()) {
     return NextResponse.json({ error: "Admins only" }, { status: 403 });
   }
@@ -69,7 +71,7 @@ export async function GET(req: Request) {
         // Why it was turned down, when somebody said. Optional by design — see sql/025.
         reason: r.reason,
         // A name, not an id — the report is read by a person.
-        by: r.actor_key ? getUserById(r.actor_key)?.name || r.actor_key : null,
+        by: r.actor_key ? (fullNames[r.actor_key] || r.actor_key) : null,
         taskId: r.task_id,
       })),
     }));

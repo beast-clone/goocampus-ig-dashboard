@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { MH_NAME } from "@/lib/mh-chat";
+import { activeTeamIds } from "@/lib/team-db";
 
 // POST /api/my-day/swap-request
 // A packed producer does NOT pick which task to move — they send their whole
@@ -12,9 +13,9 @@ import { MH_NAME } from "@/lib/mh-chat";
 // Body: { pendingId, from, candidates: [{ id, title, dur, due }] }
 export const dynamic = "force-dynamic";
 
-const TEAM = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
 export async function POST(req: Request) {
+  const TEAM = await activeTeamIds();   // the Team page roster, not a typed list
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

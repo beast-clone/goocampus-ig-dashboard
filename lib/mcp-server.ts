@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { userForKey } from "@/lib/claude-connector";
 import { userForAccessToken, issuer } from "@/lib/oauth";
-import { rosterById } from "@/lib/team-db";
+import { rosterById, fetchRoster, activeTeamIds } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { fetchSbus } from "@/lib/sbus-db";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
@@ -29,6 +29,7 @@ const json = (id: Rpc["id"], v: unknown) => say(id, JSON.stringify(v, null, 1));
 
 /** The people a task can be assigned to. One list, because it appears in several
  *  tool schemas and they must not drift apart. */
+// Fallback only: tools/list replaces these enums with the live Team page roster (liveTools).
 const TEAM = ["manya", "praveen", "nikhil", "nandu", "maheen"] as const;
 
 const TOOLS = [
@@ -133,14 +134,16 @@ const TOOLS = [
   },
 ];
 
-/** TOOLS with the brand lists filled from mh_sbus (sql/027), so a brand added in the
+/** TOOLS with the brand lists filled from mh_sbus (sql/027) and owners from the
+ *  Team page roster, so a brand added in the
  *  dashboard is offered to Claude without a deploy. SBU_OPTIONS above is only the
  *  fallback baked into the static copy. */
 async function liveTools() {
-  const sbus = await fetchSbus();
+  const [sbus, team] = await Promise.all([fetchSbus(), activeTeamIds().then((t) => [...t])]);
   return TOOLS.map((t) => {
     const props = { ...(t.inputSchema.properties as unknown as Record<string, Record<string, unknown>>) };
     for (const k of ["primary_interest", "brand"]) if (props[k]) props[k] = { ...props[k], enum: sbus };
+    if (props.owner) props.owner = { ...props.owner, enum: team };
     return { ...t, inputSchema: { ...t.inputSchema, properties: props } };
   });
 }
@@ -169,7 +172,7 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
   if (!(CONTENT_TYPES as readonly string[]).includes(type)) return say(id, `"${type}" isn't a content type. Valid: ${CONTENT_TYPES.join(", ")}. Ask the user which one.`, true);
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return say(id, "publishing_date must be YYYY-MM-DD.", true);
   const ownerKey = normalizeOwner(owner);
-  if (!ownerKey) return say(id, `"${owner}" isn't someone on the team. Ask the user who should own this — one of: ${TEAM.join(", ")}.`, true);
+  if (!ownerKey) return say(id, `"${owner}" isn't someone on the team. Ask the user who should own this — one of: ${[...(await activeTeamIds())].join(", ")}.`, true);
 
   const task = await createTask({
     title, sbu, type,
@@ -185,6 +188,7 @@ async function createOne(id: Rpc["id"], userId: string, args: Record<string, unk
 }
 
 async function callTool(id: Rpc["id"], userId: string, name: string, args: Record<string, unknown>, origin: string) {
+  await fetchRoster();   // owner names below resolve against the Team page roster
   switch (name) {
     case "create_task":  return createOne(id, userId, args, origin);
     case "list_tasks":   return json(id, await listTasks(args, origin));

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
+import { activeTeamIds } from "@/lib/team-db";
 
 // Per-person notepad. Simple CRUD on mh_notes.
 //   GET    /api/marketing-hub/notes?person=manya
@@ -9,12 +10,11 @@ import { getSupabase } from "@/lib/supabase";
 //   PATCH  /api/marketing-hub/notes  { id, body?, done? }
 //   DELETE /api/marketing-hub/notes?id=<uuid>
 
-const VALID_KEYS = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
 
-function normalizePerson(v: string | null | undefined): string | null {
+async function normalizePerson(v: string | null | undefined): Promise<string | null> {
   if (!v) return null;
   const k = v.toLowerCase().trim();
-  return VALID_KEYS.has(k) ? k : null;
+  return (await activeTeamIds()).has(k) ? k : null;
 }
 
 export async function GET(req: Request) {
@@ -23,8 +23,8 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url);
-    const person = normalizePerson(url.searchParams.get("person"));
-    if (!person) return NextResponse.json({ error: "person is required (manya|praveen|nikhil|nandu|maheen)" }, { status: 400 });
+    const person = await normalizePerson(url.searchParams.get("person"));
+    if (!person) return NextResponse.json({ error: "person is required (a team member id)" }, { status: 400 });
 
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as { person?: string; body?: string };
-    const person = normalizePerson(body.person);
+    const person = await normalizePerson(body.person);
     if (!person) return NextResponse.json({ error: "person required" }, { status: 400 });
     if (!body.body || body.body.trim().length === 0) {
       return NextResponse.json({ error: "body is required" }, { status: 400 });
