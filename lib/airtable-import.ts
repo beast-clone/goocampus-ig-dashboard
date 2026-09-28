@@ -111,6 +111,21 @@ export type ImportResult = {
   errors: string[];
 };
 
+/** Equal for the sync's purposes: blank = blank, timestamps by instant, lists by content. */
+function sameValue(a: unknown, b: unknown): boolean {
+  const blank = (x: unknown) => x === null || x === undefined || x === "" || (Array.isArray(x) && x.length === 0);
+  if (blank(a) && blank(b)) return true;
+  if (blank(a) || blank(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) return JSON.stringify([...a].map(String).sort()) === JSON.stringify([...b].map(String).sort());
+  if (typeof a === "string" && typeof b === "string") {
+    if (a.trim() === b.trim()) return true;
+    // "2026-09-28T05:00:00.000Z" vs "2026-09-28T05:00:00+00:00"
+    if (/^\d{4}-\d{2}-\d{2}T/.test(a) && /^\d{4}-\d{2}-\d{2}T/.test(b)) return Date.parse(a) === Date.parse(b);
+    return false;
+  }
+  return a === b;
+}
+
 const str = (v: unknown): string | null => {
   const s = typeof v === "string" ? v.trim() : "";
   return s ? s : null;
@@ -211,15 +226,16 @@ export async function importFromAirtable(opts: {
 
   // One read of everything already here, rather than a query per record.
   const ids = records.map((r) => r.id);
-  const existing = new Map<string, { id: string; publish_status: string | null; custom: Record<string, unknown> | null; created_by: string | null }>();
+  // The whole current row, so newestWins can see what actually differs from Airtable.
+  const existing = new Map<string, { id: string; publish_status: string | null; custom: Record<string, unknown> | null; created_by: string | null; current: Record<string, unknown> }>();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await db
       .from("mh_posts")
-      .select("id, airtable_record_id, publish_status, custom, created_by")
+      .select("*")
       .in("airtable_record_id", ids.slice(i, i + 200));
     if (error) throw new Error(`Reading existing rows failed: ${error.message}`);
     for (const row of data || []) {
-      if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom, created_by: row.created_by });
+      if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom, created_by: row.created_by, current: row as Record<string, unknown> });
     }
   }
 
@@ -324,6 +340,19 @@ export async function importFromAirtable(opts: {
       // Which Airtable version this row now holds, for newestWins next time.
       ...(atModified ? { airtable_modified: atModified } : {}),
     };
+    // Newest-wins also looks before it writes: compare Airtable with the task as it
+    // stands here and send only the fields that really differ. Nothing different →
+    // nothing written, so the hourly run doesn't rewrite a hundred rows (and bump
+    // their updated_at) to say what they already say.
+    if (opts.newestWins && hit) {
+      const changed: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (k === "updated_at" || k === "custom" || k === "airtable_record_id" || k === "media_urls") continue;
+        if (!sameValue(v, hit.current[k])) changed[k] = v;
+      }
+      if (Object.keys(changed).length === 0) { skip("already matches Airtable"); continue; }
+      for (const k of Object.keys(row)) if (!(k in changed) && k !== "custom" && k !== "updated_at") delete row[k];
+    }
     if (opts.dryRun) {
       if (hit && PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) skip("already published here");
       else if (hit) out.updated += 1;
