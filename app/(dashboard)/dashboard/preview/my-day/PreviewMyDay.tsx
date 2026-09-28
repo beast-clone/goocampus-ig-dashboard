@@ -11,6 +11,8 @@ import { SBU_OPTIONS } from "@/lib/sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
+import { playChime } from "../notifChime";
+import { NOTIF_COUNT } from "../NotificationHost";
 import { notifIconFor } from "../NotifIcon";
 import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
@@ -1628,6 +1630,25 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [todayStr, setTodayStr] = useState("");                       // YYYY-MM-DD for due-date sorting
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPinned, setChatPinned] = useState(false);
+  // The bell in this header is the one the team watches all day, so it rings and
+  // swings when the unread count goes up — not on the first reading (arriving with
+  // four unread is not news) and not when it falls (reading something is not an
+  // event). Praveen asked for it here rather than only in the sidebar (28 Sep).
+  const [bellRinging, setBellRinging] = useState(false);
+  const lastUnreadSeen = useRef<number | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const n = (e as CustomEvent<{ unread: number }>).detail?.unread || 0;
+      const was = lastUnreadSeen.current;
+      lastUnreadSeen.current = n;
+      if (was === null || n <= was) return;
+      playChime();
+      setBellRinging(true);
+      setTimeout(() => setBellRinging(false), 900);
+    };
+    window.addEventListener(NOTIF_COUNT, on);
+    return () => window.removeEventListener(NOTIF_COUNT, on);
+  }, []);
   const openChatRef = useRef<(() => void) | null>(null);
   const openConvoRef = useRef<((id: string) => void) | null>(null);
   // Toasts render from the one dashboard-wide host (top centre) rather than a copy
@@ -3194,7 +3215,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               <button className="btn sm endbtn" onClick={() => setShowEod(true)}>{IPOWER} End day</button>
             </span>
             <span className="topdivider" aria-hidden="true" />
-            <button className={`iconbtn ${panel === "notif" ? "on" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
+            <button className={`iconbtn ${panel === "notif" ? "on" : ""} ${bellRinging ? "gc-bell-ring" : ""}`} title="Videos up for grabs" onClick={() => setPanel(panel === "notif" ? null : "notif")}>
               {BELL}{showPool && !poolProminent && <span className="badge">{claimPool.length}</span>}
             </button>
             <button className={`iconbtn ${chatOpen ? "on" : ""}`} title="Team chat" onClick={() => (chatOpen ? closeChat() : openChat())}>
