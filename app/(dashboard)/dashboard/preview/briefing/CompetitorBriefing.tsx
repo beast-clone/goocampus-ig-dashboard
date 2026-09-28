@@ -94,10 +94,19 @@ export function CompetitorBriefing() {
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
-  const [openTrend, setOpenTrend] = useState<string | null>(null);
+  const [openTrend, setOpenTrend] = useState<string | null>(null);
+
+  // Six full-width bands stacked in one column came to 5.2 screens of scrolling,
+  // all shouting equally — "completely cluttered" (Praveen, 28 Sept). Same six
+  // blocks, nothing removed; you now pick one instead of scrolling past all of
+  // them. Opens on Competitors, which is what the page is named after.
+  const [tab, setTab] = useState<BriefTab>("competitors");
 
   return (
-    <div className="preview-scope space-y-6">
+    <div className="preview-scope space-y-6">
+      <TabBar tab={tab} onChange={setTab} />
+
+      {tab === "competitors" && (<>
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Instagram"
         right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · who's growing & posting most · last 30 days`}
@@ -129,6 +138,9 @@ export function CompetitorBriefing() {
       </Section>
 
       {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
+      </>)}
+
+      {tab === "posts" && (<>
       <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={18} />} accent="#6E48F8">
         {isLoading ? <CardSkeleton /> : igLatest.length === 0 ? (
           <Empty>No competitor Instagram posts loaded yet.</Empty>
@@ -151,6 +163,9 @@ export function CompetitorBriefing() {
       </Section>
 
       {/* Top competitor content — same card style as the latest-posts grid */}
+      </>)}
+
+      {tab === "competitors" && (<>
       <Section title="Top competitor content" badge="Instagram" right="most engagement · recent · click to open here" icon={<IconStar size={18} />} accent="#0EA5E9">
         {isLoading ? <CardSkeleton /> : topByReach.length === 0 ? (
           <Empty>No competitor content loaded yet.</Empty>
@@ -163,6 +178,9 @@ export function CompetitorBriefing() {
 
       {/* What students are searching now — Google Trends, enlarged. Seeds come from the
           topics you track in Content Radar → Manage alerts. */}
+      </>)}
+
+      {tab === "trends" && (<>
       <Section title="What students are searching now" badge="Google Trends" right="audience demand · add keywords in Content Radar → Manage alerts" icon={<IconSearch size={18} />} accent="#3A57E8" flat>
         {(trends?.breakouts?.length ?? 0) > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
@@ -188,17 +206,50 @@ export function CompetitorBriefing() {
       </Section>
 
       {/* What people are saying — full width */}
+      </>)}
+
+      {tab === "mentions" && (<>
       <Section title="What people are saying" badge="News & web" right="about your competitors" icon={<IconMessages size={18} />} accent="#079AA2" flat>
         <MentionsSection names={competitors.map((c) => nameOf(c).split("|")[0].trim())} />
       </Section>
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
+      </>)}
+
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
       {openTrend && <TrendModal q={openTrend} onClose={() => setOpenTrend(null)} />}
     </div>
   );
 }
 
+// The four views. Order is how you'd actually work: who they are, what they just
+// posted, what the audience is searching, what is being said about them.
+type BriefTab = "competitors" | "posts" | "trends" | "mentions";
+const BRIEF_TABS: { key: BriefTab; label: string; hint: string }[] = [
+  { key: "competitors", label: "Competitors",   hint: "who is growing, and their best content" },
+  { key: "posts",       label: "Their posts",   hint: "latest on Instagram and YouTube" },
+  { key: "trends",      label: "Search trends", hint: "what students are searching for" },
+  { key: "mentions",    label: "What's said",   hint: "news and web mentions" },
+];
+
+function TabBar({ tab, onChange }: { tab: BriefTab; onChange: (t: BriefTab) => void }) {
+  const active = BRIEF_TABS.find((t) => t.key === tab);
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl px-2 py-2">
+      <div className="flex items-center gap-1 flex-wrap">
+        {BRIEF_TABS.map((t) => (
+          <button key={t.key} onClick={() => onChange(t.key)}
+            className={`h-9 px-3.5 rounded-lg text-[13.5px] font-medium transition ${
+              t.key === tab ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {active && <div className="text-[12px] text-[#8A92A6] px-2 pt-1.5">{active.hint}</div>}
+    </div>
+  );
+}
+
 // ── building blocks ──
 // Prominent, colour-coded section header so each block is instantly distinguishable.
 function Section({ title, badge, right, icon, children, flat, accent = "#3A57E8" }: { title: string; badge?: string; right?: string; icon?: React.ReactNode; children: React.ReactNode; flat?: boolean; accent?: string }) {
