@@ -54,7 +54,6 @@ const GROUPS: Group[] = [
       { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
-      { label: "Automations",      href: `${HUB}/marketing-hub/automations`,  icon: IconRouteAltLeft },
     ] },
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
@@ -138,6 +137,11 @@ const GROUPS: Group[] = [
     { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
+    // Moved out of My Workspace on request (Praveen, 28 Sept). Note this group is
+    // ADMIN-ONLY — canAccessSection() refuses "system" for everyone else — so the
+    // content team can no longer reach Automations from the nav. The rules API is
+    // still guarded as "content", so the page itself works for anyone with the link.
+    { label: "Automations",  href: `${HUB}/marketing-hub/automations`, icon: IconRouteAltLeft },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
     { label: "Team",         href: `${HUB}/team`,         icon: IconUsersGroup },
     { label: "Comments",     href: `${HUB}/comments`,     icon: IconMessageCircle },
