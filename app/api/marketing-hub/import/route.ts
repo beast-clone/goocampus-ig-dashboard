@@ -43,7 +43,8 @@ export async function POST(req: Request) {
       const v = b.filters?.[k];
       if (Array.isArray(v)) filters[k] = v.filter((x): x is string => typeof x === "string");
     }
-    const result = await importFromAirtable({ from, to, dryRun: Boolean(b.dryRun), facetsOnly: Boolean(b.facetsOnly), filters });
+    // Newest change wins, like the hourly sync — the button used to overwrite the team's edits.
+    const result = await importFromAirtable({ from, to, dryRun: Boolean(b.dryRun), facetsOnly: Boolean(b.facetsOnly), filters, newestWins: true });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     // Per-record failures are caught inside the loop, so an error reaching here came

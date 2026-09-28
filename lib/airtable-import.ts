@@ -69,6 +69,8 @@ type CalendarFields = {
   "Collaborators"?: { id?: string; email?: string; name?: string }[];
   "Created by"?: { id?: string; email?: string; name?: string };
   "Attachments"?: { url?: string; type?: string }[];
+  /** Airtable's own lastModifiedTime field (watches every field). */
+  "Last Modified"?: string;
 };
 
 // Optional narrowing on top of the date range, the way the team filters Airtable:
@@ -155,6 +157,23 @@ export async function importFromAirtable(opts: {
    * within the hour with nobody knowing why.
    */
   newOnly?: boolean;
+  /**
+   * Update an existing row only when Airtable holds the NEWER change — the hourly
+   * sync and the Sync button both run this way (28 Sep).
+   *
+   * Before, the hourly sync only added tasks (so a task published in Airtable never
+   * showed as published here), and the button copied Airtable over everything (so
+   * pressing it undid the team's own edits: Nandu published a reel here, the button
+   * was pressed 11 seconds later, and it went back to Content - Approved because
+   * Airtable still said so).
+   *
+   * Airtable's side is its "Last Modified" field. The dashboard's side is the last
+   * time a PERSON changed the task here (mh_activity with an actor) — not
+   * updated_at, which the importer and background jobs stamp too. A row is
+   * rewritten only if Airtable changed since the last sync applied it AND after that
+   * last human edit here.
+   */
+  newestWins?: boolean;
 }): Promise<ImportResult> {
   const db = getSupabase();
   if (!db) throw new Error("Supabase not configured");
@@ -201,6 +220,26 @@ export async function importFromAirtable(opts: {
     if (error) throw new Error(`Reading existing rows failed: ${error.message}`);
     for (const row of data || []) {
       if (row.airtable_record_id) existing.set(row.airtable_record_id, { id: row.id, publish_status: row.publish_status, custom: row.custom, created_by: row.created_by });
+    }
+  }
+
+  // Newest-wins needs the last time a person edited each existing task here.
+  const lastHumanEdit = new Map<string, number>();
+  if (opts.newestWins && existing.size) {
+    const postIds = [...existing.values()].map((e) => e.id);
+    for (let i = 0; i < postIds.length; i += 150) {
+      const { data, error } = await db
+        .from("mh_activity")
+        .select("post_id, created_at")
+        .in("post_id", postIds.slice(i, i + 150))
+        .not("actor_key", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) throw new Error(`Reading task history failed: ${error.message}`);
+      for (const a of (data || []) as { post_id: string; created_at: string }[]) {
+        const t = Date.parse(a.created_at);
+        if (!lastHumanEdit.has(a.post_id) || t > lastHumanEdit.get(a.post_id)!) lastHumanEdit.set(a.post_id, t);
+      }
     }
   }
 
@@ -263,6 +302,15 @@ export async function importFromAirtable(opts: {
 
     const hit = existing.get(rec.id);
     if (opts.newOnly && hit) { skip("already in the dashboard"); continue; }
+    const atModified = str(f["Last Modified"]);
+    if (opts.newestWins && hit) {
+      const atMs = atModified ? Date.parse(atModified) : NaN;
+      const lastApplied = typeof hit.custom?.airtable_modified === "string" ? Date.parse(hit.custom.airtable_modified as string) : NaN;
+      const human = lastHumanEdit.get(hit.id);
+      if (!Number.isFinite(atMs)) { skip("Airtable has no change time"); continue; }
+      if (Number.isFinite(lastApplied) && atMs <= lastApplied) { skip("unchanged in Airtable since the last sync"); continue; }
+      if (human !== undefined && atMs <= human) { skip("changed more recently in the dashboard"); continue; }
+    }
     // Creator = Airtable's "Created by", set once: on insert, or to fill a row that has
     // none. Never overwrites a creator the dashboard already recorded.
     const creatorName = str(f["Created by"]?.name);
@@ -273,6 +321,8 @@ export async function importFromAirtable(opts: {
     row.custom = {
       ...((hit?.custom as Record<string, unknown>) || {}),
       ...(rawStatus && rawStatus !== mapped ? { airtable_status: rawStatus } : {}),
+      // Which Airtable version this row now holds, for newestWins next time.
+      ...(atModified ? { airtable_modified: atModified } : {}),
     };
     if (opts.dryRun) {
       if (hit && PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) skip("already published here");

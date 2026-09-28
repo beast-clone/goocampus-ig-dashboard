@@ -2,20 +2,18 @@ import { NextResponse } from "next/server";
 import { importFromAirtable, isNetworkError } from "@/lib/airtable-import";
 import { safeError } from "@/lib/errors";
 
-// Hourly pull of new tasks from Airtable's Content Calendar into the master sheet.
+// Hourly sync from Airtable's Content Calendar into the master sheet.
 //
 //   GET /api/cron/import-airtable
 //   Header: x-cron-secret: <CRON_SECRET>
 //
 // Fired by netlify/functions/import-airtable-cron.mts. The Sync button in the
-// Marketing Hub is unchanged and still does a full two-way-ish import; this is the
-// unattended version of the same code.
+// Marketing Hub runs the same newest-wins import; this is the unattended version.
 //
-// It runs in newOnly mode, so it only ADDS tasks that aren't here yet. A full import
-// copies every Airtable field over the dashboard's row — fine when somebody presses
-// the button and watches the result, but on a timer it would silently revert the
-// team's own edits (change a status here, get Airtable's old one back within the
-// hour). Adding is safe to repeat; overwriting is not.
+// It adds new tasks and updates existing ones only where Airtable holds the newer
+// change (newestWins — see lib/airtable-import.ts). It used to only add (newOnly),
+// so a task published in Airtable never updated here; a plain overwrite would undo
+// the team's own edits. Newest-wins does neither.
 //
 // No date range: the Airtable view (IMPORT_VIEW, "Task Dashboard") already decides
 // what is in scope, and it is small. Records that were deleted in the dashboard stay
@@ -32,12 +30,12 @@ export async function GET(req: Request) {
 
   const startedAt = Date.now();
   try {
-    const result = await importFromAirtable({ newOnly: true });
+    const result = await importFromAirtable({ newestWins: true });
     const ms = Date.now() - startedAt;
     // One line per run in the Netlify function log — enough to answer "did it run,
     // did it add anything, and is it getting slower" without any extra tables.
-    console.log(`[cron/import-airtable] ${result.created} added, ${result.scanned} in view, ${ms}ms`);
-    return NextResponse.json({ ok: true, ms, added: result.created, inView: result.scanned, skipped: result.skipped, errors: result.errors });
+    console.log(`[cron/import-airtable] ${result.created} added, ${result.updated} updated, ${result.scanned} in view, ${ms}ms`);
+    return NextResponse.json({ ok: true, ms, added: result.created, updated: result.updated, inView: result.scanned, skipped: result.skipped, errors: result.errors });
   } catch (err) {
     console.error("[cron/import-airtable] failed", err);
     if (isNetworkError(err)) return NextResponse.json({ error: "Lost connection to Airtable or Supabase" }, { status: 502 });
