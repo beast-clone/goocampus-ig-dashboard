@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useApi } from "@/lib/use-api";
 import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
   IconFlame, IconTrendingUp, IconMessages, IconStar, IconSearch, IconFileText, IconSparkles,
+  IconArrowRight,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 
@@ -109,18 +111,21 @@ export function CompetitorBriefing() {
       {tab === "competitors" && (<>
       {/* Competitor scoreboard */}
       <Section title="Competitor scoreboard" badge="Instagram"
-        right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · who's growing & posting most · last 30 days`}
+        right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · click one for the full profile · last 30 days`}
         icon={<IconFlame size={18} />} accent="#3A57E8">
         {isLoading ? <RowSkeleton /> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {competitors.map((c) => (
-              <div key={c.username} className="bg-white border border-gray-100 rounded-xl p-4">
+              <Link key={c.username} href={`/dashboard/preview/benchmark?profile=${encodeURIComponent(c.username)}`}
+                title={`Open ${nameOf(c)} — Instagram, YouTube, what people say, and the read`}
+                className="group block bg-white border border-gray-100 rounded-xl p-4 transition hover:border-brand">
                 <div className="flex items-center gap-2 mb-3">
                   <Avatar url={c.profile_picture_url} name={nameOf(c)} size={34} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="text-[13px] font-medium text-[#232D42] truncate">{nameOf(c)}</div>
-                    <a href={`https://instagram.com/${c.username}`} target="_blank" rel="noreferrer" className="text-[11px] text-brand hover:underline">@{c.username}</a>
+                    <div className="text-[11px] text-[#8A92A6] truncate">@{c.username}</div>
                   </div>
+                  <IconArrowRight size={16} stroke={1.8} className="flex-shrink-0 text-gray-300 group-hover:text-brand transition" />
                 </div>
                 <div className="grid grid-cols-2 gap-x-4">
                   <Metric label="Followers" value={nfmt(c.followers_count)} />
@@ -131,7 +136,7 @@ export function CompetitorBriefing() {
                   <Metric label="Avg comments" value={nfmt(c.avgCommentsRecent)} />
                   <Metric label="Eng. rate" value={`${c.engagementRatePct.toFixed(1)}%`} />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

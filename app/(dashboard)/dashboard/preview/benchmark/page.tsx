@@ -227,6 +227,14 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     if (tracked.length) setNiche("__tracked__");
     else if (data?.niche) setNiche(data.niche);
   }, [trackedReady, tracked.length, data?.niche, niche]);
+  // Arriving from the Briefing scoreboard: ?profile=<handle> opens that brand.
+  // Read straight off the URL once, rather than useSearchParams, which would put
+  // a Suspense boundary around the whole page for the sake of one string. The
+  // tab strip owns the profile from then on.
+  useEffect(() => {
+    const h = new URLSearchParams(window.location.search).get("profile");
+    if (h) setProfile(h.replace(/^@/, ""));
+  }, []);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
   void mutate;
 
