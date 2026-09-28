@@ -12,8 +12,24 @@
 -- which is what they reported (25 Sep). Nothing was lost — but nothing said so
 -- either.
 --
--- RUN THIS IN THE SUPABASE SQL EDITOR. The MCP connection is read-only, and
--- PostgREST cannot do DDL.
+-- APPLIED to production on 28 Sep 2026, in the Supabase SQL editor (the MCP
+-- connection is read-only and PostgREST cannot do DDL). What actually happened:
+--
+--   · the three ALTERs ran clean — the enum is eleven values now
+--   · Rejected/Not Published: 5 rows restored. "Incorporating Feedback" went to
+--     zero, because all five of its rows were really rejections
+--   · Content - Needs Approval: 0 rows moved. Those eight had ALREADY been
+--     approved in Airtable since the import first remapped them, so they were
+--     sitting on "Content - Approved" — not on the substitute the guard looks
+--     for. The guard did its job: a row somebody has moved on is left alone.
+--     custom.airtable_status is a note of what the status was at import time,
+--     not a claim about what it is now.
+--   · a fresh import afterwards reported 0 new / 100 updated and rewrote
+--     nothing — the statuses now land as themselves.
+--
+-- Needs Approval and Failed read 0 in the Master sheet today only because no task
+-- in the synced "Task Dashboard" view currently has either status. The moment one
+-- does, it stores as itself instead of being squashed.
 --
 -- Run the three ALTERs FIRST, on their own, and only then the UPDATE block.
 -- Postgres will not let a transaction use an enum value it added itself, so the
