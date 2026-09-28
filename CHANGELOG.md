@@ -3,6 +3,70 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-09-28 — Competitor profiles + AI read, Briefing stops duplicating Content Radar
+
+Branch `feat/dashboard-reskin`, 16 commits, `6edf8f5`..`31b27ba`. **Not deployed** — all of it
+checked on localhost in Windows Chrome. Full write-up: `docs/CHANGELOG_2026-09-28.md`.
+
+### Competitors — a profile per brand, in three phases
+
+- **The profile and the tab strip** (`b35391c`). One tab per competitor carrying their real
+  profile picture and name, so the strip still works as you add more. Click through to that
+  brand alone: bio, the full Instagram numbers against the median, recent posts, and **YouTube**
+  — subs, views, uploads — from a new `/api/benchmark/youtube-channel`. Facebook is deliberately
+  absent: it needs Page Public Content Access from Meta App Review, and an empty panel is worse
+  than no panel.
+- **What the web says** (`579cc8c`). `/api/benchmark/profile-intel` groups mentions by where they
+  are — Reddit, Quora, MouthShut, ValueMD, YouTube, Web — with sentiment, plus their Google Maps
+  rating. Built around the 200-call Serper budget: **one** search per competitor grouped by host
+  afterwards rather than four `site:` queries, cached 24h, only for the profile on screen, and
+  forum search behind a button because it costs a second call.
+- **The read, and Compare** (`6149500`). A button that asks Perplexity what to *do* about a
+  competitor — captions included, so it can talk about content rather than restate figures the
+  reader can already see. Cached 24h on rounded numbers. **Compare** puts us in the same table as
+  everyone tracked, leader of each column in bold, us listed once even when we track our own handle.
+
+Two bugs worth remembering. Clipping a caption to 110 chars **split an emoji**, and the leftover
+surrogate makes the JSON body invalid UTF-8 — Perplexity answers `400 invalid request body`. And
+the model replies in light markdown, which the panel was printing as literal `##`.
+
+### Briefing — it was a worse Content Radar
+
+Two of its four tabs called the same endpoints Content Radar calls (`/api/radar/trends`,
+`/api/radar/search`) with fewer sources. Asked to declutter the page, I had put things behind tabs
+instead of asking whether they belonged on it. Both are gone (`31b27ba`) — **two tabs, 738 lines to
+376** — and Content Radar keeps them.
+
+- The scoreboard follows **the competitors you actually track** (`c92803c`, `fdbbe46`), without
+  waiting on `sql/029`: the page runs in the browser and they were already in the browser.
+- Its cards **open the full profile** (`1bf84e4`) instead of being a dead end.
+- The page says "about them, not us" and was showing **ten of our own posts** — our handle is
+  filtered out here now.
+- `PostModal` was mounted inside the `mentions` branch, so **clicking a post card on any other tab
+  did nothing**.
+
+### Navigation
+
+- **Content calendar** is its own tab (`6c9756d`); **Automations** moved under System (`f2620a6`).
+  ⚠️ System is admin-only, so the producers lost Automations from their sidebar — confirm that is
+  intended.
+
+### Comment queue
+
+- Growing comment brief field, readable dark panel, competitors that survive a reload (`6edf8f5`).
+- **Content Radar's interest filter was unreachable** (`30ce209`) — the chips were computed and
+  never rendered.
+- Collaborators can be added and removed on the Master sheet (`f905c89`); task content keeps its
+  line breaks (`0e068c1`); Content Studio asks for a status before the task hits the board (`5a5b0a9`).
+
+### Repaired
+
+An earlier Briefing commit of mine wrote that file with **CRLF in the blob and 52 lines ending
+`\r\r\n`** — stray `^M` on the Mac. Restored to LF, which is most of the diff on `31b27ba`;
+`git diff -w` shows the real change (392 out, 25 in). The repo is `autocrlf=true`, so an edit
+script must convert line endings exactly once.
+
+---
 ## 2026-09-27 — Claude connector + OAuth, Content Studio rebuild, Content Radar report loop
 
 Long day. Three production deploys (Netlify CLI — git auto-deploy is still broken). Roughly in order:
