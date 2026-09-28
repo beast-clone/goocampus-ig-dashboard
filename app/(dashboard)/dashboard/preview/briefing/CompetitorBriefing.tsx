@@ -43,9 +43,17 @@ const nameOf = (c: Competitor) => c.name || c.username;
 const eng = (m: Media) => (m.like_count || 0) + (m.comments_count || 0);
 
 export function CompetitorBriefing() {
-  // Competitors come from competitors.json (the default niche) — edit that file to
-  // add/remove competitors and the whole briefing updates.
-  const { data, isLoading } = useApi<BenchmarkData>(`/api/benchmark?accountId=goocampus`);
+  // "Track competitors should show here" (Nandu, 28 Sept). The ones people actually
+  // add on the Competitors tab now drive this board; competitors.json is the fallback
+  // for when nobody has tracked anything yet. Reading them here only works because
+  // they are rows now rather than browser storage (sql/029).
+  const { data: trackedResp } = useApi<{ available: boolean; items: { handle: string }[] }>(
+    `/api/benchmark/tracked?accountId=goocampus`);
+  const trackedHandles = (trackedResp?.items || []).map((t) => t.handle).filter(Boolean);
+  const { data, isLoading } = useApi<BenchmarkData>(
+    trackedHandles.length
+      ? `/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(trackedHandles.join(","))}`
+      : `/api/benchmark?accountId=goocampus`);
   const competitors = useMemo(() => (data?.competitors || []).filter(isComp), [data]);
 
   // Every competitor post, tagged with its author.
@@ -76,7 +84,9 @@ export function CompetitorBriefing() {
   return (
     <div className="preview-scope space-y-6">
       {/* Competitor scoreboard */}
-      <Section title="Competitor scoreboard" badge="Instagram" right="who's growing & posting most · last 30 days" icon={<IconFlame size={18} />} accent="#3A57E8">
+      <Section title="Competitor scoreboard" badge="Instagram"
+        right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · who's growing & posting most · last 30 days`}
+        icon={<IconFlame size={18} />} accent="#3A57E8">
         {isLoading ? <RowSkeleton /> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {competitors.map((c) => (
