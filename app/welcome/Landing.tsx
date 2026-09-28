@@ -226,19 +226,19 @@ const CSS = `
 
 .gcl-eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
 .gcl-hero{text-align:center;padding:clamp(56px,9vw,110px) 16px 0;max-width:1100px;margin:0 auto}
-.gcl-hero h1{font-size:clamp(40px,7vw,84px);line-height:1.02;letter-spacing:-.035em;font-weight:700;margin:0}
+.gcl-hero h1{font-size:clamp(40px,7vw,84px);line-height:1.02;letter-spacing:-.035em;font-weight:600;margin:0}
 .gcl-hero h1 em{font-style:normal;color:var(--brand)}
 .gcl-lede{max-width:560px;margin:22px auto 0;font-size:clamp(16px,1.6vw,19px);line-height:1.55;color:var(--soft)}
 .gcl-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
 
 .gcl-fan{position:relative;height:360px;margin-top:56px}
 .gcl-card{position:absolute;left:50%;top:0;width:230px;margin-left:-115px;border-radius:18px;background:#fff;border:1px solid var(--line);
-  box-shadow:0 24px 48px rgba(35,45,66,.14);padding:12px;
+  padding:12px;
   transform:translate(var(--x),var(--y)) rotate(var(--tilt));animation:gclDeal .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d)}
 .gcl-card:nth-child(2){z-index:2}
 .gcl-card-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:10px}
 .gcl-card-art{height:200px;border-radius:12px;display:flex;align-items:flex-end;padding:14px}
-.gcl-card-title{color:#fff;font-weight:700;font-size:17px;line-height:1.2;text-align:left}
+.gcl-card-title{color:#fff;font-weight:600;font-size:17px;line-height:1.2;text-align:left}
 .gcl-card-foot{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--soft)}
 .gcl-dot{width:8px;height:8px;border-radius:50%}
 @keyframes gclDeal{from{opacity:0;transform:translate(0,40px) rotate(0)}to{opacity:1;transform:translate(var(--x),var(--y)) rotate(var(--tilt))}}
@@ -246,14 +246,14 @@ const CSS = `
 
 .gcl-band{margin:-40px 0 10px;height:170px;position:relative;z-index:3}
 .gcl-band svg{width:100%;height:100%;overflow:visible}
-.gcl-band-text{fill:#fff;font-size:22px;font-weight:700;letter-spacing:.01em}
+.gcl-band-text{fill:#fff;font-size:22px;font-weight:600;letter-spacing:.01em}
 
 .gcl-sec{max-width:1160px;margin:0 auto;padding:clamp(64px,8vw,110px) 16px 0}
 .gcl-sec-head{max-width:640px}
-.gcl-sec h2{font-size:clamp(30px,4.2vw,50px);line-height:1.08;letter-spacing:-.03em;margin:0;font-weight:700}
+.gcl-sec h2{font-size:clamp(30px,4.2vw,50px);line-height:1.08;letter-spacing:-.03em;margin:0;font-weight:600}
 .gcl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:40px}
-.gcl-feat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;transition:transform .2s,box-shadow .2s}
-.gcl-feat:hover{transform:translateY(-3px);box-shadow:0 18px 36px rgba(35,45,66,.08)}
+.gcl-feat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;transition:transform .2s,border-color .2s}
+.gcl-feat:hover{transform:translateY(-3px);border-color:#C7D0F5}
 .gcl-feat-ic{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#EEF1FE;color:var(--brand)}
 .gcl-feat h3{font-size:18px;margin:16px 0 6px;letter-spacing:-.01em;font-weight:600}
 .gcl-feat p{margin:0;font-size:14.5px;line-height:1.55;color:var(--soft)}
@@ -268,7 +268,7 @@ const CSS = `
 
 .gcl-steps{list-style:none;padding:0;margin:40px 0 0;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .gcl-steps li{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px}
-.gcl-step-n{font-size:13px;font-weight:700;color:var(--accent)}
+.gcl-step-n{font-size:13px;font-weight:600;color:var(--accent)}
 .gcl-steps h3{font-size:20px;margin:22px 0 8px;font-weight:600}
 .gcl-steps p{margin:0;font-size:14.5px;line-height:1.55;color:var(--soft)}
 @media(max-width:900px){.gcl-steps{grid-template-columns:repeat(2,1fr)}}
@@ -287,7 +287,7 @@ const CSS = `
 
 .gcl-end{max-width:1160px;margin:clamp(72px,9vw,120px) auto 0;border-radius:28px;padding:clamp(48px,7vw,90px) 24px;text-align:center;
   background:radial-gradient(120% 140% at 0% 0%,#6B7CF2 0%,var(--brand) 45%,var(--brand-dark) 100%);color:#fff}
-.gcl-end h2{font-size:clamp(30px,4.4vw,54px);letter-spacing:-.03em;line-height:1.08;margin:0 auto;max-width:760px;font-weight:700}
+.gcl-end h2{font-size:clamp(30px,4.4vw,54px);letter-spacing:-.03em;line-height:1.08;margin:0 auto;max-width:760px;font-weight:600}
 .gcl-end p{color:rgba(255,255,255,.85);margin:16px 0 0;font-size:16px}
 @media(max-width:1190px){.gcl-end{margin-left:16px;margin-right:16px}}
 
