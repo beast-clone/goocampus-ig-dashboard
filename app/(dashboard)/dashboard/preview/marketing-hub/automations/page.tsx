@@ -25,17 +25,24 @@ export default function AutomationsPage() {
   return (
     <PreviewDashboardShell
       active="marketing-hub"
-      title="Marketing Hub › Automations"
-      subtitle="Who a task goes to, and who gets attached to it — without anyone having to remember."
+      introTab="marketing-hub-automations"
+      title="Automations"
+      subtitle="Marketing Hub settings — who each new task is given to, and who is added as collaborator."
       hideAccountPicker
       hideRange
     >
       {() => (
         <div className="preview-scope flex flex-col gap-4">
-          <p className="text-[13px] text-[#4A5468] leading-relaxed max-w-3xl">
-            These happen on their own. Change a name here and it applies to the next task —
-            nothing to deploy, nothing to ask anyone for.
-          </p>
+          <div className="text-[13px] text-[#4A5468] leading-relaxed max-w-3xl space-y-1">
+            <p>
+              When a task is created or approved in the Marketing Hub (Master sheet, Pipeline,
+              Content calendar), the Hub fills in its owner and collaborator using the rules below.
+            </p>
+            <p>
+              Change a name or switch a rule off and it takes effect straight away, for the next
+              task that is created or moves to approved. Nothing needs deploying.
+            </p>
+          </div>
 
           <RuleEditor sbus={[...SBU_OPTIONS]} />
 

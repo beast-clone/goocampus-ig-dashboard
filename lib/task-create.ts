@@ -1,6 +1,7 @@
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { pageForSbu } from "@/lib/sbu-pages";
+import { VIDEO_TYPES } from "@/lib/mh-content-types";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
 // (app/api/marketing-hub/create) and the Claude connector (app/api/mcp), so both
@@ -40,19 +41,24 @@ export function normalizeOwner(v: string | undefined): string | null {
 // The hard-coded pair is kept as a fallback for the one case that matters: the
 // rules table unreachable. Starting a task with NO collaborator because a query
 // failed is worse than starting it with the one we have always used.
-export async function defaultCollaboratorFor(sbu: string | null | undefined, ownerKey: string | null): Promise<string | null> {
+export async function defaultCollaboratorFor(
+  sbu: string | null | undefined, ownerKey: string | null, type?: string | null,
+): Promise<string | null> {
   let key: string | null = null;
   try {
     const sb = getSupabase();
     if (sb) {
       const { data } = await sb
         .from("mh_rules")
-        .select("sbu, assign_to")
-        .eq("kind", "collaborator").eq("active", true)
-        .order("priority", { ascending: false });
-      const rows = (data || []) as { sbu: string | null; assign_to: string | null }[];
-      // A rule naming this brand wins; otherwise the catch-all.
-      const hit = rows.find((r) => r.sbu && r.sbu === sbu) || rows.find((r) => !r.sbu);
+        .select("sbu, content_kind, assign_to")
+        .eq("kind", "collaborator").eq("active", true);
+      const rows = (data || []) as { sbu: string | null; content_kind: string | null; assign_to: string | null }[];
+      // Same order as the owner trigger: brand beats type, both beat the catch-all.
+      // No type yet means only rules that don't care about type can match.
+      const kind = type ? (VIDEO_TYPES.has(type) ? "video" : "design") : null;
+      const hit = rows
+        .filter((r) => (!r.sbu || r.sbu === sbu) && (!r.content_kind || r.content_kind === kind))
+        .sort((a, b) => Number(!!b.sbu) - Number(!!a.sbu) || Number(!!b.content_kind) - Number(!!a.content_kind))[0];
       if (hit) key = hit.assign_to;
     }
   } catch { /* fall through to the old pair */ }
@@ -93,7 +99,7 @@ export async function createTask(t: TaskInput, actorId: string | null, source: s
   // activity row below: the task is already committed, and a task missing a
   // collaborator is fixable by hand — a duplicate task is not.
   try {
-    const collab = await defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key);
+    const collab = await defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key, t.type);
     if (collab) await sb.from("mh_post_collaborators").insert({ post_id: data.id, member_key: collab });
   } catch { /* the + control can add them by hand */ }
   // Best-effort: the task is committed; a logging hiccup must not fail the create

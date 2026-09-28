@@ -37,9 +37,13 @@ function rangeLabel(r: Range): string {
 }
 
 export function PreviewDashboardShell({
-  active, title, subtitle, hideAccountPicker, hideRange, compact, children,
+  active, introTab, title, subtitle, hideAccountPicker, hideRange, compact, children,
 }: {
   active: PreviewTab;
+  // Which first-run intro to show. Defaults to `active`, which is wrong for a
+  // sub-page that shares its sidebar tab (Automations would get the Master
+  // sheet's intro). A key with no TAB_INTRO entry shows nothing.
+  introTab?: string;
   title: string;
   subtitle?: string;
   hideAccountPicker?: boolean;
@@ -140,7 +144,7 @@ export function PreviewDashboardShell({
 
         {/* First-run explainer for this tab. One place, so every tab gets one and
             a new tab cannot forget it. Renders nothing once dismissed. */}
-        <TabIntro tab={active} />
+        <TabIntro tab={introTab ?? active} />
 
         {children({ accountId: profile ?? accountId, compareAll: false, range, setRange })}
       </div>

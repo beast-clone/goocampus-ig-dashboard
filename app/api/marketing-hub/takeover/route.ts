@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const before = await sb.from("mh_posts").select("owner_key, sbu, custom").eq("id", body.postId).single();
+    const before = await sb.from("mh_posts").select("owner_key, sbu, type, custom").eq("id", body.postId).single();
     if (before.error) throw new Error(before.error.message);
 
     const oldOwner = before.data.owner_key;
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const custom = (before.data.custom || {}) as Record<string, unknown>;
     const presenter = typeof custom.presenter_key === "string" ? custom.presenter_key : null;
     const want = new Set<string>();
-    const def = await defaultCollaboratorFor(before.data.sbu as string | null, body.newOwnerKey);
+    const def = await defaultCollaboratorFor(before.data.sbu as string | null, body.newOwnerKey, before.data.type as string | null);
     if (def) want.add(def);
     // Someone shot it, someone else is cutting it → the presenter collaborates.
     if (presenter && presenter !== body.newOwnerKey) want.add(presenter);
