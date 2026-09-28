@@ -27,14 +27,36 @@ export function normalizeOwner(v: string | undefined): string | null {
   return OWNER_ALIASES[v.toLowerCase().trim()] || null;
 }
 
-// Who is attached to a new task besides its owner (agreed 22 Sep).
-//   · every task        → Manya
-//   · 12thPlus / GC India tasks → Nandu instead; Manya is NOT on these
-// Nobody is ever both owner and collaborator, so when the default IS the owner
-// the task simply starts with none. The claim flow adds the other editor on top
-// of this when a video is shot by one person and cut by another.
-export function defaultCollaboratorFor(sbu: string | null | undefined, ownerKey: string | null): string | null {
-  const key = pageForSbu(sbu) === "12Plus / GC India" ? "nandu" : "manya";
+// Who is attached to a new task besides its owner.
+//
+// This USED to be typed here — Nandu on 12thPlus, Manya on everything else — so
+// "Nandu has left, it is X now" meant editing this file and deploying. It is a row
+// in mh_rules now (sql/019), editable from Marketing Hub → Automations.
+//
+// Nobody is ever both owner and collaborator, so when the rule names the owner the
+// task simply starts with none. The claim flow adds the other editor on top of this
+// when a video is shot by one person and cut by another.
+//
+// The hard-coded pair is kept as a fallback for the one case that matters: the
+// rules table unreachable. Starting a task with NO collaborator because a query
+// failed is worse than starting it with the one we have always used.
+export async function defaultCollaboratorFor(sbu: string | null | undefined, ownerKey: string | null): Promise<string | null> {
+  let key: string | null = null;
+  try {
+    const sb = getSupabase();
+    if (sb) {
+      const { data } = await sb
+        .from("mh_rules")
+        .select("sbu, assign_to")
+        .eq("kind", "collaborator").eq("active", true)
+        .order("priority", { ascending: false });
+      const rows = (data || []) as { sbu: string | null; assign_to: string | null }[];
+      // A rule naming this brand wins; otherwise the catch-all.
+      const hit = rows.find((r) => r.sbu && r.sbu === sbu) || rows.find((r) => !r.sbu);
+      if (hit) key = hit.assign_to;
+    }
+  } catch { /* fall through to the old pair */ }
+  if (key === null) key = pageForSbu(sbu) === "12Plus / GC India" ? "nandu" : "manya";
   return key === ownerKey ? null : key;
 }
 
@@ -71,7 +93,7 @@ export async function createTask(t: TaskInput, actorId: string | null, source: s
   // activity row below: the task is already committed, and a task missing a
   // collaborator is fixable by hand — a duplicate task is not.
   try {
-    const collab = defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key);
+    const collab = await defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key);
     if (collab) await sb.from("mh_post_collaborators").insert({ post_id: data.id, member_key: collab });
   } catch { /* the + control can add them by hand */ }
   // Best-effort: the task is committed; a logging hiccup must not fail the create

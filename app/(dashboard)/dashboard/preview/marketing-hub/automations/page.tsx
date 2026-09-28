@@ -6,6 +6,8 @@ import {
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { RULE_GROUPS, type RuleEditability } from "./rules";
+import { RuleEditor } from "./RuleEditor";
+import { SBU_OPTIONS } from "@/lib/sbus";
 
 // Marketing Hub → Automations.
 //
@@ -73,6 +75,14 @@ export default function AutomationsPage() {
               not a code change and a deploy. This page is the full list, so we can agree which ones become
               editable rows before building anything.
             </p>
+          </div>
+
+          {/* The live part. Everything below it is description. */}
+          <RuleEditor sbus={[...SBU_OPTIONS]} />
+
+          <div className="text-[13px] text-[#8A92A6] pt-1">
+            Everything below is how the rest of the Hub behaves — read-only, and here so
+            nothing is hidden.
           </div>
 
           <div className="flex gap-1.5 flex-wrap">

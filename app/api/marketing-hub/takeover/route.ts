@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const custom = (before.data.custom || {}) as Record<string, unknown>;
     const presenter = typeof custom.presenter_key === "string" ? custom.presenter_key : null;
     const want = new Set<string>();
-    const def = defaultCollaboratorFor(before.data.sbu as string | null, body.newOwnerKey);
+    const def = await defaultCollaboratorFor(before.data.sbu as string | null, body.newOwnerKey);
     if (def) want.add(def);
     // Someone shot it, someone else is cutting it → the presenter collaborates.
     if (presenter && presenter !== body.newOwnerKey) want.add(presenter);
