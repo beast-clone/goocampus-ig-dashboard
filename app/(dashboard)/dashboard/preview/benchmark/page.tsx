@@ -1,6 +1,6 @@
 "use client";
 import { IconHeart, IconMessageCircle, IconStar, IconTrophy } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -54,7 +54,7 @@ function fmt(n: number): string {
 }
 
 // A tracked competitor carries a manual category + a metrics period (days; 0 = all recent).
-type Tracked = { handle: string; category: string; period: number };
+type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string };
 const PERIODS: { value: number; label: string }[] = [
   { value: 7, label: "7 days" }, { value: 30, label: "30 days" }, { value: 90, label: "90 days" }, { value: 0, label: "All recent" },
 ];
@@ -86,28 +86,90 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   const [customHandles, setCustomHandles] = useState("");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [detail, setDetail] = useState<Competitor | null>(null);   // in-dashboard competitor drill-down
-  // Persisted "tracked" competitors — {handle, category, period}, saved per account in
-  // localStorage so they stick across reloads (per-device). Old string[] entries migrate.
+  // Tracked competitors are team data, so they are rows now, not localStorage.
+  // They used to be saved per browser, which is why "I've added 2-3; now it's not
+  // there" (Nandu, 26 Sept) — his list only ever existed in the browser he added it
+  // in. Anything still sitting in a browser is lifted to the server once, so nobody
+  // loses what they already added.
   const [tracked, setTracked] = useState<Tracked[]>([]);
   const [trackCat, setTrackCat] = useState("");
+  const [trackSbu, setTrackSbu] = useState("");
+  const [trackPlatform, setTrackPlatform] = useState("instagram");
   const [trackPeriod, setTrackPeriod] = useState(30);
-  useEffect(() => {
+  // Narrow the tracked list. "create another filter for instagram and youtube to
+  // choose from" and "filter competitors by primary interest" (Manya, 28 Sept).
+  const [filterPlatform, setFilterPlatform] = useState("all");
+  const [filterSbu, setFilterSbu] = useState("all");
+  // false until sql/029_competitors.sql has been run — then this page keeps its old
+  // per-browser behaviour instead of silently dropping what people add.
+  const [serverTracked, setServerTracked] = useState(true);
+
+  const readLocal = useCallback((): Tracked[] => {
     try {
       const raw = localStorage.getItem(`bm-tracked-${accountId}`);
-      if (!raw) return;
+      if (!raw) return [];
       const parsed = JSON.parse(raw);
-      setTracked(Array.isArray(parsed) ? parsed.map((x: unknown) => typeof x === "string" ? { handle: x, category: "Uncategorized", period: 30 } : x as Tracked) : []);
-    } catch { /* private mode */ }
+      return Array.isArray(parsed)
+        ? parsed.map((x: unknown) => typeof x === "string" ? { handle: x, category: "Uncategorized", period: 30 } : x as Tracked)
+        : [];
+    } catch { return []; }
   }, [accountId]);
-  const saveTracked = (next: Tracked[]) => { setTracked(next); try { localStorage.setItem(`bm-tracked-${accountId}`, JSON.stringify(next)); } catch { /* private mode */ } };
-  const removeTracked = (handle: string) => saveTracked(tracked.filter((t) => t.handle.toLowerCase() !== handle.toLowerCase()));
+
+  const loadTracked = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/benchmark/tracked?accountId=${encodeURIComponent(accountId)}`, { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); return; }
+      setServerTracked(true);
+      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string }) =>
+        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "" }));
+      // One-time lift: whatever this browser still holds that the server doesn't.
+      const local = readLocal();
+      const known = new Set(rows.map((t) => t.handle.toLowerCase()));
+      const missing = local.filter((t) => !known.has(t.handle.toLowerCase()));
+      if (missing.length) {
+        await fetch("/api/benchmark/tracked", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId, items: missing }),
+        }).catch(() => {});
+        setTracked([...rows, ...missing]);
+        try { localStorage.removeItem(`bm-tracked-${accountId}`); } catch { /* private mode */ }
+        return;
+      }
+      setTracked(rows);
+    } catch { setServerTracked(false); setTracked(readLocal()); }
+  }, [accountId, readLocal]);
+  useEffect(() => { loadTracked(); }, [loadTracked]);
+
+  const saveTracked = async (next: Tracked[], added?: Tracked[]) => {
+    setTracked(next);
+    if (!serverTracked) { try { localStorage.setItem(`bm-tracked-${accountId}`, JSON.stringify(next)); } catch { /* private mode */ } return; }
+    if (added?.length) {
+      await fetch("/api/benchmark/tracked", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId, items: added }),
+      }).catch(() => {});
+    }
+  };
+  const removeTracked = async (handle: string) => {
+    const gone = tracked.find((t) => t.handle.toLowerCase() === handle.toLowerCase());
+    setTracked(tracked.filter((t) => t.handle.toLowerCase() !== handle.toLowerCase()));
+    if (!serverTracked) { try { localStorage.setItem(`bm-tracked-${accountId}`, JSON.stringify(tracked.filter((t) => t.handle.toLowerCase() !== handle.toLowerCase()))); } catch { /* private mode */ } return; }
+    await fetch(`/api/benchmark/tracked?accountId=${encodeURIComponent(accountId)}&handle=${encodeURIComponent(handle)}&platform=${encodeURIComponent(gone?.platform || "instagram")}`,
+      { method: "DELETE" }).catch(() => {});
+  };
   const trackedOf = (handle: string) => tracked.find((t) => t.handle.toLowerCase() === handle.toLowerCase());
+  // Only what the two filters allow. An untagged competitor still shows under "All".
+  const visibleTracked = tracked.filter((t) =>
+    (filterPlatform === "all" || (t.platform || "instagram") === filterPlatform)
+    && (filterSbu === "all" || (t.sbu || "") === filterSbu));
+  const trackedSbus = Array.from(new Set(tracked.map((t) => (t.sbu || "").trim()).filter(Boolean))).sort();
 
   // The saved "Tracked" list (niche = "__tracked__") drives its own fetch; otherwise use the
   // niche or a one-off custom lookup. Cache key includes all of these so switching is instant.
   const qs = new URLSearchParams({ accountId });
   if (niche === "__tracked__") {
-    qs.set("handles", tracked.map((t) => t.handle).join(","));
+    qs.set("handles", visibleTracked.map((t) => t.handle).join(","));
   } else {
     if (niche) qs.set("niche", niche);
     if (customHandles.trim()) qs.set("handles", customHandles);
@@ -128,9 +190,10 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     if (!adds.length) return;
     const cat = trackCat.trim() || "Uncategorized";
     const have = new Set(tracked.map((t) => t.handle.toLowerCase()));
-    const next = [...tracked, ...adds.filter((h) => !have.has(h.toLowerCase())).map((h) => ({ handle: h, category: cat, period: trackPeriod }))];
-    saveTracked(next);
-    setCustomHandles(""); setTrackCat("");
+    const fresh = adds.filter((h) => !have.has(h.toLowerCase()))
+      .map((h) => ({ handle: h, category: cat, period: trackPeriod, platform: trackPlatform, sbu: trackSbu.trim() }));
+    saveTracked([...tracked, ...fresh], fresh);
+    setCustomHandles(""); setTrackCat(""); setTrackSbu("");
     setNiche("__tracked__");
   };
 
@@ -197,8 +260,20 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
               niche === "__tracked__" ? "bg-brand text-white border-brand" : "bg-white text-gray-700 border-gray-200 hover:border-brand"
             }`}
           >
-            <IconStar size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Tracked ({tracked.length})
+            <IconStar size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Tracked ({visibleTracked.length}{visibleTracked.length !== tracked.length ? ` of ${tracked.length}` : ""})
           </button>
+        )}
+        {/* Narrow the tracked list by platform and by primary interest (Manya,
+            28 Sept). Only shown on the Tracked view — they filter nothing else. */}
+        {niche === "__tracked__" && tracked.length > 0 && (
+          <>
+            <PreviewSelect value={filterPlatform} onChange={setFilterPlatform}
+              options={[{ value: "all", label: "All platforms" }, { value: "instagram", label: "Instagram" }, { value: "youtube", label: "YouTube" }]} />
+            {trackedSbus.length > 0 && (
+              <PreviewSelect value={filterSbu} onChange={setFilterSbu}
+                options={[{ value: "all", label: "All interests" }, ...trackedSbus.map((x) => ({ value: x, label: x }))]} />
+            )}
+          </>
         )}
         <span className="text-gray-300 mx-1">|</span>
         <input
@@ -217,6 +292,18 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
               className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-brand w-32"
               onKeyDown={(e) => { if (e.key === "Enter") addTracked(); }}
             />
+            {/* "add a filter for me to select which primary interest when I am adding
+                the competitor name. Just add a box I will fill up by myself" (Manya,
+                28 Sept) — free text on purpose, so a new interest needs no code change. */}
+            <input
+              value={trackSbu}
+              onChange={(e) => setTrackSbu(e.target.value)}
+              placeholder="primary interest"
+              className="text-xs px-3 py-1.5 rounded-full border border-gray-200 focus:outline-none focus:border-brand w-36"
+              onKeyDown={(e) => { if (e.key === "Enter") addTracked(); }}
+            />
+            <PreviewSelect value={trackPlatform} onChange={setTrackPlatform}
+              options={[{ value: "instagram", label: "Instagram" }, { value: "youtube", label: "YouTube" }]} />
             <PreviewSelect value={String(trackPeriod)} onChange={(v) => setTrackPeriod(Number(v))} options={PERIODS.map((p) => ({ value: String(p.value), label: p.label }))} />
             <button onClick={addTracked} className="text-xs px-3 py-1.5 rounded-full bg-brand text-white">+ Track</button>
           </>

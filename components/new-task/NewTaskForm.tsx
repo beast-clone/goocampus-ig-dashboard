@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { AutoTextarea } from "@/components/AutoTextarea";
 import { IconX } from "@tabler/icons-react";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -296,7 +297,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         <div className="nt-route-why">{route.why}</div>
       </div>
 
-      <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><textarea className="nt-input nt-textarea" value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+      <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><AutoTextarea className="nt-input nt-textarea" value={content} onChange={setContent} minHeight={140} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
       {/* Reels + YouTube long-form: the thumbnail is part of the same job, so it is
           asked here rather than filed as an unrelated task later. Who MAKES it is a
           separate question, because these days the editor who cuts the reel usually
@@ -316,7 +317,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
               </div>
               <div className="nt-field">
                 <label className="nt-label">Thumbnail brief <span className="nt-req">required</span> <span className="nt-hint">headline text, key visual, reference</span></label>
-                <textarea className="nt-input nt-textarea" value={thumbContent} onChange={(e) => setThumbContent(e.target.value)} rows={3} placeholder="What should the thumbnail say and show?" />
+                <AutoTextarea className="nt-input nt-textarea" value={thumbContent} onChange={setThumbContent} minHeight={84} placeholder="What should the thumbnail say and show?" />
               </div>
               <div className="nt-field">
                 <label className="nt-label">Who makes it</label>

@@ -6,6 +6,7 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
+import { AutoTextarea } from "@/components/AutoTextarea";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook } from "@tabler/icons-react";
 import { LinkedInScheduler } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
@@ -2985,23 +2986,23 @@ function FacebookBaselinePanel({ b }: { b: FacebookBaseline }) {
 
   return (
 
-    <div className="mt-3 rounded-xl border border-[#D6E0F5] bg-[#F5F8FF] p-3 space-y-2">
+    <div className="mt-3 rounded-xl border border-brand/30 bg-brand-light/50 p-3 space-y-2">
 
       <div className="flex items-baseline gap-2 flex-wrap">
 
-        <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white text-[#244D82] border border-[#D6E0F5]">Facebook</span>
+        <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white text-brand border border-brand/30">Facebook</span>
 
-        <span className="text-xs uppercase tracking-wide text-[#244D82] font-semibold">Last {b.posts} posts</span>
+        <span className="text-xs uppercase tracking-wide text-brand font-semibold">Last {b.posts} posts</span>
 
-        <span className="text-lg font-semibold tabular-nums text-[#244D82]">{total.toLocaleString("en-IN")}</span>
+        <span className="text-lg font-semibold tabular-nums text-brand">{total.toLocaleString("en-IN")}</span>
 
-        <span className="text-xs text-[#244D82]">engagements · {b.likes} likes · {b.comments} comments · {b.shares} shares</span>
+        <span className="text-xs text-brand">engagements · {b.likes} likes · {b.comments} comments · {b.shares} shares</span>
 
       </div>
 
       {total > 0 ? (
 
-        <div className="text-xs text-[#244D82]/90">
+        <div className="text-xs text-brand/90">
 
           That is {b.avgEngagement} per post on average.
 
@@ -3011,7 +3012,7 @@ function FacebookBaselinePanel({ b }: { b: FacebookBaseline }) {
 
       ) : (
 
-        <div className="text-xs text-[#8A5B12] bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed">
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed">
 
           Nothing at all on the last {b.posts} posts — no likes, comments or shares. So there is no
 
@@ -3122,22 +3123,7 @@ function PredictionPanel({ loading, prediction, onAddHashtag }: {
   );
 }
 
-// Textarea that grows to fit its content — so the full caption is always visible
-// (no inner scrollbar). Height recomputes whenever the value changes (incl. autofill).
-function AutoTextarea({ value, onChange, placeholder, className, minHeight = 96 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; className?: string; minHeight?: number;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ref.current; if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`;
-  }, [value, minHeight]);
-  return (
-    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-      className={className} style={{ overflow: "hidden", resize: "none", minHeight }} />
-  );
-}
+// AutoTextarea moved to components/AutoTextarea.tsx — the new-task form needs it too.
 
 // Caption box with dictation — captions are the longest thing anyone types here,
 // so it is the field where talking actually beats typing. Same behaviour as the
