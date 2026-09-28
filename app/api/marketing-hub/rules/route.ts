@@ -5,6 +5,7 @@ import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { CONTENT_TYPES } from "@/lib/mh-content-types";
+import { fetchRoster } from "@/lib/team-db";
 
 // Owner and collaborator rules — the ones that name a person.
 //
@@ -17,7 +18,11 @@ import { CONTENT_TYPES } from "@/lib/mh-content-types";
 
 export const dynamic = "force-dynamic";
 
-const PEOPLE = new Set(["manya", "praveen", "nikhil", "nandu", "maheen"]);
+// Who a rule may name: everyone active on the Team page (ind_users). Read live, so
+// a person added there can be picked here with no code change.
+async function activePeople(): Promise<Set<string>> {
+  return new Set((await fetchRoster()).filter((u) => u.active).map((u) => u.id));
+}
 const KINDS = new Set(["owner", "collaborator"]);
 // design/video, or one exact type of work (sql/026).
 const CONTENT_KINDS = new Set<string>(["video", "design", ...CONTENT_TYPES]);
@@ -28,9 +33,15 @@ export async function GET() {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ rules: [] });
-    const { data, error } = await sb.from("mh_rules").select("*").order("kind").order("priority", { ascending: false });
+    const [{ data, error }, roster] = await Promise.all([
+      sb.from("mh_rules").select("*").order("kind").order("priority", { ascending: false }),
+      fetchRoster(),
+    ]);
     if (error) throw new Error(error.message);
-    return NextResponse.json({ rules: data || [] });
+    // Active people to choose from; inactive ones only so a rule still naming
+    // someone who has left can say so instead of showing a blank.
+    const people = roster.map((u) => ({ value: u.id, label: u.first || u.name, active: u.active }));
+    return NextResponse.json({ rules: data || [], people });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not read the rules"), { status: 502 });
   }
@@ -49,7 +60,7 @@ export async function PATCH(req: Request) {
     if ("assign_to" in b) {
       // null is meaningful on an owner rule: "leave it where it is", which is how
       // video reaches the claim pool. Anything else has to be somebody real.
-      if (b.assign_to !== null && !PEOPLE.has(String(b.assign_to).toLowerCase())) {
+      if (b.assign_to !== null && !(await activePeople()).has(String(b.assign_to).toLowerCase())) {
         return NextResponse.json({ error: "That is not someone on the team." }, { status: 400 });
       }
       patch.assign_to = b.assign_to === null ? null : String(b.assign_to).toLowerCase();
@@ -80,7 +91,7 @@ export async function POST(req: Request) {
     };
     const kind = String(b.kind || "").toLowerCase();
     if (!KINDS.has(kind)) return NextResponse.json({ error: "kind must be owner or collaborator" }, { status: 400 });
-    if (b.assign_to !== null && b.assign_to !== undefined && !PEOPLE.has(String(b.assign_to).toLowerCase())) {
+    if (b.assign_to !== null && b.assign_to !== undefined && !(await activePeople()).has(String(b.assign_to).toLowerCase())) {
       return NextResponse.json({ error: "That is not someone on the team." }, { status: 400 });
     }
     // Exact types keep their spelling ("Reel - Cut"); only design/video are folded.

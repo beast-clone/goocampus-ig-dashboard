@@ -26,13 +26,7 @@ export type Rule = {
   note: string | null;
 };
 
-const PEOPLE = [
-  { value: "manya", label: "Manya" },
-  { value: "praveen", label: "Praveen" },
-  { value: "nikhil", label: "Nikhil" },
-  { value: "nandu", label: "Nandu" },
-  { value: "maheen", label: "Maheen" },
-];
+type Person = { value: string; label: string; active: boolean };
 const POOL = "__pool__";
 
 type Group = { key: string; sbu: string | null; kind: string | null; owner?: Rule; helper?: Rule };
@@ -42,8 +36,6 @@ const KIND_LABEL: Record<string, string> = { design: "Design work", video: "Vide
 const label = (g: { sbu: string | null; kind: string | null }) =>
   `${g.kind ? KIND_LABEL[g.kind] ?? g.kind : "All work"} for ${g.sbu ?? "any brand"}`;
 
-const OWNER_OPTIONS = [{ value: "", label: "Not set" }, ...PEOPLE, { value: POOL, label: "Nobody — claim pool" }];
-const HELPER_OPTIONS = [{ value: "", label: "Not set" }, ...PEOPLE];
 // The three broad choices first, then every exact type (sql/026).
 const TYPE_OPTIONS = [
   { value: "", label: "All work" },
@@ -68,6 +60,9 @@ function groupRules(rules: Rule[]): Group[] {
 
 export function RuleEditor({ sbus }: { sbus: string[] }) {
   const [rules, setRules] = useState<Rule[] | null>(null);
+  // From the Team page's roster (via the rules API), so a new teammate appears here
+  // on their own. Inactive people come too, only to label rules that still name them.
+  const [people, setPeople] = useState<Person[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -79,7 +74,7 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
   const load = () =>
     fetch("/api/marketing-hub/rules", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setRules(d.rules || []))
+      .then((d) => { setRules(d.rules || []); setPeople(d.people || []); })
       .catch(() => setRules([]));
   useEffect(() => { load(); }, []);
 
@@ -138,6 +133,17 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
   if (rules === null) return <div className="text-[13px] text-[#8A92A6] px-4 py-6">Reading the rules…</div>;
   const groups = groupRules(rules);
 
+  const active = people.filter((p) => p.active).map(({ value, label }) => ({ value, label }));
+  // An inactive person is offered only in the row that already names them, marked
+  // as left — picking someone new is how that row gets fixed.
+  const withLeaver = (opts: { value: string; label: string }[], current: string | null | undefined) => {
+    const gone = current ? people.find((p) => p.value === current && !p.active) : null;
+    return gone ? [...opts, { value: gone.value, label: `${gone.label} (left)` }] : opts;
+  };
+  const ownerOptions = (cur?: string | null) =>
+    [{ value: "", label: "Not set" }, ...withLeaver(active, cur), { value: POOL, label: "Nobody — claim pool" }];
+  const helperOptions = (cur?: string | null) => [{ value: "", label: "Not set" }, ...withLeaver(active, cur)];
+
   const add = async () => {
     const kind = newKind || null;
     const sbu = newSbu || null;
@@ -186,9 +192,9 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
             <li key={g.key} className={`px-4 py-3 flex items-center gap-3 flex-wrap ${isOn(g) ? "" : "opacity-60"}`}>
               <span className="text-[13.5px] text-[#232D42] min-w-0 flex-1">{label(g)}</span>
               <PreviewSelect className="w-[178px]" value={g.owner ? (g.owner.assign_to ?? POOL) : ""}
-                onChange={(v) => setHalf(g, "owner", v)} options={OWNER_OPTIONS} />
+                onChange={(v) => setHalf(g, "owner", v)} options={ownerOptions(g.owner?.assign_to)} />
               <PreviewSelect className="w-[160px]" value={g.helper?.assign_to ?? ""}
-                onChange={(v) => setHalf(g, "collaborator", v)} options={HELPER_OPTIONS} />
+                onChange={(v) => setHalf(g, "collaborator", v)} options={helperOptions(g.helper?.assign_to)} />
               <button onClick={() => toggle(g)} disabled={busy === g.key}
                 title={isOn(g) ? "Switch this rule off" : "Switch it back on"}
                 className={`text-[12px] font-medium rounded-lg border px-2.5 py-1.5 ${isOn(g) ? "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
@@ -212,9 +218,9 @@ export function RuleEditor({ sbus }: { sbus: string[] }) {
               <label><span className={fieldLabel}>Type of work</span>
                 <PreviewSelect className="w-[190px]" value={newKind} onChange={setNewKind} options={TYPE_OPTIONS} /></label>
               <label><span className={fieldLabel}>Owner</span>
-                <PreviewSelect className="w-[178px]" value={newOwner} onChange={setNewOwner} options={OWNER_OPTIONS} /></label>
+                <PreviewSelect className="w-[178px]" value={newOwner} onChange={setNewOwner} options={ownerOptions()} /></label>
               <label><span className={fieldLabel}>Collaborator</span>
-                <PreviewSelect className="w-[160px]" value={newHelper} onChange={setNewHelper} options={HELPER_OPTIONS} /></label>
+                <PreviewSelect className="w-[160px]" value={newHelper} onChange={setNewHelper} options={helperOptions()} /></label>
               <button onClick={add} disabled={busy === "new"}
                 className="rounded-lg bg-brand text-white text-[12.5px] font-medium px-3 py-2 hover:bg-brand-dark disabled:opacity-50">Add</button>
               <button onClick={() => { setAdding(false); setErr(null); }} className="text-[12.5px] text-[#4A5468] px-2 py-2">Cancel</button>
