@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { DEFAULT_STATUS, isTaskStatus } from "@/lib/statuses";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { pageForSbu } from "@/lib/sbu-pages";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
@@ -12,7 +13,7 @@ import { fetchContentTypes } from "@/lib/content-types-db";
 // CREATE only. Required: title + SBU (a brand-less row can't be routed or reported).
 
 export type TaskInput = {
-  title: string; sbu?: string; type?: string; owner?: string;
+  title: string; sbu?: string; type?: string; owner?: string; status?: string;
   publishingDate?: string; dueDate?: string; priority?: string; platforms?: string[];
   content?: string; caption?: string; needsReview?: boolean;
 };
@@ -91,7 +92,10 @@ export async function createTask(t: TaskInput, actorId: string | null, source: s
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb.from("mh_posts").insert({
     particulars: t.title.trim(),
-    status: "Content - Pending",
+    // Content Studio lets the writer pick where it lands — "Show the content status
+    // drop down here" (Manya, 28 Sept). Anything unrecognised falls back to the
+    // default rather than being sent to Postgres, where a bad enum value 502s.
+    status: isTaskStatus(t.status) ? t.status : DEFAULT_STATUS,
     type: t.type || null,
     sbu: t.sbu || null,
     owner_key: normalizeOwner(t.owner),

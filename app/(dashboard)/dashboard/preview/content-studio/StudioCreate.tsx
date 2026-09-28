@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_STATUS, TASK_STATUSES } from "@/lib/statuses";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -326,6 +327,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
   const sbus = useSbus();   // live brand list (sql/027)
   const [particulars, setParticulars] = useState(brief.title);
   const [type, setType] = useState(brief.format);
+  const [status, setStatus] = useState<string>(DEFAULT_STATUS);
   const [sbu, setSbu] = useState(brief.brand);
   const [owner, setOwner] = useState("manya");
   const [date, setDate] = useState("");
@@ -347,7 +349,7 @@ function ReviewSheet({ brief, draft, check, onClose }: {
       const r = await fetch("/api/marketing-hub/create", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
         body: JSON.stringify({
-          title: particulars, sbu, owner, type, content, caption,
+          title: particulars, sbu, owner, type, content, caption, status,
           publishingDate: date || undefined,
         }),
       });
@@ -398,6 +400,9 @@ function ReviewSheet({ brief, draft, check, onClose }: {
         </Row>
         <Row label="Brand">
           <PreviewSelect value={sbu} onChange={setSbu} options={sbus.map((s) => ({ value: s, label: s }))} />
+        </Row>
+        <Row label="Status" why="Where it lands on the board.">
+          <PreviewSelect value={status} onChange={setStatus} options={TASK_STATUSES.map((s) => ({ value: s, label: s }))} />
         </Row>
         <Row label="Owner">
           <PreviewSelect value={owner} onChange={setOwner}
