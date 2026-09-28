@@ -423,8 +423,9 @@ body.nav-collapsed .hsidebar:not(.peek) .hglobalsearch { display: none; }
    page by page in phase 2. !important so it also beats the light overrides above. */
 html[data-theme="dark"] {
   --d-canvas:#151824; --d-card:#1F2332; --d-panel:#191D2A; --d-raised:#272C3E;
-  --d-line:#2C3246; --d-line2:#383F57; --d-ink:#E8EBF3; --d-ink2:#C2C8D6; --d-muted:#959DB1; --d-faint:#6F778C;
-  --d-brand-text:#8497FF;
+  --d-line:#2C3246; --d-line2:#383F57; --d-ink:#E8EBF3; --d-ink2:#C2C8D6; --d-muted:#959DB1; --d-faint:#858DA1;
+  /* #8497FF until 28 Sep: 4.3:1 on the brand-soft strips, just under 4.5. */
+  --d-brand-text:#93A3FF;
 }
 html[data-theme="dark"], html[data-theme="dark"] body { background:var(--d-canvas) !important; color:var(--d-ink2); }
 /* Dark mode dims the brand-light tint. Both forms, so bg-brand-light and any
@@ -456,7 +457,7 @@ html[data-theme="dark"] .text-gray-700, html[data-theme="dark"] .text-gray-600, 
 html[data-theme="dark"] .text-\[\#5A6478\], html[data-theme="dark"] .hover\:text-gray-700:hover, html[data-theme="dark"] .hover\:text-gray-800:hover { color:var(--d-ink2) !important; }
 html[data-theme="dark"] .text-gray-500, html[data-theme="dark"] .text-\[\#8A92A6\] { color:var(--d-muted) !important; }
 html[data-theme="dark"] .text-gray-400, html[data-theme="dark"] .text-\[\#A6ACBE\], html[data-theme="dark"] .text-\[\#B4BAC6\] { color:var(--d-faint) !important; }
-html[data-theme="dark"] .text-gray-300, html[data-theme="dark"] .text-\[\#C9CDD8\] { color:#6F778C !important; }
+html[data-theme="dark"] .text-gray-300, html[data-theme="dark"] .text-\[\#C9CDD8\] { color:#7F879B !important; }
 html[data-theme="dark"] .text-brand, html[data-theme="dark"] .hover\:text-brand:hover, html[data-theme="dark"] .text-\[\#2138B0\],
 html[data-theme="dark"] .text-\[\#3A57E8\] { color:var(--d-brand-text) !important; }
 
@@ -483,18 +484,114 @@ html[data-theme="dark"] .preview-scope textarea, html[data-theme="dark"] .previe
 html[data-theme="dark"] .preview-scope input::placeholder, html[data-theme="dark"] .preview-scope textarea::placeholder { color:var(--d-faint); }
 
 /* sidebar (its own variables) */
-html[data-theme="dark"] .hsidebar { --sb-brand-soft:#2C3666; --sb-brand-ink:#8497FF; --sb-ink:#E8EBF3; --sb-ink-soft:#C2C8D6; --sb-faint:#6F778C; --sb-line:#2C3246; --sb-panel:#1F2332; --sb-panel2:#272C3E; }
+html[data-theme="dark"] .hsidebar { --sb-brand-soft:#2C3666; --sb-brand-ink:#93A3FF; --sb-ink:#E8EBF3; --sb-ink-soft:#C2C8D6; --sb-faint:#858DA1; --sb-line:#2C3246; --sb-panel:#1F2332; --sb-panel2:#272C3E; }
 /* The shell's own variables (PreviewShell SHELL_CSS) — pages styled with var(--panel),
    var(--ink)… (My Day, Workload, calendars) follow these. */
 html[data-theme="dark"] .preview-root {
   --bg:#151824; --panel:#1F2332; --panel-2:#191D2A;
-  --ink:#E8EBF3; --ink-soft:#C2C8D6; --muted:#959DB1; --faint:#6F778C;
+  --ink:#E8EBF3; --ink-soft:#C2C8D6; --muted:#959DB1; --faint:#858DA1;
   --line:#2C3246; --line-2:#262B3C;
-  --brand-soft:#2C3666; --brand-ink:#8497FF;
+  --brand-soft:#2C3666; --brand-ink:#93A3FF;
   --good-soft:rgba(26,160,83,.16); --warn-soft:rgba(217,119,6,.16); --rose-soft:rgba(225,29,72,.16);
   --sky-soft:rgba(14,165,233,.16); --violet-soft:rgba(110,72,248,.18);
   --shadow:none;
 }
+
+/* Phase 3 (28 Sep): colours the remap above missed, found by scanning every class
+   in app/ and components/ against these rules. Most are opacity variants
+   (bg-gray-50/50 on read notifications rendered as a light-grey stripe with
+   faded text) and dark status text (reds, greens, blues, browns) that sank into
+   the dark cards. Each goes to the colour the rules above already use for it. */
+/* neutral light panels (read rows, soft wells) */
+html[data-theme="dark"] .bg-gray-50\/40,
+html[data-theme="dark"] .bg-gray-50\/50,
+html[data-theme="dark"] .bg-gray-50\/60,
+html[data-theme="dark"] .bg-gray-50\/70,
+html[data-theme="dark"] .bg-\[\#F6F7FB\]\/50,
+html[data-theme="dark"] .bg-\[\#F6F7FB\]\/60,
+html[data-theme="dark"] .bg-\[\#F3F5F9\],
+html[data-theme="dark"] .bg-\[\#FAFBFC\] { background-color:var(--d-panel) !important; }
+/* neutral hovers */
+html[data-theme="dark"] .hover\:bg-gray-50\/60:hover,
+html[data-theme="dark"] .hover\:bg-gray-50\/70:hover,
+html[data-theme="dark"] .hover\:bg-gray-100\/70:hover { background-color:var(--d-raised) !important; }
+/* mid-grey chip */
+html[data-theme="dark"] .bg-\[\#D9DEEA\] { background-color:var(--d-line2) !important; }
+/* near-opaque white cards (not the see-through /10–/30 used on the blue banners) */
+html[data-theme="dark"] .bg-white\/40,
+html[data-theme="dark"] .bg-white\/50,
+html[data-theme="dark"] .bg-white\/70,
+html[data-theme="dark"] .bg-white\/80,
+html[data-theme="dark"] .bg-white\/85,
+html[data-theme="dark"] .bg-white\/90,
+html[data-theme="dark"] .bg-white\/95 { background-color:var(--d-card) !important; }
+/* green tints */
+html[data-theme="dark"] .bg-\[\#E3F5EA\],
+html[data-theme="dark"] .bg-green-100,
+html[data-theme="dark"] .bg-emerald-50\/50,
+html[data-theme="dark"] .bg-emerald-50\/70,
+html[data-theme="dark"] .bg-teal-50 { background-color:rgba(47,158,111,.16) !important; }
+/* red tints */
+html[data-theme="dark"] .bg-\[\#FBE7E4\],
+html[data-theme="dark"] .bg-\[\#FFF9F8\],
+html[data-theme="dark"] .bg-rose-50\/30,
+html[data-theme="dark"] .bg-pink-50,
+html[data-theme="dark"] .bg-pink-50\/90 { background-color:rgba(192,57,43,.16) !important; }
+/* amber tints */
+html[data-theme="dark"] .bg-amber-50\/50,
+html[data-theme="dark"] .bg-amber-50\/90 { background-color:rgba(183,121,31,.16) !important; }
+/* amber hovers */
+html[data-theme="dark"] .hover\:bg-amber-100:hover,
+html[data-theme="dark"] .hover\:bg-amber-50\/60:hover { background-color:rgba(183,121,31,.26) !important; }
+/* blue tints */
+html[data-theme="dark"] .bg-blue-50\/50,
+html[data-theme="dark"] .bg-sky-50\/90,
+html[data-theme="dark"] .bg-cyan-50\/90 { background-color:rgba(14,165,233,.14) !important; }
+/* violet tints */
+html[data-theme="dark"] .bg-violet-50\/50,
+html[data-theme="dark"] .bg-violet-50\/90 { background-color:rgba(110,72,248,.18) !important; }
+/* violet hovers */
+html[data-theme="dark"] .hover\:bg-violet-50\/30:hover,
+html[data-theme="dark"] .hover\:bg-violet-50\/40:hover,
+html[data-theme="dark"] .hover\:bg-violet-100:hover { background-color:rgba(110,72,248,.26) !important; }
+/* red text */
+html[data-theme="dark"] .text-\[\#C03221\],
+html[data-theme="dark"] .hover\:text-\[\#C03221\]:hover,
+html[data-theme="dark"] .text-\[\#C0392B\]\/70 { color:#F2907F !important; }
+/* green text */
+html[data-theme="dark"] .text-green-700\/70,
+html[data-theme="dark"] .text-\[\#0F6E3C\],
+html[data-theme="dark"] .text-\[\#0F9D58\],
+html[data-theme="dark"] .hover\:text-\[\#128C4A\]:hover { color:#61CE9C !important; }
+/* blue text */
+html[data-theme="dark"] .text-\[\#244D82\],
+html[data-theme="dark"] .text-\[\#244D82\]\/90,
+html[data-theme="dark"] .text-\[\#0B84C4\],
+html[data-theme="dark"] .text-\[\#027eb5\] { color:#7FB6F5 !important; }
+/* orange text */
+html[data-theme="dark"] .text-\[\#C2410C\] { color:#F59E6B !important; }
+/* amber / brown text */
+html[data-theme="dark"] .text-\[\#8A5A00\],
+html[data-theme="dark"] .text-\[\#9A6B2E\],
+html[data-theme="dark"] .text-\[\#7A5410\]\/85,
+html[data-theme="dark"] .text-\[\#7A4E0B\],
+html[data-theme="dark"] .text-\[\#B7791F\]\/70 { color:#E2B366 !important; }
+/* soft dark text */
+html[data-theme="dark"] .text-gray-800\/70,
+html[data-theme="dark"] .text-gray-800\/65,
+html[data-theme="dark"] .hover\:text-gray-600:hover { color:var(--d-ink2) !important; }
+/* mid-grey text (was too faint on dark) */
+html[data-theme="dark"] .text-\[\#7C8494\],
+html[data-theme="dark"] .text-\[\#6B7385\],
+html[data-theme="dark"] .text-\[\#6B7280\] { color:var(--d-muted) !important; }
+/* brand-dark text (the inbox's active tab) */
+html[data-theme="dark"] .text-brand-dark { color:var(--d-brand-text) !important; }
+/* teal text */
+html[data-theme="dark"] .text-teal-600, html[data-theme="dark"] .text-teal-700, html[data-theme="dark"] .text-teal-800 { color:#5EC9B8 !important; }
+/* "Faint" grey (timestamps, small labels) was #6F778C: 3.5:1 on a card, below the
+   4.5:1 small text needs. #858DA1 is 4.7:1 and still a step below muted. */
+/* brand-blue text written inline (style={{ color: "#3A57E8" }}) — 2.8:1 on a dark card */
+html[data-theme="dark"] .preview-root [style^="color: rgb(58, 87, 232)"], html[data-theme="dark"] .preview-root [style*="; color: rgb(58, 87, 232)"] { color:var(--d-brand-text) !important; }
 /* Sidebar logo: the white GooCampus logo in dark. */
 .hsidebar .hlogo-dark { display: none !important; }
 html[data-theme="dark"] .hsidebar .hlogo-light { display: none !important; }
@@ -579,7 +676,7 @@ html[data-theme="dark"] .tcmd { color: var(--ink) !important; }
 /* Shared status tones (My Day, Team Command pills) — dark only; light uses each fallback. */
 html[data-theme="dark"] {
   --tone-good-bg:rgba(26,160,83,.18);--tone-good-fg:#61CE9C;--tone-info-bg:rgba(7,154,162,.2);--tone-info-fg:#4FD1D8;
-  --tone-brand-bg:#2C3666;--tone-brand-fg:#8497FF;--tone-warn-bg:rgba(217,119,6,.18);--tone-warn-fg:#E9A23B;
+  --tone-brand-bg:#2C3666;--tone-brand-fg:#93A3FF;--tone-warn-bg:rgba(217,119,6,.18);--tone-warn-fg:#E9A23B;
   --tone-bad-bg:rgba(192,50,33,.2);--tone-bad-fg:#F2907F;--tone-muted-bg:#272C3E;--tone-muted-fg:#959DB1;
   --tone-urgent-bg:rgba(176,32,58,.24);--tone-urgent-fg:#F58CA0;
 }
@@ -992,7 +1089,7 @@ html[data-theme="dark"] .preview-root [style*=";color:#7A74C9" i],
 html[data-theme="dark"] .preview-root [style*="; color:#7A74C9" i],
 html[data-theme="dark"] .preview-root [style^="color: #7A74C9" i],
 html[data-theme="dark"] .preview-root [style*=";color: #7A74C9" i],
-html[data-theme="dark"] .preview-root [style*="; color: #7A74C9" i] { color:#8497FF !important; }
+html[data-theme="dark"] .preview-root [style*="; color: #7A74C9" i] { color:#93A3FF !important; }
 html[data-theme="dark"] .preview-root [style^="color:#1AA053" i],
 html[data-theme="dark"] .preview-root [style*=";color:#1AA053" i],
 html[data-theme="dark"] .preview-root [style*="; color:#1AA053" i],

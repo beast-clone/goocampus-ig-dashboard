@@ -824,13 +824,13 @@ export const MY_DAY_CSS = `
 /* Dark theme (components/Theme.tsx) — the shell tokens + every light colour above. */
 html[data-theme="dark"] .hmd{
   --bg:#151824;--panel:#1F2332;--panel-2:#191D2A;
-  --ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--faint:#6F778C;
+  --ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--faint:#858DA1;
   --line:#2C3246;--line-2:#262B3C;
-  --brand-soft:#2C3666;--brand-ink:#8497FF;
+  --brand-soft:#2C3666;--brand-ink:#93A3FF;
   --good-soft:rgba(26,160,83,.16);--warn-soft:rgba(217,119,6,.16);
   --shadow:none;
   --tone-good-bg:rgba(26,160,83,.18);--tone-good-fg:#61CE9C;--tone-info-bg:rgba(7,154,162,.2);--tone-info-fg:#4FD1D8;
-  --tone-brand-bg:#2C3666;--tone-brand-fg:#8497FF;--tone-warn-bg:rgba(217,119,6,.18);--tone-warn-fg:#E9A23B;
+  --tone-brand-bg:#2C3666;--tone-brand-fg:#93A3FF;--tone-warn-bg:rgba(217,119,6,.18);--tone-warn-fg:#E9A23B;
   --tone-bad-bg:rgba(192,50,33,.2);--tone-bad-fg:#F2907F;--tone-muted-bg:#272C3E;--tone-muted-fg:#959DB1;
   --tone-urgent-bg:rgba(176,32,58,.24);--tone-urgent-fg:#F58CA0;
   --cD9DEEA:#3A4159;--cEAEDF5:#272C3E;--cDFE3EE:#3A4159;--cF3F5F9:#272C3E;--cE9ECF2:#272C3E;--cE3E6EE:#3A4159;--cEDEFF4:#272C3E;--cFDECEA:rgba(220,46,46,.16);--cFFF7F6:rgba(220,46,46,.16);--cF1C4BD:rgba(220,46,46,.42);--cEAA99F:rgba(220,46,46,.42);--cFCEBEA:rgba(220,46,46,.16);--cE9ECFB:#2C3666;--cFAFBFF:#272C3E;--c232D42:#E8EBF3;--cB9C2E0:#3A4159;--c3B4457:#C2C8D6;--cEEF1FD:#2C3666;--cFCEBEC:rgba(220,46,46,.16);--cC0201F:#F2907F;--cF3C6CE:rgba(220,46,46,.42);--cF9DADE:rgba(220,46,46,.16);--cD5DCF8:#2C3666;--cF3D9AE:rgba(217,119,6,.42);--c8A5A00:#E2B366;--cDCE1FA:#2C3666;--cC7CEDD:#3A4159;--cEEF1FB:#2C3666;--cFBE7E4:rgba(220,46,46,.16);--cF3F1FE:#2C3666;--cF4C4C9:rgba(220,46,46,.42);--cFEF3F4:rgba(220,46,46,.16);--cF3DCB4:rgba(217,119,6,.42);--c7A4E0B:#E2B366;--cBFE6CD:rgba(26,160,83,.42);--c155E37:#61CE9C;--c5A3906:#E2B366;--c0E4A2A:#61CE9C;--cEEF0F5:#272C3E;--c7A8296:#959DB1;--cFEF6F0:rgba(217,119,6,.16);--cFEE9D6:rgba(217,119,6,.16);--cD5DCFB:#2C3666;--c0F6E3C:#61CE9C;--cB0203A:#F2907F;--cE7A9B3:rgba(220,46,46,.42);--cCBD5FA:#2C3666;--cEDEEF2:#272C3E;--cCBD2E0:#3A4159;

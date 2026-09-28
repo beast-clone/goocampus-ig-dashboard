@@ -1304,7 +1304,7 @@ const MHCAL_CSS = `
 .mhcal{--cal-panel:#fff;--cal-panel2:#F7F8FC;--cal-raised:#EDEFF5;--cal-line:#EEF0F4;--cal-line2:#F3F5F9;--cal-line3:#D3D8E1;
   --cal-ink:#232D42;--cal-ink2:#4A5468;--cal-muted:#8A92A6;--cal-faint:#A6ACBE;--cal-brandsoft:#E9ECFB;--cal-brandsoft2:#DFE3FA}
 html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-raised:#272C3E;--cal-line:#2C3246;--cal-line2:#262B3C;--cal-line3:#3A4159;
-  --cal-ink:#E8EBF3;--cal-ink2:#C2C8D6;--cal-muted:#959DB1;--cal-faint:#6F778C;--cal-brandsoft:#2C3666;--cal-brandsoft2:#2C3666}
+  --cal-ink:#E8EBF3;--cal-ink2:#C2C8D6;--cal-muted:#959DB1;--cal-faint:#858DA1;--cal-brandsoft:#2C3666;--cal-brandsoft2:#2C3666}
 
 .mhcal-daynum{display:flex;align-items:center;justify-content:space-between;min-height:22px}
 .mhcal-add{opacity:0;width:20px;height:20px;border-radius:6px;border:1px solid var(--cal-brandsoft);background:var(--cal-panel);color:#3A57E8;font-size:14px;line-height:1;display:inline-grid;place-items:center;cursor:pointer;transition:opacity .12s}

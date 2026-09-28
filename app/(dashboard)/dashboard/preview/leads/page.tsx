@@ -55,7 +55,10 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "Closed won": { bg: "#CDEED9", fg: "#0F6B36" },
   "Not interested": { bg: "#F0F2F8", fg: "#8A92A6" },
 };
-const stStyle = (s: string) => { const c = STATUS_STYLE[s] || { bg: "#F0F2F8", fg: "#8A92A6" }; return { background: c.bg, color: c.fg }; };
+// Colours travel as CSS variables so dark mode can derive its own from the same
+// fg (see .schip / .fpill in the dark block below) — the light pastels with dark
+// text were ~2.5:1 on the dark theme (28 Sep).
+const stStyle = (s: string) => { const c = STATUS_STYLE[s] || { bg: "#F0F2F8", fg: "#8A92A6" }; return { "--st-bg": c.bg, "--st-fg": c.fg, background: "var(--st-bg)", color: "var(--st-fg)" } as React.CSSProperties; };
 
 export default function LeadsPage() {
   return (
@@ -470,6 +473,8 @@ const CSS = `
 .sl-ai .tag{margin-left:auto;font-size:.55rem;letter-spacing:.07em;text-transform:uppercase;color:var(--brand-ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:.2em .45em;font-weight:700}
 .sl-ai p{font-size:.81rem;color:var(--ink-soft);margin:.5rem 0;line-height:1.5}
 .sl{--dk-sl-EFEBFE:#EFEBFE;}
-html[data-theme="dark"] .sl{--brand-soft:#2C3666;--brand-ink:#8497FF;--ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--faint:#7D859A;--line:#2C3246;--line2:#262B3C;--panel:#1F2332;--panel2:#191D2A;--rose-soft:rgba(214,51,108,.18);--dk-panel:#1F2332;--dk-sl-EFEBFE:rgba(83,51,204,.16);}
+html[data-theme="dark"] .sl{--brand-soft:#2C3666;--brand-ink:#93A3FF;--ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--faint:#858DA1;--line:#2C3246;--line2:#262B3C;--panel:#1F2332;--panel2:#191D2A;--rose-soft:rgba(214,51,108,.18);--dk-panel:#1F2332;--dk-sl-EFEBFE:rgba(83,51,204,.16);}
+html[data-theme="dark"] .sl .schip,html[data-theme="dark"] .sl .fpill{background:color-mix(in srgb,var(--st-fg) 22%,#1F2332)!important;color:color-mix(in srgb,var(--st-fg) 45%,#fff)!important}
+html[data-theme="dark"] .sl-tbl .chip.cm{color:#B9A6FF}
 
 `;
