@@ -75,16 +75,16 @@ async function serper(url: string, body: Record<string, unknown>): Promise<Recor
 }
 
 /** Find our listing on Google Maps. Cached for a month — it is the same row every time. */
-export async function findPlace(force = false): Promise<GooglePlace | null> {
+export async function findPlace(force = false, query: string = BUSINESS_QUERY): Promise<GooglePlace | null> {
   const { data } = await cachedShared<GooglePlace | null>(
-    `gmaps:place:${BUSINESS_QUERY}`,
+    `gmaps:place:${query}`,
     PLACE_TTL_MS,
     async () => {
-      const d = await serper(SERPER_PLACES, { q: BUSINESS_QUERY, gl: "in" });
+      const d = await serper(SERPER_PLACES, { q: query, gl: "in" });
       const first = (d.places as Record<string, unknown>[] | undefined)?.[0];
       if (!first) return null;
       return {
-        title: String(first.title || BUSINESS_QUERY),
+        title: String(first.title || query),
         address: (first.address as string) || null,
         rating: typeof first.rating === "number" ? first.rating : null,
         ratingCount: typeof first.ratingCount === "number" ? first.ratingCount : null,
@@ -123,12 +123,13 @@ function mapReview(r: RawReview, i: number): GoogleReview {
  * because eighty five-star reviews have landed on top of it since. The lowest-rating pass
  * is what makes an old complaint findable at all.
  */
-export async function getReviews(force = false): Promise<ReviewsResult> {
+// `query` defaults to our own business; a competitor profile passes their name.
+export async function getReviews(force = false, query: string = BUSINESS_QUERY): Promise<ReviewsResult> {
   if (!key()) {
     return { place: null, reviews: [], configured: false, error: null };
   }
   try {
-    const place = await findPlace(force);
+    const place = await findPlace(force, query);
     if (!place?.cid) {
       return { place, reviews: [], configured: true, error: "Couldn't find the business on Google Maps" };
     }

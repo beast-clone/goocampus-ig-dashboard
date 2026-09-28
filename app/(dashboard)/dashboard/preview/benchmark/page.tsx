@@ -522,12 +522,117 @@ function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
         )}
       </div>
 
+      {/* What the web says about them — Reddit, Quora, reviews and the rest. */}
+      <CompetitorIntel name={searchName(c)} />
+
       {/* YouTube — only when this competitor has a channel saved. */}
       {yt ? <CompetitorYouTube channelId={yt} /> : (
         <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-4 text-[13px] text-[#8A92A6]">
           No YouTube channel saved for {c.name || c.username}. Add the channel ID when you track them and their uploads show here.
         </div>
       )}
+    </div>
+  );
+}
+
+// What the web says about one competitor: mentions grouped by where they are,
+// and their Google Maps rating.
+//
+// One search per competitor, cached for a day — Serper is capped at 200 calls a
+// month and this panel is on a page people reopen constantly. Nothing renders
+// for a lane with no results rather than a row of empty headings.
+type Intel = {
+  configured?: boolean; capped?: boolean;
+  mentions: { title: string; url: string; snippet: string; source: string; lane: string; sentiment: string }[];
+  lanes: { key: string; label: string; count: number }[];
+  reviews: { title: string; rating: number | null; ratingCount: number | null; items: { rating?: number; snippet?: string; user?: string }[] } | null;
+};
+const SENTIMENT_TINT: Record<string, string> = {
+  positive: "bg-[#E8F6F0] text-[#1F7256]",
+  negative: "bg-[#FDECEA] text-[#C03221]",
+  neutral: "bg-[#F1F3F8] text-[#5B6472]",
+};
+// Instagram display names are marketing straplines — "Hello Mentor | India's #1
+// Counselling Platform". Searching that verbatim matches nothing, so cut at the
+// first separator and keep the brand. Falls back to the handle when what is left
+// is too short to be a name.
+function searchName(c: Competitor): string {
+  const raw = (c.name || "").split(/[|–—·:]/)[0].trim();
+  return raw.length >= 3 ? raw : c.username;
+}
+
+function CompetitorIntel({ name }: { name: string }) {
+  // Off by default: the forum search is a second paid call per competitor.
+  const [forums, setForums] = useState(false);
+  const { data, isLoading } = useApi<Intel>(
+    `/api/benchmark/profile-intel?name=${encodeURIComponent(name)}${forums ? "&forums=1" : ""}`);
+  const [lane, setLane] = useState<string>("all");
+  if (isLoading) return <div className="bg-white border border-gray-100 rounded-2xl p-5 text-[13px] text-[#8A92A6]">Reading what the web says…</div>;
+  if (!data || data.configured === false) return null;
+  if (data.capped) {
+    return (
+      <div className="bg-white border border-amber-200 rounded-2xl p-4 text-[13px] text-[#8A5B12]">
+        This month&rsquo;s web-search budget is used up, so mentions aren&rsquo;t being fetched. They&rsquo;ll resume next month, or raise SERPER_MONTHLY_BUDGET.
+      </div>
+    );
+  }
+  const shown = lane === "all" ? data.mentions : data.mentions.filter((m) => m.lane === lane);
+  if (!data.mentions.length && !data.reviews) return null;
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-xs uppercase tracking-wider font-semibold text-[#079AA2]">What people say</span>
+        <span className="text-[12px] text-[#8A92A6]">about {name}</span>
+        <button onClick={() => { setForums(!forums); setLane("all"); }}
+          title={forums ? "Back to a general web search" : "Searches Reddit, Quora, MouthShut and ValueMD — costs one web search, then cached for a day"}
+          className={`ml-auto h-8 px-3 rounded-lg border text-[12.5px] transition ${
+            forums ? "border-brand text-brand bg-brand-light" : "border-gray-200 text-[#4A5468] hover:border-brand"}`}>
+          {forums ? "Showing forums" : "Search forums"}
+        </button>
+      </div>
+
+      {data.reviews && (data.reviews.rating != null) && (
+        <div className="flex items-baseline gap-2 mb-4 flex-wrap">
+          <span className="text-[19px] font-semibold text-[#232D42] tabular-nums">{data.reviews.rating}★</span>
+          <span className="text-[12px] text-[#8A92A6]">on Google{data.reviews.ratingCount != null ? ` · ${fmt(data.reviews.ratingCount)} ratings` : ""}</span>
+        </div>
+      )}
+
+      {data.lanes.length > 1 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <button onClick={() => setLane("all")}
+            className={`h-7 px-2.5 rounded-full text-[12px] border transition ${
+              lane === "all" ? "border-brand text-brand bg-brand-light" : "border-gray-200 text-[#4A5468] hover:border-gray-300"}`}>
+            All ({data.mentions.length})
+          </button>
+          {data.lanes.map((l) => (
+            <button key={l.key} onClick={() => setLane(l.key)}
+              className={`h-7 px-2.5 rounded-full text-[12px] border transition ${
+                lane === l.key ? "border-brand text-brand bg-brand-light" : "border-gray-200 text-[#4A5468] hover:border-gray-300"}`}>
+              {l.label} ({l.count})
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {shown.slice(0, 8).map((m) => (
+          <a key={m.url} href={m.url} target="_blank" rel="noreferrer"
+            className="block border border-gray-100 rounded-xl p-3 hover:border-brand transition">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-[11px] text-[#8A92A6]">{m.source}</span>
+              <span className={`text-[10.5px] rounded-full px-2 py-0.5 ${SENTIMENT_TINT[m.sentiment] || SENTIMENT_TINT.neutral}`}>{m.sentiment}</span>
+            </div>
+            <div className="text-[13.5px] text-[#232D42] leading-snug">{m.title}</div>
+            {m.snippet && <div className="text-[12px] text-[#5A6478] mt-1 leading-relaxed line-clamp-2">{m.snippet}</div>}
+          </a>
+        ))}
+        {!shown.length && (
+          <div className="text-[13px] text-[#8A92A6]">
+            {forums ? `No forum threads found for ${name}.` : `Nothing found there for ${name}.`}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
