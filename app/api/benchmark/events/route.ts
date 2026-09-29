@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   if (!sb) return NextResponse.json({ events: [], watchingSince: null });
   try {
     let q = sb.from("mh_competitor_events").select("id, kind, title, url, published_at, detected_at")
-      .eq("account_id", accountId).eq("handle", handle).order("detected_at", { ascending: false }).limit(20);
+      .eq("account_id", accountId).eq("handle", handle).order("detected_at", { ascending: false }).limit(60);
     if (kinds.length) q = q.in("kind", kinds);
     const [{ data, error }, { data: first }] = await Promise.all([
       q,

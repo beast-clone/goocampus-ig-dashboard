@@ -21,7 +21,10 @@ import { getAccount, fetchCompetitor } from "@/lib/instagram";
 
 type SB = NonNullable<ReturnType<typeof getSupabase>>;
 export type WatchEvent = { handle: string; name: string; kind: "blog" | "event" | "page" | "youtube" | "instagram"; title: string; url: string; publishedAt?: string | null };
-export type WatchResult = { competitors: number; baselined: string[]; events: WatchEvent[]; errors: string[] };
+// `events` are new since the last run → stored AND notified. `listed` are events a
+// site shows the first time we read its event pages → stored (so the Briefing shows
+// what's on right now) but NOT notified: they weren't announced just now.
+export type WatchResult = { competitors: number; baselined: string[]; events: WatchEvent[]; listed: WatchEvent[]; errors: string[] };
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
 const EVENT_PATH = /(webinar|event|seminar|workshop|masterclass|conference|expo|live-session)/i;
@@ -104,20 +107,65 @@ const decode = (s: string) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').r
 const prettyPath = (u: string) => { try { return decodeURIComponent(new URL(u).pathname).split("/").filter(Boolean).pop()?.replace(/[-_]+/g, " ") || u; } catch { return u; } };
 
 // ── events / webinar listing pages ─────────────────────────────────────────────
-// A webinar is often announced as a card on /webinar before (or without) getting a
-// page of its own. So the listing pages themselves are read and their event-looking
-// links remembered; a new one is an event.
-function eventLinks(html: string, pageUrl: string): Map<string, string> {
-  const out = new Map<string, string>();
-  const re = /<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+// What an events page actually lists. Three readers, best first:
+//   1. schema.org Event data in the page (Academically publishes an EventSeries with
+//      a sub-event per city and date).
+//   2. Dated cards in the visible text: "Oct 03 Sat, 06:00 PM - 07:00 PM <title>
+//      Register Now" (Moksh's /webinars).
+//   3. Links to event-looking pages (Hello Mentor's /pg-medical-expo-2026). Links are
+//      judged by their PATH only — matching the word "register" in link text caught
+//      menu items like "register as a doctor in Australia" (29 Sep).
+// Hello Mentor's /webinar list is filled in by JavaScript after the page loads, so
+// none of these see it; their Instagram event posts cover it.
+type PageEvent = { url: string; title: string; date: string | null };
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+
+function pageEvents(html: string, pageUrl: string): Map<string, PageEvent> {
+  const out = new Map<string, PageEvent>();
+  // 1. JSON-LD
+  for (const blk of html.match(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) || []) {
+    let j: unknown;
+    try { j = JSON.parse(blk.replace(/^<script[^>]*>|<\/script>$/gi, "")); } catch { continue; }
+    const walk = (x: unknown) => {
+      if (Array.isArray(x)) { x.forEach(walk); return; }
+      if (!x || typeof x !== "object") return;
+      const o = x as Record<string, unknown>;
+      const type = String(o["@type"] || "");
+      if (/Event$/.test(type) && type !== "EventSeries" && typeof o.name === "string") {
+        const date = typeof o.startDate === "string" ? o.startDate : null;
+        const url = typeof o.url === "string" ? o.url : `${pageUrl}#${slug(o.name + (date || ""))}`;
+        out.set(`${o.name}|${date || ""}`, { url, title: decode(o.name), date });
+      }
+      for (const v of Object.values(o)) if (v && typeof v === "object") walk(v);
+    };
+    walk(j);
+  }
+  // 2. Dated cards in the text
+  const text = decode(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
+  const card = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:,?\s+(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*)?,?\s+(\d{1,2}):(\d{2})\s*([ap]m)(?:\s*[-–]\s*\d{1,2}:\d{2}\s*[ap]m)?\s+(.{8,160}?)\s+(?:register|join|book|enrol|enroll|rsvp)\b/gi;
   let m: RegExpExecArray | null;
+  while ((m = card.exec(text))) {
+    const mon = MONTHS.indexOf(m[1].toLowerCase().slice(0, 3)), day = Number(m[2]);
+    let h = Number(m[3]) % 12; if (m[5].toLowerCase() === "pm") h += 12;
+    const now = new Date();
+    // A card with no year is this year's, unless that is long past — then next year's.
+    let y = now.getFullYear();
+    if (new Date(y, mon, day).getTime() < now.getTime() - 60 * 86_400_000) y += 1;
+    const date = `${y}-${String(mon + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${m[4]}:00+05:30`;
+    const title = m[6].trim();
+    out.set(`${title}|${date}`, { url: `${pageUrl}#${slug(title + date)}`, title, date });
+  }
+  // 3. Links to event pages (path only)
+  const re = /<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   while ((m = re.exec(html))) {
-    let abs: string;
-    try { abs = new URL(m[1], pageUrl).toString(); } catch { continue; }
-    const text = decode(m[2].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
-    if (abs.replace(/\/$/, "") === pageUrl.replace(/\/$/, "")) continue;
-    if (!(EVENT_WORDS.test(text) || EVENT_PATH.test(abs) || /zoom\.us|meet\.google|forms\.|lu\.ma|eventbrite|register/i.test(abs))) continue;
-    if (!out.has(abs)) out.set(abs, text.slice(0, 200));
+    let abs: URL;
+    try { abs = new URL(m[1], pageUrl); } catch { continue; }
+    if (abs.origin !== new URL(pageUrl).origin || abs.href.replace(/\/$/, "") === pageUrl.replace(/\/$/, "")) continue;
+    const first = abs.pathname.split("/").filter(Boolean)[0] || "";
+    if (!EVENT_PATH.test(first) || /^(events?|webinars?)$/i.test(first) && abs.pathname.split("/").filter(Boolean).length === 1) continue;
+    const t = decode(m[2].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim() || prettyPath(abs.href);
+    if (!out.has(abs.href)) out.set(abs.href, { url: abs.href, title: t.slice(0, 160), date: null });
   }
   return out;
 }
@@ -157,7 +205,7 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase not configured");
   const accountId = opts.accountId || "goocampus";
-  const res: WatchResult = { competitors: 0, baselined: [], events: [], errors: [] };
+  const res: WatchResult = { competitors: 0, baselined: [], events: [], listed: [], errors: [] };
   const account = getAccount(accountId);
   const ourHandle = (account?.handle || "").replace(/^@/, "").toLowerCase();
 
@@ -183,14 +231,24 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
           add({ kind: kindOfUrl(url), url, title: i < MAX_TITLES && allowed(robots, url) ? await titleOf(url) : prettyPath(url), publishedAt: pages.get(url) || null });
         }
         // Listing pages: the site's webinar/event pages (from the sitemap), at most 3.
-        const listings = [...pages.keys()].filter((u) => EVENT_PATH.test(new URL(u).pathname.split("/").filter(Boolean)[0] || "")).slice(0, 3);
+        // The listing pages themselves: a one-word webinar/event path (/webinar, /events,
+        // /seminars), plus event pages the sitemap lists directly (/pg-medical-expo-2026).
+        const listings = [...pages.keys()].filter((u) => { const segs = new URL(u).pathname.split("/").filter(Boolean); return segs.length === 1 && EVENT_PATH.test(segs[0]); }).slice(0, 4);
         for (const lp of listings) {
           if (!allowed(robots, lp)) continue;
           const html = await get(lp);
           if (!html) continue;
-          const links = eventLinks(html, lp);
-          const newLinks = await diff(sb, accountId, c.handle, `page:${lp}`, [...links.keys()], res.baselined);
-          for (const url of newLinks.slice(0, 10)) add({ kind: "event", url, title: links.get(url) || prettyPath(url) });
+          const found = pageEvents(html, lp);
+          if (!found.size) continue;
+          const source = `page:${lp}`;
+          const firstRead = !(await seenKeys(sb, accountId, c.handle, source));
+          const fresh = await diff(sb, accountId, c.handle, source, [...found.keys()], res.baselined);
+          // First read: store what's on the page now (shown, not notified).
+          const target = firstRead ? res.listed : res.events;
+          for (const k of (firstRead ? [...found.keys()] : fresh).slice(0, 25)) {
+            const e = found.get(k)!;
+            target.push({ handle: c.handle, name, kind: "event", url: e.url, title: e.title, publishedAt: e.date });
+          }
         }
       } catch (e) { res.errors.push(`${name} website: ${(e as Error).message}`); }
     }
@@ -229,8 +287,9 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
   }
 
   // Store events (unique on account+handle+kind+url, so a retry can't double them).
-  if (res.events.length) {
-    const rows = res.events.map((e) => ({ account_id: accountId, handle: e.handle, kind: e.kind, title: e.title, url: e.url, published_at: e.publishedAt && !Number.isNaN(Date.parse(e.publishedAt)) ? new Date(e.publishedAt).toISOString() : null }));
+  const toStore = [...res.events, ...res.listed];
+  if (toStore.length) {
+    const rows = toStore.map((e) => ({ account_id: accountId, handle: e.handle, kind: e.kind, title: e.title, url: e.url, published_at: e.publishedAt && !Number.isNaN(Date.parse(e.publishedAt)) ? new Date(e.publishedAt).toISOString() : null }));
     const { error: insErr } = await sb.from("mh_competitor_events").upsert(rows, { onConflict: "account_id,handle,kind,url", ignoreDuplicates: true });
     if (insErr) res.errors.push(`saving events: ${insErr.message}`);
   }

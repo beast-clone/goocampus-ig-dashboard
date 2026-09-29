@@ -69,7 +69,12 @@ export function CompetitorBriefing() {
   const list = (trackedResp?.items || []).filter((t) => t.platform === "instagram" && t.handle !== trackedResp?.ourHandle);
   const [sel, setSel] = useState<string>("");
   // Remember the last competitor looked at; fall back to the first.
-  useEffect(() => { try { const v = localStorage.getItem("brief-competitor"); if (v) setSel(v); } catch { /* private mode */ } }, []);
+  // A notification links here with ?c=<handle>; that wins over the last one picked.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get("c");
+    if (fromLink) { setSel(fromLink.toLowerCase()); return; }
+    try { const v = localStorage.getItem("brief-competitor"); if (v) setSel(v); } catch { /* private mode */ }
+  }, []);
   const current = list.find((t) => t.handle === sel) || list[0];
   const pick = (h: string) => { setSel(h); try { localStorage.setItem("brief-competitor", h); } catch { /* private mode */ } };
 
@@ -285,7 +290,19 @@ function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
     );
   }
   if (isLoading && !data) return <LoadingBlock className="!py-6" size={28} />;
-  const events = data?.events || [];
+  // Events first: upcoming ones by date (soonest on top), then undated ones; an event
+  // whose date has passed is dropped. Blogs and pages follow, newest first.
+  const now = Date.now();
+  const when = (e: SiteEvent) => (e.kind === "event" && e.published_at ? Date.parse(e.published_at) : NaN);
+  const events = (data?.events || [])
+    .filter((e) => !(when(e) < now - 3 * 3_600_000))
+    .sort((x, y) => {
+      const ex = x.kind === "event" ? 0 : 1, ey = y.kind === "event" ? 0 : 1;
+      if (ex !== ey) return ex - ey;
+      const wx = when(x), wy = when(y);
+      if (!Number.isNaN(wx) || !Number.isNaN(wy)) return (Number.isNaN(wx) ? Infinity : wx) - (Number.isNaN(wy) ? Infinity : wy);
+      return Date.parse(y.detected_at) - Date.parse(x.detected_at);
+    });
   if (!events.length) {
     return <Empty>{data?.watchingSince
       ? `Watching ${t.website.replace(/^https?:\/\//, "")} since ${new Date(data.watchingSince).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} — nothing new yet. New blogs, webinars and events will appear here and in your notifications.`
@@ -293,13 +310,14 @@ function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
   }
   return (
     <div className="divide-y divide-gray-100">
-      {events.slice(0, 8).map((e) => {
+      {events.slice(0, 10).map((e) => {
         const tag = KIND_TAG[e.kind] || KIND_TAG.page;
         return (
           <a key={e.id} href={e.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 hover:text-brand">
             <span className={`text-[11px] font-medium rounded px-1.5 py-0.5 shrink-0 ${tag.cls}`}>{tag.label}</span>
             <span className="text-[13.5px] text-[#232D42] truncate flex-1 min-w-0">{e.title || e.url}</span>
-            <span className="text-[11.5px] text-[#8A92A6] shrink-0">{ago(e.detected_at)}</span>
+            <span className="text-[11.5px] text-[#8A92A6] shrink-0">{Number.isNaN(when(e)) ? (e.kind === "event" ? "no date given" : ago(e.detected_at))
+              : new Date(when(e)).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}</span>
             <IconExternalLink size={14} className="text-[#8A92A6] shrink-0" />
           </a>
         );
