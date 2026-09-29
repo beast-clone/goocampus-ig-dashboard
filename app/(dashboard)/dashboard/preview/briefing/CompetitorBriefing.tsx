@@ -250,13 +250,21 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
   );
 }
 
-// The website card. The watcher that fills it (blogs from the sitemap, events and
-// webinars from their pages) is the next step of the spec; until then it says so,
-// and lets you save the website it will watch.
+// The website card: what the watcher (lib/competitor-watch.ts) found on their site —
+// new blog posts and pages from the sitemap, new webinars / events from their event
+// pages — newest first. With no website saved, it asks for one.
+type SiteEvent = { id: string; kind: string; title: string | null; url: string; published_at: string | null; detected_at: string };
+const KIND_TAG: Record<string, { label: string; cls: string }> = {
+  event: { label: "Webinar / event", cls: "bg-amber-50 text-amber-800" },
+  blog: { label: "Blog", cls: "bg-brand-light text-brand" },
+  page: { label: "New page", cls: "bg-gray-100 text-[#4A5468]" },
+};
 function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
   const [val, setVal] = useState(t.website || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const { data, isLoading } = useApi<{ events: SiteEvent[]; watchingSince: string | null }>(
+    t.website ? `/api/benchmark/events?accountId=goocampus&handle=${encodeURIComponent(t.handle)}&kinds=blog,event,page` : null);
   const save = async () => {
     setBusy(true); setErr(null);
     try {
@@ -267,14 +275,35 @@ function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
       onSaved();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
-  if (t.website) {
-    return <Empty>Watching {t.website.replace(/^https?:\/\//, "")} for new blogs, webinars and events starts with the next update — they'll appear here and in your notifications.</Empty>;
+  if (!t.website) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="their-website.com" className="h-9 px-3 rounded-lg border border-gray-200 text-[13.5px] w-[280px] outline-none focus:border-brand" />
+        <button onClick={save} disabled={busy || !val.trim()} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save website"}</button>
+        {err && <span className="text-[12.5px] text-[#C03221]">{err}</span>}
+      </div>
+    );
+  }
+  if (isLoading && !data) return <LoadingBlock className="!py-6" size={28} />;
+  const events = data?.events || [];
+  if (!events.length) {
+    return <Empty>{data?.watchingSince
+      ? `Watching ${t.website.replace(/^https?:\/\//, "")} since ${new Date(data.watchingSince).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} — nothing new yet. New blogs, webinars and events will appear here and in your notifications.`
+      : `Watching ${t.website.replace(/^https?:\/\//, "")} starts on the next check (every 5 minutes once live).`}</Empty>;
   }
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="their-website.com" className="h-9 px-3 rounded-lg border border-gray-200 text-[13.5px] w-[280px] outline-none focus:border-brand" />
-      <button onClick={save} disabled={busy || !val.trim()} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save website"}</button>
-      {err && <span className="text-[12.5px] text-[#C03221]">{err}</span>}
+    <div className="divide-y divide-gray-100">
+      {events.slice(0, 8).map((e) => {
+        const tag = KIND_TAG[e.kind] || KIND_TAG.page;
+        return (
+          <a key={e.id} href={e.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 hover:text-brand">
+            <span className={`text-[11px] font-medium rounded px-1.5 py-0.5 shrink-0 ${tag.cls}`}>{tag.label}</span>
+            <span className="text-[13.5px] text-[#232D42] truncate flex-1 min-w-0">{e.title || e.url}</span>
+            <span className="text-[11.5px] text-[#8A92A6] shrink-0">{ago(e.detected_at)}</span>
+            <IconExternalLink size={14} className="text-[#8A92A6] shrink-0" />
+          </a>
+        );
+      })}
     </div>
   );
 }

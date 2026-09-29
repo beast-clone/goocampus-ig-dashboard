@@ -14,7 +14,7 @@ import { NOTIF_REFRESH, patchNotifs, taskHref, type NotifItem } from "@/app/(das
 // Open action items are pinned at the top until the action is actually done;
 // reading one does not unpin it.
 
-type Cat = "all" | "action" | "assigned" | "pool" | "progress" | "dates" | "reminder";
+type Cat = "all" | "action" | "assigned" | "pool" | "progress" | "dates" | "reminder" | "competitor";
 const CATS: { key: Exclude<Cat, "all">; label: string }[] = [
   { key: "action",   label: "Action needed" },
   { key: "assigned", label: "Assigned to you" },
@@ -23,6 +23,8 @@ const CATS: { key: Exclude<Cat, "all">; label: string }[] = [
   { key: "dates",    label: "Dates & schedule" },
   // Reminders dismissed from My Day's strip land here, so dismissing never loses one.
   { key: "reminder", label: "Reminders" },
+  // What the competitor watcher spotted (lib/competitor-watch.ts).
+  { key: "competitor", label: "Competitors" },
 ];
 const label = (c: string) => CATS.find((x) => x.key === c)?.label || c;
 const isOpenAction = (n: NotifItem) => n.action_needed && !n.done_at;

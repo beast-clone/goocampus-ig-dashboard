@@ -1,7 +1,7 @@
 "use client";
 import type { Icon } from "@tabler/icons-react";
 import {
-  IconBell, IconAlarm, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
+  IconBell, IconAlarm, IconSpeakerphone, IconRadar, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
   IconArrowsExchange, IconPin, IconCircleCheck, IconPalette, IconPackage, IconSend,
   IconUserCheck,
 } from "@tabler/icons-react";
@@ -12,6 +12,8 @@ import {
 const BY_EMOJI: Record<string, Icon> = {
   "📅": IconCalendarEvent,   // a date moved, or work reached the Scheduler
   "⏰": IconAlarm,           // a My Day reminder the person dismissed (kept here)
+  "📣": IconSpeakerphone,    // a competitor announced a webinar / event
+  "🔎": IconRadar,           // a competitor posted something new
   "✓": IconUserCheck,        // someone claimed a video — a person took it
   "🎬": IconMovie,           // a video is up for grabs
   "⏳": IconHourglass,        // waiting in your pipeline

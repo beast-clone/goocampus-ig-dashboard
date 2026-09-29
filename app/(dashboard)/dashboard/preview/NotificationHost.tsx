@@ -54,6 +54,10 @@ export async function patchNotifs(body: { op: "read" | "dismiss" | "popped" | "d
 // go to the bell and the count and nowhere else.
 function wantsPop(n: NotifItem, now: number): boolean {
   if (n.read_at || n.dismissed_at) return false;
+  // One exception: a competitor announcing a webinar or event pops up ONCE — the
+  // whole point of watching them is to hear about it straight away (Praveen, 29 Sep).
+  // It never re-pops: it's news, not something waiting on you.
+  if (n.kind === "competitor_event") return !n.last_popped_at;
   if (!n.action_needed) return false;
   if (n.done_at) return false;
   return !n.last_popped_at || now - new Date(n.last_popped_at).getTime() >= REPOP_MS;
