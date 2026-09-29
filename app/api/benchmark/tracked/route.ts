@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
+import { getAccount } from "@/lib/instagram";
 
 // The competitors a brand is tracking.
 //
@@ -62,7 +63,10 @@ export async function GET(req: Request) {
   }
   const items = ((data || []) as (TrackedRow & { youtube_channel?: string | null })[])
     .map(({ youtube_channel, ...r }) => ({ ...r, youtube: youtube_channel ?? null }));
-  return NextResponse.json({ available: true, items });
+  // Our own handle, so screens that are only about competitors (the Briefing) can
+  // leave it out — people track it on purpose for the Compare view.
+  const ourHandle = (getAccount(accountId)?.handle || "").replace(/^@/, "").toLowerCase();
+  return NextResponse.json({ available: true, items, ourHandle });
 }
 
 export async function POST(req: Request) {

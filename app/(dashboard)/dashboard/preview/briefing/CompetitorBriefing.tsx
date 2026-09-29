@@ -64,8 +64,9 @@ const label = (t: Tracked) => t.name || t.handle;
 
 export function CompetitorBriefing() {
   const { data: trackedResp, isLoading: listLoading, mutate: reloadList } =
-    useApi<{ available: boolean; items: Tracked[] }>(`/api/benchmark/tracked?accountId=goocampus`);
-  const list = (trackedResp?.items || []).filter((t) => t.platform === "instagram");
+    useApi<{ available: boolean; items: Tracked[]; ourHandle?: string }>(`/api/benchmark/tracked?accountId=goocampus`);
+  // Competitors only: our own account is tracked too (for Compare), but this page is about them.
+  const list = (trackedResp?.items || []).filter((t) => t.platform === "instagram" && t.handle !== trackedResp?.ourHandle);
   const [sel, setSel] = useState<string>("");
   // Remember the last competitor looked at; fall back to the first.
   useEffect(() => { try { const v = localStorage.getItem("brief-competitor"); if (v) setSel(v); } catch { /* private mode */ } }, []);
@@ -93,7 +94,7 @@ export function CompetitorBriefing() {
             {label(t)}
           </button>
         ))}
-        <Link href="/dashboard/preview/benchmark" className="ml-auto text-[12.5px] text-brand hover:underline">Manage competitors</Link>
+        <Link href="/dashboard/preview/benchmark?manage=1" className="ml-auto text-[12.5px] text-brand hover:underline">Manage competitors</Link>
       </div>
       <CompetitorDetailBrief key={current.handle} t={current} onSaved={reloadList} />
     </div>

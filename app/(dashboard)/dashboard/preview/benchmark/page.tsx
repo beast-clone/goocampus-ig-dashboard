@@ -1,5 +1,6 @@
 "use client";
-import { IconHeart, IconMessageCircle, IconStar, IconTrophy } from "@tabler/icons-react";
+import { IconHeart, IconMessageCircle, IconStar, IconTrophy, IconTrash, IconSettings } from "@tabler/icons-react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -54,7 +55,7 @@ function fmt(n: number): string {
 }
 
 // A tracked competitor carries a manual category + a metrics period (days; 0 = all recent).
-type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string; youtube?: string };
+type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string; youtube?: string; name?: string; website?: string };
 
 // People paste whatever the address bar gave them. Pull the UC… id out of a
 // channel URL; anything else is handed back trimmed and the API says if it is wrong.
@@ -99,6 +100,9 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   // Asked for as tabs carrying each brand's own logo and name, so adding more
   // trackers stays readable (Praveen, 28 Sept).
   const [profile, setProfile] = useState<string>("");
+  // Edit / remove competitors in one list (Praveen, 29 Sep: "there is no option to
+  // delete the competitor"). The ✕ on cards only existed in the Tracked grid.
+  const [managing, setManaging] = useState(false);
   const [openMedia, setOpenMedia] = useState<CompetitorMedia | null>(null);
   // Tracked competitors are team data, so they are rows now, not localStorage.
   // They used to be saved per browser, which is why "I've added 2-3; now it's not
@@ -137,8 +141,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       const j = await r.json();
       if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); return; }
       setServerTracked(true);
-      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube?: string | null }) =>
-        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube || "" }));
+      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube?: string | null; name?: string | null; website?: string | null }) =>
+        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube || "", name: x.name || "", website: x.website || "" }));
       // One-time lift: whatever this browser still holds that the server doesn't.
       const local = readLocal();
       const known = new Set(rows.map((t) => t.handle.toLowerCase()));
@@ -168,6 +172,24 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         body: JSON.stringify({ accountId, items: added }),
       }).catch(() => {});
     }
+  };
+  const confirmRemove = async (handle: string) => {
+    const t = trackedOf(handle);
+    const ok = await confirmDialog({
+      title: `Remove ${t?.name || "@" + handle}?`,
+      body: <>They disappear from Competitors and the Briefing for the whole team. You can add them again any time.</>,
+      action: "Remove", danger: true,
+    });
+    if (!ok) return;
+    if (profile.toLowerCase() === handle.toLowerCase()) setProfile("");
+    await removeTracked(handle);
+  };
+  const editTracked = async (handle: string, patch: { name?: string; website?: string; youtube?: string }) => {
+    const r = await fetch("/api/benchmark/tracked", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId, handle, platform: trackedOf(handle)?.platform || "instagram", ...patch }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    await loadTracked();
   };
   const removeTracked = async (handle: string) => {
     const gone = tracked.find((t) => t.handle.toLowerCase() === handle.toLowerCase());
@@ -232,8 +254,11 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
   // a Suspense boundary around the whole page for the sake of one string. The
   // tab strip owns the profile from then on.
   useEffect(() => {
-    const h = new URLSearchParams(window.location.search).get("profile");
+    const q = new URLSearchParams(window.location.search);
+    const h = q.get("profile");
     if (h) setProfile(h.replace(/^@/, ""));
+    // The Briefing's "Manage competitors" link opens the manage panel directly.
+    if (q.get("manage") === "1") setManaging(true);
   }, []);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
   void mutate;
@@ -356,6 +381,15 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
         )}
       </div>
 
+      {tracked.length > 0 && (
+        <div className="flex justify-end mb-2">
+          <button onClick={() => setManaging((v) => !v)} className="h-9 px-3.5 rounded-lg border border-gray-200 bg-white text-[13px] text-[#4A5468] hover:border-brand hover:text-brand inline-flex items-center gap-1.5">
+            <IconSettings size={15} /> {managing ? "Close" : "Manage competitors"}
+          </button>
+        </div>
+      )}
+      {managing && <ManageCompetitors rows={tracked} onSave={editTracked} onRemove={confirmRemove} />}
+
       {/* One tab per competitor, their own avatar as the logo. Scrolls sideways
           rather than wrapping once there are more than a handful. */}
       {valid.length > 0 && (
@@ -448,7 +482,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       {/* One competitor, in full. */}
       {profile && valid.some((c) => c.username === profile) ? (
         <CompetitorProfile c={valid.find((c) => c.username === profile)!} medianER={medianER}
-          yt={trackedOf(profile)?.youtube} onOpenPost={(m) => setOpenMedia(m)} />
+          yt={trackedOf(profile)?.youtube} onOpenPost={(m) => setOpenMedia(m)}
+          onRemove={trackedOf(profile) ? () => confirmRemove(profile) : undefined} />
       ) : (<>
       {/* Competitor grid */}
       {niche === "__tracked__" && tracked.length === 0 ? (
@@ -511,8 +546,61 @@ function brandOf(c: Competitor): Record<string, unknown> {
   };
 }
 
-function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
-  c: Competitor; medianER: number; yt?: string; onOpenPost: (m: CompetitorMedia) => void;
+// Every tracked competitor in one list: fix the name, website (watched for new blogs
+// and events) or YouTube channel, or remove them. Saves one row at a time.
+function ManageCompetitors({ rows, onSave, onRemove }: {
+  rows: Tracked[];
+  onSave: (handle: string, patch: { name?: string; website?: string; youtube?: string }) => Promise<void>;
+  onRemove: (handle: string) => void;
+}) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4">
+      <div className="text-[16px] font-medium text-[#232D42]">Manage competitors</div>
+      <div className="text-[12.5px] text-[#8A92A6] mb-3">Changes apply to the whole team — here and on the Briefing.</div>
+      <div className="hidden md:grid grid-cols-[1.1fr_1fr_1.3fr_1.3fr_auto] gap-2 text-[11.5px] font-medium text-[#8A92A6] px-1 pb-1">
+        <span>Name</span><span>Instagram</span><span>Website</span><span>YouTube channel</span><span />
+      </div>
+      <div className="divide-y divide-gray-100">
+        {rows.map((t) => <ManageRow key={t.handle} t={t} onSave={onSave} onRemove={onRemove} />)}
+      </div>
+    </div>
+  );
+}
+
+function ManageRow({ t, onSave, onRemove }: { t: Tracked; onSave: (h: string, p: { name?: string; website?: string; youtube?: string }) => Promise<void>; onRemove: (h: string) => void }) {
+  const [name, setName] = useState(t.name || "");
+  const [website, setWebsite] = useState(t.website || "");
+  const [yt, setYt] = useState(t.youtube || "");
+  const [state, setState] = useState<"" | "saving" | "saved">("");
+  const [err, setErr] = useState<string | null>(null);
+  const dirty = name !== (t.name || "") || website !== (t.website || "") || yt !== (t.youtube || "");
+  const save = async () => {
+    setState("saving"); setErr(null);
+    try { await onSave(t.handle, { name, website, youtube: ytId(yt) }); setState("saved"); }
+    catch (e) { setErr((e as Error).message); setState(""); }
+  };
+  const inp = "h-9 px-2.5 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-brand w-full";
+  return (
+    <div className="py-2.5">
+      <div className="grid md:grid-cols-[1.1fr_1fr_1.3fr_1.3fr_auto] gap-2 items-center">
+        <input className={inp} value={name} onChange={(e) => { setName(e.target.value); setState(""); }} placeholder="Display name" />
+        <span className="text-[13px] text-[#4A5468] truncate px-1">@{t.handle}</span>
+        <input className={inp} value={website} onChange={(e) => { setWebsite(e.target.value); setState(""); }} placeholder="their-website.com" />
+        <input className={inp} value={yt} onChange={(e) => { setYt(e.target.value); setState(""); }} placeholder="Channel URL or UC… id" />
+        <div className="flex items-center gap-1.5">
+          <button onClick={save} disabled={!dirty || state === "saving"} className="h-9 px-3 rounded-lg bg-brand text-white text-[12.5px] font-medium disabled:opacity-40">
+            {state === "saving" ? "Saving…" : state === "saved" && !dirty ? "Saved" : "Save"}
+          </button>
+          <button onClick={() => onRemove(t.handle)} title="Remove" className="h-9 w-9 rounded-lg border border-gray-200 text-[#C03221] grid place-items-center hover:border-[#C03221]"><IconTrash size={15} /></button>
+        </div>
+      </div>
+      {err && <div className="text-[12px] text-[#C03221] mt-1">{err}</div>}
+    </div>
+  );
+}
+
+function CompetitorProfile({ c, medianER, yt, onOpenPost, onRemove }: {
+  c: Competitor; medianER: number; yt?: string; onOpenPost: (m: CompetitorMedia) => void; onRemove?: () => void;
 }) {
   const vsMedian = medianER ? c.engagementRatePct - medianER : 0;
   return (
@@ -524,7 +612,14 @@ function CompetitorProfile({ c, medianER, yt, onOpenPost }: {
             ? <img src={c.profile_picture_url} alt="" className="w-14 h-14 rounded-2xl object-cover flex-shrink-0" />
             : <span className="w-14 h-14 rounded-2xl bg-[#EEEDFE] text-[#3C3489] text-lg grid place-items-center flex-shrink-0">{c.username.slice(0, 1).toUpperCase()}</span>}
           <div className="min-w-0 flex-1">
-            <div className="text-[17px] font-medium text-[#232D42] leading-tight">{c.name || c.username}</div>
+            <div className="flex items-start gap-2">
+              <div className="text-[17px] font-medium text-[#232D42] leading-tight flex-1">{c.name || c.username}</div>
+              {onRemove && (
+                <button onClick={onRemove} className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#C03221] hover:border-[#C03221] inline-flex items-center gap-1 shrink-0">
+                  <IconTrash size={14} /> Remove
+                </button>
+              )}
+            </div>
             <a href={`https://instagram.com/${c.username}`} target="_blank" rel="noreferrer" className="text-[13px] text-brand hover:underline">@{c.username}</a>
             {c.biography && <p className="text-[13px] text-[#5A6478] mt-1.5 leading-relaxed max-w-2xl">{c.biography}</p>}
           </div>
