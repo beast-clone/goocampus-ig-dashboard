@@ -137,8 +137,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       const j = await r.json();
       if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); return; }
       setServerTracked(true);
-      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube_channel?: string | null }) =>
-        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube_channel || "" }));
+      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube?: string | null }) =>
+        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube || "" }));
       // One-time lift: whatever this browser still holds that the server doesn't.
       const local = readLocal();
       const known = new Set(rows.map((t) => t.handle.toLowerCase()));

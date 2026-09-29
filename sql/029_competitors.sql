@@ -31,14 +31,21 @@ create table if not exists mh_competitors (
   youtube_channel text,
   -- Days of history to compare over (30 / 60 / 90).
   period      int  not null default 30,
+  -- Display name ("Hello Mentor") and real website, for the Briefing tabs and the
+  -- website watcher (Praveen, 29 Sep — docs/COMPETITOR_RADAR_SPEC.md). The website is
+  -- entered, never guessed from the handle: "academically.global" is not a domain.
+  name        text,
+  website     text,
   added_by    text,
   created_at  timestamptz not null default now()
 );
 
 -- One row per handle per platform per brand. The app upserts on this, so adding a
--- competitor twice updates it rather than duplicating.
+-- competitor twice updates it rather than duplicating. On the plain column (the app
+-- stores handles lower-cased): an index on lower(handle) can't be named in an upsert's
+-- ON CONFLICT, so every save would have failed.
 create unique index if not exists mh_competitors_unique
-  on mh_competitors (account_id, platform, lower(handle));
+  on mh_competitors (account_id, platform, handle);
 
 create index if not exists mh_competitors_account on mh_competitors (account_id);
 
@@ -46,4 +53,13 @@ alter table mh_competitors enable row level security;
 -- No policies: the dashboard reads and writes with the service-role key, which
 -- bypasses RLS. Adding an anon policy would expose the table to the public key.
 
--- Check: select account_id, platform, handle, sbu from mh_competitors order by created_at;
+-- The three competitors the team named (Praveen, 29 Sep), as ordinary rows anyone can
+-- edit or remove — they used to be hard-coded in competitors.json and
+-- competitor-youtube.json, so removing them never stuck.
+insert into mh_competitors (account_id, platform, handle, name, website, youtube_channel, added_by) values
+  ('goocampus', 'instagram', 'hellomentor.in', 'Hello Mentor', 'https://hellomentor.in', 'UCq7ajE4W-30sHRGzaGlMMfg', 'praveen'),
+  ('goocampus', 'instagram', 'academically.global', 'Academically', null, 'UCkl1L4K6CFZCfgXREYploRw', 'praveen'),
+  ('goocampus', 'instagram', 'moksh_academy', 'Moksh Academy', null, null, 'praveen')
+on conflict (account_id, platform, handle) do nothing;
+
+-- Check: select account_id, platform, handle, name, website from mh_competitors order by created_at;

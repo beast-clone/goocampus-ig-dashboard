@@ -19,8 +19,8 @@ export function BriefingClient({ person }: { person: string }) {
   const date = now ? now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }) : "";
 
   return (
-    <PreviewDashboardShell active="my-workspace" title={`Competitor radar${greet ? ` · ${greet}, ${who}` : ""}`} hideAccountPicker hideRange
-      subtitle={`${date ? `${date} · ` : ""}what the competition is doing — everything here is about them, not us.`}>
+    <PreviewDashboardShell active="my-workspace" title={`Briefing${greet ? ` · ${greet}, ${who}` : ""}`} hideAccountPicker hideRange
+      subtitle={`${date ? `${date} · ` : ""}what your competitors are doing`}>
       {() => <CompetitorBriefing />}
     </PreviewDashboardShell>
   );

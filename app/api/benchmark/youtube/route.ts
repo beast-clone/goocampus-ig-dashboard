@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import fs from "fs";
-import path from "path";
+import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
 // Competitor YouTube uploads — public data via the YouTube Data API key (no OAuth
-// needed; we only read public channels). Channels come from competitor-youtube.json.
+// needed; we only read public channels). Channels come from the tracked list (mh_competitors).
 //   GET /api/benchmark/youtube  ->  { videos: [...] }
 export const dynamic = "force-dynamic";
 const API = "https://www.googleapis.com/youtube/v3";
@@ -13,21 +12,24 @@ const API = "https://www.googleapis.com/youtube/v3";
 type ChannelCfg = { name: string; channelId: string };
 type Vid = { id: string; title: string; channel: string; thumbnail: string; publishedAt: string; views: number; url: string };
 
-function loadChannels(): ChannelCfg[] {
-  try {
-    const file = path.join(process.cwd(), "competitor-youtube.json");
-    return (JSON.parse(fs.readFileSync(file, "utf8")).channels || []) as ChannelCfg[];
-  } catch { return []; }
+// The tracked competitors' channels (mh_competitors.youtube_channel). Used to be a
+// hard-coded competitor-youtube.json, so the Briefing always showed the same two.
+async function loadChannels(accountId: string): Promise<ChannelCfg[]> {
+  const db = getSupabase();
+  if (!db) return [];
+  const { data } = await db.from("mh_competitors").select("name, handle, youtube_channel").eq("account_id", accountId).not("youtube_channel", "is", null);
+  return ((data || []) as { name: string | null; handle: string; youtube_channel: string }[])
+    .map((r) => ({ name: r.name || r.handle, channelId: r.youtube_channel }));
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const __denied = await requireSection("ads");
   if (__denied) return __denied;
 
   try {
     const key = process.env.YOUTUBE_API_KEY;
     if (!key) return NextResponse.json({ error: "YOUTUBE_API_KEY not configured" }, { status: 500 });
-    const channels = loadChannels();
+    const channels = await loadChannels(new URL(req.url).searchParams.get("accountId") || "goocampus");
     if (!channels.length) return NextResponse.json({ videos: [] });
 
     // 1) uploads playlist id per channel (one batched call).

@@ -38,16 +38,22 @@ export async function GET(req: Request) {
     const stats = item.statistics || {};
     const uploads = item.contentDetails?.relatedPlaylists?.uploads;
 
-    let videos: { id: string; title: string; thumbnail: string; publishedAt: string; views: number; url: string }[] = [];
+    let videos: { id: string; title: string; thumbnail: string; publishedAt: string; views: number; url: string; short: boolean }[] = [];
     if (uploads) {
-      const pl = await fetch(`${API}/playlistItems?part=snippet,contentDetails&maxResults=8&playlistId=${uploads}&key=${key}`)
+      const pl = await fetch(`${API}/playlistItems?part=snippet,contentDetails&maxResults=20&playlistId=${uploads}&key=${key}`)
         .then((r) => r.json());
       const ids = (pl.items || []).map((it: { contentDetails?: { videoId?: string } }) => it.contentDetails?.videoId).filter(Boolean);
-      // View counts are not on playlistItems, so one batched videos call gets them.
+      // View counts and durations are not on playlistItems, so one batched videos call
+      // gets both. 20 uploads rather than 8 so the Briefing has enough of each kind
+      // once Shorts and ordinary videos are split (Praveen, 29 Sep).
       const statsById = new Map<string, number>();
+      const secsById = new Map<string, number>();
       if (ids.length) {
-        const vs = await fetch(`${API}/videos?part=statistics&id=${ids.join(",")}&key=${key}`).then((r) => r.json());
-        for (const v of vs.items || []) statsById.set(v.id, Number(v.statistics?.viewCount || 0));
+        const vs = await fetch(`${API}/videos?part=statistics,contentDetails&id=${ids.join(",")}&key=${key}`).then((r) => r.json());
+        for (const v of vs.items || []) {
+          statsById.set(v.id, Number(v.statistics?.viewCount || 0));
+          secsById.set(v.id, isoSeconds(v.contentDetails?.duration));
+        }
       }
       videos = (pl.items || []).map((it: { snippet?: { title?: string; publishedAt?: string; thumbnails?: Record<string, { url?: string }> }; contentDetails?: { videoId?: string } }) => {
         const id = it.contentDetails?.videoId || "";
@@ -58,7 +64,10 @@ export async function GET(req: Request) {
           thumbnail: t.medium?.url || t.default?.url || "",
           publishedAt: it.snippet?.publishedAt || "",
           views: statsById.get(id) || 0,
-          url: `https://www.youtube.com/watch?v=${id}`,
+          // The API has no "is a Short" flag; Shorts run up to 3 minutes, so length
+          // is the practical test. A long vertical video would count as a normal one.
+          short: (secsById.get(id) ?? 999) <= 180,
+          url: (secsById.get(id) ?? 999) <= 180 ? `https://www.youtube.com/shorts/${id}` : `https://www.youtube.com/watch?v=${id}`,
         };
       }).filter((v: { id: string }) => v.id);
     }
@@ -80,4 +89,10 @@ export async function GET(req: Request) {
   } catch (err) {
     return NextResponse.json(safeError(err, "Couldn't read that YouTube channel"), { status: 502 });
   }
+}
+
+/** "PT1M5S" → 65. 999 when missing, so a video of unknown length is never counted as a Short. */
+function isoSeconds(d?: string): number {
+  const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d || "");
+  return m ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : 999;
 }

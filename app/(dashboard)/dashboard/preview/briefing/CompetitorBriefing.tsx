@@ -6,7 +6,7 @@ import {
   IconBrandInstagram, IconBrandYoutube, IconExternalLink, IconHeart,
   IconMessageCircle, IconLayoutGrid, IconVideo, IconPhoto, IconX, IconChevronLeft, IconChevronRight,
   IconFlame, IconStar,
-  IconArrowRight,
+  IconArrowRight, IconWorld, IconDeviceMobile, IconBrandReddit,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 
@@ -34,6 +34,9 @@ type YtVid = { id: string; title: string; channel: string; thumbnail: string; pu
 const isComp = (c: BenchmarkData["competitors"][number]): c is Competitor => !("error" in c);
 const nfmt = (n: number | undefined) => (n ?? 0) >= 1000 ? `${((n ?? 0) / 1000).toFixed(1)}k` : String(n ?? 0);
 const ago = (iso: string) => {
+  // Google search results give dates as text ("2 years ago", "Mar 3, 2025"); show
+  // those as they are rather than "NaNd ago".
+  if (Number.isNaN(new Date(iso).getTime())) return iso;
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
@@ -42,145 +45,203 @@ const ago = (iso: string) => {
 const nameOf = (c: Competitor) => c.name || c.username;
 const eng = (m: Media) => (m.like_count || 0) + (m.comments_count || 0);
 
+// One competitor at a time (Praveen, 29 Sep — layout approved as "v2"): the tracked
+// competitors as tabs under the header, no "All", and below them everything about the
+// selected one — website, Instagram, Google reviews, YouTube videos, Shorts, Reddit.
+// The list is mh_competitors only; nothing is hard-coded, so a removed competitor
+// stays removed. See docs/COMPETITOR_RADAR_SPEC.md.
+type Tracked = { handle: string; name?: string | null; website?: string | null; youtube?: string | null; platform: string };
+type ChannelVid = { id: string; title: string; thumbnail: string; publishedAt: string; views: number; url: string; short: boolean };
+type Intel = {
+  capped?: boolean;
+  mentions: { title: string; url: string; snippet: string; source: string; lane: string; publishedAt: string }[];
+  reviews: { title: string; rating: number; ratingCount: number; items: { id: string; rating: number; publishedAt: string | null; relative: string | null; text: string; author: string; link: string | null }[] } | null;
+};
+// Captions that announce something with a date — worth flagging as an event.
+const EVENT_RE = /\b(webinar|live session|go(ing)? live|seminar|workshop|masterclass|register|registration|events?|expo|fair|summit|conference|meet-?up|open house)\b/i;
+const within = (iso: string | null | undefined, days: number) => !!iso && Date.now() - new Date(iso).getTime() < days * 86_400_000;
+const label = (t: Tracked) => t.name || t.handle;
+
 export function CompetitorBriefing() {
-  // "Track competitors should show here" (Nandu, 28 Sept). The ones people actually
-  // add on the Competitors tab now drive this board; competitors.json is the fallback
-  // for when nobody has tracked anything yet. Reading them here only works because
-  // they are rows now rather than browser storage (sql/029).
-  const { data: trackedResp } = useApi<{ available: boolean; items: { handle: string }[] }>(
-    `/api/benchmark/tracked?accountId=goocampus`);
-  // Until the competitors table exists they are still in the browser, where the
-  // Competitors tab put them — and this page runs in the browser too, so it can
-  // read them from there. No migration needed for the scoreboard to follow what
-  // you track; the table only adds sharing them across people and devices.
-  const [localHandles, setLocalHandles] = useState<string[]>([]);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("bm-tracked-goocampus");
-      const parsed = raw ? JSON.parse(raw) : [];
-      setLocalHandles(Array.isArray(parsed)
-        ? parsed.map((x: unknown) => (typeof x === "string" ? x : (x as { handle?: string })?.handle || "")).filter(Boolean)
-        : []);
-    } catch { /* private mode */ }
-  }, []);
-  const serverHandles = (trackedResp?.items || []).map((t) => t.handle).filter(Boolean);
-  const trackedHandles = serverHandles.length ? serverHandles : localHandles;
-  const { data, isLoading } = useApi<BenchmarkData>(
-    trackedHandles.length
-      ? `/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(trackedHandles.join(","))}`
-      : `/api/benchmark?accountId=goocampus`);
-  // People track their own handle on the Competitors tab — it belongs in the
-  // compare table there. Here it does not: this page says it is about them, not
-  // us, and ten of our own posts under "Top competitor content" made a liar of it.
-  const ourHandle = (data?.sourceAccount?.handle || "").replace(/^@/, "").toLowerCase();
-  const competitors = useMemo(
-    () => (data?.competitors || []).filter(isComp).filter((c) => c.username.toLowerCase() !== ourHandle),
-    [data, ourHandle]);
+  const { data: trackedResp, isLoading: listLoading, mutate: reloadList } =
+    useApi<{ available: boolean; items: Tracked[] }>(`/api/benchmark/tracked?accountId=goocampus`);
+  const list = (trackedResp?.items || []).filter((t) => t.platform === "instagram");
+  const [sel, setSel] = useState<string>("");
+  // Remember the last competitor looked at; fall back to the first.
+  useEffect(() => { try { const v = localStorage.getItem("brief-competitor"); if (v) setSel(v); } catch { /* private mode */ } }, []);
+  const current = list.find((t) => t.handle === sel) || list[0];
+  const pick = (h: string) => { setSel(h); try { localStorage.setItem("brief-competitor", h); } catch { /* private mode */ } };
 
-  // Every competitor post, tagged with its author.
-  const allPosts: Post[] = useMemo(() =>
-    competitors.flatMap((c) => (c.recent || []).map((m) => ({ ...m, author: nameOf(c), authorPic: c.profile_picture_url }))),
-    [competitors]);
-  const igLatest = useMemo(() => [...allPosts].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 10), [allPosts]);
-  const topByReach = useMemo(() => [...allPosts].sort((a, b) => eng(b) - eng(a)).slice(0, 10), [allPosts]);
+  if (listLoading && !trackedResp) return <div className="preview-scope"><LoadingBlock label="Loading competitors…" /></div>;
+  if (!current) {
+    return (
+      <div className="preview-scope bg-white border border-gray-100 rounded-2xl p-8 text-center">
+        <div className="text-[16px] font-semibold text-[#232D42]">Add your first competitor</div>
+        <div className="text-[13px] text-[#8A92A6] mt-1">Their website, Instagram, YouTube, Reddit and Google reviews will show up here.</div>
+        <Link href="/dashboard/preview/benchmark" className="inline-flex items-center gap-1.5 mt-4 h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium">Add a competitor <IconArrowRight size={15} /></Link>
+      </div>
+    );
+  }
 
-  // Competitor YouTube uploads (public data via the YouTube API key).
-  const { data: ytData, isLoading: ytLoading } = useApi<{ videos: YtVid[] }>(`/api/benchmark/youtube`);
-  const ytVideos = ytData?.videos || [];
+  return (
+    <div className="preview-scope space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        {list.map((t) => (
+          <button key={t.handle} onClick={() => pick(t.handle)}
+            className={`h-9 px-4 rounded-lg text-[13.5px] font-medium border transition ${
+              t.handle === current.handle ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-100 hover:border-brand hover:text-brand"}`}>
+            {label(t)}
+          </button>
+        ))}
+        <Link href="/dashboard/preview/benchmark" className="ml-auto text-[12.5px] text-brand hover:underline">Manage competitors</Link>
+      </div>
+      <CompetitorDetailBrief key={current.handle} t={current} onSaved={reloadList} />
+    </div>
+  );
+}
+
+function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
+  const { data: ig, isLoading: igLoading } = useApi<BenchmarkData>(`/api/benchmark?accountId=goocampus&handles=${encodeURIComponent(t.handle)}`);
+  const comp = (ig?.competitors || []).find(isComp);
+  const igError = (ig?.competitors || []).find((c) => !isComp(c)) as { error: string } | undefined;
+  const posts: Post[] = useMemo(() => (comp?.recent || []).map((m) => ({ ...m, author: nameOf(comp!), authorPic: comp!.profile_picture_url }))
+    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)), [comp]);
+
+  const { data: yt, isLoading: ytLoading } = useApi<{ found?: boolean; videos?: ChannelVid[] }>(
+    t.youtube ? `/api/benchmark/youtube-channel?channelId=${encodeURIComponent(t.youtube)}` : null);
+  const vids = yt?.videos || [];
+  const longs = vids.filter((v) => !v.short).slice(0, 4);
+  const shorts = vids.filter((v) => v.short).slice(0, 8);
+
+  // Reddit threads + Google reviews: one cached (24h) search per competitor.
+  const { data: intel, isLoading: intelLoading } = useApi<Intel>(`/api/benchmark/profile-intel?name=${encodeURIComponent(label(t))}&forums=1`);
+  const reddit = (intel?.mentions || []).filter((m) => m.lane === "reddit");
 
   const [open, setOpen] = useState<Post | null>(null);
   const [openYt, setOpenYt] = useState<YtVid | null>(null);
-
-  // Six full-width bands stacked in one column came to 5.2 screens of scrolling,
-  // all shouting equally — "completely cluttered" (Praveen, 28 Sept).
-  //
-  // Tabs alone were not the answer: two of the four were Content Radar wearing a
-  // different hat — same /api/radar/trends and /api/radar/search, fewer sources,
-  // and a panel telling you to go to "Content Radar → Manage alerts" to change
-  // them. Hiding a duplicate behind a tab still leaves a duplicate. They are gone
-  // from here; Content Radar keeps them, with the eight sources this never had.
-  //
-  // What is left is what only this page does: who they are, and what they posted.
-  const [tab, setTab] = useState<BriefTab>("competitors");
+  const eventPosts = posts.filter((p) => EVENT_RE.test(p.caption || ""));
 
   return (
-    <div className="preview-scope space-y-6">
-      <TabBar tab={tab} onChange={setTab} />
+    <div className="space-y-4">
+      {/* Who, and what's new this week */}
+      <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 flex items-center gap-4 flex-wrap">
+        <Avatar url={comp?.profile_picture_url} name={label(t)} size={44} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[16px] font-semibold text-[#232D42] leading-tight">{label(t)}</div>
+          <div className="text-[12px] text-[#8A92A6] flex items-center gap-3 flex-wrap mt-0.5">
+            {t.website && <a href={t.website} target="_blank" rel="noreferrer" className="hover:text-brand">{t.website.replace(/^https?:\/\//, "")}</a>}
+            <a href={`https://www.instagram.com/${t.handle}/`} target="_blank" rel="noreferrer" className="hover:text-brand">@{t.handle}</a>
+            {comp && <span>{nfmt(comp.followers_count)} followers</span>}
+          </div>
+        </div>
+        <div className="flex gap-5 text-[12.5px] text-[#8A92A6]">
+          <span><b className="text-[#232D42] font-semibold">{posts.filter((p) => within(p.timestamp, 7)).length}</b> Instagram posts this week</span>
+          <span><b className="text-[#232D42] font-semibold">{vids.filter((v) => within(v.publishedAt, 7)).length}</b> YouTube uploads this week</span>
+          <span><b className="text-[#232D42] font-semibold">{eventPosts.filter((p) => within(p.timestamp, 14)).length}</b> event posts</span>
+        </div>
+      </div>
 
-      {tab === "competitors" && (<>
-      {/* Competitor scoreboard */}
-      <Section title="Competitor scoreboard" badge="Instagram"
-        right={`${trackedHandles.length ? "the competitors you track" : "the default list"} · click one for the full profile · last 30 days`}
-        icon={<IconFlame size={18} />} accent="#3A57E8">
-        {isLoading ? <RowSkeleton /> : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {competitors.map((c) => (
-              <Link key={c.username} href={`/dashboard/preview/benchmark?profile=${encodeURIComponent(c.username)}`}
-                title={`Open ${nameOf(c)} — Instagram, YouTube, what people say, and the read`}
-                className="group block bg-white border border-gray-100 rounded-xl p-4 transition hover:border-brand">
-                <div className="flex items-center gap-2 mb-3">
-                  <Avatar url={c.profile_picture_url} name={nameOf(c)} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium text-[#232D42] truncate">{nameOf(c)}</div>
-                    <div className="text-[11px] text-[#8A92A6] truncate">@{c.username}</div>
-                  </div>
-                  <IconArrowRight size={16} stroke={1.8} className="flex-shrink-0 text-gray-300 group-hover:text-brand transition" />
+      {/* Website — full width: the most important for "what are they announcing" */}
+      <Section title="Website · blogs and events" icon={<IconWorld size={18} />} right={t.website ? "new blog posts, webinars and events on their site" : "add their website to start watching it"}>
+        <WebsiteSlot t={t} onSaved={onSaved} />
+      </Section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title="Instagram" icon={<IconBrandInstagram size={18} />} accent="#E1306C" right={comp ? `${comp.postsLast30d} posts in 30 days · ${comp.engagementRatePct.toFixed(2)}% engagement` : undefined}>
+          {igLoading ? <LoadingBlock className="!py-6" size={28} />
+            : igError ? <Empty>Instagram couldn't read @{t.handle}: {igError.error}</Empty>
+            : !posts.length ? <Empty>No posts found.</Empty>
+            : (
+              <div className="grid grid-cols-4 gap-2">
+                {posts.slice(0, 8).map((p) => {
+                  const src = p.thumbnail_url || p.media_url;
+                  const isEvent = EVENT_RE.test(p.caption || "");
+                  return (
+                    <button key={p.id} onClick={() => setOpen(p)} title={p.caption?.slice(0, 120)} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-100 hover:border-brand">
+                      {src && <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
+                      {isEvent && <span className="absolute top-1 left-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">Event</span>}
+                      <span className="absolute bottom-1 left-1 right-1 flex justify-between text-[10px] text-white bg-black/50 rounded px-1">
+                        <span className="inline-flex items-center gap-0.5"><IconHeart size={10} />{nfmt(p.like_count)}</span><span>{ago(p.timestamp)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+        </Section>
+
+        <Section title="Google reviews" icon={<IconStar size={18} />} accent="#B7791F">
+          {intelLoading ? <LoadingBlock className="!py-6" size={28} />
+            : intel?.capped ? <Empty>This month's Google search allowance is used up — reviews come back next month.</Empty>
+            : !intel?.reviews ? <Empty>No Google Maps listing found for {label(t)}.</Empty>
+            : (
+              <div>
+                <div className="flex items-baseline gap-2"><span className="text-[26px] font-semibold text-[#232D42]">{intel.reviews.rating?.toFixed(1)}</span><span className="text-[12.5px] text-[#8A92A6]">· {nfmt(intel.reviews.ratingCount)} reviews</span></div>
+                <div className="divide-y divide-gray-100 mt-2">
+                  {intel.reviews.items.slice(0, 3).map((r) => (
+                    <div key={r.id} className="py-2">
+                      <div className="text-[12px] text-[#8A92A6]">{"★".repeat(Math.round(r.rating))} · {r.author} · {r.publishedAt ? ago(r.publishedAt) : r.relative}</div>
+                      <div className="text-[13px] text-[#4A5468] line-clamp-2">{r.text || "(no text)"}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="grid grid-cols-2 gap-x-4">
-                  <Metric label="Followers" value={nfmt(c.followers_count)} />
-                  <Metric label="Following" value={nfmt(c.follows_count)} />
-                  <Metric label="Total posts" value={nfmt(c.media_count)} />
-                  <Metric label="Posts / 30d" value={String(c.postsLast30d)} />
-                  <Metric label="Avg likes" value={nfmt(c.avgLikesRecent)} />
-                  <Metric label="Avg comments" value={nfmt(c.avgCommentsRecent)} />
-                  <Metric label="Eng. rate" value={`${c.engagementRatePct.toFixed(1)}%`} />
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+              </div>
+            )}
+        </Section>
+
+        <Section title="YouTube · videos" icon={<IconBrandYoutube size={18} />} accent="#E0245E">
+          {!t.youtube ? <Empty>No YouTube channel saved — add it in Manage competitors.</Empty>
+            : ytLoading ? <LoadingBlock className="!py-6" size={28} />
+            : !longs.length ? <Empty>No recent videos.</Empty>
+            : (
+              <div className="grid grid-cols-2 gap-3">
+                {longs.map((v) => (
+                  <button key={v.id} onClick={() => setOpenYt({ ...v, channel: label(t) })} className="text-left group">
+                    <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 border border-gray-100 group-hover:border-brand">{v.thumbnail && <img src={v.thumbnail} alt="" className="w-full h-full object-cover" />}</div>
+                    <div className="text-[12.5px] text-[#232D42] line-clamp-2 mt-1">{v.title}</div>
+                    <div className="text-[11px] text-[#8A92A6]">{nfmt(v.views)} views · {ago(v.publishedAt)}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+        </Section>
+
+        <Section title="YouTube · Shorts" icon={<IconDeviceMobile size={18} />} accent="#E0245E">
+          {!t.youtube ? <Empty>No YouTube channel saved.</Empty>
+            : ytLoading ? <LoadingBlock className="!py-6" size={28} />
+            : !shorts.length ? <Empty>No recent Shorts.</Empty>
+            : (
+              <div className="grid grid-cols-4 gap-2">
+                {shorts.map((v) => (
+                  <a key={v.id} href={v.url} target="_blank" rel="noreferrer" title={v.title} className="group">
+                    <div className="aspect-[9/16] rounded-lg overflow-hidden bg-gray-100 border border-gray-100 group-hover:border-brand">{v.thumbnail && <img src={v.thumbnail} alt="" className="w-full h-full object-cover" />}</div>
+                    <div className="text-[11px] text-[#8A92A6] mt-1">{nfmt(v.views)} views</div>
+                  </a>
+                ))}
+              </div>
+            )}
+        </Section>
+      </div>
+
+      <Section title="Reddit · people talking about them" icon={<IconBrandReddit size={18} />} accent="#C2410C">
+        {intelLoading ? <LoadingBlock className="!py-6" size={28} />
+          : intel?.capped ? <Empty>This month's search allowance is used up.</Empty>
+          : !reddit.length ? <Empty>No Reddit threads mention {label(t)} right now.</Empty>
+          : (
+            <div className="divide-y divide-gray-100">
+              {reddit.slice(0, 6).map((m) => (
+                <a key={m.url} href={m.url} target="_blank" rel="noreferrer" className="flex items-start gap-3 py-2.5 hover:text-brand">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] text-[#232D42] truncate">{m.title}</span>
+                    <span className="block text-[12px] text-[#8A92A6] line-clamp-1">{m.snippet}</span>
+                  </span>
+                  {m.publishedAt && <span className="text-[11.5px] text-[#8A92A6] shrink-0">{ago(m.publishedAt)}</span>}
+                  <IconExternalLink size={14} className="text-[#8A92A6] shrink-0 mt-0.5" />
+                </a>
+              ))}
+            </div>
+          )}
       </Section>
-
-      {/* Instagram — latest competitor posts (8, real thumbnails, open in dashboard) */}
-      </>)}
-
-      {tab === "posts" && (<>
-      <Section title="Instagram — latest competitor posts" badge="Live" right="newest first · click to open here" icon={<IconBrandInstagram size={18} />} accent="#6E48F8">
-        {isLoading ? <CardSkeleton /> : igLatest.length === 0 ? (
-          <Empty>No competitor Instagram posts loaded yet.</Empty>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
-            {igLatest.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
-          </div>
-        )}
-      </Section>
-
-      {/* YouTube — live competitor uploads (public data) */}
-      <Section title="YouTube — latest competitor uploads" badge="Live" right="newest first · click to play here" icon={<IconBrandYoutube size={18} />} accent="#079AA2">
-        {ytLoading ? <CardSkeleton /> : ytVideos.length === 0 ? (
-          <Empty>No competitor YouTube uploads loaded. Add channels in competitor-youtube.json.</Empty>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            {ytVideos.slice(0, 8).map((v) => <YtCard key={v.id} v={v} onOpen={() => setOpenYt(v)} />)}
-          </div>
-        )}
-      </Section>
-
-      {/* Top competitor content — same card style as the latest-posts grid */}
-      </>)}
-
-      {tab === "competitors" && (<>
-      <Section title="Top competitor content" badge="Instagram" right="most engagement · recent · click to open here" icon={<IconStar size={18} />} accent="#0EA5E9">
-        {isLoading ? <CardSkeleton /> : topByReach.length === 0 ? (
-          <Empty>No competitor content loaded yet.</Empty>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2.5">
-            {topByReach.map((p) => <PostCard key={p.id} p={p} onOpen={() => setOpen(p)} />)}
-          </div>
-        )}
-      </Section>
-
-      </>)}
 
       {open && <PostModal p={open} onClose={() => setOpen(null)} />}
       {openYt && <YtModal v={openYt} onClose={() => setOpenYt(null)} />}
@@ -188,29 +249,31 @@ export function CompetitorBriefing() {
   );
 }
 
-// Two views, in the order you'd actually work: who they are, then what they just
-// posted. Search trends and web mentions used to be here as a third and fourth —
-// they are Content Radar's, and they are back there now.
-type BriefTab = "competitors" | "posts";
-const BRIEF_TABS: { key: BriefTab; label: string; hint: string }[] = [
-  { key: "competitors", label: "Competitors", hint: "who is growing, and their best content" },
-  { key: "posts",       label: "Their posts", hint: "latest on Instagram and YouTube" },
-];
-
-function TabBar({ tab, onChange }: { tab: BriefTab; onChange: (t: BriefTab) => void }) {
-  const active = BRIEF_TABS.find((t) => t.key === tab);
+// The website card. The watcher that fills it (blogs from the sitemap, events and
+// webinars from their pages) is the next step of the spec; until then it says so,
+// and lets you save the website it will watch.
+function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
+  const [val, setVal] = useState(t.website || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/benchmark/tracked", { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ accountId: "goocampus", handle: t.handle, platform: "instagram", website: val }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      onSaved();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  if (t.website) {
+    return <Empty>Watching {t.website.replace(/^https?:\/\//, "")} for new blogs, webinars and events starts with the next update — they'll appear here and in your notifications.</Empty>;
+  }
   return (
-    <div className="bg-white border border-gray-100 rounded-xl px-2 py-2">
-      <div className="flex items-center gap-1 flex-wrap">
-        {BRIEF_TABS.map((t) => (
-          <button key={t.key} onClick={() => onChange(t.key)}
-            className={`h-9 px-3.5 rounded-lg text-[13.5px] font-medium transition ${
-              t.key === tab ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {active && <div className="text-[12px] text-[#8A92A6] px-2 pt-1.5">{active.hint}</div>}
+    <div className="flex items-center gap-2 flex-wrap">
+      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="their-website.com" className="h-9 px-3 rounded-lg border border-gray-200 text-[13.5px] w-[280px] outline-none focus:border-brand" />
+      <button onClick={save} disabled={busy || !val.trim()} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save website"}</button>
+      {err && <span className="text-[12.5px] text-[#C03221]">{err}</span>}
     </div>
   );
 }
