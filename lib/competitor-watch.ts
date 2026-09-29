@@ -20,7 +20,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getAccount, fetchCompetitor } from "@/lib/instagram";
 
 type SB = NonNullable<ReturnType<typeof getSupabase>>;
-export type WatchEvent = { handle: string; name: string; kind: "blog" | "event" | "page" | "youtube" | "instagram"; title: string; url: string; publishedAt?: string | null };
+export type WatchEvent = { handle: string; name: string; kind: "blog" | "event" | "page" | "youtube" | "instagram"; title: string; url: string; publishedAt?: string | null; section?: string | null };
 // `events` are new since the last run → stored AND notified. `listed` are events a
 // site shows the first time we read its event pages → stored (so the Briefing shows
 // what's on right now) but NOT notified: they weren't announced just now.
@@ -119,6 +119,13 @@ const prettyPath = (u: string) => { try { return decodeURIComponent(new URL(u).p
 // none of these see it; their Instagram event posts cover it.
 type PageEvent = { url: string; title: string; date: string | null };
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+// A date written without a year is this year's — unless it is more than ~6 months
+// back, i.e. a December page announcing January. (A July date read in September is a
+// past event, not next July's: 29 Sep.)
+function yearFor(mon: number, day: number): number {
+  const now = new Date(), y = now.getFullYear();
+  return new Date(y, mon, day).getTime() < now.getTime() - 180 * 86_400_000 ? y + 1 : y;
+}
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 
 function pageEvents(html: string, pageUrl: string): Map<string, PageEvent> {
@@ -148,10 +155,7 @@ function pageEvents(html: string, pageUrl: string): Map<string, PageEvent> {
   while ((m = card.exec(text))) {
     const mon = MONTHS.indexOf(m[1].toLowerCase().slice(0, 3)), day = Number(m[2]);
     let h = Number(m[3]) % 12; if (m[5].toLowerCase() === "pm") h += 12;
-    const now = new Date();
-    // A card with no year is this year's, unless that is long past — then next year's.
-    let y = now.getFullYear();
-    if (new Date(y, mon, day).getTime() < now.getTime() - 60 * 86_400_000) y += 1;
+    const y = yearFor(mon, day);
     const date = `${y}-${String(mon + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${m[4]}:00+05:30`;
     const title = m[6].trim();
     out.set(`${title}|${date}`, { url: `${pageUrl}#${slug(title + date)}`, title, date });
@@ -168,6 +172,46 @@ function pageEvents(html: string, pageUrl: string): Map<string, PageEvent> {
     if (!out.has(abs.href)) out.set(abs.href, { url: abs.href, title: t.slice(0, 160), date: null });
   }
   return out;
+}
+
+// Dates written anywhere on a page ("Bengaluru OCTOBER 4 NIMHANS", "July 26, 2026").
+// Used for a section page that has no posts or event cards of its own — Hello
+// Mentor's Medical Expo page lists its cities only this way. One item per date, with
+// the words around it as the title; a new date appearing on the page is the news.
+function pageDates(html: string, pageUrl: string): Map<string, PageEvent> {
+  const out = new Map<string, PageEvent>();
+  const text = decode(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
+  const re = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(20\d\d))?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) && out.size < 20) {
+    const mon = MONTHS.indexOf(m[1].toLowerCase().slice(0, 3)), day = Number(m[2]);
+    if (day < 1 || day > 31) continue;
+    const y = m[3] ? Number(m[3]) : yearFor(mon, day);
+    const date = `${y}-${String(mon + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+05:30`;
+    // The same day written with and without a year is one date.
+    if ([...out.keys()].some((k) => k.slice(5, 10) === date.slice(5, 10))) continue;
+    const before = text.slice(Math.max(0, m.index - 30), m.index).trim().split(" ").slice(-1).join(" ").replace(/^[^\p{L}\p{N}]+/u, "");
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 50).trim().split(" ").slice(0, 4).join(" ");
+    out.set(date, { url: `${pageUrl}#d-${date.slice(0, 10)}`, title: `${before} ${m[0]} ${after}`.replace(/\s+/g, " ").trim(), date });
+  }
+  return out;
+}
+
+// ── sections ───────────────────────────────────────────────────────────────────
+// Each competitor's site is watched as separate sections (Webinars, Seminars, Medical
+// Expo, News & Blogs...), chosen in Manage competitors. A section's items are the
+// pages under its path in the sitemap (blog posts), links under its path on the page,
+// and events on the page; failing all of those, the dates written on the page.
+export type Section = { label: string; url: string };
+const ASSET = /\.(svg|png|jpe?g|webp|gif|ico|css|js|pdf|xml|json)$/i;
+const pathOf = (u: string) => { try { return new URL(u).pathname.replace(/\/+$/, "") || "/"; } catch { return ""; } };
+const under = (u: string, sec: Section) => { const p = pathOf(sec.url); return p !== "/" && pathOf(u).startsWith(p + "/"); };
+// No sections chosen yet: the site's one-word event and blog pages, at most 5.
+function autoSections(pages: Map<string, string | null>): Section[] {
+  return [...pages.keys()].filter((u) => {
+    const segs = pathOf(u).split("/").filter(Boolean);
+    return segs.length === 1 && (EVENT_PATH.test(segs[0]) || BLOG_PATH.test(`/${segs[0]}/`));
+  }).slice(0, 5).map((u) => ({ label: prettyPath(u), url: u }));
 }
 
 // ── seen-set helpers ───────────────────────────────────────────────────────────
@@ -209,9 +253,9 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
   const account = getAccount(accountId);
   const ourHandle = (account?.handle || "").replace(/^@/, "").toLowerCase();
 
-  const { data: comps, error } = await sb.from("mh_competitors").select("handle, name, website, youtube_channel, platform").eq("account_id", accountId);
+  const { data: comps, error } = await sb.from("mh_competitors").select("handle, name, website, youtube_channel, platform, watch_pages").eq("account_id", accountId);
   if (error) throw new Error(error.message);
-  const list = ((comps || []) as { handle: string; name: string | null; website: string | null; youtube_channel: string | null; platform: string }[])
+  const list = ((comps || []) as { handle: string; name: string | null; website: string | null; youtube_channel: string | null; platform: string; watch_pages: Section[] | null }[])
     .filter((c) => c.platform === "instagram" && c.handle !== ourHandle);
   res.competitors = list.length;
 
@@ -225,29 +269,52 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
         const origin = new URL(c.website).origin;
         const robots = await robotsFor(origin);
         const pages = await sitemapUrls(origin, robots);
-        const fresh = await diff(sb, accountId, c.handle, "sitemap", [...pages.keys()], res.baselined);
+        const sections = (c.watch_pages && c.watch_pages.length ? c.watch_pages : autoSections(pages))
+          .filter((x) => x && x.url && x.label).map((x) => ({ label: x.label, url: x.url.replace(/\/+$/, "") || x.url }));
+        const sectionOf = (u: string) => sections.find((x) => under(u, x) || pathOf(u) === pathOf(x.url))?.label || null;
+
+        // Anything new in the sitemap that no section covers.
+        const fresh = (await diff(sb, accountId, c.handle, "sitemap", [...pages.keys()], res.baselined)).filter((u) => !sectionOf(u));
         for (const url of fresh.slice(0, 40)) {
           const i = fresh.indexOf(url);
           add({ kind: kindOfUrl(url), url, title: i < MAX_TITLES && allowed(robots, url) ? await titleOf(url) : prettyPath(url), publishedAt: pages.get(url) || null });
         }
-        // Listing pages: the site's webinar/event pages (from the sitemap), at most 3.
-        // The listing pages themselves: a one-word webinar/event path (/webinar, /events,
-        // /seminars), plus event pages the sitemap lists directly (/pg-medical-expo-2026).
-        const listings = [...pages.keys()].filter((u) => { const segs = new URL(u).pathname.split("/").filter(Boolean); return segs.length === 1 && EVENT_PATH.test(segs[0]); }).slice(0, 4);
-        for (const lp of listings) {
-          if (!allowed(robots, lp)) continue;
-          const html = await get(lp);
-          if (!html) continue;
-          const found = pageEvents(html, lp);
-          if (!found.size) continue;
-          const source = `page:${lp}`;
+
+        // Each section on its own.
+        for (const sec of sections) {
+          const items = new Map<string, PageEvent & { kind: WatchEvent["kind"] }>();
+          // Pages under it in the sitemap, newest first.
+          const kids = [...pages.entries()].filter(([u]) => under(u, sec) && !ASSET.test(u))
+            .sort((a, b) => (Date.parse(b[1] || "") || 0) - (Date.parse(a[1] || "") || 0));
+          for (const [u, lastmod] of kids) items.set(u, { url: u, title: "", date: lastmod, kind: kindOfUrl(u) });
+          const html = allowed(robots, sec.url) ? await get(sec.url) : null;
+          if (html) {
+            // Links under it on the page itself.
+            const re = /<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+            let m: RegExpExecArray | null;
+            while ((m = re.exec(html))) {
+              let abs: string;
+              try { abs = new URL(m[1], sec.url).href; } catch { continue; }
+              if (!under(abs, sec) || ASSET.test(abs) || items.has(abs)) continue;
+              items.set(abs, { url: abs, title: decode(m[2].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim().slice(0, 160), date: null, kind: kindOfUrl(abs) });
+            }
+            // Events on the page (schema.org data, dated cards). Section links only —
+            // the menu's other event pages are sections of their own.
+            for (const [k, e] of pageEvents(html, sec.url)) if (e.date) items.set(k, { ...e, kind: "event" });
+            if (!items.size) for (const [k, e] of pageDates(html, sec.url)) items.set(k, { ...e, kind: EVENT_PATH.test(pathOf(sec.url)) ? "event" : "page" });
+          }
+          if (!items.size) continue;                        // empty read: change nothing
+          const source = `section:${sec.url}`;
           const firstRead = !(await seenKeys(sb, accountId, c.handle, source));
-          const fresh = await diff(sb, accountId, c.handle, source, [...found.keys()], res.baselined);
-          // First read: store what's on the page now (shown, not notified).
-          const target = firstRead ? res.listed : res.events;
-          for (const k of (firstRead ? [...found.keys()] : fresh).slice(0, 25)) {
-            const e = found.get(k)!;
-            target.push({ handle: c.handle, name, kind: "event", url: e.url, title: e.title, publishedAt: e.date });
+          const got = await diff(sb, accountId, c.handle, source, [...items.keys()], res.baselined);
+          // First read: store what's there now (shown, not notified) — the newest few
+          // posts, or every event. After that, only what's new, and that is notified.
+          const picked = firstRead ? [...items.keys()].slice(0, 12) : got.slice(0, 20);
+          let titled = 0;
+          for (const k of picked) {
+            const e = items.get(k)!;
+            const title = e.title || (titled++ < MAX_TITLES && allowed(robots, e.url) ? await titleOf(e.url) : prettyPath(e.url));
+            (firstRead ? res.listed : res.events).push({ handle: c.handle, name, kind: e.kind, url: e.url, title, publishedAt: e.date, section: sec.label });
           }
         }
       } catch (e) { res.errors.push(`${name} website: ${(e as Error).message}`); }
@@ -289,7 +356,7 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
   // Store events (unique on account+handle+kind+url, so a retry can't double them).
   const toStore = [...res.events, ...res.listed];
   if (toStore.length) {
-    const rows = toStore.map((e) => ({ account_id: accountId, handle: e.handle, kind: e.kind, title: e.title, url: e.url, published_at: e.publishedAt && !Number.isNaN(Date.parse(e.publishedAt)) ? new Date(e.publishedAt).toISOString() : null }));
+    const rows = toStore.map((e) => ({ account_id: accountId, handle: e.handle, kind: e.kind, title: e.title, url: e.url, section: e.section || null, published_at: e.publishedAt && !Number.isNaN(Date.parse(e.publishedAt)) ? new Date(e.publishedAt).toISOString() : null }));
     const { error: insErr } = await sb.from("mh_competitor_events").upsert(rows, { onConflict: "account_id,handle,kind,url", ignoreDuplicates: true });
     if (insErr) res.errors.push(`saving events: ${insErr.message}`);
   }

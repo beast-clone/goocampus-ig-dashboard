@@ -11,7 +11,7 @@ import { getAccount } from "@/lib/instagram";
 //   POST   /api/benchmark/tracked  { accountId, handle, platform?, category?, sbu?, period? }
 //   POST   /api/benchmark/tracked  { accountId, items: [...] }        (bulk — used once to
 //                                                                      lift a browser's old list)
-//   PATCH  /api/benchmark/tracked  { accountId, handle, platform?, name?, website?, youtube?, sbu? }
+//   PATCH  /api/benchmark/tracked  { accountId, handle, platform?, name?, website?, youtube?, sbu?, watchPages? }
 //   DELETE /api/benchmark/tracked?accountId=..&handle=..&platform=..
 //
 // These used to live in localStorage, so they were per browser and per device —
@@ -54,15 +54,15 @@ export async function GET(req: Request) {
   if (!db) return NextResponse.json({ available: false, items: [], reason: "Supabase not configured" });
   const { data, error } = await db
     .from(TABLE)
-    .select("handle, platform, category, sbu, period, youtube_channel, name, website")
+    .select("handle, platform, category, sbu, period, youtube_channel, name, website, watch_pages")
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
   if (error) {
     if (MISSING.has(error.code)) return NextResponse.json({ available: false, items: [], reason: "sql/029_competitors.sql hasn't been run yet" });
     return NextResponse.json(safeError(error, "Couldn't read the tracked competitors"), { status: 502 });
   }
-  const items = ((data || []) as (TrackedRow & { youtube_channel?: string | null })[])
-    .map(({ youtube_channel, ...r }) => ({ ...r, youtube: youtube_channel ?? null }));
+  const items = ((data || []) as (TrackedRow & { youtube_channel?: string | null; watch_pages?: unknown })[])
+    .map(({ youtube_channel, watch_pages, ...r }) => ({ ...r, youtube: youtube_channel ?? null, watchPages: watch_pages ?? null }));
   // Our own handle, so screens that are only about competitors (the Briefing) can
   // leave it out — people track it on purpose for the Compare view.
   const ourHandle = (getAccount(accountId)?.handle || "").replace(/^@/, "").toLowerCase();
@@ -110,11 +110,11 @@ export async function PATCH(req: Request) {
   if (denied) return denied;
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-  let b: { accountId?: string; handle?: string; platform?: string; name?: string; website?: string; youtube?: string; sbu?: string };
+  let b: { accountId?: string; handle?: string; platform?: string; name?: string; website?: string; youtube?: string; sbu?: string; watchPages?: { label?: string; url?: string }[] | null };
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const handle = normHandle(b.handle);
   if (!b.accountId || !handle) return NextResponse.json({ error: "accountId and handle required" }, { status: 400 });
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, unknown> = {};
   if ("name" in b) patch.name = b.name?.trim() || null;
   if ("website" in b) {
     const w = normWebsite(b.website);
@@ -123,6 +123,17 @@ export async function PATCH(req: Request) {
   }
   if ("youtube" in b) patch.youtube_channel = b.youtube?.trim() || null;
   if ("sbu" in b) patch.sbu = b.sbu?.trim() || null;
+  // Website sections to watch, each { label, url }. [] and null both mean "let the
+  // watcher pick" — the Briefing only ever sends a list the person edited.
+  if ("watchPages" in b) {
+    const list: { label: string; url: string }[] = [];
+    for (const x of b.watchPages || []) {
+      const url = normWebsite(x?.url);
+      if (!url) return NextResponse.json({ error: `"${x?.url || ""}" doesn't look like a web address.` }, { status: 400 });
+      list.push({ label: (x?.label || "").trim() || new URL(url).pathname.replace(/^\/|\/$/g, "") || "Home", url });
+    }
+    patch.watch_pages = list.length ? list : null;
+  }
   if (!Object.keys(patch).length) return NextResponse.json({ error: "nothing to change" }, { status: 400 });
   const { error } = await db.from(TABLE).update(patch)
     .eq("account_id", b.accountId).eq("platform", b.platform === "youtube" ? "youtube" : "instagram").eq("handle", handle);

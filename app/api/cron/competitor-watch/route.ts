@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         category: "competitor",
         action_needed: false,
         emoji: e.kind === "event" ? "📣" : "🔎",
-        title: `${e.name} · new ${LABEL[e.kind]}`,
+        title: e.section ? `${e.name} · new in ${e.section}` : `${e.name} · new ${LABEL[e.kind]}`,
         sub: e.title,
         post_id: null,
         payload: { href: `/dashboard/preview/briefing?c=${encodeURIComponent(e.handle)}`, url: e.url },

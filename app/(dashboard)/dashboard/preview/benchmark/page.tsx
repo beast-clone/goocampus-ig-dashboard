@@ -1,5 +1,5 @@
 "use client";
-import { IconHeart, IconMessageCircle, IconStar, IconTrophy, IconTrash, IconSettings } from "@tabler/icons-react";
+import { IconHeart, IconMessageCircle, IconStar, IconTrophy, IconTrash, IconSettings, IconX } from "@tabler/icons-react";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -55,7 +55,9 @@ function fmt(n: number): string {
 }
 
 // A tracked competitor carries a manual category + a metrics period (days; 0 = all recent).
-type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string; youtube?: string; name?: string; website?: string };
+type WatchPage = { label: string; url: string };
+type Tracked = { handle: string; category: string; period: number; platform?: string; sbu?: string; youtube?: string; name?: string; website?: string; watchPages?: WatchPage[] | null };
+type TrackedPatch = { name?: string; website?: string; youtube?: string; watchPages?: WatchPage[] };
 
 // People paste whatever the address bar gave them. Pull the UC… id out of a
 // channel URL; anything else is handed back trimmed and the API says if it is wrong.
@@ -141,8 +143,8 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
       const j = await r.json();
       if (!r.ok || j.available === false) { setServerTracked(false); setTracked(readLocal()); setTrackedReady(true); return; }
       setServerTracked(true);
-      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube?: string | null; name?: string | null; website?: string | null }) =>
-        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube || "", name: x.name || "", website: x.website || "" }));
+      const rows: Tracked[] = (j.items || []).map((x: { handle: string; category: string | null; sbu: string | null; period: number; platform: string; youtube?: string | null; name?: string | null; website?: string | null; watchPages?: WatchPage[] | null }) =>
+        ({ handle: x.handle, category: x.category || "Uncategorized", period: x.period, platform: x.platform, sbu: x.sbu || "", youtube: x.youtube || "", name: x.name || "", website: x.website || "", watchPages: x.watchPages || null }));
       // One-time lift: whatever this browser still holds that the server doesn't.
       const local = readLocal();
       const known = new Set(rows.map((t) => t.handle.toLowerCase()));
@@ -184,7 +186,7 @@ function BenchmarkInner({ accountId }: { accountId: string; range: { from: strin
     if (profile.toLowerCase() === handle.toLowerCase()) setProfile("");
     await removeTracked(handle);
   };
-  const editTracked = async (handle: string, patch: { name?: string; website?: string; youtube?: string }) => {
+  const editTracked = async (handle: string, patch: TrackedPatch) => {
     const r = await fetch("/api/benchmark/tracked", { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountId, handle, platform: trackedOf(handle)?.platform || "instagram", ...patch }) });
     const d = await r.json().catch(() => ({}));
@@ -550,7 +552,7 @@ function brandOf(c: Competitor): Record<string, unknown> {
 // and events) or YouTube channel, or remove them. Saves one row at a time.
 function ManageCompetitors({ rows, onSave, onRemove }: {
   rows: Tracked[];
-  onSave: (handle: string, patch: { name?: string; website?: string; youtube?: string }) => Promise<void>;
+  onSave: (handle: string, patch: TrackedPatch) => Promise<void>;
   onRemove: (handle: string) => void;
 }) {
   return (
@@ -567,7 +569,7 @@ function ManageCompetitors({ rows, onSave, onRemove }: {
   );
 }
 
-function ManageRow({ t, onSave, onRemove }: { t: Tracked; onSave: (h: string, p: { name?: string; website?: string; youtube?: string }) => Promise<void>; onRemove: (h: string) => void }) {
+function ManageRow({ t, onSave, onRemove }: { t: Tracked; onSave: (h: string, p: TrackedPatch) => Promise<void>; onRemove: (h: string) => void }) {
   const [name, setName] = useState(t.name || "");
   const [website, setWebsite] = useState(t.website || "");
   const [yt, setYt] = useState(t.youtube || "");
@@ -593,6 +595,45 @@ function ManageRow({ t, onSave, onRemove }: { t: Tracked; onSave: (h: string, p:
           </button>
           <button onClick={() => onRemove(t.handle)} title="Remove" className="h-9 w-9 rounded-lg border border-gray-200 text-[#C03221] grid place-items-center hover:border-[#C03221]"><IconTrash size={15} /></button>
         </div>
+      </div>
+      {err && <div className="text-[12px] text-[#C03221] mt-1">{err}</div>}
+      {t.website && <WatchPagesEditor t={t} onSave={onSave} />}
+    </div>
+  );
+}
+
+// The website sections watched separately (one tracker each on the Briefing).
+// Saved as soon as one is added or removed. None chosen = the watcher picks the
+// site's event and blog pages itself.
+function WatchPagesEditor({ t, onSave }: { t: Tracked; onSave: (h: string, p: TrackedPatch) => Promise<void> }) {
+  const pages = t.watchPages || [];
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const put = async (next: WatchPage[]) => {
+    setBusy(true); setErr(null);
+    try { await onSave(t.handle, { watchPages: next }); return true; }
+    catch (e) { setErr((e as Error).message); return false; } finally { setBusy(false); }
+  };
+  const add = async () => {
+    if (!url.trim()) return;
+    if (await put([...pages, { label: label.trim(), url: url.trim() }])) { setLabel(""); setUrl(""); }
+  };
+  const inp = "h-8 px-2.5 rounded-lg border border-gray-200 text-[12.5px] outline-none focus:border-brand";
+  return (
+    <div className="mt-2 pl-1">
+      <div className="text-[11.5px] text-[#8A92A6] mb-1.5">Website sections watched separately{pages.length ? "" : " — none chosen, so the watcher picks their event and blog pages"}</div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {pages.map((p, i) => (
+          <span key={p.url + i} className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-full bg-brand-light text-brand text-[12px]" title={p.url}>
+            {p.label}
+            <button disabled={busy} onClick={() => put(pages.filter((_, j) => j !== i))} title={`Stop watching ${p.label}`} className="w-5 h-5 grid place-items-center rounded-full hover:bg-white/70"><IconX size={12} /></button>
+          </span>
+        ))}
+        <input className={`${inp} w-[130px]`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Section name" />
+        <input className={`${inp} w-[240px]`} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Paste the section's link" />
+        <button onClick={add} disabled={busy || !url.trim()} className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#232D42] hover:border-brand hover:text-brand disabled:opacity-40">{busy ? "Saving…" : "Add section"}</button>
       </div>
       {err && <div className="text-[12px] text-[#C03221] mt-1">{err}</div>}
     </div>

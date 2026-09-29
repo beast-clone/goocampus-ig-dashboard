@@ -50,7 +50,7 @@ const eng = (m: Media) => (m.like_count || 0) + (m.comments_count || 0);
 // selected one — website, Instagram, Google reviews, YouTube videos, Shorts, Reddit.
 // The list is mh_competitors only; nothing is hard-coded, so a removed competitor
 // stays removed. See docs/COMPETITOR_RADAR_SPEC.md.
-type Tracked = { handle: string; name?: string | null; website?: string | null; youtube?: string | null; platform: string };
+type Tracked = { handle: string; name?: string | null; website?: string | null; youtube?: string | null; platform: string; watchPages?: { label: string; url: string }[] | null };
 type ChannelVid = { id: string; title: string; thumbnail: string; publishedAt: string; views: number; url: string; short: boolean };
 type Intel = {
   capped?: boolean;
@@ -148,7 +148,7 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
       </div>
 
       {/* Website — full width: the most important for "what are they announcing" */}
-      <Section title="Website · blogs and events" icon={<IconWorld size={18} />} right={t.website ? "new blog posts, webinars and events on their site" : "add their website to start watching it"}>
+      <Section title="Website" icon={<IconWorld size={18} />} right={t.website ? "each section of their site, watched separately — change sections in Manage competitors" : "add their website to start watching it"}>
         <WebsiteSlot t={t} onSaved={onSaved} />
       </Section>
 
@@ -258,12 +258,7 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
 // The website card: what the watcher (lib/competitor-watch.ts) found on their site —
 // new blog posts and pages from the sitemap, new webinars / events from their event
 // pages — newest first. With no website saved, it asks for one.
-type SiteEvent = { id: string; kind: string; title: string | null; url: string; published_at: string | null; detected_at: string };
-const KIND_TAG: Record<string, { label: string; cls: string }> = {
-  event: { label: "Webinar / event", cls: "bg-amber-50 text-amber-800" },
-  blog: { label: "Blog", cls: "bg-brand-light text-brand" },
-  page: { label: "New page", cls: "bg-gray-100 text-[#4A5468]" },
-};
+type SiteEvent = { id: string; kind: string; title: string | null; url: string; published_at: string | null; detected_at: string; section: string | null };
 function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
   const [val, setVal] = useState(t.website || "");
   const [busy, setBusy] = useState(false);
@@ -290,38 +285,76 @@ function WebsiteSlot({ t, onSaved }: { t: Tracked; onSaved: () => void }) {
     );
   }
   if (isLoading && !data) return <LoadingBlock className="!py-6" size={28} />;
-  // Events first: upcoming ones by date (soonest on top), then undated ones; an event
-  // whose date has passed is dropped. Blogs and pages follow, newest first.
+  const all = data?.events || [];
+  // One tracker per section, in the order chosen in Manage competitors; anything
+  // found outside those sections goes in a last "Elsewhere on the site" tracker.
+  const labels = (t.watchPages?.length ? t.watchPages.map((w) => w.label) : [...new Set(all.map((e) => e.section).filter(Boolean) as string[])]);
+  const groups = labels.map((label) => ({ label, url: t.watchPages?.find((w) => w.label === label)?.url || null, items: all.filter((e) => e.section === label) }));
+  const other = all.filter((e) => !e.section || !labels.includes(e.section));
+  if (other.length) groups.push({ label: "Elsewhere on the site", url: null, items: other });
+  if (!groups.length) {
+    return <Empty>{data?.watchingSince
+      ? `Watching ${t.website.replace(/^https?:\/\//, "")} since ${new Date(data.watchingSince).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} — nothing new yet. New blogs, webinars and events will appear here and in your notifications.`
+      : `Watching ${t.website.replace(/^https?:\/\//, "")} starts on the next check (every 5 minutes once live).`}</Empty>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {groups.map((g) => <SectionTracker key={g.label} label={g.label} url={g.url} items={g.items} />)}
+    </div>
+  );
+}
+
+// One section of a competitor's site. Events: upcoming ones by date, soonest first;
+// past ones drop off. Posts: newest first. "New" = found after the section's first
+// read (everything on that first read was already there) and within the last week.
+function SectionTracker({ label, url, items }: { label: string; url: string | null; items: SiteEvent[] }) {
   const now = Date.now();
   const when = (e: SiteEvent) => (e.kind === "event" && e.published_at ? Date.parse(e.published_at) : NaN);
-  const events = (data?.events || [])
+  const firstRead = Math.min(...items.map((e) => Date.parse(e.detected_at)));
+  const isNew = (e: SiteEvent) => { const d = Date.parse(e.detected_at); return d > firstRead + 15 * 60_000 && d > now - 7 * 86_400_000; };
+  const shown = items
     .filter((e) => !(when(e) < now - 3 * 3_600_000))
     .sort((x, y) => {
       const ex = x.kind === "event" ? 0 : 1, ey = y.kind === "event" ? 0 : 1;
       if (ex !== ey) return ex - ey;
       const wx = when(x), wy = when(y);
       if (!Number.isNaN(wx) || !Number.isNaN(wy)) return (Number.isNaN(wx) ? Infinity : wx) - (Number.isNaN(wy) ? Infinity : wy);
-      return Date.parse(y.detected_at) - Date.parse(x.detected_at);
+      return (Date.parse(y.published_at || "") || Date.parse(y.detected_at)) - (Date.parse(x.published_at || "") || Date.parse(x.detected_at));
     });
-  if (!events.length) {
-    return <Empty>{data?.watchingSince
-      ? `Watching ${t.website.replace(/^https?:\/\//, "")} since ${new Date(data.watchingSince).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} — nothing new yet. New blogs, webinars and events will appear here and in your notifications.`
-      : `Watching ${t.website.replace(/^https?:\/\//, "")} starts on the next check (every 5 minutes once live).`}</Empty>;
-  }
+  const events = items.some((e) => e.kind === "event");
+  const fresh = shown.filter(isNew).length;
   return (
-    <div className="divide-y divide-gray-100">
-      {events.slice(0, 10).map((e) => {
-        const tag = KIND_TAG[e.kind] || KIND_TAG.page;
-        return (
-          <a key={e.id} href={e.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 hover:text-brand">
-            <span className={`text-[11px] font-medium rounded px-1.5 py-0.5 shrink-0 ${tag.cls}`}>{tag.label}</span>
-            <span className="text-[13.5px] text-[#232D42] truncate flex-1 min-w-0">{e.title || e.url}</span>
-            <span className="text-[11.5px] text-[#8A92A6] shrink-0">{Number.isNaN(when(e)) ? (e.kind === "event" ? "no date given" : ago(e.detected_at))
-              : new Date(when(e)).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}</span>
-            <IconExternalLink size={14} className="text-[#8A92A6] shrink-0" />
-          </a>
-        );
-      })}
+    <div className="border border-gray-100 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[14px] font-medium text-[#232D42] truncate">{label}</span>
+        {fresh > 0 && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-brand text-white shrink-0">{fresh} new</span>}
+        <span className="flex-1" />
+        {url && <a href={url} target="_blank" rel="noreferrer" className="text-[11.5px] text-[#8A92A6] hover:text-brand inline-flex items-center gap-1 shrink-0">open page <IconExternalLink size={12} /></a>}
+      </div>
+      {!shown.length ? (
+        <div className="text-[12.5px] text-[#8A92A6] py-2">{events || /webinar|event|seminar|expo/i.test(label) ? "Nothing upcoming right now — watching for new dates." : "Watching — new posts will appear here."}</div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {shown.slice(0, 5).map((e) => {
+            const w = when(e);
+            const d = e.published_at ? Date.parse(e.published_at) : NaN;
+            return (
+              <a key={e.id} href={e.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 py-2 hover:text-brand">
+                {isNew(e) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="New" />}
+                <span className="text-[13px] text-[#232D42] truncate flex-1 min-w-0">{e.title || e.url}</span>
+                <span className="text-[11.5px] text-[#8A92A6] shrink-0">
+                  {!Number.isNaN(w)
+                    ? new Date(w).toLocaleString("en-IN", new Date(w).getUTCHours() === 18 && new Date(w).getUTCMinutes() === 30
+                        ? { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" }
+                        : { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })
+                    : e.kind === "event" ? "no date given"
+                    : !Number.isNaN(d) ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : ago(e.detected_at)}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

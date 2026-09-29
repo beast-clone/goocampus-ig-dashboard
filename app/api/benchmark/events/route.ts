@@ -20,8 +20,8 @@ export async function GET(req: Request) {
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ events: [], watchingSince: null });
   try {
-    let q = sb.from("mh_competitor_events").select("id, kind, title, url, published_at, detected_at")
-      .eq("account_id", accountId).eq("handle", handle).order("detected_at", { ascending: false }).limit(60);
+    let q = sb.from("mh_competitor_events").select("id, kind, title, url, published_at, detected_at, section")
+      .eq("account_id", accountId).eq("handle", handle).order("detected_at", { ascending: false }).limit(200);
     if (kinds.length) q = q.in("kind", kinds);
     const [{ data, error }, { data: first }] = await Promise.all([
       q,
