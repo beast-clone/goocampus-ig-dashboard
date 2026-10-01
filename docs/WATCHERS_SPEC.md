@@ -30,6 +30,16 @@ This replaces n8n workflow `lhOaZp9S755bhEvT` ("KEA UGNEET 2026 Notification Wat
   - one branded email listing what's new, grouped
   - a short Telegram message
 
+## The tab
+- **Each link** shows:
+  - when it was last checked and when the next check is due
+  - "Check now" and "Check all now", with a live line: *Opening… reading its links* → *Read 58 links — nothing new* / *2 new notices found*
+- **News** is newest first, in day sections: Today · Yesterday · Day before yesterday · then dated days for a week · Older.
+  - A notice's day comes from **the notice itself** when it carries a date: a date in the title (KEA "29-09-2026") or a timestamp in the file name (MCC "202609301551…").
+  - Otherwise it is when we found it.
+  - A document already on the page with no date goes last, under "Already on the page · no date given".
+  - Rows found after the first check, within the last day, carry a **New** badge.
+
 ## Tables (sql/032, applied)
 - `mh_watchers`
 - `mh_watcher_items` (unique per watcher + link; `baseline` flag)

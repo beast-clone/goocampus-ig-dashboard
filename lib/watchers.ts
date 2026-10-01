@@ -84,6 +84,29 @@ export function groupFor(item: Found, w: Pick<Watcher, "category" | "auto_catego
   return w.category?.trim() || "Other";
 }
 
+// ── when was it posted? ────────────────────────────────────────────────────────
+// Read from the notice itself, so a notice that was already on the page shows its
+// real day ("yesterday", "28 Sep") rather than the day we happened to first read it.
+// In order: a date in the title (KEA writes "29-09-2026", "(30/09/2026)"), then a
+// timestamp in the file name (MCC "202609301551581216.pdf", KEA "k20260917145953"),
+// then a ddmmyyyy in the file name (KEA "_29092026kannada.pdf"). Null if none.
+const valid = (y: number, m: number, d: number) => y >= 2020 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+function iso(y: number, m: number, d: number, h = 0, mi = 0): string | null {
+  if (!valid(y, m, d) || h > 23 || mi > 59) return null;
+  const t = Date.UTC(y, m - 1, d, h, mi) - 330 * 60_000;            // written in IST
+  return t > Date.now() + 86_400_000 ? null : new Date(t).toISOString();
+}
+export function noticeDate(title: string | null, url: string): string | null {
+  let m = /(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](20\d{2})(?!\d)/.exec(title || "");
+  if (m) { const d = iso(+m[3], +m[2], +m[1]); if (d) return d; }
+  const file = decodeURIComponent(url.split("?")[0].split("/").pop() || "");
+  m = /(?<!\d)(20\d{2})(\d{2})(\d{2})(\d{2})?(\d{2})?/.exec(file);
+  if (m) { const d = iso(+m[1], +m[2], +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0); if (d) return d; }
+  m = /(?<!\d)(\d{2})(\d{2})(20\d{2})(?!\d)/.exec(file);
+  if (m) { const d = iso(+m[3], +m[2], +m[1]); if (d) return d; }
+  return null;
+}
+
 // ── checking ───────────────────────────────────────────────────────────────────
 async function knownUrls(watcherId: string): Promise<Set<string>> {
   const sb = getSupabase()!;

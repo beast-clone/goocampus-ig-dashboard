@@ -15,7 +15,7 @@ type Watcher = {
   emails: string[]; telegram: boolean; telegram_chats: string[]; active: boolean;
   created_at: string; last_checked_at: string | null; last_error: string | null; last_count: number | null;
 };
-type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; emailed_at: string | null; telegram_at: string | null };
+type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; posted_at: string | null; emailed_at: string | null; telegram_at: string | null };
 type Chat = { chat_id: string; name: string; username: string | null; kind: string };
 type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; telegram: boolean; bot: string | null };
 
@@ -30,7 +30,20 @@ function ago(iso: string | null): string {
   if (h < 24) return `${h} h ago`;
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
-const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+// The IST calendar day of a timestamp, as yyyy-mm-dd — for Today / Yesterday sections.
+const dayOf = (t: number) => new Date(t + 330 * 60_000).toISOString().slice(0, 10);
+function dayLabel(day: string): string {
+  const today = dayOf(Date.now()), yest = dayOf(Date.now() - 86_400_000), before = dayOf(Date.now() - 2 * 86_400_000);
+  if (day === today) return "Today";
+  if (day === yest) return "Yesterday";
+  if (day === before) return "Day before yesterday";
+  return new Date(`${day}T12:00:00+05:30`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
+// When a notice is from: its own date if it carries one, else when we found it.
+const stamp = (i: Item) => Date.parse(i.posted_at || i.detected_at);
+// "New" = found by a check after the first one, within the last day.
+const isNew = (i: Item) => !i.baseline && Date.now() - Date.parse(i.detected_at) < 86_400_000;
 // UG / PG get the same two colours everywhere; any other group is neutral.
 const GROUP_CLS: Record<string, string> = { UG: "bg-brand-light text-brand", PG: "bg-amber-50 text-amber-800", "UG & PG": "bg-[#EEF7F1] text-[#1E7B4C]" };
 const groupCls = (g: string) => GROUP_CLS[g] || "bg-gray-100 text-[#4A5468]";
@@ -63,20 +76,27 @@ export function WatchersWorkspace() {
   useEffect(() => { const w = new URLSearchParams(window.location.search).get("w"); if (w) setSite(w); }, []);
 
   const [editing, setEditing] = useState<Watcher | "new" | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Live state of a check, per link: "checking" while it runs, then what it found.
+  const [run, setRun] = useState<Record<string, { state: "checking" | "done" | "error"; text: string }>>({});
 
-  const checkNow = async (w: Watcher) => {
-    setBusy(w.id); setNote(null);
+  const checkOne = async (w: Watcher) => {
+    setRun((r) => ({ ...r, [w.id]: { state: "checking", text: `Opening ${host(w.url)} and reading its links…` } }));
     try {
       const r = await api("POST", "/api/watchers/check", { id: w.id });
-      setNote(r.error ? `${label(w)}: ${r.error}`
-        : r.baseline ? `${label(w)}: first check done — ${r.found} links recorded as already there. From now on, only new ones are announced.`
-        : r.fresh.length ? `${label(w)}: ${r.fresh.length} new notice${r.fresh.length === 1 ? "" : "s"} — sent to the people on this watcher.`
-        : `${label(w)}: checked ${r.found} links — nothing new.`);
-      refreshWatchers(); refreshItems();
-    } catch (e) { setNote(`${label(w)}: ${(e as Error).message}`); } finally { setBusy(null); }
+      const text = r.error ? r.error
+        : r.baseline ? `First check — ${r.found} links recorded as already there. From now on only new ones are announced.`
+        : r.fresh.length ? `${r.fresh.length} new notice${r.fresh.length === 1 ? "" : "s"} found — shown below and sent to the people on this link.`
+        : `Read ${r.found} links — nothing new.`;
+      setRun((x) => ({ ...x, [w.id]: { state: r.error ? "error" : "done", text } }));
+    } catch (e) { setRun((x) => ({ ...x, [w.id]: { state: "error", text: (e as Error).message } })); }
   };
+  const checkNow = async (w: Watcher) => { await checkOne(w); refreshWatchers(); refreshItems(); };
+  const checkAll = async () => {
+    for (const w of watchers.filter((x) => x.active)) await checkOne(w);
+    refreshWatchers(); refreshItems();
+  };
+  const anyChecking = Object.values(run).some((r) => r.state === "checking");
   const toggle = async (w: Watcher) => { await api("PATCH", "/api/watchers", { id: w.id, active: !w.active }).catch((e) => setNote(e.message)); refreshWatchers(); };
   const remove = async (w: Watcher) => {
     const ok = await confirmDialog({ title: `Stop watching ${label(w)}?`, body: "The link and the notices found on it are removed from this tab. Emails and Telegram messages already sent stay where they are.", action: "Remove", danger: true });
@@ -86,10 +106,22 @@ export function WatchersWorkspace() {
     refreshWatchers(); refreshItems();
   };
 
-  // Groups present in what's shown, UG and PG first; "UG & PG" notices count in both.
-  const groups = useMemo(() => {
-    const g = new Set(items.map((i) => i.grp || "Other"));
-    return [...g].sort((a, b) => (["UG", "PG", "UG & PG"].indexOf(a) + 1 || 9) - (["UG", "PG", "UG & PG"].indexOf(b) + 1 || 9) || a.localeCompare(b));
+  // Newest first, in day sections: Today, Yesterday, Day before yesterday, then by
+  // date. Anything older than a week goes in one "Older" section at the bottom, and
+  // a document that was already on the page and carries no date of its own goes
+  // last — its age is unknown, and the day we first read it says nothing about it.
+  const days_ = useMemo(() => {
+    const weekAgo = dayOf(Date.now() - 6 * 86_400_000);
+    const out: { key: string; label: string; rows: Item[] }[] = [];
+    const undated = (i: Item) => i.baseline && !i.posted_at;
+    for (const i of [...items].sort((a, b) => Number(undated(a)) - Number(undated(b)) || stamp(b) - stamp(a))) {
+      const d = dayOf(stamp(i));
+      const key = undated(i) ? "undated" : d < weekAgo ? "older" : d;
+      let sec = out.find((x) => x.key === key);
+      if (!sec) { sec = { key, label: key === "undated" ? "Already on the page · no date given" : key === "older" ? "Older" : dayLabel(d), rows: [] }; out.push(sec); }
+      sec.rows.push(i);
+    }
+    return out;
   }, [items]);
   const allGroups = useMemo(() => [...new Set(["UG", "PG", ...watchers.map((w) => w.category).filter(Boolean) as string[]])], [watchers]);
   const byId = useMemo(() => new Map(watchers.map((w) => [w.id, w])), [watchers]);
@@ -117,6 +149,11 @@ export function WatchersWorkspace() {
             <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">Watched links</div>
             <div className="text-[11.5px] text-[#8A92A6] mt-0.5">The pages we check, who hears about new notices, and when each was last read</div>
           </div>
+          {watchers.some((w) => w.active) && (
+            <button onClick={checkAll} disabled={anyChecking} className="h-9 px-3 rounded-lg border border-gray-200 text-[13px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-50">
+              <IconRefresh size={15} className={anyChecking ? "animate-spin" : ""} /> {anyChecking ? "Checking…" : "Check all now"}
+            </button>
+          )}
           <button onClick={() => setEditing("new")} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium inline-flex items-center gap-1.5"><IconPlus size={15} /> Add link</button>
         </div>
         {wLoading && !wd ? <LoadingBlock className="!py-6" size={26} /> : !watchers.length ? (
@@ -136,12 +173,22 @@ export function WatchersWorkspace() {
                   <div className="text-[12px] text-[#8A92A6] mt-1 flex items-center gap-3 flex-wrap">
                     <span className="inline-flex items-center gap-1"><IconMail size={13} /> {w.emails.length ? `${w.emails.length} ${w.emails.length === 1 ? "person" : "people"}` : "no emails"}</span>
                     <span className="inline-flex items-center gap-1"><IconBrandTelegram size={13} /> {w.telegram && w.telegram_chats.length ? `${w.telegram_chats.length} chat${w.telegram_chats.length === 1 ? "" : "s"}` : "off"}</span>
-                    <span>checked {ago(w.last_checked_at)}{w.last_count != null ? ` · ${w.last_count} links on the page` : ""}</span>
+                    <span>
+                      Last checked {w.last_checked_at ? `${ago(w.last_checked_at)} (${clock(w.last_checked_at)})` : "never"}
+                      {w.active && w.last_checked_at ? ` · next check by ${clock(new Date(Date.parse(w.last_checked_at) + 15 * 60_000).toISOString())}` : ""}
+                      {w.last_count != null ? ` · ${w.last_count} links on the page` : ""}
+                    </span>
                   </div>
+                  {run[w.id] && (
+                    <div className={`text-[12px] mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 ${run[w.id].state === "checking" ? "bg-brand-light text-brand" : run[w.id].state === "error" ? "bg-[#FDECEC] text-[#C03221]" : "bg-[#EEF7F1] text-[#1E7B4C]"}`}>
+                      {run[w.id].state === "checking" ? <IconRefresh size={13} className="animate-spin" /> : run[w.id].state === "error" ? <IconAlertTriangle size={13} /> : <IconCheck size={13} />}
+                      {run[w.id].text}
+                    </div>
+                  )}
                   {w.last_error && <div className="text-[12px] text-[#C03221] mt-1 inline-flex items-center gap-1"><IconAlertTriangle size={13} /> {w.last_error}</div>}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => checkNow(w)} disabled={busy === w.id} className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1 disabled:opacity-50"><IconRefresh size={14} className={busy === w.id ? "animate-spin" : ""} /> {busy === w.id ? "Checking…" : "Check now"}</button>
+                  <button onClick={() => checkNow(w)} disabled={run[w.id]?.state === "checking"} className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1 disabled:opacity-50"><IconRefresh size={14} className={run[w.id]?.state === "checking" ? "animate-spin" : ""} /> {run[w.id]?.state === "checking" ? "Checking…" : "Check now"}</button>
                   <IconBtn title="Edit" onClick={() => setEditing(w)}><IconPencil size={15} /></IconBtn>
                   <IconBtn title={w.active ? "Pause" : "Resume"} onClick={() => toggle(w)}>{w.active ? <IconPlayerPause size={15} /> : <IconPlayerPlay size={15} />}</IconBtn>
                   <IconBtn title="Remove" danger onClick={() => remove(w)}><IconTrash size={15} /></IconBtn>
@@ -158,7 +205,7 @@ export function WatchersWorkspace() {
           <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-light text-brand shrink-0"><IconNews size={18} /></span>
           <div className="flex-1 min-w-[200px]">
             <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">News</div>
-            <div className="text-[11.5px] text-[#8A92A6] mt-0.5">Grouped automatically from each notice&apos;s own title and link</div>
+            <div className="text-[11.5px] text-[#8A92A6] mt-0.5">Newest first · UG / PG read from each notice&apos;s own title and link</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="w-[130px]"><PreviewSelect value={group} onChange={setGroup} options={[{ value: "all", label: "All groups" }, ...allGroups.map((g) => ({ value: g, label: `${g} news` })), { value: "Other", label: "Other" }]} /></div>
@@ -175,32 +222,37 @@ export function WatchersWorkspace() {
           </div>
         ) : (
           <div className="space-y-5">
-            {groups.map((g) => {
-              const list = items.filter((i) => (i.grp || "Other") === g);
-              return (
-                <div key={g}>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`text-[11.5px] font-medium rounded px-2 py-0.5 ${groupCls(g)}`}>{g} news</span>
-                    <span className="text-[11.5px] text-[#8A92A6]">{list.length}</span>
-                  </div>
-                  <div className="divide-y divide-gray-100">
-                    {list.map((i) => {
-                      const w = byId.get(i.watcher_id);
-                      return (
-                        <a key={i.id} href={i.item_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 hover:text-brand group">
-                          <span className="text-[13.5px] text-[#232D42] group-hover:text-brand flex-1 min-w-0 truncate">{i.title || i.item_url}</span>
-                          {i.baseline && <span className="text-[11px] text-[#8A92A6] shrink-0">already there</span>}
-                          {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
-                          {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
-                          <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
-                          <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[110px] text-right">{when(i.detected_at)}</span>
-                        </a>
-                      );
-                    })}
-                  </div>
+            {days_.map((sec) => (
+              <div key={sec.key}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`text-[12px] font-medium ${sec.label === "Today" ? "text-brand" : "text-[#232D42]"}`}>{sec.label}</span>
+                  <span className="text-[11.5px] text-[#8A92A6]">{sec.rows.length}</span>
+                  <span className="flex-1 h-px bg-gray-100" />
                 </div>
-              );
-            })}
+                <div className="divide-y divide-gray-100">
+                  {sec.rows.map((i) => {
+                    const w = byId.get(i.watcher_id);
+                    const g = i.grp || "Other";
+                    return (
+                      <a key={i.id} href={i.item_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 group">
+                        {isNew(i) ? <span className="text-[10.5px] font-medium rounded px-1.5 py-0.5 bg-brand text-white shrink-0">New</span> : <span className="w-[31px] shrink-0" />}
+                        <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
+                        <span className={`text-[13.5px] group-hover:text-brand flex-1 min-w-0 truncate ${isNew(i) ? "text-[#232D42] font-medium" : "text-[#232D42]"}`}>{i.title || i.item_url}</span>
+                        {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
+                        {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
+                        <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
+                        <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[80px] text-right" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
+                          {sec.key === "undated" ? ""
+                            : sec.key === "older" || !["Today", "Yesterday"].includes(sec.label)
+                            ? new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "2-digit" : undefined, timeZone: "Asia/Kolkata" })
+                            : i.posted_at && /T18:30:00/.test(i.posted_at) ? "" : clock(new Date(stamp(i)).toISOString())}
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

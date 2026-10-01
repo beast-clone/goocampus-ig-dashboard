@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { noticeDate } from "@/lib/watchers";
 
 // What the watchers found, newest first.
 //   GET /api/watchers/items?group=UG&watcher=<id>&days=30&all=1
@@ -30,6 +31,11 @@ export async function GET(req: Request) {
     if (days > 0) q = q.gte("detected_at", new Date(Date.now() - days * 86_400_000).toISOString());
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    return NextResponse.json({ items: data || [] });
+    // posted_at: the notice's own date when it carries one (see noticeDate), else
+    // when we found it. Newest first — the page groups by day from this.
+    const items = ((data || []) as { title: string | null; item_url: string; detected_at: string }[])
+      .map((i) => ({ ...i, posted_at: noticeDate(i.title, i.item_url) }))
+      .sort((a, b) => Date.parse(b.posted_at || b.detected_at) - Date.parse(a.posted_at || a.detected_at));
+    return NextResponse.json({ items });
   } catch (err) { return NextResponse.json(safeError(err, "Couldn't load notices"), { status: 502 }); }
 }
