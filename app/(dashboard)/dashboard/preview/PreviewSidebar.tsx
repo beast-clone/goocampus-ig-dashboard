@@ -15,7 +15,8 @@ import {
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
-  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft} from "@tabler/icons-react";
+  IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
+} from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
 /** Remembered across tabs and reloads once the button has been used. */
@@ -61,6 +62,8 @@ const GROUPS: Group[] = [
     { label: "Content calendar",    href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
+    // Web pages we follow for news — KEA / MCC counselling notices first (1 Oct).
+    { label: "Watchers",            href: `${HUB}/watchers`,     icon: IconEye },
   ] },
   { label: "Social Media", sec: "content", items: [
     { label: "Publishing Calendar", href: `${HUB}/calendar`,        icon: IconCalendarEvent },
