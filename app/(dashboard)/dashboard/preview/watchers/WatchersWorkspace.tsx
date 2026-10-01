@@ -111,12 +111,16 @@ export function WatchersWorkspace() {
   const days_ = useMemo(() => {
     const weekAgo = dayOf(Date.now() - 6 * 86_400_000);
     const out: { key: string; label: string; rows: Item[] }[] = [];
+    // Whatever a check found today goes first, under "New today", even when the
+    // notice itself carries an older date — it is news to us today.
     const undated = (i: Item) => i.baseline && !i.posted_at;
-    for (const i of [...items].sort((a, b) => Number(undated(a)) - Number(undated(b)) || stamp(b) - stamp(a))) {
+    const foundToday = (i: Item) => !i.baseline && dayOf(Date.parse(i.detected_at)) === dayOf(Date.now());
+    const rank = (i: Item) => (foundToday(i) ? 0 : undated(i) ? 2 : 1);
+    for (const i of [...items].sort((a, b) => rank(a) - rank(b) || stamp(b) - stamp(a))) {
       const d = dayOf(stamp(i));
-      const key = undated(i) ? "undated" : d < weekAgo ? "older" : d;
+      const key = foundToday(i) ? "new" : undated(i) ? "undated" : d < weekAgo ? "older" : d;
       let sec = out.find((x) => x.key === key);
-      if (!sec) { sec = { key, label: key === "undated" ? "Already on the page · no date given" : key === "older" ? "Older" : dayLabel(d), rows: [] }; out.push(sec); }
+      if (!sec) { sec = { key, label: key === "new" ? "New today" : key === "undated" ? "Already on the page · no date given" : key === "older" ? "Older" : dayLabel(d), rows: [] }; out.push(sec); }
       sec.rows.push(i);
     }
     return out;
@@ -223,7 +227,8 @@ export function WatchersWorkspace() {
             {days_.map((sec) => (
               <div key={sec.key}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`text-[12px] font-medium ${sec.label === "Today" ? "text-brand" : "text-[#232D42]"}`}>{sec.label}</span>
+                  {/* Day headings as pills: today's in green so the fresh news stands out. */}
+                  <span className={`text-[12px] font-medium rounded-full px-2.5 py-0.5 ${sec.key === "new" ? "bg-[#EEF7F1] text-[#1E7B4C]" : "bg-gray-100 text-[#4A5468]"}`}>{sec.label}</span>
                   <span className="text-[11.5px] text-[#8A92A6]">{sec.rows.length}</span>
                   <span className="flex-1 h-px bg-gray-100" />
                 </div>
@@ -234,7 +239,7 @@ export function WatchersWorkspace() {
                     return (
                       <a key={i.id} href={i.item_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 group">
                         <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
-                        {isNew(i) && <span className="text-[10.5px] font-medium rounded px-1.5 py-0.5 bg-brand text-white shrink-0">New</span>}
+                        {isNew(i) && <span className="text-[10.5px] font-medium rounded-full px-2 py-0.5 bg-[#EEF7F1] text-[#1E7B4C] shrink-0">New</span>}
                         {sec.key !== "undated" && (
                           <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
                             {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
