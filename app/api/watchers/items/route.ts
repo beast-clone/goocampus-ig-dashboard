@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   if (!sb) return NextResponse.json({ items: [] });
   const p = new URL(req.url).searchParams;
   try {
-    let q = sb.from("mh_watcher_items").select("id, watcher_id, item_url, title, grp, baseline, detected_at, emailed_at, telegram_at")
+    let q = sb.from("mh_watcher_items").select("id, watcher_id, item_url, title, grp, baseline, detected_at, emailed_at, telegram_at, summary, summary_from")
       .order("detected_at", { ascending: false }).order("title", { ascending: true }).limit(p.get("all") === "1" ? 1000 : 300);
     // What was already there is shown as documents only (PDFs etc.) — the rest of a
     // first read is the site's menu and footer, which is noise in a news list.

@@ -38,7 +38,7 @@ export type UsageDetail = {
 };
 type CallOpts = { feature?: string; detail?: UsageDetail };
 
-function recordUsage(
+export function recordUsage(
   feature: string | undefined, model: string, usage: Usage | null,
   error?: unknown, detail?: UsageDetail, durationMs?: number,
 ) {

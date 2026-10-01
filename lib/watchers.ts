@@ -15,6 +15,7 @@ import { getSupabase } from "@/lib/supabase";
 import { fetchRoster } from "@/lib/team-db";
 import { hasEmail, sendMail } from "@/lib/email";
 import { hasTelegram, sendTelegram, syncTelegramChats } from "@/lib/telegram";
+import { summarizeNotice } from "@/lib/pdf-summary";
 
 export type Watcher = {
   id: string; name: string | null; url: string; category: string | null; auto_category: boolean;
@@ -22,7 +23,8 @@ export type Watcher = {
   created_by: string | null; created_at: string; last_checked_at: string | null; last_error: string | null; last_count: number | null;
 };
 type Found = { url: string; title: string };
-export type CheckResult = { watcher: string; found: number; baseline: boolean; fresh: { title: string; url: string; grp: string }[]; error?: string };
+export type CheckResult = { watcher: string; found: number; baseline: boolean; fresh: { title: string; url: string; grp: string; summary?: string | null }[]; error?: string };
+const MAX_SUMMARIES = 6;   // per check — each is a download plus an AI call (~3–8 s)
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const SKIP = /\.(css|js|png|jpe?g|gif|svg|webp|ico|woff2?|ttf)(\?|$)/i;
@@ -147,7 +149,17 @@ export async function checkWatcher(w: Watcher): Promise<CheckResult> {
     last_checked_at: new Date().toISOString(), last_count: items.length,
     last_error: !res.baseline && fresh.length > MAX_ANNOUNCE ? `${fresh.length} links changed at once — the page layout probably changed; recorded quietly` : null,
   }).eq("id", w.id);
-  if (res.fresh.length) await announce(w, res.fresh);
+  if (res.fresh.length) {
+    // A one-line summary of each new notice, before anyone is told — so the email and
+    // Telegram message carry it. A summary that fails just leaves the title.
+    for (const f of res.fresh.slice(0, MAX_SUMMARIES)) {
+      const s = await summarizeNotice(f.title, f.url).catch(() => null);
+      if (!s?.text) continue;
+      f.summary = s.text;
+      await sb.from("mh_watcher_items").update({ summary: s.text, summary_from: s.from }).eq("watcher_id", w.id).eq("item_url", f.url);
+    }
+    await announce(w, res.fresh);
+  }
   return res;
 }
 
@@ -173,14 +185,14 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<void> 
   // 2. Email — one message per check listing everything new, grouped.
   if (w.emails.length && hasEmail()) {
     try {
-      await sendMail({ to: w.emails.join(", "), subject: heading, html: emailHtml(label, w.url, fresh), text: fresh.map((f) => `[${f.grp}] ${f.title}\n${f.url}`).join("\n\n") });
+      await sendMail({ to: w.emails.join(", "), subject: heading, html: emailHtml(label, w.url, fresh), text: fresh.map((f) => `[${f.grp}] ${f.title}${f.summary ? `\n${f.summary}` : ""}\n${f.url}`).join("\n\n") });
       await sb.from("mh_watcher_items").update({ emailed_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url));
     } catch (e) { await sb.from("mh_watchers").update({ last_error: `Email failed: ${(e as Error).message}` }).eq("id", w.id); }
   }
 
   // 3. Telegram — short, one line per notice.
   if (w.telegram && w.telegram_chats.length && hasTelegram()) {
-    const msg = `<b>${esc(heading)}</b>\n\n` + fresh.map((f) => `• <b>[${esc(f.grp)}]</b> <a href="${esc(f.url)}">${esc(f.title.slice(0, 200))}</a>`).join("\n") + `\n\nSource: ${esc(w.url)}`;
+    const msg = `<b>${esc(heading)}</b>\n\n` + fresh.map((f) => `• <b>[${esc(f.grp)}]</b> <a href="${esc(f.url)}">${esc(f.title.slice(0, 200))}</a>${f.summary ? `\n   ${esc(f.summary)}` : ""}`).join("\n\n") + `\n\nSource: ${esc(w.url)}`;
     let ok = false;
     for (const chat of w.telegram_chats) { try { await sendTelegram(chat, msg); ok = true; } catch { /* one bad chat must not stop the others */ } }
     if (ok) await sb.from("mh_watcher_items").update({ telegram_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url));
@@ -195,8 +207,9 @@ function emailHtml(label: string, source: string, fresh: CheckResult["fresh"]): 
   const blocks = [...byGroup.entries()].map(([g, list]) => `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8A92A6;margin:18px 0 8px">${esc(g)} news</div>
     ${list.map((f) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E9ECF2;border-left:4px solid #3A57E8;border-radius:6px;margin-bottom:10px"><tr><td style="padding:14px 16px">
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#232D42;margin-bottom:10px">${esc(f.title)}</div>
-      <a href="${esc(f.url)}" style="display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#ffffff;background:#3A57E8;text-decoration:none;padding:8px 16px;border-radius:4px">Open &rarr;</a>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#232D42;margin-bottom:${f.summary ? 4 : 10}px">${esc(f.title)}</div>
+      ${f.summary ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#4A5468;margin-bottom:10px">${esc(f.summary)}</div>` : ""}
+      <a href="${esc(f.url)}" style="display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#ffffff;background:#3A57E8;text-decoration:none;padding:8px 16px;border-radius:4px">${/\.pdf(\?|$)/i.test(f.url) ? "Open PDF" : "Open page"} &rarr;</a>
     </td></tr></table>`).join("")}`).join("");
   return `<!DOCTYPE html><html><body style="margin:0;padding:24px 12px;background:#F6F7FB">
   <table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" style="max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden">

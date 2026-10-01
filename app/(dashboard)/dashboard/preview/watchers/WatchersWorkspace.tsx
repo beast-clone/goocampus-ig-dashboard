@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus, IconRefresh, IconPencil, IconTrash, IconPlayerPause, IconPlayerPlay, IconExternalLink,
-  IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle,
+  IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle, IconFileTypePdf, IconWorld, IconSparkles,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -15,7 +15,7 @@ type Watcher = {
   emails: string[]; telegram: boolean; telegram_chats: string[]; active: boolean;
   created_at: string; last_checked_at: string | null; last_error: string | null; last_count: number | null;
 };
-type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; posted_at: string | null; emailed_at: string | null; telegram_at: string | null };
+type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; posted_at: string | null; summary: string | null; summary_from: string | null; emailed_at: string | null; telegram_at: string | null };
 type Chat = { chat_id: string; name: string; username: string | null; kind: string };
 type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; telegram: boolean; bot: string | null };
 
@@ -45,6 +45,7 @@ const isNew = (i: Item) => !i.baseline && Date.now() - Date.parse(i.detected_at)
 // UG / PG get the same two colours everywhere; any other group is neutral.
 const GROUP_CLS: Record<string, string> = { UG: "bg-brand-light text-brand", PG: "bg-amber-50 text-amber-800", "UG & PG": "bg-[#EEF7F1] text-[#1E7B4C]" };
 const groupCls = (g: string) => GROUP_CLS[g] || "bg-gray-100 text-[#4A5468]";
+const isPdf = (u: string) => /\.pdf(\?|$)/i.test(u);
 
 async function api(method: string, url: string, body?: unknown) {
   const r = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
@@ -237,21 +238,33 @@ export function WatchersWorkspace() {
                     const w = byId.get(i.watcher_id);
                     const g = i.grp || "Other";
                     return (
-                      <a key={i.id} href={i.item_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 group">
-                        <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
-                        {isNew(i) && <span className="text-[10.5px] font-medium rounded-full px-2 py-0.5 bg-[#EEF7F1] text-[#1E7B4C] shrink-0">New</span>}
-                        {sec.key !== "undated" && (
-                          <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
-                            {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
-                            {i.posted_at && new Date(i.posted_at).getUTCHours() === 18 && new Date(i.posted_at).getUTCMinutes() === 30 ? "" : `, ${clock(new Date(stamp(i)).toISOString())}`}
-                          </span>
-                        )}
-                        <span className={`text-[13.5px] group-hover:text-brand flex-1 min-w-0 truncate text-[#232D42] ${isNew(i) ? "font-medium" : ""}`}>{i.title || i.item_url}</span>
-                        {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
-                        {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
-                        <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
-                        <IconExternalLink size={14} className="text-[#8A92A6] group-hover:text-brand shrink-0" />
-                      </a>
+                      <div key={i.id} className="py-2.5">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
+                          {isNew(i) && <span className="text-[10.5px] font-medium rounded-full px-2 py-0.5 bg-[#EEF7F1] text-[#1E7B4C] shrink-0">New</span>}
+                          {sec.key !== "undated" && (
+                            <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
+                              {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
+                              {i.posted_at && new Date(i.posted_at).getUTCHours() === 18 && new Date(i.posted_at).getUTCMinutes() === 30 ? "" : `, ${clock(new Date(stamp(i)).toISOString())}`}
+                            </span>
+                          )}
+                          <a href={i.item_url} target="_blank" rel="noreferrer" className={`text-[13.5px] hover:text-brand flex-1 min-w-0 truncate text-[#232D42] ${isNew(i) ? "font-medium" : ""}`}>{i.title || i.item_url}</a>
+                          {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
+                          {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
+                          <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
+                          {/* A PDF opens in the browser's viewer (download from there); a web page opens as itself. */}
+                          {isPdf(i.item_url) ? (
+                            <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the PDF — view or download" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#C03221] hover:border-[#C03221] shrink-0">
+                              <IconFileTypePdf size={15} /> PDF
+                            </a>
+                          ) : (
+                            <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the page" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#4A5468] hover:border-brand hover:text-brand shrink-0">
+                              <IconWorld size={15} /> Page
+                            </a>
+                          )}
+                        </div>
+                        <Summary item={i} onDone={refreshItems} />
+                      </div>
                     );
                   })}
                 </div>
@@ -271,6 +284,35 @@ export function WatchersWorkspace() {
           onSaved={(msg) => { setEditing(null); setNote(msg); refreshWatchers(); refreshRec(); }}
         />
       )}
+    </div>
+  );
+}
+
+// The notice's one-line summary under its title. New notices get one automatically
+// when a check finds them; older ones can be summarised on request.
+function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const indent = "pl-[70px]";
+  if (item.summary) {
+    return (
+      <div className={`${indent} mt-1 text-[12.5px] text-[#4A5468] leading-snug flex items-start gap-1.5`}>
+        <IconSparkles size={13} className="text-[#8A92A6] mt-[3px] shrink-0" />
+        <span>{item.summary}{item.summary_from === "title" && <span className="text-[#8A92A6]"> · from the title only</span>}</span>
+      </div>
+    );
+  }
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try { await api("POST", "/api/watchers/summarize", { id: item.id }); onDone(); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className={`${indent} mt-0.5`}>
+      <button onClick={run} disabled={busy} className="text-[12px] text-brand inline-flex items-center gap-1 disabled:opacity-60">
+        <IconSparkles size={13} /> {busy ? "Reading the notice…" : "Summarize"}
+      </button>
+      {err && <span className="text-[12px] text-[#C03221] ml-2">{err}</span>}
     </div>
   );
 }

@@ -40,10 +40,21 @@ This replaces n8n workflow `lhOaZp9S755bhEvT` ("KEA UGNEET 2026 Notification Wat
   - A document already on the page with no date goes last, under "Already on the page · no date given".
   - Rows found after the first check, within the last day, carry a **New** badge.
 
+## Summaries and file buttons
+- **Summary:** each new notice gets a one-line English summary (`lib/pdf-summary.ts`), put in the dashboard, email and Telegram. It's made by Perplexity sonar, about $0.001 each, logged in `ai_usage` as feature "watchers". There are three routes:
+  - **pdf:** a PDF with real text (MCC) → its text
+  - **scan:** a scanned PDF (KEA prints and scans notices) → a picture of page 1
+  - **title:** no readable document → the link text, translated
+- **Summarize on request:** older notices have a "Summarize" link (`/api/watchers/summarize`).
+- **pdfjs in Node** needs `wasmUrl` for scans. Without it, the CCITT/JBIG2 text layer is silently dropped and page 1 renders as a blank letterhead.
+- **Netlify:** `next.config.mjs` marks `pdfjs-dist` and `@napi-rs/canvas` as external and traces their runtime files into the function. This is untested on Netlify until deploy, so check a summary there first.
+- **File buttons:** every row has a **PDF** button (opens the file to view or download) or a **Page** button.
+
 ## Tables (sql/032, applied)
 - `mh_watchers`
 - `mh_watcher_items` (unique per watcher + link; `baseline` flag)
 - `mh_telegram_chats`
+- sql/033 (applied) adds `mh_watcher_items.summary` and `summary_from`
 
 ## Still needed to switch on sending
 - **Email:** `GMAIL_USER` + `GMAIL_APP_PASSWORD` (a Google app password for the sending address) in `.env.local` and Netlify.
