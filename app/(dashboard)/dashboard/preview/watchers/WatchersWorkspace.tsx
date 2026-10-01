@@ -34,10 +34,8 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour:
 // The IST calendar day of a timestamp, as yyyy-mm-dd — for Today / Yesterday sections.
 const dayOf = (t: number) => new Date(t + 330 * 60_000).toISOString().slice(0, 10);
 function dayLabel(day: string): string {
-  const today = dayOf(Date.now()), yest = dayOf(Date.now() - 86_400_000), before = dayOf(Date.now() - 2 * 86_400_000);
-  if (day === today) return "Today";
-  if (day === yest) return "Yesterday";
-  if (day === before) return "Day before yesterday";
+  if (day === dayOf(Date.now())) return "Today";
+  if (day === dayOf(Date.now() - 86_400_000)) return "Yesterday";
   return new Date(`${day}T12:00:00+05:30`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
 // When a notice is from: its own date if it carries one, else when we found it.
@@ -235,18 +233,19 @@ export function WatchersWorkspace() {
                     const g = i.grp || "Other";
                     return (
                       <a key={i.id} href={i.item_url} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-2.5 group">
-                        {isNew(i) ? <span className="text-[10.5px] font-medium rounded px-1.5 py-0.5 bg-brand text-white shrink-0">New</span> : <span className="w-[31px] shrink-0" />}
                         <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
-                        <span className={`text-[13.5px] group-hover:text-brand flex-1 min-w-0 truncate ${isNew(i) ? "text-[#232D42] font-medium" : "text-[#232D42]"}`}>{i.title || i.item_url}</span>
+                        {isNew(i) && <span className="text-[10.5px] font-medium rounded px-1.5 py-0.5 bg-brand text-white shrink-0">New</span>}
+                        {sec.key !== "undated" && (
+                          <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
+                            {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
+                            {i.posted_at && new Date(i.posted_at).getUTCHours() === 18 && new Date(i.posted_at).getUTCMinutes() === 30 ? "" : `, ${clock(new Date(stamp(i)).toISOString())}`}
+                          </span>
+                        )}
+                        <span className={`text-[13.5px] group-hover:text-brand flex-1 min-w-0 truncate text-[#232D42] ${isNew(i) ? "font-medium" : ""}`}>{i.title || i.item_url}</span>
                         {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
                         {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
                         <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
-                        <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[80px] text-right" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
-                          {sec.key === "undated" ? ""
-                            : sec.key === "older" || !["Today", "Yesterday"].includes(sec.label)
-                            ? new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "2-digit" : undefined, timeZone: "Asia/Kolkata" })
-                            : i.posted_at && /T18:30:00/.test(i.posted_at) ? "" : clock(new Date(stamp(i)).toISOString())}
-                        </span>
+                        <IconExternalLink size={14} className="text-[#8A92A6] group-hover:text-brand shrink-0" />
                       </a>
                     );
                   })}
