@@ -83,7 +83,10 @@ function NotificationsList() {
   const collapse = (rows: NotifItem[]): { n: NotifItem; also: NotifItem[] }[] => {
     const byTitle = new Map<string, NotifItem[]>();
     for (const n of rows) {
-      const k = n.title;
+      // Person as well as title: twenty-one approvals spread across four people
+      // collapsed into one row that could not honestly link anywhere, because it was
+      // about four different people's work (Maheen, 2 Oct).
+      const k = `${n.title}\u0000${n.payload?.owner || ""}`;
       byTitle.set(k, [...(byTitle.get(k) || []), n]);
     }
     const out: { n: NotifItem; also: NotifItem[] }[] = [];
@@ -113,6 +116,34 @@ function NotificationsList() {
     if (n.post_id) router.push(taskHref(n.post_id));
     else if (n.payload?.href) router.push(n.payload.href);
   });
+
+  // A whole group: the Master sheet, already filtered to that person at that status,
+  // which is the list the row is describing. Opening one of twenty-one answered the
+  // wrong question.
+  //
+  // Deliberately NOT wrapped in run(): that refetches the list after the handler, and
+  // the re-render was landing on top of the navigation so the page simply stayed put
+  // with the group marked read. Going somewhere should not wait on a write either, so
+  // the read is fired off and the push happens immediately.
+  const openGroup = (n: NotifItem, also: NotifItem[]) => {
+    const owner = n.payload?.ownerKey || n.payload?.owner;   // key, not name: the sheet matches aliases
+    const status = n.payload?.statusTo;
+    const unread = [n, ...also].filter((x) => !x.read_at).map((x) => x.id);
+    if (unread.length) {
+      patchNotifs({ op: "read", ids: unread })
+        .then(() => window.dispatchEvent(new Event(NOTIF_REFRESH)))
+        .catch(() => { /* the navigation matters more than the tick */ });
+    }
+    if (owner || status) {
+      const q = new URLSearchParams({ tab: "master" });
+      if (owner) q.set("owner", owner);
+      if (status) q.set("status", status);
+      router.push(`/dashboard/preview/marketing-hub?${q}`);
+      return;
+    }
+    if (n.post_id) router.push(taskHref(n.post_id));
+    else if (n.payload?.href) router.push(n.payload.href);
+  };
   const unreadHere = cat === "all" ? counts.all.unread : counts[cat]?.unread || 0;
 
   return (
@@ -164,7 +195,7 @@ function NotificationsList() {
           )}
           {sections.map((s) => (
             <Section key={s.key} title={s.label}>
-              {s.rows.map(({ n, also }) => <Row key={n.id} n={n} also={also} busy={busy} onOpen={open}
+              {s.rows.map(({ n, also }) => <Row key={n.id} n={n} also={also} busy={busy} onOpen={open} onOpenGroup={openGroup}
                 onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id, ...also.map((a) => a.id)] }))}
                 onDelete={(x) => run(() => patchNotifs({ op: "delete", ids: [x.id, ...also.map((a) => a.id)] }))} />)}
             </Section>
@@ -193,7 +224,7 @@ function Section({ title, sub, icon, accent, children }: { title: string; sub?: 
   );
 }
 
-function Row({ n, also = [], busy, onOpen, onRead, onDelete }: { n: NotifItem; also?: NotifItem[]; busy: boolean; onOpen: (n: NotifItem) => void; onRead: (n: NotifItem) => void; onDelete: (n: NotifItem) => void }) {
+function Row({ n, also = [], busy, onOpen, onOpenGroup, onRead, onDelete }: { n: NotifItem; also?: NotifItem[]; busy: boolean; onOpen: (n: NotifItem) => void; onOpenGroup?: (n: NotifItem, also: NotifItem[]) => void; onRead: (n: NotifItem) => void; onDelete: (n: NotifItem) => void }) {
   const [expanded, setExpanded] = useState(false);
   const unread = !n.read_at || also.some((a) => !a.read_at);
   const pendingAction = isOpenAction(n);
@@ -211,14 +242,32 @@ function Row({ n, also = [], busy, onOpen, onRead, onDelete }: { n: NotifItem; a
           {n.dismissed_at && !n.read_at && <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#F6F7FB] text-[#8A92A6]">Dismissed</span>}
         </div>
         {n.sub && <div className="text-[13px] text-[#4A5468] mt-0.5 break-words">{n.sub}</div>}
+        {/* Expanding showed the other twenty and stopped there — you could read which
+            tasks they were and not reach any of them, so the one you actually wanted
+            meant going to find it on the board (Maheen, 2 Oct). Each line opens its own
+            task now, the same as the row above it, and the dot marks the ones not yet
+            read so a long group can be worked through rather than guessed at. */}
         {also.length > 0 && (
           expanded ? (
-            <div className="mt-1.5 space-y-1 border-l-2 border-gray-100 pl-2.5">
-              {also.map((a) => (
-                <div key={a.id} className="text-[12.5px] text-[#4A5468] break-words">
-                  {a.sub} <span className="text-[#8A92A6]">· {when(a.created_at)}</span>
-                </div>
-              ))}
+            <div className="mt-1.5 space-y-0.5 border-l-2 border-gray-100 pl-2.5">
+              {also.map((a) => {
+                const canOpen = !!(a.post_id || a.payload?.href);
+                const dot = !a.read_at
+                  ? <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand mr-1.5 align-middle" title="Unread" />
+                  : null;
+                return canOpen ? (
+                  <button key={a.id} disabled={busy} onClick={() => onOpen(a)}
+                    title="Open this task"
+                    className="group block w-full text-left text-[12.5px] text-[#4A5468] break-words rounded px-1 -mx-1 py-0.5 hover:bg-[#F6F7FB] hover:text-brand disabled:opacity-40">
+                    {dot}{a.sub}
+                    <span className="text-[#8A92A6] group-hover:text-brand"> · {when(a.created_at)}</span>
+                  </button>
+                ) : (
+                  <div key={a.id} className="text-[12.5px] text-[#4A5468] break-words px-1 py-0.5">
+                    {dot}{a.sub} <span className="text-[#8A92A6]">· {when(a.created_at)}</span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <button onClick={() => setExpanded(true)} className="text-[12px] text-brand hover:underline mt-0.5">
@@ -229,7 +278,13 @@ function Row({ n, also = [], busy, onOpen, onRead, onDelete }: { n: NotifItem; a
         <div className="text-[12px] text-[#6B7385] mt-1">{when(n.created_at)}</div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {(n.post_id || n.payload?.href) && (
+        {also.length > 0 && onOpenGroup && (n.payload?.owner || n.payload?.statusTo) ? (
+          <button disabled={busy} onClick={() => onOpenGroup(n, also)}
+            title={`See all ${also.length + 1} on the Master sheet${n.payload?.owner ? ` — ${n.payload.owner}'s` : ""}`}
+            className="h-8 px-2.5 rounded border border-gray-200 text-[13px] text-[#4A5468] inline-flex items-center gap-1 hover:border-[#3A57E8] hover:text-brand disabled:opacity-40">
+            <IconExternalLink size={14} stroke={1.8} /> See all {also.length + 1}
+          </button>
+        ) : (n.post_id || n.payload?.href) && (
           <button disabled={busy} onClick={() => onOpen(n)} title="Open the task"
             className="h-8 px-2.5 rounded border border-gray-200 text-[13px] text-[#4A5468] inline-flex items-center gap-1 hover:border-[#3A57E8] hover:text-brand disabled:opacity-40">
             <IconExternalLink size={14} stroke={1.8} /> Open

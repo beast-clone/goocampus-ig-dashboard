@@ -37,10 +37,31 @@ export type Notif = {
   // every notification. The stored Notifications tab links and resolves off this.
   taskId?: string;
   postId?: string; accept?: boolean; swap?: { from: string; candidates: SwapCand[] };
+  // Who holds the task and what it moved to. The name is already written into `sub`
+  // as "· with Nandu", but prose is no basis for a link — reading it back would break
+  // the first time the wording changed. Carried here so the Notifications tab can
+  // group by person and link to exactly their tasks at that status.
+  owner?: string;        // display name, for the label
+  ownerKey?: string;     // the team key, which is what the Master sheet filter matches
+  statusTo?: string;     // the mh_posts status, e.g. "Content - Approved"
 };
 export const isActionNeeded = (n: Pick<Notif, "cat">) => n.cat === "action";
 
 /** Everything `person` should be told about since `since` (ISO). */
+export const STAGES: Record<string, { emoji: string; title: string }> = {
+  "Content - Approved":     { emoji: "✅", title: "approved" },
+  "Output - In Progress":   { emoji: "🎨", title: "being made" },
+  "Output - Ready":         { emoji: "📦", title: "ready for review" },
+  "Incorporating Feedback": { emoji: "↩️", title: "back for changes" },
+  "Ready to Publish":       { emoji: "📅", title: "scheduled to publish" },
+  "Published/Scheduled":    { emoji: "🎉", title: "published" },
+};
+
+// Title back to status, for anything that has only the title to go on.
+export const STATUS_FOR_TITLE: Record<string, string> = Object.fromEntries(
+  Object.entries(STAGES).map(([status, v]) => [`Your task is ${v.title}`, status]),
+);
+
 export async function buildNotifs(sb: SupabaseClient, person: string, since: string): Promise<{ notifs: Notif[]; createdNotifs: Notif[] }> {
   const team = await activeTeamIds();   // also fills NAME for anyone new
   await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
@@ -184,14 +205,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
   // "Created by me" — the task someone made is moving through other hands. Read from
   // mh_status_log, which the DATABASE writes on every status change (dashboard,
   // Sync from Airtable, n8n…), so a publish made outside the dashboard still counts.
-  const STAGE: Record<string, { emoji: string; title: string }> = {
-    "Content - Approved":     { emoji: "✅", title: "approved" },
-    "Output - In Progress":   { emoji: "🎨", title: "being made" },
-    "Output - Ready":         { emoji: "📦", title: "ready for review" },
-    "Incorporating Feedback": { emoji: "↩️", title: "back for changes" },
-    "Ready to Publish":       { emoji: "📅", title: "scheduled to publish" },
-    "Published/Scheduled":    { emoji: "🎉", title: "published" },
-  };
+  const STAGE = STAGES;
   const createdNotifs: Notif[] = [];
   const { data: mine } = await sb.from("mh_posts").select("id, particulars, owner_key").eq("created_by", person).limit(500);
   const mineById = new Map(((mine || []) as { id: string; particulars: string | null; owner_key: string | null }[]).map((p) => [p.id, p]));
@@ -212,7 +226,9 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
   const short = t.length > 110 ? `${t.slice(0, 108)}…` : t;
       // No postId: in My Day a notification with a postId acts as "Accept" (takeover).
       createdNotifs.push({ id: `s${l.id}`, cat: "progress", at: l.changed_at, taskId: l.post_id, kind: "message", emoji: stage.emoji, title: `Your task is ${stage.title}`,
-        sub: `"${short}"${post.owner_key ? ` · with ${nameOf(post.owner_key)}` : ""}.` });
+        sub: `"${short}"${post.owner_key ? ` · with ${nameOf(post.owner_key)}` : ""}.`,
+        owner: post.owner_key ? nameOf(post.owner_key) : undefined,
+        ownerKey: post.owner_key || undefined, statusTo: l.to_status });
     }
   }
 

@@ -2304,9 +2304,24 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   allRows: Row[]; facets?: Facets; range: { from: string; to: string }; setRange: (r: { from: string; to: string }) => void;
   onOpen: (id: string) => void; onSaved: () => void; loading: boolean; highlightId?: string | null;
 }) {
-  const [activeId, setActiveId] = useState("all");
+  // Arriving from a notification: ?owner=nandu&status=Content%20-%20Approved opens the
+  // sheet showing that person's tasks at that status and nothing else.
+  //
+  // It has to be the Master sheet's own draft rather than the filters further up —
+  // those feed Workload, Pipeline and Calendar, and setting them here changed nothing
+  // at all. The value is a team KEY, not a name, because evalFilter matches owners
+  // through their aliases: "nandu" finds "Nandu C", "Nandu" finds nothing.
+  const deepLink = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search);
+    const owner = q.get("owner") || "";
+    const status = q.get("status") || "";
+    return owner || status ? legacyToFilter({ owner, status }) : null;
+  }, []);
+  // Not one of the saved views, so matchFn falls through to the draft.
+  const [activeId, setActiveId] = useState(deepLink ? "link" : "all");
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<FilterModel>(EMPTY_FILTER);
+  const [draft, setDraft] = useState<FilterModel>(deepLink || EMPTY_FILTER);
   const [sorts, setSorts] = useState<SortSpec[]>([]);
   const [hiddenCols, setHiddenCols] = useState<string[]>([]);
   const [colorField, setColorField] = useState<string>("");

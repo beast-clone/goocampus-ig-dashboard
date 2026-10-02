@@ -23,8 +23,10 @@ export type NotifItem = {
   emoji: string | null; title: string; sub: string | null; post_id: string | null;
   created_at: string; read_at: string | null; dismissed_at: string | null;
   last_popped_at: string | null; done_at: string | null;
-  /** href: where "Open" goes when there is no task (a saved Radar reminder). */
-  payload?: { href?: string } | null;
+  /** href: where "Open" goes when there is no task (a saved Radar reminder).
+   *  owner/statusTo: who holds the task and what it moved to, so a group of them can
+   *  link to that person's tasks at that status rather than to one of them. */
+  payload?: { href?: string; owner?: string; ownerKey?: string; statusTo?: string } | null;
 };
 
 const POLL_MS = 30_000;          // how often to look for new ones

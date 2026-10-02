@@ -77,7 +77,13 @@ export async function GET(req: Request) {
       title: n.title,
       sub: n.sub,
       post_id: n.taskId || n.postId || null,
-      payload: { ...(n.accept ? { accept: true } : {}), ...(n.swap ? { swap: n.swap } : {}) },
+      payload: {
+        ...(n.accept ? { accept: true } : {}),
+        ...(n.swap ? { swap: n.swap } : {}),
+        ...(n.owner ? { owner: n.owner } : {}),
+        ...(n.ownerKey ? { ownerKey: n.ownerKey } : {}),
+        ...(n.statusTo ? { statusTo: n.statusTo } : {}),
+      },
       created_at: n.at,
     }));
     if (fresh.length) {
