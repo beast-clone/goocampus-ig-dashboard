@@ -82,7 +82,7 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
     await sb.from("mh_activity").insert({ post_id: r.postId, actor_key: r.requestedBy, action: "date_change_requested", from_value: fmt(r.from), to_value: fmt(r.to), detail: reason });
   } catch { /* activity is best-effort */ }
   // 3) email
-  if (hasEmail()) {
+  if (await hasEmail()) {
     try {
       await sendMail({
         to: APPROVER_EMAIL,

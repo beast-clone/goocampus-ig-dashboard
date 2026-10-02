@@ -22,7 +22,7 @@ export async function POST() {
   if (!user?.email) {
     return NextResponse.json({ error: "No email is on file for your account — ask an admin to add one on the Team page." }, { status: 400 });
   }
-  if (!hasEmail()) {
+  if (!(await hasEmail())) {
     return NextResponse.json({ error: "Email sending isn't set up yet (GMAIL_USER / GMAIL_APP_PASSWORD)." }, { status: 503 });
   }
 

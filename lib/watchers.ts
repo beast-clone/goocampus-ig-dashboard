@@ -192,14 +192,15 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<Sent> 
     payload: { href: `/dashboard/preview/watchers?w=${w.id}`, url: f.url }, created_at: now,
   })));
   if (notifs.length) await sb.from("mh_notifications").upsert(notifs, { onConflict: "recipient_key,source_id", ignoreDuplicates: true });
+  const canEmail = await hasEmail();
   const sent: Sent = {
     dashboard: people.length, email: 0, telegram: 0,
-    emailOff: w.emails.length > 0 && !hasEmail(),
+    emailOff: w.emails.length > 0 && !canEmail,
     telegramOff: w.telegram && w.telegram_chats.length > 0 && !hasTelegram(),
   };
 
   // 2. Email — one message per check listing everything new, grouped.
-  if (w.emails.length && hasEmail()) {
+  if (w.emails.length && canEmail) {
     try {
       await sendMail({ to: w.emails.join(", "), subject: heading, html: emailHtml(label, w.url, fresh), text: fresh.map((f) => `[${f.grp}] ${f.title}${f.summary ? `\n${f.summary}` : ""}\n${f.url}`).join("\n\n") });
       await sb.from("mh_watcher_items").update({ emailed_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url));

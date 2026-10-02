@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const limited = guardRate(req, "watchers-test-email", 3, 60_000);
   if (limited) return limited;
 
-  if (!hasEmail()) {
+  if (!(await hasEmail())) {
     return NextResponse.json({
       ok: false,
       reason: "No mail account is set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD, then restart.",

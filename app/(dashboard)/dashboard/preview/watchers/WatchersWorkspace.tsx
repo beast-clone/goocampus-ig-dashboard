@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus, IconRefresh, IconPencil, IconTrash, IconPlayerPause, IconPlayerPlay, IconExternalLink,
   IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle, IconFileTypePdf, IconWorld, IconSparkles,
-  IconDots, IconLayoutGrid,
+  IconDots, IconLayoutGrid, IconBrandGoogle,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
 import type { Sent } from "@/lib/watchers";
@@ -19,7 +19,7 @@ type Watcher = {
 };
 type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; posted_at: string | null; summary: string | null; summary_from: string | null; emailed_at: string | null; telegram_at: string | null };
 type Chat = { chat_id: string; name: string; username: string | null; kind: string };
-type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; telegram: boolean; bot: string | null };
+type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; emailFrom?: string | null; emailVia?: "gmail" | "smtp" | null; telegram: boolean; bot: string | null };
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 const label = (w: Watcher) => w.name || host(w.url);
@@ -105,6 +105,26 @@ export function WatchersWorkspace() {
 
   // A notification links here with ?w=<id>: open on that website's news.
   useEffect(() => { const w = new URLSearchParams(window.location.search).get("w"); if (w) setSite(w); }, []);
+  // Back from Google. Said once, then cleaned out of the address bar.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const g = q.get("gmail");
+    if (!g) return;
+    const why = q.get("why") || "";
+    setNote(
+      g === "connected" ? `Email connected. Notices will go out as ${why}.`
+      : g === "denied" ? "Google wasn’t given permission, so nothing changed."
+      : g === "notadmin" ? "Only an admin can connect the sending account."
+      : g === "noclient" ? "The Google app isn’t configured on this server (GOOGLE_LOGIN_CLIENT_ID / _SECRET)."
+      : g === "disconnected" ? "Email disconnected. Nothing will be sent until an account is connected again."
+      : why || "Couldn’t connect Gmail.");
+    if (g === "connected" || g === "disconnected") refreshRec();
+    q.delete("gmail"); q.delete("why");
+    const rest = q.toString();
+    window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    // Runs once on arrival; refreshRec is stable from useApi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [editing, setEditing] = useState<Watcher | "new" | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -126,6 +146,17 @@ export function WatchersWorkspace() {
   // Sends to you and nobody else, so it can be run as often as it takes to get the
   // app password right without bothering the rest of the team.
   const [testing, setTesting] = useState(false);
+  const disconnectGmail = async () => {
+    const ok = await confirmDialog({
+      title: "Stop sending email?",
+      body: "No notice will be emailed to anyone until an account is connected again. Dashboard pop-ups carry on either way.",
+      action: "Disconnect", danger: true,
+    });
+    if (!ok) return;
+    await api("POST", "/api/watchers/disconnect-email").catch((e) => setNote(e.message));
+    setNote("Email disconnected. Nothing will be sent until an account is connected again.");
+    refreshRec();
+  };
   const testEmail = async () => {
     setTesting(true);
     try {
@@ -175,13 +206,25 @@ export function WatchersWorkspace() {
     <div className="space-y-4">
       {/* How it's set up */}
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-        <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />} on="Email sending on" off="Email not connected yet"
-          why={rec?.email ? "Notices go out from the dashboard’s Gmail account" : "Set GMAIL_USER and GMAIL_APP_PASSWORD (a Google app password), then restart"} />
-        {rec?.email && (
+        <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />}
+          on={rec?.emailFrom ? `Sending as ${rec.emailFrom}` : "Email sending on"} off="Email not connected yet"
+          why={rec?.email
+            ? (rec.emailVia === "gmail" ? "Connected through Google — revoke it any time at myaccount.google.com/permissions" : "Sending over SMTP with an app password")
+            : "Connect a GooCampus Google account to send from"} />
+        {rec?.email ? (<>
           <button onClick={testEmail} disabled={testing}
             className="h-7 px-2.5 rounded-full border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
             {testing ? "Sending…" : "Send me a test"}
           </button>
+          {rec.emailVia === "gmail" && (
+            <button onClick={disconnectGmail}
+              className="h-7 px-2.5 rounded-full border border-gray-200 text-[#8A92A6] hover:border-[#C03221] hover:text-[#C03221]">Disconnect</button>
+          )}
+        </>) : (
+          <a href="/api/auth/gmail/start"
+            className="h-7 px-2.5 rounded-full bg-brand text-white inline-flex items-center gap-1.5 hover:bg-[#2138B0]">
+            <IconBrandGoogle size={13} /> Connect Gmail
+          </a>
         )}
         <StatusPill ok={!!rec?.telegram} icon={<IconBrandTelegram size={14} />} on={rec?.bot ? `Telegram on · @${rec.bot}` : "Telegram on"} off="Telegram not connected yet"
           why={rec?.telegram ? "Notices go out through the bot" : "Create a bot with @BotFather and set TELEGRAM_BOT_TOKEN, then restart"} />

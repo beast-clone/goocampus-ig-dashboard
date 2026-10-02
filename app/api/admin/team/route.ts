@@ -186,7 +186,7 @@ export async function POST(req: Request) {
     if (!person.email) {
       return NextResponse.json({ error: `${person.first || person.name} has no email on file — add one first.` }, { status: 400 });
     }
-    if (!hasEmail()) {
+    if (!(await hasEmail())) {
       return NextResponse.json(
         { error: "Email isn't set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD to .env.local (Google Account -> Security -> 2-Step Verification -> App passwords)." },
         { status: 503 },
