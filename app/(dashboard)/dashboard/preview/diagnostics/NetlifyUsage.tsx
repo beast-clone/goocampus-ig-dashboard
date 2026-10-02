@@ -15,15 +15,28 @@ type UsageJob = {
   runsPerDay: number; runsInQuietHours: number; avgMs: number | null; secondsPerDay: number | null;
 };
 
+// Netlify's own meter — what actually gets charged. Null when we cannot read it.
+type Bill = {
+  account: string; plan: string | null;
+  creditsIncluded: number | null; alertAtPercent: number | null;
+  bandwidthBytes: number | null;
+  periodStart: string | null; periodEnd: string | null;
+  billingUrl: string;
+};
+
 type Usage = {
   connected: boolean; needsKey?: boolean; error?: string;
   quietHours?: { from: number; to: number };
   netlifyScheduledFunctions?: number;
   jobs: UsageJob[];
   totals: { jobs: number; callsPerDay: number; callsInQuietHours: number; secondsPerDay: number; measured: number } | null;
+  bill?: Bill | null;
 };
 
 const mins = (sec: number) => (sec < 90 ? `${sec}s` : `${(sec / 60).toFixed(1)} min`);
+const gb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`;
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
 export function NetlifyUsage() {
   const [u, setU] = useState<Usage | null>(null);
@@ -63,6 +76,10 @@ export function NetlifyUsage() {
         </button>
       </div>
 
+      {/* The real bill, straight from Netlify's meter. Kept above and visually
+          apart from our own arithmetic, because only this one is money. */}
+      <Bill bill={u.bill} />
+
       {!u.connected ? (
         <div className="px-5 py-4 text-[12.5px] text-gray-500">
           {u.needsKey
@@ -71,6 +88,9 @@ export function NetlifyUsage() {
         </div>
       ) : (
         <>
+          <div className="px-5 pt-3.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Our estimate, from the schedules
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100">
             <UseStat label="Jobs on a timer" value={String(t?.jobs ?? 0)} sub="all of them in n8n" />
             <UseStat label="Calls a day" value={String(t?.callsPerDay ?? 0)} sub="into this site" />
@@ -137,6 +157,62 @@ export function NetlifyUsage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What Netlify says it has charged this billing period. Not our maths — their
+ * meter, read live from their API. If the token is missing or the call fails,
+ * this says so plainly rather than showing a number that looks real and isn't.
+ */
+function Bill({ bill }: { bill?: Bill | null }) {
+  if (!bill) {
+    return (
+      <div className="px-5 py-3 bg-gray-50/70 border-b border-gray-100 text-[12px] text-gray-500">
+        Netlify&apos;s own usage figures are unavailable — <code className="text-[11px]">NETLIFY_AUTH_TOKEN</code> is
+        not set here. Everything below is our own estimate from the schedules, not a bill.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-3.5 bg-gray-50/70 border-b border-gray-100">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">From Netlify</span>
+        <span className="text-[11px] text-gray-400">
+          · {bill.account}{bill.plan ? ` · ${bill.plan}` : ""}
+          {bill.periodStart && bill.periodEnd ? ` · ${day(bill.periodStart)} – ${day(bill.periodEnd)}` : ""}
+        </span>
+      </div>
+
+      <div className="flex items-end gap-7 mt-2 flex-wrap">
+        {bill.bandwidthBytes != null && (
+          <div>
+            <div className="text-[22px] font-medium text-[#232D42] leading-none">{gb(bill.bandwidthBytes)}</div>
+            <div className="text-[11px] text-gray-400 mt-1">bandwidth used this period</div>
+          </div>
+        )}
+        {bill.creditsIncluded != null && (
+          <div>
+            <div className="text-[22px] font-medium text-[#232D42] leading-none">{bill.creditsIncluded.toLocaleString()}</div>
+            <div className="text-[11px] text-gray-400 mt-1">
+              credits in the plan{bill.alertAtPercent ? ` · alerts at ${bill.alertAtPercent}%` : ""}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Netlify's API does not report how many credits have actually been spent
+          — the field exists and reads zero while the billing page says otherwise.
+          Rather than print a confident wrong number, say so and link out. */}
+      <div className="text-[11.5px] text-gray-500 mt-2.5">
+        Credits spent so far aren&apos;t available through Netlify&apos;s API — only the plan size is.{" "}
+        <a href={bill.billingUrl} target="_blank" rel="noreferrer" className="text-brand font-medium hover:underline">
+          Check the billing page
+        </a>{" "}
+        for the live balance.
+      </div>
     </div>
   );
 }

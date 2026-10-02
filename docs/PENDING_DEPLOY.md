@@ -15,6 +15,17 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
   **Needs `N8N_API_KEY` in the Netlify environment variables before it will show
   anything in production** — without it the page falls back to a setup card.
   `sql/036_tracked_workflows.sql` is already applied to Supabase.
+- **Diagnostics → Netlify usage** — what the scheduled jobs cost, split into what
+  Netlify actually meters (bandwidth, plan size, billing period) and what we work
+  out ourselves from the schedules. Reads `NETLIFY_AUTH_TOKEN`; without it the
+  card still shows our estimate and says the Netlify figures are missing.
+  Netlify does **not** expose credits-spent through its API — every usage/credits
+  endpoint 404s and `capabilities.credits.used` reads 0 while the billing page
+  says otherwise — so the card links out rather than printing a wrong number.
+- **Overnight stop zone** (`lib/quiet-hours.ts`) — no background polling between
+  midnight and 6 am IST, and all eight pollers now stop in a hidden tab too.
+  The matching n8n schedule changes are already applied (see `CRON_JOBS.md`);
+  this is only the browser half.
 
 ---
 

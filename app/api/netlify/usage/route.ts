@@ -21,6 +21,65 @@ const BASE = (process.env.N8N_BASE_URL || "https://n8n.srv1046538.hstgr.cloud").
 const KEY = process.env.N8N_API_KEY;
 const OURS = /\/api\/cron\//;
 
+const NETLIFY_TOKEN = process.env.NETLIFY_AUTH_TOKEN;
+const NETLIFY_ACCOUNT = process.env.NETLIFY_ACCOUNT_SLUG || "goocampus";
+
+/**
+ * The real bill, read from Netlify — credits used out of the plan's allowance,
+ * bandwidth, and the period those cover.
+ *
+ * This is deliberately separate from the schedule arithmetic further down. That
+ * arithmetic is ours and is an estimate; this is Netlify's own meter and is what
+ * actually gets charged. The page keeps the two apart so nobody mistakes one for
+ * the other. Returns null when the token is absent or the call fails — a missing
+ * bill is shown as missing, never filled in with a guess.
+ */
+async function netlifyBill() {
+  if (!NETLIFY_TOKEN) return null;
+  try {
+    const res = await fetch("https://api.netlify.com/api/v1/accounts", {
+      headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const accounts = (await res.json()) as Array<{
+      id: string; slug: string; name?: string; type_name?: string;
+      plan_credits?: number; credit_alert_percentage?: number;
+      current_usage_period_start?: string; next_usage_period_start?: string;
+      capabilities?: Record<string, { included?: number | boolean; used?: number }>;
+    }>;
+    const acc = accounts.find((a) => a.slug === NETLIFY_ACCOUNT) || accounts[0];
+    if (!acc) return null;
+
+    // NOTE: acc.capabilities.credits.used exists and reads 0 even when the
+    // billing page says thousands have been spent — Netlify does not expose
+    // real credit consumption through the public API (every usage/credits
+    // endpoint 404s). It is deliberately NOT returned: a number that looks
+    // authoritative and is wrong is worse than no number. Bandwidth, the plan
+    // allowance and the period dates are genuinely metered, so those are real.
+    let bandwidthBytes: number | null = null;
+    try {
+      const bw = await fetch(`https://api.netlify.com/api/v1/accounts/${acc.id}/bandwidth`, {
+        headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` }, cache: "no-store",
+      });
+      if (bw.ok) bandwidthBytes = (await bw.json())?.used ?? null;
+    } catch { /* bandwidth is a nice-to-have; the credits line is the point */ }
+
+    return {
+      account: acc.name || acc.slug,
+      plan: acc.type_name ?? null,
+      creditsIncluded: acc.plan_credits ?? null,
+      alertAtPercent: acc.credit_alert_percentage ?? null,
+      bandwidthBytes,
+      periodStart: acc.current_usage_period_start ?? null,
+      periodEnd: acc.next_usage_period_start ?? null,
+      billingUrl: `https://app.netlify.com/teams/${acc.slug}/billing`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // The overnight stop zone, mirrored from lib/quiet-hours.ts.
 const QUIET_FROM = 0, QUIET_TO = 6;
 
@@ -91,8 +150,12 @@ export async function GET() {
   const denied = await requireSection("system");
   if (denied) return denied;
 
+  // The real bill is independent of n8n — fetch it either way, so a missing n8n
+  // key never hides what Netlify is actually charging.
+  const bill = await netlifyBill();
+
   if (!KEY) {
-    return NextResponse.json({ connected: false, needsKey: true, jobs: [], totals: null });
+    return NextResponse.json({ connected: false, needsKey: true, jobs: [], totals: null, bill });
   }
 
   try {
@@ -165,9 +228,9 @@ export async function GET() {
       // functions were all removed on 2 October. If this ever stops being true,
       // netlify/functions will have a .mts file in it again.
       netlifyScheduledFunctions: 0,
-      jobs, totals,
+      jobs, totals, bill,
     });
   } catch (err) {
-    return NextResponse.json({ connected: false, jobs: [], totals: null, ...safeError(err, "Could not reach n8n") }, { status: 502 });
+    return NextResponse.json({ connected: false, jobs: [], totals: null, bill, ...safeError(err, "Could not reach n8n") }, { status: 502 });
   }
 }
