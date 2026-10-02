@@ -155,7 +155,7 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Instagram" icon={<IconBrandInstagram size={18} />} accent="#E1306C" right={comp ? `${comp.postsLast30d} posts in 30 days · ${comp.engagementRatePct.toFixed(2)}% engagement` : undefined}>
           {igLoading ? <LoadingBlock className="!py-6" size={28} />
-            : igError ? <Empty>Instagram couldn't read @{t.handle}: {igError.error}</Empty>
+            : igError ? <Empty>Instagram couldn&rsquo;t read @{t.handle}: {igError.error}</Empty>
             : !posts.length ? <Empty>No posts found.</Empty>
             : (
               <div className="grid grid-cols-4 gap-2">
@@ -178,7 +178,7 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
 
         <Section title="Google reviews" icon={<IconStar size={18} />} accent="#B7791F">
           {intelLoading ? <LoadingBlock className="!py-6" size={28} />
-            : intel?.capped ? <Empty>This month's Google search allowance is used up — reviews come back next month.</Empty>
+            : intel?.capped ? <Empty>This month&rsquo;s Google search allowance is used up — reviews come back next month.</Empty>
             : !intel?.reviews ? <Empty>No Google Maps listing found for {label(t)}.</Empty>
             : (
               <div>
@@ -231,7 +231,7 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
 
       <Section title="Reddit · people talking about them" icon={<IconBrandReddit size={18} />} accent="#C2410C">
         {intelLoading ? <LoadingBlock className="!py-6" size={28} />
-          : intel?.capped ? <Empty>This month's search allowance is used up.</Empty>
+          : intel?.capped ? <Empty>This month&rsquo;s search allowance is used up.</Empty>
           : !reddit.length ? <Empty>No Reddit threads mention {label(t)} right now.</Empty>
           : (
             <div className="divide-y divide-gray-100">
