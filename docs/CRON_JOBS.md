@@ -27,6 +27,31 @@ they are enabled.
 
 `competitor-watch` was deliberately **not** rebuilt — see the warning further down.
 
+### Status as of 2 October 2026, 11:00 pm IST
+
+Timezone set to `Asia/Kolkata` and activated on five of the six:
+
+| Workflow | Timezone | Active |
+| --- | --- | --- |
+| Watchers | Asia/Kolkata | yes |
+| Radar Refresh | Asia/Kolkata | yes |
+| Snapshot Stories | Asia/Kolkata | yes |
+| Link Published | Asia/Kolkata | yes |
+| Radar Rolloff | Asia/Kolkata | yes |
+| **Import Airtable** | **not set — still Berlin** | **no** |
+
+`Import Airtable` was missed: its settings carry no timezone and it has never been
+switched on, so Airtable tasks are not flowing into the master sheet. Its schedule
+is hourly, so the zone does not actually affect when it runs — but it does need
+activating.
+
+Two older workflows were never retimed and still run on Europe/Berlin:
+
+- **Daily Metrics Snapshot** — set to 06:30, therefore firing at **10:00 IST**
+- **Nightly Lead-Status Snapshot** — untouched since 14 September
+- **Daily Comment Digest** — named "9 PM IST" but inactive; it would fire at
+  00:30 IST if switched on as-is
+
 ### The n8n instance is NOT on IST — fix this before trusting any daily job
 
 Measured, not assumed. "GC Dashboard — Daily Metrics Snapshot" is configured for
