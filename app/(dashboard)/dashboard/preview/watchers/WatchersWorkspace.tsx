@@ -560,11 +560,18 @@ function TelegramModal({ onClose, onSaved }: { onClose: () => void; onSaved: (bo
           <button onClick={onClose} className="text-[#8A92A6] hover:text-[#232D42]"><IconX size={18} /></button>
         </div>
 
-        <ol className="text-[13px] text-[#4A5468] leading-relaxed space-y-1.5 mb-4 list-decimal pl-4">
-          <li>Open <b className="font-medium text-[#232D42]">@BotFather</b> in Telegram and send <code className="bg-[#F6F7FB] px-1 rounded">/mybots</code>.</li>
-          <li>Pick your bot — you already have one called <b className="font-medium text-[#232D42]">GooCampus Bot</b> — then <b className="font-medium text-[#232D42]">API Token</b>.</li>
-          <li>Paste it below.</li>
+        <ol className="text-[13px] text-[#4A5468] leading-relaxed space-y-1.5 mb-3 list-decimal pl-4">
+          <li>Open <b className="font-medium text-[#232D42]">@BotFather</b> in Telegram and send <code className="bg-[#F6F7FB] px-1 rounded">/newbot</code>.</li>
+          <li>Name it <b className="font-medium text-[#232D42]">Dashboard Alerts</b>, then give it a username ending in <code className="bg-[#F6F7FB] px-1 rounded">bot</code>.</li>
+          <li>BotFather replies with a token — paste it below.</li>
         </ol>
+        {/* Telegram hands each update to one reader only. A bot n8n already polls
+            would have the two stealing messages from each other, and a bot with a
+            webhook on it cannot be polled at all. Hence its own bot. */}
+        <div className="text-[12px] text-[#8A92A6] leading-relaxed mb-4 border-l-2 border-gray-100 pl-2.5">
+          Give this its own bot. Telegram delivers each message to one reader only, so a bot that n8n is already
+          watching would drop notices here, or there. An existing one works via <code className="bg-[#F6F7FB] px-1 rounded">/mybots</code> &rarr; <b className="font-medium text-[#4A5468]">API Token</b> — as long as nothing else reads it.
+        </div>
 
         <label className="block text-[12px] text-[#8A92A6] mb-1">Bot token</label>
         <input value={token} onChange={(e) => setToken(e.target.value)} autoFocus
