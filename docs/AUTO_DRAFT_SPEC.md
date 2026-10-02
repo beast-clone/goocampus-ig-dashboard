@@ -1,171 +1,179 @@
-# Auto-draft from a notice — spec
+# Notice → post, approved from Telegram — spec
 
 *Agreed 2 Oct 2026 · branch `feat/dashboard-reskin` · NOT BUILT*
 
+*Replaces the first draft of this spec, which gated auto-publishing on the fact-check
+verdict with no person involved. That was rejected in favour of a person approving from
+Telegram — better, because the human decides whether a notice is worth a post **before**
+any AI call is spent, and can fix the draft from a phone without opening the dashboard.*
+
 ## What it's for
 
-Today a counselling notice becomes a post like this: someone sees it, taps **Write
-this**, waits for the fact-check, picks a format, taps **Write it with Claude**, reads
-the draft, taps through to the board. Five or six deliberate acts, all of which need a
-person at a screen.
+A counselling notice appears at 03:14. Nobody is awake. By the time someone sees it,
+competitors have posted.
 
-The ask is to remove the person from the middle of that, not from the end of it. A
-notice posted at 03:14 should have a finished, fact-checked draft waiting by 03:16,
-whether anyone is awake, travelling, or away from their phone.
+Today turning that notice into a post takes five or six deliberate acts at a screen.
+This moves all of them into a Telegram conversation, so the only thing needed is a
+person with a phone, anywhere.
 
-## What was decided (2 Oct)
-
-1. **Automatic only when the facts check out.** A notice whose fact-check comes back
-   clean goes all the way; anything else waits for a human.
-2. **Everything lands on the board** as a task in the Content Calendar, so it flows
-   through the pipeline, scheduler and approvals that already exist.
-3. **One watcher first** — KEA UG NEET 2026 — with a per-watcher switch, widened once
-   we have seen a week of what it actually writes.
-
-### The tension in 1 + 2, resolved
-
-"Posts itself" and "lands on the board" are not the same thing, so to be exact:
-
-**Every** auto-draft becomes a task on the board. That is the audit trail and it is
-never skipped. The verdict decides what happens to that task next:
-
-| Fact-check verdict | Task status | Who is told | What happens |
-|---|---|---|---|
-| `ok` | Scheduled | Telegram + email, for information | Goes to the scheduler for the next slot |
-| `careful` | Ready for review | Telegram + email, asking | Waits. Nothing publishes. |
-| `wrong` | Ready for review, flagged | Telegram + email, warning | Waits, and says why it was refused |
-
-Nothing is ever published without existing as a reviewable task first.
-
-## The verdict gate
-
-This design only works because the fact-check already returns a machine-readable
-verdict rather than prose. `lib/studio.ts`:
-
-```ts
-verdict: "ok" | "careful" | "wrong"
-```
-
-and, importantly, it **fails closed** — when the model's JSON cannot be parsed it
-returns `careful`, not `ok`. So a malformed answer waits for a human rather than
-publishing.
-
-This is not theoretical. The first real notice put through Content Studio on 2 Oct came
-back:
-
-> **Careful.** The headline is directionally correct about a UG Round 3 final allotment
-> result, but the specific source PDF filename/date pattern is odd and I could not
-> verify that exact PDF from the provided results.
-
-It read 15 sources, confirmed MCC had published the result, and still would not vouch
-for the document. Under this spec that notice **waits**, which is the correct outcome
-and the reason the gate exists.
-
-## How it works
+## The flow
 
 ```
-every 15 min   netlify/functions/watchers-cron.mts
-               └─ /api/cron/watchers          ← exists today, must stay fast
-                  └─ finds new notices, stores them, notifies
-
-every 5 min    netlify/functions/autodraft-cron.mts        ← NEW
-               └─ /api/cron/autodraft                       ← NEW
-                  ├─ picks the oldest notice where
-                  │     watcher.auto_draft = true
-                  │     and item.drafted_at is null
-                  ├─ /api/content/studio step=check   → verdict
-                  ├─ /api/content/studio step=write   → the copy
-                  ├─ /api/marketing-hub/create        → the task
-                  └─ marks the notice drafted, records verdict + task id
+notice found                     (the watcher, every 15 min — exists today)
+   │
+   ▼
+Telegram: "New notice. Worth a post?"      [Yes] [No]
+   │                                         └── No → nothing happens, notice marked
+   ▼ Yes
+caption written        (Claude, after the Perplexity fact-check — exists today)
+image made             (Placid template — NEW)
+   │
+   ▼
+Telegram: the image, the caption, where it is going    [Approve] [Change] [Skip]
+   │                        │
+   │                        └── Change → "what should change?" → rewrite → shown again
+   │                                     (loops, replacing the same message)
+   ▼ Approve
+task on the board → Scheduler → Publishing Calendar → published
 ```
 
-### Why drafting is a separate pass — the thing that will bite otherwise
+Nothing publishes that a person has not read.
 
-**Netlify kills a synchronous function at 10 seconds.** This is not a guess: it is what
-broke the Airtable import on 25 Sep and produced `Unexpected token '<', "<HTML> <HE"...`,
-because the HTML error page came back where JSON was expected.
+## Telegram can carry this — tested, not assumed
 
-A fact-check plus a draft is a Perplexity call and a Claude call — comfortably 30–60
-seconds. Putting that inside `/api/cron/watchers` would mean the **15-minute check
-itself starts failing**, so a slow draft would stop us noticing notices at all. That is
-strictly worse than not having the feature.
+Run against `@marketingos_abot` on 2 Oct:
 
-Hence: the watcher pass stays as it is, and drafting is its own pass that handles **one
-notice per run**. Five-minute spacing clears a backlog quickly without ever running two
-expensive calls in one invocation.
+| Needed | Result |
+|---|---|
+| Image + caption + buttons in one message | ✅ sent, `message_id: 3` |
+| Rewrite the draft in place | ✅ `editMessageCaption` — same message, not a new one |
+| Works in a group | ✅ `can_join_groups: true` |
 
-## What lands on the board
+Rewriting in place is what makes the change loop usable: round three replaces round two
+rather than leaving a thread of near-identical drafts.
 
-Created through `/api/marketing-hub/create`, the same endpoint the Studio uses:
+### Limits that shape the design
+
+1. **Caption cap 1024 characters.** Instagram allows 2200. A long caption cannot ride on
+   the image — it goes as a second message underneath.
+2. **An album holds 2–10 images and cannot carry buttons.** A 20-slide carousel previews
+   as the first few slides, with the buttons in a following message.
+3. **Group privacy is on** (`can_read_all_group_messages: false`). In a group the bot
+   only sees replies and mentions. Fine one-to-one; needs `/setprivacy` in BotFather for
+   free-form "make it shorter" in a group.
+
+### The one change to what exists
+
+**The bot must move from polling to a webhook.** Replies and button taps have to come
+back, and `getUpdates` polling would collect them on the next poll — up to fifteen
+minutes to answer a tap. A bot does one or the other, never both.
+
+This is a simplification, not a cost: `syncTelegramChats` goes away, because every
+message that arrives tells us who sent it. Chat discovery stops being a separate job.
+
+## The image — the actual gap
+
+`lib/studio.ts` has three functions: fact-check, build prompt, write draft. **Text only.**
+Nothing in the dashboard makes an image; Praveen and the editors do that by hand. Without
+solving this, "it posts itself" means "it writes a caption and then waits", which is not
+what was asked for.
+
+**Decision: generate it from a template**, the way the voucher generator already does in
+n8n with Placid (`GC Placid Connection`, workflow `Oit92H4NaYq6wU8P`, in production since
+May). Proven path, proven service, already paid for.
+
+### Two ways to reach Placid
+
+| | How | Cost |
+|---|---|---|
+| **(a) Direct** | `PLACID_API_KEY` in the dashboard; it calls Placid itself | One key to copy. No dependency on n8n. |
+| **(b) Through n8n** | The dashboard calls an n8n webhook; n8n makes the image and returns the URL | Reuses a working path and needs no new credential — but the dashboard now depends on n8n being up. |
+
+**Recommend (a).** The watcher already runs in the dashboard; adding a second system in
+the middle of a 3am path means two things that can be down instead of one. The voucher
+workflow stays exactly as it is.
+
+### The real work here is design, not code
+
+Calling Placid is an afternoon. **The templates are the job**, and they decide whether
+this looks like GooCampus or like a robot. At minimum:
+
+- a seat-matrix / vacancy notice
+- a result or allotment announcement
+- a date or deadline change
+- a plain fallback for anything that fits none of the above
+
+Each takes the notice title, the date, the round, and GooCampus branding. These are
+designed once, in Placid, by a person. Until they exist there is nothing to generate.
+
+## What lands where
+
+On approval, through `/api/marketing-hub/create` — the same endpoint Content Studio uses:
 
 | Field | Value |
 |---|---|
 | Title | the notice title |
-| Brand / SBU | `India NEET UG Consulting` or `India NEET PG Consulting` from the notice's own group |
-| Format | Carousel (configurable per watcher) |
-| Copy | the generated draft |
-| Source | the watcher's name, and the notice URL |
-| Status | `Scheduled` when `ok`, `Ready for review` otherwise |
-| Owner | unassigned — the round-robin owns that decision, not this |
+| Brand | `India NEET UG Consulting` / `India NEET PG Consulting`, from the notice's group |
+| Caption | the approved copy |
+| Creative | the generated image, attached |
+| Source | watcher name + notice URL |
+| Status | Scheduled |
+| Page | the brand's page — shown in Telegram before approval |
 
-## Telling people — and a constraint worth knowing now
+From there it is an ordinary task: **Scheduler** and **Publishing Calendar** pick it up
+with no new work. That part already exists and is not being rebuilt.
 
-The obvious design is Telegram inline buttons: **Approve · Edit · Skip**, right in the
-message.
+## The fact-check still runs
 
-**That cannot be added without breaking what we built today.** A bot reads either by
-polling `getUpdates` or by webhook, never both — set a webhook and `getUpdates` answers
-409. Watchers uses polling (`syncTelegramChats`), which is how the chat list is
-discovered. Inline buttons send a `callback_query` that would only be collected on the
-next poll, so "one tap to approve" would take up to fifteen minutes to do anything.
+It returns `ok` / `careful` / `wrong` and **fails closed** — unparseable output becomes
+`careful`, not `ok`. It no longer decides whether to publish, because a person does that
+now. It decides what the first Telegram message says:
 
-Two honest options, to decide before building:
+- `ok` — "New notice. Worth a post?"
+- `careful` — same, plus what could not be confirmed
+- `wrong` — says so plainly and does not offer to write one
 
-- **(a) A link, not a button.** The Telegram message carries the draft and a deep link
-  to the task on the board. One tap opens it, already written, and the existing approve
-  flow takes over. Nothing changes about the bot. **Recommended** — it is one extra tap
-  and no new failure mode.
-- **(b) Move the bot to webhooks.** True one-tap approval from the message. Costs a
-  webhook endpoint, abandoning `getUpdates`, and rebuilding how chats are discovered.
+Not theoretical: the first real notice put through Studio came back `careful` because it
+could not tie the PDF to the result. You would want that on screen before tapping yes.
 
-## What has to be true before it can run
+## Scope
 
-1. **Deployed.** None of this exists on a schedule until the branch is on Netlify.
-   That is also true of the 15-minute check today.
-2. **`CRON_SECRET`** — already set in production.
-3. **A migration** — `mh_watchers.auto_draft boolean default false`, and on
-   `mh_watcher_items`: `drafted_at`, `draft_verdict`, `task_id`.
-4. **`PERPLEXITY_API_KEY`** — already set.
+**KEA UG NEET 2026 only**, behind a per-watcher switch, until a week of real output has
+been read. MCC UG and MCC PG stay off.
 
-## Cost
+## What has to be true
 
-Per notice: one Perplexity fact-check plus one Claude draft. KEA produced 4 notices in
-the busiest day observed, so single-digit rupees a day at that volume. It is bounded by
+1. **Deployed.** None of this runs on a schedule until the branch is on Netlify — true
+   of the 15-minute check today as well.
+2. **Placid templates designed** — see above. The blocking item.
+3. **`PLACID_API_KEY`** in the dashboard and Netlify.
+4. **The bot moved to a webhook**, and `syncTelegramChats` retired.
+5. **A migration** — `mh_watchers.auto_draft`, and on `mh_watcher_items`:
+   `asked_at`, `answered_at`, `draft_state`, `task_id`.
+
+## Cost per notice
+
+One Perplexity fact-check, one Claude caption, one Placid render, plus a render per
+rewrite round. KEA's busiest observed day was 4 notices. Single-digit rupees. Bounded by
 how often the government posts, which nobody can inflate by accident. Logged in
-`ai_usage` under a `autodraft` feature so the bill is attributable.
-
-## Deliberately out of scope
-
-- **Images.** Text only. A carousel still needs a designer.
-- **Instagram/LinkedIn publishing from this path.** It hands over to the existing
-  scheduler and stops.
-- **The other two watchers.** MCC UG and MCC PG stay off until KEA has been watched.
-- **Anything with `wrong`.** It is written and parked, never queued.
+`ai_usage` under `autodraft`.
 
 ## Open questions
 
-1. **(a) or (b)** above for the Telegram approval.
-2. **Which format** should a notice default to — carousel, or a plain image post?
-3. **A daily ceiling?** If a site posts thirty notices in an hour because of a reshuffle,
-   should drafting stop after N and say so? I would suggest yes, at 10/day, failing
-   loudly rather than quietly spending.
-4. **Who owns an auto-created task** before someone claims it?
+1. **Expiry** — should an unanswered notice stop asking after, say, 12 hours, so the bot
+   is not still asking about Tuesday's seat matrix on Thursday? Suggest yes.
+2. **Rewrite limit** — after how many rounds does it say "open it on the dashboard"?
+   Suggest three.
+3. **Who can approve** — anyone who has started the bot, or named people only? A
+   notification list is not an approval list.
+4. **Format** — carousel or single image for a notice post?
 
-## Risks, stated plainly
+## Risks
 
-- **The drafts may simply not be good enough**, and a board full of mediocre
-  auto-drafts is worse than an empty one, because people stop reading it. One watcher
-  for one week is how we find out cheaply.
-- **`ok` is the model's opinion.** It is a good one — it was appropriately cautious on
-  the first real notice — but it is not a guarantee. Anything it clears still publishes
-  under GooCampus's name. The per-watcher switch is the off ramp.
+- **The templates may look generic**, and a generic post under the GooCampus name is
+  worse than a late one. One watcher, one week, read every output.
+- **Approval from a phone is easy to do carelessly.** The message must show the page it
+  is going to and the brand, not just the picture — tapping Approve on a train should
+  still be an informed act.
+- **An approved post is published automatically.** The per-watcher switch is the off
+  ramp, and it should be reachable without a deploy.
