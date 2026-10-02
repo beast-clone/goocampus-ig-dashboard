@@ -9,6 +9,26 @@ import {
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 
+// Our estimate, derived from what the rules actually found. Red below a third,
+// amber to two thirds, green above. Never 0 or 100 — we do not get a vote.
+function Meter({ score, why }: { score: number; why: string }) {
+  const tone = score < 35 ? { bar: "#C03221", text: "text-[#C03221]", bg: "bg-[#FBE7E4]" }
+    : score < 70 ? { bar: "#BA7517", text: "text-[#8A5A00]", bg: "bg-[#FDF6E7]" }
+    : { bar: "#1E7B4C", text: "text-[#0F6E3C]", bg: "bg-[#EEF7F1]" };
+  return (
+    <div className={`rounded-xl px-4 py-3 ${tone.bg}`}>
+      <div className="flex items-baseline gap-2">
+        <span className={`text-[26px] font-medium tabular-nums ${tone.text}`}>{score}%</span>
+        <span className={`text-[13px] ${tone.text}`}>likely to be accepted as submitted</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/70 mt-2 mb-2 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${score}%`, background: tone.bar }} />
+      </div>
+      <div className="text-[12px] text-[#5A6478] leading-relaxed">{why}</div>
+    </div>
+  );
+}
+
 // Check a WhatsApp template before submitting it to Meta.
 //
 // Built because template approval was costing days: a Utility template that reads as
@@ -26,6 +46,7 @@ type Result = {
   findings: Finding[]; likely: string; categoryWhy: string[];
   marketingHits: string[]; utilityHits: string[]; vars: number[];
   ai?: Ai | null; aiError?: string; aiRaw?: string | null; rewriteFindings?: Finding[];
+  score: number; scoreWhy: string;
 };
 
 const SEV: Record<Finding["severity"], { label: string; cls: string; icon: React.ReactNode }> = {
@@ -55,18 +76,21 @@ function Checker() {
   const [res, setRes] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [before, setBefore] = useState<string | null>(null);
 
-  const run = async (rewrite: boolean) => {
+  // bodyOverride lets a freshly accepted rewrite be scored before React has
+  // committed it to state — otherwise the meter keeps reporting the old draft.
+  const run = async (rewrite: boolean, bodyOverride?: string) => {
     setBusy(true); setErr(null);
     try {
       const r = await fetch("/api/broadcast/template-check", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ name, category, header, body, footer, rewrite }),
+        body: JSON.stringify({ name, category, header, body: bodyOverride ?? body, footer, rewrite }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
       setRes(d);
+      if (!bodyOverride) setBefore(null);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -81,6 +105,24 @@ function Checker() {
           <IconArrowLeft size={14} stroke={1.8} /> Community Broadcast
         </Link>
       </div>
+
+      {before !== null && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4">
+          <div className="text-[13px] font-medium text-[#232D42] mb-3">What changed</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-gray-100 bg-[#FBE7E4] p-3">
+              <div className="text-[11px] uppercase tracking-wide text-[#C03221] mb-1.5">What you pasted</div>
+              <div className="text-[13px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{before}</div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-[#EEF7F1] p-3">
+              <div className="text-[11px] uppercase tracking-wide text-[#0F6E3C] mb-1.5">What you have now</div>
+              <div className="text-[13px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{body}</div>
+            </div>
+          </div>
+          <button onClick={() => { setBody(before); setBefore(null); }}
+            className="mt-3 text-[12px] text-[#8A92A6] hover:text-brand">Put the original back</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {/* ── the draft ─────────────────────────────────────────────────────── */}
@@ -146,6 +188,7 @@ function Checker() {
 
           {res && (
             <div className="space-y-4">
+              <Meter score={res.score} why={res.scoreWhy} />
               <div className={`rounded-xl border px-4 py-3 ${
                 blockers.length ? "border-[#F1C4BD] bg-[#FFF9F8]"
                 : moved ? "border-[#F3DCB4] bg-[#FDFBF5]"
@@ -182,9 +225,11 @@ function Checker() {
                 <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-3.5">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-[12px] uppercase tracking-wide text-[#8A92A6]">A version that should go through</span>
-                    <button onClick={() => { navigator.clipboard?.writeText(res.ai!.rewrite!).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }).catch(() => {}); }}
-                      className="ml-auto h-7 px-2.5 rounded-lg border border-gray-200 bg-white text-[11.5px] text-[#4A5468] hover:border-brand hover:text-brand inline-flex items-center gap-1">
-                      {copied ? <><IconCheck size={13} /> Copied</> : <><IconCopy size={13} /> Copy</>}
+                    {/* Puts it in the box rather than the clipboard. The point is to
+                        end up with the fixed version in hand, not to paste it yourself. */}
+                    <button onClick={() => { setBefore(body); setBody(res.ai!.rewrite!); run(false, res.ai!.rewrite!); }}
+                      className="ml-auto h-7 px-2.5 rounded-lg bg-brand text-white text-[11.5px] font-medium inline-flex items-center gap-1 hover:bg-brand-dark">
+                      <IconCheck size={13} /> Use this
                     </button>
                   </div>
                   <div className="text-[13.5px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{res.ai.rewrite}</div>

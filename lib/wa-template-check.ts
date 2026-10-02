@@ -29,6 +29,10 @@ export type CheckResult = {
   marketingHits: string[];
   utilityHits: string[];
   vars: number[];
+  /** Our estimate of the chance Meta takes it as submitted. Never 0 or 100 — we
+   *  do not get a vote, and pretending to certainty either way would be a lie. */
+  score: number;
+  scoreWhy: string;
 };
 
 // Meta's own limits, as published.
@@ -72,9 +76,7 @@ export function checkTemplate(t: TemplateDraft): CheckResult {
   const buttons = (t.buttons || []).map((b) => b.trim()).filter(Boolean);
 
   // ── the name ────────────────────────────────────────────────────────────────
-  if (!t.name.trim()) {
-    f.push({ severity: "blocker", what: "No template name", why: "Meta requires one, and it cannot be changed later." });
-  } else if (!/^[a-z0-9_]+$/.test(t.name)) {
+  if (t.name.trim() && !/^[a-z0-9_]+$/.test(t.name)) {
     f.push({
       severity: "blocker",
       what: "Template name has characters Meta won't take",
@@ -191,5 +193,24 @@ export function checkTemplate(t: TemplateDraft): CheckResult {
     }
   }
 
-  return { findings: f, likely, categoryWhy, marketingHits, utilityHits, vars };
+  const blockers = f.filter((x) => x.severity === "blocker").length;
+  const mismatch = f.some((x) => x.severity === "risk");
+  let score: number;
+  let scoreWhy: string;
+  if (blockers) {
+    // A structural rejection is not a probability. It is going to happen.
+    score = Math.max(5, 20 - 5 * blockers);
+    scoreWhy = `${blockers} thing${blockers === 1 ? "" : "s"} here ${blockers === 1 ? "is" : "are"} rejected automatically, before anyone reads it.`;
+  } else if (mismatch) {
+    score = 45;
+    scoreWhy = `It should go through, but filed as ${likely.toLowerCase()} rather than the category you picked.`;
+  } else if (!vars.length) {
+    score = 80;
+    scoreWhy = "Nothing wrong with it. Without variables you will need a fresh approval for every version of this message.";
+  } else {
+    score = 90;
+    scoreWhy = "Nothing here is a known cause of rejection.";
+  }
+
+  return { findings: f, likely, categoryWhy, marketingHits, utilityHits, vars, score, scoreWhy };
 }

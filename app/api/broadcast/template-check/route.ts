@@ -26,7 +26,11 @@ What matters:
 Answer as JSON only:
 {"category":"UTILITY|MARKETING|AUTHENTICATION","verdict":"one sentence on whether this goes through as submitted","problems":["short, specific"],"rewrite":"the full corrected body text, variables intact"}
 
-The rewrite must keep the sender's meaning and read like a person wrote it. No preamble.`;
+The rewrite must qualify as the category they are submitting under. If they chose UTILITY, it has to read as a message about something the person already did — an enquiry received, an application submitted, a call booked — and it may not invite, promote or offer anything, however gently.
+
+If their message simply cannot be UTILITY without changing what it says, do not hand back another MARKETING draft dressed up. Say so in the verdict, in one plain sentence, and write the best MARKETING version instead.
+
+The rewrite must read like a person wrote it. No preamble.`;
 
 export async function POST(req: Request) {
   const denied = await requireSection("content");
