@@ -96,9 +96,10 @@ function isAdminCookie(value: string | undefined): boolean {
   return parts.length === 3 && parts[1] === "a";
 }
 
-// Where an authed user lands after login / off the retired /me: admins get their
-// cockpit, everyone else the Overview.
-const homeFor = (admin: boolean) => (admin ? "/dashboard/preview/team-command" : "/dashboard/preview");
+// Where an authed user lands after login / off the retired /me: the Overview,
+// for everyone. Admins used to be dropped straight into Team Command, which
+// meant signing in never showed you the numbers you signed in to see.
+const homeFor = (_admin: boolean) => "/dashboard/preview";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
