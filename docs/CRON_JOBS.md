@@ -41,13 +41,17 @@ All nine dashboard workflows are **active**. Seven carry an explicit
 | Link Published | 02:00 | Asia/Kolkata | 02:00 IST |
 | Radar Rolloff | 23:59 | Asia/Kolkata | 23:59 IST |
 | Daily Comment Digest | 21:00 | Asia/Kolkata | 21:00 IST |
-| **Daily Metrics Snapshot** | 06:30 | **not set** | **10:00 IST** |
-| **Nightly Lead-Status Snapshot** | 01:00 | **not set** | **04:30 IST** |
+| Daily Metrics Snapshot | 06:30 | Asia/Kolkata | 06:30 IST |
+| Nightly Lead-Status Snapshot | 01:00 | Asia/Kolkata | 01:00 IST |
 
-The last two are the only ones left wrong. Both predate tonight and neither has
-been reopened since (`updatedAt` 21 July and 14 September). Setting
-`GENERIC_TIMEZONE=Asia/Kolkata` on the n8n host fixes both at once, and stops the
-problem recurring on anything created later.
+**All nine carry an explicit `Asia/Kolkata` timezone and all nine are active.**
+No trigger hour was changed, and none should be: the numbers were always right,
+they were simply being read in Europe/Berlin. Editing the hours now would move
+every job off its intended time.
+
+`GENERIC_TIMEZONE=Asia/Kolkata` on the n8n host is still worth setting. It is no
+longer needed for these nine, but without it the next workflow anyone creates
+silently inherits Europe/Berlin again — which is exactly how this started.
 
 `Import Airtable` was test-run on 2 Oct (execution `2958838`, success in 4s). The
 endpoint returned OK and no rows changed, which is consistent with nothing new in
