@@ -6,10 +6,15 @@ import { getSupabase } from "@/lib/supabase";
 // one behind "Sign in with Google"), so connecting mail is a scope on something
 // that already works instead of a second credential to create and look after.
 //
-// What is stored: the refresh token in mh_integration_tokens under provider
-// "gmail", with the address it belongs to in `note`. Access tokens are minted from
-// it on demand and never persisted — they last an hour and a dead one in a table
-// is worse than no row at all.
+// What is stored, in mh_integration_tokens:
+//   "gmail"          the account currently sending, address in `note`
+//   "gmail:<email>"  every account that has ever been connected
+//
+// The second set is what makes switching sender free. A grant is per address and
+// it lasts, so once info@ has agreed we never need to ask it again — picking it
+// from the dropdown just copies its refresh token into the active row. Access
+// tokens are minted on demand and never stored: they last an hour, and a dead one
+// in a table is worse than no row at all.
 //
 // The scope is gmail.send only: permission to send, not to read a single message.
 
@@ -84,14 +89,52 @@ export async function saveGmailGrant(code: string, redirectUri: string): Promise
     email = payload.email || "";
   } catch { /* fall through to the error below */ }
   if (!email) throw new Error("Couldn't read which Google account was connected.");
+  // Both: the active sender, and this address remembered for next time.
   await saveIntegrationToken("gmail", j.refresh_token, { note: email });
+  await saveIntegrationToken(`gmail:${email.toLowerCase()}`, j.refresh_token, { note: email });
   access = null;
   return email;
 }
 
+// Every address that has agreed, so the dropdown can offer them.
+export async function listGmailAccounts(): Promise<string[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  try {
+    const { data } = await sb.from("mh_integration_tokens").select("note").like("provider", "gmail:%");
+    const list = [...new Set(((data || []) as { note: string | null }[]).map((r) => r.note || "").filter(Boolean))];
+    // An account connected before per-address rows existed has no remembered copy,
+    // so switching away from it would be one-way. Mirror it the first time we look.
+    const { data: live } = await sb.from("mh_integration_tokens").select("token, note").eq("provider", "gmail").maybeSingle();
+    const active = (live?.note as string) || "";
+    if (active && live?.token && !list.some((e) => e.toLowerCase() === active.toLowerCase())) {
+      await saveIntegrationToken(`gmail:${active.toLowerCase()}`, live.token as string, { note: active });
+      list.push(active);
+    }
+    return list.sort();
+  } catch { return []; }
+}
+
+// Make a remembered account the one that sends. No trip to Google: its grant is
+// already held, and consent is per address rather than per session.
+export async function switchGmailSender(email: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase not configured");
+  const { data } = await sb.from("mh_integration_tokens").select("token, note").eq("provider", `gmail:${email.toLowerCase()}`).maybeSingle();
+  if (!data?.token) throw new Error("That account hasn’t been connected — use Connect another account.");
+  await saveIntegrationToken("gmail", data.token as string, { note: (data.note as string) || email });
+  access = null;
+}
+
+// Disconnect forgets the lot, not just which one is active — somebody turning
+// sending off expects the grants gone, not parked where one click revives them.
+// Google keeps its own record until it is removed at myaccount.google.com/permissions.
 export async function disconnectGmail(): Promise<void> {
   const sb = getSupabase();
-  if (sb) await sb.from("mh_integration_tokens").delete().eq("provider", "gmail");
+  if (sb) {
+    await sb.from("mh_integration_tokens").delete().eq("provider", "gmail");
+    await sb.from("mh_integration_tokens").delete().like("provider", "gmail:%");
+  }
   access = null;
 }
 

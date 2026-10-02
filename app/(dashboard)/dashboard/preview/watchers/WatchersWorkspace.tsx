@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus, IconRefresh, IconPencil, IconTrash, IconPlayerPause, IconPlayerPlay, IconExternalLink,
   IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle, IconFileTypePdf, IconWorld, IconSparkles,
-  IconDots, IconLayoutGrid, IconBrandGoogle,
+  IconDots, IconLayoutGrid, IconBrandGoogle, IconChevronDown,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
 import type { Sent } from "@/lib/watchers";
@@ -19,7 +19,7 @@ type Watcher = {
 };
 type Item = { id: string; watcher_id: string; item_url: string; title: string | null; grp: string | null; baseline: boolean; detected_at: string; posted_at: string | null; summary: string | null; summary_from: string | null; emailed_at: string | null; telegram_at: string | null };
 type Chat = { chat_id: string; name: string; username: string | null; kind: string };
-type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; emailFrom?: string | null; emailVia?: "gmail" | "smtp" | null; telegram: boolean; bot: string | null };
+type Recipients = { team: { email: string; name: string }[]; others: string[]; chats: Chat[]; email: boolean; emailFrom?: string | null; emailVia?: "gmail" | "smtp" | null; emailAccounts?: string[]; telegram: boolean; bot: string | null };
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 const label = (w: Watcher) => w.name || host(w.url);
@@ -146,10 +146,19 @@ export function WatchersWorkspace() {
   // Sends to you and nobody else, so it can be run as often as it takes to get the
   // app password right without bothering the rest of the team.
   const [testing, setTesting] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const switchSender = async (email: string) => {
+    setSwitching(true);
+    try {
+      await api("POST", "/api/watchers/sender", { email });
+      setNote(`Notices will now go out as ${email}.`);
+      refreshRec();
+    } catch (e) { setNote((e as Error).message); } finally { setSwitching(false); }
+  };
   const disconnectGmail = async () => {
     const ok = await confirmDialog({
       title: "Stop sending email?",
-      body: "No notice will be emailed to anyone until an account is connected again. Dashboard pop-ups carry on either way.",
+      body: "Every connected account is forgotten, so each one has to allow it again before it can send. No notice will be emailed to anyone meanwhile. Dashboard pop-ups carry on either way.",
       action: "Disconnect", danger: true,
     });
     if (!ok) return;
@@ -206,11 +215,14 @@ export function WatchersWorkspace() {
     <div className="space-y-4">
       {/* How it's set up */}
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-        <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />}
-          on={rec?.emailFrom ? `Sending as ${rec.emailFrom}` : "Email sending on"} off="Email not connected yet"
-          why={rec?.email
-            ? (rec.emailVia === "gmail" ? "Connected through Google — revoke it any time at myaccount.google.com/permissions" : "Sending over SMTP with an app password")
-            : "Connect a GooCampus Google account to send from"} />
+        {rec?.email && rec.emailVia === "gmail" ? (
+          <SenderPicker from={rec.emailFrom || ""} accounts={rec.emailAccounts || []} busy={switching}
+            onPick={switchSender} />
+        ) : (
+          <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />}
+            on={rec?.emailFrom ? `Sending as ${rec.emailFrom}` : "Email sending on"} off="Email not connected yet"
+            why={rec?.email ? "Sending over SMTP with an app password" : "Connect a GooCampus Google account to send from"} />
+        )}
         {rec?.email ? (<>
           <button onClick={testEmail} disabled={testing}
             className="h-7 px-2.5 rounded-full border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
@@ -485,6 +497,45 @@ function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
       </button>
       {err && <span className="text-[12px] text-[#C03221] ml-2">{err}</span>}
     </div>
+  );
+}
+
+// Who mail goes out as. A plain label until a second account has agreed, then a
+// picker — switching costs nothing once the grant is held, so the only thing in
+// the way should be a click.
+function SenderPicker({ from, accounts, busy, onPick }: { from: string; accounts: string[]; busy: boolean; onPick: (email: string) => void }) {
+  const [open, setOpen] = useState(false);
+  // The address that is sending belongs in the list even if the lookup is still
+  // in flight, so the menu never opens without the current one in it.
+  const all = [...new Set([from, ...accounts].filter(Boolean))].sort();
+  return (
+    <span className="relative inline-flex">
+      <button onClick={() => setOpen(!open)} disabled={busy}
+        title="Which account notices are sent from"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#EEF7F1] text-[#1E7B4C] hover:bg-[#E2F1E8] disabled:opacity-60">
+        <IconMail size={14} />
+        {busy ? "Switching…" : `Sending as ${from}`}
+        <IconChevronDown size={13} />
+      </button>
+      {open && (<>
+        <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+        <div className="absolute left-0 top-8 z-20 min-w-[250px] bg-white border border-gray-100 rounded-xl py-1">
+          <div className="px-3 pt-1 pb-1.5 text-[11px] uppercase tracking-wide text-[#8A92A6]">Send notices as</div>
+          {all.map((a) => (
+            <button key={a} onClick={() => { setOpen(false); if (a !== from) onPick(a); }}
+              className={`w-full text-left px-3 py-1.5 text-[12.5px] inline-flex items-center gap-2 hover:bg-[#F6F7FB] ${
+                a === from ? "text-[#232D42] font-medium" : "text-[#4A5468]"}`}>
+              <IconCheck size={14} className={a === from ? "text-[#1E7B4C]" : "opacity-0"} />
+              <span className="truncate">{a}</span>
+            </button>
+          ))}
+          <div className="h-px bg-gray-100 my-1" />
+          <a href="/api/auth/gmail/start" className="w-full text-left px-3 py-1.5 text-[12.5px] text-brand inline-flex items-center gap-2 hover:bg-[#F6F7FB]">
+            <IconPlus size={14} /> Connect another account…
+          </a>
+        </div>
+      </>)}
+    </span>
   );
 }
 
