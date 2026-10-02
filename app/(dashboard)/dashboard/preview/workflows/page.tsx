@@ -234,12 +234,16 @@ function Row({ flow, first, busy, onUntrack }: { flow: Flow; first: boolean; bus
               Tracked
             </span>
           ) : null}
-          {flow.timezone && flow.timezone !== "Asia/Kolkata" ? (
+          {flow.timezone !== "Asia/Kolkata" ? (
             <span
               className="text-[10px] font-semibold uppercase tracking-wide text-[#8A5109] bg-[#FBEEDA] rounded px-1.5 py-0.5"
-              title="Not on IST — it will not fire at the time its name says"
+              title={
+                flow.timezone
+                  ? "Not on IST — it will not fire at the time its name says"
+                  : "No timezone set, so it falls back to the server's own clock — it will not fire at the time its name says"
+              }
             >
-              {flow.timezone}
+              {flow.timezone || "No timezone"}
             </span>
           ) : null}
         </div>

@@ -9,7 +9,12 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-_(nothing yet — everything below is already live)_
+- **System → Workflows tab** (`/dashboard/preview/workflows`) — lists the n8n
+  jobs behind this dashboard with their schedule, endpoint, on/off state and last
+  run, plus a picker to track any other n8n workflow by hand.
+  **Needs `N8N_API_KEY` in the Netlify environment variables before it will show
+  anything in production** — without it the page falls back to a setup card.
+  `sql/036_tracked_workflows.sql` is already applied to Supabase.
 
 ---
 
@@ -41,8 +46,12 @@ These went out before the "stop deploying" instruction, on three CLI deploys.
    **Manage repository** → re-link.
 2. **Meta token expires around 9 October 2026.** When it goes, Instagram,
    Facebook and Ads stop — both data and publishing.
-3. **Diagnostics has not run since 8 August** despite the page claiming "daily at
-   5 AM". There is no diagnostics cron anywhere; that schedule was never built.
+3. **The Diagnostics workflow has no timezone set in n8n**, so it falls back to
+   the server's own (Europe/Berlin) and fires at 08:30 IST, not the 05:00 its
+   name claims. Every other dashboard workflow is on `Asia/Kolkata`. Fixed in
+   the n8n UI, not in this repo. (The job itself was built on 2 October and is
+   running — it had not run since 8 August before that, because no diagnostics
+   cron existed anywhere.)
 4. **`/api/cron/competitor-watch` returns 504 on every call**, taking the full
    30 s. The fault is in the route, so any scheduler hits it. Do not put it back
    on a schedule until it is fixed — and hourly is plenty.
