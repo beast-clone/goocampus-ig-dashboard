@@ -6,6 +6,7 @@ import {
   IconDots, IconLayoutGrid,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
+import type { Sent } from "@/lib/watchers";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -47,6 +48,22 @@ const isNew = (i: Item) => !i.baseline && Date.now() - Date.parse(i.detected_at)
 const GROUP_CLS: Record<string, string> = { UG: "bg-brand-light text-brand", PG: "bg-amber-50 text-amber-800", "UG & PG": "bg-[#EEF7F1] text-[#1E7B4C]" };
 const groupCls = (g: string) => GROUP_CLS[g] || "bg-gray-100 text-[#4A5468]";
 const isPdf = (u: string) => /\.pdf(\?|$)/i.test(u);
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// Report the delivery rather than assume it. A notice nobody was told about is the
+// one thing this tab exists to prevent, so when a channel is listed but switched
+// off the line says so instead of claiming it was sent.
+function whoWasTold(sent?: Sent): string {
+  if (!sent) return "shown below.";
+  const did: string[] = [];
+  if (sent.dashboard) did.push(`${plural(sent.dashboard, "person", "people")} notified here`);
+  if (sent.email) did.push(`emailed to ${plural(sent.email, "address", "addresses")}`);
+  if (sent.telegram) did.push(`sent to ${plural(sent.telegram, "Telegram chat")}`);
+  const off: string[] = [];
+  if (sent.emailOff) off.push("email isn’t connected yet");
+  if (sent.telegramOff) off.push("Telegram isn’t connected yet");
+  const done = did.length ? `shown below · ${did.join(" · ")}` : "shown below";
+  return off.length ? `${done}. Not sent: ${off.join(" and ")}.` : `${done}.`;
+}
 
 async function api(method: string, url: string, body?: unknown) {
   const r = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
@@ -97,15 +114,25 @@ export function WatchersWorkspace() {
   const checkOne = async (w: Watcher) => {
     setRun((r) => ({ ...r, [w.id]: { state: "checking", text: `Opening ${host(w.url)} and reading its links…` } }));
     try {
-      const r = await api("POST", "/api/watchers/check", { id: w.id });
+      const r = (await api("POST", "/api/watchers/check", { id: w.id })) as { error?: string; baseline: boolean; found: number; fresh: unknown[]; sent?: Sent };
       const text = r.error ? r.error
         : r.baseline ? `First check — ${r.found} links recorded as already there. From now on only new ones are announced.`
-        : r.fresh.length ? `${r.fresh.length} new notice${r.fresh.length === 1 ? "" : "s"} found — shown below and sent to the people on this link.`
+        : r.fresh.length ? `${r.fresh.length} new notice${r.fresh.length === 1 ? "" : "s"} found — ${whoWasTold(r.sent)}`
         : `Read ${r.found} links — nothing new.`;
       setRun((x) => ({ ...x, [w.id]: { state: r.error ? "error" : "done", text } }));
     } catch (e) { setRun((x) => ({ ...x, [w.id]: { state: "error", text: (e as Error).message } })); }
   };
   const checkNow = async (w: Watcher) => { await checkOne(w); refreshWatchers(); refreshItems(); };
+  // Sends to you and nobody else, so it can be run as often as it takes to get the
+  // app password right without bothering the rest of the team.
+  const [testing, setTesting] = useState(false);
+  const testEmail = async () => {
+    setTesting(true);
+    try {
+      const r = await api("POST", "/api/watchers/test-email") as { ok: boolean; to?: string; reason?: string };
+      setNote(r.ok ? `Test email sent to ${r.to}. If it isn’t there in a minute, check spam.` : r.reason || "Couldn’t send.");
+    } catch (e) { setNote(`Couldn’t send: ${(e as Error).message}`); } finally { setTesting(false); }
+  };
   const checkAll = async () => {
     for (const w of watchers.filter((x) => x.active)) await checkOne(w);
     refreshWatchers(); refreshItems();
@@ -148,8 +175,16 @@ export function WatchersWorkspace() {
     <div className="space-y-4">
       {/* How it's set up */}
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-        <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />} on="Email sending on" off="Email not connected yet" />
-        <StatusPill ok={!!rec?.telegram} icon={<IconBrandTelegram size={14} />} on={rec?.bot ? `Telegram on · @${rec.bot}` : "Telegram on"} off="Telegram not connected yet" />
+        <StatusPill ok={!!rec?.email} icon={<IconMail size={14} />} on="Email sending on" off="Email not connected yet"
+          why={rec?.email ? "Notices go out from the dashboard’s Gmail account" : "Set GMAIL_USER and GMAIL_APP_PASSWORD (a Google app password), then restart"} />
+        {rec?.email && (
+          <button onClick={testEmail} disabled={testing}
+            className="h-7 px-2.5 rounded-full border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
+            {testing ? "Sending…" : "Send me a test"}
+          </button>
+        )}
+        <StatusPill ok={!!rec?.telegram} icon={<IconBrandTelegram size={14} />} on={rec?.bot ? `Telegram on · @${rec.bot}` : "Telegram on"} off="Telegram not connected yet"
+          why={rec?.telegram ? "Notices go out through the bot" : "Create a bot with @BotFather and set TELEGRAM_BOT_TOKEN, then restart"} />
         <span className="text-[#8A92A6]">Every link is checked every 15 minutes.</span>
       </div>
       {note && (
@@ -410,8 +445,8 @@ function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
   );
 }
 
-function StatusPill({ ok, icon, on, off }: { ok: boolean; icon: React.ReactNode; on: string; off: string }) {
-  return <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full ${ok ? "bg-[#EEF7F1] text-[#1E7B4C]" : "bg-gray-100 text-[#4A5468]"}`}>{icon}{ok ? on : off}</span>;
+function StatusPill({ ok, icon, on, off, why }: { ok: boolean; icon: React.ReactNode; on: string; off: string; why?: string }) {
+  return <span title={why} className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full ${ok ? "bg-[#EEF7F1] text-[#1E7B4C]" : "bg-gray-100 text-[#4A5468]"}`}>{icon}{ok ? on : off}</span>;
 }
 function IconBtn({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
   return <button title={title} onClick={onClick} className={`h-8 w-8 rounded-lg border border-gray-200 grid place-items-center ${danger ? "text-[#C03221] hover:border-[#C03221]" : "text-[#4A5468] hover:border-brand hover:text-brand"}`}>{children}</button>;

@@ -23,7 +23,18 @@ export type Watcher = {
   created_by: string | null; created_at: string; last_checked_at: string | null; last_error: string | null; last_count: number | null;
 };
 type Found = { url: string; title: string };
-export type CheckResult = { watcher: string; found: number; baseline: boolean; fresh: { title: string; url: string; grp: string; summary?: string | null }[]; error?: string };
+// What actually left the building. The page used to promise every new notice had
+// been "sent to the people on this link" whether or not anything was configured —
+// with no mail account set up that was simply untrue, and it is the kind of untrue
+// nobody notices until a notice is missed.
+export type Sent = {
+  dashboard: number;   // team members who got a pop-up
+  email: number;       // addresses the mail actually went to
+  telegram: number;    // chats the message actually reached
+  emailOff: boolean;      // addresses are listed but no mail account is configured
+  telegramOff: boolean;   // chats are listed but no bot is configured
+};
+export type CheckResult = { watcher: string; found: number; baseline: boolean; fresh: { title: string; url: string; grp: string; summary?: string | null }[]; sent?: Sent; error?: string };
 const MAX_SUMMARIES = 6;   // per check — each is a download plus an AI call (~3–8 s)
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -158,13 +169,13 @@ export async function checkWatcher(w: Watcher): Promise<CheckResult> {
       f.summary = s.text;
       await sb.from("mh_watcher_items").update({ summary: s.text, summary_from: s.from }).eq("watcher_id", w.id).eq("item_url", f.url);
     }
-    await announce(w, res.fresh);
+    res.sent = await announce(w, res.fresh);
   }
   return res;
 }
 
 // ── telling people ─────────────────────────────────────────────────────────────
-async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<void> {
+async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<Sent> {
   const sb = getSupabase()!;
   const label = w.name || new URL(w.url).hostname;
   const now = new Date().toISOString();
@@ -181,12 +192,18 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<void> 
     payload: { href: `/dashboard/preview/watchers?w=${w.id}`, url: f.url }, created_at: now,
   })));
   if (notifs.length) await sb.from("mh_notifications").upsert(notifs, { onConflict: "recipient_key,source_id", ignoreDuplicates: true });
+  const sent: Sent = {
+    dashboard: people.length, email: 0, telegram: 0,
+    emailOff: w.emails.length > 0 && !hasEmail(),
+    telegramOff: w.telegram && w.telegram_chats.length > 0 && !hasTelegram(),
+  };
 
   // 2. Email — one message per check listing everything new, grouped.
   if (w.emails.length && hasEmail()) {
     try {
       await sendMail({ to: w.emails.join(", "), subject: heading, html: emailHtml(label, w.url, fresh), text: fresh.map((f) => `[${f.grp}] ${f.title}${f.summary ? `\n${f.summary}` : ""}\n${f.url}`).join("\n\n") });
       await sb.from("mh_watcher_items").update({ emailed_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url));
+      sent.email = w.emails.length;
     } catch (e) { await sb.from("mh_watchers").update({ last_error: `Email failed: ${(e as Error).message}` }).eq("id", w.id); }
   }
 
@@ -195,8 +212,9 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<void> 
     const msg = `<b>${esc(heading)}</b>\n\n` + fresh.map((f) => `• <b>[${esc(f.grp)}]</b> <a href="${esc(f.url)}">${esc(f.title.slice(0, 200))}</a>${f.summary ? `\n   ${esc(f.summary)}` : ""}`).join("\n\n") + `\n\nSource: ${esc(w.url)}`;
     let ok = false;
     for (const chat of w.telegram_chats) { try { await sendTelegram(chat, msg); ok = true; } catch { /* one bad chat must not stop the others */ } }
-    if (ok) await sb.from("mh_watcher_items").update({ telegram_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url));
+    if (ok) { await sb.from("mh_watcher_items").update({ telegram_at: now }).eq("watcher_id", w.id).in("item_url", fresh.map((f) => f.url)); sent.telegram = w.telegram_chats.length; }
   }
+  return sent;
 }
 
 // Branded like the n8n version the counselling desk is used to — on the dashboard's
