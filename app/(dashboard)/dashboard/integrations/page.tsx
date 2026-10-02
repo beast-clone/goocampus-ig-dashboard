@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 type Integration = {
   key: string;
@@ -81,11 +82,15 @@ function Integrations() {
     }
   }, []);
 
-  // Initial load + auto-refresh every 30s (usage counters move as pages are used).
+  // Initial load + auto-refresh every 30s (usage counters move as pages are used),
+  // but only while the tab is on screen — a background tab polling all night costs
+  // function calls for data nobody is reading.
   useEffect(() => {
     load();
-    const t = setInterval(() => load(), 30_000);
-    return () => clearInterval(t);
+    const t = setInterval(() => { if (shouldPoll()) load(); }, 30_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };
   }, [load]);
 
   if (loading && !data) {

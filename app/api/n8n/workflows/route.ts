@@ -69,6 +69,21 @@ async function n8n(path: string) {
   return res.json();
 }
 
+// n8n pages at 250. This account is over that, so a single call silently drops
+// whatever sits past the first page — which is exactly where a newly created
+// workflow lands. Follow the cursor to the end.
+async function n8nAll<T>(path: string, max = 2000): Promise<T[]> {
+  const out: T[] = [];
+  let cursor: string | undefined;
+  do {
+    const sep = path.includes("?") ? "&" : "?";
+    const page = await n8n(path + (cursor ? `${sep}cursor=${encodeURIComponent(cursor)}` : ""));
+    out.push(...((page?.data ?? []) as T[]));
+    cursor = page?.nextCursor || undefined;
+  } while (cursor && out.length < max);
+  return out;
+}
+
 async function trackedIds(): Promise<Set<string>> {
   const sb = getSupabase();
   if (!sb) return new Set();
@@ -89,14 +104,12 @@ export async function GET() {
   }
 
   try {
-    const [wfRes, exRes, pinned] = await Promise.all([
-      n8n("workflows?limit=250"),
-      n8n("executions?limit=250&includeData=false"),
+    const [all, execs, pinned] = await Promise.all([
+      n8nAll<N8nWorkflow>("workflows?limit=250"),
+      // One page of executions is plenty — we only want each workflow's newest.
+      n8n("executions?limit=250&includeData=false").then((r) => (r?.data ?? []) as N8nExecution[]),
       trackedIds(),
     ]);
-
-    const all: N8nWorkflow[] = wfRes?.data ?? [];
-    const execs: N8nExecution[] = exRes?.data ?? [];
 
     // Newest run per workflow; the list arrives newest-first so the first one wins.
     const latest = new Map<string, N8nExecution>();

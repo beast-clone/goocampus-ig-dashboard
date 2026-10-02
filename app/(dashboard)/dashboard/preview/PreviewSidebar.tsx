@@ -22,6 +22,7 @@ import type { PreviewTab } from "./PreviewShell";
 /** Remembered across tabs and reloads once the button has been used. */
 const NAV_COLLAPSED_KEY = "gc-nav-collapsed";
 import { GlobalSearch } from "./GlobalSearch";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 // The ONE shared dashboard sidebar — used by PreviewShell (cloned tabs) AND the
 // hand-built PreviewOverview so every V2 page has the identical grouped, expandable
@@ -253,7 +254,9 @@ export function PreviewSidebar() {
       .then((d) => { if (alive) setApprCount((d.requests || []).length); })
       .catch(() => {});
     tick();
-    const id = setInterval(tick, 60000);
+    // Only while the tab is on screen — this used to keep polling in a background
+    // tab all night, costing function calls for a badge nobody was looking at.
+    const id = setInterval(() => { if (shouldPoll()) tick(); }, 60000);
     return () => { alive = false; clearInterval(id); };
   }, [me?.isAdmin]);
 

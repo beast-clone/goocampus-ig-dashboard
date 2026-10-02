@@ -6,6 +6,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
 import { type ColumnPrefs } from "./ColumnChooser";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 type Col = { key: string; label: string; width: number; cell: (l: Lead) => React.ReactNode };
 type Community = { name: string; link?: string };
@@ -72,7 +73,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // Paused while the tab is in the background: a list nobody is looking at does
   // not need polling, and it would burn the Sheets quota all afternoon.
   useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === "visible") load(); }, 120_000);
+    const id = setInterval(() => { if (shouldPoll()) load(); }, 120_000);
     return () => clearInterval(id);
   }, [load]);
 

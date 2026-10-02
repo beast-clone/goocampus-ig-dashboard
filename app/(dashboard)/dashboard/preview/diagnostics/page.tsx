@@ -8,6 +8,7 @@ import {
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { showToast } from "../Toast";
+import { NetlifyUsage } from "./NetlifyUsage";
 
 type SysAction = { type: "reconnect" | "add-key" | "clear-cache"; label: string; provider?: string };
 type SystemResult = { key: string; name: string; category: string; status: "ok" | "warn" | "error"; detail: string; expiresAt: number | null; latencyMs: number | null; repair?: { action: string; result: string; note: string }; action?: SysAction };
@@ -32,7 +33,7 @@ const CAT_ICON: Record<string, typeof IconServer> = { Database: IconDatabase, So
 
 export default function DiagnosticsPage() {
   return (
-    <PreviewDashboardShell active="diagnostics" title="Diagnostics" subtitle="One click checks every system, auto-repairs what it safely can, and flags the rest. Runs daily at 5 AM." hideAccountPicker>
+    <PreviewDashboardShell active="diagnostics" title="Diagnostics" subtitle="One click checks every system, auto-repairs what it safely can, and flags the rest. Runs daily at 6:15 am IST." hideAccountPicker>
       {() => <DiagnosticsBody />}
     </PreviewDashboardShell>
   );
@@ -92,7 +93,7 @@ function DiagnosticsBody() {
       {/* run bar */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="text-xs text-gray-500">
-          {report ? <>Last run <b className="text-[#232D42]">{relTime(report.ranAt)}</b> · {report.trigger === "cron" ? "scheduled 5 AM" : "manual"} · {report.summary.checked} systems · {report.durationMs} ms</> : "No diagnostics yet — run your first check."}
+          {report ? <>Last run <b className="text-[#232D42]">{relTime(report.ranAt)}</b> · {report.trigger === "cron" ? "scheduled 6:15 am" : "manual"} · {report.summary.checked} systems · {report.durationMs} ms</> : "No diagnostics yet — run your first check."}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowHistory((v) => !v)} className="text-xs font-medium bg-white text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-brand/40 hover:text-brand inline-flex items-center gap-1.5"><IconHistory size={15} stroke={1.8} /> History</button>
@@ -110,7 +111,7 @@ function DiagnosticsBody() {
               {history.map((h) => (
                 <li key={h.id}><button onClick={() => openRun(h.id)} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 text-xs">
                   <span className="text-[#232D42] font-medium w-32">{fmtDateShort(h.ran_at)}</span>
-                  <span className="text-gray-400">{h.trigger === "cron" ? "5 AM auto" : "manual"}</span>
+                  <span className="text-gray-400">{h.trigger === "cron" ? "6:15 am auto" : "manual"}</span>
                   <span className="ml-auto flex items-center gap-2">
                     <span className="text-[#1aa053]">{h.summary.healthy} ok</span>
                     {h.summary.repaired > 0 && <span className="text-brand">{h.summary.repaired} fixed</span>}
@@ -188,6 +189,10 @@ function DiagnosticsBody() {
           </div>
         </>
       )}
+
+      {/* What the scheduled jobs cost. Shown whether or not a health run exists —
+          the whole point is that it is visible without being asked for. */}
+      <NetlifyUsage />
 
       {!report && !loading && (
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">

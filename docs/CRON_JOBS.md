@@ -137,3 +137,69 @@ of the waste.
 `/api/cron/watchers` was taking 22–25 seconds per run. That is fine on its own, but
 it is close enough to any 30-second ceiling that one slow notice board will tip it
 over. Worth fetching the watched pages in parallel rather than one after another.
+
+---
+
+# The overnight stop zone (00:00–06:00 IST)
+
+Nothing is to run between midnight and 6 am. Nobody is reading the dashboard and
+no source publishes anything at that hour that cannot wait until morning, so
+every call in that window is spend for nothing.
+
+The browser side is already enforced in code — `lib/quiet-hours.ts`, which every
+background poller now checks. Opening a page at 2 am still works and still loads
+fresh data; only the self-firing timers stop.
+
+The n8n side is **applied** (3 October 2026). It needed a write-scoped API key —
+a read-only one returns 403 on `PUT` and `/deactivate`.
+
+Diagnostics → Netlify usage shows the count of calls still landing in the window.
+It reads 0. If it ever reads anything else, a schedule has drifted back in.
+
+| Workflow | Was | Now | Why |
+| --- | --- | --- | --- |
+| Import Airtable | hourly | cron `0 6-23 * * *` | 6 runs a day were inside the window |
+| Radar Refresh | hourly | cron `15 6-23 * * *` | same, and staggered off the hour |
+| Snapshot Stories | hourly | cron `30 6-23 * * *` | same |
+| Nightly Lead-Status Snapshot | daily 01:00 | daily **06:05** | still captures the previous day, just later |
+| Link Published | daily 02:00 | daily **06:10** | filling in published URLs can wait |
+| Diagnostics | daily 05:00 | daily **06:15** | and set its timezone — it is the only one still unset |
+
+They were renamed to match, since the Workflows tab shows the name:
+
+- `GC Dashboard — Import Airtable (hourly, 6am–11pm IST)`
+- `GC Dashboard — Radar Refresh (hourly, 6am–11pm IST)`
+- `GC Dashboard — Snapshot Stories (hourly, 6am–11pm IST)`
+- `GC Dashboard — Lead-Status Snapshot (daily 6:05 am IST)`
+- `GC Dashboard — Link Published (daily 6:10 am IST)`
+- `GC Dashboard — Diagnostics (daily 6:15 am IST)`
+
+Three already sit outside the window and need no change: Daily Metrics Snapshot
+(06:30), Daily Comment Digest (21:00), Radar Rolloff (23:59).
+
+## The watchers job
+
+`GC Dashboard — Watchers` (`u0Wh2FCfuUPlc0BI`) existed and was running all
+along, every 15 minutes, round the clock. It was easy to miss — and was missed —
+because **the n8n list API pages at 250 and this account is over that**, so a
+single un-paged call silently drops whatever sits past the first page. Both
+`/api/n8n/workflows` and `/api/netlify/usage` now follow the cursor to the end.
+If a job you know exists is not on the Workflows tab, suspect paging first.
+
+It was also by far the most expensive thing pointed at this site: 96 runs a day
+at 22-25 seconds each, about 37 minutes of compute a day, which was 85% of the
+total. It is now:
+
+```
+Schedule trigger: cron  0,30 6-23 * * *     (every 30 min, 6am-11:30pm IST)
+Timezone:         Asia/Kolkata
+```
+
+Half-hourly rather than quarter-hourly: a notice board checked twice an hour is
+plenty, and it takes the cost from ~37 minutes a day to ~14. Raise it again if
+something is ever genuinely missed.
+
+Note the standalone **KEA UGNEET 2026 Notification Watcher** is a separate n8n
+workflow that watches the same KEA and MCC pages and sends its own Slack and
+email alerts. It runs around the clock and is untouched by any of this. Worth
+deciding whether both should exist.

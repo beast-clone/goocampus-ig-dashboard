@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 type Mode = "ai" | "human";
 type Direction = "in" | "out";
@@ -86,7 +87,7 @@ function Inner({ accountId }: { accountId: string }) {
   // Poll threads every 8s for near-real-time feel
   useEffect(() => {
     loadThreads();
-    const id = setInterval(loadThreads, 8000);
+    const id = setInterval(() => { if (shouldPoll()) loadThreads(); }, 8000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, onlyLeads]);
@@ -95,7 +96,7 @@ function Inner({ accountId }: { accountId: string }) {
   useEffect(() => {
     if (!selectedId) return;
     loadDetail(selectedId);
-    const id = setInterval(() => loadDetail(selectedId), 8000);
+    const id = setInterval(() => { if (shouldPoll()) loadDetail(selectedId); }, 8000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, accountId]);

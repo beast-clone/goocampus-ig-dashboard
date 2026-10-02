@@ -5,6 +5,7 @@ import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClock, IconChecks, IconLayoutList, IconExternalLink, IconCalendarDue } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 // Team Command — the admin's cockpit. A master–detail report: pick a person on the
 // left rail, see their full day on the right — attendance, workload, and their whole
@@ -142,7 +143,13 @@ export function TeamCommand() {
       setFetchedAt(new Date());
     } catch { /* keep last */ } finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    load();
+    // Only while the tab is on screen — a background tab polling all night costs
+    // function calls for data nobody is reading.
+    const t = setInterval(() => { if (shouldPoll()) load(); }, 60000);
+    return () => clearInterval(t);
+  }, [load]);
 
   // Approve → the new publish date is written to the task; reject → the old date stays.
   // The optional note (a reason on reject, or an instruction on approve) rides along

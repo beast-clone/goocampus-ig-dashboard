@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { IconBell, IconX } from "@tabler/icons-react";
 import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 import { playChatChime } from "@/app/(dashboard)/dashboard/preview/notifChime";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 // On-screen notification pop-ups, on EVERY preview page (docs/NOTIFICATIONS_SPEC.md).
 // Mounted once in the preview layout, so it survives navigation and never doubles up.
@@ -165,13 +166,13 @@ export function NotificationHost() {
       } catch { /* the chat is a nicety here; never let it break the bell */ }
     };
     tick();
-    const id = setInterval(() => { if (!document.hidden) tick(); }, POLL_MS);
+    const id = setInterval(() => { if (shouldPoll()) tick(); }, POLL_MS);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
   useEffect(() => {
     load();
-    const id = setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
+    const id = setInterval(() => { if (shouldPoll()) load(); }, POLL_MS);
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
     window.addEventListener(NOTIF_REFRESH, onFocus);

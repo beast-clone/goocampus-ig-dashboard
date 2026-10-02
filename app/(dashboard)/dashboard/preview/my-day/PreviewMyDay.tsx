@@ -22,6 +22,7 @@ import { MY_DAY_CSS as CSS } from "./myDayCss";
 import { useRadarMissed, RadarMissedList, dayLabel } from "./RadarCrumb";
 import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationHost";
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -1761,7 +1762,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const load = () => fetch("/api/my-day/logins", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (live && j?.logins) setTeamLogins(j.logins); }).catch(() => {});
     load();
-    const t = setInterval(load, 5 * 60_000);
+    // Only while the tab is on screen — see the notification bell for the pattern.
+    const t = setInterval(() => { if (shouldPoll()) load(); }, 5 * 60_000);
     return () => { live = false; clearInterval(t); };
   }, []);
   const [loggedOut, setLoggedOut] = useState(false);    // End day → demo logout overlay (no real session end)
@@ -1811,7 +1813,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     loadChat();
     // Skip the poll while the tab is hidden — don't hammer the network in background
     // tabs; the next tick after refocus catches up (≤15s).
-    const id = setInterval(() => { if (!document.hidden) loadChat(); }, 15_000);
+    const id = setInterval(() => { if (shouldPoll()) loadChat(); }, 15_000);
     return () => clearInterval(id);
   }, [loadChat]);
   useEffect(() => { // person switch: fresh chat buffer + their read-state, reminders and day-clock
@@ -3064,7 +3066,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     pull();
     // Skip the data pull while the tab is hidden (background tabs shouldn't poll);
     // the next tick after refocus refreshes (≤20s).
-    const id = setInterval(() => { if (!document.hidden) pull(); }, 20_000);
+    const id = setInterval(() => { if (shouldPoll()) pull(); }, 20_000);
     return () => { alive = false; clearInterval(id); };
   }, [person]);
   // My-tasks row → expands inline in the "Up next" panel (setSel).
