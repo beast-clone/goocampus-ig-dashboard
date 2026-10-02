@@ -95,6 +95,12 @@ export async function disconnectGmail(): Promise<void> {
   access = null;
 }
 
+// Googles errors put the cause in the first sentence and then a paragraph of
+// console links. safeError() replaces anything over 200 characters with a generic
+// line, so the whole diagnosis was arriving as "Gmail refused the message" and the
+// real reason — the Gmail API not being enabled — only existed in the server log.
+const firstSentence = (s: string) => (s.split(/(?<=.)s/)[0] || s).trim().slice(0, 160);
+
 // ── building the message ─────────────────────────────────────────────────────
 // A header that is not plain ASCII has to be encoded or Gmail mangles it, and the
 // counselling notices are routinely in Kannada.
@@ -157,6 +163,6 @@ export async function sendViaGmail(msg: { to: string; subject: string; text?: st
     const t = await r.text();
     let why = t.slice(0, 300);
     try { why = (JSON.parse(t) as { error?: { message?: string } }).error?.message || why; } catch { /* keep the raw text */ }
-    throw new Error(`Gmail refused it: ${why}`);
+    throw new Error(`Gmail refused it: ${firstSentence(why)}`);
   }
 }
