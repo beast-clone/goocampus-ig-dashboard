@@ -41,28 +41,46 @@ const MAX_HEADER = 60;
 const MAX_FOOTER = 60;
 const MAX_BUTTON = 25;
 
-// Words that drag a template into Marketing. A template submitted as Utility that reads
-// like any of these is the single most common reason for the reject-resubmit loop: Meta
-// silently reclassifies it rather than explaining, so it looks like a rejection for no
-// reason. Tuned for counselling: "new batch" and "admission open" are the local traps.
-const MARKETING_WORDS = [
-  "offer", "discount", "sale", "deal", "free", "bonus", "cashback", "coupon", "promo",
-  "limited time", "limited seats", "last chance", "hurry", "don't miss", "dont miss",
-  "exclusive", "special price", "best price", "save now",
-  "enroll", "enrol", "apply now", "register now", "join now", "book now", "sign up",
-  "admission open", "admissions open", "new batch", "batch starts", "seats filling",
-  "webinar", "masterclass", "demo class", "counselling session", "free consultation",
-  "upgrade", "subscribe", "refer", "launch", "introducing", "announcing",
+// What actually makes Meta call something Marketing is promotional PRESSURE — being
+// asked to do something, or being told to hurry — not the subject matter.
+//
+// The first version of this listed "counselling session", "webinar" and "demo class",
+// which is what GooCampus sells. Those nouns appear in every message the business
+// sends, confirmations included, so every template scored as Marketing and the tool
+// was useless (Maheen, 2 Oct). A product noun is not a signal. A call to action is.
+
+// Being asked to do something.
+const CTA = [
+  "apply now", "apply today", "register now", "register here", "register using",
+  "register today", "book now", "book your", "join now", "enrol now", "enroll now",
+  "sign up", "reserve your", "claim your", "order now", "buy now", "shop now",
+  "click here to", "tap here to", "don't wait", "dont wait",
 ];
 
-// Words that genuinely indicate Utility — something the person already did. A Utility
-// template with none of these is usually Marketing wearing a disguise.
-const UTILITY_WORDS = [
-  "your order", "your payment", "your booking", "your appointment", "your application",
-  "your request", "your ticket", "your invoice", "your receipt", "your enquiry",
-  "confirmed", "confirmation", "received", "processed", "shipped", "delivered",
-  "scheduled for", "rescheduled", "cancelled", "refund", "due on", "expires on",
-  "reference number", "transaction", "status update",
+// Being told to hurry.
+const SCARCITY = [
+  "limited seats", "seats are limited", "slots are limited", "limited slots",
+  "limited time", "last chance", "hurry", "filling fast", "few seats", "few slots",
+  "don't miss", "dont miss", "closing soon", "ends today", "ends tomorrow",
+];
+
+// Being sold to.
+const PROMO = [
+  "offer", "discount", "sale", "deal", "cashback", "coupon", "promo", "exclusive",
+  "special price", "best price", "bonus", "upgrade", "introducing", "announcing",
+  "new batch", "admission open", "admissions open", "free consultation",
+];
+
+// Something the person already did. These are what Utility actually means, and when
+// one of them is present with no pressure anywhere, the message IS transactional
+// however much business vocabulary it happens to contain.
+const CONFIRMS = [
+  "is confirmed", "has been confirmed", "now confirmed", "confirmation of",
+  "your slot", "your booking", "your appointment", "your seat", "your order",
+  "your payment", "your application", "your registration", "your request",
+  "your enquiry", "your ticket", "your invoice", "your receipt",
+  "has been received", "we have received", "we've received",
+  "reference number", "rescheduled", "cancelled", "refund", "status update",
 ];
 
 const found = (hay: string, words: string[]) =>
@@ -159,36 +177,51 @@ export function checkTemplate(t: TemplateDraft): CheckResult {
 
   // ── the category, which is where the real pain is ───────────────────────────
   const hay = [header, body, footer, buttons.join(" ")].join(" ");
-  const marketingHits = found(hay, MARKETING_WORDS);
-  const utilityHits = found(hay, UTILITY_WORDS);
+  const cta = found(hay, CTA);
+  const scarcity = found(hay, SCARCITY);
+  const promo = found(hay, PROMO);
+  const confirms = found(hay, CONFIRMS);
+  const marketingHits = [...cta, ...scarcity, ...promo];
+  const utilityHits = confirms;
 
   const categoryWhy: string[] = [];
-  let likely: Category = t.category;
+  let likely: Category;
 
   if (t.category === "AUTHENTICATION") {
     likely = "AUTHENTICATION";
     categoryWhy.push("Authentication is only for one-time codes. If this is anything else, Meta will move it.");
   } else if (marketingHits.length) {
+    // Pressure beats everything. A confirmation that also sells is still selling.
     likely = "MARKETING";
-    categoryWhy.push(`Reads as promotional: ${marketingHits.slice(0, 5).map((w) => `"${w}"`).join(", ")}.`);
+    const kind = cta.length ? "asks the reader to do something" : scarcity.length ? "tells the reader to hurry" : "promotes something";
+    categoryWhy.push(`It ${kind}: ${marketingHits.slice(0, 4).map((w) => `"${w}"`).join(", ")}.`);
     if (t.category === "UTILITY") {
       f.push({
         severity: "risk",
         what: "Submitted as Utility, but it reads as Marketing",
-        why: `Meta reclassifies rather than explaining, which is why it comes back again and again. The words doing it: ${marketingHits.slice(0, 5).join(", ")}. Submit it as Marketing and it usually goes straight through.`,
+        why: `Meta reclassifies rather than explaining, which is why it comes back again and again. What is doing it: ${marketingHits.slice(0, 4).join(", ")}. Take those out, or submit it as Marketing.`,
       });
     }
-  } else if (utilityHits.length) {
+  } else if (confirms.length) {
+    // No pressure anywhere, and it refers to something already done. That is Utility,
+    // whatever the business happens to be called.
     likely = "UTILITY";
-    categoryWhy.push(`Refers to something the person already did: ${utilityHits.slice(0, 4).map((w) => `"${w}"`).join(", ")}.`);
+    categoryWhy.push(`It confirms something the person already did: ${confirms.slice(0, 3).map((w) => `"${w}"`).join(", ")}. Nothing here asks them to do anything.`);
+    if (t.category === "MARKETING") {
+      f.push({
+        severity: "note",
+        what: "This would qualify as Utility",
+        why: "Utility templates are cheaper to send and are not blocked by marketing opt-outs. Worth submitting it as Utility instead.",
+      });
+    }
   } else {
     likely = "MARKETING";
-    categoryWhy.push("Nothing here points at an existing order, booking or request, so Meta will most likely treat it as Marketing.");
+    categoryWhy.push("Nothing here points at an order, booking or request the person already made, so Meta will most likely treat it as Marketing.");
     if (t.category === "UTILITY") {
       f.push({
         severity: "risk",
         what: "Submitted as Utility with nothing transactional in it",
-        why: "Utility means a message about something the person already did. Without that, it goes to Marketing.",
+        why: "Utility means a message about something the person already did — a booking, a payment, an application. Without that it goes to Marketing.",
       });
     }
   }
@@ -204,12 +237,11 @@ export function checkTemplate(t: TemplateDraft): CheckResult {
   } else if (mismatch) {
     score = 45;
     scoreWhy = `It should go through, but filed as ${likely.toLowerCase()} rather than the category you picked.`;
-  } else if (!vars.length) {
-    score = 80;
-    scoreWhy = "Nothing wrong with it. Without variables you will need a fresh approval for every version of this message.";
   } else {
     score = 90;
-    scoreWhy = "Nothing here is a known cause of rejection.";
+    scoreWhy = vars.length
+      ? "Nothing here is a known cause of rejection."
+      : "Nothing here is a known cause of rejection. Adding {{1}} for the parts that change would save approving this again for every version.";
   }
 
   return { findings: f, likely, categoryWhy, marketingHits, utilityHits, vars, score, scoreWhy };
