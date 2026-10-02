@@ -106,23 +106,6 @@ function Checker() {
         </Link>
       </div>
 
-      {before !== null && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4">
-          <div className="text-[13px] font-medium text-[#232D42] mb-3">What changed</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-gray-100 bg-[#FBE7E4] p-3">
-              <div className="text-[11px] uppercase tracking-wide text-[#C03221] mb-1.5">What you pasted</div>
-              <div className="text-[13px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{before}</div>
-            </div>
-            <div className="rounded-xl border border-gray-100 bg-[#EEF7F1] p-3">
-              <div className="text-[11px] uppercase tracking-wide text-[#0F6E3C] mb-1.5">What you have now</div>
-              <div className="text-[13px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{body}</div>
-            </div>
-          </div>
-          <button onClick={() => { setBody(before); setBefore(null); }}
-            className="mt-3 text-[12px] text-[#8A92A6] hover:text-brand">Put the original back</button>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {/* ── the draft ─────────────────────────────────────────────────────── */}
@@ -221,41 +204,71 @@ function Checker() {
                 </div>
               )}
 
-              {res.ai?.rewrite && (
-                <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-3.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[12px] uppercase tracking-wide text-[#8A92A6]">A version that should go through</span>
-                    {/* Puts it in the box rather than the clipboard. The point is to
-                        end up with the fixed version in hand, not to paste it yourself. */}
-                    <button onClick={() => { setBefore(body); setBody(res.ai!.rewrite!); run(false, res.ai!.rewrite!); }}
-                      className="ml-auto h-7 px-2.5 rounded-lg bg-brand text-white text-[11.5px] font-medium inline-flex items-center gap-1 hover:bg-brand-dark">
-                      <IconCheck size={13} /> Use this
-                    </button>
-                  </div>
-                  <div className="text-[13.5px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{res.ai.rewrite}</div>
-                  {res.ai.verdict && <div className="text-[12px] text-[#5A6478] mt-2.5">{res.ai.verdict}</div>}
-                  {/* The rewrite is checked by the same rules as the draft, because it
-                      has already come back breaking one. */}
-                  {(res.rewriteFindings || []).length > 0 && (
-                    <div className="mt-2.5 rounded-lg bg-[#FBE7E4] px-3 py-2">
-                      <div className="text-[12px] text-[#C03221] font-medium">This rewrite still has a problem &mdash; fix it before submitting:</div>
-                      {(res.rewriteFindings || []).map((f, i) => (
-                        <div key={i} className="text-[12px] text-[#C03221] mt-0.5">{f.what}. {f.why}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
               {res.aiError && <div className="text-[12px] text-[#8A92A6]">{res.aiError}</div>}
-
-              <a href={MANAGER} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[12.5px] text-brand hover:underline">
-                Submit it in WhatsApp Manager <IconExternalLink size={13} />
-              </a>
             </div>
           )}
         </div>
       </div>
+
+      {/* Step three, under both columns rather than squeezed into one: the version
+          offered, and then the version taken. Same slot for both, so accepting
+          continues the page downwards instead of moving it. */}
+      {before !== null ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 mt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#EEF7F1] text-[#0F6E3C] shrink-0"><IconCheck size={14} /></span>
+            <span className="text-[15px] font-medium text-[#232D42]">You swapped it</span>
+            <button onClick={() => { setBody(before); setBefore(null); run(false, before); }}
+              className="ml-auto text-[12px] text-[#8A92A6] hover:text-brand">Put the original back</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-gray-100 bg-[#FBE7E4] p-3.5">
+              <div className="text-[11px] uppercase tracking-wide text-[#C03221] mb-1.5">What you pasted</div>
+              <div className="text-[13.5px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{before}</div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-[#EEF7F1] p-3.5">
+              <div className="text-[11px] uppercase tracking-wide text-[#0F6E3C] mb-1.5">What you have now</div>
+              <div className="text-[13.5px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{body}</div>
+            </div>
+          </div>
+          <a href={MANAGER} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[12.5px] text-brand hover:underline mt-3.5">
+            Submit it in WhatsApp Manager <IconExternalLink size={13} />
+          </a>
+        </div>
+      ) : res?.ai?.rewrite ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 mt-4">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-light text-brand shrink-0"><IconSparkles size={14} /></span>
+            <span className="text-[15px] font-medium text-[#232D42]">A version that should go through</span>
+            {/* Puts it in the box rather than the clipboard. The point is to end up
+                with the fixed version in hand, not to paste it yourself. */}
+            <button onClick={() => { setBefore(body); setBody(res.ai!.rewrite!); run(false, res.ai!.rewrite!); }}
+              className="ml-auto h-8 px-3 rounded-lg bg-brand text-white text-[12.5px] font-medium inline-flex items-center gap-1.5 hover:bg-brand-dark">
+              <IconCheck size={14} /> Use this
+            </button>
+          </div>
+          <div className="rounded-xl border border-gray-100 bg-[#F6F7FB] p-3.5 text-[13.5px] text-[#232D42] whitespace-pre-wrap leading-relaxed">{res.ai.rewrite}</div>
+          {res.ai.verdict && <div className="text-[12.5px] text-[#5A6478] mt-2.5 leading-relaxed">{res.ai.verdict}</div>}
+          {/* Checked by the same rules as the draft, because it has already come
+              back breaking one. */}
+          {(res.rewriteFindings || []).length > 0 && (
+            <div className="mt-2.5 rounded-lg bg-[#FBE7E4] px-3 py-2">
+              <div className="text-[12px] text-[#C03221] font-medium">This rewrite still has a problem &mdash; fix it before submitting:</div>
+              {(res.rewriteFindings || []).map((f, i) => (
+                <div key={i} className="text-[12px] text-[#C03221] mt-0.5">{f.what}. {f.why}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : res ? (
+        <div className="mt-4">
+          <a href={MANAGER} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[12.5px] text-brand hover:underline">
+            Submit it in WhatsApp Manager <IconExternalLink size={13} />
+          </a>
+        </div>
+      ) : null}
     </>
   );
 }
