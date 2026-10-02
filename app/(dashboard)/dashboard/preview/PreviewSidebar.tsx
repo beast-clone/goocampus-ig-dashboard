@@ -140,6 +140,10 @@ const GROUPS: Group[] = [
     { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
+    // The scheduled jobs the dashboard depends on all live in n8n, so there was no
+    // way to see them from in here — the Airtable import sat switched off and the
+    // only way to notice was to open n8n. Read-only register of what runs and when.
+    { label: "Workflows",    href: `${HUB}/workflows`,    icon: IconRouteAltLeft },
     // Moved out of My Workspace on request (Praveen, 28 Sept). Note this group is
     // ADMIN-ONLY — canAccessSection() refuses "system" for everyone else — so the
     // content team can no longer reach Automations from the nav. The rules API is

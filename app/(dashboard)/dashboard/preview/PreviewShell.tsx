@@ -8,7 +8,7 @@ export type PreviewTab =
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "inbox" | "sales" | "organic-sales" | "campaigns" | "ai-insights" | "ai-reports"
   | "integrations" | "diagnostics" | "tools" | "team" | "comments" | "account" | "reports" | "assistant" | "notifications"
-  | "changelog" | "connectors";
+  | "changelog" | "connectors" | "workflows";
 
 export function PreviewShell({
   active, title, subtitle, children, headerRight, hideTopbar,
