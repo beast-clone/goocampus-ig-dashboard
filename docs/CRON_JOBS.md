@@ -27,14 +27,30 @@ they are enabled.
 
 `competitor-watch` was deliberately **not** rebuilt — see the warning further down.
 
-### Before switching the two daily ones on, check the timezone
+### The n8n instance is NOT on IST — fix this before trusting any daily job
 
-Netlify ran cron in UTC. n8n uses its own instance timezone, which is not set per
-workflow here, so the two daily jobs were entered as **IST wall-clock** times
-(02:00 and 23:59) on the assumption the n8n instance runs Asia/Kolkata. If it
-does not, those two will fire at the wrong hour — the four hourly/15-minute ones
-are unaffected either way. Confirm the instance timezone, or set it explicitly on
-those two workflows, before relying on them.
+Measured, not assumed. "GC Dashboard — Daily Metrics Snapshot" is configured for
+**06:30** and its last two runs started at **04:30 UTC** (1 and 2 October 2026).
+That is a +2 offset, so the instance is running **Europe/Berlin**, n8n's default —
+not Asia/Kolkata.
+
+What that means:
+
+- That existing snapshot, labelled 06:30, actually fires at **10:00 IST**.
+- The two new daily workflows, entered as 02:00 and 23:59, would fire at
+  **05:30 IST** and **03:29 IST**.
+- The four hourly / 15-minute workflows are unaffected — interval schedules do
+  not care about the zone.
+
+**The fix:** set the timezone to `Asia/Kolkata`, either per workflow (open the
+workflow → three-dot menu → Settings → Timezone) or instance-wide via the
+`GENERIC_TIMEZONE` environment variable on the n8n host. Do not compensate by
+shifting the configured hours: Europe/Berlin leaves summer time on 25 October
+2026, which would silently move every "corrected" job by an hour.
+
+This cannot be done from here. The n8n SDK has no timezone field, the MCP
+`update_workflow` tool rejects its own `operations` argument, and the n8n UI
+requires a sign-in that only the account holder should perform.
 
 ### The secret
 
