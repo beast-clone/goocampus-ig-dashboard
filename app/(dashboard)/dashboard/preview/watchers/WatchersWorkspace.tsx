@@ -474,13 +474,24 @@ export function WatchersWorkspace() {
 }
 
 // A notice handed to Content Studio with what it already knows, the way a Radar
-// headline is. The group rides along as the SBU so the draft starts in the right
-// business, rather than the writer picking it again from the title they just read.
+// headline is. Studio reads title, url, source and sbu, and opens straight into the
+// draft when a title is present.
+//
+// The group has to be translated rather than passed through. Studio's brand picker
+// is fed the live SBU list, so "UG" is not a value it holds — it would sit there as
+// a name that is not a brand, which is how a second "NEET PG" ended up in every
+// picker on the board once before (Manya, 23 Sep). Anything not plainly one or the
+// other is left off, and Studio falls back to General Content.
+const STUDIO_SBU: Record<string, string> = {
+  UG: "India NEET UG Consulting",
+  PG: "India NEET PG Consulting",
+};
 function studioHref(i: Item, site: string): string {
   const q = new URLSearchParams({ title: i.title || i.item_url });
   q.set("url", i.item_url);
   if (site) q.set("source", site);
-  if (i.grp === "UG" || i.grp === "PG") q.set("sbu", i.grp);
+  const sbu = STUDIO_SBU[i.grp || ""];
+  if (sbu) q.set("sbu", sbu);
   return `/dashboard/preview/content-studio?${q.toString()}`;
 }
 
