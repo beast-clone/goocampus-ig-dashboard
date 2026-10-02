@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   IconSearch, IconFilter, IconChevronLeft, IconChevronRight, IconPlus, IconTrash,
   IconCircleCheck, IconCircleDashed, IconClock, IconAlertTriangle, IconChecks, IconChartBar,
-  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat, IconUsersGroup,
+  IconMessage, IconBrandWhatsapp, IconPhoto, IconRepeat, IconUsersGroup, IconClipboardCheck,
 } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
@@ -179,6 +180,14 @@ export function BroadcastWorkspace() {
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] px-3 py-1.5 mb-2 hover:border-brand hover:text-brand">
               <IconUsersGroup size={14} /> Groups &amp; members
             </button>
+            {/* For the official API, where a template must be approved before it can
+                be sent. Nothing to do with this tab's own sending, which goes through
+                WAHA and needs no template — but this is where people come looking when
+                a template keeps coming back. */}
+            <Link href="/dashboard/preview/broadcast/template-check"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] px-3 py-1.5 mb-2 hover:border-brand hover:text-brand">
+              <IconClipboardCheck size={14} /> Template check
+            </Link>
             <button onClick={() => setCompose({ open: true })}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white text-[13px] font-medium px-3 py-2 mb-2 hover:bg-brand-dark">
               <IconPlus size={15} /> New message
