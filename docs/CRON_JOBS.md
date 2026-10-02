@@ -27,30 +27,31 @@ they are enabled.
 
 `competitor-watch` was deliberately **not** rebuilt — see the warning further down.
 
-### Status as of 2 October 2026, 11:00 pm IST
+### Status as of 2 October 2026, 11:10 pm IST
 
-Timezone set to `Asia/Kolkata` and activated on five of the six:
+All nine dashboard workflows are **active**. Seven carry an explicit
+`Asia/Kolkata` timezone; two still run on the Europe/Berlin default.
 
-| Workflow | Timezone | Active |
-| --- | --- | --- |
-| Watchers | Asia/Kolkata | yes |
-| Radar Refresh | Asia/Kolkata | yes |
-| Snapshot Stories | Asia/Kolkata | yes |
-| Link Published | Asia/Kolkata | yes |
-| Radar Rolloff | Asia/Kolkata | yes |
-| **Import Airtable** | **not set — still Berlin** | **no** |
+| Workflow | Set to | Timezone | Actually fires |
+| --- | --- | --- | --- |
+| Watchers | every 15 min | Asia/Kolkata | correct |
+| Import Airtable | hourly | Asia/Kolkata | correct |
+| Radar Refresh | hourly | Asia/Kolkata | correct |
+| Snapshot Stories | hourly | Asia/Kolkata | correct |
+| Link Published | 02:00 | Asia/Kolkata | 02:00 IST |
+| Radar Rolloff | 23:59 | Asia/Kolkata | 23:59 IST |
+| Daily Comment Digest | 21:00 | Asia/Kolkata | 21:00 IST |
+| **Daily Metrics Snapshot** | 06:30 | **not set** | **10:00 IST** |
+| **Nightly Lead-Status Snapshot** | 01:00 | **not set** | **04:30 IST** |
 
-`Import Airtable` was missed: its settings carry no timezone and it has never been
-switched on, so Airtable tasks are not flowing into the master sheet. Its schedule
-is hourly, so the zone does not actually affect when it runs — but it does need
-activating.
+The last two are the only ones left wrong. Both predate tonight and neither has
+been reopened since (`updatedAt` 21 July and 14 September). Setting
+`GENERIC_TIMEZONE=Asia/Kolkata` on the n8n host fixes both at once, and stops the
+problem recurring on anything created later.
 
-Two older workflows were never retimed and still run on Europe/Berlin:
-
-- **Daily Metrics Snapshot** — set to 06:30, therefore firing at **10:00 IST**
-- **Nightly Lead-Status Snapshot** — untouched since 14 September
-- **Daily Comment Digest** — named "9 PM IST" but inactive; it would fire at
-  00:30 IST if switched on as-is
+`Import Airtable` was test-run on 2 Oct (execution `2958838`, success in 4s). The
+endpoint returned OK and no rows changed, which is consistent with nothing new in
+Airtable at that moment rather than a failure.
 
 ### The n8n instance is NOT on IST — fix this before trusting any daily job
 
