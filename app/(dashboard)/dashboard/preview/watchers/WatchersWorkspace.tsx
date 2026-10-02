@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus, IconRefresh, IconPencil, IconTrash, IconPlayerPause, IconPlayerPlay, IconExternalLink,
   IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle, IconFileTypePdf, IconWorld, IconSparkles,
+  IconDots, IconLayoutGrid,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -64,12 +65,26 @@ export function WatchersWorkspace() {
   const [days, setDays] = useState("30");
   const [showAll, setShowAll] = useState(false);
   const qs = new URLSearchParams();
-  if (group !== "all") qs.set("group", group);
   if (site !== "all") qs.set("watcher", site);
   if (days !== "0") qs.set("days", days);
   if (showAll) qs.set("all", "1");
   const { data: id, isLoading: iLoading, refresh: refreshItems } = useApi<{ items: Item[] }>(`/api/watchers/items?${qs}`);
-  const items = useMemo(() => id?.items || [], [id]);
+  const allItems = useMemo(() => id?.items || [], [id]);
+  const items = useMemo(() => allItems.filter((i) => inGroup(i, group)), [allItems, group]);
+  // UG and PG are always offered so the tabs don't move about; anything else a
+  // notice actually carries — a category someone added, or Other — joins them.
+  const tabs = useMemo(() => {
+    const n = new Map<string, number>();
+    const bump = (k: string) => n.set(k, (n.get(k) || 0) + 1);
+    for (const i of allItems) { const g = i.grp || "Other"; if (g === "UG & PG") { bump("UG"); bump("PG"); } else bump(g); }
+    const extras = [...n.keys()].filter((g) => g !== "UG" && g !== "PG").sort();
+    return [{ key: "all", label: "All", n: allItems.length },
+      ...["UG", "PG"].map((g) => ({ key: g, label: g, n: n.get(g) || 0 })),
+      ...extras.map((g) => ({ key: g, label: g, n: n.get(g)! }))];
+  }, [allItems]);
+  // A category can disappear when the site filter changes; don't strand the view
+  // on a tab that is no longer there.
+  useEffect(() => { if (!tabs.some((t) => t.key === group)) setGroup("all"); }, [tabs, group]);
 
   // A notification links here with ?w=<id>: open on that website's news.
   useEffect(() => { const w = new URLSearchParams(window.location.search).get("w"); if (w) setSite(w); }, []);
@@ -144,134 +159,136 @@ export function WatchersWorkspace() {
         </div>
       )}
 
-      {/* Watched links */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-light text-brand shrink-0"><IconEye size={18} /></span>
-          <div className="flex-1 min-w-0">
-            <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">Watched links</div>
-            <div className="text-[11.5px] text-[#8A92A6] mt-0.5">The pages we check, who hears about new notices, and when each was last read</div>
-          </div>
-          {watchers.some((w) => w.active) && (
-            <button onClick={checkAll} disabled={anyChecking} className="h-9 px-3 rounded-lg border border-gray-200 text-[13px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-50">
-              <IconRefresh size={15} className={anyChecking ? "animate-spin" : ""} /> {anyChecking ? "Checking…" : "Check all now"}
-            </button>
-          )}
-          <button onClick={() => setEditing("new")} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium inline-flex items-center gap-1.5"><IconPlus size={15} /> Add link</button>
-        </div>
-        {wLoading && !wd ? <LoadingBlock className="!py-6" size={26} /> : !watchers.length ? (
-          <div className="rounded-xl border border-dashed border-gray-200 px-6 py-8 text-center text-[13px] text-[#8A92A6]">No links yet. Add the first page to watch — for example the KEA UG NEET or MCC counselling page.</div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {watchers.map((w) => (
-              <div key={w.id} className={`py-3 flex items-start gap-3 flex-wrap ${w.active ? "" : "opacity-60"}`}>
-                <div className="flex-1 min-w-[240px]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[14px] font-medium text-[#232D42]">{label(w)}</span>
-                    {w.category && <span className={`text-[11px] rounded px-1.5 py-0.5 ${groupCls(w.category)}`}>{w.category}</span>}
-                    {w.auto_category && <span className="text-[11px] rounded px-1.5 py-0.5 bg-gray-100 text-[#4A5468]">auto-grouped</span>}
-                    {!w.active && <span className="text-[11px] rounded px-1.5 py-0.5 bg-gray-100 text-[#4A5468]">paused</span>}
-                  </div>
-                  <a href={w.url} target="_blank" rel="noreferrer" className="text-[12px] text-[#8A92A6] hover:text-brand inline-flex items-center gap-1 break-all">{w.url} <IconExternalLink size={12} className="shrink-0" /></a>
-                  <div className="text-[12px] text-[#8A92A6] mt-1 flex items-center gap-3 flex-wrap">
-                    <span className="inline-flex items-center gap-1"><IconMail size={13} /> {w.emails.length ? `${w.emails.length} ${w.emails.length === 1 ? "person" : "people"}` : "no emails"}</span>
-                    <span className="inline-flex items-center gap-1"><IconBrandTelegram size={13} /> {w.telegram && w.telegram_chats.length ? `${w.telegram_chats.length} chat${w.telegram_chats.length === 1 ? "" : "s"}` : "off"}</span>
-                    <span>
-                      Last checked {w.last_checked_at ? `${ago(w.last_checked_at)} (${clock(w.last_checked_at)})` : "never"}
-                      {w.active && w.last_checked_at ? ` · next check by ${clock(new Date(Date.parse(w.last_checked_at) + 15 * 60_000).toISOString())}` : ""}
-                      {w.last_count != null ? ` · ${w.last_count} links on the page` : ""}
-                    </span>
-                  </div>
-                  {run[w.id] && (
-                    <div className={`text-[12px] mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 ${run[w.id].state === "checking" ? "bg-brand-light text-brand" : run[w.id].state === "error" ? "bg-[#FDECEC] text-[#C03221]" : "bg-[#EEF7F1] text-[#1E7B4C]"}`}>
-                      {run[w.id].state === "checking" ? <IconRefresh size={13} className="animate-spin" /> : run[w.id].state === "error" ? <IconAlertTriangle size={13} /> : <IconCheck size={13} />}
-                      {run[w.id].text}
-                    </div>
-                  )}
-                  {w.last_error && <div className="text-[12px] text-[#C03221] mt-1 inline-flex items-center gap-1"><IconAlertTriangle size={13} /> {w.last_error}</div>}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => checkNow(w)} disabled={run[w.id]?.state === "checking"} className="h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1 disabled:opacity-50"><IconRefresh size={14} className={run[w.id]?.state === "checking" ? "animate-spin" : ""} /> {run[w.id]?.state === "checking" ? "Checking…" : "Check now"}</button>
-                  <IconBtn title="Edit" onClick={() => setEditing(w)}><IconPencil size={15} /></IconBtn>
-                  <IconBtn title={w.active ? "Pause" : "Resume"} onClick={() => toggle(w)}>{w.active ? <IconPlayerPause size={15} /> : <IconPlayerPlay size={15} />}</IconBtn>
-                  <IconBtn title="Remove" danger onClick={() => remove(w)}><IconTrash size={15} /></IconBtn>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* The links on the left, the news beside them. News is what people come for
+          and it used to sit under the whole list of links — below the fold, which is
+          the same as not existing for anyone who doesn't scroll. The rail is also the
+          website filter, so it earns its width instead of only reporting status. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[20%_1fr] gap-4 items-start">
 
-      {/* News */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-light text-brand shrink-0"><IconNews size={18} /></span>
-          <div className="flex-1 min-w-[200px]">
-            <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">News</div>
-            <div className="text-[11.5px] text-[#8A92A6] mt-0.5">Newest first · UG / PG read from each notice&apos;s own title and link</div>
+        {/* ── Watched links ───────────────────────────────────────────────── */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-3 lg:sticky lg:top-4">
+          <div className="flex items-center gap-2 px-1.5 pt-1 pb-2.5">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-brand-light text-brand shrink-0"><IconEye size={15} /></span>
+            <div className="text-[13.5px] font-medium text-[#232D42] flex-1 leading-tight">Watched links</div>
+            {watchers.some((w) => w.active) && (
+              <button onClick={checkAll} disabled={anyChecking} title="Check every link now"
+                className="h-7 w-7 rounded-lg border border-gray-200 grid place-items-center text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
+                <IconRefresh size={14} className={anyChecking ? "animate-spin" : ""} />
+              </button>
+            )}
+            <button onClick={() => setEditing("new")} title="Add a link to watch"
+              className="h-7 w-7 rounded-lg bg-brand text-white grid place-items-center"><IconPlus size={15} /></button>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="w-[130px]"><PreviewSelect value={group} onChange={setGroup} options={[{ value: "all", label: "All groups" }, ...allGroups.map((g) => ({ value: g, label: `${g} news` })), { value: "Other", label: "Other" }]} /></div>
-            <div className="w-[190px]"><PreviewSelect value={site} onChange={setSite} options={[{ value: "all", label: "All websites" }, ...watchers.map((w) => ({ value: w.id, label: label(w) }))]} /></div>
-            <div className="w-[130px]"><PreviewSelect value={days} onChange={setDays} options={[{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "0", label: "All time" }]} /></div>
-            <label className="text-[12.5px] text-[#4A5468] inline-flex items-center gap-1.5 cursor-pointer select-none">
-              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="accent-[#3A57E8]" /> Include documents already there
-            </label>
-          </div>
+
+          {wLoading && !wd ? <LoadingBlock className="!py-6" size={22} /> : !watchers.length ? (
+            <div className="rounded-xl border border-dashed border-gray-200 px-3 py-6 text-center text-[12.5px] text-[#8A92A6]">No links yet. Add the first page to watch — for example the KEA UG NEET or MCC counselling page.</div>
+          ) : (
+            <div className="space-y-1">
+              {/* Clearing the filter is a row of its own so it reads as part of the list. */}
+              <button onClick={() => setSite("all")}
+                className={`w-full text-left rounded-xl px-2.5 py-2 text-[13px] transition flex items-center gap-2 ${
+                  site === "all" ? "bg-brand-light text-brand font-medium" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                <IconLayoutGrid size={15} /> All websites
+                {/* The list is already narrowed to the chosen site, so its length is not
+                    the total. Rather than show a wrong number, show none. */}
+                {site === "all" && <span className="ml-auto text-[11.5px] text-[#8A92A6] tabular-nums">{allItems.length}</span>}
+              </button>
+              {watchers.map((w) => (
+                <RailCard key={w.id} w={w} selected={site === w.id} run={run[w.id]}
+                  onSelect={() => setSite(w.id)} onCheck={() => checkNow(w)}
+                  onEdit={() => setEditing(w)} onToggle={() => toggle(w)} onRemove={() => remove(w)} />
+              ))}
+            </div>
+          )}
         </div>
-        {iLoading && !id ? <LoadingBlock className="!py-6" size={26} /> : !items.length ? (
-          <div className="rounded-xl border border-dashed border-gray-200 px-6 py-8 text-center text-[13px] text-[#8A92A6]">
-            {watchers.length ? "Nothing new in this period. New notices appear here within 15 minutes of being posted." : "Add a link above to start watching."}
+
+        {/* ── News ────────────────────────────────────────────────────────── */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 min-w-0">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-light text-brand shrink-0"><IconNews size={18} /></span>
+            <div className="flex-1 min-w-[180px]">
+              <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">News{site !== "all" && byId.get(site) ? ` · ${label(byId.get(site)!)}` : ""}</div>
+              <div className="text-[11.5px] text-[#8A92A6] mt-0.5">Newest first · UG / PG read from each notice&apos;s own title and link</div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="w-[130px]"><PreviewSelect value={days} onChange={setDays} options={[{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "0", label: "All time" }]} /></div>
+              <label className="text-[12.5px] text-[#4A5468] inline-flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="accent-[#3A57E8]" /> Include documents already there
+              </label>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-5">
-            {days_.map((sec) => (
-              <div key={sec.key}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  {/* Day headings as pills: today's in green so the fresh news stands out. */}
-                  <span className={`text-[12px] font-medium rounded-full px-2.5 py-0.5 ${sec.key === "new" ? "bg-[#EEF7F1] text-[#1E7B4C]" : "bg-gray-100 text-[#4A5468]"}`}>{sec.label}</span>
-                  <span className="text-[11.5px] text-[#8A92A6]">{sec.rows.length}</span>
-                  <span className="flex-1 h-px bg-gray-100" />
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {sec.rows.map((i) => {
-                    const w = byId.get(i.watcher_id);
-                    const g = i.grp || "Other";
-                    return (
-                      <div key={i.id} className="py-2.5">
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
-                          {isNew(i) && <span className="text-[10.5px] font-medium rounded-full px-2 py-0.5 bg-[#EEF7F1] text-[#1E7B4C] shrink-0">New</span>}
-                          {sec.key !== "undated" && (
-                            <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
-                              {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
-                              {i.posted_at && new Date(i.posted_at).getUTCHours() === 18 && new Date(i.posted_at).getUTCMinutes() === 30 ? "" : `, ${clock(new Date(stamp(i)).toISOString())}`}
-                            </span>
-                          )}
-                          <a href={i.item_url} target="_blank" rel="noreferrer" className={`text-[13.5px] hover:text-brand flex-1 min-w-0 truncate text-[#232D42] ${isNew(i) ? "font-medium" : ""}`}>{i.title || i.item_url}</a>
-                          {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
-                          {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
-                          <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>
-                          {/* A PDF opens in the browser's viewer (download from there); a web page opens as itself. */}
-                          {isPdf(i.item_url) ? (
-                            <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the PDF — view or download" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#C03221] hover:border-[#C03221] shrink-0">
-                              <IconFileTypePdf size={15} /> PDF
-                            </a>
-                          ) : (
-                            <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the page" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#4A5468] hover:border-brand hover:text-brand shrink-0">
-                              <IconWorld size={15} /> Page
-                            </a>
-                          )}
-                        </div>
-                        <Summary item={i} onDone={refreshItems} />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+
+          {/* UG / PG and whatever else the notices carry, as tabs rather than a
+              dropdown: the split is the first thing anyone wants, so it should be
+              one click and visible without opening anything. */}
+          <div className="flex items-center gap-1 flex-wrap border-b border-gray-100 pb-2.5 mb-3">
+            {tabs.map((t) => (
+              <button key={t.key} onClick={() => setGroup(t.key)}
+                className={`h-8 px-3 rounded-lg text-[13px] font-medium transition inline-flex items-center gap-1.5 ${
+                  group === t.key ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                {t.label}
+                <span className={`text-[11px] tabular-nums ${group === t.key ? "text-white/70" : "text-[#8A92A6]"}`}>{t.n}</span>
+              </button>
             ))}
           </div>
-        )}
+
+          {iLoading && !id ? <LoadingBlock className="!py-6" size={26} /> : !items.length ? (
+            <div className="rounded-xl border border-dashed border-gray-200 px-6 py-8 text-center text-[13px] text-[#8A92A6]">
+              {!watchers.length ? "Add a link on the left to start watching."
+                : group !== "all" ? `Nothing under ${group} in this period. Try All, or a longer period.`
+                : "Nothing new in this period. New notices appear here within 15 minutes of being posted."}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {days_.map((sec) => (
+                <div key={sec.key}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {/* Day headings as pills: today's in green so the fresh news stands out. */}
+                    <span className={`text-[12px] font-medium rounded-full px-2.5 py-0.5 ${sec.key === "new" ? "bg-[#EEF7F1] text-[#1E7B4C]" : "bg-gray-100 text-[#4A5468]"}`}>{sec.label}</span>
+                    <span className="text-[11.5px] text-[#8A92A6]">{sec.rows.length}</span>
+                    <span className="flex-1 h-px bg-gray-100" />
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {sec.rows.map((i) => {
+                      const w = byId.get(i.watcher_id);
+                      const g = i.grp || "Other";
+                      return (
+                        <div key={i.id} className="py-2.5">
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 w-[58px] text-center ${groupCls(g)}`}>{g}</span>
+                            {isNew(i) && <span className="text-[10.5px] font-medium rounded-full px-2 py-0.5 bg-[#EEF7F1] text-[#1E7B4C] shrink-0">New</span>}
+                            {sec.key !== "undated" && (
+                              <span className="text-[12px] text-[#4A5468] shrink-0 tabular-nums" title={i.posted_at ? "Date from the notice itself" : "When we found it"}>
+                                {new Date(stamp(i)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: sec.key === "older" ? "numeric" : undefined, timeZone: "Asia/Kolkata" })}
+                                {i.posted_at && new Date(i.posted_at).getUTCHours() === 18 && new Date(i.posted_at).getUTCMinutes() === 30 ? "" : `, ${clock(new Date(stamp(i)).toISOString())}`}
+                              </span>
+                            )}
+                            <a href={i.item_url} target="_blank" rel="noreferrer" className={`text-[13.5px] hover:text-brand flex-1 min-w-0 truncate text-[#232D42] ${isNew(i) ? "font-medium" : ""}`}>{i.title || i.item_url}</a>
+                            {i.emailed_at && <IconMail size={14} className="text-[#8A92A6] shrink-0" aria-label="Emailed" />}
+                            {i.telegram_at && <IconBrandTelegram size={14} className="text-[#8A92A6] shrink-0" aria-label="Sent on Telegram" />}
+                            {/* With one website selected the rail already says which; the column is dead weight. */}
+                            {site === "all" && <span className="text-[11.5px] text-[#8A92A6] shrink-0 w-[150px] truncate text-right">{w ? label(w) : ""}</span>}
+                            {/* A PDF opens in the browser's viewer (download from there); a web page opens as itself. */}
+                            {isPdf(i.item_url) ? (
+                              <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the PDF — view or download" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#C03221] hover:border-[#C03221] shrink-0">
+                                <IconFileTypePdf size={15} /> PDF
+                              </a>
+                            ) : (
+                              <a href={i.item_url} target="_blank" rel="noreferrer" title="Open the page" className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-gray-200 text-[11.5px] text-[#4A5468] hover:border-brand hover:text-brand shrink-0">
+                                <IconWorld size={15} /> Page
+                              </a>
+                            )}
+                          </div>
+                          <Summary item={i} onDone={refreshItems} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {editing && (
@@ -288,6 +305,82 @@ export function WatchersWorkspace() {
   );
 }
 
+// Which tab a notice belongs under. A notice marked for both sits in UG and in PG,
+// the same rule the API uses, so the tabs and the server agree.
+function inGroup(i: Item, g: string): boolean {
+  if (g === "all") return true;
+  const x = i.grp || "Other";
+  if (g === "UG" || g === "PG") return x === g || x === "UG & PG";
+  return x === g;
+}
+
+// One watched link in the rail. At 260px the four buttons of the old full-width row
+// do not fit, so Check now stays out — it is the one people press — and editing,
+// pausing and removing go behind the ⋯.
+function RailCard({ w, selected, run, onSelect, onCheck, onEdit, onToggle, onRemove }: {
+  w: Watcher; selected: boolean; run?: { state: "checking" | "done" | "error"; text: string };
+  onSelect: () => void; onCheck: () => void; onEdit: () => void; onToggle: () => void; onRemove: () => void;
+}) {
+  const [menu, setMenu] = useState(false);
+  // Green = read in the last 20 minutes. Amber = overdue, which is every link until
+  // this is deployed, because the 15-minute schedule is a Netlify cron.
+  const mins = w.last_checked_at ? (Date.now() - Date.parse(w.last_checked_at)) / 60_000 : Infinity;
+  const dot = !w.active ? { cls: "bg-gray-300", why: "Paused" }
+    : w.last_error ? { cls: "bg-[#C03221]", why: w.last_error }
+    : !w.last_checked_at ? { cls: "bg-gray-300", why: "Not checked yet" }
+    : mins <= 20 ? { cls: "bg-[#1E7B4C]", why: `Checked ${ago(w.last_checked_at)}` }
+    : { cls: "bg-amber-500", why: `Last checked ${ago(w.last_checked_at)} — overdue` };
+  const checking = run?.state === "checking";
+  return (
+    <div className={`rounded-xl border px-2.5 py-2 transition ${
+      selected ? "border-brand bg-brand-light/40" : "border-transparent hover:bg-[#F6F7FB]"} ${w.active ? "" : "opacity-60"}`}>
+      <div className="flex items-start gap-2">
+        <span className={`w-2 h-2 rounded-full shrink-0 mt-[7px] ${dot.cls}`} title={dot.why} />
+        <button onClick={onSelect} className="flex-1 min-w-0 text-left" title={w.url}>
+          <div className="text-[13px] font-medium text-[#232D42] truncate">{label(w)}</div>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {w.category && <span className={`text-[10.5px] rounded px-1.5 py-0.5 ${groupCls(w.category)}`}>{w.category}</span>}
+            {!w.active && <span className="text-[10.5px] rounded px-1.5 py-0.5 bg-gray-100 text-[#4A5468]">paused</span>}
+            <span className="text-[11px] text-[#8A92A6] tabular-nums">
+              {w.last_count != null ? `${w.last_count} links` : "not read yet"}
+              {w.last_checked_at ? ` · ${clock(w.last_checked_at)}` : ""}
+            </span>
+          </div>
+        </button>
+        <div className="relative shrink-0">
+          <button onClick={() => setMenu(!menu)} title="More" className="h-6 w-6 rounded-md grid place-items-center text-[#8A92A6] hover:text-[#232D42] hover:bg-white"><IconDots size={15} /></button>
+          {menu && (<>
+            <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
+            <div className="absolute right-0 top-7 z-20 w-[150px] bg-white border border-gray-100 rounded-xl py-1 shadow-sm">
+              <MenuItem onClick={() => { setMenu(false); window.open(w.url, "_blank", "noopener"); }} icon={<IconExternalLink size={14} />}>Open page</MenuItem>
+              <MenuItem onClick={() => { setMenu(false); onEdit(); }} icon={<IconPencil size={14} />}>Edit</MenuItem>
+              <MenuItem onClick={() => { setMenu(false); onToggle(); }} icon={w.active ? <IconPlayerPause size={14} /> : <IconPlayerPlay size={14} />}>{w.active ? "Pause" : "Resume"}</MenuItem>
+              <MenuItem danger onClick={() => { setMenu(false); onRemove(); }} icon={<IconTrash size={14} />}>Remove</MenuItem>
+            </div>
+          </>)}
+        </div>
+      </div>
+      <button onClick={onCheck} disabled={checking}
+        className="mt-1.5 ml-4 h-7 px-2.5 rounded-lg border border-gray-200 bg-white text-[12px] text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1 disabled:opacity-50">
+        <IconRefresh size={13} className={checking ? "animate-spin" : ""} /> {checking ? "Checking…" : "Check now"}
+      </button>
+      {run && (
+        <div className={`text-[11.5px] mt-1.5 ml-4 rounded-lg px-2 py-1 leading-snug ${
+          run.state === "checking" ? "bg-brand-light text-brand" : run.state === "error" ? "bg-[#FDECEC] text-[#C03221]" : "bg-[#EEF7F1] text-[#1E7B4C]"}`}>
+          {run.text}
+        </div>
+      )}
+      {w.last_error && <div className="text-[11.5px] text-[#C03221] mt-1 ml-4 leading-snug">{w.last_error}</div>}
+    </div>
+  );
+}
+
+function MenuItem({ onClick, icon, danger, children }: { onClick: () => void; icon: React.ReactNode; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} className={`w-full text-left px-3 py-1.5 text-[12.5px] inline-flex items-center gap-2 hover:bg-[#F6F7FB] ${
+      danger ? "text-[#C03221]" : "text-[#4A5468]"}`}>{icon}{children}</button>
+  );
+}
 // The notice's one-line summary under its title. New notices get one automatically
 // when a check finds them; older ones can be summarised on request.
 function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
