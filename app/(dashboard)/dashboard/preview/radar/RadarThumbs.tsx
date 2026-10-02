@@ -10,7 +10,9 @@ import { IconThumbUp, IconThumbDown } from "@tabler/icons-react";
 // and the list only ever grew. "Not useful" is a real answer and it takes one tap.
 // The answers are what the nightly report is made of; see sql/022_radar_report.sql.
 
-export type RadarItemKind = "news" | "mention" | "search" | "review";
+// Shared with the Watchers tab, which answers its notices the same way — see
+// lib/radar-actions.ts.
+export type RadarItemKind = "news" | "mention" | "search" | "review" | "notice";
 export type RadarAction = "written" | "useful" | "not_useful";
 
 type ActionsMap = Record<string, { action: RadarAction; reason?: string | null }>;

@@ -8,7 +8,10 @@ import { getSupabase } from "@/lib/supabase";
 // "not useful" is a real answer and takes one tap, where writing the post is the only
 // other way to clear something — and if that is the only way, people ignore the tab.
 
-export type RadarItemKind = "news" | "mention" | "search" | "review";
+// "notice" is a counselling notice found by a Watcher. It lives here, not in a
+// table of its own, because the question asked of it is identical and a second
+// copy of this would drift from the first.
+export type RadarItemKind = "news" | "mention" | "search" | "review" | "notice";
 export type RadarAction = "written" | "useful" | "not_useful";
 
 /** A stable identity for the thing that was shown, whatever kind it is. Most of these

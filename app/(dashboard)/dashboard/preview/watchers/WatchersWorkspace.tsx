@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus, IconRefresh, IconPencil, IconTrash, IconPlayerPause, IconPlayerPlay, IconExternalLink,
   IconMail, IconBrandTelegram, IconEye, IconNews, IconX, IconCheck, IconAlertTriangle, IconFileTypePdf, IconWorld, IconSparkles,
-  IconDots, IconLayoutGrid, IconBrandGoogle, IconChevronDown,
+  IconDots, IconLayoutGrid, IconBrandGoogle, IconChevronDown, IconClipboardText,
 } from "@tabler/icons-react";
 import { useApi } from "@/lib/use-api";
 import type { Sent } from "@/lib/watchers";
@@ -11,6 +11,11 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
+import Link from "next/link";
+// A notice is answered exactly the way a Content Radar headline is, so it uses the
+// same thumbs, the same table and the same report vocabulary rather than a second
+// set that would drift.
+import { useRadarActions, Thumbs } from "@/app/(dashboard)/dashboard/preview/radar/RadarThumbs";
 
 type Watcher = {
   id: string; name: string | null; url: string; category: string | null; auto_category: boolean;
@@ -126,6 +131,19 @@ export function WatchersWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Written / useful / not useful, per notice. Shared with Content Radar.
+  const acts = useRadarActions();
+  // Only admins are shown the way into the report — it names who answered what, and
+  // the endpoint refuses everyone else, so a link for them would only be a dead end.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setIsAdmin(!!d?.user?.isAdmin); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [editing, setEditing] = useState<Watcher | "new" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // Live state of a check, per link: "checking" while it runs, then what it found.
@@ -280,6 +298,12 @@ export function WatchersWorkspace() {
           </button>
         )}
         <span className="text-[#8A92A6]">Every link is checked every 15 minutes.</span>
+        {isAdmin && (
+          <Link href="/dashboard/preview/watchers/report"
+            className="ml-auto h-7 px-2.5 rounded-full border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand inline-flex items-center gap-1.5">
+            <IconClipboardText size={14} stroke={1.8} /> Report
+          </Link>
+        )}
       </div>
       {note && (
         <div className="flex items-start gap-2 bg-brand-light text-[#232D42] rounded-xl px-4 py-3 text-[13px]">
@@ -407,6 +431,14 @@ export function WatchersWorkspace() {
                                 <IconWorld size={15} /> Page
                               </a>
                             )}
+                            {/* Write it, or say in one tap that you looked and it is not
+                                worth writing. Either way the report has an answer; the
+                                row nobody touches is the one worth asking about. */}
+                            <Link href={studioHref(i, w ? label(w) : "")}
+                              className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-brand text-white text-[11.5px] font-medium hover:bg-brand-dark shrink-0 whitespace-nowrap">
+                              <IconPencil size={13} stroke={1.8} /> Write this
+                            </Link>
+                            <Thumbs state={acts} kind="notice" rawKey={i.item_url} />
                           </div>
                           <Summary item={i} onDone={refreshItems} />
                         </div>
@@ -439,6 +471,17 @@ export function WatchersWorkspace() {
       )}
     </div>
   );
+}
+
+// A notice handed to Content Studio with what it already knows, the way a Radar
+// headline is. The group rides along as the SBU so the draft starts in the right
+// business, rather than the writer picking it again from the title they just read.
+function studioHref(i: Item, site: string): string {
+  const q = new URLSearchParams({ title: i.title || i.item_url });
+  q.set("url", i.item_url);
+  if (site) q.set("source", site);
+  if (i.grp === "UG" || i.grp === "PG") q.set("sbu", i.grp);
+  return `/dashboard/preview/content-studio?${q.toString()}`;
 }
 
 // Which tab a notice belongs under. A notice marked for both sits in UG and in PG,
