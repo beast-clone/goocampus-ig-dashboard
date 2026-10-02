@@ -9,6 +9,40 @@ and retrying three times — about 7 hours of wasted compute a day.
 them did the same thing: call a Next.js API route with a shared secret. All the
 real work still lives in `app/api/cron/*/route.ts` and `lib/`.
 
+## Rebuilt in n8n — created 2 October 2026, all INACTIVE
+
+Six replacements exist in n8n (`n8n.srv1046538.hstgr.cloud`), each a Schedule
+trigger into an HTTP Request carrying `x-cron-secret`. **None of them is switched
+on.** Activating is a deliberate step — they start hitting production the moment
+they are enabled.
+
+| Workflow | ID | Schedule |
+| --- | --- | --- |
+| GC Dashboard — Watchers | `u0Wh2FCfuUPlc0BI` | every 15 min |
+| GC Dashboard — Import Airtable | `jSJDzpkK5trV0J1B` | hourly |
+| GC Dashboard — Radar Refresh | `pgwHISeTcdEltX6S` | hourly |
+| GC Dashboard — Snapshot Stories | `VBPWyH2nhHzYgtZO` | hourly |
+| GC Dashboard — Link Published | `pGJ8C8vTl6CJmk2R` | daily 02:00 |
+| GC Dashboard — Radar Rolloff | `m7outQ1x5BjPAedf` | daily 23:59 |
+
+`competitor-watch` was deliberately **not** rebuilt — see the warning further down.
+
+### Before switching the two daily ones on, check the timezone
+
+Netlify ran cron in UTC. n8n uses its own instance timezone, which is not set per
+workflow here, so the two daily jobs were entered as **IST wall-clock** times
+(02:00 and 23:59) on the assumption the n8n instance runs Asia/Kolkata. If it
+does not, those two will fire at the wrong hour — the four hourly/15-minute ones
+are unaffected either way. Confirm the instance timezone, or set it explicitly on
+those two workflows, before relying on them.
+
+### The secret
+
+The workflows carry the same `x-cron-secret` value as the existing, working
+"GC Dashboard — Daily Metrics Snapshot" workflow. That value was checked against
+`CRON_SECRET` in `.env.local` and matches. If the secret is ever rotated, all of
+these need updating too.
+
 ## The schedules that were removed
 
 Recreate these in whatever scheduler you use. Each is a plain HTTP `GET`.
