@@ -148,6 +148,18 @@ export function WatchersWorkspace() {
   const [testing, setTesting] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [tgOpen, setTgOpen] = useState(false);
+  const [tgTesting, setTgTesting] = useState(false);
+  // Goes to everyone who pressed Start — that is what is being tested, since a bot
+  // cannot message anyone who has not.
+  const testTelegram = async () => {
+    setTgTesting(true);
+    try {
+      const r = await api("POST", "/api/watchers/telegram/test") as { ok: boolean; reason?: string; sent?: string[]; failed?: { name: string; why: string }[] };
+      if (!r.ok) setNote(r.reason || (r.failed?.length ? `Couldn’t reach ${r.failed.map((f) => f.name).join(", ")}.` : "Nothing was sent."));
+      else setNote(`Telegram test sent to ${(r.sent || []).join(", ")}.`
+        + (r.failed?.length ? ` Couldn’t reach ${r.failed.map((f) => f.name).join(", ")}.` : ""));
+    } catch (e) { setNote(`Couldn’t send: ${(e as Error).message}`); } finally { setTgTesting(false); }
+  };
   const disconnectTelegram = async () => {
     const ok = await confirmDialog({
       title: "Stop sending on Telegram?",
@@ -254,10 +266,14 @@ export function WatchersWorkspace() {
           why={rec?.telegram
             ? "Notices go out through this bot. Each person presses Start on it to appear in the list."
             : "Paste the bot token from @BotFather to switch Telegram on"} />
-        {rec?.telegram ? (
+        {rec?.telegram ? (<>
+          <button onClick={testTelegram} disabled={tgTesting}
+            className="h-7 px-2.5 rounded-full border border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand disabled:opacity-50">
+            {tgTesting ? "Sending…" : "Send a test"}
+          </button>
           <button onClick={disconnectTelegram}
             className="h-7 px-2.5 rounded-full border border-gray-200 text-[#8A92A6] hover:border-[#C03221] hover:text-[#C03221]">Disconnect</button>
-        ) : (
+        </>) : (
           <button onClick={() => setTgOpen(true)}
             className="h-7 px-2.5 rounded-full bg-[#229ED9] text-white inline-flex items-center gap-1.5 hover:bg-[#1C87B8]">
             <IconBrandTelegram size={13} /> Connect Telegram
