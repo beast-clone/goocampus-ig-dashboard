@@ -565,7 +565,12 @@ function MenuItem({ onClick, icon, danger, children }: { onClick: () => void; ic
 function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const indent = "pl-[70px]";
+  // Indented to the title, and stopped well short of the right-hand column. Run
+  // full width it stretched edge to edge under the buttons on a wide screen, which
+  // reads as a stray paragraph rather than a note belonging to the row above it.
+  // A measure around 70 characters is what the eye tracks without losing the line;
+  // two or three short lines here is the shape wanted, not one very long one.
+  const indent = "pl-[70px] max-w-[72ch]";
   if (item.summary) {
     return (
       <div className={`${indent} mt-1 text-[12.5px] text-[#4A5468] leading-snug flex items-start gap-1.5`}>
