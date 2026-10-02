@@ -198,13 +198,74 @@ tie the PDF to it. **That is the argument against auto-publishing without a huma
 
 ---
 
+## 7. WhatsApp — a template check before you submit to Meta
+
+Template approval was costing days. A Utility template that reads as promotional is not
+rejected with a reason — Meta silently moves it to Marketing, so it comes back looking like
+a refusal for no cause.
+
+**Community Broadcast → Template check.** Paste a draft, pick what you intend to submit it
+as, and it says what will go wrong before you send it.
+
+- **Rules run first and always, offline.** A variable opening or closing the body, two
+  variables touching, numbering out of order, a name with capitals, bodies over 1024. These
+  are facts, not judgements, and leaving facts to a model to notice is how they get missed.
+- **A percentage**, derived from what was found rather than invented. Any blocker caps it at
+  15; a category mismatch is 45; clean is 90. Never 0 or 100 — we do not get a vote.
+- **Check and rewrite** adds a second opinion and a corrected version. **Use this** puts it in
+  the box, keeps the original, and shows both under *what changed*.
+- **Saved templates** (sql/035, run) keep the wording that finally worked. Saving by name
+  replaces rather than duplicating, the way Meta treats a name as the identity.
+
+### Three things that nearly shipped broken
+
+**The rewrite reintroduced a blocker.** Asked to fix a draft, it handed back one ending in
+`{{2}}` — fixing the wording and breaking the structure the rules had just flagged. The
+rewrite is now checked by the same rules and the page says so when it still fails.
+
+**The rewrite ignored the category.** Asked to fix a Utility template it returned more
+Marketing copy with the sharp words filed off, which fails the same way for the same reason.
+It now either makes it genuinely Utility or says plainly that it cannot.
+
+**Every GooCampus message scored 45%.** Maheen pasted two real templates — a slot
+confirmation and an event invitation — and both came back identical. The cause was one word
+in my own list: *counselling session* was treated as promotional. That is what the business
+sells; it is in every message it sends, confirmations included. It also outvoted *is
+confirmed* and *your slot*.
+
+Rewritten around promotional **pressure** — being asked to do something, told to hurry, or
+sold to — rather than subject matter. *Webinar*, *masterclass* and *demo class* came out for
+the same reason. The confirmation now reads **90% / Utility**, the invitation **45% /
+Marketing**. Two templates, two answers.
+
+> **What it is not.** It is not Meta's verdict — no API previews one — and it is not a
+> template manager. Submitting still happens in WhatsApp Manager, linked at the end.
+
+---
+
+## 8. Tab intros
+
+The banner at the top of each tab had nothing for **Watchers** or **Community Broadcast**,
+and the **Competitors** one still described a table of numbers — it predates the profiles,
+YouTube, what-the-web-says and Compare. All three written.
+
+---
 ## ⚠️ Still open
 
 1. **Not deployed.** Nothing checks itself. Keep n8n running.
 2. **Only one person on Telegram.** Everyone else must press Start, or use a group.
 3. **`radar_actions` was empty** — see §5.
 4. **External app, 100-user cap**, unverified-app screen on consent — see §2.
-5. **Auto-post from a notice** — asked for, spec to be written.
+5. **Auto-post from a notice** — specced at `docs/AUTO_DRAFT_SPEC.md`, **not built**, and
+   blocked on Placid templates a person has to design.
+6. **WAHA is unofficial.** Community Broadcast sends through WAHA, not Meta — which is the
+   only way to reach groups, channels and Status at all, since the official API cannot do
+   any of them. The number can be banned without appeal. Broadcasting runs on
+   **goocampus edu / +91 74838 00702**; if that is also the number students message, move
+   broadcasting to a separate one.
+7. **The Meta token cannot read templates** — it holds `business_management` but not
+   `whatsapp_business_management`. A System User token with that scope would let the
+   dashboard list and submit templates directly. No App Review needed for your own WABA.
 
 ---
 
@@ -221,6 +282,11 @@ tie the PDF to it. **That is the argument against auto-publishing without a huma
 | `app/api/watchers/report` | the report data |
 | `.../preview/watchers/report/page.tsx` | the report |
 | `sql/034_radar_notice_kind.sql` | **run** |
+| `lib/wa-template-check.ts` | the WhatsApp template rules |
+| `app/api/broadcast/template-check` | rules + the optional AI pass |
+| `app/api/broadcast/templates` | saved templates |
+| `.../broadcast/template-check/page.tsx` | the checker |
+| `sql/035_wa_templates.sql` | **run** |
 
 | Changed | |
 |---|---|
@@ -230,3 +296,4 @@ tie the PDF to it. **That is the argument against auto-publishing without a huma
 | `lib/watchers.ts` | `announce()` reports what it sent |
 | `lib/integration-tokens.ts` | `telegram` provider |
 | `lib/radar-actions.ts`, `RadarThumbs.tsx`, `api/radar/action` | the `notice` kind |
+| `lib/onboarding.ts` | tab intros for Watchers and Broadcast; Competitors rewritten |

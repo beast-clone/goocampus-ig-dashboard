@@ -55,6 +55,26 @@ never worked in production either.
 - **A real SBU reaches Content Studio** (`ac7a5e5`) — the group went through raw as `?sbu=UG`, which is
   not a brand, and is how a second "NEET PG" got into every picker once before.
 
+### WhatsApp template check
+
+Template approval was costing days, because a Utility template that reads as promotional is not
+rejected with a reason — Meta silently moves it to Marketing. **Community Broadcast → Template
+check** says what will go wrong before you submit: the structural rules that are flat rejections,
+a percentage derived from what was actually found, a rewrite you can take with one click, and
+saved templates (`sql/035`, run) so the wording that finally worked is kept.
+
+Three things it got wrong first, all found by testing rather than reasoning. The rewrite handed
+back a draft ending in `{{2}}`, breaking a rule the checker had just flagged — it is now checked
+by the same rules. Asked to fix a Utility template it returned more Marketing copy with the sharp
+words removed — it now says plainly when a message cannot be Utility. And **every GooCampus
+message scored 45%**, because *counselling session* was in my own list of promotional words. That
+is what the business sells. Rewritten around promotional pressure — being asked to do something,
+told to hurry, sold to — rather than subject matter; a real slot confirmation now reads 90% and
+Utility, a real event invitation 45% and Marketing.
+
+Tab intros written for **Watchers** and **Community Broadcast**, which had none, and **Competitors**
+rewritten — it still described a table of numbers.
+
 ### Noted
 
 `radar_actions` was **completely empty** before this, so the Content Radar report has been reporting on

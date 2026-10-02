@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   IconArrowLeft, IconAlertTriangle, IconAlertCircle, IconInfoCircle, IconSparkles,
   IconCheck, IconCopy, IconExternalLink,
+  IconDeviceFloppy, IconTrash, IconFileText,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 // Our estimate, derived from what the rules actually found. Red below a third,
 // amber to two thirds, green above. Never 0 or 100 — we do not get a vote.
@@ -42,6 +44,10 @@ function Meter({ score, why }: { score: number; why: string }) {
 
 type Finding = { severity: "blocker" | "risk" | "note"; what: string; why: string };
 type Ai = { category?: string; verdict?: string; problems?: string[]; rewrite?: string };
+type Saved = {
+  id: string; name: string; category: string; header: string | null; body: string;
+  footer: string | null; score: number | null; likely: string | null; updated_at: string;
+};
 type Result = {
   findings: Finding[]; likely: string; categoryWhy: string[];
   marketingHits: string[]; utilityHits: string[]; vars: number[];
@@ -77,6 +83,50 @@ function Checker() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [before, setBefore] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Saved[] | null>(null);
+  const [savedOff, setSavedOff] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const loadSaved = useCallback(async () => {
+    try {
+      const r = await fetch("/api/broadcast/templates", { cache: "no-store", credentials: "same-origin" });
+      const d = await r.json();
+      if (d.available === false) { setSavedOff(d.reason); setSaved([]); return; }
+      setSavedOff(null); setSaved(d.items || []);
+    } catch { /* the page still works without the library */ }
+  }, []);
+  useEffect(() => { loadSaved(); }, [loadSaved]);
+
+  // Saving is by name, so re-saving the same name replaces it rather than leaving
+  // two versions of one template to choose between.
+  const save = async () => {
+    setSaving(true); setErr(null);
+    try {
+      const r = await fetch("/api/broadcast/templates", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ name, category, header, body, footer, score: res?.score, likely: res?.likely }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || d.reason || `HTTP ${r.status}`);
+      loadSaved();
+    } catch (e) { setErr((e as Error).message); } finally { setSaving(false); }
+  };
+
+  const open = (t: Saved) => {
+    setName(t.name); setCategory(t.category); setHeader(t.header || "");
+    setBody(t.body); setFooter(t.footer || "");
+    setBefore(null); setRes(null);
+  };
+
+  const remove = async (t: Saved) => {
+    const ok = await confirmDialog({
+      title: `Remove ${t.name}?`,
+      body: "It goes from this list only. A template already submitted to Meta stays submitted.",
+      action: "Remove", danger: true,
+    });
+    if (!ok) return;
+    await fetch(`/api/broadcast/templates?id=${t.id}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
+    loadSaved();
+  };
 
   // bodyOverride lets a freshly accepted rewrite be scored before React has
   // committed it to state — otherwise the meter keeps reporting the old draft.
@@ -150,6 +200,14 @@ function Checker() {
             <button onClick={() => run(true)} disabled={busy || !body.trim()}
               className="h-9 px-4 rounded-lg border border-gray-200 text-[13px] text-[#4A5468] hover:border-brand hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-50">
               <IconSparkles size={14} /> Check and rewrite
+            </button>
+            {/* Getting a template through Meta takes effort, and the wording that
+                finally works is worth keeping. Needs a name — that is how it is found
+                again, and how re-saving replaces rather than duplicates. */}
+            <button onClick={save} disabled={saving || !body.trim() || !name.trim()}
+              title={!name.trim() ? "Give it a template name first" : "Keep this for next time"}
+              className="ml-auto h-9 px-3 rounded-lg border border-gray-200 text-[13px] text-[#4A5468] hover:border-brand hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-50">
+              <IconDeviceFloppy size={14} /> {saving ? "Saving…" : "Save"}
             </button>
           </div>
           {err && <div className="text-[12.5px] text-[#C03221] mt-2">{err}</div>}
@@ -269,6 +327,36 @@ function Checker() {
           </a>
         </div>
       ) : null}
+
+      {(saved?.length || savedOff) && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 mt-4">
+          <div className="flex items-baseline gap-2 mb-3 flex-wrap">
+            <span className="text-[15px] font-medium text-[#232D42]">Saved templates</span>
+            <span className="text-[12px] text-[#8A92A6]">the wording that already worked — click one to load it</span>
+          </div>
+          {savedOff && <div className="text-[12.5px] text-[#8A92A6]">{savedOff}</div>}
+          <div className="divide-y divide-gray-100">
+            {(saved || []).map((t) => (
+              <div key={t.id} className="py-2.5 flex items-center gap-3">
+                <IconFileText size={15} className="text-[#8A92A6] shrink-0" />
+                <button onClick={() => open(t)} className="flex-1 min-w-0 text-left">
+                  <div className="text-[13.5px] text-[#232D42] font-mono truncate">{t.name}</div>
+                  <div className="text-[12px] text-[#8A92A6] truncate">{t.body}</div>
+                </button>
+                <span className={`text-[11px] rounded px-1.5 py-0.5 shrink-0 ${
+                  t.category === "UTILITY" ? "bg-brand-light text-brand" : "bg-gray-100 text-[#4A5468]"}`}>
+                  {t.category.toLowerCase()}
+                </span>
+                {t.score != null && (
+                  <span className={`text-[11.5px] tabular-nums shrink-0 w-[38px] text-right ${
+                    t.score < 35 ? "text-[#C03221]" : t.score < 70 ? "text-[#8A5A00]" : "text-[#0F6E3C]"}`}>{t.score}%</span>
+                )}
+                <button onClick={() => remove(t)} title="Remove" className="shrink-0 text-gray-300 hover:text-[#C03221]"><IconTrash size={15} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

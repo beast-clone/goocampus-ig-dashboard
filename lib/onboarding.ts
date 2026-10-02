@@ -126,7 +126,33 @@ export const TAB_INTRO: Record<string, Intro> = {
     ],
   },
   competitors: { title: "What your competitors are running", body: "Ads your competitors have live right now, pulled from the public Meta ad library." },
-  benchmark: { title: "You versus them", body: "Your numbers next to competitors', so growth has something to be measured against." },
+  benchmark: {
+    title: "You versus them",
+    body: "Every competitor you track, in full — Instagram and YouTube side by side, what people say about them on Reddit, Quora and Google, and where you stand against them.",
+    points: [
+      "The tabs along the top open one brand on its own. Compare puts everyone, including you, in one table.",
+      "Get the read asks what to actually do about a competitor — it is a paid call, so it only runs when you press it.",
+      "Add a handle with + Track; add their YouTube channel at the same time and both appear on their profile.",
+    ],
+  },
+  watchers: {
+    title: "Government notices, the moment they appear",
+    body: "Watches the KEA and MCC counselling pages and tells you when something new is posted — here, by email, and on Telegram. Each notice arrives with a one-line summary of what it says.",
+    points: [
+      "Pick a website on the left to see only its notices; UG and PG are the tabs above the list.",
+      "Write this turns a notice into a fact-checked draft in Content Studio.",
+      "The thumbs record what was decided, and the Report says which notices nobody answered.",
+    ],
+  },
+  broadcast: {
+    title: "WhatsApp, scheduled",
+    body: "Messages, polls and status posts to your groups, channels and contacts, sent at a time you choose. Nothing goes out through Meta here, so no template approval is involved.",
+    points: [
+      "Connected numbers, top left, is the WhatsApp account each message is sent from.",
+      "Template check is for the official Meta API only — paste a draft and it says what would get it rejected.",
+      "A failed message says why in the row itself; most are an unlinked number rather than a bad recipient.",
+    ],
+  },
   leads: { title: "Leads from social", body: "People who came in through Instagram, Facebook or your ads, and what happened to them since." },
   inbox: { title: "Messages in one place", body: "Instagram and Facebook DMs and comments, so nothing sits unanswered." },
   sales: { title: "The sales pipeline", body: "Every lead, who owns it, and how long it has been waiting. Red timers are leads nobody has contacted yet." },
