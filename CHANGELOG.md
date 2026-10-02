@@ -3,6 +3,64 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-02 — Watchers: two columns, email and Telegram actually sending, and the Radar loop
+
+Branch `feat/dashboard-reskin`, 11 commits, `494686c`..`ac7a5e5`. **Not deployed** — nothing checks
+itself yet, so keep the n8n KEA watcher running. Full write-up: `docs/CHANGELOG_2026-10-02.md`.
+
+### The tab
+
+- **Two columns** (`494686c`): links in a 20% rail, news in the rest, both visible without scrolling.
+  News used to sit under the whole list of links, below the fold. The rail doubles as the website
+  filter, which retired the "All websites" dropdown. **UG / PG became tabs** with counts; Edit, Pause
+  and Remove moved behind a ⋯ because four buttons do not fit at 260px.
+- **The summary stopped running the width of the tab** (`a8ac370`) — capped at a 72-character measure.
+
+### Email
+
+**There was no mail sender anywhere** — not local, not in the 49 variables on Netlify. SendPulse is
+connected but it is their chatbot product (`/smtp/senders` → 403, balance $0), and the Google that was
+"already linked" is sign-in, which carries no permission to send. OTP login and the comment digest had
+never worked in production either.
+
+- **Send through the Google account we already sign in with** (`a3d94dc`): the `gmail.send` scope on
+  the existing OAuth client, refresh token in `mh_integration_tokens`, access tokens minted hourly and
+  never stored. `sendMail()` stays the only door — it prefers the connected account and falls back to
+  an app password, so every caller benefits with no change. In Cloud Console: two redirect URIs, the
+  scope, and **the Gmail API enabled** — it wasn't, which is what "Gmail refused the message" meant.
+- **A sender dropdown** (`eab13bd`): every account that has agreed is kept, so switching copies a grant
+  already held — no trip to Google, nothing to allow twice. Now sending as `info@goocampus.in`.
+- **Errors keep their cause** (`5e80d2a`): Google's message runs past 200 characters, and `safeError`
+  replaced the whole thing with a fallback, so the diagnosis lived only in the server log.
+
+### Telegram
+
+- **Connect by pasting the bot token** (`917f6ec`), kept in Supabase rather than an env var so changing
+  bots needs no redeploy, and checked against `getMe` before it is stored.
+- **Its own bot** (`ebbc310`), `@marketingos_abot`. Telegram delivers each update to one reader only, so
+  sharing a bot with n8n would have had the two stealing messages from each other — and a bot with a
+  webhook cannot be polled at all.
+- **A test that proves it** (`988b8d5`), naming who it reached and who it could not.
+
+### Honesty and the report
+
+- **Say what was actually sent** (`3b90aa6`). The green line claimed "sent to the people on this link"
+  whether or not anything had been — and with nothing configured, nothing had.
+- **Write this, thumbs and a report** (`c6c5f4e`), the Content Radar loop on Watchers. A notice became a
+  fifth kind of radar item rather than a parallel system, so it reuses `radar_actions`, the `Thumbs`
+  component and the same vocabulary. The report adds two things Radar's cannot: **how late we were**
+  (reading "found 35h later" on the KEA notices) and **whether it reached anybody**.
+- **`sql/034` run** on 2 Oct. `radar_actions.item_kind` is a CHECK constraint, widened once before for
+  reviews; `notice` violated it and every thumb failed **silently** for twenty seconds before reverting.
+- **A real SBU reaches Content Studio** (`ac7a5e5`) — the group went through raw as `?sbu=UG`, which is
+  not a brand, and is how a second "NEET PG" got into every picker once before.
+
+### Noted
+
+`radar_actions` was **completely empty** before this, so the Content Radar report has been reporting on
+nothing. Most likely nobody has used the thumbs, but worth an hour.
+
+---
 ## 2026-09-28 — Competitor profiles + AI read, Briefing stops duplicating Content Radar
 
 Branch `feat/dashboard-reskin`, 16 commits, `6edf8f5`..`31b27ba`. **Not deployed** — all of it
