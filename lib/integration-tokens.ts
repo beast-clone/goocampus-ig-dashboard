@@ -18,6 +18,8 @@ const ENV_KEY: Record<string, string> = {
   // YouTube rotates via its OAuth *refresh* token (access tokens are minted hourly
   // from it). Reconnect pastes a new refresh token; this is the single-channel fallback.
   youtube: "YOUTUBE_REFRESH_TOKEN",
+  // The Watchers bot. Pasted on the tab; env is the seed for a fresh install.
+  telegram: "TELEGRAM_BOT_TOKEN",
 };
 
 type Cached = { token: string | null; at: number };

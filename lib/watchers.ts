@@ -193,10 +193,11 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<Sent> 
   })));
   if (notifs.length) await sb.from("mh_notifications").upsert(notifs, { onConflict: "recipient_key,source_id", ignoreDuplicates: true });
   const canEmail = await hasEmail();
+  const canTelegram = await hasTelegram();
   const sent: Sent = {
     dashboard: people.length, email: 0, telegram: 0,
     emailOff: w.emails.length > 0 && !canEmail,
-    telegramOff: w.telegram && w.telegram_chats.length > 0 && !hasTelegram(),
+    telegramOff: w.telegram && w.telegram_chats.length > 0 && !canTelegram,
   };
 
   // 2. Email — one message per check listing everything new, grouped.
@@ -209,7 +210,7 @@ async function announce(w: Watcher, fresh: CheckResult["fresh"]): Promise<Sent> 
   }
 
   // 3. Telegram — short, one line per notice.
-  if (w.telegram && w.telegram_chats.length && hasTelegram()) {
+  if (w.telegram && w.telegram_chats.length && canTelegram) {
     const msg = `<b>${esc(heading)}</b>\n\n` + fresh.map((f) => `• <b>[${esc(f.grp)}]</b> <a href="${esc(f.url)}">${esc(f.title.slice(0, 200))}</a>${f.summary ? `\n   ${esc(f.summary)}` : ""}`).join("\n\n") + `\n\nSource: ${esc(w.url)}`;
     let ok = false;
     for (const chat of w.telegram_chats) { try { await sendTelegram(chat, msg); ok = true; } catch { /* one bad chat must not stop the others */ } }

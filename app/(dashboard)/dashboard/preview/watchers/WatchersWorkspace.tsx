@@ -147,6 +147,18 @@ export function WatchersWorkspace() {
   // app password right without bothering the rest of the team.
   const [testing, setTesting] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [tgOpen, setTgOpen] = useState(false);
+  const disconnectTelegram = async () => {
+    const ok = await confirmDialog({
+      title: "Stop sending on Telegram?",
+      body: "Notices stop going to Telegram until a bot is connected again. The people who pressed Start are remembered, so reconnecting the same bot does not mean asking them all again.",
+      action: "Disconnect", danger: true,
+    });
+    if (!ok) return;
+    await api("DELETE", "/api/watchers/telegram").catch((e) => setNote(e.message));
+    setNote("Telegram disconnected.");
+    refreshRec();
+  };
   const switchSender = async (email: string) => {
     setSwitching(true);
     try {
@@ -239,7 +251,18 @@ export function WatchersWorkspace() {
           </a>
         )}
         <StatusPill ok={!!rec?.telegram} icon={<IconBrandTelegram size={14} />} on={rec?.bot ? `Telegram on · @${rec.bot}` : "Telegram on"} off="Telegram not connected yet"
-          why={rec?.telegram ? "Notices go out through the bot" : "Create a bot with @BotFather and set TELEGRAM_BOT_TOKEN, then restart"} />
+          why={rec?.telegram
+            ? "Notices go out through this bot. Each person presses Start on it to appear in the list."
+            : "Paste the bot token from @BotFather to switch Telegram on"} />
+        {rec?.telegram ? (
+          <button onClick={disconnectTelegram}
+            className="h-7 px-2.5 rounded-full border border-gray-200 text-[#8A92A6] hover:border-[#C03221] hover:text-[#C03221]">Disconnect</button>
+        ) : (
+          <button onClick={() => setTgOpen(true)}
+            className="h-7 px-2.5 rounded-full bg-[#229ED9] text-white inline-flex items-center gap-1.5 hover:bg-[#1C87B8]">
+            <IconBrandTelegram size={13} /> Connect Telegram
+          </button>
+        )}
         <span className="text-[#8A92A6]">Every link is checked every 15 minutes.</span>
       </div>
       {note && (
@@ -381,6 +404,13 @@ export function WatchersWorkspace() {
         </div>
       </div>
 
+      {tgOpen && (
+        <TelegramModal
+          onClose={() => setTgOpen(false)}
+          onSaved={(bot) => { setTgOpen(false); setNote(`Telegram connected as @${bot}. Anyone who should get notices opens @${bot} and presses Start.`); refreshRec(); }}
+        />
+      )}
+
       {editing && (
         <WatcherModal
           watcher={editing === "new" ? null : editing}
@@ -497,6 +527,60 @@ function Summary({ item, onDone }: { item: Item; onDone: () => void }) {
       </button>
       {err && <span className="text-[12px] text-[#C03221] ml-2">{err}</span>}
     </div>
+  );
+}
+
+// Connecting the bot. The token is pasted rather than put in an env var, so the bot
+// can be changed on a running site — and it is checked against Telegram before it is
+// stored, so a bad paste is caught here instead of at the next notice.
+function TelegramModal({ onClose, onSaved }: { onClose: () => void; onSaved: (bot: string) => void }) {
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await api("POST", "/api/watchers/telegram", { token }) as { bot: string };
+      onSaved(r.bot);
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Overlay onClose={onClose}>
+      {/* className on Overlay REPLACES its layout, and the portal lands outside
+          .preview-scope — so width goes inline and the scope comes with the panel,
+          the same way WatcherModal does it. */}
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}
+        className="preview-scope bg-white rounded-2xl w-full my-10 border border-gray-100 p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[#E8F4FB] text-[#229ED9] shrink-0"><IconBrandTelegram size={18} /></span>
+          <div className="flex-1">
+            <div className="text-[16.5px] font-medium text-[#232D42] leading-tight">Connect Telegram</div>
+            <div className="text-[11.5px] text-[#8A92A6] mt-0.5">Notices go out through a bot you own</div>
+          </div>
+          <button onClick={onClose} className="text-[#8A92A6] hover:text-[#232D42]"><IconX size={18} /></button>
+        </div>
+
+        <ol className="text-[13px] text-[#4A5468] leading-relaxed space-y-1.5 mb-4 list-decimal pl-4">
+          <li>Open <b className="font-medium text-[#232D42]">@BotFather</b> in Telegram and send <code className="bg-[#F6F7FB] px-1 rounded">/mybots</code>.</li>
+          <li>Pick your bot — you already have one called <b className="font-medium text-[#232D42]">GooCampus Bot</b> — then <b className="font-medium text-[#232D42]">API Token</b>.</li>
+          <li>Paste it below.</li>
+        </ol>
+
+        <label className="block text-[12px] text-[#8A92A6] mb-1">Bot token</label>
+        <input value={token} onChange={(e) => setToken(e.target.value)} autoFocus
+          placeholder="1234567890:AA……"
+          className="w-full h-10 px-3 rounded-lg border border-gray-200 text-[13.5px] text-[#232D42] focus:border-brand outline-none font-mono" />
+        <div className="text-[11.5px] text-[#8A92A6] mt-1.5">Checked with Telegram before it is saved. Kept on the server — changing the bot later needs no redeploy.</div>
+        {err && <div className="text-[12.5px] text-[#C03221] mt-2">{err}</div>}
+
+        <div className="flex items-center gap-2 mt-5">
+          <button onClick={save} disabled={busy || !token.trim()}
+            className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium disabled:opacity-50">
+            {busy ? "Checking…" : "Connect"}</button>
+          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-gray-200 text-[13px] text-[#4A5468]">Cancel</button>
+        </div>
+      </div>
+    </Overlay>
   );
 }
 

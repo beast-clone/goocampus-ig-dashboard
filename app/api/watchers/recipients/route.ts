@@ -28,6 +28,6 @@ export async function GET() {
   return NextResponse.json({
     team, others, chats: chats || [],
     email: mail.ok, emailFrom: mail.from, emailVia: mail.via, emailAccounts,
-    telegram: hasTelegram(), bot: await botUsername(),
+    telegram: await hasTelegram(), bot: await botUsername(),
   });
 }

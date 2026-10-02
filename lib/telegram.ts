@@ -1,15 +1,24 @@
 // Telegram bot — used by Watchers (docs/WATCHERS_SPEC.md) to message people.
 //
-// Set TELEGRAM_BOT_TOKEN (from @BotFather). A bot can only message someone who has
-// pressed Start on it, or a group it has been added to — so the list of people you
-// can pick comes from the bot's own updates (syncTelegramChats), not from a directory.
+// The token comes from @BotFather. It is kept in mh_integration_tokens under
+// provider "telegram" (pasted once on the Watchers tab) and falls back to
+// TELEGRAM_BOT_TOKEN, so swapping bots needs no redeploy — the same arrangement
+// Gmail and the Diagnostics Reconnect flow use.
+//
+// A bot can only message someone who has pressed Start on it, or a group it has
+// been added to — so the list of people you can pick comes from the bot's own
+// updates (syncTelegramChats), not from a directory.
 import { getSupabase } from "@/lib/supabase";
+import { getIntegrationToken } from "@/lib/integration-tokens";
 
-const TOKEN = () => (process.env.TELEGRAM_BOT_TOKEN || "").trim();
-export const hasTelegram = () => !!TOKEN();
+const TOKEN = async () => ((await getIntegrationToken("telegram")) || "").trim();
+export const hasTelegram = async () => !!(await TOKEN());
 
-async function call<T>(method: string, body?: Record<string, unknown>): Promise<T> {
-  const r = await fetch(`https://api.telegram.org/bot${TOKEN()}/${method}`, {
+async function call<T>(method: string, body?: Record<string, unknown>, withToken?: string): Promise<T> {
+  // withToken lets a token be tried before it is saved, so a bad paste is rejected
+  // at the point of pasting rather than silently at the next notice.
+  const token = withToken ?? (await TOKEN());
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -23,8 +32,15 @@ async function call<T>(method: string, body?: Record<string, unknown>): Promise<
 
 // The bot's username, so the page can say "open @xyz_bot and press Start".
 export async function botUsername(): Promise<string | null> {
-  if (!hasTelegram()) return null;
+  if (!(await hasTelegram())) return null;
   try { return (await call<{ username?: string }>("getMe")).username || null; } catch { return null; }
+}
+
+// Check a pasted token before trusting it, and report who it belongs to.
+export async function verifyBotToken(token: string): Promise<{ username: string; name: string }> {
+  const me = await call<{ username?: string; first_name?: string }>("getMe", undefined, token.trim());
+  if (!me.username) throw new Error("That token answered, but not as a bot.");
+  return { username: me.username, name: me.first_name || me.username };
 }
 
 type Chat = { id: number; type: string; title?: string; first_name?: string; last_name?: string; username?: string };
@@ -35,7 +51,7 @@ type Update = { update_id: number; message?: { chat: Chat }; my_chat_member?: { 
 // Watchers page lists recipients — nobody gets missed as long as either happens daily.
 export async function syncTelegramChats(): Promise<void> {
   const sb = getSupabase();
-  if (!hasTelegram() || !sb) return;
+  if (!sb || !(await hasTelegram())) return;
   const ups = await call<Update[]>("getUpdates", { allowed_updates: ["message", "my_chat_member", "channel_post"] });
   const chats = new Map<string, Chat>();
   for (const u of ups) { const c = u.message?.chat || u.my_chat_member?.chat || u.channel_post?.chat; if (c) chats.set(String(c.id), c); }
