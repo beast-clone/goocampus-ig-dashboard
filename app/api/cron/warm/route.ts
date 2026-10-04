@@ -39,10 +39,17 @@ async function mintSession(): Promise<string> {
 }
 
 export async function GET(req: Request) {
+  // Header only. The secret used to be accepted as ?secret= too, which puts a
+  // live credential into Netlify's access logs, the n8n execution record and
+  // anyone's browser history — somewhere it is never rotated out of. Every
+  // other /api/cron route already takes the header alone; n8n sends it that
+  // way, so nothing legitimate was using the query form.
+  //
+  // Note the `secret &&` below: with CRON_SECRET unset this route is open. That
+  // is deliberate for local dev, where instrumentation.ts fires it on boot, and
+  // safe in production because the variable is always set there.
   const secret = process.env.CRON_SECRET;
-  const url = new URL(req.url);
-  const provided = req.headers.get("x-cron-secret") || url.searchParams.get("secret");
-  if (secret && provided !== secret) {
+  if (secret && req.headers.get("x-cron-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

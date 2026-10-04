@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { todayIST } from "@/lib/attendance";
+import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 
 // The order someone has dragged today's plan into.
 //
@@ -53,7 +54,14 @@ export async function POST(req: Request) {
 
   try {
     const b = (await req.json()) as { person?: string; order?: string[] };
-    const person = (b.person || "").toLowerCase().trim();
+
+    // Identity from the session, not the body — same rule as my-day/chat and
+    // my-day/attendance. This rewrites someone's personal task order for the
+    // day; a body-supplied `person` let any content user shuffle a colleague's
+    // plan. Admins may still act for another person (the My Day switcher).
+    const me = (getSessionUserId() || "").toLowerCase();
+    const requested = (b.person || "").toLowerCase().trim();
+    const person = getSessionIsAdmin() ? (requested || me) : me;
     const order = (b.order || []).filter((x) => typeof x === "string").slice(0, 200);
     if (!person) return NextResponse.json({ error: "person is required" }, { status: 400 });
     const sb = getSupabase();

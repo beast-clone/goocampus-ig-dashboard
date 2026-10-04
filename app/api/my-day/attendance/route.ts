@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { getSessionIsAdmin } from "@/lib/auth";
+import { getSessionIsAdmin, getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { fetchRoster } from "@/lib/team-db";
 
@@ -64,7 +64,17 @@ export async function POST(req: Request) {
 
   try {
     const b = (await req.json()) as { person?: string; action?: string; min?: number; at?: string; rolled?: { title: string; reason: string }[] };
-    const person = (b.person || "").toLowerCase().trim();
+
+    // Identity comes from the SESSION, not the body — the same rule
+    // my-day/chat already follows. This writes the attendance record a manager
+    // reads on the admin board (GET below is admin-only), so a body-supplied
+    // `person` let anyone with the content section stamp login and logout times
+    // for a colleague, and write their end-of-day "what I didn't finish" notes.
+    // Admins keep the ability to post for someone else, which is what the My Day
+    // switcher needs.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const requested = (b.person || "").toLowerCase().trim();
+    const person = getSessionIsAdmin() ? (requested || me) : me;
     if (!person || (b.action !== "login" && b.action !== "logout")) return NextResponse.json({ error: "person + action required" }, { status: 400 });
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "no db" }, { status: 500 });

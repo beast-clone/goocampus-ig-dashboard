@@ -9,6 +9,9 @@
 import { getSupabase } from "@/lib/supabase";
 import { listReports } from "@/lib/report-store";
 import { airtableList, CRM_TABLE, SALES_HUB_BASE, pickName } from "@/lib/sales-hub";
+import { rosterById } from "@/lib/team-db";
+import { canAccessSection } from "@/lib/permissions";
+import { getSessionUserId } from "@/lib/auth";
 
 const HUB = "/dashboard/preview";
 
@@ -173,8 +176,19 @@ async function searchLeads(terms: string[]): Promise<SearchResult[]> {
 // content. Runs the three sources in parallel.
 export async function search(question: string): Promise<SearchResult[]> {
   const terms = keywords(question);
+
+  // Lead hits carry full name, mobile number, email and counsellor — the same
+  // PII every other CRM surface keeps behind the "sales" section. The route
+  // itself is guarded on "content", which is correct for the post and report
+  // searches but far too wide for this one: a Content-writer or Video-editor
+  // preset would get contact details out of the dashboard search box. Check the
+  // section that matches the data rather than the section that opens the tab.
+  const me = await rosterById(getSessionUserId());
+  const maySeeLeads = canAccessSection(me, "sales");
+
   const [leads, reports, posts] = await Promise.all([
-    searchLeads(terms), searchReports(terms), searchPosts(terms),
+    maySeeLeads ? searchLeads(terms) : Promise.resolve([] as SearchResult[]),
+    searchReports(terms), searchPosts(terms),
   ]);
   return [...leads, ...reports, ...posts];
 }

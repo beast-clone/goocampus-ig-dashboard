@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getIntegrationToken } from "@/lib/integration-tokens";
+import { requireSection } from "@/lib/api-guard";
 
+// Guarded on the "system" section: lib/permissions.ts marks it adminOnly, and
+// what this returns or does is platform posture, not day-to-day work.
 // Simple in-memory cache so we don't hammer Meta on every page load.
 let cached: { fetchedAt: number; payload: TokenStatus } | null = null;
 const TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -15,6 +18,8 @@ type TokenStatus = {
 };
 
 export async function GET(req: Request) {
+  const __denied = await requireSection("system");
+  if (__denied) return __denied;
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "true";
 
