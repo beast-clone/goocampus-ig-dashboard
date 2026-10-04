@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GooCampus Marketing OS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/logo-mark-indigo.png" type="image/png">
+<link rel="icon" href="/logo-mark-white.png" type="image/png" media="(prefers-color-scheme: dark)">
+<meta name="description" content="GooCampus Marketing OS — plan the work, make the content, publish it, read the numbers, and follow the lead to the enrolment. One place.">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------------
+   landing-v4 — the whole dashboard, weighted honestly.
+
+   v1, v2 and v3 all lead with Watchers. Watchers is 1,103 lines and eleventh by
+   size. Measured against the actual codebase, where the product really is:
+
+     work management (Hub, My Workspace, Team)   11,239 lines
+     analytics across five platforms              8,512
+     publishing (Scheduler, Calendar, Posts)      7,117
+     sales (leads, counsellors, revenue)          6,242
+     content sourcing + drafting                  5,799
+     broadcast / ads / system                      6,419
+     ...of which Watchers is                       1,103
+
+   Someone opens this at 9am to see what they owe today, and again at 6pm to see
+   what moved. That is the product. The automation is real and it matters, but it
+   is a layer underneath, not the headline.
+
+   So this page is organised around the five things a person actually does, in
+   the order the work happens, and each section is sized roughly in proportion to
+   how much of the dashboard it is. Watchers appears inside "find something worth
+   saying", which is where it belongs.
+--------------------------------------------------------------------------- */
+:root{
+  --ink:#232D42; --ink-2:#4A5468; --mute:#5A6478; --mute-2:#8A92A6;
+  --brand:#3A57E8; --brand-dk:#2138B0; --brand-lt:#E9ECFB;
+  --line:#E9ECF2; --canvas:#F6F7FB; --panel:#F0F2F7;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+     background:var(--canvas);color:var(--ink-2);line-height:1.6;overflow-x:hidden}
+a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-dk)}
+.wrap{width:100%;max-width:1140px;margin:0 auto;padding:0 clamp(20px,4vw,40px)}
+h1{font-size:clamp(38px,5vw,70px);line-height:1.05;letter-spacing:-.035em;font-weight:600;color:var(--ink);margin:0}
+h2{font-size:clamp(26px,3.1vw,40px);line-height:1.14;letter-spacing:-.03em;font-weight:600;color:var(--ink);margin:0}
+h3{font-size:16.5px;font-weight:600;color:var(--ink);margin:0;letter-spacing:-.01em}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--brand)}
+.lede{font-size:17.5px;line-height:1.65;max-width:64ch}
+
+@keyframes riseIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.enter{animation:riseIn .7s cubic-bezier(.22,.8,.3,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.23s}
+.reveal{opacity:1}
+@supports (animation-timeline:view()){
+  .reveal{animation:riseIn .9s linear both;animation-timeline:view();animation-range:entry 0% entry 50%}
+}
+@keyframes blip{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+.blip{animation:blip 2s ease-in-out infinite}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.mq{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+.mq-track{display:flex;width:max-content;animation:marquee 34s linear infinite}
+.mq:hover .mq-track{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .reveal,.enter{opacity:1!important;transform:none!important}
+}
+.btn{display:inline-flex;align-items:center;min-height:44px;padding:13px 25px;border-radius:11px;
+     font-size:15px;font-weight:500;transition:transform .2s,background-color .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn-p{background:var(--brand);color:#fff}.btn-p:hover{background:var(--brand-dk);color:#fff}
+.btn-s{background:#fff;color:var(--ink);border:1px solid #DDE2EE}
+
+/* a numbered stage — the five things people do */
+.stage{padding:clamp(44px,5.5vw,76px) 0;border-top:1px solid var(--line)}
+.stage.alt{background:#fff}
+.stage-head{display:flex;gap:clamp(16px,3vw,34px);align-items:flex-start;flex-wrap:wrap;margin-bottom:28px}
+.num{font-size:clamp(40px,5vw,66px);line-height:.9;font-weight:600;color:#D7DDF2;letter-spacing:-.04em;flex:0 0 auto}
+.grid{display:grid;gap:13px}
+.g3{grid-template-columns:repeat(auto-fit,minmax(258px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.card{background:var(--canvas);border:1px solid var(--line);border-radius:13px;padding:19px;
+      transition:transform .26s cubic-bezier(.22,.8,.3,1),border-color .26s}
+.stage.alt .card{background:var(--canvas)}
+.stage:not(.alt) .card{background:#fff}
+.card:hover{transform:translateY(-4px);border-color:#C4CFF6}
+.card p{margin:7px 0 0;font-size:14.5px;line-height:1.6}
+.who{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+     color:var(--brand);background:var(--brand-lt);border-radius:6px;padding:4px 9px;margin-bottom:12px}
+.qa{border-bottom:1px solid var(--line);padding:17px 0}
+footer{border-top:1px solid var(--line);padding:28px 0;font-size:13px;color:var(--mute-2)}
+</style>
+</head>
+<body>
+
+<!-- ============================ NAV ============================ -->
+<header style="position:sticky;top:0;z-index:20;background:rgba(246,247,251,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)">
+  <div class="wrap" style="display:flex;align-items:center;gap:18px;padding-top:13px;padding-bottom:13px">
+    <img src="/logo-lockup.png" alt="Marketing OS" style="height:25px;width:auto">
+    <nav style="margin-left:auto;display:flex;gap:19px;align-items:center;font-size:14px">
+      <a href="#plan" style="color:var(--mute)">Plan</a>
+      <a href="#make" style="color:var(--mute)">Make</a>
+      <a href="#publish" style="color:var(--mute)">Publish</a>
+      <a href="#measure" style="color:var(--mute)">Measure</a>
+      <a href="#sell" style="color:var(--mute)">Sell</a>
+      <a href="/login" class="btn btn-p" style="padding:9px 19px;min-height:0">Log in</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================ HERO ============================ -->
+<section style="padding:clamp(54px,7vw,96px) 0 clamp(34px,4vw,54px)">
+  <div class="wrap">
+    <div class="enter d1" style="display:inline-flex;align-items:center;gap:9px;background:var(--brand-lt);color:var(--brand);
+         border-radius:999px;padding:7px 15px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">
+      <span class="blip" style="width:7px;height:7px;border-radius:50%;background:var(--brand)"></span>
+      Built for the GooCampus marketing team
+    </div>
+    <h1 class="enter d2" style="margin-top:24px;max-width:18ch">
+      The whole operation,<br><span style="color:var(--brand)">on one screen.</span>
+    </h1>
+    <p class="enter d3 lede" style="margin:22px 0 0">
+      Planning the week, making the content, putting it out, reading what happened, and following a lead
+      through to an enrolment. Five jobs that used to live in a spreadsheet, four apps and a group chat —
+      in one place, where they can finally see each other.
+    </p>
+    <div class="enter d3" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:28px">
+      <a href="#plan" class="btn btn-p">Walk through it</a>
+      <a href="/login" class="btn btn-s">Log in</a>
+    </div>
+
+    <div class="enter d3" style="display:flex;flex-wrap:wrap;gap:clamp(22px,4vw,54px);margin-top:clamp(34px,4vw,54px);
+         padding-top:26px;border-top:1px solid var(--line)">
+      <div><div style="font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.02em">5</div><div style="font-size:13.5px;color:var(--mute)">platforms, one period</div></div>
+      <div><div style="font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.02em">16</div><div style="font-size:13.5px;color:var(--mute)">jobs running on a schedule</div></div>
+      <div><div style="font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.02em">1</div><div style="font-size:13.5px;color:var(--mute)">login for the whole team</div></div>
+      <div><div style="font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.02em">0</div><div style="font-size:13.5px;color:var(--mute)">posts published without a person</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 1. PLAN ============================ -->
+<section class="stage alt" id="plan">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num">01</div>
+      <div>
+        <div class="eyebrow">Plan and run the work</div>
+        <h2 style="margin:12px 0 12px">Who is doing what, and where it is stuck.</h2>
+        <p class="lede" style="margin:0">
+          The biggest part of the dashboard, and the part people have open all day. Every task — brief,
+          owner, stage, due date, files, approvals — on one row. Edit in the grid, drag to a new date, and
+          see at a glance which column everything is piling up in.
+        </p>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><span class="who">Managers</span><h3>Marketing Hub</h3><p>The master sheet. Filter it, group it, edit inline, and open any task to its full history. A bottleneck panel shows where work has stopped moving.</p></div>
+      <div class="card"><span class="who">Everyone</span><h3>My Workspace</h3><p>Your own queue instead of the whole board — today's tasks, what you have claimed, what is waiting on you, and your hours.</p></div>
+      <div class="card"><span class="who">Managers</span><h3>Team &amp; permissions</h3><p>Who is on the team, what each person may do, and ready-made roles so a new joiner is set up in a minute rather than an afternoon.</p></div>
+      <div class="card"><span class="who">Everyone</span><h3>Content review</h3><p>Work waiting for approval, in one list, with the brief and the creative side by side instead of in two tabs.</p></div>
+      <div class="card"><span class="who">Everyone</span><h3>Notifications</h3><p>Twenty approvals read as one line. Opening it takes you to exactly those tasks, not to a feed you have to search.</p></div>
+      <div class="card"><span class="who">Managers</span><h3>Team Command</h3><p>The day across the whole team — who is in, what each person is on, and what has not been picked up.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 2. MAKE ============================ -->
+<section class="stage" id="make">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num">02</div>
+      <div>
+        <div class="eyebrow">Find something worth saying, and draft it</div>
+        <h2 style="margin:12px 0 12px">The blank page, mostly filled in.</h2>
+        <p class="lede" style="margin:0">
+          Four tabs that between them answer "what should we post" before anyone has to invent an answer —
+          then turn the chosen thing into a draft that is tied to its source.
+        </p>
+      </div>
+    </div>
+    <div class="grid g4 reveal">
+      <div class="card"><h3>Watchers</h3><p>Counselling boards and council sites, checked every half hour. When a page changes you hear about it instead of going to look.</p></div>
+      <div class="card"><h3>Content Radar</h3><p>Forums, review sites, question boards and the news — wherever students are actually talking about this.</p></div>
+      <div class="card"><h3>Content Studio</h3><p>An item becomes a carousel, a reel script, a caption and a poster brief — read back against the source first, so it says only what the source said.</p></div>
+      <div class="card"><h3>Briefings</h3><p>What competitors did and what is trending, already waiting when you open the tab.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 3. PUBLISH ============================ -->
+<section class="stage alt" id="publish">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num">03</div>
+      <div>
+        <div class="eyebrow">Put it out</div>
+        <h2 style="margin:12px 0 12px">One row per post. Four platforms. Nothing goes without your tap.</h2>
+        <p class="lede" style="margin:0">
+          Schedule once and it reaches Instagram, Facebook, LinkedIn and YouTube at the time you set —
+          images, carousels, reels, video. The live link writes itself back into the sheet, so nobody has to
+          go and fetch it.
+        </p>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><h3>Scheduler</h3><p>Pick the time, pick the accounts, attach the creative. A copyright check and a caption suggestion before it goes.</p></div>
+      <div class="card"><h3>Content &amp; publishing calendar</h3><p>The month at a glance — what is planned, what is approved, what already went out, and the gaps.</p></div>
+      <div class="card"><h3>Community Broadcast</h3><p>Message the whole WhatsApp list at once, with a checker that reads your draft and tells you whether it will come back approved.</p></div>
+      <div class="card"><h3>Approve from Telegram</h3><p>The draft and the creative arrive with two buttons. Tap approve and it is scheduled; tap send back and it returns to the writer with your note.</p></div>
+      <div class="card"><h3>Posts, reels, stories</h3><p>What has already gone out, with how each one did, instead of scrolling the app to remember.</p></div>
+      <div class="card"><h3>Recycle bin</h3><p>Deleted a task by accident? It is recoverable for a while, not gone the instant someone mis-clicks.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 4. MEASURE ============================ -->
+<section class="stage" id="measure">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num">04</div>
+      <div>
+        <div class="eyebrow">Read what happened</div>
+        <h2 style="margin:12px 0 12px">Five platforms over the same period, in the same place.</h2>
+        <p class="lede" style="margin:0">
+          The second biggest part of the dashboard. Instagram, Facebook, LinkedIn, YouTube and the website —
+          one date range, one screen, and a written note on what to do about it rather than a chart you have
+          to interpret yourself.
+        </p>
+      </div>
+    </div>
+    <div class="grid g4 reveal">
+      <div class="card"><h3>Analytics</h3><p>Reach, engagement, followers and profile visits per channel and combined, with the previous period beside it.</p></div>
+      <div class="card"><h3>Audience</h3><p>Who is actually following — city, age, when they are online — so posting times stop being guesswork.</p></div>
+      <div class="card"><h3>Competitors</h3><p>Side by side, tracked over time, with a plain note on what changed since you last looked.</p></div>
+      <div class="card"><h3>Website &amp; SEO</h3><p>Traffic, search terms and behaviour for the site, next to the social numbers instead of in a separate login.</p></div>
+      <div class="card"><h3>Ads</h3><p>Campaigns, spend and cost per lead, so paid and organic can be compared on one screen.</p></div>
+      <div class="card"><h3>Reports</h3><p>A written monthly report you can send, generated from the same numbers rather than retyped into a deck.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 5. SELL ============================ -->
+<section class="stage alt" id="sell">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num">05</div>
+      <div>
+        <div class="eyebrow">Follow it through to an enrolment</div>
+        <h2 style="margin:12px 0 12px">The half most marketing tools stop short of.</h2>
+        <p class="lede" style="margin:0">
+          A post is not the point; a student is. Leads arrive from comments, DMs, forms and ads, get assigned
+          to a counsellor, and are tracked to what they became — in the same product that published the post.
+        </p>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><h3>Leads</h3><p>Everything inbound in one list — who, from where, when, and whether anyone has touched it yet.</p></div>
+      <div class="card"><h3>Counsellors</h3><p>How many each person holds and how much of it has actually been worked, so the load is visible rather than assumed.</p></div>
+      <div class="card"><h3>Revenue</h3><p>What came in, by counsellor, source and programme, each figure linking back to the row it was typed in.</p></div>
+      <div class="card"><h3>Inbox &amp; comments</h3><p>DMs and comments across the accounts in one place, so nothing sits unanswered because it was on the wrong app.</p></div>
+      <div class="card"><h3>Transfers &amp; unassigned</h3><p>Hand a lead over without losing its history, and see immediately what nobody has picked up.</p></div>
+      <div class="card"><h3>Per-day tracker</h3><p>Leads by day against who was on, so a quiet week is a fact rather than an argument.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ UNDERNEATH ============================ -->
+<section class="stage">
+  <div class="wrap">
+    <div class="stage-head">
+      <div class="num" style="color:#C9D1EA">+</div>
+      <div>
+        <div class="eyebrow">Underneath all of it</div>
+        <h2 style="margin:12px 0 12px">Sixteen jobs that run whether anyone is in or not.</h2>
+        <p class="lede" style="margin:0">
+          The imports, the notice-board checks, the snapshots, the publishing queue and the morning health
+          check all run on a schedule — from 6am to midnight. Between midnight and six, deliberately nothing:
+          no board publishes at 3am and nobody is reading, so every call in that window would be spend with
+          no reader.
+        </p>
+      </div>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><h3>Diagnostics</h3><p>One page saying whether every connection is alive, repairing what it safely can, and flagging anything expiring before it breaks.</p></div>
+      <div class="card"><h3>Workflows</h3><p>Every scheduled job with its last run, its schedule and what it costs — so a job that quietly stopped is visible the same day.</p></div>
+      <div class="card"><h3>Search across everything</h3><p>One box that finds a post, a report or a contact without you guessing which tab it was in.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PLATFORMS ============================ -->
+<section style="padding:clamp(34px,4vw,52px) 0;background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600;text-align:center;margin-bottom:22px">
+    Works with what you already use
+  </div>
+  <div class="mq"><div class="mq-track">
+    <div style="display:flex;gap:46px;padding-right:46px;font-size:15px;color:var(--mute);white-space:nowrap">
+      <span>Instagram</span><span>Facebook</span><span>LinkedIn</span><span>YouTube</span><span>WhatsApp</span><span>Telegram</span><span>Airtable</span><span>Google Analytics</span><span>Gmail</span>
+    </div>
+    <div style="display:flex;gap:46px;padding-right:46px;font-size:15px;color:var(--mute);white-space:nowrap" aria-hidden="true">
+      <span>Instagram</span><span>Facebook</span><span>LinkedIn</span><span>YouTube</span><span>WhatsApp</span><span>Telegram</span><span>Airtable</span><span>Google Analytics</span><span>Gmail</span>
+    </div>
+  </div></div>
+</section>
+
+<!-- ============================ FAQ ============================ -->
+<section style="padding:clamp(46px,6vw,80px) 0">
+  <div class="wrap" style="max-width:840px">
+    <div class="reveal" style="margin-bottom:20px"><div class="eyebrow">Questions</div><h2 style="margin:13px 0 0">The ones people ask.</h2></div>
+    <div class="reveal">
+      <div class="qa"><h3>Will it post something without asking me?</h3><p style="margin:5px 0 0;font-size:15px">No. It watches, drafts and schedules. Publishing waits for a person — from the dashboard or from Telegram.</p></div>
+      <div class="qa"><h3>Does it replace the sheets we already keep?</h3><p style="margin:5px 0 0;font-size:15px">It reads from them and keeps them current, so nobody has to move. The master sheet is the same work, editable in one grid.</p></div>
+      <div class="qa"><h3>Do I have to use all of it?</h3><p style="margin:5px 0 0;font-size:15px">No. Most people live in two tabs — their own queue and the calendar. The rest is there when you need it, and permissions mean you only see the parts that are yours.</p></div>
+      <div class="qa"><h3>What happens overnight?</h3><p style="margin:5px 0 0;font-size:15px">Deliberately nothing, between midnight and 6am. Anything that lands in that window is drafted and waiting when the day starts.</p></div>
+      <div class="qa" style="border-bottom:none"><h3>What happens when something breaks?</h3><p style="margin:5px 0 0;font-size:15px">It says so. Every job reports its last run, its errors and its cost, and the morning check flags anything expiring before it stops working.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CTA ============================ -->
+<section style="background:var(--ink);padding:clamp(46px,6vw,80px) 0">
+  <div class="wrap" style="text-align:center">
+    <h2 class="reveal" style="color:#fff;max-width:20ch;margin:0 auto">Open it and start with your own queue.</h2>
+    <p class="reveal" style="color:#A8B1C4;font-size:17px;max-width:54ch;margin:16px auto 26px">
+      Everything else is still there when you want it. Nothing goes out without you.
+    </p>
+    <a href="/login" class="btn reveal" style="background:#fff;color:var(--ink)">Log in</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:13px;align-items:center">
+    <img src="/logo-mark-indigo.png" alt="" style="height:18px;width:auto;opacity:.8">
+    <span>Internal tool for the GooCampus marketing team.</span>
+    <span style="margin-left:auto"><a href="/login">Log in</a></span>
+  </div>
+</footer>
+
+</body>
+</html>
