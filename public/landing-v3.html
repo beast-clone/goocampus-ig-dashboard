@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GooCampus Marketing OS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/logo-mark-indigo.png" type="image/png">
+<link rel="icon" href="/logo-mark-white.png" type="image/png" media="(prefers-color-scheme: dark)">
+<meta name="description" content="One day inside the GooCampus Marketing OS — what runs, when, and the two minutes that need you.">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------------
+   landing-v3 — the day IS the page.
+
+   v1 lists what the product has. v2 argues why that matters. Neither shows the
+   thing that actually makes this unusual: almost all of it happens when nobody
+   is looking. So here the page is a single working day, top to bottom, built
+   from the real schedule — 6:00 Import Airtable and Watchers, 6:05 lead status,
+   6:10 link write-back, 6:15 diagnostics and radar, 6:30 stories and metrics,
+   watchers every half hour, the publisher every five minutes, 9pm comment
+   digest, 11:59pm radar rolloff — and then genuine silence until six.
+   Scrolling is time passing.
+
+   Every time on this page is a real cron expression, not a nice-looking number.
+   If the schedule changes, this page is wrong and must be changed with it.
+   That is the cost of the idea and it is worth paying: nothing else on the page
+   has to claim the product is working, because the day shows it.
+
+   The overnight band is intentionally the largest, emptiest thing here. The
+   quiet is the feature.
+--------------------------------------------------------------------------- */
+:root{
+  --ink:#232D42; --ink-2:#4A5468; --mute:#5A6478; --mute-2:#8A92A6;
+  --brand:#3A57E8; --brand-dk:#2138B0; --brand-lt:#E9ECFB;
+  --line:#E9ECF2; --canvas:#F6F7FB; --night:#141A27; --night-2:#1E2636;
+  --go:#6EE7B7;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+     background:var(--canvas);color:var(--ink-2);line-height:1.6;overflow-x:hidden}
+a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-dk)}
+.wrap{width:100%;max-width:1060px;margin:0 auto;padding:0 clamp(20px,4vw,36px)}
+h1{font-size:clamp(38px,5vw,68px);line-height:1.05;letter-spacing:-.035em;font-weight:600;color:var(--ink);margin:0}
+h2{font-size:clamp(25px,3vw,38px);line-height:1.15;letter-spacing:-.03em;font-weight:600;color:var(--ink);margin:0}
+h3{font-size:16.5px;font-weight:600;color:var(--ink);margin:0;letter-spacing:-.01em}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--brand)}
+
+@keyframes riseIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.enter{animation:riseIn .7s cubic-bezier(.22,.8,.3,1) both}
+.d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.23s}
+.reveal{opacity:1}
+@supports (animation-timeline:view()){
+  .reveal{animation:riseIn .9s linear both;animation-timeline:view();animation-range:entry 0% entry 50%}
+}
+@keyframes blip{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+.blip{animation:blip 2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .reveal,.enter{opacity:1!important;transform:none!important}
+}
+.btn{display:inline-flex;align-items:center;min-height:44px;padding:13px 24px;border-radius:11px;
+     font-size:15px;font-weight:500;transition:transform .2s,background-color .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn-p{background:var(--brand);color:#fff}.btn-p:hover{background:var(--brand-dk);color:#fff}
+.btn-s{background:#fff;color:var(--ink);border:1px solid #DDE2EE}
+
+/* ---- the spine: one continuous line the whole page hangs from ---- */
+.day{position:relative;padding-left:clamp(56px,8vw,104px)}
+.day::before{content:"";position:absolute;left:clamp(20px,3.4vw,44px);top:0;bottom:0;width:2px;
+             background:linear-gradient(180deg,var(--line) 0%,var(--brand) 6%,var(--brand) 82%,var(--line) 100%)}
+.hour{position:relative;padding:26px 0}
+.hour::before{content:"";position:absolute;left:calc(clamp(20px,3.4vw,44px) - clamp(56px,8vw,104px) - 5px);
+              top:34px;width:12px;height:12px;border-radius:50%;background:var(--brand);border:3px solid var(--canvas)}
+.hour.auto::before{background:var(--brand)}
+.hour.you::before{background:#fff;border-color:var(--brand);box-shadow:0 0 0 3px var(--canvas)}
+.t{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--brand);margin-bottom:7px}
+.t .every{color:var(--mute-2);font-weight:400;letter-spacing:0;text-transform:none}
+.hour p{margin:7px 0 0;font-size:15px;line-height:1.65;max-width:62ch}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.tag{font-size:12px;color:var(--mute);background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+
+/* ---- the night: the biggest, emptiest block on the page ---- */
+.night{background:var(--night);color:#8793AB;margin:0;padding:clamp(70px,11vw,140px) 0;position:relative}
+.night h2{color:#fff}
+.night .t{color:#5C6A87}
+.night .spine{position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);
+              background:linear-gradient(180deg,var(--brand) 0%,#2A3346 22%,#2A3346 78%,var(--brand) 100%)}
+
+footer{border-top:1px solid var(--line);padding:28px 0;font-size:13px;color:var(--mute-2)}
+.card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:20px}
+.grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.qa{border-bottom:1px solid var(--line);padding:17px 0}
+</style>
+</head>
+<body>
+
+<!-- ============================ NAV ============================ -->
+<header style="position:sticky;top:0;z-index:20;background:rgba(246,247,251,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)">
+  <div class="wrap" style="display:flex;align-items:center;gap:18px;padding-top:13px;padding-bottom:13px">
+    <img src="/logo-lockup.png" alt="Marketing OS" style="height:25px;width:auto">
+    <nav style="margin-left:auto;display:flex;gap:20px;align-items:center;font-size:14px">
+      <a href="#day" style="color:var(--mute)">The day</a>
+      <a href="#tabs" style="color:var(--mute)">What is inside</a>
+      <a href="#faq" style="color:var(--mute)">FAQ</a>
+      <a href="/login" class="btn btn-p" style="padding:9px 19px;min-height:0">Log in</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================ HERO ============================ -->
+<section style="padding:clamp(56px,7vw,100px) 0 clamp(30px,4vw,50px)">
+  <div class="wrap">
+    <div class="enter d1" style="display:inline-flex;align-items:center;gap:9px;background:var(--brand-lt);color:var(--brand);
+         border-radius:999px;padding:7px 15px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">
+      <span class="blip" style="width:7px;height:7px;border-radius:50%;background:var(--brand)"></span>
+      One day, start to finish
+    </div>
+    <h1 class="enter d2" style="margin-top:24px;max-width:17ch">
+      Most of the work happens<br><span style="color:var(--brand)">before you open it.</span>
+    </h1>
+    <p class="enter d3" style="margin:22px 0 0;font-size:18px;line-height:1.6;max-width:60ch">
+      This is a real day — every time below is a job that is actually scheduled, not an illustration.
+      Scroll through it. Count how many of these you currently do by hand, and how few of them need you at all.
+    </p>
+    <div class="enter d3" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:28px">
+      <a href="#day" class="btn btn-p">Walk through the day</a>
+      <a href="#tabs" class="btn btn-s">Skip to what is inside</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ THE DAY ============================ -->
+<section id="day" style="padding:10px 0 clamp(40px,5vw,70px)">
+  <div class="wrap">
+    <div class="day">
+
+      <div class="hour auto reveal">
+        <div class="t">6:00 AM</div>
+        <h3>The boards are checked, and the sheet is pulled in</h3>
+        <p>
+          Two jobs start the day together. One reads the counselling and council notice boards; the other
+          pulls the content calendar out of Airtable so the board you open is already current. Nobody is awake.
+        </p>
+        <div class="tags"><span class="tag">Watchers</span><span class="tag">Content calendar</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">6:05 — 6:15 AM</div>
+        <h3>Yesterday is closed off and today is checked</h3>
+        <p>
+          The lead statuses are frozen so yesterday's numbers stop moving. Any post that went out gets its
+          live link written back into the sheet. Then every connection — Instagram, Facebook, LinkedIn,
+          YouTube, Airtable — is tested, and anything expiring is flagged before it breaks rather than after.
+        </p>
+        <div class="tags"><span class="tag">Sales Hub</span><span class="tag">Scheduler</span><span class="tag">Diagnostics</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">6:15 — 6:45 AM</div>
+        <h3>Mentions, stories, numbers, competitors</h3>
+        <p>
+          Content Radar sweeps the forums, review sites and news for anyone talking about you. Yesterday's
+          stories are captured before they expire. The metrics snapshot runs so last month stays stable
+          instead of quietly rewriting itself. A competitor is checked. Then the caches are warmed, so the
+          first person in does not wait.
+        </p>
+        <div class="tags"><span class="tag">Content Radar</span><span class="tag">Analytics</span><span class="tag">Competitors</span></div>
+      </div>
+
+      <div class="hour you reveal" style="background:#fff;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:13px;padding:24px;margin:10px 0">
+        <div class="t" style="color:var(--ink)">9:15 AM &nbsp;·&nbsp; <span style="color:var(--brand)">the part that needs you</span></div>
+        <h3>You read what landed and tap approve</h3>
+        <p>
+          Everything above happened without anyone. What reaches you is a short list: what changed, what was
+          drafted from it, and what is waiting to go out. Approve from the dashboard or straight from
+          Telegram. <strong style="color:var(--ink)">Nothing publishes until you do.</strong>
+        </p>
+        <div class="tags"><span class="tag">My Workspace</span><span class="tag">Marketing Hub</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">EVERY 5 MINUTES <span class="every">· through the day</span></div>
+        <h3>Anything you approved goes out on time</h3>
+        <p>
+          The publisher checks the queue and posts whatever is due — images, carousels, reels, video, to
+          Instagram, Facebook and LinkedIn. The live link comes back on its own. WhatsApp broadcasts run on
+          the same rhythm, each one checked against the template rules before it is sent.
+        </p>
+        <div class="tags"><span class="tag">Scheduler</span><span class="tag">Community Broadcast</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">EVERY 30 MINUTES <span class="every">· 6am to midnight</span></div>
+        <h3>The boards are checked again. And again.</h3>
+        <p>
+          This is the one that earns its place. A counselling notice is worth the most in the hour after it
+          appears, while students are searching for it — so the pages are re-read all day, and the moment one
+          changes you have the item, a fact-checked draft and a creative brief.
+        </p>
+        <div class="tags"><span class="tag">Watchers</span><span class="tag">Content Studio</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">9:00 PM</div>
+        <h3>The day's comments are collected</h3>
+        <p>
+          Every comment across the accounts, in one digest, so nothing sits unanswered overnight and nobody
+          has to scroll four apps before bed.
+        </p>
+        <div class="tags"><span class="tag">Comments</span></div>
+      </div>
+
+      <div class="hour auto reveal">
+        <div class="t">11:59 PM</div>
+        <h3>Anything nobody acted on rolls off</h3>
+        <p>
+          Radar items that went untouched are closed out, so tomorrow opens on what is live rather than on a
+          backlog of yesterday's noise.
+        </p>
+        <div class="tags"><span class="tag">Content Radar</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================ THE NIGHT ============================ -->
+<section class="night">
+  <div class="spine" aria-hidden="true"></div>
+  <div class="wrap" style="text-align:center;position:relative">
+    <div class="t" style="letter-spacing:.14em">12:00 AM — 6:00 AM</div>
+    <h2 style="margin:16px auto 0;max-width:16ch">Nothing runs.</h2>
+    <p style="margin:20px auto 0;font-size:17px;line-height:1.7;max-width:56ch;color:#8793AB">
+      Not reduced. Nothing. No checks, no refreshes, no calls to anyone's API — because no board publishes at
+      3am and nobody is reading the screen, so every request in that window would be money spent on nobody.
+    </p>
+    <p style="margin:18px auto 0;font-size:15px;line-height:1.7;max-width:56ch;color:#5C6A87">
+      It is the only part of the day that was designed by subtraction. Anything that lands overnight is
+      sitting there, drafted, at six.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ THE COUNT ============================ -->
+<section style="padding:clamp(48px,6vw,84px) 0">
+  <div class="wrap">
+    <div class="reveal" style="max-width:62ch">
+      <div class="eyebrow">What that adds up to</div>
+      <h2 style="margin:14px 0 14px">Sixteen scheduled jobs. Two minutes of your attention.</h2>
+      <p style="margin:0;font-size:17px;line-height:1.65">
+        The ratio is the product. Everything above runs whether the office is open or not, and the only
+        step that waits for a person is the one that should: deciding whether something goes out with your
+        name on it.
+      </p>
+    </div>
+    <div class="grid reveal" style="margin-top:30px">
+      <div class="card"><h3>It runs without you</h3><p style="margin:7px 0 0;font-size:14.5px">Weekdays, weekends, and the hours you are asleep — minus the six you asked it to stay quiet.</p></div>
+      <div class="card"><h3>It tells you when it breaks</h3><p style="margin:7px 0 0;font-size:14.5px">Every job reports its last run and what it costs. A silent failure is the thing this was built to end.</p></div>
+      <div class="card"><h3>It never posts on its own</h3><p style="margin:7px 0 0;font-size:14.5px">Drafting, scheduling and checking are automatic. Publishing waits for a person, every time.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ WHAT IS INSIDE ============================ -->
+<section id="tabs" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:clamp(48px,6vw,84px) 0">
+  <div class="wrap">
+    <div class="reveal" style="max-width:62ch;margin-bottom:30px">
+      <div class="eyebrow">What is inside</div>
+      <h2 style="margin:14px 0 12px">The tabs behind that day.</h2>
+      <p style="margin:0;font-size:17px;line-height:1.65">Each one is a job somebody used to do by hand. They pass work to each other, so a notice becomes a published post without leaving the window.</p>
+    </div>
+    <div class="grid reveal">
+      <div class="card"><h3>Watchers</h3><p style="margin:7px 0 0;font-size:14.5px">Notice boards and council sites, checked for you. You hear about a change instead of going to look.</p></div>
+      <div class="card"><h3>Content Radar</h3><p style="margin:7px 0 0;font-size:14.5px">Forums, review sites, question boards and the news — wherever students are actually talking.</p></div>
+      <div class="card"><h3>Content Studio</h3><p style="margin:7px 0 0;font-size:14.5px">An item becomes a carousel, a reel script, a caption and a poster brief, checked against the source.</p></div>
+      <div class="card"><h3>Scheduler &amp; Calendar</h3><p style="margin:7px 0 0;font-size:14.5px">One row per post, out at the time you set, with the live link written back.</p></div>
+      <div class="card"><h3>Marketing Hub</h3><p style="margin:7px 0 0;font-size:14.5px">The master sheet — who holds what, at what stage, and where work is stuck.</p></div>
+      <div class="card"><h3>My Workspace</h3><p style="margin:7px 0 0;font-size:14.5px">Your own queue, not the whole board.</p></div>
+      <div class="card"><h3>Sales Hub</h3><p style="margin:7px 0 0;font-size:14.5px">Leads, counsellors, revenue and the per-day tracker — and what each turned into.</p></div>
+      <div class="card"><h3>Community Broadcast</h3><p style="margin:7px 0 0;font-size:14.5px">Message the whole list, with a checker that reads your draft before you submit it.</p></div>
+      <div class="card"><h3>Analytics</h3><p style="margin:7px 0 0;font-size:14.5px">Five platforms over one period, with advice rather than a recap.</p></div>
+      <div class="card"><h3>Competitors</h3><p style="margin:7px 0 0;font-size:14.5px">Side by side, tracked over time, in plain words.</p></div>
+      <div class="card"><h3>Ads</h3><p style="margin:7px 0 0;font-size:14.5px">Spend and cost per lead, next to the organic numbers instead of in another tab.</p></div>
+      <div class="card"><h3>Diagnostics &amp; Workflows</h3><p style="margin:7px 0 0;font-size:14.5px">Whether every connection is alive, what each job costs, and when it last ran.</p></div>
+    </div>
+    <div class="reveal" style="margin-top:26px;font-size:14.5px;color:var(--mute)">
+      Also inside: search across everything · grouped notifications · per-person permissions · briefings · a creative library.
+    </div>
+  </div>
+</section>
+
+<!-- ============================ FAQ ============================ -->
+<section id="faq" style="padding:clamp(48px,6vw,84px) 0">
+  <div class="wrap" style="max-width:820px">
+    <div class="reveal" style="margin-bottom:22px"><div class="eyebrow">Questions</div><h2 style="margin:14px 0 0">The ones people ask.</h2></div>
+    <div class="reveal">
+      <div class="qa"><h3>Will it post something without asking me?</h3><p style="margin:5px 0 0;font-size:15px">No. It watches, drafts and schedules. Publishing waits for a person — from the dashboard or from Telegram.</p></div>
+      <div class="qa"><h3>Why does nothing run overnight?</h3><p style="margin:5px 0 0;font-size:15px">Because no board publishes at 3am and nobody is reading. Every check in that window is spend with no reader. Anything that lands overnight is drafted and waiting at six.</p></div>
+      <div class="qa"><h3>Does it replace the sheets we already keep?</h3><p style="margin:5px 0 0;font-size:15px">It reads from them and keeps them current, so nobody has to move. The master sheet is the same work, editable in one grid.</p></div>
+      <div class="qa"><h3>How does it avoid writing things that are not true?</h3><p style="margin:5px 0 0;font-size:15px">Every draft is tied to the item it came from and checked against it first. A missing fact is left blank for a person, not guessed.</p></div>
+      <div class="qa" style="border-bottom:none"><h3>What happens when something breaks?</h3><p style="margin:5px 0 0;font-size:15px">It says so. Every job reports its last run, its errors and what it costs, and the morning check flags anything expiring before it stops working.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CTA ============================ -->
+<section style="background:var(--ink);padding:clamp(48px,6vw,84px) 0">
+  <div class="wrap" style="text-align:center">
+    <h2 class="reveal" style="color:#fff;max-width:19ch;margin:0 auto">Tomorrow starts at six, with or without you.</h2>
+    <p class="reveal" style="color:#A8B1C4;font-size:17px;max-width:54ch;margin:16px auto 26px">
+      Pick one board to watch. The next time it changes, the draft will be waiting before anyone has noticed.
+    </p>
+    <a href="/login" class="btn reveal" style="background:#fff;color:var(--ink)">Log in</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:13px;align-items:center">
+    <img src="/logo-mark-indigo.png" alt="" style="height:18px;width:auto;opacity:.8">
+    <span>Internal tool for the GooCampus marketing team.</span>
+    <span style="margin-left:auto"><a href="/login">Log in</a></span>
+  </div>
+</footer>
+
+</body>
+</html>
