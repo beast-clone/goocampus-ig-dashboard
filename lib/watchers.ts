@@ -16,6 +16,7 @@ import { fetchRoster } from "@/lib/team-db";
 import { hasEmail, sendMail } from "@/lib/email";
 import { hasTelegram, sendTelegram, syncTelegramChats } from "@/lib/telegram";
 import { summarizeNotice } from "@/lib/pdf-summary";
+import { isPublicUrl } from "@/lib/ssrf";
 
 export type Watcher = {
   id: string; name: string | null; url: string; category: string | null; auto_category: boolean;
@@ -50,6 +51,12 @@ const clean = (s: string) => decode(s.replace(/<[^>]*>/g, " ")).replace(/\s+/g, 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export async function fetchPage(url: string): Promise<string | null> {
+  // A watcher URL is supplied by a person and fetched by the server, so it has
+  // to be checked before the request goes out — otherwise this is a proxy into
+  // the private network and the cloud metadata address, and linksOn() hands the
+  // caller back everything it found. Returning null here means the watcher
+  // records "Couldn't open the page", which is the correct outcome.
+  if (!(await isPublicUrl(url))) return null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const r = await fetch(url, { headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" }, redirect: "follow", signal: AbortSignal.timeout(25_000), cache: "no-store" });

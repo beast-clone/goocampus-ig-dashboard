@@ -15,6 +15,7 @@
 // blank letterhead (1 Oct).
 import path from "node:path";
 import { hasAI, recordUsage } from "@/lib/ai";
+import { isPublicUrl } from "@/lib/ssrf";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -29,6 +30,10 @@ const pdfjsDir = () => path.join(process.cwd(), "node_modules", "pdfjs-dist");
 
 async function download(url: string): Promise<Uint8Array | null> {
   try {
+    // This URL came off a third-party page the watcher scraped, so it is not
+    // just user-supplied, it is attacker-supplyable: a watched board can link
+    // anywhere. Check before fetching, same as lib/watchers.ts fetchPage.
+    if (!(await isPublicUrl(url))) return null;
     const r = await fetch(url, { headers: { "User-Agent": UA }, redirect: "follow", signal: AbortSignal.timeout(30_000), cache: "no-store" });
     if (!r.ok) return null;
     const len = Number(r.headers.get("content-length") || 0);
