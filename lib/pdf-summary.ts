@@ -42,6 +42,16 @@ async function download(url: string): Promise<Uint8Array | null> {
 async function readPdf(data: Uint8Array): Promise<{ text?: string; image?: string } | null> {
   const dir = pdfjsDir();
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // These PDFs are wholly untrusted: the URL comes from a link scraped off a
+  // watched notice board, so anyone who can get a file linked from one of those
+  // pages decides what this parser is handed — and it runs in the function that
+  // holds the Supabase service-role key and every third-party token.
+  //
+  // pdfjs-dist is pinned >=6.2.108 for the advisory "arbitrary JavaScript
+  // execution upon opening a malicious PDF" (affected >=5.6.83 <6.2.108). Do not
+  // relax that floor. There is deliberately no isEvalSupported:false here: that
+  // option no longer exists in v6 — eval was removed from the library outright,
+  // which is why passing it is a type error rather than a safety net.
   const task = getDocument({
     data, disableFontFace: true, useSystemFonts: false, isOffscreenCanvasSupported: false, verbosity: 0,
     cMapUrl: `${dir}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${dir}/standard_fonts/`, wasmUrl: `${dir}/wasm/`,
