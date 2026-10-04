@@ -9,7 +9,7 @@
 import os from "os";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { getSupabase } from "@/lib/supabase";
-import { getIntegrationToken } from "@/lib/integration-tokens";
+import { getIntegrationToken, overriddenProviders } from "@/lib/integration-tokens";
 import { callsAllTime } from "@/lib/api-usage";
 import { authPing as sendpulsePing } from "@/lib/sendpulse";
 import { airtableList, CRM_TABLE } from "@/lib/sales-hub";
@@ -133,7 +133,26 @@ async function probeLinkedIn(): Promise<SystemResult> {
   const token = await getIntegrationToken("linkedin");
   const cid = process.env.LINKEDIN_CLIENT_ID, secret = process.env.LINKEDIN_CLIENT_SECRET;
   if (!has(token)) return { ...meta, status: "error", detail: "Access token missing", expiresAt: null, latencyMs: null, action: { type: "reconnect", label: "Reconnect", provider: "linkedin" } };
-  if (!has(cid) || !has(secret)) return { ...meta, status: "ok", detail: "Token present (introspection needs client id/secret)", expiresAt: null, latencyMs: null };
+  // Without the client id/secret we cannot introspect — but reporting "ok" here
+  // hid a dated outage. The same two values are what lib/linkedin-refresh.ts needs
+  // to auto-renew, so when they are missing the token does not quietly carry on:
+  // it works perfectly until its expiry date and then stops, with the dashboard
+  // showing green the whole way. Fall back to the expiry recorded alongside the
+  // token and say plainly that renewal cannot happen.
+  if (!has(cid) || !has(secret)) {
+    const why = !has(secret) ? "LINKEDIN_CLIENT_SECRET is not set" : "LINKEDIN_CLIENT_ID is not set";
+    const stored = (await overriddenProviders())["linkedin"];
+    const expiresAt = stored?.expiresAt ? Date.parse(stored.expiresAt) : null;
+    const days = daysLeft(expiresAt);
+    const action = { type: "add-key" as const, label: "Add client secret" };
+    if (days === null)
+      return { ...meta, status: "warn", detail: `Token present, but ${why} — it cannot auto-renew and no expiry is recorded`, expiresAt: null, latencyMs: null, action };
+    if (days < 0)
+      return { ...meta, status: "error", detail: `Expired ${-days}d ago — ${why}, so it could not auto-renew`, expiresAt, latencyMs: null, action };
+    // Still working, but this is a certain future failure with a known date, so
+    // it warns now rather than on the morning it goes dark.
+    return { ...meta, status: "warn", detail: `Working · ${days}d left — but ${why}, so it will NOT auto-renew`, expiresAt, latencyMs: null, action };
+  }
   return probe(
     meta,
     async () => { const body = new URLSearchParams({ client_id: cid!, client_secret: secret!, token: token! }); const r = await fetchWithTimeout("https://www.linkedin.com/oauth/v2/introspectToken", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, timeoutMs: 8000, cache: "no-store" }); const j = await r.json(); if (!r.ok) throw new Error(j.message || `introspect ${r.status}`); return j; },
