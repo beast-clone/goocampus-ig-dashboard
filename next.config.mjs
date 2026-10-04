@@ -56,6 +56,56 @@ const nextConfig = {
       { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/oauth/resource" },
     ];
   },
+  // Security headers, set HERE rather than only in netlify.toml.
+  //
+  // Measured against production on 2026-10-04:
+  //
+  //   /landing.html                    CSP ✓  X-Frame-Options ✓  nosniff ✓
+  //   /login                           CSP ✗  X-Frame-Options ✗  nosniff ✓
+  //   /dashboard/preview/marketing-hub CSP ✗  X-Frame-Options ✗  nosniff ✗
+  //   /api/me                          CSP ✗  X-Frame-Options ✗  nosniff ✗
+  //
+  // The netlify.toml [[headers]] block only applies to files the CDN serves
+  // directly. Everything rendered by a function — the entire dashboard and all
+  // 253 API routes — was getting none of it. So the dashboard was framable
+  // despite frame-ancestors 'none' being written down, and the stored-HTML
+  // fields in Marketing Hub had no CSP behind them at all. Reading the config
+  // gave the opposite impression, which is why this is recorded here.
+  //
+  // next.config headers go through the framework, so they apply to SSR
+  // responses too. netlify.toml keeps its copy for static assets; the two
+  // should be changed together.
+  //
+  // script-src still carries 'unsafe-inline' because app/layout.tsx has an
+  // inline theme bootstrap and ~10 components inject <style> blocks. Removing
+  // it needs a nonce on each, which is worth doing — but a CSP that is actually
+  // delivered and slightly loose beats a strict one that never arrives.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://www.google.com https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net https://*.apify.com https://i.imgur.com https://*.supabase.co https://i.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://*.licdn.com",
+      "media-src 'self' blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net https://*.supabase.co",
+      "font-src 'self' data:",
+      "connect-src 'self' https://graph.facebook.com https://api.apify.com https://api.hikerapi.com https://*.supabase.co https://*.googleapis.com https://oauth2.googleapis.com https://api.linkedin.com https://cdn.jsdelivr.net",
+      "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+    return [{
+      source: "/:path*",
+      headers: [
+        { key: "Content-Security-Policy", value: csp },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+      ],
+    }];
+  },
   webpack: (config) => {
     // pdfjs-dist references its worker via `new URL("pdf.worker.min.mjs", import.meta.url)`;
     // webpack emits that worker as a chunk and Terser then fails minifying it

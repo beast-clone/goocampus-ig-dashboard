@@ -24,6 +24,7 @@ import { compressImage } from "@/lib/compress-image";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
+import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 
 export type Row = {
   id: string;
@@ -1786,7 +1787,7 @@ function RichText({ value }: { value: string }) {
   if (LOOKS_LIKE_HTML.test(value)) {
     return (
       <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px] [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2"
-        dangerouslySetInnerHTML={{ __html: value }} />
+        dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }} />
     );
   }
   // A blank line starts a new block; single newlines stay as line breaks inside it.
@@ -3863,7 +3864,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
-                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: notes }} />
+                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} />
                 </Panel>
               )}
 
