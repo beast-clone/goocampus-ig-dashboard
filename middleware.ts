@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readPayload } from "@/lib/session-payload";
 
 // Edge-runtime middleware — uses Web Crypto (crypto.subtle), NOT node:crypto.
 // Two responsibilities:
@@ -76,24 +77,26 @@ function safeEqualHex(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-async function verifyCookie(value: string | undefined, secret: string): Promise<boolean> {
-  if (!value || !value.includes(".")) return false;
+// Returns the session if the signature checks out AND it has not expired, else
+// null. It returns the session rather than a boolean on purpose: when this was
+// a boolean, the admin flag was read separately, which meant a caller could
+// consult the flag without having checked anything. Now there is one answer.
+async function readSession(
+  value: string | undefined,
+  secret: string,
+): Promise<{ isAdmin: boolean } | null> {
+  if (!value || !value.includes(".")) return null;
   const idx = value.lastIndexOf(".");
-  const token = value.slice(0, idx);
+  const payload = value.slice(0, idx);
   const sig = value.slice(idx + 1);
-  if (!token || !sig) return false;
-  const expected = await hmacHex(secret, token);
-  return safeEqualHex(sig, expected);
-}
-
-// Admin flag lives in the signed token as `<userId>:a:<token>` (same as
-// getSessionIsAdmin). Only read after verifyCookie has validated the signature.
-function isAdminCookie(value: string | undefined): boolean {
-  if (!value) return false;
-  const idx = value.lastIndexOf(".");
-  if (idx < 0) return false;
-  const parts = value.slice(0, idx).split(":");
-  return parts.length === 3 && parts[1] === "a";
+  if (!payload || !sig) return null;
+  const expected = await hmacHex(secret, payload);
+  if (!safeEqualHex(sig, expected)) return null;
+  // Signature good; the payload decides whether it is still valid. Shares one
+  // implementation with the Node side (lib/session-payload) so the two cannot
+  // drift apart on what "expired" means.
+  const read = readPayload(payload);
+  return read ? { isAdmin: read.isAdmin } : null;
 }
 
 // Where an authed user lands after login / off the retired /me: the Overview,
@@ -133,9 +136,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.json({ error: "Server not configured (SESSION_SECRET missing)" }, { status: 500 });
   }
 
-  const sessionValue = req.cookies.get("gc_session")?.value;
-  const isAuthed = await verifyCookie(sessionValue, secret);
-  const isAdmin = isAuthed && isAdminCookie(sessionValue);
+  const session = await readSession(req.cookies.get("gc_session")?.value, secret);
+  const isAuthed = session !== null;
+  const isAdmin = session?.isAdmin ?? false;
 
   // /api/login and /api/logout always allowed
   if (PUBLIC_API_ROUTES.has(pathname)) {

@@ -5,9 +5,12 @@
 
 import { cookies } from "next/headers";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { buildPayload, readPayload } from "@/lib/session-payload";
 
 const COOKIE = "gc_session";
-const SESSION_LIFETIME_SEC = 60 * 60 * 24 * 7; // 7 days
+// No fixed lifetime any more — a session ends with the IST day, so the next
+// morning's sign-in is a real sign-in and attendance can stamp it. See
+// lib/session-payload.endOfISTDaySec.
 
 function getSecret(): string {
   const s = process.env.SESSION_SECRET;
@@ -36,9 +39,15 @@ function safeEqual(a: string, b: string): boolean {
 // before the last dot) keeps working unchanged whichever form is present.
 function makeCookieValue(userId?: string | null, isAdmin?: boolean): string {
   const token = randomBytes(24).toString("hex");
-  const payload = userId ? (isAdmin ? `${userId}:a:${token}` : `${userId}:${token}`) : token;
+  const payload = buildPayload(userId, isAdmin, token);
   const sig = sign(payload);
   return `${payload}.${sig}`;
+}
+
+/** Seconds until the current session expires — drives the cookie's maxAge. */
+function maxAgeFor(payload: string): number {
+  const read = readPayload(payload);
+  return read ? Math.max(1, read.exp - Math.floor(Date.now() / 1000)) : 1;
 }
 
 function parseVerified(value: string | undefined): { valid: boolean; userId: string | null } {
@@ -52,9 +61,13 @@ function parseVerified(value: string | undefined): { valid: boolean; userId: str
   } catch {
     return { valid: false, userId: null };
   }
-  const ci = payload.indexOf(":");
-  const userId = ci > 0 ? payload.slice(0, ci) : null;
-  return { valid: true, userId };
+  // Signature is good. Now: is it still today's session, and who is it?
+  // A valid signature on an expired payload is still expired — the whole point
+  // of carrying exp inside the signed blob is that this check cannot be skipped
+  // by replaying the cookie after the browser would have dropped it.
+  const read = readPayload(payload);
+  if (!read) return { valid: false, userId: null };
+  return { valid: true, userId: read.userId };
 }
 
 function verifyCookieValue(value: string | undefined): boolean {
@@ -76,18 +89,19 @@ export function getSessionUserId(): string | null {
 export function getSessionIsAdmin(): boolean {
   const value = cookies().get(COOKIE)?.value;
   if (!value || !parseVerified(value).valid) return false;
-  const payload = value.slice(0, value.lastIndexOf("."));
-  const parts = payload.split(":");
-  return parts.length === 3 && parts[1] === "a";
+  return readPayload(value.slice(0, value.lastIndexOf(".")))?.isAdmin ?? false;
 }
 
 export function setSession(userId?: string | null, isAdmin?: boolean) {
-  cookies().set(COOKIE, makeCookieValue(userId, isAdmin), {
+  const value = makeCookieValue(userId, isAdmin);
+  cookies().set(COOKIE, value, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_LIFETIME_SEC,
+    // Matches the exp inside the signed payload, so the browser drops the
+    // cookie at the same moment the server stops honouring it.
+    maxAge: maxAgeFor(value.slice(0, value.lastIndexOf("."))),
   });
 }
 

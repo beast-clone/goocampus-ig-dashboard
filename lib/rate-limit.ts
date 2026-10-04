@@ -34,8 +34,37 @@ export function rateLimit(
 }
 
 // Best-effort client-IP extraction (works with Netlify, Vercel, most proxies)
+// How many proxies in front of this app append to X-Forwarded-For. On Netlify
+// that is their edge, so 1. Override only if another proxy is added in front.
+const TRUSTED_PROXY_HOPS = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS) || 1);
+
+/**
+ * The caller's IP, as far as it can be trusted — this is what the login limiter
+ * counts against, so getting it wrong is the difference between 5 guesses per
+ * quarter hour and unlimited ones.
+ *
+ * X-Forwarded-For is built left-to-right: each proxy APPENDS the address it saw.
+ * Whatever the client sent arrives first, so the leftmost entry is attacker
+ * controlled — send "X-Forwarded-For: 1.2.3.4" and Netlify appends your real
+ * address after it. Reading [0], as this did, meant an attacker could pick a
+ * fresh identity per request and never hit a limit.
+ *
+ * Counting in from the RIGHT instead lands on what our nearest trusted proxy
+ * actually observed, which no client can write.
+ */
 export function getClientIp(headers: Headers): string {
+  // Netlify sets this from the TCP connection and strips any client-supplied
+  // copy, so it is the authoritative answer wherever it exists.
+  const nf = headers.get("x-nf-client-connection-ip");
+  if (nf?.trim()) return nf.trim();
+
   const xff = headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
+  if (xff) {
+    const parts = xff.split(",").map((v) => v.trim()).filter(Boolean);
+    if (parts.length) {
+      const idx = Math.max(0, parts.length - TRUSTED_PROXY_HOPS);
+      return parts[idx] || parts[parts.length - 1];
+    }
+  }
   return headers.get("x-real-ip") || headers.get("cf-connecting-ip") || "unknown";
 }

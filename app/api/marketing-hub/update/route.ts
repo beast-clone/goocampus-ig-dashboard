@@ -122,9 +122,19 @@ export async function PATCH(req: Request) {
     // Guard the mh_status enum — a non-enum value would 502 the whole update with
     // an opaque Postgres error (and two legacy client statuses used to do exactly
     // that). Reject clearly instead.
+    //
+    // This list MUST be exactly public.mh_status. It is a "did you send a real
+    // enum value" check, not a "may you choose this one" check — permission lives
+    // further down. When it drifted below the enum it did not reject bad input, it
+    // quietly made good rows uneditable: three values were missing, and the 6 live
+    // rows holding them (5 Rejected/Not Published, 1 Content - Needs Approval)
+    // 400'd on every save, because the grid sends status back whether or not the
+    // user touched it. Add here and in the enum together, or not at all.
     const VALID_STATUS = new Set([
-      "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-      "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+      "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+      "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+      "Output - Ready", "Ready to Publish", "Published/Scheduled",
+      "Rejected/Not Published", "Failed",
     ]);
     if (typeof clean.status === "string" && !VALID_STATUS.has(clean.status)) {
       return NextResponse.json({ error: `"${clean.status}" is not a valid status` }, { status: 400 });
