@@ -68,6 +68,29 @@ a:hover{color:#2138B0}
 .bob{animation:bob 7s ease-in-out infinite}
 @media (max-width:820px){.ds-rail{display:none}}
 
+
+/* ---- numbered stages ------------------------------------------------------
+   Replaces the old nine-card "what it does" grid. The dashboard is five jobs,
+   not nine features, and the old grid left out My Workspace, the Sales Hub and
+   Ads entirely while giving a 1,100-line tab the same weight as an
+   11,000-line one. Ordered the way the work actually happens. */
+.stg{padding:clamp(44px,5.5vw,76px) 0;border-top:1px solid #E9ECF2}
+.stg-alt{background:#ffffff}
+.stg-head{display:flex;gap:clamp(16px,3vw,34px);align-items:flex-start;flex-wrap:wrap;margin-bottom:28px}
+.stg-num{font-size:clamp(40px,5vw,66px);line-height:.9;font-weight:600;color:#D7DDF2;letter-spacing:-.04em;flex:0 0 auto}
+.stg-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:#3A57E8}
+.stg-h{font-size:clamp(26px,3.1vw,40px);line-height:1.14;letter-spacing:-.03em;font-weight:600;color:#232D42;margin:12px 0}
+.stg-lede{font-size:17px;line-height:1.65;color:#4A5468;margin:0;max-width:64ch}
+.stg-grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(258px,1fr))}
+.stg-card{background:#F6F7FB;border:1px solid #E9ECF2;border-radius:13px;padding:19px;
+          transition:transform .26s cubic-bezier(.22,.8,.3,1),border-color .26s}
+.stg-alt .stg-card{background:#F6F7FB}
+.stg:not(.stg-alt) .stg-card{background:#ffffff}
+.stg-card:hover{transform:translateY(-4px);border-color:#C4CFF6}
+.stg-card h3{font-size:16.5px;font-weight:600;color:#232D42;margin:0;letter-spacing:-.01em}
+.stg-card p{margin:7px 0 0;font-size:14.5px;line-height:1.6;color:#4A5468}
+.stg-who{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+         color:#3A57E8;background:#E9ECFB;border-radius:6px;padding:4px 9px;margin-bottom:11px}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
   .reveal,.enter,.enter-frame{opacity:1 !important;transform:none !important}
@@ -403,188 +426,108 @@ Without this, that notice gets spotted mid&#8209;morning, drafted after lunch, a
 </div>
 </section>
 
-<!-- ======================= FEATURES ======================= -->
-<section id="features" style="padding: clamp(64px, 8vw, 112px) 0">
-<div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+<!-- ======================= WHAT IT DOES — five stages ======================= -->
+<section class="stg stg-alt" id="features">
+  <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+    <div class="stg-head">
+      <div class="stg-num">01</div>
+      <div>
+        <div class="stg-eyebrow">Plan and run the work</div>
+        <h2 class="stg-h">Who is doing what, and where it is stuck.</h2>
+        <p class="stg-lede">The biggest part of the dashboard, and the part people have open all day. Every task — brief, owner, stage, due date, files, approvals — on one row. Edit in the grid, drag to a new date, and see at a glance which column everything is piling up in.</p>
+      </div>
+    </div>
+    <div class="stg-grid reveal">
+      <div class="stg-card"><span class="stg-who">Managers</span><h3>Marketing Hub</h3><p>The master sheet. Filter it, group it, edit inline, and open any task to its full history. A bottleneck panel shows where work has stopped moving.</p></div>
+      <div class="stg-card"><span class="stg-who">Everyone</span><h3>My Workspace</h3><p>Your own queue instead of the whole board — today's tasks, what you have claimed, what is waiting on you, and your hours.</p></div>
+      <div class="stg-card"><span class="stg-who">Managers</span><h3>Team &amp; permissions</h3><p>Who is on the team, what each person may do, and ready-made roles so a new joiner is set up in a minute rather than an afternoon.</p></div>
+      <div class="stg-card"><span class="stg-who">Everyone</span><h3>Content review</h3><p>Work waiting for approval, in one list, with the brief and the creative side by side instead of in two tabs.</p></div>
+      <div class="stg-card"><span class="stg-who">Everyone</span><h3>Notifications</h3><p>Twenty approvals read as one line. Opening it takes you to exactly those tasks, not to a feed you have to search.</p></div>
+      <div class="stg-card"><span class="stg-who">Managers</span><h3>Team Command</h3><p>The day across the whole team — who is in, what each person is on, and what has not been picked up.</p></div>
+    </div>
+  </div>
+</section>
 
-<div class="reveal" style="display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-end; margin-bottom: 48px">
-<div style="flex: 1 1 520px">
-<div style="font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #3A57E8; font-weight: 600; margin-bottom: 14px">What it does</div>
-<h2 style="margin: 0; font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 600; color: #232D42">
-Fourteen jobs your team<br>used to do by hand.
-</h2>
-</div>
-<p style="flex: 1 1 300px; max-width: 400px; margin: 0; font-size: 16px; color: #4A5468">
-Each one is a tab in the dashboard. They pass work to each other, so a notice can become a published post without leaving the window.
-</p>
-</div>
+<section class="stg">
+  <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+    <div class="stg-head">
+      <div class="stg-num">02</div>
+      <div>
+        <div class="stg-eyebrow">Find something worth saying, and draft it</div>
+        <h2 class="stg-h">The blank page, mostly filled in.</h2>
+        <p class="stg-lede">Four tabs that between them answer “what should we post” before anyone has to invent an answer — then turn the chosen thing into a draft that is tied to its source.</p>
+      </div>
+    </div>
+    <div class="stg-grid reveal">
+      <div class="stg-card"><h3>Watchers</h3><p>Counselling boards and council sites, checked every half hour from 6am to midnight. When a page changes you hear about it instead of going to look.</p></div>
+      <div class="stg-card"><h3>Content Radar</h3><p>Forums, review sites, question boards and the news — wherever students are actually talking about this.</p></div>
+      <div class="stg-card"><h3>Content Studio</h3><p>An item becomes a carousel, a reel script, a caption and a poster brief — read back against the source first, so it says only what the source said.</p></div>
+      <div class="stg-card"><h3>Briefings</h3><p>What competitors did and what is trending, already waiting when you open the tab.</p></div>
+    </div>
+  </div>
+</section>
 
-<div class="reveal" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px">
+<section class="stg stg-alt">
+  <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+    <div class="stg-head">
+      <div class="stg-num">03</div>
+      <div>
+        <div class="stg-eyebrow">Put it out</div>
+        <h2 class="stg-h">One row per post. Four platforms. Nothing goes without your tap.</h2>
+        <p class="stg-lede">Schedule once and it reaches Instagram, Facebook, LinkedIn and YouTube at the time you set — images, carousels, reels, video. The live link writes itself back into the sheet, so nobody has to go and fetch it.</p>
+      </div>
+    </div>
+    <div class="stg-grid reveal">
+      <div class="stg-card"><h3>Scheduler</h3><p>Pick the time, pick the accounts, attach the creative. A copyright check and a caption suggestion before it goes.</p></div>
+      <div class="stg-card"><h3>Content &amp; publishing calendar</h3><p>The month at a glance — what is planned, what is approved, what already went out, and the gaps.</p></div>
+      <div class="stg-card"><h3>Community Broadcast</h3><p>Message the whole WhatsApp list at once, with a checker that reads your draft and tells you whether it will come back approved.</p></div>
+      <div class="stg-card"><h3>Approve from Telegram</h3><p>The draft and the creative arrive with two buttons. Tap approve and it is scheduled; tap send back and it returns to the writer with your note.</p></div>
+      <div class="stg-card"><h3>Posts, reels, stories</h3><p>What has already gone out, with how each one did, instead of scrolling the app to remember.</p></div>
+      <div class="stg-card"><h3>Recycle bin</h3><p>Deleted a task by accident? It is recoverable for a while, not gone the instant someone mis-clicks.</p></div>
+    </div>
+  </div>
+</section>
 
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #E9ECFB; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="background:#fff;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:7px">
-<span style="width:6px;height:6px;border-radius:50%;background:#3A57E8;flex:none"></span>
-<span style="font-size:10px;font-weight:500;color:#2F49C9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Counselling schedule updated</span>
-<span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#fff;background:#3A57E8;border-radius:999px;padding:3px 8px;white-space:nowrap">NEW</span></span>
-</div>
-<div style="background:rgba(255,255,255,.6);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:7px">
-<span style="width:6px;height:6px;border-radius:50%;background:#A9B3D8;flex:none"></span><span style="font-size:10px;font-weight:400;color:#59648F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Document verification dates</span>
-</div>
-<div style="background:rgba(255,255,255,.4);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:7px">
-<span style="width:6px;height:6px;border-radius:50%;background:#A9B3D8;flex:none"></span><span style="font-size:10px;font-weight:400;color:#59648F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fee structure notice</span>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Watchers</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Keeps an eye on the counselling boards and council sites every half hour, 6am to midnight. When a page changes, you hear about it &mdash; you do not go looking.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Runs on a schedule</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">UG and PG kept apart</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Email and Telegram alerts</span>
-</div>
-</div>
+<section class="stg">
+  <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+    <div class="stg-head">
+      <div class="stg-num">04</div>
+      <div>
+        <div class="stg-eyebrow">Read what happened</div>
+        <h2 class="stg-h">Five platforms over the same period, in the same place.</h2>
+        <p class="stg-lede">The second biggest part of the dashboard. Instagram, Facebook, LinkedIn, YouTube and the website — one date range, one screen, and a written note on what to do about it rather than a chart you have to interpret yourself.</p>
+      </div>
+    </div>
+    <div class="stg-grid reveal">
+      <div class="stg-card"><h3>Analytics</h3><p>Reach, engagement, followers and profile visits per channel and combined, with the previous period beside it.</p></div>
+      <div class="stg-card"><h3>Audience</h3><p>Who is actually following — city, age, when they are online — so posting times stop being guesswork.</p></div>
+      <div class="stg-card"><h3>Competitors</h3><p>Side by side, tracked over time, with a plain note on what changed since you last looked.</p></div>
+      <div class="stg-card"><h3>Website &amp; SEO</h3><p>Traffic, search terms and behaviour for the site, next to the social numbers instead of in a separate login.</p></div>
+      <div class="stg-card"><h3>Ads</h3><p>Campaigns, spend and cost per lead, so paid and organic can be compared on one screen.</p></div>
+      <div class="stg-card"><h3>Reports</h3><p>A written monthly report you can send, generated from the same numbers rather than retyped into a deck.</p></div>
+    </div>
+  </div>
+</section>
 
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #DCF0EC; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="display:flex;align-items:center;gap:13px">
-<div style="position:relative;width:62px;height:62px;flex:none">
-<div style="position:absolute;inset:0;border:1.5px solid #9DD3C8;border-radius:50%"></div>
-<div style="position:absolute;inset:14px;border:1.5px solid #4FA896;border-radius:50%"></div>
-<div style="position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#0F6E60"></div>
-<div style="position:absolute;left:9px;top:17px;width:7px;height:7px;border-radius:50%;background:#0F6E60"></div>
-<div style="position:absolute;right:7px;bottom:13px;width:6px;height:6px;border-radius:50%;background:#4FA896"></div>
-</div>
-<div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1">
-<div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:9px;font-weight:600;color:#0F6E60;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Reddit</span><span style="font-size:9px;font-weight:600;color:#0F6E60;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Quora</span><span style="font-size:9px;font-weight:600;color:#0F6E60;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">News</span></div>
-<span style="font-size:10px;font-weight:500;color:#0F6E60;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&ldquo;Is GooCampus worth it?&rdquo;</span>
-<span style="font-size:9px;font-weight:400;color:#4A7F75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">3 new mentions today</span>
-</div>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Content Radar</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Finds where students are actually talking &mdash; forums, review sites, question boards, the news &mdash; and puts the mentions in one list you can act on.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Sorted by source</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Thumbs teach it what you like</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">A daily summary</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #EAE3FA; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="display:flex;gap:6px">
-<div style="flex:1;background:#fff;border-radius:7px;height:46px;display:flex;align-items:center;justify-content:center"><span style="font-size:13px;font-weight:600;color:#5B37A8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">1</span></div>
-<div style="flex:1;background:rgba(255,255,255,.75);border-radius:7px;height:46px;display:flex;align-items:center;justify-content:center"><span style="font-size:13px;font-weight:600;color:#8E72C9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">2</span></div>
-<div style="flex:1;background:rgba(255,255,255,.55);border-radius:7px;height:46px;display:flex;align-items:center;justify-content:center"><span style="font-size:13px;font-weight:600;color:#8E72C9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">3</span></div>
-</div>
-<div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:9px;font-weight:600;color:#fff;background:#6B46C1;border-radius:999px;padding:3px 8px;white-space:nowrap">Carousel</span><span style="font-size:9px;font-weight:600;color:#5B37A8;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Caption</span><span style="font-size:9px;font-weight:600;color:#5B37A8;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Reel script</span></div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Content Studio</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Turns one of those items into a carousel, a reel script, a caption and a poster brief &mdash; checked against the source first, so the copy says only what the notice said.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Fact-checked before writing</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Keeps your brand voice</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Lands straight in the calendar</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #FBEEDA; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;max-width:228px;margin:0 auto">
-<div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">M</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">T</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">W</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">T</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">F</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">S</span></div><div style="text-align:center"><span style="font-size:9px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">S</span></div>
-<div style="aspect-ratio:1;border-radius:4px;background:#F2DBB8"></div><div style="aspect-ratio:1;border-radius:4px;background:#F2DBB8"></div><div style="aspect-ratio:1;border-radius:4px;background:#B4690E"></div><div style="aspect-ratio:1;border-radius:4px;background:#F2DBB8"></div><div style="aspect-ratio:1;border-radius:4px;background:#F2DBB8"></div><div style="aspect-ratio:1;border-radius:4px;background:#E2B071"></div><div style="aspect-ratio:1;border-radius:4px;background:#F2DBB8"></div>
-</div>
-<div style="background:#fff;border-radius:7px;padding:7px 9px;display:flex;align-items:center;gap:6px">
-<span style="font-size:10px;font-weight:600;color:#8A5109;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">7:30 pm</span><span style="font-size:10px;font-weight:400;color:#9A6E35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&middot; Instagram, Facebook</span>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Scheduler &amp; Calendar</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">One row per post, posted straight to each platform at the exact time you set. The live link comes back and fills itself in.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Images, carousels, reels, video</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Exact publish times</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Published link written back</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #DCEAFA; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="background:#fff;border-radius:9px;overflow:hidden">
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid #EDF3FA"><span style="font-size:10px;font-weight:500;color:#15547F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Reel &middot; NEET PG</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#15547F;background:#DCEAFA;border-radius:999px;padding:3px 8px;white-space:nowrap">In design</span></span></div>
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid #EDF3FA"><span style="font-size:10px;font-weight:500;color:#15547F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Poster &middot; Round 2</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#15673A;background:#D8EEDF;border-radius:999px;padding:3px 8px;white-space:nowrap">Approved</span></span></div>
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px"><span style="font-size:10px;font-weight:500;color:#15547F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Carousel &middot; Fees</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#8A5109;background:#FBEEDA;border-radius:999px;padding:3px 8px;white-space:nowrap">Scheduled</span></span></div>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Marketing Hub</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">The master sheet. Every task, who holds it, what stage it is at, when it is due &mdash; edited in the grid, dragged to a new date, and grouped so you can see where work is stuck.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Edit right in the grid</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">A queue per person</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Shows where it is stuck</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #FAE1E8; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="display:flex;align-items:flex-end;justify-content:center;gap:11px;height:78px">
-<div style="text-align:center"><div style="width:30px;height:40px;border-radius:5px 5px 0 0;background:#E7A9BA"></div><div style="margin-top:4px"><span style="font-size:9px;font-weight:600;color:#91234A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Them</span></div></div>
-<div style="text-align:center"><div style="width:30px;height:64px;border-radius:5px 5px 0 0;background:#B32B51"></div><div style="margin-top:4px"><span style="font-size:9px;font-weight:600;color:#91234A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">You</span></div></div>
-<div style="text-align:center"><div style="width:30px;height:30px;border-radius:5px 5px 0 0;background:#F0C6D2"></div><div style="margin-top:4px"><span style="font-size:9px;font-weight:600;color:#91234A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Them</span></div></div>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Competitors</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Profiles for the people you are up against, a side-by-side compare, and a simple note on what changed since last time.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Compare any two</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Tracked over time</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">In words, not just charts</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #DCEFE2; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:9px;font-weight:600;color:#15673A;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Instagram</span><span style="font-size:9px;font-weight:600;color:#15673A;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">YouTube</span><span style="font-size:9px;font-weight:600;color:#15673A;background:#fff;border-radius:999px;padding:3px 8px;white-space:nowrap">Website</span></div>
-<svg width="100%" height="46" viewBox="0 0 220 46" preserveAspectRatio="none" aria-hidden="true">
-<path d="M0 38 L44 30 L88 34 L132 18 L176 13 L220 4 L220 46 L0 46 Z" fill="#B6DCC3"></path>
-<path d="M0 38 L44 30 L88 34 L132 18 L176 13 L220 4" fill="none" stroke="#15673A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
-</svg>
-<div><span style="font-size:10px;font-weight:600;color:#15673A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Reach &#9650; 11.5% this period</span></div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Analytics</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Instagram, Facebook, LinkedIn, YouTube and the website, over the same period, in the same place. It tells you what to do next instead of repeating the chart.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Five platforms, one period</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Per-channel and combined</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Advice, not a recap</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #D9EDF6; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="background:#fff;border-radius:9px 9px 9px 3px;padding:8px 10px"><span style="font-size:10px;font-weight:400;color:#0B5A73;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Your seat is confirmed for&hellip;</span></div>
-<div style="background:#fff;border-radius:9px;padding:8px 10px;display:flex;align-items:center;gap:7px">
-<span style="flex:none"><span style="font-size:9px;font-weight:600;color:#15673A;background:#D8EEDF;border-radius:999px;padding:3px 8px;white-space:nowrap">90%</span></span><span style="font-size:10px;font-weight:500;color:#0B5A73;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">likely accepted &middot; Utility</span>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Community Broadcast</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">Message your whole list at once &mdash; with a checker that reads your draft before you submit it and tells you whether it will come back approved, and what to change if it will not.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Checked before you submit</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Shows the rewrite side by side</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Keeps what you approved</span>
-</div>
-</div>
-
-<div class="card" style="background: #ffffff; border: 1px solid #E9ECF2; border-radius: 18px; padding: 28px">
-<div style="height: 158px; border-radius: 12px; background: #E6E6F4; margin-bottom: 20px; padding: 13px; display: flex; flex-direction: column; justify-content: center; gap: 7px; overflow: hidden">
-<div style="background:#fff;border-radius:9px;overflow:hidden">
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid #F0F0F8"><span style="width:6px;height:6px;border-radius:50%;background:#19A974;flex:none"></span><span style="font-size:10px;font-weight:500;color:#3E4178;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Instagram</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#19A974;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">OK</span></span></div>
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid #F0F0F8"><span style="width:6px;height:6px;border-radius:50%;background:#19A974;flex:none"></span><span style="font-size:10px;font-weight:500;color:#3E4178;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Telegram</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#19A974;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">OK</span></span></div>
-<div style="display:flex;align-items:center;gap:7px;padding:7px 9px"><span style="width:6px;height:6px;border-radius:50%;background:#C77700;flex:none"></span><span style="font-size:10px;font-weight:500;color:#3E4178;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">YouTube token</span><span style="margin-left:auto;flex:none"><span style="font-size:9px;font-weight:600;color:#C77700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Renew</span></span></div>
-</div></div>
-<h3 style="margin: 0 0 10px; font-size: 20px; font-weight: 600; color: #232D42; letter-spacing: -0.01em">Diagnostics</h3>
-<p style="margin: 0 0 20px; font-size: 15px; color: #4A5468">One page that says whether every connection is actually alive &mdash; and repairs most of what it finds without anyone opening a settings screen.</p>
-<div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid #F0F2F7; padding-top: 18px">
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Live health check</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">Fix it without a developer</span>
-<span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #5A6478; font-weight: 600">A report every morning</span>
-</div>
-</div>
-
-</div>
-</div>
+<section class="stg stg-alt">
+  <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px)">
+    <div class="stg-head">
+      <div class="stg-num">05</div>
+      <div>
+        <div class="stg-eyebrow">Follow it through to an enrolment</div>
+        <h2 class="stg-h">The half most marketing tools stop short of.</h2>
+        <p class="stg-lede">A post is not the point; a student is. Leads arrive from comments, DMs, forms and ads, get assigned to a counsellor, and are tracked to what they became — in the same product that published the post.</p>
+      </div>
+    </div>
+    <div class="stg-grid reveal">
+      <div class="stg-card"><h3>Leads</h3><p>Everything inbound in one list — who, from where, when, and whether anyone has touched it yet.</p></div>
+      <div class="stg-card"><h3>Counsellors</h3><p>How many each person holds and how much of it has actually been worked, so the load is visible rather than assumed.</p></div>
+      <div class="stg-card"><h3>Revenue</h3><p>What came in, by counsellor, source and programme, each figure linking back to the row it was typed in.</p></div>
+      <div class="stg-card"><h3>Inbox &amp; comments</h3><p>DMs and comments across the accounts in one place, so nothing sits unanswered because it was on the wrong app.</p></div>
+      <div class="stg-card"><h3>Transfers &amp; unassigned</h3><p>Hand a lead over without losing its history, and see immediately what nobody has picked up.</p></div>
+      <div class="stg-card"><h3>Per-day tracker</h3><p>Leads by day against who was on, so a quiet week is a fact rather than an argument.</p></div>
+    </div>
+  </div>
 </section>
 
 <!-- ======================= WATCHERS SPOTLIGHT ======================= -->
