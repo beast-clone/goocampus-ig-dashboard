@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
 import { fetchPostsInRange, readPostsForRangeStored, readPostsForRangeHybrid } from "@/lib/post-history";
+import { safeError } from "@/lib/errors";
 
 // Posts for a date range, with per-post insights. One Meta call per post, so a cold
 // month is 15–30s — cached per {account, range, limit, insights} for an hour, with
@@ -85,6 +86,6 @@ export async function GET(req: Request) {
     const body = await revalidate();
     return NextResponse.json({ ...body, cached: false });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load posts"), { status: 500 });
   }
 }

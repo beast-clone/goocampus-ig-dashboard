@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { format, subDays } from "date-fns";
 import { getAdAccount, fetchAdsForCampaign } from "@/lib/meta-ads";
+import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request, { params }: { params: { campaignId: string } }) {
   const __denied = await requireSection("ads");
@@ -20,6 +21,6 @@ export async function GET(req: Request, { params }: { params: { campaignId: stri
     const ads = await fetchAdsForCampaign(acct, params.campaignId, from, to);
     return NextResponse.json({ live: true, campaignId: params.campaignId, ads });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load the ads data"), { status: 500 });
   }
 }

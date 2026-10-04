@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { countInboundDMs } from "@/lib/dm";
+import { safeError } from "@/lib/errors";
 
 // GET /api/dm/count?account=goocampus&from=YYYY-MM-DD&to=YYYY-MM-DD
 // Inbound DMs recorded in the range. Reflects only DMs mirrored into /api/dm/mirror,
@@ -19,6 +20,6 @@ export async function GET(req: Request) {
     const count = await countInboundDMs(account, from, to);
     return NextResponse.json({ count, account: account ?? null, from, to });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return NextResponse.json(safeError(err, "Couldn't update the conversation"), { status: 502 });
   }
 }

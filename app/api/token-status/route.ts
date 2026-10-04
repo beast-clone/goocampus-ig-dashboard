@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIntegrationToken } from "@/lib/integration-tokens";
 import { requireSection } from "@/lib/api-guard";
+import { safeError } from "@/lib/errors";
 
 // Guarded on the "system" section: lib/permissions.ts marks it adminOnly, and
 // what this returns or does is platform posture, not day-to-day work.
@@ -68,6 +69,6 @@ export async function GET(req: Request) {
     cached = { fetchedAt: Date.now(), payload };
     return NextResponse.json(payload);
   } catch (err) {
-    return NextResponse.json({ valid: false, expiresAt: null, daysRemaining: null, scopesCount: 0, error: (err as Error).message }, { status: 500 });
+    return NextResponse.json({ ...safeError(err, "Something went wrong"), valid: false, expiresAt: null, daysRemaining: null, scopesCount: 0,   }, { status: 500 });
   }
 }

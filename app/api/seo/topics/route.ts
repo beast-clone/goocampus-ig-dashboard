@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSessionUserId } from "@/lib/auth";
 import { deleteTopic, getTopic, listTopics, saveTopic } from "@/lib/seo-topics";
+import { safeError } from "@/lib/errors";
 
 // GET    /api/seo/topics                  → the team's custom keyword topics
 // POST   /api/seo/topics { id?, name, words } → add (or edit, with id) a topic
@@ -12,7 +13,7 @@ export async function GET() {
   const denied = await requireSection("analytics");
   if (denied) return denied;
   try { return NextResponse.json({ topics: await listTopics() }); }
-  catch (err) { return NextResponse.json({ error: (err as Error).message }, { status: 500 }); }
+  catch (err) { return NextResponse.json(safeError(err, "Couldn't load SEO data"), { status: 500 }); }
 }
 
 export async function POST(req: Request) {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
       : { id: crypto.randomUUID().slice(0, 8), name, words, createdBy: getSessionUserId() || undefined, createdAt: new Date().toISOString() };
     await saveTopic(topic);
     return NextResponse.json({ topic });
-  } catch (err) { return NextResponse.json({ error: (err as Error).message }, { status: 500 }); }
+  } catch (err) { return NextResponse.json(safeError(err, "Couldn't load SEO data"), { status: 500 }); }
 }
 
 export async function DELETE(req: Request) {
@@ -40,5 +41,5 @@ export async function DELETE(req: Request) {
   const b = (await req.json().catch(() => ({}))) as { id?: string };
   if (!b.id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
   try { await deleteTopic(b.id); return NextResponse.json({ ok: true }); }
-  catch (err) { return NextResponse.json({ error: (err as Error).message }, { status: 500 }); }
+  catch (err) { return NextResponse.json(safeError(err, "Couldn't load SEO data"), { status: 500 }); }
 }

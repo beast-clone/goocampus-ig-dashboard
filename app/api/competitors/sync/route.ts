@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection, guardRate } from "@/lib/api-guard";
 import { getApifyToken, parsePastRuns, fetchRunAds } from "@/lib/apify";
 import { cacheKey, readCache, writeCache } from "@/lib/competitor-cache";
+import { safeError } from "@/lib/errors";
 
 export async function POST(req: Request) {
   const __denied = await requireSection("ads");
@@ -55,6 +56,6 @@ export async function POST(req: Request) {
       results,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load competitors"), { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchMediaInsights, type IGMedia } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
+import { safeError } from "@/lib/errors";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 const HASHTAGS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours — your own post stats barely move within a day
@@ -212,6 +213,6 @@ export async function GET(req: Request) {
     await cacheSet(cacheKey, result);
     return NextResponse.json({ ...result, cached: false, latencyMs: Date.now() - t0 });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load hashtags"), { status: 500 });
   }
 }

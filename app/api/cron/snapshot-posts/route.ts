@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/instagram";
 import { snapshotPostsForMonth, snapshotAllAccountsPostsForMonth, currentMonth } from "@/lib/post-history";
 import { snapshotAudienceForMonth, snapshotAllAccountsAudienceForMonth } from "@/lib/audience-history";
+import { safeError } from "@/lib/errors";
 
 // Freeze one month of post performance per account into Supabase, so past months
 // stay stable + instant on the Overview (see lib/post-history.ts).
@@ -60,6 +61,6 @@ export async function GET(req: Request) {
       audience: audResults,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return NextResponse.json(safeError(err, "Something went wrong"), { status: 502 });
   }
 }

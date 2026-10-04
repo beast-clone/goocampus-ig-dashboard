@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const { data, error } = await sb.from("mh_watchers").insert({ ...patch, created_by: getSessionUserId() }).select("*").single();
     if (error) throw new Error(error.code === "23505" ? "That link is already being watched." : error.message);
     return NextResponse.json({ watcher: data });
-  } catch (err) { return NextResponse.json({ error: (err as Error).message }, { status: 400 }); }
+  } catch (err) { return NextResponse.json(safeError(err, "Couldn't complete that watcher action"), { status: 400 }); }
 }
 
 export async function PATCH(req: Request) {
@@ -77,7 +77,7 @@ export async function PATCH(req: Request) {
     const { data, error } = await sb.from("mh_watchers").update(patch).eq("id", b.id).select("*").single();
     if (error) throw new Error(error.code === "23505" ? "That link is already being watched." : error.message);
     return NextResponse.json({ watcher: data });
-  } catch (err) { return NextResponse.json({ error: (err as Error).message }, { status: 400 }); }
+  } catch (err) { return NextResponse.json(safeError(err, "Couldn't complete that watcher action"), { status: 400 }); }
 }
 
 export async function DELETE(req: Request) {

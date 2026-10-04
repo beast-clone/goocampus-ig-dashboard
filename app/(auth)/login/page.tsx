@@ -49,9 +49,16 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (res.ok) {
+      // `startsWith("/")` alone is not enough: "//attacker.example" passes it
+      // and is a protocol-relative URL, so the browser leaves the site. That
+      // turns a real login on the real domain with a valid certificate into a
+      // bounce to an attacker's clone the instant someone signs in
+      // successfully — the most credible phishing there is, and it costs
+      // nothing but a link. "/\" is the same trick in some browsers.
+      // app/api/notifications already guards this exact pattern.
       const next = new URLSearchParams(window.location.search).get("next");
-      const dest = next && next.startsWith("/") ? next : "/me";
-      router.push(dest);
+      const safe = !!next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\");
+      router.push(safe ? next! : "/me");
       return;
     }
     type LoginErr = { error?: string };

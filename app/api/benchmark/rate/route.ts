@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { hasAI, askPerplexityJSON } from "@/lib/ai";
 import { recordApiCall } from "@/lib/api-usage";
 import { safeError } from "@/lib/errors";
+import { issuer } from "@/lib/oauth";
 
 // AI source-rating for the in-dashboard reader ("Approach B" — rate ON OPEN, not for
 // every result in the list). Given a page the user actually opened, we read its real
@@ -47,9 +48,20 @@ export async function GET(req: Request) {
     if (!hasAI()) return NextResponse.json({ ai: false, reason: "ai_unavailable" });
 
     // 3) Read the page's real text through the existing reader (reuses SSRF guard +
-    //    Readability + PDF detection). Forward the caller's session cookie so the
-    //    protected route accepts the server-to-server call.
-    const origin = u.origin;
+    //    Readability + PDF detection).
+    //
+    //    The origin is pinned to APP_URL via issuer(), NOT taken from u.origin.
+    //    u came from new URL(req.url), which in a route handler is derived from
+    //    the Host header — so the destination of a request carrying the caller's
+    //    session cookie was decided by a request header. Pointing that at
+    //    another host would have exfiltrated the cookie. issuer() exists for
+    //    exactly this reason and is already used for the OAuth issuer URL.
+    //
+    //    The cookie still has to be forwarded because /api/radar/article is
+    //    session-guarded. The right end state is to call the reader as a
+    //    library function with no HTTP hop at all; pinning the origin closes
+    //    the exfiltration path in the meantime.
+    const origin = issuer(req.url);
     let pageText = title;
     let isPdf = false;
     try {

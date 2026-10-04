@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
+import { safeError } from "@/lib/errors";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -25,6 +26,6 @@ export async function GET(req: NextRequest) {
       .filter(Boolean);
     return NextResponse.json({ urls });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return NextResponse.json(safeError(e, "Couldn't complete that scheduling action"), { status: 502 });
   }
 }
