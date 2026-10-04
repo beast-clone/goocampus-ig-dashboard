@@ -133,11 +133,22 @@ async function knownUrls(watcherId: string): Promise<Set<string>> {
   return seen;
 }
 
-export async function checkWatcher(w: Watcher): Promise<CheckResult> {
+/**
+ * @param prefetchedHtml  HTML someone else already fetched, for pages this
+ *   server cannot reach. cetonline.karnataka.gov.in answers an Indian IP in
+ *   under a second and refuses Netlify's US ones outright, so the KEA watcher
+ *   read "Couldn't open the page" on every run while the page itself was
+ *   perfectly healthy — no timeout or retry here could ever have fixed that.
+ *   n8n runs on a host the site does answer, so it fetches the page and posts
+ *   the HTML to /api/watchers/ingest, which hands it in here. Everything after
+ *   the fetch — link extraction, diffing, alerts — is the same code path as a
+ *   direct check. Pass `null` to mean "the fetch was tried and failed".
+ */
+export async function checkWatcher(w: Watcher, prefetchedHtml?: string | null): Promise<CheckResult> {
   const sb = getSupabase()!;
   const label = w.name || new URL(w.url).hostname;
   const res: CheckResult = { watcher: label, found: 0, baseline: false, fresh: [] };
-  const html = await fetchPage(w.url);
+  const html = prefetchedHtml !== undefined ? prefetchedHtml : await fetchPage(w.url);
   const items = html ? linksOn(html, w.url) : [];
   res.found = items.length;
   if (!items.length) {
@@ -237,7 +248,7 @@ function emailHtml(label: string, source: string, fresh: CheckResult["fresh"]): 
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#B8C0D6;margin-top:3px;letter-spacing:1px;text-transform:uppercase">Watchers · ${esc(label)}</div></td></tr>
     <tr><td style="background:#3A57E8;padding:10px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#ffffff">${fresh.length} new notice${fresh.length === 1 ? "" : "s"} just posted</td></tr>
     <tr><td style="padding:8px 24px 20px">${blocks}</td></tr>
-    <tr><td style="background:#F6F7FB;padding:16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8A92A6">Source: <a href="${esc(source)}" style="color:#232D42">${esc(source)}</a><br>Checked every 15 minutes · GooCampus Marketing OS</td></tr>
+    <tr><td style="background:#F6F7FB;padding:16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8A92A6">Source: <a href="${esc(source)}" style="color:#232D42">${esc(source)}</a><br>Checked every 30 minutes, 6am–11:30pm IST · GooCampus Marketing OS</td></tr>
   </table></body></html>`;
 }
 
