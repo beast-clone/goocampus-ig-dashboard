@@ -3,6 +3,91 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-04 — Sessions end with the day, the stop zone finally covers everything, and a first test suite
+
+Deployed. `63107cf`..`3b697db`, live as deploy `6ac23c33` at 17:14 IST.
+
+### Sessions now end at midnight IST
+
+Attendance stamps the first sign-in of each IST day, but the session lasted **seven** days — so for
+most people it fired once and never again, and the board was reading a clock-in from whenever they
+had last been logged out. Sessions now expire at the next 00:00 IST: everyone signs in fresh each
+morning and the clock-in is real.
+
+The expiry rides **inside the signed payload**, not just the cookie's `maxAge`. `maxAge` is a request
+to the browser; a copied cookie ignores it. Before this there was no expiry in the payload at all, so
+a lifted cookie was good forever — the audit's session-expiry finding, closed by the same change.
+Signing in at 23:58 gets 30 minutes rather than two.
+
+Both login paths behave identically: password and Google both call `setSession` and `recordLogin`.
+**Everyone was logged out once**, deliberately — pre-expiry cookie shapes are refused.
+
+### Two bugs found by checking before deploying rather than after
+
+- **The cache warmer would have silently warmed nothing.** It signs its own admin cookie and built
+  the payload by hand in the old 3-field shape — correctly signed, refused by the middleware on all
+  22 targets, reporting a cheerful 200. The same failure its own code comment describes happening
+  once before, reached a second way. Now uses the shared builder. Verified: 22 warmed, 22 ok.
+- **`x-forwarded-for` was read from the left.** That end is whatever the client sent, so the login
+  limit of 5-per-15-minutes could be bypassed by presenting a fresh fake address each request. Now
+  prefers Netlify's own `x-nf-client-connection-ip`, else counts in from the right.
+
+### Six rows that could not be edited
+
+`VALID_STATUS` in the update route had drifted below `public.mh_status`. It did not reject bad input
+— it quietly made good rows uneditable: three enum values were missing and the 6 live rows holding
+them (5 `Rejected/Not Published`, 1 `Content - Needs Approval`) 400'd on every save, because the grid
+returns status whether or not anyone touched it. The list now mirrors the enum.
+
+### The stop zone was 28% done
+
+It had been applied to the `GC Dashboard —` workflows only. **52 of 71 active scheduled n8n jobs
+still fired between midnight and 6am** — about 3,280 executions a night, ~98,400 a month. All 52 are
+now windowed to `6-23`; the overnight figure is **zero**. Four pure-sync jobs that polled every
+minute dropped to every five. Daily executions across those 52: **13,889 → 6,985**.
+
+Five of them had **no timezone set**, where `6-23` would have meant 11:30–05:30 IST — the exact
+inverse. Set explicitly to `Asia/Kolkata`. Reasoning for every one of the 52 is in
+`docs/STOP_ZONE_CLASSIFICATION_2026-10-04.md`; original schedules are backed up.
+
+### A first test suite
+
+The project had **no tests at all** — no runner, no script, no files. `npm test`: **83 tests, 2.7s**,
+over the five things that fail *silently* — session expiry, the stop zone, client IP, SSRF, and the
+attendance clock. A broken button gets reported in an hour; a session that never expires sits there
+for months looking fine. Each file guards a defect that was real today.
+
+Mutation-checked: restoring the `x-forwarded-for` bug fails 4 tests, removing the expiry check fails
+5. `tests/README.md` makes breaking-it-first the rule. **Not covered:** API routes, components,
+anything touching Supabase or n8n — green means those five units are sound, nothing wider.
+
+### Landing page
+
+Platform strip went from grey text to the brands' own colour marks with names set in the page's own
+type. Hero centred, the "difference" heading fits one line, and the overnight copy now matches
+reality (every half hour, 6am to midnight — "2am" and "around the clock" became false the night the
+stop zone went in). Draft pages `landing-v{2,3,4,5}.html` deleted; they were publicly reachable.
+
+### Housekeeping
+
+`DASHBOARD_PASSWORD` removed from Netlify — inert since the shared login went, but a rotated secret
+sitting in the environment for no reason. KEA fetch-and-ingest workflow built (`pmDnLrn2zmZ7uMxX`)
+and left **off**: activating it starts emailing three people.
+
+### Credits
+
+**2,715 available** at 17:15 IST, period 3 Oct – 2 Nov. Five deploys today, ~10 minutes of build
+time. Builds remain paused (`stop_builds: true`), so nothing builds without being asked.
+
+### Still open
+
+- **Meta tokens expire Friday 9 October, 18:14 UTC** — Instagram ×4, Facebook, Ads and IG/FB
+  publishing stop together. System User token is the fix.
+- KEA job is off; the standalone watcher stays until the replacement is proven.
+- Rotate the keys that were in the committed `.env.local.bak`.
+- Next.js 14→16: the critical CVE is Windows-only, so it does not apply on Netlify, but 14.2.35 is
+  already the newest 14.x — the upgrade is the only fix and needs its own window.
+
 ## 2026-10-02 — Watchers: two columns, email and Telegram actually sending, and the Radar loop
 
 Branch `feat/dashboard-reskin`, 11 commits, `494686c`..`ac7a5e5`. **Not deployed** — nothing checks
