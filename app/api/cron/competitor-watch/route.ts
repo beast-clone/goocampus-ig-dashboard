@@ -29,8 +29,25 @@ export async function GET(req: Request) {
 
   const t0 = Date.now();
   try {
-    const ig = new URL(req.url).searchParams.get("ig") === "1";
-    const result = await runCompetitorWatch({ instagram: ig });
+    const sp = new URL(req.url).searchParams;
+    const ig = sp.get("ig") === "1";
+
+    // A scheduled run takes a few competitors at a time; a person pressing
+    // "Check now" still gets the whole list.
+    //
+    // Checking all ten in one request took 31s and was killed by the gateway
+    // before anything was saved — it had been failing that way on every run.
+    // The offset walks forward with the clock, so consecutive hourly runs pick
+    // up where the last left off and everyone is covered a few times a day.
+    // Two per run, not more: the gateway cuts a request off around 26s, three
+    // took 12s locally and production is slower on every hop. ?size=0 forces the
+    // old full sweep if it is ever wanted from cron.
+    const size = sp.has("size") ? Math.max(0, Number(sp.get("size")) || 0) : (byCron ? 2 : 0);
+    const window = size > 0
+      ? { size, offset: sp.has("offset") ? Number(sp.get("offset")) || 0 : Math.floor(Date.now() / 3_600_000) * size }
+      : undefined;
+
+    const result = await runCompetitorWatch({ instagram: ig, window });
 
     // Notify the team.
     const sb = getSupabase();
@@ -56,7 +73,7 @@ export async function GET(req: Request) {
       }
     }
 
-    console.log(`[competitor-watch] ${result.competitors} competitors, ${result.events.length} new, ${result.baselined.length} baselined, ${result.errors.length} errors, ${Date.now() - t0}ms`);
+    console.log(`[competitor-watch] ${result.checked}/${result.competitors} competitors checked, ${result.events.length} new, ${result.baselined.length} baselined, ${result.errors.length} errors, ${Date.now() - t0}ms`);
     return NextResponse.json({ ok: true, ms: Date.now() - t0, ...result });
   } catch (err) {
     console.error("[competitor-watch] failed", err);
