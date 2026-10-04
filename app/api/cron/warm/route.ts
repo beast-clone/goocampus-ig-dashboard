@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHmac, randomBytes } from "crypto";
+import { buildPayload } from "@/lib/session-payload";
 import { format, subDays } from "date-fns";
 import { fetchRoster } from "@/lib/team-db";
 
@@ -33,7 +34,12 @@ async function mintSession(): Promise<string> {
   const admin = (await fetchRoster()).find((u) => u.isAdmin && u.active);
   if (!admin) return "";
   const token = randomBytes(24).toString("hex");
-  const payload = `${admin.id}:a:${token}`;
+  // Built with the shared builder, not by hand. Hand-rolling it here is how this
+  // cookie ended up in the pre-expiry 3-field shape after sessions gained an
+  // expiry: still correctly signed, so it looked fine, and refused by the
+  // middleware on every target — the same silent "warms nothing, reports 200"
+  // failure described above, arrived at a second way.
+  const payload = buildPayload(admin.id, true, token);
   const sig = createHmac("sha256", secret).update(payload).digest("hex");
   return `gc_session=${payload}.${sig}`;
 }
