@@ -207,7 +207,7 @@ npm run dev
 # → http://localhost:3000
 ```
 
-**Dev login password:** `goocampus2026`
+**Dev login password:** `<rotated 2026-10-04 — the shared login was removed entirely; see app/api/login/route.ts>`
 
 ---
 
@@ -215,7 +215,7 @@ npm run dev
 
 ```env
 # Login
-DASHBOARD_PASSWORD=goocampus2026                      # change for production
+DASHBOARD_PASSWORD=<rotated 2026-10-04 — the shared login was removed entirely; see app/api/login/route.ts>                      # change for production
 SESSION_SECRET=dev-session-secret-change-in-prod-...  # change for production
 
 # Airtable

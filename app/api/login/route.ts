@@ -30,7 +30,6 @@ export async function POST(req: Request) {
     password = undefined;
   }
 
-  const shared = process.env.DASHBOARD_PASSWORD;
   if (!password) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
@@ -44,16 +43,29 @@ export async function POST(req: Request) {
       : null;
 
   if (person) {
+    // Deactivation is checked AFTER the password, not before. Answering "this
+    // account is deactivated" to anyone who types the address told an attacker
+    // which addresses are real and, worse, which belong to people who are no
+    // longer around to notice anything happening to them. Now you have to prove
+    // you are that person before the system tells you anything about them.
+    //
+    // A personal password is now the only way in. The shared team password used
+    // to stand in for anyone who had not set one, which meant whoever knew it
+    // could sign in AS a colleague — their sections, their capabilities, their
+    // name on everything they then did. That was a deliberate transitional step
+    // (sql/005_per_user_passwords.sql) and it has outlived its purpose: every
+    // active account has its own password.
+    //
+    // Someone added to the roster without one can no longer log in at all, which
+    // is the correct outcome — they get an invite via /api/account/accept-invite
+    // and set their own.
+    if (!person.passwordHash || !verifyPassword(password, person.passwordHash)) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    // Identity proven. Only now is it safe to say the account is switched off.
     if (!person.active) {
       return NextResponse.json({ ok: false, error: "This account is deactivated." }, { status: 403 });
-    }
-    // Personal password, if set, is the ONLY password that works for this person.
-    // No personal password yet → the shared team password still logs them in.
-    const ok = person.hasPassword
-      ? verifyPassword(password, person.passwordHash)
-      : !!shared && password === shared;
-    if (!ok) {
-      return NextResponse.json({ ok: false }, { status: 401 });
     }
     setSession(person.id, person.isAdmin);
     // Signing in IS the clock-in (spec §10). Doing it here rather than in My Day
@@ -63,16 +75,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, user: person.id });
   }
 
-  // Someone typed an email we don't know → reject (don't silently log them in
-  // as an identity-less session; that hides typos).
-  if (email?.trim()) {
-    return NextResponse.json({ ok: false, error: "Unknown email." }, { status: 401 });
-  }
-
-  // Legacy flow: no identity given, shared password only → identity-less session.
-  if (!shared || password !== shared) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-  setSession(undefined);
-  return NextResponse.json({ ok: true, user: null });
+  // No match. One response for "no such account" and for "wrong password"
+  // alike, so this cannot be used to test which addresses are real before
+  // spending any guesses on them — the rule /api/account/accept-invite already
+  // follows deliberately.
+  //
+  // The identity-less session that used to live here is gone. Submitting the
+  // shared password with no email minted a session with no userId that still
+  // passed middleware, so anything relying on middleware alone was reachable
+  // by whoever knew one static string — and every action it took landed in the
+  // activity feed and attendance records with no actor, making a compromise
+  // unreviewable afterwards. That password was also committed in
+  // PROJECT_HANDOFF.md and pushed to five branches.
+  return NextResponse.json({ ok: false }, { status: 401 });
 }
