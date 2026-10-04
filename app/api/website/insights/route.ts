@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { hasAI, askPerplexity } from "@/lib/ai";
 import { buildGA4Traffic, hasGA4Auth } from "@/lib/ga4";
 import { buildClarity, hasClarityAuth } from "@/lib/clarity";
@@ -75,6 +75,8 @@ function gscSummary(g: Awaited<ReturnType<typeof buildSearchConsoleFull>> | null
 export async function GET(req: Request) {
   const __denied = await requireSection("analytics");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "website-insights", 15, 300_000);
+  if (__limited) return __limited;
 
   if (!hasAI()) return NextResponse.json({ error: "Perplexity not configured — set PERPLEXITY_API_KEY." }, { status: 503 });
   const url = new URL(req.url);

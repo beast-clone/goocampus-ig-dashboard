@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { askPerplexityJSON, hasAI } from "@/lib/ai";
 import {
   getAccount,
@@ -138,6 +138,8 @@ async function buildInbox(accountId: string): Promise<{ items: InboxItem[]; dmAv
 export async function GET(req: Request) {
   const __denied = await requireSection("sales");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "inbox-ai", 20, 300_000);
+  if (__limited) return __limited;
 
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";

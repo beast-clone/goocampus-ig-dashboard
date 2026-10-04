@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { askClaudeViaPerplexity, parseLooseJson, hasAI } from "@/lib/ai";
 
@@ -38,6 +38,8 @@ Reply as {"variants":[{"id":"<the id given>","text":"<the message>"}]} — one e
 export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "whatsapp-vary", 15, 300_000);
+  if (__limited) return __limited;
 
   try {
     const b = (await req.json()) as { body?: string; recipients?: Recipient[] };

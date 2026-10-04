@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { IconBell } from "@tabler/icons-react";
+import { shouldPoll } from "@/lib/quiet-hours";
 
 // Marketing Hub top-bar notification bell.
 //
@@ -41,7 +42,12 @@ export default function HubNotificationBell() {
       } catch { /* transient — keep last */ }
     };
     load();
-    const t = setInterval(load, 60_000);
+    // The first load runs whenever the component mounts — someone has opened
+    // the page, so they should see the badge. The repeat is the one that has to
+    // behave: this hits Supabase, and without the guard it fired 1,440 times a
+    // day per forgotten tab, straight through the 00:00–06:00 stop zone. Every
+    // other poller in the app already checks this.
+    const t = setInterval(() => { if (shouldPoll()) load(); }, 60_000);
     return () => { alive = false; clearInterval(t); };
   }, [person]);
 

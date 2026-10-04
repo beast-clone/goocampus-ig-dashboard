@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { hasAI, askPerplexityJSON } from "@/lib/ai";
 import { recordApiCall } from "@/lib/api-usage";
@@ -24,6 +24,8 @@ type Rated = { ai: true; level: "high" | "medium" | "low"; label: string; why: s
 export async function GET(req: Request) {
   const __denied = await requireSection("ads");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "benchmark-rate", 20, 300_000);
+  if (__limited) return __limited;
 
   try {
     const u = new URL(req.url);

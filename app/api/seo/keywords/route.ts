@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { serperRank } from "@/lib/seo";
 import { safeError } from "@/lib/errors";
@@ -12,9 +12,11 @@ export const dynamic = "force-dynamic";
 
 type Snap = { keyword_id: string; position: number | null; checked_at: string };
 
-export async function GET() {
+export async function GET(req: Request) {
   const __denied = await requireSection("analytics");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "seo-keywords", 20, 300_000);
+  if (__limited) return __limited;
 
   try {
     const sb = getSupabase();
