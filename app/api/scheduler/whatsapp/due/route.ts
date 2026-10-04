@@ -22,6 +22,25 @@ export async function GET(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
+    // Reap anything stranded in 'sending' before handing out new work.
+    //
+    // This endpoint claims rows and hands them to n8n, which reports back via
+    // /status. If that run dies after we respond — a WAHA error, the worker
+    // restarting — nothing ever revisits the row: the next tick only claims
+    // rows still 'scheduled', so a whole batch can sit in 'sending' forever,
+    // unsent and unreported.
+    //
+    // Stranded rows go to 'failed', not back in the queue. We cannot tell from
+    // here whether WAHA delivered before the run died, and re-sending a
+    // broadcast to a customer list is far worse than asking someone to send it
+    // again deliberately.
+    const strandedBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+    const { data: reaped } = await sb
+      .from("whatsapp_scheduled_messages")
+      .update({ status: "failed", error: "Stranded in sending — the worker did not report back. Check WhatsApp before resending: it may already have gone out." })
+      .eq("status", "sending").lt("schedule_time", strandedBefore)
+      .select("id");
+
     const { data: due, error } = await sb
       .from("whatsapp_scheduled_messages")
       .select("id, chat_id, chat_label, body, image_url, schedule_time, kind, payload")
@@ -30,7 +49,7 @@ export async function GET(req: Request) {
       .order("schedule_time", { ascending: true })
       .limit(BATCH);
     if (error) throw new Error(error.message);
-    if (!due || !due.length) return NextResponse.json({ ok: true, count: 0, messages: [] });
+    if (!due || !due.length) return NextResponse.json({ ok: true, count: 0, reaped: (reaped || []).length, messages: [] });
 
     const ids = due.map((m) => m.id);
     const { data: claimed, error: claimErr } = await sb
@@ -42,7 +61,7 @@ export async function GET(req: Request) {
 
     const mine = new Set((claimed || []).map((r) => r.id));
     const messages = due.filter((m) => mine.has(m.id));
-    return NextResponse.json({ ok: true, count: messages.length, messages });
+    return NextResponse.json({ ok: true, count: messages.length, reaped: (reaped || []).length, messages });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to read the due queue"), { status: 502 });
   }
