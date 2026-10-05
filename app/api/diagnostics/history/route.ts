@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { requireSection } from "@/lib/api-guard";
 import { diagnosticsHistory, diagnosticsRun } from "@/lib/diagnostics";
 
 // GET /api/diagnostics/history            -> last 30 run summaries
 // GET /api/diagnostics/history?id=<uuid>  -> one full stored report
 export async function GET(req: Request) {
+  // Diagnostics is admin-only (the "system" section) — the page and its actions.
+  const denied = await requireSection("system");
+  if (denied) return denied;
   const id = new URL(req.url).searchParams.get("id");
   if (id) return NextResponse.json({ run: await diagnosticsRun(id) });
   return NextResponse.json({ runs: await diagnosticsHistory(30) });

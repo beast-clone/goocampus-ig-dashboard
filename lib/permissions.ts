@@ -13,24 +13,19 @@ export type Capability =
   | "manage_team"
   | "claude_connector";
 
-export const CAPABILITIES: { key: Capability; label: string; desc: string }[] = [
-  { key: "create_tasks", label: "Create tasks/posts", desc: "Add new items to the pipeline" },
-  { key: "edit_tasks", label: "Edit tasks", desc: "Change details on existing items" },
-  { key: "delete_tasks", label: "Delete tasks", desc: "Remove items (leave off for most)" },
-  { key: "assign_tasks", label: "Assign to others", desc: "Hand a task to a teammate" },
-  { key: "approve_content", label: "Approve content", desc: "Move items to Content-Approved" },
-  { key: "reschedule", label: "Reschedule / calendar", desc: "Change publish dates" },
-  { key: "view_analytics", label: "View analytics", desc: "Open the Analytics tabs" },
-  { key: "manage_team", label: "Manage team + permissions", desc: "Admin — edit these toggles" },
-  { key: "claude_connector", label: "Connect Claude", desc: "Create tasks from Claude Code with a personal key (My Account)" },
+// What the Team page offers, in plain words. view_analytics and manage_team stay in
+// the type (old rows carry them) but aren't offered: nothing checks view_analytics —
+// the Analytics *page* switch decides that — and managing the team is Admin.
+export const CAPABILITIES: { key: Capability; label: string; short: string; desc: string }[] = [
+  { key: "create_tasks", label: "Create tasks", short: "create", desc: "Add new posts and tasks" },
+  { key: "edit_tasks", label: "Edit tasks", short: "edit", desc: "Change details on existing tasks" },
+  { key: "delete_tasks", label: "Delete tasks", short: "delete", desc: "Move tasks to the recycle bin — leave off for most people" },
+  { key: "assign_tasks", label: "Assign to others", short: "assign", desc: "Hand a task to a teammate" },
+  { key: "approve_content", label: "Approve content", short: "approve", desc: "Mark work as approved" },
+  { key: "reschedule", label: "Change dates", short: "change dates", desc: "Move publish and due dates" },
+  { key: "claude_connector", label: "Connect Claude", short: "use Claude", desc: "Create tasks from Claude with a personal key (My Account)" },
 ];
 
-// One-click starting points; the admin can then tick/untick individual boxes.
-export const PRESETS: { key: string; label: string; caps: Capability[] }[] = [
-  { key: "producer", label: "Producer", caps: ["create_tasks", "edit_tasks", "reschedule", "view_analytics"] },
-  { key: "manager", label: "Manager", caps: ["create_tasks", "edit_tasks", "delete_tasks", "assign_tasks", "approve_content", "reschedule", "view_analytics"] },
-  { key: "viewer", label: "Viewer", caps: ["view_analytics"] },
-];
 
 export type Permissions = Partial<Record<Capability, boolean>>;
 
@@ -88,12 +83,19 @@ export function canAccessSection(user: { isAdmin?: boolean; sections?: Sections 
   return user.sections?.[sec] === true;
 }
 
-// One-click role presets — set which sections a person can open.
-export const ROLE_PRESETS: { key: string; label: string; sections: Section[] }[] = [
-  { key: "designer", label: "Designer", sections: ["overview", "content", "analytics", "ads", "sales"] },
-  { key: "editor", label: "Video editor", sections: ["overview", "content", "analytics"] },
-  { key: "writer", label: "Content writer", sections: ["overview", "content", "analytics", "ai"] },
-  { key: "manager", label: "Manager", sections: ["overview", "content", "analytics", "ads", "sales", "ai"] },
+// Roles on the Team page: one click sets both the pages and the task actions. A
+// role isn't stored — it's read back from the switches, so changing any switch by
+// hand simply makes the person "Custom". Admin is the is_admin flag.
+export const ROLE_PRESETS: { key: string; label: string; desc: string; sections: Section[]; caps: Capability[] }[] = [
+  { key: "manager", label: "Manager", desc: "All pages · approve, assign, delete",
+    sections: ["overview", "content", "analytics", "ads", "sales", "ai"],
+    caps: ["create_tasks", "edit_tasks", "delete_tasks", "assign_tasks", "approve_content", "reschedule"] },
+  { key: "designer", label: "Designer", desc: "Content, Analytics, Ads, Sales · create, edit",
+    sections: ["overview", "content", "analytics", "ads", "sales"], caps: ["create_tasks", "edit_tasks", "reschedule"] },
+  { key: "editor", label: "Video editor", desc: "Content, Analytics · create, edit",
+    sections: ["overview", "content", "analytics"], caps: ["create_tasks", "edit_tasks", "reschedule"] },
+  { key: "writer", label: "Content writer", desc: "Content, Analytics, AI · create, edit",
+    sections: ["overview", "content", "analytics", "ai"], caps: ["create_tasks", "edit_tasks", "reschedule"] },
 ];
 
 export function cleanSections(raw: unknown): Sections {

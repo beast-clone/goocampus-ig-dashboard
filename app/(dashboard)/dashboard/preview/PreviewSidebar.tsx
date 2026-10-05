@@ -156,6 +156,15 @@ const GROUPS: Group[] = [
   ] },
 ];
 
+// Which tabs each section holds, straight from the menu above — the Team page lists
+// these under each "Pages they can open" switch, so a new tab shows up there by
+// itself instead of drifting from a hand-written list.
+export const SECTION_TABS: Record<Section, string[]> = (() => {
+  const out = { overview: ["Overview"], content: [], analytics: [], ads: [], sales: [], ai: [], system: ["Team Command"] } as Record<Section, string[]>;
+  for (const g of GROUPS) for (const it of g.items) out[g.sec].push(it.label);
+  return out;
+})();
+
 // The sidebar is its own scroll container (100vh, overflow-y:auto) and there is no
 // shared layout, so every page renders — and therefore REMOUNTS — it. Its scroll
 // jumped back to 0 on each navigation: you clicked a Sales Hub sub-page near the
