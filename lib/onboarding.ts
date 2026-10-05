@@ -161,7 +161,7 @@ export const TAB_INTRO: Record<string, Intro> = {
   "ai-reports": { title: "The monthly report", body: "A full month on one page, ready to share. Save a snapshot and that month is frozen exactly as it was." },
   integrations: { title: "What's connected", body: "Every platform the dashboard talks to and whether its connection is healthy. Red means data on some tab is stale or missing." },
   diagnostics: { title: "When something looks wrong", body: "Checks each connection and data source, and tells you which one is failing rather than leaving you to guess." },
-  team: { title: "Who can sign in", body: "Add people, set their password, and choose which tabs they can open. Section access decides what they see; functions decide what they can change." },
+  team: { title: "Team & access", body: "Click a person to change their access. Pick a role, then fine-tune which pages they can open and what they can do with tasks." },
   tools: { title: "Odd jobs", body: "One-off utilities that don't belong on another tab." },
   assistant: { title: "Search everything you have", body: "Finds posts, tasks, reports and leads across the dashboard. Your own data only — it never searches the internet." },
 };

@@ -24,7 +24,7 @@ type Member = {
 
 export default function TeamPage() {
   return (
-    <PreviewDashboardShell active="team" title="Team & access" subtitle="Click a person to see and change what they can open and do. Everything happens in their row." hideAccountPicker>
+    <PreviewDashboardShell active="team" title="Team & access" subtitle="Click a person to see and change what they can open and do. Everything happens in their row." hideAccountPicker hideRange>
       {() => <TeamManager />}
     </PreviewDashboardShell>
   );
