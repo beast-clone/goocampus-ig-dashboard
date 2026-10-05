@@ -53,6 +53,20 @@ async function refreshTokenFor(channelKey?: string): Promise<string | null> {
   return getIntegrationToken("youtube");
 }
 
+// Does this channel have a permission of its own — a dashboard-connected grant or
+// an entry in the env map? Without one, analytics calls are refused and every
+// figure would quietly read 0 under a "Live" badge (Samvaya, 5 Oct), so the route
+// answers "not connected" instead and the tab offers "Connect this channel".
+export async function hasChannelGrant(channelKey: string): Promise<boolean> {
+  if (await getIntegrationToken(`youtube:${channelKey}`)) return true;
+  try {
+    const map = JSON.parse(process.env.YOUTUBE_REFRESH_TOKENS || "{}") as Record<string, unknown>;
+    if (typeof map[channelKey] === "string") return true;
+    // No per-channel map at all = the old single-token setup, which covers its channels.
+    return Object.keys(map).length === 0;
+  } catch { return true; }
+}
+
 // Access tokens expire hourly; exchange the refresh token for a fresh one when needed.
 async function freshAccessToken(channelKey?: string): Promise<string> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
-import { buildLiveYouTube, hasYouTubeAuth, resolveChannelId } from "@/lib/youtube";
+import { hasChannelGrant, buildLiveYouTube, hasYouTubeAuth, resolveChannelId } from "@/lib/youtube";
 import { CHANNELS } from "@/lib/youtube-channels";
 import { cached } from "@/lib/api-cache";
 
@@ -76,10 +76,14 @@ export async function GET(req: Request) {
 
     // Live when auth is available (access token OR refresh credentials) AND this
     // channel has a channelId (from env or resolved above).
+    if (ytAuth && CHANNELS[channelKey].channelId && !(await hasChannelGrant(channelKey))) {
+      return NextResponse.json({ error: "This channel isn't connected yet.", notConnected: true }, { status: 503 });
+    }
     if (ytAuth && CHANNELS[channelKey].channelId) {
       try {
         // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
-        const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
+        // ("g2": cache generation after per-channel grants — older entries may hold zeros.)
+        const live = await cached(`yt:g2:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
         return NextResponse.json({ ...live, bestTimes: bestTimesFrom(live.viewsOverTime), latencyMs: Date.now() - t0 });
       } catch (e) {
         return NextResponse.json({ error: `Couldn't load YouTube right now: ${e instanceof Error ? e.message : String(e)}`.slice(0, 240) }, { status: 502 });
