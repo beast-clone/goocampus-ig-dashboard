@@ -40,6 +40,11 @@ export async function hasYouTubeAuth(): Promise<boolean> {
 // token: YOUTUBE_REFRESH_TOKENS = {"goocampus":"1//…","twelfthplus":"1//…"}.
 // Falls back to the single YOUTUBE_REFRESH_TOKEN for unlisted channels.
 async function refreshTokenFor(channelKey?: string): Promise<string | null> {
+  // A channel connected from the dashboard (/api/auth/youtube) keeps its own token.
+  if (channelKey) {
+    const own = await getIntegrationToken(`youtube:${channelKey}`);
+    if (own) return own;
+  }
   try {
     const map = JSON.parse(process.env.YOUTUBE_REFRESH_TOKENS || "{}") as Record<string, unknown>;
     if (channelKey && typeof map[channelKey] === "string") return map[channelKey] as string;

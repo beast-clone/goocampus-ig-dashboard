@@ -45,6 +45,7 @@ type Resp = {
 const CHANNELS = [
   { key: "goocampus", label: "GooCampus" },
   { key: "twelfthplus", label: "12thplus" },
+  { key: "samvaya", label: "Samvaya" },
   // Study Abroad (goocampusworld) removed from the switcher — nothing is published there.
 ];
 
@@ -78,6 +79,21 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const { data, error, isLoading, refresh } = useApi<Resp>(channel ? `/api/youtube?${qs}` : null);
   const [, setFetchedAt] = useState<number | null>(null);
   useEffect(() => { if (data) setFetchedAt(Date.now()); }, [data]);
+  // Coming back from Google's "Connect this channel" (/api/auth/youtube):
+  // ?channel=samvaya&yt=connected|denied|failed|notadmin[&why=…]
+  const [connectNote, setConnectNote] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const ch = q.get("channel");
+    if (ch && CHANNELS.some((c) => c.key === ch)) setChannel(ch);
+    const flag = q.get("yt"), why = q.get("why") || "";
+    if (!flag) return;
+    setConnectNote(flag === "connected" ? { ok: true, text: `Connected ${why || "the channel"} — its numbers load below.` }
+      : flag === "denied" ? { ok: false, text: "Google permission was cancelled — nothing changed." }
+      : flag === "notadmin" ? { ok: false, text: "Only an admin can connect a channel." }
+      : { ok: false, text: why || "Couldn't connect the channel. Try again." });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   if (profile && !profileChannel) {
     return (
@@ -114,7 +130,24 @@ function Inner({ range }: { range: { from: string; to: string } }) {
         </div>
       </div>
 
-      {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error.message}</div>}
+      {connectNote && (
+        <div className={`text-sm rounded-lg p-3 border ${connectNote.ok ? "text-[#2F9E6F] bg-[#E8F6F0] border-[#CDEBDF]" : "text-rose-600 bg-rose-50 border-rose-200"}`}>{connectNote.text}</div>
+      )}
+      {error && (
+        <div className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 flex-wrap">
+          <div className="flex-1 min-w-[240px]">
+            <div className="text-[14px] font-medium text-[#232D42]">Couldn&apos;t load this channel</div>
+            <div className="text-[12.5px] text-[#8A92A6] mt-0.5">
+              If it isn&apos;t connected yet, an admin who manages the channel on YouTube can connect it — Google asks you to pick the channel and allow read-only access.
+            </div>
+            <div className="text-[11.5px] text-rose-600 mt-1 break-all">{error.message}</div>
+          </div>
+          <a href={`/api/auth/youtube/start?channel=${encodeURIComponent(channel)}`}
+            className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium inline-flex items-center hover:bg-brand-dark">
+            Connect this channel
+          </a>
+        </div>
+      )}
       {!data && isLoading && <LoadingBlock label="Loading YouTube analytics…" />}
 
       {data && (

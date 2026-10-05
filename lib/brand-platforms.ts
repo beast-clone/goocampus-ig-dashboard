@@ -23,13 +23,14 @@ export const YT_CHANNEL: Record<string, string | null> = {
   goocampus: "goocampus",
   goocampusworld: null,
   "12thplusdotcom": "twelfthplus",
-  samvaya_matrimony: null,
+  samvaya_matrimony: "samvaya",
 };
 
 // All YouTube channels — pills shown on YouTube pages in MAIN mode only.
 export const YT_CHANNEL_PILLS = [
   { key: "goocampus", label: "GooCampus" },
   { key: "twelfthplus", label: "12thplus" },
+  { key: "samvaya", label: "Samvaya" },
   // Study Abroad (goocampusworld) removed — nothing is published there.
 ];
 

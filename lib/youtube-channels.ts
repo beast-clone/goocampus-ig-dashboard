@@ -6,6 +6,9 @@ export const CHANNELS: Record<string, { id: string; name: string; handle: string
   goocampus:      { id: "goocampus",      name: "GooCampus",        handle: "@goocampus",       channelId: "" },
   goocampusworld: { id: "goocampusworld", name: "Study Abroad",     handle: "@goocampusstudyabroad", channelId: "" },
   twelfthplus:    { id: "twelfthplus",    name: "12thplus",         handle: "@12thplus",        channelId: "" },
+  // Connected from the dashboard ("Connect this channel" on the YouTube tab, 5 Oct) —
+  // its token lives in mh_integration_tokens as "youtube:samvaya", not in env.
+  samvaya:        { id: "samvaya",        name: "Samvaya Matrimony", handle: "@samvaya-matrimony", channelId: "UCUdAtN5wd4x5NR9Pxmmnucw" },
 };
 
 // Fill channelIds from env: YOUTUBE_CHANNEL_IDS = {"goocampus":"UCxxxx", ...}.
