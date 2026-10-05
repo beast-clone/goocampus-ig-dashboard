@@ -6,6 +6,13 @@ import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { defaultCollaboratorFor } from "@/lib/task-create";
 import { activeTeamIds } from "@/lib/team-db";
+import { getSessionUserId } from "@/lib/auth";
+
+// The video pair (Nikhil's comment, 5 Oct; "Nikhil and Nandu pair only"): when one
+// of them takes one half of a video, the other half goes to the other. Presenting is
+// recorded by /update (custom.presenter_key); this route then hands the edit to the
+// partner. Only this exact pair, only for "present".
+const VIDEO_PAIR: Record<string, string> = { nikhil: "nandu" };
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey, role? }
 // Swaps ownership: the incoming person becomes the owner.
@@ -32,6 +39,15 @@ export async function POST(req: Request) {
     if (!body.postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     if (!body.newOwnerKey || !VALID_KEYS.has(body.newOwnerKey)) {
       return NextResponse.json({ error: "newOwnerKey required" }, { status: 400 });
+    }
+
+    // Claiming for yourself is part of Edit. Handing it to someone else is "Assign
+    // to others" (Team & access) — except the video pair's automatic hand-off.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const pairHandoff = body.role === "present" && VIDEO_PAIR[me] === body.newOwnerKey;
+    if (body.newOwnerKey !== me && !pairHandoff) {
+      const no = await requireCapability("assign_tasks");
+      if (no) return no;
     }
 
     const sb = getSupabase();
@@ -75,16 +91,20 @@ export async function POST(req: Request) {
 
     await sb.from("mh_activity").insert({
       post_id: body.postId,
-      actor_key: body.newOwnerKey,
+      actor_key: pairHandoff ? me : body.newOwnerKey,
       action: "claim",
-      detail: `claimed the task from ${oldOwner || "unassigned"}`,
+      detail: pairHandoff
+        ? `is on camera — editing went to ${MH_NAME[body.newOwnerKey] || body.newOwnerKey} automatically`
+        : `claimed the task from ${oldOwner || "unassigned"}`,
     });
 
     bustMarketingHubCache(); // owner change must reflect on the next hub fetch
 
     // Mirror the claim into the team chat so everyone sees who grabbed it.
     const claimed = await sb.from("mh_posts").select("particulars").eq("id", body.postId).single();
-    await postTeamMessage(sb, body.newOwnerKey, `${MH_NAME[body.newOwnerKey] || body.newOwnerKey} claimed “${claimed.data?.particulars || "a task"}”.`);
+    await postTeamMessage(sb, pairHandoff ? me : body.newOwnerKey, pairHandoff
+      ? `${MH_NAME[me] || me} is on camera for “${claimed.data?.particulars || "a task"}” — editing went to ${MH_NAME[body.newOwnerKey] || body.newOwnerKey}.`
+      : `${MH_NAME[body.newOwnerKey] || body.newOwnerKey} claimed “${claimed.data?.particulars || "a task"}”.`);
 
     return NextResponse.json({ ok: true, newOwnerKey: body.newOwnerKey });
   } catch (err) {

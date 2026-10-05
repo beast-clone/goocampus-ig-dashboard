@@ -3154,8 +3154,32 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // who then owns it with the presenter as a collaborator. "Edit video" and "Both"
   // do claim it. Both editors get the choice — Nandu takes "Both" on a text reel
   // that needs no presenter, exactly as Nikhil does.
+  // The video pair (Nikhil's request, 5 Oct — "Nikhil and Nandu pair only"): Nikhil
+  // presenting hands the edit to Nandu straight away; Nandu editing puts Nikhil on
+  // camera. The server checks the pair, so this can't be used to assign anyone else.
+  const PAIR_EDITOR: Record<string, string> = { nikhil: "nandu" };
+  const PAIR_PRESENTER: Record<string, string> = { nandu: "nikhil" };
   const confirmClaim = (v: Task, role?: "present" | "edit" | "both") => {
     setClaimConfirm(null);
+    const partner = role === "present" ? PAIR_EDITOR[person] : undefined;
+    if (partner) {
+      const name = PPL[partner]?.name || partner;
+      setClaimPool((p) => p.filter((x) => x.id !== v.id));
+      setToast({ who: "You're presenting", color: me.color, av: me.av, body: `You're on camera for “${v.title}” — editing went to ${name}.` });
+      (async () => {
+        const hdr = { "Content-Type": "application/json" };
+        const r1 = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: hdr,
+          body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { presenter_key: person, claim_role: "present" } } }) });
+        const r2 = r1.ok ? await fetch("/api/marketing-hub/takeover", { method: "POST", headers: hdr,
+          body: JSON.stringify({ postId: v.id, newOwnerKey: partner, role: "present" }) }) : r1;
+        if (!r2.ok) {
+          const j = await r2.json().catch(() => ({}));
+          setToast({ who: "Couldn't hand it over", color: "#C03221", av: "!", body: j.error || `HTTP ${r2.status}` });
+        }
+        load();
+      })().catch(() => load());
+      return;
+    }
     if (role === "present") {
       // Register as presenter; ownership stays open.
       setToast({ who: "You're presenting", color: me.color, av: me.av, body: `Noted — you're on camera for “${v.title}”. It stays open for an editor to claim.` });
@@ -3166,8 +3190,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       return;
     }
     if (role) {
-      fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { claim_role: role } } }) }).catch(() => {});
+      // Nandu editing puts Nikhil on camera — unless someone already said they'd present.
+      const presenter = role === "edit" && !v.detail.presenter ? PAIR_PRESENTER[person] : undefined;
+      const saved = fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { claim_role: role, ...(presenter ? { presenter_key: presenter } : {}) } } }) })
+        .catch(() => {});
+      // The claim reads the presenter to attach them, so it must wait for that write.
+      if (presenter) { saved.finally(() => claimVideo(v)); return; }
     }
     claimVideo(v);
   };

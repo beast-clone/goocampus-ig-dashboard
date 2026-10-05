@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
-import { hasCapability, canAccessSection, type Capability, type Section } from "@/lib/permissions";
+import { CAPABILITIES, hasCapability, canAccessSection, type Capability, type Section } from "@/lib/permissions";
 
 // Per-user (falls back to IP) rate-limit guard for expensive routes — the ones
 // that call paid third parties (OpenAI/Perplexity, HikerAPI, Airtable). Returns a
@@ -37,7 +37,8 @@ export function guardRate(req: Request, name: string, max: number, windowMs: num
 export async function requireCapability(cap: Capability): Promise<NextResponse | null> {
   const me = await rosterById(getSessionUserId());
   if (!hasCapability(me, cap)) {
-    return NextResponse.json({ error: "You don't have permission to do that." }, { status: 403 });
+    const label = CAPABILITIES.find((c) => c.key === cap)?.label;
+    return NextResponse.json({ error: label ? `Your access doesn't include "${label}" — ask an admin to switch it on in Team & access.` : "You don't have permission to do that." }, { status: 403 });
   }
   return null;
 }

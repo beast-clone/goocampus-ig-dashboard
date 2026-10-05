@@ -147,6 +147,30 @@ export async function PATCH(req: Request) {
     const eff = (field: string) => (field in clean ? clean[field] : preRow[field]);
     const filled = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
 
+    // ── Team & access switches (5 Oct) ──────────────────────────────────────
+    // Edit lets you change a task; these three decide the bigger moves, and they're
+    // checked here — the one place every surface writes through — not just hidden
+    // in My Day. Admins pass all three (requireCapability).
+    //   Assign to others: handing the task to someone else. Taking it yourself is a
+    //     claim, which Edit already covers.
+    //   Approve content:  moving it into Content - Approved.
+    //   Change dates:     moving the publish or due date to another day.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
+    if ("owner_key" in clean && clean.owner_key !== preRow.owner_key && String(clean.owner_key || "").toLowerCase() !== me) {
+      const no = await requireCapability("assign_tasks");
+      if (no) return no;
+    }
+    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved") {
+      const no = await requireCapability("approve_content");
+      if (no) return no;
+    }
+    if (("publishing_date" in clean && day(clean.publishing_date) !== day(preRow.publishing_date))
+      || ("due_date" in clean && "due_date" in body.fields && day(clean.due_date) !== day(preRow.due_date))) {
+      const no = await requireCapability("reschedule");
+      if (no) return no;
+    }
+
     // A) Content-Approved: the brief must be complete before it hands off to a producer.
     // Only on the way FORWARD. A task stepping back from production — most often an
     // accidental start being put back — is not being approved: it was approved once

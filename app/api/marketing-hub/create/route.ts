@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
-import { createTask, missingForCreate, type TaskInput } from "@/lib/task-create";
+import { createTask, missingForCreate, normalizeOwner, type TaskInput } from "@/lib/task-create";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { getSessionUserId } from "@/lib/auth";
 
@@ -20,6 +20,14 @@ export async function POST(req: Request) {
     if (denied) return denied;
 
     const body = (await req.json()) as CreateBody;
+
+    // Creating a task FOR someone else is assigning it ("Assign to others" on Team
+    // & access). Creating your own, or leaving the owner to the brand rules, isn't.
+    const owner = normalizeOwner(body.owner);
+    if (owner && owner !== (getSessionUserId() || "").toLowerCase()) {
+      const no = await requireCapability("assign_tasks");
+      if (no) return no;
+    }
 
     // Completeness gate — same 422 { error, missing, gate } shape the update route
     // uses, so every caller renders the one shared missing-fields popup.

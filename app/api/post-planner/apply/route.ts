@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireCapability, requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
+  // Moving publish dates is the "Change dates" switch on Team & access.
+  const __noDates = await requireCapability("reschedule");
+  if (__noDates) return __noDates;
 
   let body: { items?: { id: string; dateISO: string }[] };
   try { body = await req.json(); }
