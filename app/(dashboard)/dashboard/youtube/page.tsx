@@ -42,6 +42,7 @@ const CHANNELS = [
   { key: "goocampus", label: "GooCampus" },
   { key: "goocampusworld", label: "Study Abroad" },
   { key: "twelfthplus", label: "12thplus" },
+  { key: "samvaya", label: "Samvaya" },
 ];
 
 function fmt(n: number): string {

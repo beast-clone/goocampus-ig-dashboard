@@ -93,6 +93,11 @@ export async function resolveChannelId(channelKey: string): Promise<string | nul
   const ch = CHANNELS[channelKey];
   if (!ch) return null;
   if (ch.channelId) return ch.channelId;
+  // A channel registered without a handle is one whose identity nobody has
+  // confirmed yet. Looking it up by name would be a guess, and a wrong guess here
+  // means reporting someone else's channel as ours — so it stays "not connected"
+  // until its id is supplied.
+  if (!ch.handle.trim()) return null;
   try {
     const token = await freshAccessToken(channelKey);
     const handle = ch.handle.replace(/^@/, "");
