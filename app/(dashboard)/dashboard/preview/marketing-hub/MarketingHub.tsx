@@ -241,16 +241,36 @@ const ALL_STATUSES = [
 // SINGLE source of truth for status pill colours — soft themed pills, each hue
 // tinted from its PIPELINE_STAGES dot, so a status reads identically in the
 // Pipeline (dot), Master sheet (pill) and Calendar (bar). Was 3 separate maps.
+// Status colours, taken from the Content Calendar's own Status field in Airtable.
+//
+// "Change the content status colours to same like airtable so that it's clearly
+// visible, now everything is looking the same" (Manya, 5 Oct, on the calendar).
+// She was right: the old set were all pastels around 94% lightness, so at the size
+// of a calendar chip they really did read as one off-white — and four statuses were
+// missing from the map entirely and came out grey like the rest.
+//
+// Two of Airtable's choices could not be copied literally. Airtable gives only six
+// distinct colours to these eleven statuses: blueBright covers Content-In Progress,
+// Output-In Progress, Output-Ready AND Incorporating Feedback, and grayDark1 covers
+// both Content-Pending and Rejected. Copying that exactly would have reproduced the
+// problem she reported. So the colours Airtable does distinguish are kept exactly,
+// and the collisions are spread across Airtable's own shades of the same hue — its
+// blue ramp for the four blues, its grey ramp for the two greys. It still looks like
+// Airtable, and every status is now tellable apart.
 const STATUS_TINT: Record<string, { bg: string; text: string; border: string }> = {
-  "Content - Pending":    { bg: "var(--st-pending-bg, #EEF1F5)", text: "var(--st-pending-fg, #46505F)", border: "var(--st-pending-bd, #DCE1E8)" }, // slate
-  "Content - Approved":   { bg: "var(--st-approved-bg, #FBF3E6)", text: "var(--st-approved-fg, #8A5D1E)", border: "var(--st-approved-bd, #EFDFC2)" }, // amber
-  "Output - In Progress": { bg: "var(--st-inprog-bg, #FBEEEA)", text: "var(--st-inprog-fg, #9B4A36)", border: "var(--st-inprog-bd, #F1D6CD)" }, // coral
-  "Incorporating Feedback": { bg: "var(--st-feedback-bg, #FCEAEE)", text: "var(--st-feedback-fg, #9B2D45)", border: "var(--st-feedback-bd, #F3D2DA)" }, // rose — rework
-  "Output - Ready":       { bg: "var(--st-ready-bg, #EBF2FA)", text: "var(--st-ready-fg, #244D82)", border: "var(--st-ready-bd, #D2E0F1)" }, // blue
-  "Ready to Publish":     { bg: "var(--st-topublish-bg, #E9F6F0)", text: "var(--st-topublish-fg, #1F7256)", border: "var(--st-topublish-bd, #CCEADD)" }, // green
-  "Published/Scheduled":  { bg: "var(--st-published-bg, #EFEEFA)", text: "var(--st-published-fg, #423B94)", border: "var(--st-published-bd, #DAD7F2)" }, // purple
+  "Content - Pending":      { bg: "var(--st-pending-bg, #444444)",   text: "var(--st-pending-fg, #FFFFFF)",   border: "var(--st-pending-bd, #333333)" },   // grayDark1
+  "Content - In Progress":  { bg: "var(--st-cinprog-bg, #CFDFFF)",   text: "var(--st-cinprog-fg, #1B3A6B)",   border: "var(--st-cinprog-bd, #AFC8F5)" },   // blueBright -> blueLight2
+  "Content - Needs Approval": { bg: "var(--st-needsappr-bg, #F82B60)", text: "var(--st-needsappr-fg, #FFFFFF)", border: "var(--st-needsappr-bd, #D81B4C)" }, // redBright
+  "Content - Approved":     { bg: "var(--st-approved-bg, #D1F7C4)",  text: "var(--st-approved-fg, #1D4D12)",  border: "var(--st-approved-bd, #B3E8A0)" },  // greenLight2
+  "Output - In Progress":   { bg: "var(--st-inprog-bg, #2D7FF9)",    text: "var(--st-inprog-fg, #FFFFFF)",    border: "var(--st-inprog-bd, #1E66D0)" },    // blueBright
+  "Output - Ready":         { bg: "var(--st-ready-bg, #9CC7FF)",     text: "var(--st-ready-fg, #17457F)",     border: "var(--st-ready-bd, #7FB2F5)" },     // blueBright -> blueLight1
+  "Incorporating Feedback": { bg: "var(--st-feedback-bg, #2750AE)",  text: "var(--st-feedback-fg, #FFFFFF)",  border: "var(--st-feedback-bd, #1E3F8C)" },  // blueBright -> blueDark1
+  "Ready to Publish":       { bg: "var(--st-topublish-bg, #20C933)", text: "var(--st-topublish-fg, #FFFFFF)", border: "var(--st-topublish-bd, #18A528)" }, // greenBright
+  "Published/Scheduled":    { bg: "var(--st-published-bg, #93E088)", text: "var(--st-published-fg, #1D4D12)", border: "var(--st-published-bd, #76CE6A)" }, // greenLight1
+  "Rejected/Not Published": { bg: "var(--st-rejected-bg, #CFCFCF)",  text: "var(--st-rejected-fg, #3A3A3A)",  border: "var(--st-rejected-bd, #B8B8B8)" },  // grayDark1 -> grayLight1
+  "Failed":                 { bg: "var(--st-failed-bg, #BA1E45)",    text: "var(--st-failed-fg, #FFFFFF)",    border: "var(--st-failed-bd, #991736)" },    // redDark1
 };
-const STATUS_TINT_FALLBACK = { bg: "var(--st-pending-bg, #F1F3F8)", text: "var(--st-pending-fg, #5B6472)", border: "var(--st-pending-bd, #D3D8E1)" };
+const STATUS_TINT_FALLBACK = { bg: "var(--st-unknown-bg, #EEEEEE)", text: "var(--st-unknown-fg, #3A3A3A)", border: "var(--st-unknown-bd, #D6D6D6)" };
 // (bg/text/border read --st-* vars, set only in the dark theme — globals.css.)
 
 export function ymd(d: Date): string {

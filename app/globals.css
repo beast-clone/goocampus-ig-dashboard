@@ -664,13 +664,22 @@ html[data-theme="dark"] .border-amber-100, html[data-theme="dark"] .divide-amber
 html[data-theme="dark"] .border-rose-100, html[data-theme="dark"] .border-red-100, html[data-theme="dark"] .border-emerald-100 { border-color: var(--d-line) !important; }
 /* Marketing Hub status pills + calendar chips (STATUS_TINT in MarketingHub.tsx). */
 html[data-theme="dark"] {
-  --st-pending-bg:rgba(148,160,184,.16);  --st-pending-fg:#C2C8D6;  --st-pending-bd:rgba(148,160,184,.3);
-  --st-approved-bg:rgba(214,158,46,.16);  --st-approved-fg:#E7BD6E; --st-approved-bd:rgba(214,158,46,.34);
-  --st-inprog-bg:rgba(226,112,84,.16);    --st-inprog-fg:#F0A28C;   --st-inprog-bd:rgba(226,112,84,.34);
-  --st-feedback-bg:rgba(221,82,116,.16);  --st-feedback-fg:#F29AB0; --st-feedback-bd:rgba(221,82,116,.34);
-  --st-ready-bg:rgba(77,142,222,.18);     --st-ready-fg:#8DB9F0;    --st-ready-bd:rgba(77,142,222,.36);
-  --st-topublish-bg:rgba(52,168,122,.16); --st-topublish-fg:#72D2A8;--st-topublish-bd:rgba(52,168,122,.34);
-  --st-published-bg:rgba(124,112,232,.18);--st-published-fg:#ABA2F5;--st-published-bd:rgba(124,112,232,.36);
+  /* Same Airtable hues as the light theme (see STATUS_TINT), carried over as
+     translucent tints so a solid redBright chip does not glare on a dark page.
+     All eleven statuses are here now - four of them used to fall through to the
+     pending grey, which is part of why everything looked alike. */
+  --st-pending-bg:rgba(160,170,190,.18);  --st-pending-fg:#C8CEDC;  --st-pending-bd:rgba(160,170,190,.32);
+  --st-cinprog-bg:rgba(207,223,255,.16);  --st-cinprog-fg:#CFDFFF;  --st-cinprog-bd:rgba(207,223,255,.30);
+  --st-needsappr-bg:rgba(248,43,96,.18);  --st-needsappr-fg:#FF8FAB;--st-needsappr-bd:rgba(248,43,96,.34);
+  --st-approved-bg:rgba(209,247,196,.16); --st-approved-fg:#D1F7C4; --st-approved-bd:rgba(209,247,196,.30);
+  --st-inprog-bg:rgba(45,127,249,.20);    --st-inprog-fg:#8DB9F0;   --st-inprog-bd:rgba(45,127,249,.36);
+  --st-ready-bg:rgba(156,199,255,.16);    --st-ready-fg:#9CC7FF;    --st-ready-bd:rgba(156,199,255,.30);
+  --st-feedback-bg:rgba(89,128,222,.22);  --st-feedback-fg:#A8C0F5; --st-feedback-bd:rgba(89,128,222,.38);
+  --st-topublish-bg:rgba(32,201,51,.18);  --st-topublish-fg:#7BE08C;--st-topublish-bd:rgba(32,201,51,.34);
+  --st-published-bg:rgba(147,224,136,.16);--st-published-fg:#93E088;--st-published-bd:rgba(147,224,136,.30);
+  --st-rejected-bg:rgba(207,207,207,.14); --st-rejected-fg:#CFCFCF; --st-rejected-bd:rgba(207,207,207,.26);
+  --st-failed-bg:rgba(224,60,100,.20);    --st-failed-fg:#F09AB0;   --st-failed-bd:rgba(224,60,100,.36);
+  --st-unknown-bg:rgba(160,170,190,.14);  --st-unknown-fg:#B9C0CE;  --st-unknown-bd:rgba(160,170,190,.26);
 }
 html[data-theme="dark"] .tcmd { color: var(--ink) !important; }
 /* Shared status tones (My Day, Team Command pills) — dark only; light uses each fallback. */
