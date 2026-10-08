@@ -184,6 +184,8 @@ function blockColor(type: string): { bg: string; fg: string } {
 // people drag between); this list is what /api/marketing-hub/update will accept,
 // which also includes "Content - In Progress" — a real stage that has no column.
 // Anything outside this set is rejected by the API with a 400.
+const PRIORITY_CHOICES = ["Urgent", "High", "Medium", "Low"];
+
 const STATUS_CHOICES = [
   "Content - Pending", "Content - In Progress", "Content - Needs Approval",
   "Content - Approved", "Output - In Progress", "Incorporating Feedback",
@@ -3503,6 +3505,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const liUrl = detail?.linkedinUrl ?? row.linkedinUrl ?? "";
   const platformsCur = detail?.platforms ?? row.platforms ?? [];
   const [statusEdit, setStatusEdit] = useState(false);
+  const [priorityEdit, setPriorityEdit] = useState(false);
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
   const saveOne = async (field: string, value: unknown) => {
@@ -3888,7 +3891,20 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </button>
                 ))}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
-                {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
+                {detailRow("Priority", priorityEdit ? (
+                  <select autoFocus defaultValue={row.priority || ""} onBlur={() => setPriorityEdit(false)}
+                    onChange={async (e) => { setPriorityEdit(false); if (e.target.value) await saveOne("priority", e.target.value); }}
+                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
+                    <option value="">— set priority</option>
+                    {PRIORITY_CHOICES.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <button onClick={() => setPriorityEdit(true)} title="Change the priority"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
+                    style={row.priority ? { background: pp.bg, color: pp.text } : { background: "#F1F3F8", color: "#8A92A6" }}>
+                    {row.priority || "— set"}
+                  </button>
+                ))}
                 {detailRow("Publish to page", row.publishToPage)}
                 {detailRow("Platforms", (
                   <div className="flex flex-wrap gap-1 justify-end">
