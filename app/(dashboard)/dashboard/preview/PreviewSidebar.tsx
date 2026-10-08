@@ -22,6 +22,7 @@ import type { PreviewTab } from "./PreviewShell";
 /** Remembered across tabs and reloads once the button has been used. */
 const NAV_COLLAPSED_KEY = "gc-nav-collapsed";
 import { GlobalSearch } from "./GlobalSearch";
+import { Shortcuts } from "./Shortcuts";
 import { shouldPoll } from "@/lib/quiet-hours";
 
 // The ONE shared dashboard sidebar — used by PreviewShell (cloned tabs) AND the
@@ -378,6 +379,9 @@ export function PreviewSidebar() {
         </button>
       </div>
       <div className="hglobalsearch"><GlobalSearch /></div>
+      {/* Keyboard shortcuts + the ? card. Here because the sidebar is the one thing
+          on every page of the dashboard. */}
+      <Shortcuts />
       {canOverview && <LeafRow leaf={OVERVIEW} />}
       {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} shake={ringing} />}

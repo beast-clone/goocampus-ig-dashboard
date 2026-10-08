@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
@@ -1587,6 +1588,27 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const [view, setView] = useState<CalView>("month");
   // Anchor date drives every view; ‹ › shifts by month/week/day, Today resets it.
   const [anchor, setAnchor] = useState(() => new Date());
+
+  // Arrow keys move through the calendar the way they do in every other calendar,
+  // and M/W/D/L pick the view. Shared with the ? card in Shortcuts.tsx.
+  //
+  // Bare letters, so the same rule applies as everywhere else: not while you are
+  // typing, and never with a modifier held — Ctrl+W closes the browser tab and
+  // Ctrl+D bookmarks the page, and neither should go anywhere near this.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (e.key === "ArrowLeft") { e.preventDefault(); shift(-1); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); shift(1); return; }
+      if (k === "t") { e.preventDefault(); jumpToday(); return; }
+      const view = k === "m" ? "month" : k === "w" ? "week" : k === "d" ? "day" : k === "l" ? "list" : null;
+      if (view) { e.preventDefault(); setView(view as CalView); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Drag-to-reschedule: drop a task on a day to set its publishing date there.
   const [dragOver, setDragOver] = useState<string | null>(null);
