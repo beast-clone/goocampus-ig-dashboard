@@ -4043,6 +4043,28 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         <div className="flex-1 flex min-h-0 bg-white">
           <div className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4">
             <div>
+              {/* Content and Caption come FIRST.
+                  "The entire content should appear in full when I open it" (Manya, 5 Oct,
+                  asking a second time). Opening a task used to show the Creatives
+                  drop-zone and an empty References box, with the writing itself below the
+                  fold — so the one thing the record is actually about was the one thing
+                  you could not see without scrolling.
+
+                  This does reverse an earlier decision to sit References above Content as
+                  a mood-board; the panels are all still here, in a different order. */}
+              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
+                {editSection === "content" ? editBox(14, "Write the content brief…")
+                  : content ? <RichText value={content} />
+                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
+                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
+              </Panel>
+
+              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
+                {editSection === "caption" ? editBox(5, "Write the post caption…")
+                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
+                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
+              </Panel>
+
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -4136,19 +4158,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
                 </div>
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
-              </Panel>
-
-              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
-                {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <RichText value={content} />
-                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
-                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
-              </Panel>
-
-              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
-                {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
-                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
               </Panel>
 
               {notes && (
