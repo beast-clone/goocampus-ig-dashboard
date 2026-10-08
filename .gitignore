@@ -38,3 +38,6 @@ public/pdf.worker.min.mjs
 .playwright-cli/
 scratchpad/
 supabase/.temp/
+
+# Local database dumps. Real lead and attendance data — never track these.
+backups/
