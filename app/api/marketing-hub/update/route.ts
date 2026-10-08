@@ -7,6 +7,7 @@ import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, APPROVER_KEY } from "@/lib/date-approvals";
+import { defaultCollaboratorFor } from "@/lib/task-create";
 import { fetchRoster } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
 
@@ -414,6 +415,43 @@ export async function PATCH(req: Request) {
         if (data.owner_key !== "praveen") {
           await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
           await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
+        }
+      }
+    }
+
+    // Saying you are on camera puts you ON the task, not just in a field.
+    //
+    // The presenter was recorded only as custom.presenter_key, which no board
+    // reads. My Day lists a task for its owner OR its collaborators, so a
+    // presenter who was neither saw the task nowhere — he had said he was
+    // presenting and it still showed up for no one but the editor. The presenter
+    // now joins the collaborators: the editor keeps the task (they do the
+    // cutting) and it appears for both of them, next to the writer. So a reel
+    // Nandu is cutting that Nikhil fronted reads owner Nandu, collaborators
+    // Nikhil and Manya.
+    //
+    // Same shape the claim path already produces in /takeover, so a presenter
+    // named before the claim and one named afterwards end up in the same place.
+    if (customPatch && Object.prototype.hasOwnProperty.call(customPatch, "presenter_key")) {
+      const prevPresenter = typeof beforeCustom?.presenter_key === "string" ? beforeCustom.presenter_key : "";
+      const nextPresenter = typeof customPatch.presenter_key === "string" ? customPatch.presenter_key : "";
+      const ownerKey = (data.owner_key as string | null) || "";
+      // Nobody is ever both owner and collaborator — an editor who shot it
+      // themselves is already on the task as its owner.
+      if (nextPresenter && nextPresenter !== ownerKey) {
+        await sb.from("mh_post_collaborators").upsert(
+          [{ post_id: body.id, member_key: nextPresenter }],
+          { onConflict: "post_id,member_key", ignoreDuplicates: true },
+        );
+      }
+      // Standing down takes you back off the task — unless you belong on it for
+      // another reason, i.e. you are its default collaborator (the writer, or
+      // Nandu on 12thPlus / GC India). Dropping those would quietly undo the
+      // handoff.
+      if (prevPresenter && prevPresenter !== nextPresenter && prevPresenter !== ownerKey) {
+        const def = await defaultCollaboratorFor((before.data as { sbu?: string | null }).sbu ?? null, ownerKey, data.type as string | null);
+        if (prevPresenter !== def) {
+          await sb.from("mh_post_collaborators").delete().eq("post_id", body.id).eq("member_key", prevPresenter);
         }
       }
     }
