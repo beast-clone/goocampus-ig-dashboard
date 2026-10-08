@@ -97,7 +97,7 @@ Recreate these in whatever scheduler you use. Each is a plain HTTP `GET`.
 | --- | --- | --- |
 | `/api/cron/watchers` | `*/15 * * * *` | every 15 minutes |
 | `/api/cron/competitor-watch` | `*/5 * * * *` | every 5 minutes — **see the warning below** |
-| `/api/cron/import-airtable` | `@hourly` | on the hour |
+| `/api/cron/import-airtable` | **OFF** since 8 Oct 2026 | tasks are created in the dashboard; set `AIRTABLE_IMPORT=on` to resume |
 | `/api/cron/radar-refresh` | `@hourly` | on the hour |
 | `/api/cron/snapshot-stories` | `@hourly` | on the hour |
 | `/api/cron/link-published` | `30 20 * * *` | 20:30 UTC = 2:00 am IST |
