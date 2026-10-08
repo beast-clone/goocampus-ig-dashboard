@@ -14,6 +14,7 @@
 //
 // Docs: https://developers.google.com/youtube/analytics/reference/reports/query
 
+import { createHash } from "crypto";
 import { CHANNELS } from "@/lib/youtube-channels";
 import { recordApiCall } from "./api-usage";
 import { fetchWithTimeout } from "./fetch-with-timeout";
@@ -92,18 +93,26 @@ async function freshAccessToken(channelKey?: string): Promise<string> {
   const id = process.env.YOUTUBE_CLIENT_ID;
   const secret = process.env.YOUTUBE_CLIENT_SECRET;
   if (rt && id && secret) {
-    // ONE access token for the whole app, not one per channel.
+    // One access token per ACCOUNT: not one per channel, and not one for the app.
     //
-    // Every channel here is managed by the same Google account — a token minted
-    // from any of their refresh tokens reads all of them — and Google rotates
-    // access tokens per account. Holding one per channel meant three tokens for
-    // one account, each mint quietly killing the other two, which is what produced
-    // intermittent 401s whenever more than one channel was loading at once.
+    // Google rotates access tokens per account, so two channels sharing an account
+    // and holding separate tokens kill each other's on every mint — that was the
+    // intermittent 401 storm when more than one channel loaded at once. Keying by
+    // account fixes it, because those channels now share a single entry.
     //
-    // A channel belonging to a DIFFERENT account would get a token that cannot read
-    // it; that answers 401 and ytFetch mints again from that channel own refresh
-    // token, so it still works, just with an extra round trip.
-    const cacheKey = "yt";
+    // Keying by nothing at all does NOT. That was tried, and it broke three of the
+    // four tabs: each channel here has its OWN refresh token for its own brand
+    // account, so whichever channel minted first had its token served to all the
+    // others. A note here claimed one account managed everything and a wrong token
+    // would 401 and be retried — both wrong. Crossing every token against every
+    // channel gives a clean diagonal, and a cross-account read answers 403, which
+    // the 401 retry never sees. The callers turn that throw into empty rows, so the
+    // tabs showed a correct subscriber count beside 0 views, 0 watch hours and no
+    // videos, which looks like a quiet channel rather than a broken one.
+    //
+    // The refresh token IS the account identity here, so hash it and key on that.
+    // Same account, same entry; different account, different entry.
+    const cacheKey = "rt:" + createHash("sha256").update(rt).digest("hex").slice(0, 16);
     const hit = accessTokens.get(cacheKey);
     if (hit && Date.now() < hit.expiresAt) return hit.token;
 
@@ -121,12 +130,16 @@ async function freshAccessToken(channelKey?: string): Promise<string> {
 
 // Every YouTube call goes through here.
 //
-// The three channels are all managed by ONE Google account — a token minted from
-// any of their refresh tokens reads all three — and Google rotates access tokens
-// per account, so minting for one channel can invalidate the token another channel
-// is holding. Caching alone therefore trades "mint too often" for "serve a token
-// that was killed from outside", which is how a warm, valid-looking cache still
-// produced intermittent 401s.
+// Google rotates access tokens per account, so minting for one channel can
+// invalidate the token a channel sharing that account is holding. Caching alone
+// therefore trades "mint too often" for "serve a token that was killed from
+// outside", which is how a warm, valid-looking cache still produced intermittent
+// 401s.
+//
+// Note what this retry does NOT cover: a token for the wrong account answers 403,
+// not 401, and 403 is a real answer — this channel is not readable with these
+// credentials — so retrying it would just ask twice. Keying the cache by account
+// is what prevents that case; see freshAccessToken.
 //
 // So: use the cached token, and if the call comes back 401, throw that token away,
 // mint once more and repeat the call. One retry only — a second 401 is a real
@@ -144,9 +157,11 @@ async function ytFetch(channelKey: string | undefined, url: string): Promise<Res
 
 /** Drop a cached access token so the next call mints a new one. */
 export function forgetYouTubeToken(channelKey?: string): void {
-  // Clear the lot. The channels share an account, so a token revoked for one is
-  // very likely the same token the others are holding; keeping their copies would
-  // just move the 401 to the next tab.
+  // Clear the lot rather than one entry. Channels that share an account share an
+  // entry, so a token revoked for one is the very token the others hold; keeping
+  // their copies would only move the 401 to the next tab. Channels on their own
+  // account lose a still-good token and mint again — one extra round trip, on a
+  // path that is already an error.
   accessTokens.clear();
   void channelKey;
 }

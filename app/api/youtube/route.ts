@@ -78,8 +78,24 @@ export async function GET(req: Request) {
     // channel has a channelId (from env or resolved above).
     if (ytAuth && CHANNELS[channelKey].channelId) {
       try {
-        // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
-        const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
+        // A day's cache: YouTube Analytics takes 2–9s, and these numbers move
+        // slowly. (The note here used to say ten minutes; the code has always said
+        // a day.)
+        //
+        // Don't keep a degraded answer for that day, though. Every analytics caller
+        // in lib/youtube.ts catches its own failure and substitutes empty rows, so a
+        // channel that cannot be read returns a WELL-FORMED payload full of zeros
+        // rather than throwing. Cached, that pins "0 views, 0 watch hours, no
+        // videos" next to a correct subscriber count for twenty-four hours, and it
+        // reads as a quiet channel instead of a broken one — which is how three
+        // tabs sat wrong without anyone being able to tell.
+        //
+        // A channel with subscribers but no views, no watch time and no videos at
+        // all is not a real month. Serve it, so a genuinely dormant channel still
+        // renders, but don't store it: the next request retries and it heals.
+        const looksReal = (d: Awaited<ReturnType<typeof buildLiveYouTube>>) =>
+          !(d.summary.subscribers > 0 && d.summary.views === 0 && d.summary.watchHours === 0 && d.topVideos.length === 0);
+        const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to), looksReal);
         return NextResponse.json({ ...live, bestTimes: bestTimesFrom(live.viewsOverTime), latencyMs: Date.now() - t0 });
       } catch (e) {
         return NextResponse.json({ error: `Couldn't load YouTube right now: ${e instanceof Error ? e.message : String(e)}`.slice(0, 240) }, { status: 502 });

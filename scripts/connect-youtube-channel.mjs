@@ -27,8 +27,19 @@ const g = (k) => { const m = env.match(new RegExp("^" + k + "=(.*)$", "m")); ret
 const CLIENT_ID = g("YOUTUBE_CLIENT_ID"), CLIENT_SECRET = g("YOUTUBE_CLIENT_SECRET");
 if (!CLIENT_ID || !CLIENT_SECRET) { console.error("YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET missing from .env.local"); process.exit(1); }
 
-const PORT = Number(process.env.OAUTH_PORT || 5888);
-const REDIRECT = `http://localhost:${PORT}/oauth-callback`;
+// Google only redirects to a URI already registered on the OAuth client. The
+// client "GC YT Token" has seven, and one is a localhost YouTube callback:
+//
+//   http://localhost:3000/api/auth/youtube/callback
+//
+// No route of that name exists in this repo — whatever minted the first three
+// tokens is long gone — but nothing requires a real route to answer. This listens
+// on that exact address for the few seconds the redirect takes, so consent works
+// with NO change to the OAuth client. Any other address gives redirect_uri_mismatch
+// and would have to be added in Google Cloud Console first.
+const REDIRECT = process.env.OAUTH_REDIRECT || "http://localhost:3000/api/auth/youtube/callback";
+const { port: portStr, pathname: CALLBACK_PATH } = new URL(REDIRECT);
+const PORT = Number(portStr || 80);
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
@@ -49,13 +60,13 @@ console.log("   " + authUrl + "\n");
 console.log("2. Google will ask WHICH channel to use. Pick the right one — that choice,");
 console.log("   not the account's permissions, is what the token ends up bound to.\n");
 console.log(`waiting on ${REDIRECT} …`);
-console.log("(if Google says redirect_uri_mismatch, add exactly that URL to the OAuth client");
-console.log(" in Google Cloud Console → Credentials → Authorised redirect URIs)\n");
+console.log("(that address is already registered on the OAuth client, so consent works");
+console.log(" without changing anything in Google Cloud Console)\n");
 
 const code = await new Promise((resolve, reject) => {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, `http://localhost:${PORT}`);
-    if (!u.pathname.startsWith("/oauth-callback")) { res.writeHead(404).end(); return; }
+    if (u.pathname !== CALLBACK_PATH) { res.writeHead(404).end(); return; }
     const err = u.searchParams.get("error"), c = u.searchParams.get("code");
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(`<body style="font:16px system-ui;padding:3rem;max-width:34rem"><h2>${c ? "Done" : "Cancelled"}</h2><p>${c ? "You can close this tab and go back to the terminal." : "Nothing was changed."}</p></body>`);
