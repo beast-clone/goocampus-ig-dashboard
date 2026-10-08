@@ -42,6 +42,50 @@ export function isTyping(el: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || n.isContentEditable === true;
 }
 
+/**
+ * Move through a list with the keyboard: arrows or J/K, Enter to open.
+ *
+ * Returns the index the cursor is on, which the list paints so you can see where
+ * you are — a cursor you cannot see is just a key that does nothing. Starts at -1,
+ * meaning "nowhere": the first Down lands on the first row rather than the second.
+ *
+ * J/K as well as the arrows because the arrows also scroll the page, and on a long
+ * queue that fights you.
+ */
+export function useListCursor(count: number, onOpen: (index: number) => void) {
+  const [cursor, setCursor] = useState(-1);
+  const openRef = useRef(onOpen);
+  openRef.current = onOpen;
+
+  // The list is live — filters change, a task leaves the queue. Keep the cursor
+  // inside it rather than pointing at a row that is no longer there.
+  useEffect(() => { setCursor((c) => (c >= count ? count - 1 : c)); }, [count]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      if (k === "ArrowDown" || k === "j" || k === "J") {
+        e.preventDefault(); setCursor((c) => Math.min(count - 1, c + 1));
+      } else if (k === "ArrowUp" || k === "k" || k === "K") {
+        e.preventDefault(); setCursor((c) => Math.max(0, c - 1));
+      } else if (k === "Enter") {
+        setCursor((c) => { if (c >= 0 && c < count) { e.preventDefault(); openRef.current(c); } return c; });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [count]);
+
+  // Follow the cursor, so it cannot walk off the bottom of the screen.
+  useEffect(() => {
+    if (cursor < 0) return;
+    document.querySelector(`[data-cursor="${cursor}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [cursor]);
+
+  return { cursor, setCursor };
+}
+
 export function Shortcuts() {
   const router = useRouter();
   const [sheet, setSheet] = useState(false);
@@ -136,10 +180,21 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "My Day",
-    note: "Undo works on status changes, drag-to-reschedule and durations.",
+    title: "Lists and queues",
+    note: "Content Review, and anywhere else with a list.",
     rows: [
-      { keys: ["Ctrl", "Z"], what: "Undo" },
+      { keys: ["↓"], what: "Next item" },
+      { keys: ["↑"], what: "Previous item" },
+      { keys: ["J"], what: "Next item, without scrolling the page" },
+      { keys: ["K"], what: "Previous item" },
+      { keys: ["Enter"], what: "Open the one you are on" },
+    ],
+  },
+  {
+    title: "Undo",
+    note: "Changes you can take back show an Undo button too. Publishing and anything that sends a message are deliberately not undoable.",
+    rows: [
+      { keys: ["Ctrl", "Z"], what: "Undo the last change" },
       { keys: ["Ctrl", "Y"], what: "Redo" },
       { keys: ["Ctrl", "Shift", "Z"], what: "Redo" },
     ],

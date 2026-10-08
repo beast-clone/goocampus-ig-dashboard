@@ -23,6 +23,7 @@ import { useRadarMissed, RadarMissedList, dayLabel } from "./RadarCrumb";
 import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationHost";
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 import { shouldPoll } from "@/lib/quiet-hours";
+import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -2812,6 +2813,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setRedoStack((s) => s.slice(0, -1));
     if (ok) { setUndoStack((u) => [...u, e]); setToast({ who: "Redone", color: "#3A57E8", av: me.av, body: e.label }); }
   };
+  // My Day had undo before the dashboard-wide one existed, and its stack knows
+  // something the shared one does not: it REFUSES when the task has changed since,
+  // rather than writing a stale value back over somebody else's edit. So it keeps
+  // its own and silences the shared handler while this page is open — otherwise one
+  // Ctrl+Z would be read by two stacks and the wrong thing would come back.
+  useOwnUndo();
   // ⌘Z / ⌘⇧Z (and Ctrl on Windows). Let native undo win inside text fields.
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {

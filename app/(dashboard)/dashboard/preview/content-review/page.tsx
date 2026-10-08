@@ -1,6 +1,7 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { fmtDate } from "@/lib/date";
@@ -153,12 +154,18 @@ function Review() {
   const mainPosts = sbuSel.length ? allMain.filter((p) => sbuSel.includes((p.sbu || "").trim())) : allMain;
   const toggleSbu = (k: string) => setSbuSel((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
 
-  const renderRow = (p: ReviewPost) => {
+  // Arrows or J/K walk the queue, Enter opens what you are on. The queue is the
+  // one screen here that is worked straight through, one item after another, so
+  // reaching for the mouse between each is most of the effort.
+  const { cursor, setCursor } = useListCursor(mainPosts.length, (i) => setOpenPost(mainPosts[i]));
+
+  const renderRow = (p: ReviewPost, index: number) => {
     const tc = typeChip(p.type);
     const busy = busyId === p.id;
     return (
       <Fragment key={p.id}>
-        <tr onClick={() => setOpenPost(p)} className="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer">
+        <tr data-cursor={index} onClick={() => { setCursor(index); setOpenPost(p); }}
+          className={`border-b border-gray-50 cursor-pointer ${index === cursor ? "bg-brand-light/60" : "hover:bg-gray-50/60"}`}>
           <td className="px-4 py-2.5">
             <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
           </td>
@@ -204,14 +211,16 @@ function Review() {
     );
   };
 
-  const renderCard = (p: ReviewPost) => {
+  const renderCard = (p: ReviewPost, index: number) => {
     const tc = typeChip(p.type);
     const busy = busyId === p.id;
+    const on = index === cursor;
     return (
       <div
         key={p.id}
-        onClick={() => setOpenPost(p)}
-        className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col cursor-pointer"
+        data-cursor={index}
+        onClick={() => { setCursor(index); setOpenPost(p); }}
+        className={`rounded-xl border bg-white overflow-hidden flex flex-col cursor-pointer ${on ? "border-brand ring-1 ring-brand/30" : "border-gray-100"}`}
       >
         {/* Media preview */}
         <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
@@ -306,7 +315,7 @@ function Review() {
             <th className="px-4 py-2.5 font-medium text-right">Actions</th>
           </tr>
         </thead>
-        <tbody>{list.map(renderRow)}</tbody>
+        <tbody>{list.map((p, i) => renderRow(p, i))}</tbody>
       </table>
     </div>
   );
@@ -314,7 +323,7 @@ function Review() {
   // Grid scales up on big monitors: 5 cols on ~24in (1536px+), 6 on ~27-32in (2100px+).
   const renderGrid = (list: ReviewPost[]) => (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
-      {list.map(renderCard)}
+      {list.map((p, i) => renderCard(p, i))}
     </div>
   );
 

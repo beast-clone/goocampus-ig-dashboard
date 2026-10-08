@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+import { useUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
@@ -3786,6 +3787,16 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
   useEffect(() => { loadDetail(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.id]);
 
+  // Ctrl+Z for the edits made in this panel (see preview/Undo.tsx).
+  const { record: recordUndo } = useUndo();
+  // The task-detail endpoint does not return priority, so the only copy is the one
+  // on the board row — and that does not refresh while the panel is open. Changing
+  // the priority therefore left the pill showing the OLD value until the board
+  // reloaded, and would have had undo record a stale "previous" if you changed it
+  // twice. Hold what we last set, and drop it the moment the row catches up.
+  const [prioritySet, setPrioritySet] = useState<string | null>(null);
+  useEffect(() => { setPrioritySet(null); }, [row.priority]);
+  const priorityCur = prioritySet ?? row.priority;
   const content = (detail?.content || row.content || "").trim();
   const caption = (detail?.caption ?? row.caption ?? "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
@@ -3797,7 +3808,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const statusCur = detail?.status ?? row.status;
   const isDone = DONE_STATUSES.includes(statusCur) || !!row.completionTime;
   const sp = statusPill(statusCur);
-  const pp = priorityPill(row.priority);
+  const pp = priorityPill(priorityCur);
   const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
   // Account-specific: every comment + edit is stamped with the LOGGED-IN user
   // (detail.me from the session), never a manual picker. Whoever is signed in owns
@@ -3816,7 +3827,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const [priorityEdit, setPriorityEdit] = useState(false);
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
-  const saveOne = async (field: string, value: unknown) => {
+  // `prev` is passed ONLY where the caller genuinely knows the old value. An undo
+  // that writes a guessed "previous" over a real one is worse than no undo at all,
+  // so a save without it simply is not recorded.
+  const saveOne = async (field: string, value: unknown, prev?: { value: unknown; label: string }) => {
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: value } }),
@@ -3831,6 +3845,31 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
       return;
     }
     await loadDetail();
+    // Recorded only once the server has taken it, so Ctrl+Z can never offer to undo
+    // something that was refused.
+    if (prev) {
+      const write = async (v: unknown) => {
+        const r = await fetch("/api/marketing-hub/update", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: v } }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setFailure({ kind: "error", message: (j as { error?: string }).error || `Couldn't undo — HTTP ${r.status}` });
+          return false;
+        }
+        // Undo is a write like any other, so the panel has to follow it — otherwise
+        // the row goes back and the pill keeps showing what you had just set.
+        if (field === "priority") setPrioritySet(v == null ? null : String(v));
+        await loadDetail();
+        return true;
+      };
+      recordUndo({
+        label: `${prev.label}: ${String(prev.value ?? "—")} → ${String(value ?? "—")}`,
+        undo: () => write(prev.value),
+        redo: () => write(value),
+      });
+    }
   };
   // Filling a published link is NOT an ordinary field edit: it also means the post is
   // live, so published_at gets stamped and the read cache is busted. Going through the
@@ -4196,7 +4235,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     gates ("can't approve yet — X missing") and logs the change to Activity. */}
                 {detailRow("Status", statusEdit ? (
                   <select autoFocus defaultValue={statusCur || ""} onBlur={() => setStatusEdit(false)}
-                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value); }}
+                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value, { value: statusCur, label: "Status" }); }}
                     className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
                     {Array.from(new Set([...(statusCur ? [statusCur] : []), ...STATUS_CHOICES])).map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
@@ -4209,8 +4248,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 ))}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
                 {detailRow("Priority", priorityEdit ? (
-                  <select autoFocus defaultValue={row.priority || ""} onBlur={() => setPriorityEdit(false)}
-                    onChange={async (e) => { setPriorityEdit(false); if (e.target.value) await saveOne("priority", e.target.value); }}
+                  <select autoFocus defaultValue={priorityCur || ""} onBlur={() => setPriorityEdit(false)}
+                    onChange={async (e) => {
+                      setPriorityEdit(false);
+                      if (!e.target.value) return;
+                      const was = priorityCur;
+                      setPrioritySet(e.target.value);
+                      await saveOne("priority", e.target.value, { value: was, label: "Priority" });
+                    }}
                     className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
                     <option value="">— set priority</option>
                     {PRIORITY_CHOICES.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -4218,8 +4263,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 ) : (
                   <button onClick={() => setPriorityEdit(true)} title="Change the priority"
                     className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
-                    style={row.priority ? { background: pp.bg, color: pp.text } : { background: "#F1F3F8", color: "#8A92A6" }}>
-                    {row.priority || "— set"}
+                    style={priorityCur ? { background: pp.bg, color: pp.text } : { background: "#F1F3F8", color: "#8A92A6" }}>
+                    {priorityCur || "— set"}
                   </button>
                 ))}
                 {detailRow("Publish to page", row.publishToPage)}
