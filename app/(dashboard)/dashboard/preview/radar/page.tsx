@@ -129,6 +129,9 @@ const OFFICIAL_HOSTS = [
   // Gulf
   "dha.gov.ae", "doh.gov.ae", "mohap.gov.ae", "scfhs.org.sa",
 ];
+function noticeHost(link: string): string {
+  try { return new URL(link).hostname.replace(/^www\./, ""); } catch { return "official site"; }
+}
 function isOfficialLink(link: string | null | undefined): boolean {
   let host = "";
   try { host = new URL(String(link || "")).hostname.toLowerCase().replace(/^www\./, ""); } catch { return false; }
@@ -136,6 +139,14 @@ function isOfficialLink(link: string | null | undefined): boolean {
   if (OFFICIAL_HOSTS.some((h) => host === h || host.endsWith("." + h))) return true;
   return OFFICIAL_SUFFIXES.some((suf) => host.endsWith(suf));
 }
+
+// A notice posted by an authority itself, found by the watchers (lib/watchers.ts)
+// rather than by a news search. This is the only thing on the radar that is not
+// somebody's reporting, which is exactly what makes it worth separating out.
+type OfficialNotice = {
+  id: string; watcher_id: string; item_url: string; title: string | null;
+  grp: string | null; detected_at: string; posted_at: string | null; summary: string | null;
+};
 
 type OriginFilter = "all" | "official" | "third";
 const ORIGIN_OPTIONS: { value: OriginFilter; label: string }[] = [
@@ -327,6 +338,16 @@ function Radar() {
   const [sourceFilter, setSourceFilter] = useState<string | null>("Google News");
   // Everything still shows by default — the dropdown only changes what is on top.
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  // What the watchers have picked up straight from MCC, NMC, NBEMS, NTA, AMC and the
+  // rest. The radar had no idea these existed, which is why "official sources" read
+  // zero while six authorities were in fact being watched every hour.
+  const [notices, setNotices] = useState<OfficialNotice[]>([]);
+  useEffect(() => {
+    fetch("/api/watchers/items?days=30", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setNotices((d.items as OfficialNotice[]) || []))
+      .catch(() => {});
+  }, []);
 
   // What the one refresh button does depends on which lane you are in — refreshing
   // Google Trends while you are reading Google News is work nobody asked for, and a
@@ -401,11 +422,11 @@ function Radar() {
   // How many of each the radar is actually holding, so the dropdown can say so and
   // an empty official list can explain itself instead of looking broken.
   const originCounts = useMemo(() => {
-    let official = 0, third = 0;
+    let official = notices.length, third = 0;
     for (const it of freshNews) (isOfficialLink(it.link) ? official++ : third++);
     for (const m of mentions) (isOfficialLink(m.url) ? official++ : third++);
     return { official, third };
-  }, [freshNews, mentions]);
+  }, [freshNews, mentions, notices.length]);
   const allReviews = useMemo(() => reviews?.reviews || [], [reviews]);
 
   const reviewRows = useMemo(() => {
@@ -424,6 +445,9 @@ function Radar() {
   }, [viewingReviews, allReviews]);
 
   const tiles = useMemo<SourceTile[]>(() => [
+    // First, because a notice from the body that decides the thing outranks anybody
+    // writing about it.
+    { name: "Official notices", n: notices.length, unit: "from the authorities", what: "MCC, NMC, NBEMS, AMC…" },
     { name: "Google News", n: freshNews.length, unit: "headlines", what: "news in your field" },
     { name: "Reddit", n: mentionsByLane["Reddit"] || 0, unit: "threads", what: "brand + topic talk" },
     { name: "Google Trends", n: risingTerms.length, unit: "rising searches", what: "what people search" },
@@ -444,7 +468,7 @@ function Radar() {
             : "star ratings",
         }
       : { name: "Google Reviews", n: null, unit: "not connected", what: "star ratings", dim: true },
-  ], [freshNews.length, mentionsByLane, risingTerms.length, reviews, reviewRows.bad.length]);
+  ], [notices.length, freshNews.length, mentionsByLane, risingTerms.length, reviews, reviewRows.bad.length]);
 
   // One list. A story, a thread and a rising search are all the same thing here —
   // something you could write about today — so they are ranked together rather than
@@ -456,7 +480,8 @@ function Radar() {
     | { key: string; actionKey: string; kind: "news"; src: string; rank: number; at: number; item: FeedItem }
     | { key: string; actionKey: string; kind: "mention"; src: string; rank: number; at: number; m: WebMention }
     | { key: string; actionKey: string; kind: "search"; src: string; rank: number; at: number; term: string }
-    | { key: string; actionKey: string; kind: "review"; src: string; rank: number; at: number; review: GoogleReviewLite };
+    | { key: string; actionKey: string; kind: "review"; src: string; rank: number; at: number; review: GoogleReviewLite }
+    | { key: string; actionKey: string; kind: "notice"; src: string; rank: number; at: number; notice: OfficialNotice };
 
   const merged = useMemo<Merged[]>(() => {
     const out: Merged[] = [];
@@ -465,6 +490,13 @@ function Radar() {
       out.push({ key: `m${m.url}`, actionKey: `mention:${m.url.trim()}`, kind: "mention",
                  src: laneOf(m.source), rank: neg ? 0 : 2,
                  at: +new Date(m.publishedAt || 0) || 0, m });
+    }
+    for (const n of notices) {
+      // rank 0.5 — below a complaint, above everything else. A counselling date
+      // posted by MCC is the date; the newspaper version of it is a report.
+      out.push({ key: `w${n.id}`, actionKey: `notice:${n.item_url.trim()}`, kind: "notice",
+                 src: "Official notices", rank: 0.5,
+                 at: +new Date(n.posted_at || n.detected_at) || 0, notice: n });
     }
     for (const it of freshNews) {
       out.push({ key: `n${it.id}`, actionKey: `news:${it.id.trim()}`, kind: "news",
@@ -486,7 +518,7 @@ function Radar() {
                  src: "Google Trends", rank: 2.5, at: 0, term });
     }
     return out.sort((a, b) => a.rank - b.rank || b.at - a.at);
-  }, [mentions, freshNews, risingTerms, reviewRows.all]);
+  }, [mentions, freshNews, risingTerms, reviewRows.all, notices]);
 
   // Anything already written into a past day's report is gone from here. It had its day;
   // it now lives in the report. Without this the tab is a pile that only grows, which is
@@ -495,6 +527,7 @@ function Radar() {
   // reviews are neither official nor third-party reporting, so the dropdown leaves
   // them alone rather than quietly filing them under "third party".
   const originOf = useCallback((r: Merged): OriginFilter | null => {
+    if (r.kind === "notice") return "official";
     if (r.kind === "news") return isOfficialLink(r.item.link) ? "official" : "third";
     if (r.kind === "mention") return isOfficialLink(r.m.url) ? "official" : "third";
     return null;
@@ -637,7 +670,15 @@ function Radar() {
                 because it changes what the list MEANS, not just its order. */}
             {!viewingReviews && (
               <PreviewSelect className="w-[230px]" value={originFilter}
-                onChange={(v) => setOriginFilter(v as OriginFilter)}
+                onChange={(v) => {
+                  setOriginFilter(v as OriginFilter);
+                  // The lane and this dropdown would otherwise fight each other. The
+                  // page opens on the Google News lane, and Google News cannot contain
+                  // an official notice by definition — so "official only" was always
+                  // empty there, which reads as broken rather than as "wrong lane".
+                  // Asking for official sources means across everything we watch.
+                  if (v === "official") setSourceFilter(null);
+                }}
                 options={ORIGIN_OPTIONS.map((o) => ({
                   value: o.value,
                   label: o.value === "official" ? `${o.label} (${originCounts.official})`
@@ -709,6 +750,24 @@ function Radar() {
                   r.kind === "news" ? (
                     <FeedRow key={r.key} item={r.item} onRead={() => setReaderItem(r.item)}
                       showTopic={activeInterest === "all"} acts={acts} />
+                  ) : r.kind === "notice" ? (
+                    <li key={r.key} className="px-4 py-3 hover:bg-gray-50/70">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100">Official</span>
+                        <div className="min-w-0">
+                          <a href={r.notice.item_url} target="_blank" rel="noreferrer"
+                            className="text-[14px] text-[#232D42] hover:text-brand hover:underline block">
+                            {r.notice.title?.trim() || r.notice.item_url}
+                          </a>
+                          {r.notice.summary && <div className="text-[12px] text-[#5A6478] mt-0.5 line-clamp-2">{r.notice.summary}</div>}
+                          <div className="text-[11px] text-[#8A92A6] mt-0.5">
+                            {noticeHost(r.notice.item_url)}
+                            {r.notice.grp && r.notice.grp !== "Other" && <> · {r.notice.grp}</>}
+                            {r.at > 0 && <> · {new Date(r.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</>}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
                   ) : r.kind === "review" ? (
                     <RadarReviewRow key={r.key} r={r.review} acts={acts}
                       mapsUrl={reviews?.place?.cid ? `https://www.google.com/maps?cid=${reviews.place.cid}` : null} />
