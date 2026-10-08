@@ -147,7 +147,7 @@ async function knownUrls(watcherId: string): Promise<Set<string>> {
  *   read "Couldn't open the page" on every run while the page itself was
  *   perfectly healthy — no timeout or retry here could ever have fixed that.
  *   n8n runs on a host the site does answer, so it fetches the page and posts
- *   the HTML to /api/watchers/ingest, which hands it in here. Everything after
+ *   the HTML to /api/cron/watcher-ingest, which hands it in here. Everything after
  *   the fetch — link extraction, diffing, alerts — is the same code path as a
  *   direct check. Pass `null` to mean "the fetch was tried and failed".
  */

@@ -60,5 +60,31 @@ This replaces n8n workflow `lhOaZp9S755bhEvT` ("KEA UGNEET 2026 Notification Wat
 - **Email:** `GMAIL_USER` + `GMAIL_APP_PASSWORD` (a Google app password for the sending address) in `.env.local` and Netlify.
 - **Telegram:** create a bot with @BotFather and set `TELEGRAM_BOT_TOKEN`. Each person presses Start on the bot (or adds it to a group); they then appear in the pop-up's Telegram list.
 
+## Pages this server can't reach
+Netlify runs abroad, and some government sites refuse foreign servers outright.
+`cetonline.karnataka.gov.in` is the standing case: the KEA watcher has recorded
+"Couldn't open the page" on every run while the page itself is healthy — it answers
+an Indian IP in under a second. No timeout or retry can fix that; the request never
+leaves.
+
+So the fetch moves to a host the site does answer:
+
+    POST /api/cron/watcher-ingest     Header: x-cron-secret: <CRON_SECRET>
+    { "id": "<watcher id>", "html": "<page source>" }      // or "url" instead of "id"
+    { "url": "…", "html": null }                           // the fetch was tried and FAILED
+
+n8n on the Hostinger VPS reads the page and posts the HTML. Everything after the
+fetch — link extraction, diffing, summaries, alerts — is the same code path as a
+direct check, so a page read this way behaves exactly like one read here.
+
+Send `html: null` when the fetch failed, rather than sending nothing: a failed read
+changes nothing, which is what stops a blocked day looking like a page that lost all
+its notices and then re-announcing every one of them on the next good read.
+
+It lives under `/api/cron` because that is where this app keeps the endpoints a
+machine calls — the middleware session-gates every other `/api/` path and skips the
+CSRF origin check there, and n8n sends neither a cookie nor an Origin.
+
 ## Open
-- Netlify runs abroad, and some government sites block foreign servers. KEA and MCC load fine from India; check them from Netlify after deploy. If they're blocked, fetch via the Hostinger VPS.
+- Check MCC and the rest from Netlify after deploy; anything blocked moves to the ingest route above.
+- KEA's first ingest will announce whatever it finds to its three email recipients and Telegram. Run it when somebody is expecting that.
