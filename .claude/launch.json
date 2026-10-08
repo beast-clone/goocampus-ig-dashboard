@@ -4,8 +4,8 @@
     {
       "name": "ig-dashboard",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "BASE_PATH= npm run dev"],
-      "port": 3000
+      "runtimeArgs": ["-c", "BASE_PATH= npm run dev -- -p 4324"],
+      "port": 4324
     }
   ]
 }
