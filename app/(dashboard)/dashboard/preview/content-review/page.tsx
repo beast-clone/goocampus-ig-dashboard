@@ -2,6 +2,7 @@
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+import { Markdown, plainText } from "@/components/Markdown";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { fmtDate } from "@/lib/date";
@@ -246,7 +247,7 @@ function Review() {
             </div>
           )}
           {(p.caption || p.content) && (
-            <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
+            <p className="text-xs text-[#8A92A6] line-clamp-2">{plainText(p.caption || p.content)}</p>
           )}
           {!p.hasCreative && (
             <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
@@ -503,7 +504,7 @@ function Review() {
                 {(p.caption || p.content) && (
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-1">Caption</div>
-                    <p className="text-sm text-[#232D42] whitespace-pre-wrap">{p.caption || p.content}</p>
+                    <div className="text-sm text-[#232D42]"><Markdown value={p.caption || p.content || ""} /></div>
                   </div>
                 )}
                 {!p.hasCreative && <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No creative attached — add media before it can go to the Scheduler.</div>}
