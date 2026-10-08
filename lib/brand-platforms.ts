@@ -15,22 +15,34 @@ export const LI_PAGE: Record<string, string | null> = {
   samvaya_matrimony: null,
 };
 
-// Dashboard account id → YouTube channel key.
-// NOTE (Maheen, 2026-07-12): GooCampus World has NO YouTube channel. The
-// "Study Abroad" channel is a separate GooCampus channel — reachable via the
-// channel switcher/pills in MAIN mode only, attached to no brand profile.
+// Dashboard account id → YouTube channel key. null means the brand has no
+// YouTube, and hasPlatform() greys the tab out for that profile so one brand's
+// numbers can never surface inside another's.
+//
+// GooCampus World has no YouTube channel. The "Study Abroad" channel that used
+// to be reachable from the switcher was a separate GooCampus channel attached to
+// no brand; it was removed entirely on 8 Oct 2026 — nothing is published there.
+//
+// Samvaya connected its own channel on 8 Oct (Samvaya Matrimony,
+// UCUdAtN5wd4x5NR9Pxmmnucw), so samvaya_matrimony is no longer null.
 export const YT_CHANNEL: Record<string, string | null> = {
   goocampus: "goocampus",
   goocampusworld: null,
   "12thplusdotcom": "twelfthplus",
-  samvaya_matrimony: null,
+  samvaya_matrimony: "samvaya",
 };
 
 // All YouTube channels — pills shown on YouTube pages in MAIN mode only.
+// Keep this in step with the switcher on each YouTube page. They are separate
+// lists, and that is exactly how Study Abroad survived in one of them after being
+// removed from the others — so when a channel is added or dropped, change all of:
+// this list, app/(dashboard)/dashboard/youtube/page.tsx, the preview page, and
+// CHANNELS in lib/youtube-channels.ts.
 export const YT_CHANNEL_PILLS = [
   { key: "goocampus", label: "GooCampus" },
   { key: "twelfthplus", label: "12thplus" },
-  // Study Abroad (goocampusworld) removed — nothing is published there.
+  { key: "samvaya", label: "Samvaya" },
+  // Study Abroad (goocampusworld) removed 8 Oct 2026 — nothing is published there.
 ];
 
 export type PlatformKey = "instagram" | "facebook" | "linkedin" | "youtube";

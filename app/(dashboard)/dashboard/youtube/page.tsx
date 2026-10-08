@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
-import { YT_CHANNEL } from "@/lib/brand-platforms";
+import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { ChartCard, PieList, AgeGenderPies, regionName } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -38,11 +38,11 @@ type Resp = {
   error?: string;
 };
 
-const CHANNELS = [
-  { key: "goocampus", label: "GooCampus" },
-  { key: "twelfthplus", label: "12thplus" },
-  { key: "samvaya", label: "Samvaya" },
-];
+// The switcher reads the shared list rather than keeping its own. Three copies of
+// it drifted apart once already: Study Abroad was taken out of the pills and the
+// reskinned page but stayed here, so the tab went on offering a channel nothing
+// is published to. One list, nothing to keep in step.
+const CHANNELS = YT_CHANNEL_PILLS;
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

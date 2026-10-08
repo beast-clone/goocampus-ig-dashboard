@@ -2,7 +2,7 @@
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
-import { YT_CHANNEL } from "@/lib/brand-platforms";
+import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { ChartCard, PieList, AgeGenderPies, regionName } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy, IconAlertTriangle } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -42,11 +42,8 @@ type Resp = {
   error?: string;
 };
 
-const CHANNELS = [
-  { key: "goocampus", label: "GooCampus" },
-  { key: "twelfthplus", label: "12thplus" },
-  // Study Abroad (goocampusworld) removed from the switcher — nothing is published there.
-];
+// Shared list — see the note on the main YouTube page.
+const CHANNELS = YT_CHANNEL_PILLS;
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
