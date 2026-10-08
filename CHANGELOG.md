@@ -3,6 +3,89 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-08 — Every comment on the board, closed
+
+> ### ⚠️ NOT DEPLOYED
+>
+> 20 commits on this machine only, `ff315ad`..`f64b92b`. Built and checked against the
+> live Supabase on localhost. `tsc` clean, 83/83 tests, production build exit 0.
+>
+> **The n8n KEA watcher (`lhOaZp9S755bhEvT`) must keep running until this ships.**
+
+The comment queue went from 13 open to **0**. What follows is grouped by what was actually
+wrong, because several of these were not the bug they looked like.
+
+### Things that were not the bug they appeared to be
+
+**Nandu's "claimed task not visible"** was not a broken claim. The activity log shows he
+made no claim that day: Nikhil had claimed the last three videos at about 10:15 and Nandu
+opened a blank Approved tab two hours later. The screen said only "Nothing in Content
+Approved right now", which looks identical whether there is no work or somebody already
+took it. It now names who is holding the video work.
+
+**Manya's "video disappearing"** was a deliverable handed over as a Google Drive *link*
+rather than an uploaded file. Output-Ready shows either; the Scheduler only ever previewed
+uploaded files, so from content review onward it rendered an empty upload box. The one
+trace was a grey line reading "grab from Slack" — hard-coded, on a Drive link.
+
+**The Radar's "no official sources"** was true twice over. Of the 155 items it held across
+37 sources, not one came from an authority, because every alert it runs is a topic keyword
+search. Meanwhile the Watchers had been reading the MCC counselling pages every hour and
+the Radar had no idea they existed. The two are now connected.
+
+**The 12thplus YouTube tab** was not a 12thplus problem. Every request minted its own
+access token; all three channels are managed by one Google account; Google rotates access
+tokens per account, so a second request silently killed the token the first was still
+using. A request takes 2–9 seconds and the subscriber count is its last call, which is why
+that is where it surfaced. Six requests at once failed three of them. Now 36/36.
+
+### Fixed
+
+- **My Day** — reference links open; all eleven statuses are selectable; the owner's name
+  is click-to-reassign; an empty claim pool says where the work went.
+- **My Day** — you can register as on camera *after* a video is claimed, and doing so puts
+  you on the task as a collaborator so it reaches your board. The two editors also pair up
+  by themselves: on camera hands the editing to the other one, and claiming the editing
+  puts the other one on camera. It only ever fills a blank.
+- **Marketing Hub** — approving no longer demands a collaborator (the check was circular,
+  and impossible for video); Priority is editable in the task panel; the Master sheet
+  reopens the way you left it; status colours come from Airtable's own Status field; the
+  calendar filters by several brands at once and by status; Markdown in content renders
+  instead of printing `###` and `**`; a task opens on its content rather than on an empty
+  upload box.
+- **Content Review** — filter the queue by interest.
+- **Scheduler** — a link-delivered video no longer looks lost; sending a task back keeps
+  the caption.
+- **Content Radar** — official sources are told apart from reporting, and watcher notices
+  appear as their own lane.
+- **YouTube** — the token rotation above, plus the error now repeats Google's reason
+  instead of a bare "401".
+
+### New
+
+- **Sign in** — Forgot password: a code by email, set a new one, signed in.
+- **Watchers** — six official sources added and baselined silently (543 notices, none
+  announced): NMC, NBEMS, NTA, the Australian Medical Council, USMLE and the Medical
+  Council of Ireland. NBEMS `natboard.edu.in`, the GMC and ECFMG answer 403 to a server and
+  AHPRA builds its news page in JavaScript, so those are deliberately not watched.
+- **Watchers** — `POST /api/cron/watcher-ingest`. `lib/watchers.ts` already accepted
+  prefetched HTML and pointed at an endpoint that had never been built, so the KEA watcher
+  could never work: `cetonline.karnataka.gov.in` answers an Indian IP in under a second and
+  refuses a US one outright. n8n on the Hostinger VPS can now fetch the page and post it in.
+  It sits under `/api/cron` because the middleware session-gates every other `/api/` path
+  and skips the CSRF origin check only there.
+
+### Waiting on somebody
+
+- **Deploy.** Until then the n8n KEA watcher stays load-bearing, and the ingest route cannot
+  be wired because n8n cannot reach localhost.
+- **KEA's first ingest** announces to three email recipients and Telegram. Run it when
+  somebody is expecting that.
+- **Samvaya YouTube** — needs its channel link, and the dashboard's Google account added as
+  a manager on the channel in YouTube Studio. Searching finds more than one plausible
+  Samvaya, so the handle is deliberately left blank rather than guessed; both candidates
+  answer 403 to our token while GooCampus answers 200 on the same token.
+
 ## 2026-10-04 — Sessions end with the day, the stop zone finally covers everything, and a first test suite
 
 Deployed. `63107cf`..`3b697db`, live as deploy `6ac23c33` at 17:14 IST.

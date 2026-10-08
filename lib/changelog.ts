@@ -32,6 +32,146 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: "2026-10-08",
+    title: "Everything the team reported",
+    summary: "Every comment left on the dashboard is now dealt with — the board, the calendar, the review queue, the Radar and the YouTube tab.",
+    changes: [
+      // ── My Day ──────────────────────────────────────────────────────────────
+      {
+        kind: "fixed",
+        what: "Reference links open",
+        detail: "A reference is usually written as a citation with the link inside it, and the whole line was being treated as the address — so clicking it went nowhere. The link inside the text is now the one that opens.",
+        where: "My Day",
+      },
+      {
+        kind: "fixed",
+        what: "Every status is in the status list",
+        detail: "The dropdown offered eight stages when the board has eleven, so the missing ones could not be set from here at all.",
+        where: "My Day",
+      },
+      {
+        kind: "new",
+        what: "Say you are on camera after a video has been claimed",
+        detail: "\"Present on camera\" only ever appeared on videos still sitting unclaimed, so once an editor took one there was no way left to register as the presenter. The task itself now has an On camera row, and choosing it puts you on the task as a collaborator so it shows on your board.",
+        where: "My Day",
+      },
+      {
+        kind: "new",
+        what: "The two editors pair up by themselves",
+        detail: "Pick \"on camera\" on a video nobody has claimed and the editing goes to the other editor; claim the editing while nobody is on camera and the other editor is put on camera. It only ever fills a blank — if somebody already owns it, or is already on camera, that is left alone.",
+        where: "My Day",
+      },
+      {
+        kind: "changed",
+        what: "Click the owner to hand a task over",
+        detail: "Reassigning was only reachable from the header button or by entering edit mode first, so clicking the owner's name — the obvious thing — did nothing.",
+        where: "My Day",
+      },
+      {
+        kind: "fixed",
+        what: "An empty claim pool says where the work went",
+        detail: "A blank Approved tab looked the same whether there was no work or somebody had already taken it, so a claim could look like it had vanished. It now reads \"Nothing up for grabs — Nikhil is working on 1 video\".",
+        where: "My Day",
+      },
+      // ── Marketing Hub ───────────────────────────────────────────────────────
+      {
+        kind: "fixed",
+        what: "Approving no longer asks for a collaborator first",
+        detail: "The check was circular: you needed somebody on the task to run the step that puts people on it, and for video it could never be satisfied at all because video is meant to reach the editors' pool unassigned.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "changed",
+        what: "The Master sheet reopens the way you left it",
+        detail: "Filter, sort, hidden columns, colour and grouping now stay until you change them or press Clear, the way an Airtable view does. Going to the Content Calendar and back no longer resets them. Search is deliberately not kept.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "changed",
+        what: "Status colours match Airtable",
+        detail: "The old set were pastels at almost the same lightness, so on the calendar everything read as one off-white, and four statuses had no colour at all. They now come from the Content Calendar's own Status field.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "new",
+        what: "Filter the calendar by several brands at once, and by status",
+        detail: "The brand picker took one at a time, so seeing three meant looking three times, and there was no status filter at all. Both hold what to show, both say what is hidden, and both stay set when you leave the tab.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "fixed",
+        what: "Content reads as content, not as symbols",
+        detail: "Half the briefs are written with ### and ** around them and none of it was being formatted, so the symbols were printed as typed. Headings, bold, lists and links now render — which is also what makes references read as headings.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "changed",
+        what: "A task opens on its content",
+        detail: "Opening a task showed the creatives upload box and an empty references panel first, with the writing below the fold. Content and Caption now come first.",
+        where: "Marketing Hub",
+      },
+      {
+        kind: "fixed",
+        what: "Priority can be changed from the task panel",
+        detail: "It was shown but not editable, so changing it meant going back to the grid.",
+        where: "Marketing Hub",
+      },
+      // ── Content Review ──────────────────────────────────────────────────────
+      {
+        kind: "new",
+        what: "Filter the review queue by interest",
+        detail: "Chips above the cards, one per brand actually waiting, with its count. These do not stay set between visits on purpose — this is a queue of work waiting on you, and a filter left on could hide something that arrived while you were away.",
+        where: "Content Review",
+      },
+      // ── Scheduler ───────────────────────────────────────────────────────────
+      {
+        kind: "fixed",
+        what: "A video handed over as a link no longer looks lost",
+        detail: "Work delivered as a Drive or Canva link showed as an empty \"Upload media\" box from content review onward, so the video appeared to disappear. The card now says it was delivered as a link and names where it points. The file is still needed to publish.",
+        where: "Scheduler",
+      },
+      {
+        kind: "fixed",
+        what: "Sending a task back keeps the caption",
+        detail: "Edits made to the caption were dropped when the task went back for changes, so the work had to be done twice.",
+        where: "Scheduler",
+      },
+      // ── Content Radar ───────────────────────────────────────────────────────
+      {
+        kind: "new",
+        what: "Official sources, told apart from reporting",
+        detail: "A dropdown for official sources, third-party, or official first with everything still showing. Official means the body that decides the thing — MCC, NMC, NBEMS, AMC, the GMC — rather than a publication writing about it.",
+        where: "Content Radar",
+      },
+      {
+        kind: "new",
+        what: "Notices from the authorities themselves",
+        detail: "The watchers have been reading the MCC counselling pages every hour and the Radar had no idea they existed. Their notices now appear as their own lane, above everything except an unanswered review. Six more authorities were added to the watch: NMC, NBEMS, NTA, the Australian Medical Council, USMLE and the Medical Council of Ireland.",
+        where: "Content Radar",
+      },
+      // ── YouTube ─────────────────────────────────────────────────────────────
+      {
+        kind: "fixed",
+        what: "The 12thplus tab loads again",
+        detail: "It answered \"subscriber count unavailable\" while the credentials were fine. Each request was minting its own access token, and because the channels share one Google account, each new token quietly killed the one another request was still using. The app now holds a single token and retries once if it is revoked.",
+        where: "YouTube",
+      },
+      {
+        kind: "new",
+        what: "Samvaya has a channel tab",
+        detail: "It says \"not connected\" until two things are done: its channel link is supplied, and the dashboard's Google account is added as a manager on the channel in YouTube Studio. It will never show invented numbers.",
+        where: "YouTube",
+      },
+      // ── Signing in ──────────────────────────────────────────────────────────
+      {
+        kind: "new",
+        what: "A way back in when you forget your password",
+        detail: "Forgot password? on the sign-in screen emails you a code, you set a new password and you are signed in. Previously somebody had to re-invite you.",
+        where: "My Account",
+      },
+    ],
+  },
+  {
     date: "2026-09-27",
     title: "Connect Claude by signing in",
     summary: "No more keys to copy. Click Connect, sign in, approve — the way Airtable and Notion do it.",
