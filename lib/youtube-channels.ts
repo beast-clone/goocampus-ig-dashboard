@@ -4,7 +4,18 @@
 // youtube route + comments/uploads routes + lib/youtube.ts.
 export const CHANNELS: Record<string, { id: string; name: string; handle: string; channelId: string }> = {
   goocampus:      { id: "goocampus",      name: "GooCampus",        handle: "@goocampus",       channelId: "" },
-  goocampusworld: { id: "goocampusworld", name: "Study Abroad",     handle: "@goocampusstudyabroad", channelId: "" },
+  // Study Abroad (goocampusworld) was removed on 8 Oct 2026 at Maheen's request.
+  // Nothing is published there. It was already gone from the reskinned page and
+  // from YT_CHANNEL_PILLS in lib/brand-platforms.ts; this takes it out of the
+  // registry too, so /api/youtube answers "unknown channel" rather than serving a
+  // channel no tab offers.
+  //
+  // To bring it back: restore this line as
+  //   goocampusworld: { id: "goocampusworld", name: "Study Abroad", handle: "@goocampusstudyabroad", channelId: "" },
+  // and add it to the switcher in app/(dashboard)/dashboard/youtube/page.tsx. Its
+  // credentials are untouched — YOUTUBE_REFRESH_TOKENS and YOUTUBE_CHANNEL_IDS
+  // still carry "goocampusworld", and the loader below ignores keys with no entry
+  // here, so nothing has to be re-authorised.
   twelfthplus:    { id: "twelfthplus",    name: "12thplus",         handle: "@12thplus",        channelId: "" },
   // Samvaya's new channel (Nandu, 26 Sept). Confirmed 8 Oct as "Samvaya Matrimony",
   // UCUdAtN5wd4x5NR9Pxmmnucw — not the similarly-named "@samvaya", which belongs to
