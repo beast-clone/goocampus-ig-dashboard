@@ -63,12 +63,21 @@ type CCStatus =
   | "Incorporating Feedback" | "Ready to Publish" | "Published/Scheduled"
   | "Rejected/Not Published" | "Failed";
 // ONLY real mh_status enum values — offering anything else in a picker would 502
-// the save (the server now rejects them with a 400). The legacy statuses
-// ("Content - Needs Approval", "Output - In Progress", …) stay in the TYPE/map so
-// old references render, but they are not selectable.
+// the save. Every stage in the mh_status enum is now selectable except "Failed",
+// which the publisher owns — see the note on CC_STATUS_ORDER below.
+// "I don't see all the content status options. Add everything here." (Nandu,
+// 6 Oct). Three stages were held back because the update route's allow-list had
+// drifted below the mh_status enum and rejected them with a 400. That list was
+// corrected on 4 Oct, so the reason for hiding them is gone.
+//
+// "Failed" stays out on purpose: the publisher sets it when a publish attempt
+// errors. Letting someone choose it by hand would put a failure on the record
+// that never happened.
 const CC_STATUS_ORDER: CCStatus[] = [
-  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+  "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+  "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Rejected/Not Published",
 ];
 const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inView: boolean }> = {
   "Content - Pending":        { label: "Content - Pending",        tone: "muted", stage: 0, inView: true },
@@ -417,6 +426,18 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
 // or upload image files; both persist to the same backend as the Marketing Hub
 // modal (reference links → mh_posts.reference_links, images → mh_attachments
 // kind='reference'). Seeded from the task's own references; remounted per task.
+// References are rarely pasted as a bare URL. 20 of the 23 on the board read like
+// "MCC Revised UG Information Bulletin 2026 (20.08.2026), Q. No. 32: https://…" —
+// a citation with the link inside it. Putting that whole string in href makes it a
+// relative path, so the browser stays inside the dashboard and the link looks
+// dead. "Reference links are not clickable" (Nikhil, 7 Oct).
+//
+// Pull the first real URL out and link to that, keeping the full text as the
+// label. A reference with no URL in it is a note, not a link, so it renders
+// without an href rather than as a link that goes nowhere.
+const refHref = (s?: string | null): string | undefined =>
+  String(s || "").match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
+
 function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
   const [url, setUrl] = useState("");
@@ -460,7 +481,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
             <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
           </div>
         ) : (
-          <a key={r.url || i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
+          <a key={r.url || i} className="ref-link" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>
             <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
             <span className="ref-link-lbl">{r.label}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
