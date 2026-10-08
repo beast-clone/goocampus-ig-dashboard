@@ -90,11 +90,23 @@ export async function GET(req: Request) {
         // reads as a quiet channel instead of a broken one — which is how three
         // tabs sat wrong without anyone being able to tell.
         //
-        // A channel with subscribers but no views, no watch time and no videos at
-        // all is not a real month. Serve it, so a genuinely dormant channel still
-        // renders, but don't store it: the next request retries and it heals.
+        // Which answers are "degraded"? The analytics half and the video-list half
+        // are separate calls, and only the analytics half carries views and watch
+        // time. So the failure does NOT always arrive empty-handed: 12thplus came
+        // back with its 613 subscribers and all 25 videos, and 0 views beside them.
+        // An earlier version of this guard also required topVideos to be empty and
+        // let exactly that through, into the cache, for a day.
+        //
+        // The honest test is the analytics half alone: no views AND no watch time,
+        // on a channel that visibly has an audience or a back catalogue, did not
+        // happen — something failed. A channel with no subscribers and no videos is
+        // allowed to be zero, because that one is simply empty.
+        //
+        // Serve it either way, so a dormant channel still renders; just don't store
+        // it, so the next request retries and it heals.
         const looksReal = (d: Awaited<ReturnType<typeof buildLiveYouTube>>) =>
-          !(d.summary.subscribers > 0 && d.summary.views === 0 && d.summary.watchHours === 0 && d.topVideos.length === 0);
+          !(d.summary.views === 0 && d.summary.watchHours === 0
+            && (d.summary.subscribers > 0 || d.topVideos.length > 0));
         const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to), looksReal);
         return NextResponse.json({ ...live, bestTimes: bestTimesFrom(live.viewsOverTime), latencyMs: Date.now() - t0 });
       } catch (e) {

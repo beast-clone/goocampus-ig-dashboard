@@ -36,16 +36,22 @@ describe("YouTube access-token cache keying", () => {
 // Mirrors the guard in app/api/youtube/route.ts.
 type Summary = { subscribers: number; views: number; watchHours: number };
 const looksReal = (d: { summary: Summary; topVideos: unknown[] }) =>
-  !(d.summary.subscribers > 0 && d.summary.views === 0 && d.summary.watchHours === 0 && d.topVideos.length === 0);
+  !(d.summary.views === 0 && d.summary.watchHours === 0
+    && (d.summary.subscribers > 0 || d.topVideos.length > 0));
 
 const degraded = { summary: { subscribers: 613, views: 0, watchHours: 0 }, topVideos: [] };
+// The shape that actually got through and was cached: the video list arrived in
+// full, only the analytics half failed. A guard that also demanded an empty video
+// list called this real and stored 0 views beside 25 videos for a day.
+const halfDegraded = { summary: { subscribers: 613, views: 0, watchHours: 0 }, topVideos: Array(25).fill({}) };
 const dormant  = { summary: { subscribers: 0, views: 0, watchHours: 0 }, topVideos: [] };
 const healthy  = { summary: { subscribers: 613, views: 6501, watchHours: 15 }, topVideos: [{}] };
 
 describe("degraded YouTube payloads are not cached for a day", () => {
   it("recognises the broken shape, and leaves a genuinely dormant channel alone", () => {
     expect(looksReal(degraded)).toBe(false);
-    expect(looksReal(dormant)).toBe(true);   // 0 subscribers too — nothing to contradict
+    expect(looksReal(halfDegraded)).toBe(false);  // 25 videos, 0 views — still broken
+    expect(looksReal(dormant)).toBe(true);        // nothing to contradict: genuinely empty
     expect(looksReal(healthy)).toBe(true);
   });
 
