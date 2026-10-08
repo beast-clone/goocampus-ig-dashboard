@@ -18,7 +18,8 @@ const EDITORS = ["nandu", "nikhil"];
 // No actor on the event = an automation did it (link write-backs, schedulers…)
 // → say "System", never a vague "Someone" (same convention as the activity feed).
 const nameOf = (k: string | null) => (k ? NAME[k.toLowerCase()] || k : "System");
-const siblingOf = (k: string) => (k === "nandu" ? "nikhil" : k === "nikhil" ? "nandu" : null);
+/** The other video editor, or null for anybody who is not one. */
+export const siblingOf = (k: string) => (k === "nandu" ? "nikhil" : k === "nikhil" ? "nandu" : null);
 
 type Act = {
   id: number; post_id: string; actor_key: string | null; action: string;
