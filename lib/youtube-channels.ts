@@ -6,19 +6,28 @@ export const CHANNELS: Record<string, { id: string; name: string; handle: string
   goocampus:      { id: "goocampus",      name: "GooCampus",        handle: "@goocampus",       channelId: "" },
   goocampusworld: { id: "goocampusworld", name: "Study Abroad",     handle: "@goocampusstudyabroad", channelId: "" },
   twelfthplus:    { id: "twelfthplus",    name: "12thplus",         handle: "@12thplus",        channelId: "" },
-  // Samvaya's new channel (Nandu, 26 Sept). Its handle is deliberately BLANK.
+  // Samvaya's new channel (Nandu, 26 Sept). Confirmed 8 Oct as "Samvaya Matrimony",
+  // UCUdAtN5wd4x5NR9Pxmmnucw — not the similarly-named "@samvaya", which belongs to
+  // somebody else. The handle stays BLANK until the channel sets one.
   //
-  // Searching YouTube turns up more than one plausible Samvaya — "@samvaya" and a
-  // "Samvaya Matrimony" — and picking the wrong one would point the tab at a
-  // stranger's channel and report their numbers as ours. So this waits for the id
-  // to be given in YOUTUBE_CHANNEL_IDS rather than guessing from a name; with no
-  // id it answers "not connected", which is true.
+  // Waiting on its own refresh token, NOT on a manager grant. An earlier note here
+  // said one OAuth token serves every channel and the fix was to add the dashboard's
+  // account as a manager in YouTube Studio. That was wrong, and the grant was made
+  // on the strength of it and changed nothing. Crossing all three tokens against all
+  // four channels gives a clean diagonal — each token reads its own channel and 403s
+  // on every other, including the two GooCampus siblings that share an owner:
   //
-  // The account behind YOUTUBE_REFRESH_TOKEN also has to MANAGE the channel. It
-  // does not today: both candidates answer 403 to the analytics call while
-  // GooCampus answers 200 on the same token. One OAuth token serves every channel
-  // here, so the fix is to add that account as a manager in YouTube Studio, not to
-  // connect a second account.
+  //                   GooCampus   12thPlus   Study Abroad   Samvaya
+  //   goocampus              OK        403            403       403
+  //   twelfthplus           401         OK            401       401
+  //   goocampusworld        403        403             OK       403
+  //
+  // A refresh token is bound to the channel picked at Google's chooser during
+  // consent, so no amount of granting makes an existing token reach a new channel.
+  // Samvaya needs a fourth consent with Samvaya selected — see scripts/connect-youtube-channel.mjs.
+  //
+  // channelId stays "" until YOUTUBE_CHANNEL_IDS carries it, so the tab says
+  // "not connected" rather than showing an error, which is the truer answer.
   samvaya:        { id: "samvaya",        name: "Samvaya",          handle: "",                 channelId: "" },
 };
 
