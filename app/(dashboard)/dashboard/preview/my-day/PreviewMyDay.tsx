@@ -170,6 +170,9 @@ const TEAM = [
   { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
   { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#6E48F8" },
 ];
+// Only an editor can be holding claimable video work. Read off the roster rather
+// than naming the two of them, so this stays true when the team changes.
+const EDITOR_NAMES = new Set(TEAM.filter((t) => t.role === "Video editor").map((t) => t.name));
 
 
 // Today's plan is time-proportional across an 8-hour workday (9 AM–6 PM) with a
@@ -2181,6 +2184,32 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)).sort(cmpTasks) : [],
     [isEditor, curTab.key, claimPool, claimedTasks, cmpTasks],
   );
+  // Who is holding the video work right now, for when there is none left to claim.
+  //
+  // On 8 Oct Nikhil claimed the last three videos at about 10:15; Nandu opened his
+  // approved tab two hours later, found it blank, and read it as his own work having
+  // gone missing — "After claiming, task should be visible here. not able see any
+  // task who is doing what". Nothing had gone wrong: the pool was simply empty. An
+  // empty tab that says only "Nothing here ✓" cannot tell those two cases apart,
+  // and the second one looks like a bug.
+  //
+  // Counts video that is actually being worked — claimed but not yet delivered.
+  // Anything Output-Ready or later is finished as far as the pool is concerned.
+  const videoInHand = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const t of tasks) {
+      if (!isVideoType(t.detail.typeLine)) continue;
+      if (t.status !== "Content - Approved" && t.status !== "Output - In Progress") continue;
+      const o = t.detail.owner;
+      if (!o || o === "Unclaimed" || o === me.name) continue;
+      // Editors only. Some approved video still sits under the writer's name, and
+      // saying "Manya is working on 5 videos" would be both wrong and confusing —
+      // she writes them, she does not cut them.
+      if (!EDITOR_NAMES.has(o)) continue;
+      by.set(o, (by.get(o) || 0) + 1);
+    }
+    return [...by.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tasks, me.name]);
   const planModalTask = planModalId ? [...tasks, ...claimedTasks, ...samvaya].find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
   //  • CONTENT-FIRST HANDOFF: when the WRITER's task hits "Content - Approved", it
@@ -3675,7 +3704,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               ))}
             </div>
             <div className="tasklist">
-              {shownTasks.length === 0 && claimableHere.length === 0 && <div className="empty" style={{ padding: "1.6rem 0" }}>Nothing in “{curTab.label}” right now ✓</div>}
+              {shownTasks.length === 0 && claimableHere.length === 0 && (
+                <div className="empty" style={{ padding: "1.6rem 0" }}>
+                  {isEditor && curTab.key === "approved" && videoInHand.length > 0
+                    ? <>Nothing up for grabs — {videoInHand.map(([who, n]) => `${who} is working on ${n === 1 ? "1 video" : `${n} videos`}`).join(", ")}.</>
+                    : <>Nothing in “{curTab.label}” right now ✓</>}
+                </div>
+              )}
               {/* One list, one order: my tasks and claimable videos sorted together. */}
               {[...shownTasks.map((t) => ({ t, claim: false })), ...claimableHere.map((t) => ({ t, claim: true }))]
                 .sort((x, y) => cmpTasks(x.t, y.t))
