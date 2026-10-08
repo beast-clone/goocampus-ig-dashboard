@@ -213,10 +213,20 @@ npm run dev
 
 ## 7. Environment variables
 
+> **SESSION_SECRET must be real randomness, not words.** It signs the login
+> cookie: the cookie says who you are in plain text, and the signature is the
+> only thing stopping anyone writing their own. Until 8 Oct 2026 production ran
+> on the placeholder this file used to quote, with the first half of it printed
+> right here — in a public repo, beside the signing code. Generate one with
+> `openssl rand -hex 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`),
+> use a different one for local and production, and keep both out of git.
+> Changing it signs everyone out once; it does not touch attendance, because
+> recordLogin keeps the first sign-in of the day and nothing writes a logout.
+
 ```env
 # Login
 DASHBOARD_PASSWORD=<rotated 2026-10-04 — the shared login was removed entirely; see app/api/login/route.ts>                      # change for production
-SESSION_SECRET=dev-session-secret-change-in-prod-...  # change for production
+SESSION_SECRET=<32+ chars of randomness — rotated 2026-10-08; never a phrase>
 
 # Airtable
 AIRTABLE_API_KEY=
