@@ -850,17 +850,29 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 // `person` is the signed-in teammate's full name (e.g. "Maheen Ejaz"); we greet
 // them by name, falling back to the brand only if no name is available.
 function HeroBanner({ eyebrow, person = "", children }: { eyebrow: string; person?: string; children: React.ReactNode }) {
+  // The greeting has to be worked out where the PERSON is, not where the server is.
+  //
+  // This page renders on Netlify, which runs on UTC, so the first paint said "Good
+  // morning" to everyone in India until half past five in the afternoon. The old
+  // note here said it "self-corrects on the first client re-render" — it does not:
+  // suppressHydrationWarning tells React to KEEP the server's text, and on a page
+  // that never re-renders, nothing ever corrects it. "Only good morning is showing,
+  // it should change according to time" (Nikhil, 8 Oct, at 4:16pm).
+  //
+  // So: render the server's guess, then set it again from the browser's clock once
+  // mounted. Starting it empty instead would flash the name with no greeting.
+  const [greet, setGreet] = useState(greeting());
+  useEffect(() => { setGreet(greeting()); }, []);
   return (
     <section style={{ position: "relative", overflow: "hidden", borderRadius: 16, padding: "30px 34px", background: `linear-gradient(120deg, ${C.primary} 0%, ${C.primaryDark} 55%, ${C.navy} 100%)`, color: "#fff", boxShadow: "0 18px 40px rgba(58,87,232,0.28)" }}>
       <div style={{ position: "absolute", right: -40, top: -60, width: 260, height: 260, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
       <div style={{ position: "absolute", right: 90, bottom: -90, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
       <div style={{ position: "relative" }}>
         <div style={{ fontSize: 14, opacity: 0.85, fontWeight: 500 }}>{eyebrow}</div>
-        {/* suppressHydrationWarning: greeting() is time-based, so the server (UTC)
-            and the browser (local time) can differ near an hour boundary. The name
-            is deterministic; only the greeting word may differ, and it self-corrects
-            on the first client re-render. */}
-        <h1 suppressHydrationWarning className="preview-hero-h1" style={{ fontSize: 32, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greeting()}, {person || "GooCampus"}</h1>
+        {/* suppressHydrationWarning: the server renders its own UTC guess at the
+            greeting and the browser replaces it on mount, so the two deliberately
+            differ. The name is the same on both sides. */}
+        <h1 suppressHydrationWarning className="preview-hero-h1" style={{ fontSize: 32, margin: "8px 0 6px", letterSpacing: "-0.3px" }}>{greet}, {person || "GooCampus"}</h1>
         <p style={{ fontSize: 16, opacity: 0.92, maxWidth: 560, lineHeight: 1.55, margin: 0 }}>{children}</p>
       </div>
     </section>
