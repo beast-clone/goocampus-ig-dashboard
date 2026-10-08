@@ -69,15 +69,15 @@ leaves.
 
 So the fetch moves to a host the site does answer:
 
-    POST /api/cron/watcher-ingest     Header: x-cron-secret: <CRON_SECRET>
-    { "id": "<watcher id>", "html": "<page source>" }      // or "url" instead of "id"
-    { "url": "…", "html": null }                           // the fetch was tried and FAILED
+    POST /api/cron/watchers-ingest     Header: x-cron-secret: <CRON_SECRET>
+    { "watcherId": "<id>", "html": "<page source>" }   // or "url" instead of "watcherId"
+    { "url": "…", "html": "" }                             // the fetch was tried and FAILED
 
 n8n on the Hostinger VPS reads the page and posts the HTML. Everything after the
 fetch — link extraction, diffing, summaries, alerts — is the same code path as a
 direct check, so a page read this way behaves exactly like one read here.
 
-Send `html: null` when the fetch failed, rather than sending nothing: a failed read
+Send an EMPTY string when the fetch failed, rather than sending nothing: a failed read
 changes nothing, which is what stops a blocked day looking like a page that lost all
 its notices and then re-announcing every one of them on the next good read.
 
