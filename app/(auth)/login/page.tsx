@@ -25,6 +25,111 @@ function GoogleIcon() {
 const ACCENT = "#2F39E8";
 const TEAL = "#5FE9C4";
 
+// Getting back in without a password. Removing the shared team password left no
+// way back for anyone who forgot theirs — only Google (production only) or an
+// admin at a terminal. Two steps, both on routes that already existed:
+// forgot-password emails a code, accept-invite turns code + new password into a
+// real password. On success we sign in with the password just set, so nobody has
+// to type it twice.
+function ForgotPanel({ accent, initialEmail, onBack, onSignedIn }: {
+  accent: string; initialEmail: string; onBack: () => void; onSignedIn: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
+
+  const field = "w-full px-4 py-3.5 rounded-xl border-2 text-[14px] placeholder:text-gray-300 focus:outline-none transition";
+  const edge = { borderColor: "#E3E5EE" };
+  const focus = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = accent);
+  const blur = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = "#E3E5EE");
+
+  async function sendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr(""); setNote("");
+    try {
+      const r = await fetch("/api/account/forgot-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "Couldn't send the code."); return; }
+      setNote(j.message || "Check your email."); setStep(2);
+    } finally { setBusy(false); }
+  }
+
+  async function setPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr(""); setNote("");
+    try {
+      const r = await fetch("/api/account/accept-invite", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code, newPassword: pw }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "Couldn't set the password."); return; }
+      // Straight in with what they just chose.
+      const li = await fetch("/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pw }),
+      });
+      if (li.ok) onSignedIn();
+      else { setNote("Password updated — sign in with it now."); onBack(); }
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <form onSubmit={step === 1 ? sendCode : setPassword} className="auth-form mt-8 space-y-4">
+      <p className="text-[13px] text-gray-500 leading-relaxed">
+        {step === 1
+          ? "Enter the email you sign in with and we'll send a 6-digit code."
+          : "Enter the code from your email and choose a new password."}
+      </p>
+
+      <div className="relative">
+        <label className="absolute -top-2 left-3 px-1.5 bg-white text-[11px] font-medium text-gray-400">E-mail</label>
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@goocampus.in" autoComplete="username" disabled={step === 2}
+          className={field + " disabled:bg-gray-50 disabled:text-gray-500"} style={edge} onFocus={focus} onBlur={blur} />
+      </div>
+
+      {step === 2 && (
+        <>
+          <div className="relative">
+            <label className="absolute -top-2 left-3 px-1.5 bg-white text-[11px] font-medium text-gray-400">6-digit code</label>
+            <input inputMode="numeric" required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456" autoComplete="one-time-code"
+              className={field + " tracking-[0.3em]"} style={edge} onFocus={focus} onBlur={blur} />
+          </div>
+          <div className="relative">
+            <label className="absolute -top-2 left-3 px-1.5 bg-white text-[11px] font-medium text-gray-400">New password</label>
+            <input type="password" required minLength={8} value={pw} onChange={(e) => setPw(e.target.value)}
+              placeholder="At least 8 characters" autoComplete="new-password"
+              className={field} style={edge} onFocus={focus} onBlur={blur} />
+          </div>
+        </>
+      )}
+
+      {note && <p className="text-[12.5px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">{note}</p>}
+      {err && <p className="text-[13px] text-red-500">{err}</p>}
+
+      <button disabled={busy}
+        className="w-full py-3.5 rounded-xl text-white text-[14px] font-semibold disabled:opacity-60 transition hover:brightness-95"
+        style={{ background: accent }}>
+        {busy ? "Working…" : step === 1 ? "Send code" : "Set password and sign in"}
+      </button>
+
+      <button type="button" onClick={onBack}
+        className="w-full text-[13px] text-gray-500 hover:text-gray-700 transition">
+        Back to sign in
+      </button>
+    </form>
+  );
+}
+
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -32,6 +137,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleNote, setGoogleNote] = useState("");
+  const [forgot, setForgot] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -84,6 +190,14 @@ export default function LoginPage() {
               Sign in to your Marketing OS.<br />Internal team access only.
             </p>
 
+            {forgot ? (
+              <ForgotPanel
+                accent={ACCENT}
+                initialEmail={email}
+                onBack={() => setForgot(false)}
+                onSignedIn={() => router.replace("/dashboard/preview")}
+              />
+            ) : (
             <form onSubmit={submit} className="auth-form mt-8 space-y-4">
               {/* Email */}
               <div className="relative">
@@ -131,6 +245,11 @@ export default function LoginPage() {
                 </button>
               </div>
 
+              <button type="button" onClick={() => setForgot(true)}
+                className="-mt-1 self-end text-[12.5px] text-gray-400 hover:text-gray-600 transition">
+                Forgot password?
+              </button>
+
               {error && <p className="text-[13px] text-red-500">{error}</p>}
               {googleNote && <p className="text-[12.5px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{googleNote}</p>}
 
@@ -158,6 +277,7 @@ export default function LoginPage() {
                 <GoogleIcon /> Sign in with Google
               </a>
             </form>
+            )}
           </div>
         </div>
 

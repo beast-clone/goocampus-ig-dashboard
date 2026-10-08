@@ -15,6 +15,10 @@ const PUBLIC_API_ROUTES = new Set<string>([
   "/api/auth/google/callback",
   "/api/lead-form/submit", // public: leads submit the per-post capture form without a login
   "/api/account/accept-invite", // public: a new member sets their password from an emailed code
+  // public: someone locked out asks for a reset code. No session exists by
+  // definition; it is rate-limited by IP and by address, and answers the same
+  // way whether or not the address is on the roster.
+  "/api/account/forgot-password",
   "/api/facebook/data-deletion", // public: Meta POSTs here; authenticates via HMAC signed_request, not a cookie
   "/api/mcp", // Claude connector: authenticates with a personal Bearer key (lib/claude-connector), not a cookie
   // WhatsApp broadcast: n8n on the VPS polls these with x-cron-secret (the routes
