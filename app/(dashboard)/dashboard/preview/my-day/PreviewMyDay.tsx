@@ -734,6 +734,25 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setAssigning(false); onSaved?.();
     } finally { setBusy(false); }
   };
+  // Registering as presenter AFTER the task has been claimed.
+  //
+  // "Present on camera" only exists on cards sitting unclaimed in the pool, so
+  // the moment an editor claims a video there is no way left to say you are on
+  // camera — even though that is exactly the pairing the workflow wants (the
+  // editor owns it, the presenter collaborates). Nikhil hit this on a YouTube
+  // Long-Form already owned by Nandu, 7 Oct.
+  //
+  // Same write the pool buttons make, so the two routes cannot drift.
+  const setPresenter = async (key: string) => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/update", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, actor: uploadedBy, fields: { custom: { presenter_key: key, claim_role: key ? "present" : "" } } }),
+      });
+      onSaved?.();
+    } finally { setBusy(false); }
+  };
   const [delError, setDelError] = useState<string | null>(null);
   const doDelete = async () => {
     setBusy(true); setDelError(null);
@@ -910,13 +929,49 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               ))}
             </div>
           )}
+          {/* Clicking the owner opens the picker. Reassigning was only reachable
+              through the Reassign button in the header or by entering Edit mode
+              first and finding the pencil, so clicking the name itself — the
+              obvious thing — did nothing. "Give me change option or delete and
+              add button" (Nandu, 6 Oct), clicked directly on the owner. */}
           {ownerP ? (
-            <div className="collab-cell">
+            <div className="collab-cell"
+              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canAssign ? { cursor: "pointer" } : undefined}
+              title={canAssign ? "Click to hand this to someone else" : undefined}>
               <Avatar p={ownerP} />
               <span className="collab-names">{ownerP.name}</span>
             </div>
-          ) : <div className="mval">{task.detail.owner}</div>}
+          ) : (
+            <div className="mval"
+              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canAssign ? { cursor: "pointer" } : undefined}
+              title={canAssign ? "Click to assign an owner" : undefined}>
+              {task.detail.owner}
+            </div>
+          )}
         </div>
+        {/* Who is on camera. Only video has a presenter, and until now this was
+            invisible once a task left the pool — so "who is doing what" could
+            not be answered from the task itself. */}
+        {isVideoType(task.detail.typeLine) && (
+          <div>
+            <div className="mlbl">On camera</div>
+            {task.detail.presenter && PPL[task.detail.presenter] ? (
+              <div className="collab-cell">
+                <Avatar p={PPL[task.detail.presenter]} />
+                <span className="collab-names">{PPL[task.detail.presenter].name}</span>
+                {uploadedBy === task.detail.presenter && (
+                  <button className="btn sm" disabled={busy} style={{ marginLeft: ".4rem" }}
+                    onClick={() => setPresenter("")} title="You are no longer presenting this">Not me</button>
+                )}
+              </div>
+            ) : uploadedBy && PPL[uploadedBy] ? (
+              <button className="btn sm" disabled={busy} onClick={() => setPresenter(uploadedBy)}
+                title="Record that you will be on camera — the editor still owns the task">I&rsquo;m on camera</button>
+            ) : <div className="mval">Nobody yet</div>}
+          </div>
+        )}
         <div>
           <div className="mlbl">Collaborators{editing && addable.length > 0 && <span className="fld-hint" title="Use the + to add one">＋</span>}</div>
           <div className="collab-cell" style={{ position: "relative" }}>

@@ -170,8 +170,21 @@ export async function PATCH(req: Request) {
       if (!filled(eff("sbu"))) missing.push("SBU");
       if (!filled(eff("priority"))) missing.push("Priority");
       if (!filled(eff("publishing_date"))) missing.push("Publishing date");
-      const { count: collabCount } = await sb.from("mh_post_collaborators").select("member_key", { count: "exact", head: true }).eq("post_id", body.id);
-      if (!(collabCount || 0)) missing.push("At least one collaborator");
+      // Deliberately NOT requiring a collaborator.
+      //
+      // This gate is about the BRIEF being complete before it reaches a producer —
+      // the content, which SBU, how urgent, when it publishes. Who works on it is
+      // not part of the brief; it is decided by the auto-handoff further down this
+      // same request, which assigns design work to Praveen and drops video into the
+      // editors' pool.
+      //
+      // Requiring one here made that circular: you had to already have a
+      // collaborator to run the step that adds collaborators. For video it could
+      // never be satisfied at all, because the handoff leaves video unassigned on
+      // purpose — "up for grabs in the editors' pool" — so every video task had to
+      // have somebody added by hand first, for no reason the workflow asks for.
+      // "It is not allowing me to approve the task until I manually add
+      // collaborators" (Manya, 6 Oct, on a YouTube Long-Form).
       if (missing.length) return NextResponse.json({ error: "Can't approve yet — some required fields are missing.", missing, gate: "approve" }, { status: 422 });
     }
 

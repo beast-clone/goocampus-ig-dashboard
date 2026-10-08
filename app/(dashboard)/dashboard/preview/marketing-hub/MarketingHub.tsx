@@ -186,6 +186,9 @@ function blockColor(type: string): { bg: string; fg: string } {
 // Anything outside this set is rejected by the API with a 400.
 const PRIORITY_CHOICES = ["Urgent", "High", "Medium", "Low"];
 
+// Where the Master sheet remembers how you left it, per browser.
+const MASTER_VIEW_KEY = "mh-master-view";
+
 const STATUS_CHOICES = [
   "Content - Pending", "Content - In Progress", "Content - Needs Approval",
   "Content - Approved", "Output - In Progress", "Incorporating Feedback",
@@ -2329,6 +2332,61 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const [hiddenCols, setHiddenCols] = useState<string[]>([]);
   const [colorField, setColorField] = useState<string>("");
   const [groupField, setGroupField] = useState<string>("");
+
+  // The sheet remembers how you left it. "After adding a filter, when going to the
+  // content calendar or anywhere and coming back, the filter is not there. In
+  // Airtable, if I add a filter to any view, it will stay until I change it."
+  // (Nandu, 6 Oct.) The hub mounts one tab at a time, so switching tabs threw all
+  // of this away and you came back to the unfiltered sheet.
+  //
+  // The whole view goes, not just the filter — sort, hidden columns, colour and
+  // grouping are the same act of arranging the sheet, and keeping only some of it
+  // would be stranger than keeping none. Search is deliberately left out: a search
+  // box that quietly still holds last week's words looks like missing data.
+  //
+  // Per browser, not per account: this is where you left the furniture, not team
+  // data. Saved views remain the shared, named thing.
+  //
+  // Read in an effect rather than in the initialisers so the server and the first
+  // client render agree, and the write is held until that read has happened, or the
+  // empty starting state would overwrite what was saved before it is restored.
+  //
+  // "Restored" has to be state, not a ref. Both effects below run in the same
+  // commit, so the saving one closes over the values from BEFORE the restore; with
+  // a ref it would see the flag already flipped and write the empty default
+  // straight over what was just read. As state it instead re-runs once the
+  // restored values have actually rendered.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    // A notification link is an explicit instruction about what to show, so it
+    // beats whatever was left behind.
+    if (!deepLink) {
+      try {
+        const v = JSON.parse(localStorage.getItem(MASTER_VIEW_KEY) || "null");
+        if (v && typeof v === "object") {
+          if (typeof v.activeId === "string") setActiveId(v.activeId);
+          if (v.draft && Array.isArray(v.draft.conditions)) setDraft(v.draft as FilterModel);
+          if (Array.isArray(v.sorts)) setSorts(v.sorts as SortSpec[]);
+          if (Array.isArray(v.hiddenCols)) setHiddenCols(v.hiddenCols as string[]);
+          if (typeof v.color === "string") setColorField(v.color);
+          if (typeof v.group === "string") setGroupField(v.group);
+        }
+      } catch { /* private mode, or a shape from an older build — open unfiltered */ }
+    }
+    setRestored(true);
+  }, [deepLink]);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(MASTER_VIEW_KEY, JSON.stringify({
+        // "link" only means something while those query params are in the URL; the
+        // filter it produced is kept as an ordinary ad-hoc one.
+        activeId: activeId === "link" ? "draft" : activeId,
+        draft, sorts, hiddenCols, color: colorField, group: groupField,
+      }));
+    } catch { /* private mode */ }
+  }, [restored, activeId, draft, sorts, hiddenCols, colorField, groupField]);
+
   const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color" | "group">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const [addColOpen, setAddColOpen] = useState(false);
