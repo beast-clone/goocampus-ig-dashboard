@@ -189,6 +189,9 @@ const PRIORITY_CHOICES = ["Urgent", "High", "Medium", "Low"];
 // Where the Master sheet remembers how you left it, per browser.
 const MASTER_VIEW_KEY = "mh-master-view";
 
+// Where the Content Calendar remembers its SBU / status filters, per browser.
+const CAL_FILTER_KEY = "mh-cal-filters";
+
 const STATUS_CHOICES = [
   "Content - Pending", "Content - In Progress", "Content - Needs Approval",
   "Content - Approved", "Output - In Progress", "Incorporating Feedback",
@@ -1354,6 +1357,20 @@ html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-ra
 .mhcal-titlecard{position:relative;z-index:2;margin:0;background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:14px;padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .mhcal-tc-right{display:flex;align-items:center;gap:1rem}
 .mhcal-tc-count{font-size:.8rem;font-weight:600;color:var(--cal-muted)}
+/* Multi-pick dropdown (SBUs, statuses) — several at once, the way an Airtable view filters */
+.mhcal-mp{position:relative}
+.mhcal-mp-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:9px;padding:.46rem .7rem;font-size:.8rem;font-weight:600;color:var(--cal-ink);text-align:left}
+.mhcal-mp-btn:hover{border-color:#3A57E8}
+.mhcal-mp-btn.on{border-color:#3A57E8;background:var(--cal-brandsoft)}
+.mhcal-mp-car{color:var(--cal-muted);font-size:.65rem}
+.mhcal-mp-pop{position:absolute;z-index:40;top:calc(100% + 5px);left:0;min-width:100%;max-height:330px;overflow:auto;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:11px;box-shadow:0 10px 32px rgba(16,24,40,.16);padding:.4rem}
+.mhcal-mp-acts{display:flex;gap:.4rem;padding:.2rem .35rem .45rem;border-bottom:1px solid var(--cal-line);margin-bottom:.3rem}
+.mhcal-mp-acts button{background:none;border:none;color:#3A57E8;font-size:.72rem;font-weight:700;padding:.1rem .2rem}
+.mhcal-mp-row{display:flex;align-items:center;gap:.5rem;padding:.32rem .45rem;border-radius:7px;font-size:.78rem;color:var(--cal-ink);cursor:pointer;white-space:nowrap}
+.mhcal-mp-row:hover{background:var(--cal-panel2)}
+.mhcal-mp-row input{accent-color:#3A57E8;margin:0}
+.mhcal-mp-n{margin-left:auto;color:var(--cal-muted);font-size:.72rem;font-weight:600}
+.mhcal-mp-sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
 .mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--cal-ink);letter-spacing:-.012em}
 .mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:var(--cal-muted)}
 .mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
@@ -1469,11 +1486,94 @@ const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
 const PAGE_CHANNEL: Record<SbuPage, Exclude<CalChannel, "all">> = { "GooCampus Main": "goocampus", "GooCampus World": "goocampusworld", "12Plus / GC India": "12thplusdotcom" };
 const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const p = pageForSbu(sbu); return p ? PAGE_CHANNEL[p] : null; };
 
+// Pick several at once — "I don't select single SBU each time to see, I want see all
+// the SBUs of my together" (Manya, 5 Oct). An empty selection means everything, so the
+// calendar opens unfiltered and the button can always say what is being left out.
+function MultiPick({ label, options, selected, onChange, total }: {
+  label: string;
+  options: { value: string; count: number; swatch?: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  /** Rows in view when nothing is picked. Needed because the options don't always
+   *  add up to it — a row with a blank or retired SBU belongs to no option, and a
+   *  button reading "All SBUs (215)" next to a count of 220 just looks wrong. */
+  total?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const all = total ?? options.reduce((n, o) => n + o.count, 0);
+  const shown = selected.length ? options.filter((o) => selected.includes(o.value)).reduce((n, o) => n + o.count, 0) : all;
+  // Unticking has to subtract from what is ON SCREEN, not from the stored list.
+  // Empty means "all", so every box renders ticked while the list is empty — and a
+  // naive toggle then ADDED the box you just unticked, leaving you looking at only
+  // that status instead of everything except it.
+  const toggle = (v: string) => {
+    const base = selected.length ? selected : options.map((o) => o.value);
+    const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v];
+    // All ticked is the same as no filter; so is none ticked, since a calendar
+    // showing nothing helps no one. Both collapse back to "all".
+    onChange(next.length === options.length || next.length === 0 ? [] : next);
+  };
+  return (
+    <div className="mhcal-mp" ref={box}>
+      <button className={`mhcal-mp-btn ${selected.length ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
+        <span>{selected.length === 0 ? `All ${label} (${fmtInt(all)})` : `${selected.length} of ${options.length} ${label} (${fmtInt(shown)})`}</span>
+        <span className="mhcal-mp-car">▼</span>
+      </button>
+      {open && (
+        <div className="mhcal-mp-pop">
+          <div className="mhcal-mp-acts">
+            <button onClick={() => onChange([])}>Show all</button>
+            <button onClick={() => onChange(options.map((o) => o.value))}>Select all</button>
+          </div>
+          {options.map((o) => (
+            <label key={o.value} className="mhcal-mp-row">
+              <input type="checkbox" checked={selected.length === 0 || selected.includes(o.value)} onChange={() => toggle(o.value)} />
+              {o.swatch && <span className="mhcal-mp-sw" style={{ background: o.swatch }} />}
+              <span>{o.value}</span>
+              <span className="mhcal-mp-n">{fmtInt(o.count)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   const sbus = useSbus();   // live brand list (sql/027)
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
-  const [activeBrand, setActiveBrand] = useState<string>("");
+  // Both filters hold what to SHOW, with empty meaning everything. Statuses are
+  // phrased that way rather than as a hide-list because the button can then say
+  // "8 of 11 statuses" — a filter you can forget you left on is worse than none.
+  // They stick per browser, like the Master sheet's, so walking to another tab and
+  // back doesn't reset them.
+  const [brandSel, setBrandSel] = useState<string[]>([]);
+  const [statusSel, setStatusSel] = useState<string[]>([]);
+  const [calReady, setCalReady] = useState(false);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(CAL_FILTER_KEY) || "null");
+      if (v && typeof v === "object") {
+        if (Array.isArray(v.brands)) setBrandSel(v.brands.filter((x: unknown) => typeof x === "string"));
+        if (Array.isArray(v.statuses)) setStatusSel(v.statuses.filter((x: unknown) => typeof x === "string"));
+      }
+    } catch { /* private mode, or an older shape — open unfiltered */ }
+    setCalReady(true);
+  }, []);
+  useEffect(() => {
+    if (!calReady) return;
+    try { localStorage.setItem(CAL_FILTER_KEY, JSON.stringify({ brands: brandSel, statuses: statusSel })); } catch { /* private mode */ }
+  }, [calReady, brandSel, statusSel]);
   const [channel, setChannel] = useState<CalChannel>("all");
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
   // A day showing every task instead of the first four. Creating a task on a busy
@@ -1510,7 +1610,11 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
 
   // Channel first, then the brand chip, then bucket by yyyy-mm-dd.
   const channelRows = useMemo(() => channel === "all" ? rows : rows.filter((r) => channelOfSbu(r.sbu) === channel), [rows, channel]);
-  const filteredRows = useMemo(() => activeBrand ? channelRows.filter((r) => r.sbu === activeBrand) : channelRows, [channelRows, activeBrand]);
+  const filteredRows = useMemo(() => {
+    let out = brandSel.length ? channelRows.filter((r) => brandSel.includes(r.sbu)) : channelRows;
+    if (statusSel.length) out = out.filter((r) => statusSel.includes(r.status));
+    return out;
+  }, [channelRows, brandSel, statusSel]);
   const byDay = useMemo(() => {
     const m = new Map<string, Row[]>();
     for (const r of filteredRows) {
@@ -1627,17 +1731,25 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         <h4>Calendar</h4>
         <div className="mhcal-tc-right">
           <div style={{ width: 190 }}>
-            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setActiveBrand(""); }} options={CAL_CHANNELS} />
+            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel([]); }} options={CAL_CHANNELS} />
           </div>
-          <div style={{ width: 230 }}>
-            {/* Every SBU, always (user) — picking one switches the account to the one it
-                belongs to, so the pick never lands on an empty calendar. */}
-            <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v) ?? "all"); }}
-              options={[{ value: "", label: `All SBUs (${channelRows.length})` },
-                ...Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
-                  .map((x) => ({ value: x, label: `${x} (${rows.filter((r) => r.sbu === x).length})` }))]} />
+          <div style={{ width: 240 }}>
+            {/* Every SBU, always (user). Choosing brands drops the account filter back to
+                All, so a pick can never land on an empty calendar — which is what the old
+                single-select guarded against by switching accounts for you. */}
+            <MultiPick label="SBUs" selected={brandSel} total={channelRows.length}
+              onChange={(next) => { setBrandSel(next); if (next.length) setChannel("all"); }}
+              options={Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
+                .map((x) => ({ value: x, count: channelRows.filter((r) => r.sbu === x).length }))} />
           </div>
-          <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>
+          <div style={{ width: 215 }}>
+            {/* "Give me the content status filter here so that I can filter the status
+                which I don't want to see" (Manya, 5 Oct). Swatches match the chips on the
+                grid, so the list reads the same way the calendar does. */}
+            <MultiPick label="statuses" selected={statusSel} onChange={setStatusSel} total={channelRows.length}
+              options={ALL_STATUSES.map((st) => ({ value: st.key, count: channelRows.filter((r) => r.status === st.key).length, swatch: statusPill(st.key).bg }))} />
+          </div>
+          <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} tasks in view</span>
           <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
         </div>
       </div>
@@ -1796,7 +1908,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       {createDate && (
         <NewTaskDialog onClose={() => setCreateDate(null)}
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
-          initial={{ publishDate: createDate, sbu: activeBrand || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
+          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
       )}
     </div>
   );
