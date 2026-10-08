@@ -313,7 +313,18 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     if (!ok) return;
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: t.id, fields: { status: "Output - Ready" } }),
+      body: JSON.stringify({ id: t.id, fields: {
+        status: "Output - Ready",
+        // Save the caption on the way out. It lives only in React state while the
+        // composer is open — mh_posts does not mirror it and /api/scheduler/caption
+        // is read-only, pulling from Airtable — so sending the status by itself
+        // discarded whatever had been typed, and the next read fetched the empty
+        // Airtable value back over it. "captions are disappearing, it is not
+        // staying in the task when I am updating" (Manya, 6 Oct). Only when the
+        // composer is actually showing this task, so sending back a different row
+        // can't stamp one task's caption onto another.
+        ...(selectedTaskId === t.id && caption.trim() ? { caption: caption.trim() } : {}),
+      } }),
     });
     if (!res.ok) { const d = await res.json().catch(() => ({})); alertDialog("Couldn't send it back", (d as { error?: string }).error || `HTTP ${res.status}`); return; }
     if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; }
