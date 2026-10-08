@@ -48,33 +48,120 @@ async function refreshTokenFor(channelKey?: string): Promise<string | null> {
   return getIntegrationToken("youtube");
 }
 
-// Access tokens expire hourly; exchange the refresh token for a fresh one when needed.
+// Access tokens last about an hour, so one is minted and then REUSED until it is
+// nearly expired. Minting per request looked harmless and was not.
+//
+// Google only keeps a limited number of live access tokens per (client, account)
+// and quietly invalidates the oldest when a new one is issued. Every request here
+// minted its own, so several requests against the same channel — a tab opening
+// while the cache warmer runs, two people looking at once, one person changing the
+// date range — would each issue a token and kill the one before it. A request that
+// takes 2–9 seconds could therefore lose its token halfway through: the analytics
+// calls had already gone out, and the LAST call, the subscriber count, came back
+// 401. That is exactly how it showed up — the 12thplus tab reading "subscriber
+// count unavailable (YouTube 401)" while the same credentials worked perfectly when
+// tried on their own. Six requests fired at once reproduced it three times out of
+// six; with one shared token, six out of six pass.
+//
+// The in-flight promise matters as much as the cache: without it, concurrent
+// callers all miss the cache together and mint in parallel, which is the same race
+// again.
+type CachedToken = { token: string; expiresAt: number };
+const accessTokens = new Map<string, CachedToken>();
+const tokenInFlight = new Map<string, Promise<string>>();
+const TOKEN_SAFETY_MS = 120_000;   // renew a couple of minutes early
+
+async function mintAccessToken(cacheKey: string, rt: string, id: string, secret: string): Promise<string> {
+  const r = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: rt, grant_type: "refresh_token" }),
+  });
+  if (!r.ok) throw new Error(`token refresh failed (${r.status})`);
+  const j = await r.json();
+  if (!j.access_token) throw new Error("token refresh returned no access_token");
+  // expires_in is seconds (typically 3599). Fall back to an hour if absent.
+  const ttlMs = (Number(j.expires_in) || 3600) * 1000;
+  accessTokens.set(cacheKey, { token: j.access_token as string, expiresAt: Date.now() + ttlMs - TOKEN_SAFETY_MS });
+  return j.access_token as string;
+}
+
 async function freshAccessToken(channelKey?: string): Promise<string> {
   const at = process.env.YOUTUBE_ACCESS_TOKEN;
   const rt = await refreshTokenFor(channelKey);
   const id = process.env.YOUTUBE_CLIENT_ID;
   const secret = process.env.YOUTUBE_CLIENT_SECRET;
-  // Prefer the stored access token; if a refresh token + client creds exist, mint a fresh one.
   if (rt && id && secret) {
-    try {
-      const r = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: rt, grant_type: "refresh_token" }),
-      });
-      if (r.ok) {
-        const j = await r.json();
-        if (j.access_token) return j.access_token as string;
-      }
-    } catch { /* fall back to stored token */ }
+    // ONE access token for the whole app, not one per channel.
+    //
+    // Every channel here is managed by the same Google account — a token minted
+    // from any of their refresh tokens reads all of them — and Google rotates
+    // access tokens per account. Holding one per channel meant three tokens for
+    // one account, each mint quietly killing the other two, which is what produced
+    // intermittent 401s whenever more than one channel was loading at once.
+    //
+    // A channel belonging to a DIFFERENT account would get a token that cannot read
+    // it; that answers 401 and ytFetch mints again from that channel own refresh
+    // token, so it still works, just with an extra round trip.
+    const cacheKey = "yt";
+    const hit = accessTokens.get(cacheKey);
+    if (hit && Date.now() < hit.expiresAt) return hit.token;
+
+    const pending = tokenInFlight.get(cacheKey);
+    if (pending) { try { return await pending; } catch { /* fall through to the stored token */ } }
+    else {
+      const task = mintAccessToken(cacheKey, rt, id, secret).finally(() => tokenInFlight.delete(cacheKey));
+      tokenInFlight.set(cacheKey, task);
+      try { return await task; } catch { /* fall back to the stored token */ }
+    }
   }
   if (!at) throw new Error("No YouTube access token");
   return at;
 }
 
-async function ytGet(params: Record<string, string>, token: string): Promise<any> {
+// Every YouTube call goes through here.
+//
+// The three channels are all managed by ONE Google account — a token minted from
+// any of their refresh tokens reads all three — and Google rotates access tokens
+// per account, so minting for one channel can invalidate the token another channel
+// is holding. Caching alone therefore trades "mint too often" for "serve a token
+// that was killed from outside", which is how a warm, valid-looking cache still
+// produced intermittent 401s.
+//
+// So: use the cached token, and if the call comes back 401, throw that token away,
+// mint once more and repeat the call. One retry only — a second 401 is a real
+// credentials problem and should be reported, not looped on.
+async function ytFetch(channelKey: string | undefined, url: string): Promise<Response> {
+  let token = await freshAccessToken(channelKey);
+  let r = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (r.status === 401) {
+    forgetYouTubeToken(channelKey);
+    token = await freshAccessToken(channelKey);
+    r = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  }
+  return r;
+}
+
+/** Drop a cached access token so the next call mints a new one. */
+export function forgetYouTubeToken(channelKey?: string): void {
+  // Clear the lot. The channels share an account, so a token revoked for one is
+  // very likely the same token the others are holding; keeping their copies would
+  // just move the 401 to the next tab.
+  accessTokens.clear();
+  void channelKey;
+}
+
+async function ytGet(params: Record<string, string>, token: string, channelKey?: string): Promise<any> {
   const qs = new URLSearchParams(params).toString();
-  const r = await fetchWithTimeout(`${ANALYTICS}?${qs}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  // Same revocation problem as everything else, and worse here: every caller
+  // catches and substitutes empty rows, so a dead token used to show up as a flat
+  // chart rather than an error.
+  let r = await fetchWithTimeout(`${ANALYTICS}?${qs}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (r.status === 401) {
+    forgetYouTubeToken(channelKey);
+    const fresh = await freshAccessToken(channelKey);
+    r = await fetchWithTimeout(`${ANALYTICS}?${qs}`, { headers: { Authorization: `Bearer ${fresh}` }, cache: "no-store" });
+  }
   recordApiCall("YouTube", r.ok, r.status);
   const text = await r.text();
   if (!r.ok) throw new Error(`YouTube ${r.status}: ${text.slice(0, 300)}`);
@@ -256,7 +343,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     ids, startDate: from, endDate: to,
     metrics: "views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost",
     dimensions: "day", sort: "day",
-  }, token).catch(() => ({ rows: [] }));
+  }, token, channelKey).catch(() => ({ rows: [] }));
 
   const dayRows: any[] = daily.rows || [];
   // Column order matches the metrics list above.
@@ -273,7 +360,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   const totals = await ytGet({
     ids, startDate: from, endDate: to,
     metrics: "views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost",
-  }, token).catch(() => ({ rows: [[0, 0, 0, 0, 0]] }));
+  }, token, channelKey).catch(() => ({ rows: [[0, 0, 0, 0, 0]] }));
   const t = (totals.rows && totals.rows[0]) || [0, 0, 0, 0, 0];
   const totalViews = t[0] || 0;
   const totalWatchHours = Math.round((t[1] || 0) / 60);
@@ -282,12 +369,12 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
 
   // Average % viewed (retention) — a SEPARATE query so, if it ever errors, it can't
   // break the summary above (it just falls back to 0/omitted).
-  const avgPctRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "averageViewPercentage" }, token).catch(() => ({ rows: [[0]] }));
+  const avgPctRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "averageViewPercentage" }, token, channelKey).catch(() => ({ rows: [[0]] }));
   const avgViewPercentage = Math.round(((avgPctRes.rows?.[0]?.[0]) || 0) * 10) / 10;
 
   // Subscribers vs non-subscribers (views) — the real, API-available version of
   // "new vs returning". Separate query so it can't break the summary above.
-  const subRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "subscribedStatus" }, token).catch(() => ({ rows: [] }));
+  const subRes = await ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "subscribedStatus" }, token, channelKey).catch(() => ({ rows: [] }));
   let subscribedViews = 0, nonSubscribedViews = 0;
   for (const r of (subRes.rows || [])) {
     if (String(r[0]).toUpperCase() === "SUBSCRIBED") subscribedViews += r[1] || 0;
@@ -296,10 +383,15 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
 
   // Current subscriber count (lifetime) — from the Data API channels.statistics.
   // No fallback: a made-up count under a Live badge is worse than an error.
-  const dr = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`, {
-    headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
-  });
-  if (!dr.ok) throw new Error(`subscriber count unavailable (YouTube ${dr.status})`);
+  const dr = await ytFetch(channelKey, `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ch.channelId}`);
+  if (!dr.ok) {
+    // Google says WHY (expired token, wrong project, channel not accessible).
+    // Swallowing it left "YouTube 401" on screen, which is not something anyone
+    // can act on.
+    const why = await dr.text().catch(() => "");
+    const reason = (() => { try { return JSON.parse(why)?.error?.message || ""; } catch { return why.slice(0, 160); } })();
+    throw new Error(`subscriber count unavailable (YouTube ${dr.status}${reason ? ": " + reason : ""})`);
+  }
   const dj = await dr.json();
   const subCount = dj.items?.[0]?.statistics?.subscriberCount;
   if (subCount == null) throw new Error("subscriber count unavailable");
@@ -317,7 +409,7 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
     ids, startDate: from, endDate: to,
     metrics: "views,estimatedMinutesWatched,averageViewDuration,likes,comments",
     dimensions: "video", sort: "-views", maxResults: "25",
-  }, token).catch(() => ({ rows: [] }));
+  }, token, channelKey).catch(() => ({ rows: [] }));
   const videoRows: any[] = topRaw.rows || [];
   const videoIds = videoRows.map((r) => r[0]).join(",");
   // Resolve titles + thumbnails + durations via the Data API. Duration is what
@@ -367,13 +459,13 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
   };
 
   const [trafficRaw, geoRaw, deviceRaw, demoRaw, cityRaw] = await Promise.all([
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "insightTrafficSourceType", sort: "-views" }, token).catch(() => ({ rows: [] })),
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "country", sort: "-views", maxResults: "8" }, token).catch(() => ({ rows: [] })),
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "deviceType", sort: "-views" }, token).catch(() => ({ rows: [] })),
-    ytGet({ ids, startDate: from, endDate: to, metrics: "viewerPercentage", dimensions: "ageGroup,gender", sort: "-viewerPercentage" }, token).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "insightTrafficSourceType", sort: "-views" }, token, channelKey).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "country", sort: "-views", maxResults: "8" }, token, channelKey).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "deviceType", sort: "-views" }, token, channelKey).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "viewerPercentage", dimensions: "ageGroup,gender", sort: "-viewerPercentage" }, token, channelKey).catch(() => ({ rows: [] })),
     // Top cities — YouTube only returns cities that clear its privacy threshold,
     // so small channels may get few rows (that's Google, not us).
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "city", sort: "-views", maxResults: "10" }, token).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "city", sort: "-views", maxResults: "10" }, token, channelKey).catch(() => ({ rows: [] })),
   ]);
 
   const TRAFFIC_LABELS: Record<string, string> = {
