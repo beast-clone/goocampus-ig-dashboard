@@ -3273,8 +3273,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // An admin PREVIEWING a teammate must not write that teammate's attendance.
     // An admin looking at their OWN day is just a person ending their day, and
     // used to be blocked here too — which is half of why the board read 0/5.
-    if (viewerIsAdmin && person !== viewerId) return;
-    fetch("/api/my-day/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action, min, at, rolled }) }).catch(() => {});
+    if (viewerIsAdmin && person !== viewerId) return Promise.resolve();
+    return fetch("/api/my-day/attendance", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person, action, min, at, rolled }) }).then(() => {}, () => {});
   };
   const logBackIn = () => {
     const d = new Date();
@@ -3297,11 +3297,21 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       if (!t.id || !t.reason) continue;
       fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id, actor: person, fields: { additional_info: t.reason } }) }).catch(() => {});
     }
-    postAttendance("logout", min, clockOf(min), rolled.map((t) => ({ title: t.title, reason: t.reason })));
+    const saved = postAttendance("logout", min, clockOf(min), rolled.map((t) => ({ title: t.title, reason: t.reason })));
     setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
-    setLoggedOut(true);
+    // Your own day: really sign out once the logout time is saved. It used to show a
+    // "Day ended" card whose only button was "Back to My Day" — which recorded a NEW
+    // login and left you signed in (Praveen, 21 Oct). An admin previewing someone
+    // else's day keeps the card; signing the admin out would be wrong.
+    if (!ownDay) { setLoggedOut(true); return; }
+    const out = () => {
+      const f = document.createElement("form");
+      f.method = "post"; f.action = "/api/logout";
+      document.body.appendChild(f); f.submit();
+    };
+    Promise.race([saved, new Promise((r) => setTimeout(r, 2500))]).then(out);
   };
   // Editor sends the reschedule ask → the request goes to Manya (pipeline: waiting).
   const sendToManya = () => {
