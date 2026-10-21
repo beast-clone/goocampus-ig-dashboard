@@ -3301,11 +3301,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setDayStarted(false); setShowEod(false); setDayStartMin(0); setProfileOpen(false);
     try { localStorage.removeItem(`hmd-day-${person}`); } catch { /* private mode */ }
     setToast({ who: "Day wrapped", color: "#1AA053", av: me.av, body: `${doneCount} done · ${rollCount} rolled to tomorrow — logging out.` });
-    // Your own day: really sign out once the logout time is saved. It used to show a
-    // "Day ended" card whose only button was "Back to My Day" — which recorded a NEW
-    // login and left you signed in (Praveen, 21 Oct). An admin previewing someone
-    // else's day keeps the card; signing the admin out would be wrong.
-    if (!ownDay) { setLoggedOut(true); return; }
+    // Really sign out once the logout time is saved. It used to show a "Day ended"
+    // card whose only button was "Back to My Day" — which recorded a NEW login and
+    // left you signed in (Praveen, 21 Oct). Whoever presses it is signed out, admin or
+    // not; an admin on someone else's day records nothing for them (postAttendance).
     const out = () => {
       const f = document.createElement("form");
       f.method = "post"; f.action = "/api/logout";
