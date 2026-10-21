@@ -15,8 +15,8 @@ import {
   IconClipboardCheck, IconLayoutGrid, IconTable, IconX, IconChevronLeft, IconChevronRight, IconCalendarEvent, IconPlayerPlayFilled,
 } from "@tabler/icons-react";
 
-// When it is meant to go out, on the card — "Goes out today", "Tomorrow · Thu 22 Oct",
-// "Fri 23 Oct", or late in red (Praveen, 21 Oct).
+// When it is meant to go out — a chip on the image's top-right, opposite the type
+// chip: "Today", "Tomorrow", "Fri 23 Oct", or "Overdue · Mon 19 Oct" (Praveen, 21 Oct).
 function PubDate({ date }: { date: string | null }) {
   if (!date) return null;
   const d = new Date(date.slice(0, 10) + "T00:00:00");
@@ -24,12 +24,12 @@ function PubDate({ date }: { date: string | null }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
   const nice = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  const [label, cls] = days < 0 ? [`Was due ${nice}`, "text-[#C0201F] bg-[#FDECEC]"]
-    : days === 0 ? ["Goes out today", "text-amber-700 bg-amber-50"]
-    : days === 1 ? [`Tomorrow · ${nice}`, "text-[#2138B0] bg-brand-light"]
-    : [nice, "text-[#4A5468] bg-[#F6F7FB]"];
+  const [label, cls] = days < 0 ? [`Overdue · ${nice}`, "text-[#C0201F] bg-[#FDECEC]"]
+    : days === 0 ? ["Today", "text-amber-700 bg-amber-50"]
+    : days === 1 ? ["Tomorrow", "text-[#2138B0] bg-brand-light"]
+    : [nice, "text-[#4A5468] bg-white"];
   return (
-    <span className={`ml-auto inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-1 whitespace-nowrap ${cls}`}>
+    <span className={`absolute top-2 right-2 z-10 inline-flex items-center gap-1 text-[11px] font-semibold rounded-md px-2 py-0.5 whitespace-nowrap ${cls}`}>
       <IconCalendarEvent size={12} stroke={1.9} />{label}
     </span>
   );
@@ -286,6 +286,7 @@ function Review() {
           >
             {p.type || "Post"}
           </span>
+          <PubDate date={p.publishingDate} />
         </div>
 
         {/* Body */}
@@ -293,14 +294,11 @@ function Review() {
           <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
             {p.title || "Untitled"}
           </div>
-          {(p.sbu || p.publishingDate) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {p.sbu && (
-                <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
-                  {p.sbu}
-                </span>
-              )}
-              <PubDate date={p.publishingDate} />
+          {p.sbu && (
+            <div>
+              <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
+                {p.sbu}
+              </span>
             </div>
           )}
           {(p.caption || p.content) && (
