@@ -474,7 +474,8 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
       for (const f of Array.from(files)) {
         const fd = new FormData();
         fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "reference"); fd.append("file", f);
-        await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
+        const r = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => null);
+        if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; showToast({ who: `Couldn't add ${f.name}`, body: (j as { error?: string }).error || "Upload failed — try again.", color: "#C03221", av: "!" }); }
       }
     } finally { setBusy(false); onSaved(); }
   };
@@ -491,7 +492,9 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
       <div className="refs">
         {refs.map((r, i) => r.kind === "image" ? (
           <div key={r.attId || r.url || i} className="thumb ref-thumb" title={r.label}>
-            <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            {/\.pdf($|\?)/i.test(r.url || r.label)
+              ? <a className="thumb-img" href={r.url} target="_blank" rel="noreferrer" style={{ display: "grid", placeItems: "center", color: "#8A92A6" }}><IconFileText size={20} stroke={1.7} /></a>
+              : <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />}
             <div className="thumb-name">{r.label}</div>
             <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
           </div>
@@ -502,9 +505,9 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
           </a>
         ))}
-        <label className="thumb thumb-add" title="Add reference image">
-          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "Image"}</span>
-          <input type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+        <label className="thumb thumb-add" title="Add a reference image or PDF">
+          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "File"}</span>
+          <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
       <div className="ref-url">
@@ -516,6 +519,9 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
 }
 
 type CreativeItem = { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string };
+// PDFs as well as images and videos — "I can't add PDFs as creatives; they're greyed
+// out" (Praveen, 21 Oct). The server always took PDFs; only the picker refused them.
+const UPLOAD_ACCEPT = "image/*,video/*,.pdf,application/pdf";
 
 // Creatives & files — the task's post media + uploaded creative files. Upload (click
 // or drag-drop) persists to mh_attachments (kind='creative') and shows immediately;
@@ -543,7 +549,9 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
       for (const f of Array.from(files)) {
         const fd = new FormData();
         fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "creative"); fd.append("file", f);
-        await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
+        const r = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => null);
+        // A refused upload used to vanish without a word.
+        if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; showToast({ who: `Couldn't add ${f.name}`, body: (j as { error?: string }).error || "Upload failed — try again.", color: "#C03221", av: "!" }); }
       }
     } finally { setBusy(false); onSaved(); }
   };
@@ -570,14 +578,14 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
           ))}
           <label className="thumb thumb-add" title="Add creative">
             <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "Add"}</span>
-            <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+            <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
           </label>
         </div>
       ) : (
         <label className="upload-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
           <span className="upload-ic"><IconUpload size={18} stroke={1.7} /></span>
-          <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click to add creatives</span></span>
-          <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click — images, videos or PDFs</span></span>
+          <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
       )}
       {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}

@@ -159,14 +159,16 @@ export function PendingAssets({ hint, oneLink, value, onChange }: { hint: string
       <div className="refs">
         {value.files.map((f, i) => (
           <div key={i} className="thumb ref-thumb" title={f.file.name}>
-            <div className="thumb-img" style={{ backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            {f.file.type.startsWith("image/")
+              ? <div className="thumb-img" style={{ backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              : <div className="thumb-img" style={{ display: "grid", placeItems: "center", fontSize: 11, fontWeight: 500, color: "#8A92A6" }}>PDF</div>}
             <div className="thumb-name">{f.file.name}</div>
             <button type="button" className="ref-x" onClick={() => rmFile(i)} title="Remove">✕</button>
           </div>
         ))}
-        <label className="thumb thumb-add" title="Add image">
-          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">Image</span>
-          <input type="file" accept="image/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        <label className="thumb thumb-add" title="Add an image or PDF">
+          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">File</span>
+          <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
       {value.links.length > 0 && (
