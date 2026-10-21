@@ -3933,7 +3933,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const workFiles = (detail?.attachments || []).filter((a) => a.kind === "attachment").map(attMap);
   const refLinks = detail?.referenceLinks ?? [];
 
-  const upload = async (files: FileList, kind: "creative" | "reference" | "attachment" = "creative") => {
+  const upload = async (files: FileList | File[], kind: "creative" | "reference" | "attachment" = "creative") => {
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
@@ -3952,6 +3952,20 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     await loadDetail();
   };
   const refFileRef = useRef<HTMLInputElement>(null);
+  // Paste a copied image straight into the task — "I have to download and then upload
+  // the images. Please also give copy paste option" (Manya, 16 Oct). It lands in the
+  // section the pointer was last over (Creatives unless References / Attachments).
+  const pasteKind = useRef<"creative" | "reference" | "attachment">("creative");
+  const onPasteFiles = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith("image/") || pasteKind.current === "attachment");
+    if (!files.length) return;   // ordinary text paste — leave it alone
+    e.preventDefault();
+    // A screenshot pastes as "image.png" every time; give it a name worth keeping.
+    const d = new Date(), p2 = (x: number) => String(x).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+    const named = files.map((f, i) => (/^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? new File([f], `pasted-${stamp}${files.length > 1 ? `-${i + 1}` : ""}.${f.name.split(".").pop()}`, { type: f.type }) : f));
+    upload(named, pasteKind.current);
+  };
   const workFileRef = useRef<HTMLInputElement>(null);
   const [refLinkAdd, setRefLinkAdd] = useState(false);
   const [refLinkDraft, setRefLinkDraft] = useState("");
@@ -3991,7 +4005,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   return (
     <>
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
-      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] h-[829px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] h-[829px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} onPaste={onPasteFiles}>
         {/* Header — Themed hero band: brand-tinted, large title */}
         <div className="relative flex items-start justify-between gap-4 pt-8 pr-5 pb-5 pl-[66px] border-b border-gray-100 flex-shrink-0 bg-white">
           
@@ -4054,6 +4068,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   : <RichTextField key={`k-${row.id}`} mode="plain" value={caption} onSave={saveText("caption")} placeholder="Write the post caption…" />}
               </Panel>
 
+              <div className="contents" onMouseOver={() => { pasteKind.current = "creative"; }}>
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -4095,7 +4110,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
                     <IconCloudUpload size={18} className="text-brand mb-0.5" stroke={1.6} />
                     <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
-                    <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop or click to browse</div>
+                    <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop, click to browse, or paste an image (Ctrl/Cmd+V)</div>
                   </div>
                 )}
                 {/* A link instead of (or as well as) a file — "include creatives link or
@@ -4104,7 +4119,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 <div className="mt-1">{urlRow("output_link", "Creatives link (Drive / Canva)", detail?.outputLink ?? row.outputLink ?? "", IconLink)}</div>
               </Panel>
 
+              </div>
+
               {/* References — mood-board (above Content): reference images and/or links */}
+              <div className="contents" onMouseOver={() => { pasteKind.current = "reference"; }}>
               <Panel icon={IconBookmark} title="References">
                 <input ref={refFileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "reference"); e.currentTarget.value = ""; }} />
@@ -4153,8 +4171,11 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
               </Panel>
 
+              </div>
+
               {/* Attachments — working files that are never published, as in Airtable:
                   "references are different and attachments are different" (Manya, 10 Oct). */}
+              <div className="contents" onMouseOver={() => { pasteKind.current = "attachment"; }}>
               <Panel icon={IconPaperclip} title="Attachments" right={<span className="text-[11px] text-gray-400">{workFiles.length || ""}</span>}>
                 <input ref={workFileRef} type="file" multiple className="hidden"
                   accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv"
@@ -4173,9 +4194,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 <div onClick={() => workFileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files, "attachment"); }}
                   className="border border-dashed border-gray-200 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:border-brand/40 hover:bg-brand-light/30 transition">
                   <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Add attachments"}</div>
-                  <div className="text-[11px] text-[#8A92A6] mt-0.5">Working files — never published. Drag &amp; drop or click.</div>
+                  <div className="text-[11px] text-[#8A92A6] mt-0.5">Working files — never published. Drag &amp; drop, click, or paste.</div>
                 </div>
               </Panel>
+              </div>
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
