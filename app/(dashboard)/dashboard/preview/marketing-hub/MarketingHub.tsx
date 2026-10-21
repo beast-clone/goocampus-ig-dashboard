@@ -4067,7 +4067,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   a mood-board; the panels are all still here, in a different order. */}
               <Panel icon={IconFileText} title="Content">
                 {firstLoad ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
-                  : <RichTextField key={`c-${row.id}`} value={content} onSave={saveText("content")} placeholder="Write the content — slides, points, links…" />}
+                  : <RichTextField key={`c-${row.id}`} maxHeight={420} value={content} onSave={saveText("content")} placeholder="Write the content — slides, points, links…" />}
               </Panel>
 
               <Panel icon={IconMessageCircle2} title="Caption">

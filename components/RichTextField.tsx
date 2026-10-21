@@ -33,8 +33,12 @@ import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 type Mode = "rich" | "plain";
 const IDLE_SAVE_MS = 8000;
 
-export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
+export function RichTextField({ value, onSave, mode = "rich", placeholder, maxHeight }: {
   value: string;
+  /** Cap a long text at this height (px) with its own scroll and a "Show all" toggle,
+   *  so what sits below it — Creatives & files — isn't buried 3 screens down
+   *  (Praveen, 21 Oct). */
+  maxHeight?: number;
   /** Persist the new text. Resolve when saved; throw to keep the text marked unsaved. */
   onSave: (next: string) => Promise<void>;
   mode?: Mode;
@@ -46,6 +50,9 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
   const editorRef = useRef<Editor | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
   // Only a real edit saves. Reading old text in can tidy it (a stray "###" line, a
   // mark with spaces inside it), and merely clicking in and out must not write
   // that tidied copy back over the task.
@@ -139,6 +146,18 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, editor]);
 
+  // Does the text run past the cap? Re-checked as it changes.
+  useEffect(() => {
+    if (!maxHeight) return;
+    const el = boxRef.current;
+    if (!el) return;
+    const check = () => setOverflows(el.scrollHeight > maxHeight + 4);
+    check();
+    const ro = new ResizeObserver(check);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [maxHeight, editor]);
+
   // Closing the window must not lose what was typed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { flush(editorRef.current); }, []);
@@ -170,10 +189,16 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
           <span className="gc-rtf-state">{STATE_LABEL[state]}</span>
         </div>
       )}
-      <div className="gc-rtf-wrap">
+      <div className="gc-rtf-wrap" ref={boxRef}
+        style={maxHeight && !expanded ? { maxHeight, overflowY: "auto", overflowX: "hidden", paddingLeft: 8, paddingRight: 8 } : undefined}>
         <EditorContent editor={editor} />
         {editor && editor.isEmpty && !editor.isFocused && placeholder && <div className="gc-rtf-ph">{placeholder}</div>}
       </div>
+      {maxHeight && (overflows || expanded) && (
+        <button type="button" className="gc-rtf-more" onClick={() => setExpanded((x) => !x)}>
+          {expanded ? "Show less" : "Show full text"}
+        </button>
+      )}
       {mode === "plain" && state !== "idle" && <div className="gc-rtf-state below">{STATE_LABEL[state]}</div>}
     </div>
   );
@@ -395,6 +420,8 @@ const RTF_CSS = `
 .gc-rtf-body ul[data-type="taskList"] li[data-checked="true"] > div{color:#8A92A6;text-decoration:line-through}
 .gc-rtf-body.ProseMirror-focused{border-color:#3A57E8}
 .gc-rtf-wrap{position:relative}
+.gc-rtf-more{margin-top:6px;border:0;background:none;padding:0;font-size:12.5px;font-weight:500;color:#3A57E8;cursor:pointer}
+.gc-rtf-more:hover{text-decoration:underline}
 .gc-rtf-ph{position:absolute;top:7px;left:0;font-size:14px;line-height:22px;color:#8A92A6;pointer-events:none}
 html[data-theme="dark"] .gc-rtf-body{color:var(--d-ink)}
 html[data-theme="dark"] .gc-rtf-body h1,html[data-theme="dark"] .gc-rtf-body h2,html[data-theme="dark"] .gc-rtf-body h3,html[data-theme="dark"] .gc-rtf-body strong{color:var(--d-ink)}

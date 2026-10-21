@@ -1211,7 +1211,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           it can't write an older copy over what was typed here. */}
       <div className="brief">
         {canEdit !== false
-          ? <RichTextField key={`brief-${task.id}`} value={task.detail.content || ""} placeholder="The write-up / brief — hook, body, CTA, specs…"
+          ? <RichTextField key={`brief-${task.id}`} maxHeight={360} value={task.detail.content || ""} placeholder="The write-up / brief — hook, body, CTA, specs…"
               onSave={async (next) => {
                 const r = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { content: next } }) });
                 if (!r.ok) { const j = await r.json().catch(() => ({})); showToast({ who: "Couldn't save the brief", body: (j as { error?: string }).error || `HTTP ${r.status}`, color: "#C03221", av: "!" }); throw new Error("save refused"); }
