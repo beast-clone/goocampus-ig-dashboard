@@ -1944,7 +1944,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           </div>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus === "publishing" ? "Publishing…" : p.effectiveStatus}</span>
           {p.effectiveStatus === "publishing" && (
-            <span className="text-xs text-gray-500 flex-shrink-0">Going out now — can't be changed</span>
+            <span className="text-xs text-gray-500 flex-shrink-0">Going out now — can&apos;t be changed</span>
           )}
           {/* Row actions — only for posts that are still actionable (not published, not mid-publish) */}
           {p.effectiveStatus !== "published" && p.effectiveStatus !== "publishing" && (
