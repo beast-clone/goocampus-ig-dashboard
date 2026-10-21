@@ -9,7 +9,21 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-Nothing — everything on `feat/dashboard-reskin` up to `5920b34` is live.
+Nothing — everything on `feat/dashboard-reskin` up to `c52d630` is live.
+
+---
+
+## Already live as of 21 October 2026, ~4:30 pm IST
+
+Deploy `6ad8673c5ec359e355111c97` (`c52d630`): editor shortcuts / lines / quotes /
+checklists / pasted lists; hub read cache checks a data stamp (no more flip-flop —
+verified live: 30 reads after two priority changes all consistent); PDFs in My Day
+uploads; the editor in My Day's brief; My Day Save no longer writes the previous
+task's brief/date/priority, and its date picker changes the publishing date.
+
+Open after this deploy: three briefs overwritten by the old My Day bug (Karnataka
+NEET PG Cut Off 2025, Karnataka NEET PG Counselling 2026 (KEA), Ireland Webinar -
+Carousel 0745354e) — restore only with the user's OK.
 
 ---
 
