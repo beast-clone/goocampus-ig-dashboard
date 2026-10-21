@@ -131,10 +131,13 @@ function matchesTab(t: { status: string; detail: { typeLine: string } }, tab: Ta
 function dueInfo(due: string, today: string): { label: string; overdue: boolean; today: boolean } {
   if (!due) return { label: "", overdue: false, today: false };
   const d = Math.round((new Date(due + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86_400_000);
-  if (d < 0) return { label: d === -1 ? "Overdue · yesterday" : `Overdue · ${-d} days`, overdue: true, today: false };
-  if (d === 0) return { label: "Due today", overdue: false, today: true };
-  if (d === 1) return { label: "Due tomorrow", overdue: false, today: false };
-  return { label: `Due in ${d} days`, overdue: false, today: false };
+  // The date itself leads, the relative part follows in brackets — "Due today" alone
+  // never said which day it was (Praveen, 21 Oct).
+  const date = new Date(due + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  if (d < 0) return { label: `${date} (${d === -1 ? "overdue · yesterday" : `overdue · ${-d} days`})`, overdue: true, today: false };
+  if (d === 0) return { label: `${date} (due today)`, overdue: false, today: true };
+  if (d === 1) return { label: `${date} (due tomorrow)`, overdue: false, today: false };
+  return { label: `${date} (in ${d} days)`, overdue: false, today: false };
 }
 // A reference the team drops on a task — either a URL (mood board, doc, tweet…) or
 // an image. Mirrors the Airtable "References" field.
