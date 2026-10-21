@@ -9,7 +9,7 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-Nothing — everything on `feat/dashboard-reskin` up to `fbb69a5` is live (6th deploy of 21 Oct, `6ad8a7fc`: LinkedIn PDF preview, Content Review whole images + Drive reels + go-out date, 300 MB task uploads).
+Nothing — everything on `feat/dashboard-reskin` up to `6cea012` is live (7th deploy of 21 Oct, `6ad8b182`: hub task window rebuilt per task). Pending: `ab4bb0e` Scheduler Publishing… state + server lock.
 
 ---
 
