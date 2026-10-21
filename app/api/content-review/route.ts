@@ -43,8 +43,9 @@ export async function GET() {
     if (ids.length) {
       const { data: atts } = await sb
         .from("mh_attachments")
-        .select("post_id, storage_path, kind, mime_type")
+        .select("post_id, storage_path, kind, mime_type, uploaded_at")
         .in("post_id", ids)
+        .order("uploaded_at", { ascending: true })
         .not("kind", "in", "(reference,attachment)")   // attachments are working files, never media;
       for (const a of atts || []) {
         if (!a.storage_path) continue;
@@ -66,7 +67,10 @@ export async function GET() {
         owner: r.owner_key,
         caption: r.caption,
         content: r.content,
-        mediaUrls: media,
+        // Every finished creative is a slide — the post's media AND the files uploaded
+        // as creatives. Only media_urls used to count, so an uploaded carousel showed
+        // as one cropped picture (Praveen, 21 Oct). In upload order.
+        mediaUrls: [...media, ...attUrls.filter((u) => !media.includes(u))],
         assetLink: r.output_link || null,
         thumbnailUrl: media[0] || attUrls[0] || null,
         // The Scheduler requires a creative, so a post with no uploaded media, no

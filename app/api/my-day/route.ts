@@ -63,7 +63,9 @@ export async function GET() {
     (atts || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string; kind: string }) => {
       if (a.kind === "creative") {
         const arr = creativeByPost.get(a.post_id) || [];
-        arr.push({ name: a.filename, type: isVideo(a.storage_path) ? "video" : "image", url: a.storage_path, attId: a.id });
+        // A PDF is a document, not a picture — typed "image" it rendered as a blank tile.
+        const pdf = /\.pdf($|[?#])/i.test(a.storage_path) || /\.pdf$/i.test(a.filename || "");
+        arr.push({ name: a.filename, type: pdf ? "doc" : isVideo(a.storage_path) ? "video" : "image", url: a.storage_path, attId: a.id });
         creativeByPost.set(a.post_id, arr);
       } else {
         const arr = refByPost.get(a.post_id) || [];

@@ -2,11 +2,12 @@
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { MultiPick } from "@/components/MultiPick";
 import { useSbus } from "@/lib/use-sbus";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
 import { Markdown, plainText } from "@/components/Markdown";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
+import { PdfThumb, isPdf, pdfPageCount } from "@/components/PdfThumb";
 import { fmtDate } from "@/lib/date";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import {
@@ -87,7 +88,22 @@ function Review() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setSlide(0); }, [openPost]); // reset carousel page each time a post opens
+  useEffect(() => { setSlide(0); trackRef.current?.scrollTo({ left: 0 }); }, [openPost]); // reset carousel page each time a post opens
+  // The preview is a swipeable strip: trackpad/touch swipe, mouse drag, arrows or
+  // dots all move it. A PDF counts one slide per page (Praveen, 21 Oct).
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  const [pdfPages, setPdfPages] = useState<Record<string, number>>({});
+  useEffect(() => {
+    for (const u of openPost?.mediaUrls || []) {
+      if (!isPdf(u) || pdfPages[u]) continue;
+      pdfPageCount(u).then((n) => setPdfPages((m) => ({ ...m, [u]: Math.max(1, n) })));
+    }
+  }, [openPost, pdfPages]);
+  const goSlide = (i: number) => {
+    const t = trackRef.current;
+    if (t) t.scrollTo({ left: i * t.clientWidth, behavior: "smooth" });
+  };
   // Esc closes the preview modal.
   useEffect(() => {
     if (!openPost) return;
@@ -174,7 +190,9 @@ function Review() {
           <td className="px-4 py-2.5">
             <div className="flex items-center gap-2.5">
               <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0 relative">
-                <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+                {p.thumbnailUrl && isPdf(p.thumbnailUrl)
+                  ? <PdfThumb url={p.thumbnailUrl} fallback={<CreativeThumb assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />} />
+                  : <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
               </span>
               <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
             </div>
@@ -226,7 +244,9 @@ function Review() {
       >
         {/* Media preview */}
         <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
-          <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+          {p.thumbnailUrl && isPdf(p.thumbnailUrl)
+                  ? <PdfThumb url={p.thumbnailUrl} fallback={<CreativeThumb assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />} />
+                  : <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
           <span
             className="absolute top-2 left-2 text-[11px] font-semibold rounded-md px-2 py-0.5"
             style={{ background: tc.bg, color: tc.fg }}
@@ -441,14 +461,14 @@ function Review() {
         const tc = typeChip(p.type);
         const busy = busyId === p.id;
         // Standard IG dimensions: reel/story = 9:16 (1080×1920), else 4:5 (1080×1350).
-        // The modal width hugs the (portrait) creative so the media fills it edge-to-edge
-        // with no side gaps, while staying a sensible height.
+        // Creative on the left at that real shape, details on the right — like the task
+        // window. Stacked it got squashed to half height (Praveen, 21 Oct).
         const portrait = /reel|story/i.test(p.type || "");
-        const media = p.mediaUrls || [];
-        const cur = media[slide];
+        const slides = (p.mediaUrls || []).flatMap((url) =>
+          isPdf(url) ? Array.from({ length: pdfPages[url] || 1 }, (_, i) => ({ url, page: i + 1 })) : [{ url, page: 0 }]);
         return (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpenPost(null)}>
-            <div className="bg-white rounded-2xl w-full max-h-[92vh] flex flex-col overflow-hidden" style={{ maxWidth: portrait ? 384 : 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl w-full max-h-[92vh] flex flex-col overflow-hidden" style={{ maxWidth: portrait ? 820 : 940 }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -459,29 +479,68 @@ function Review() {
                 </div>
                 <button onClick={() => setOpenPost(null)} className="text-gray-400 hover:text-gray-700 flex-shrink-0"><IconX size={20} /></button>
               </div>
-              <div className="overflow-y-auto p-5 flex flex-col gap-4">
-                <div className={`w-full ${portrait ? "aspect-[9/16]" : "aspect-[4/5]"} relative rounded-xl overflow-hidden bg-[#0b1020]`}>
-                  {media.length > 0 ? (
-                    isVideoUrl(cur, p.type) ? (
-                      <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={cur} alt={p.title || "creative"} className="w-full h-full object-cover" />
-                    )
+              <div className="flex-1 min-h-0 p-5 flex flex-col md:flex-row gap-5 overflow-y-auto md:overflow-hidden">
+                <div className="w-full md:w-auto md:h-[min(70vh,660px)] flex-shrink-0 relative rounded-xl overflow-hidden bg-[#0b1020]" style={{ aspectRatio: portrait ? "9 / 16" : "4 / 5" }}>
+                  {slides.length > 0 ? (
+                    <div
+                      ref={trackRef}
+                      className="w-full h-full flex overflow-x-auto snap-x snap-mandatory select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      style={{ cursor: slides.length > 1 ? "grab" : undefined }}
+                      onScroll={(e) => { const t = e.currentTarget; setSlide(Math.round(t.scrollLeft / Math.max(1, t.clientWidth))); }}
+                      onPointerDown={(e) => {
+                        if (e.pointerType !== "mouse" || slides.length < 2 || (e.target as HTMLElement).tagName === "VIDEO") return;
+                        drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft, moved: false };
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        e.currentTarget.style.scrollSnapType = "none";
+                        e.currentTarget.style.cursor = "grabbing";
+                      }}
+                      onPointerMove={(e) => {
+                        const d = drag.current; if (!d) return;
+                        if (Math.abs(e.clientX - d.x) > 3) d.moved = true;
+                        e.currentTarget.scrollLeft = d.left - (e.clientX - d.x);
+                      }}
+                      onPointerUp={(e) => {
+                        const d = drag.current; if (!d) return;
+                        drag.current = null;
+                        const t = e.currentTarget, w = t.clientWidth, dx = e.clientX - d.x;
+                        const from = Math.round(d.left / w);
+                        const to = Math.abs(dx) > w * 0.15 ? from + (dx < 0 ? 1 : -1) : from;
+                        t.style.cursor = "grab";
+                        t.scrollTo({ left: Math.min(Math.max(0, to), slides.length - 1) * w, behavior: "smooth" });
+                        setTimeout(() => { t.style.scrollSnapType = ""; }, 400);
+                      }}
+                    >
+                      {slides.map((sl, i) => (
+                        <div key={`${sl.url}-${sl.page}-${i}`} className="w-full h-full flex-shrink-0 snap-center grid place-items-center">
+                          {sl.page > 0 ? (
+                            <PdfThumb url={sl.url} page={sl.page} width={460} fit="contain" badge={false}
+                              fallback={<a href={sl.url} target="_blank" rel="noreferrer" className="text-sm text-white underline">Open PDF</a>} />
+                          ) : isVideoUrl(sl.url, p.type) ? (
+                            Math.abs(i - slide) <= 1
+                              ? <video src={sl.url} controls autoPlay={i === slide} muted loop playsInline className="w-full h-full object-contain" />
+                              : null
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={sl.url} alt={p.title || "creative"} draggable={false} loading={i <= 1 ? "eager" : "lazy"} className="w-full h-full object-contain" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
                   )}
-                  {media.length > 1 && (
+                  {slides.length > 1 && (
                     <>
-                      <button aria-label="Previous" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s - 1 + media.length) % media.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronLeft size={20} stroke={2} /></button>
-                      <button aria-label="Next" onClick={(e) => { e.stopPropagation(); setSlide((s) => (s + 1) % media.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition"><IconChevronRight size={20} stroke={2} /></button>
-                      <div className="absolute top-2 right-2 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">{slide + 1}/{media.length}</div>
+                      <button aria-label="Previous" disabled={slide === 0} onClick={(e) => { e.stopPropagation(); goSlide(slide - 1); }} className="absolute left-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition disabled:opacity-0"><IconChevronLeft size={20} stroke={2} /></button>
+                      <button aria-label="Next" disabled={slide >= slides.length - 1} onClick={(e) => { e.stopPropagation(); goSlide(slide + 1); }} className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white transition disabled:opacity-0"><IconChevronRight size={20} stroke={2} /></button>
+                      <div className="absolute top-2 right-2 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">{Math.min(slide + 1, slides.length)}/{slides.length}</div>
                       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                        {media.map((_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full transition ${i === slide ? "bg-white" : "bg-white/40"}`} />)}
+                        {slides.map((_, i) => <button key={i} aria-label={`Slide ${i + 1}`} onClick={() => goSlide(i)} style={{ width: 6, height: 6, minWidth: 6, minHeight: 6 }} className={`block p-0 rounded-full transition ${i === slide ? "bg-white" : "bg-white/40"}`} />)}
                       </div>
                     </>
                   )}
                 </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-4 md:overflow-y-auto">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Interest</div><div className="text-sm text-[#232D42]">{p.sbu || "—"}</div></div>
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Owner</div><div className="text-sm text-[#232D42] capitalize">{p.owner || "—"}</div></div>
@@ -495,6 +554,7 @@ function Review() {
                   </div>
                 )}
                 {!p.hasCreative && <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No creative attached — add media before it can go to the Scheduler.</div>}
+                </div>
               </div>
               <div className="px-5 py-4 border-t border-gray-100">
                 {feedbackFor === p.id ? (

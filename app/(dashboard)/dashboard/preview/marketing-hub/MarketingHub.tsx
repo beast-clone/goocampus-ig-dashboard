@@ -18,6 +18,7 @@ import { FilterBuilder } from "@/components/FilterBuilder";
 import { MultiPick } from "@/components/MultiPick";
 import { RichTextField } from "@/components/RichTextField";
 import { ClampBox } from "@/components/ClampBox";
+import { PdfThumb } from "@/components/PdfThumb";
 import { linkify } from "@/components/Markdown";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
@@ -4102,7 +4103,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                               <span className="absolute inset-0 flex items-center justify-center"><span className="bg-black/50 text-white rounded-full p-2"><IconPlayerPlay size={18} /></span></span>
                             </>
                           ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">{kind === "pdf" ? "PDF" : (c.type || "file").split("/")[1] || "file"}</span></div>
+                            kind === "pdf"
+                              ? <a href={c.url} target="_blank" rel="noreferrer" title={`Open ${c.name}`} className="block w-full h-full"><PdfThumb url={c.url} width={140} fallback={<div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">PDF</span></div>} /></a>
+                              : <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={26} /><span className="text-[10px] uppercase tracking-wide">{(c.type || "file").split("/")[1] || "file"}</span></div>
                           )}
                           <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{i + 1}</span>
                           {c.removable && c.id && (
@@ -4146,7 +4149,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={c.url} alt={c.name} onClick={() => setLightbox({ items: refImages, index: i })} className="w-full h-full object-cover cursor-pointer" />
                           ) : (
-                            <a href={c.url} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">{kind === "pdf" ? "PDF" : "file"}</span></a>
+                            <a href={c.url} target="_blank" rel="noreferrer" title={`Open ${c.name}`} className="block w-full h-full">{kind === "pdf"
+                              ? <PdfThumb url={c.url} width={80} fallback={<span className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">PDF</span></span>} />
+                              : <span className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">file</span></span>}</a>
                           )}
                           {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={12} /></button>}
                         </div>

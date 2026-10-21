@@ -12,6 +12,7 @@ import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { uploadTaskFile } from "@/lib/upload-task-file";
+import { PdfThumb, isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
 import { ClampBox } from "@/components/ClampBox";
 import { Markdown } from "@/components/Markdown";
@@ -495,7 +496,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
         {refs.map((r, i) => r.kind === "image" ? (
           <div key={r.attId || r.url || i} className="thumb ref-thumb" title={r.label}>
             {/\.pdf($|\?)/i.test(r.url || r.label)
-              ? <a className="thumb-img" href={r.url} target="_blank" rel="noreferrer" style={{ display: "grid", placeItems: "center", color: "#8A92A6" }}><IconFileText size={20} stroke={1.7} /></a>
+              ? <a className="thumb-img" href={r.url} target="_blank" rel="noreferrer" style={{ display: "block", padding: 0 }}><PdfThumb url={r.url || ""} width={110} fallback={<span style={{ display: "grid", placeItems: "center", height: "100%", color: "#8A92A6" }}><IconFileText size={20} stroke={1.7} /></span>} /></a>
               : <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />}
             <div className="thumb-name">{r.label}</div>
             <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
@@ -564,6 +565,12 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
         <div className="thumbs">
           {creatives.map((f, i) => (
             <div key={i} className="thumb" title={f.name}>
+              {/* A PDF shows its first page and opens in a new tab (Praveen, 21 Oct). */}
+              {f.url && (f.type === "doc" || isPdf(f.url, null)) ? (
+                <a className="thumb-img clk" href={f.url} target="_blank" rel="noreferrer" title={`Open ${f.name}`} style={{ display: "block", padding: 0 }}>
+                  <PdfThumb url={f.url} width={110} fallback={<span className="thumb-doc"><IconFileText size={20} stroke={1.7} /></span>} />
+                </a>
+              ) : (
               <div
                 className={`thumb-img ${f.url && f.type !== "doc" ? "clk" : ""}`}
                 style={f.url && f.type === "image" ? { backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: THUMB_BG[i % THUMB_BG.length] }}
@@ -572,6 +579,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
                 {f.type === "video" && <span className="thumb-play">▶</span>}
                 {f.type === "doc" && <span className="thumb-doc"><IconFileText size={20} stroke={1.7} /></span>}
               </div>
+              )}
               <div className="thumb-name">{f.name}</div>
               {f.attId && <button className="ref-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
             </div>
