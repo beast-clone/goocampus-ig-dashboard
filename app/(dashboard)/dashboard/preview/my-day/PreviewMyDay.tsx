@@ -309,6 +309,17 @@ const onTimelineFor = (name: string, status: string) =>
 // Shared with the Marketing-Hub Workload timeline (lib/task-estimate) so a task's
 // estimated length is identical in My Day and Workload.
 const estMins = estimateTaskMinutes;
+// Being on camera is real time on your day, even though the editor owns the task.
+// The timeline counted owners only, so whoever presented never saw the shoot on
+// their plan or their workload (Nikhil, 9 & 13 Oct). A presenter's block is the
+// shoot, not the edit — the task's duration is the editor's, so it isn't reused.
+const SHOOT_MIN = 60;
+const presentsOn = (t: Task, key: string, name: string) =>
+  !!t.detail.presenter && t.detail.presenter.toLowerCase() === key && t.detail.owner !== name
+  && (t.status === "Content - Approved" || t.status === "Output - In Progress");
+const planMins = (t: Task, key: string, name: string) =>
+  presentsOn(t, key, name) ? SHOOT_MIN : (t.detail.duration || estMins(t.detail.typeLine));
+const keyOfName = (name: string) => Object.keys(PPL).find((k) => PPL[k].name === name) || name.toLowerCase();
 function fmtMins(m: number): string { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; }
 // A duration CHANGE, with its sign. fmtMins alone can't take a negative (-30 comes out
 // as "-1h -30m"), and a correction in the time log has to read as a subtraction.
@@ -2224,21 +2235,23 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // work (Content-Approved / Incorporating Feedback) — content-phase tasks are
   // Manya's, whoever the owner field names.
   const committedFor = useCallback((name: string) => uniqById([...claimedTasks, ...tasks])
-    .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+    .filter((t) => (t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
       (name === "Manya"
         ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
         : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
-    .reduce((s, t) => s + (t.detail.duration || estMins(t.detail.typeLine)), 0), [claimedTasks, tasks]);
+      || presentsOn(t, keyOfName(name), name))
+    .reduce((s, t) => s + planMins(t, keyOfName(name), name), 0), [claimedTasks, tasks]);
   // Lay out ANY teammate's day from their real working tasks (role rule applied):
   // sequential 9→6 around the pinned 1–2 PM lunch. Powers the approve popup's mini
   // timeline, the working-now inference and the not-started candidate list.
   const dayFor = useCallback((name: string) => {
     const mine = [...claimedTasks, ...tasks]
-      .filter((t) => t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+      .filter((t) => (t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
         (name === "Manya"
           ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
           : (t.status === "Content - Approved" || t.status === "Incorporating Feedback" || t.status === "Output - In Progress")))
-      .map((t) => ({ id: t.id, label: t.title, due: t.due, dur: t.detail.duration || estMins(t.detail.typeLine) }));
+        || presentsOn(t, keyOfName(name), name))
+      .map((t) => ({ id: t.id, label: presentsOn(t, keyOfName(name), name) ? `On camera · ${t.title}` : t.title, due: t.due, dur: planMins(t, keyOfName(name), name) }));
     const now = Math.max(0, Math.min(nowMin ?? 0, DAY_MINS));
     const shiftStart = shiftStartOf(name);
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
@@ -2377,15 +2390,15 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // real time on his day — while staying out of everyone else's board and out of the
     // GooCampus lists. The dedicated Samvaya section below still shows the detail.
     const base = uniqById(me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks]);
-    const mine = base.filter((t) => t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
-      onTimelineFor(me.name, t.status));
+    const mine = base.filter((t) => (t.detail.owner === me.name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
+      onTimelineFor(me.name, t.status)) || presentsOn(t, person, me.name));
     setPlan((p) => {
       const keep = p.filter((x) => mine.some((t) => t.id === x.taskId));
       // Earliest publishing date first (the deadline), priority breaks ties.
       const missing = mine
         .filter((t) => !keep.some((x) => x.taskId === t.id))
         .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (PRANK[a.detail.priority] - PRANK[b.detail.priority]));
-      const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: t.title, dur: t.detail.duration || estMins(t.detail.typeLine) });
+      const entry = (t: Task) => ({ key: `pk${t.id}`, taskId: t.id, label: presentsOn(t, person, me.name) ? `On camera · ${t.title}` : t.title, dur: planMins(t, person, me.name) });
       // Overdue work leads the day, then urgent, then the rest by date. A High task
       // due TOMORROW used to open the day ahead of two tasks that were already a day
       // late (Praveen, 25 Sep) — being late is the more urgent thing.
@@ -2419,7 +2432,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       }
       return out;
     });
-  }, [tasks, claimedTasks, samvaya, me.name]);
+  }, [tasks, claimedTasks, samvaya, me.name, person]);
 
   // Lay the (reorderable) tasks across the day, dropping the protected 1-hour
   // lunch in around 1 PM and filling the tail with buffer.
@@ -2429,11 +2442,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const all = uniqById(me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks]);
     return plan.flatMap((p) => {
       const t = all.find((x) => x.id === p.taskId);
-      if (!t || t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready") return [];
-      if (!onTimelineFor(me.name, t.status)) return []; // approved work is off Manya's timeline
+      if (!t) return [];
+      const presenting = presentsOn(t, person, me.name);
+      if (!presenting && (t.detail.owner !== me.name || !STATUS[t.status].inView || t.status === "Output - Ready")) return [];
+      if (!presenting && !onTimelineFor(me.name, t.status)) return []; // approved work is off Manya's timeline
       return [{ ...p, high: isHot(t.detail.priority), samvaya: samvaya.some((s) => s.id === t.id) }];
     });
-  }, [plan, tasks, claimedTasks, samvaya, me.name]);
+  }, [plan, tasks, claimedTasks, samvaya, me.name, person]);
   // Capacity cap (spec §9, fixes Bug 3): only what fits the 8h shift lands on the
   // timeline; the rest SPILLS OVER (shown separately) instead of cramming 28h into 8h.
   // The day starts at login, never before the shift: log in at 10:05 and the plan

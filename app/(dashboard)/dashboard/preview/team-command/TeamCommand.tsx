@@ -15,7 +15,7 @@ import { shouldPoll } from "@/lib/quiet-hours";
 // and the clickable task list). No new backend.
 
 type AttRow = { key: string; name: string; role: string; loginAt: string | null; logoutAt: string | null; doneToday: number };
-type MyDayTask = { id: string; title: string; status: string; due: string; detail: { typeLine: string; owner: string; priority: string; brand: string; startAt: string; endAt: string; duration?: number } };
+type MyDayTask = { id: string; title: string; status: string; due: string; detail: { typeLine: string; owner: string; priority: string; brand: string; startAt: string; endAt: string; duration?: number; presenter?: string } };
 type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string };
 
 // Today's team with colours; Team-page newcomers are appended in TeamCommand.
@@ -168,7 +168,11 @@ export function TeamCommand() {
   const people = useMemo(() => ROSTER.map((p) => {
     const a = (att || []).find((r) => r.key === p.key);
     const mine = orderTasks((tasks || []).filter((t) => (t.detail.owner || "").toLowerCase() === p.name.toLowerCase()), today);
-    const plannedMin = mine.reduce((s, t) => s + plannedFor(t), 0);
+    // Presenting someone else's video is an hour of their day too (same rule as My Day
+    // and Workload). Only the load — not "current" or run-long, which are the owner's.
+    const shoots = (tasks || []).filter((t) => (t.detail.presenter || "").toLowerCase() === p.key && (t.detail.owner || "").toLowerCase() !== p.name.toLowerCase()
+      && (t.status === "Content - Approved" || t.status === IN_PROGRESS)).length;
+    const plannedMin = mine.reduce((s, t) => s + plannedFor(t), 0) + shoots * 60;
     const current = mine.find((t) => t.status === IN_PROGRESS && t.detail.startAt) || null;
     const longs = mine.map((t) => ({ t, rl: runLong(t, today) })).filter((x) => x.rl) as { t: MyDayTask; rl: { over: number; stuck: boolean } }[];
     const overdue = mine.filter((t) => t.due && t.due < today).length;

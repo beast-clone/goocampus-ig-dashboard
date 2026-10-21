@@ -487,11 +487,24 @@ export async function PATCH(req: Request) {
 
       // Going on camera → the other editor gets the editing, if it is going spare.
       const newPresenter = typeof customPatch.presenter_key === "string" ? customPatch.presenter_key.toLowerCase() : "";
-      if (newPresenter && (!ownerNow || ownerNow === "unclaimed")) {
+      // "Going spare" means in the claim pool — the same test as app/api/my-day: an
+      // approved video no editor owns. Pool videos usually still belong to the WRITER,
+      // so checking for an empty owner alone meant this never fired from the pool and
+      // nobody's workload moved (Nikhil, 9 Oct).
+      const inPool = !ownerNow || ownerNow === "unclaimed"
+        || (String(data.status) === "Content - Approved" && !siblingOf(ownerNow));
+      if (newPresenter && inPool) {
         const editor = siblingOf(newPresenter);
         if (editor) {
           await sb.from("mh_posts").update({ owner_key: editor }).eq("id", body.id);
           await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: data.owner_key || null, to_value: editor });
+          // The writer who handed it over keeps following it, as on a claim (/takeover).
+          if (ownerNow && ownerNow !== "unclaimed") {
+            await sb.from("mh_post_collaborators").upsert(
+              [{ post_id: body.id, member_key: ownerNow }],
+              { onConflict: "post_id,member_key", ignoreDuplicates: true },
+            );
+          }
         }
       }
 

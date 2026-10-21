@@ -179,6 +179,13 @@ const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
 // Shared with My Day (lib/task-estimate) so a task's estimated length is identical
 // in the Workload timeline and the personal Today's-plan.
 const taskDurMin = estimateTaskMinutes;
+// On camera counts on the presenter's workload too, as a one-hour shoot — the
+// editor owns the task and its duration (Nikhil, 9 & 13 Oct; same rule as My Day).
+const SHOOT_MIN = 60;
+function presentsOn(r: Row, m: TeamMember): boolean {
+  const p = typeof r.custom?.presenter_key === "string" ? (r.custom.presenter_key as string).toLowerCase() : "";
+  return p === m.key && !ownerMatches(r.owner, m) && (r.status === "Content - Approved" || r.status === "Output - In Progress");
+}
 function blockColor(type: string): { bg: string; fg: string } {
   if (VIDEO_TYPES.includes(type)) return { bg: "#DDE3FB", fg: "#2A3EA8" };  // blue — video
   if (DESIGN_TYPES.includes(type)) return { bg: "#EDE9FE", fg: "#5B4AC4" }; // violet — design
@@ -616,7 +623,7 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
 
   const teamCards = useMemo(() => TEAM.map((m) => {
-    const mine = rows.filter((r) => ownerMatches(r.owner, m));
+    const mine = rows.filter((r) => ownerMatches(r.owner, m) || presentsOn(r, m));
     let today_ = 0, week = 0, overdue_ = 0, done_ = 0, roleHighlight = 0;
     for (const r of mine) {
       const pd = r.publishingDate?.slice(0, 10) || "";
@@ -728,8 +735,9 @@ function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): 
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
   for (const q of queue) {
     if (cur >= dayEnd) { overflow++; continue; }
-    let remaining = taskDurMin(q.r.type);
-    const label = q.r.particulars || q.r.type || "Task";
+    const shoot = presentsOn(q.r, member);
+    let remaining = shoot ? SHOOT_MIN : taskDurMin(q.r.type);
+    const label = (shoot ? "On camera · " : "") + (q.r.particulars || q.r.type || "Task");
     if (!lunchDone && cur >= LUNCH_AT_MIN && cur < LUNCH_END) pushLunch();
     if (!lunchDone && cur < LUNCH_AT_MIN) {
       const before = Math.min(remaining, LUNCH_AT_MIN - cur);
@@ -908,7 +916,7 @@ function PersonTimelineRow({ card }: {
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
                 <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
                 <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(taskDurMin(b.row?.type || ""))}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.row && presentsOn(b.row, member) ? SHOOT_MIN : taskDurMin(b.row?.type || ""))}</span>
               </div>
             ))}
           </div>
@@ -1226,7 +1234,7 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
   const off = (n: number) => ymd(new Date(Date.now() + n * 86_400_000));
 
-  const mine = useMemo(() => allRows.filter((r) => ownerMatches(r.owner, member)), [allRows, member]);
+  const mine = useMemo(() => allRows.filter((r) => ownerMatches(r.owner, member) || presentsOn(r, member)), [allRows, member]);
 
   // Mutually-exclusive urgency buckets for the drill-down. A task lands in exactly
   // one of: overdue → due today → this week → upcoming; done (completed) is separate.
