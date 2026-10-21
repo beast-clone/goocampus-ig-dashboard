@@ -9,7 +9,7 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-Nothing — everything on `feat/dashboard-reskin` up to `c5cca44` is live (8th deploy of 21 Oct, `6ad8b2d6`: Scheduler Publishing… state + server lock).
+Nothing — everything on `feat/dashboard-reskin` up to `2ef1209` is live (9th deploy of 21 Oct, `6ad8b601`: End day & log out really signs out).
 
 ---
 
