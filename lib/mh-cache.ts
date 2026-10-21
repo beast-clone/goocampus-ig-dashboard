@@ -6,7 +6,8 @@
 //   2. The mh_posts write routes (update / create / takeover) need to bust
 //      this cache so an edit reflects immediately instead of snapping back
 //      until the 12h TTL expires.
-export type MhCacheEntry<T = unknown> = { at: number; payload: T };
+// `stamp` = the data version the entry was built from (see app/api/marketing-hub).
+export type MhCacheEntry<T = unknown> = { at: number; payload: T; stamp?: string };
 
 const CACHE = new Map<string, MhCacheEntry>();
 

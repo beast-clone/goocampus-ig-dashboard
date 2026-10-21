@@ -68,6 +68,20 @@ type Payload = {
 };
 
 const TTL_MS = 12 * 60 * 60 * 1000;
+
+// The cache lives in ONE server instance's memory, and Netlify runs several. A save
+// cleared only the instance that handled it, so the next reads bounced between fresh
+// and stale copies: a changed date or status showed, flipped back, then showed again
+// (Manya, 21 Oct). Each read now checks the newest change in the database first — one
+// tiny query — and rebuilds whenever anything changed since its copy was made.
+async function dataStamp(sb: NonNullable<ReturnType<typeof getSupabase>>): Promise<string> {
+  const [p, c] = await Promise.all([
+    sb.from("mh_posts").select("updated_at", { count: "exact" }).order("updated_at", { ascending: false }).limit(1),
+    sb.from("mh_post_collaborators").select("post_id", { count: "exact", head: true }),
+  ]);
+  const latest = (p.data?.[0] as { updated_at?: string } | undefined)?.updated_at || "";
+  return `${latest}|${p.count ?? ""}|${c.count ?? ""}`;
+}
 // Read cache + its bust helper live in @/lib/mh-cache so the write routes can
 // clear it (a route.ts may only export route handlers).
 
@@ -189,7 +203,8 @@ export async function GET(req: Request) {
     const now = Date.now();
     let payload: Payload;
     const cached = mhCacheGet<Payload>(cacheKey);
-    if (!force && cached && now - cached.at < TTL_MS) {
+    const stamp = await dataStamp(sb).catch(() => "");
+    if (!force && cached && now - cached.at < TTL_MS && !!stamp && cached.stamp === stamp) {
       payload = { ...cached.payload, cached: true, cachedAt: new Date(cached.at).toISOString() };
     } else {
       // Fetch posts in date range + full team roster in parallel.
@@ -241,7 +256,7 @@ export async function GET(req: Request) {
         latencyMs: Date.now() - t0,
         cached: false,
       };
-      mhCacheSet(cacheKey, { at: now, payload });
+      mhCacheSet(cacheKey, { at: now, payload, stamp });
     }
 
     // Deep-link: ensure the requested task is present + tell the page to open it.
