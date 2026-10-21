@@ -1,5 +1,7 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
+import { MultiPick } from "@/components/MultiPick";
+import { useSbus } from "@/lib/use-sbus";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
 import { Markdown, plainText } from "@/components/Markdown";
@@ -136,24 +138,23 @@ function Review() {
   const allMain = posts.filter((p) => !isSamvaya(p));
   const samvayaPosts = posts.filter(isSamvaya);
 
-  // "Even here create filters by SBU to avoid any confusion" (Manya, 5 Oct).
-  //
-  // Chips rather than a dropdown: the queue is short and a filter you can see is
-  // worth more here than one tucked inside a menu. Built from the SBUs actually
-  // waiting, so it never offers a brand with nothing in it, and hidden entirely
-  // when everything in the queue is one brand — then it would only be clutter.
+  // SBU filter — "even here create filters by SBU" (Manya, 5 Oct), then "like you
+  // have added in content calendar" (10 Oct): the earlier chips hid themselves when
+  // only one brand was waiting, so she never saw them. Now it's the calendar's own
+  // dropdown, always there, listing every brand (with 0 where nothing is waiting).
   //
   // Deliberately NOT remembered between visits, unlike the calendar's filters.
   // This is a queue of work waiting on her: a filter that quietly persisted could
   // hide a post that arrived while she was away.
+  const allSbus = useSbus();
   const [sbuSel, setSbuSel] = useState<string[]>([]);
-  const queueSbus = useMemo(() => {
+  const sbuOptions = useMemo(() => {
     const m = new Map<string, number>();
+    for (const k of allSbus) if (!/samvaya|matrimony/i.test(k)) m.set(k, 0);
     for (const p of allMain) { const k = (p.sbu || "").trim(); if (k) m.set(k, (m.get(k) || 0) + 1); }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [allMain]);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([value, count]) => ({ value, count }));
+  }, [allMain, allSbus]);
   const mainPosts = sbuSel.length ? allMain.filter((p) => sbuSel.includes((p.sbu || "").trim())) : allMain;
-  const toggleSbu = (k: string) => setSbuSel((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
 
   // Arrows or J/K walk the queue, Enter opens what you are on. The queue is the
   // one screen here that is worked straight through, one item after another, so
@@ -377,26 +378,12 @@ function Review() {
         </div>
       )}
 
-      {queueSbus.length > 1 && (
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mr-1">Interest</span>
-          <button
-            onClick={() => setSbuSel([])}
-            className={`text-xs font-semibold rounded-full px-3 py-1 border transition ${sbuSel.length === 0 ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand"}`}
-          >
-            All ({allMain.length})
-          </button>
-          {queueSbus.map(([k, n]) => (
-            <button
-              key={k}
-              onClick={() => toggleSbu(k)}
-              className={`text-xs font-semibold rounded-full px-3 py-1 border transition ${sbuSel.includes(k) ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand"}`}
-            >
-              {k} ({n})
-            </button>
-          ))}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-[#8A92A6]">Interest</span>
+        <div className="w-[260px]">
+          <MultiPick label="SBUs" options={sbuOptions} selected={sbuSel} onChange={setSbuSel} total={allMain.length} />
         </div>
-      )}
+      </div>
 
       {loading ? (
         <LoadingBlock label="Loading review queue…" />

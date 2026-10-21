@@ -16,6 +16,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
+import { MultiPick } from "@/components/MultiPick";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
@@ -1371,19 +1372,6 @@ html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-ra
 .mhcal-tc-right{display:flex;align-items:center;gap:1rem}
 .mhcal-tc-count{font-size:.8rem;font-weight:600;color:var(--cal-muted)}
 /* Multi-pick dropdown (SBUs, statuses) — several at once, the way an Airtable view filters */
-.mhcal-mp{position:relative}
-.mhcal-mp-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:9px;padding:.46rem .7rem;font-size:.8rem;font-weight:600;color:var(--cal-ink);text-align:left}
-.mhcal-mp-btn:hover{border-color:#3A57E8}
-.mhcal-mp-btn.on{border-color:#3A57E8;background:var(--cal-brandsoft)}
-.mhcal-mp-car{color:var(--cal-muted);font-size:.65rem}
-.mhcal-mp-pop{position:absolute;z-index:40;top:calc(100% + 5px);left:0;min-width:100%;max-height:330px;overflow:auto;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:11px;box-shadow:0 10px 32px rgba(16,24,40,.16);padding:.4rem}
-.mhcal-mp-acts{display:flex;gap:.4rem;padding:.2rem .35rem .45rem;border-bottom:1px solid var(--cal-line);margin-bottom:.3rem}
-.mhcal-mp-acts button{background:none;border:none;color:#3A57E8;font-size:.72rem;font-weight:700;padding:.1rem .2rem}
-.mhcal-mp-row{display:flex;align-items:center;gap:.5rem;padding:.32rem .45rem;border-radius:7px;font-size:.78rem;color:var(--cal-ink);cursor:pointer;white-space:nowrap}
-.mhcal-mp-row:hover{background:var(--cal-panel2)}
-.mhcal-mp-row input{accent-color:#3A57E8;margin:0}
-.mhcal-mp-n{margin-left:auto;color:var(--cal-muted);font-size:.72rem;font-weight:600}
-.mhcal-mp-sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
 .mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--cal-ink);letter-spacing:-.012em}
 .mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:var(--cal-muted)}
 .mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
@@ -1502,65 +1490,6 @@ const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const
 // Pick several at once — "I don't select single SBU each time to see, I want see all
 // the SBUs of my together" (Manya, 5 Oct). An empty selection means everything, so the
 // calendar opens unfiltered and the button can always say what is being left out.
-function MultiPick({ label, options, selected, onChange, total }: {
-  label: string;
-  options: { value: string; count: number; swatch?: string }[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  /** Rows in view when nothing is picked. Needed because the options don't always
-   *  add up to it — a row with a blank or retired SBU belongs to no option, and a
-   *  button reading "All SBUs (215)" next to a count of 220 just looks wrong. */
-  total?: number;
-}) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [open]);
-  const all = total ?? options.reduce((n, o) => n + o.count, 0);
-  const shown = selected.length ? options.filter((o) => selected.includes(o.value)).reduce((n, o) => n + o.count, 0) : all;
-  // Unticking has to subtract from what is ON SCREEN, not from the stored list.
-  // Empty means "all", so every box renders ticked while the list is empty — and a
-  // naive toggle then ADDED the box you just unticked, leaving you looking at only
-  // that status instead of everything except it.
-  const toggle = (v: string) => {
-    const base = selected.length ? selected : options.map((o) => o.value);
-    const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v];
-    // All ticked is the same as no filter; so is none ticked, since a calendar
-    // showing nothing helps no one. Both collapse back to "all".
-    onChange(next.length === options.length || next.length === 0 ? [] : next);
-  };
-  return (
-    <div className="mhcal-mp" ref={box}>
-      <button className={`mhcal-mp-btn ${selected.length ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
-        <span>{selected.length === 0 ? `All ${label} (${fmtInt(all)})` : `${selected.length} of ${options.length} ${label} (${fmtInt(shown)})`}</span>
-        <span className="mhcal-mp-car">▼</span>
-      </button>
-      {open && (
-        <div className="mhcal-mp-pop">
-          <div className="mhcal-mp-acts">
-            <button onClick={() => onChange([])}>Show all</button>
-            <button onClick={() => onChange(options.map((o) => o.value))}>Select all</button>
-          </div>
-          {options.map((o) => (
-            <label key={o.value} className="mhcal-mp-row">
-              <input type="checkbox" checked={selected.length === 0 || selected.includes(o.value)} onChange={() => toggle(o.value)} />
-              {o.swatch && <span className="mhcal-mp-sw" style={{ background: o.swatch }} />}
-              <span>{o.value}</span>
-              <span className="mhcal-mp-n">{fmtInt(o.count)}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   const sbus = useSbus();   // live brand list (sql/027)
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
