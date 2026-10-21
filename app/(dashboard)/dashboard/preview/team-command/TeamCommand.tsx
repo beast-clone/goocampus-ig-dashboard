@@ -1,4 +1,5 @@
 "use client";
+import { onDayPlan } from "@/lib/my-day-task";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
@@ -167,7 +168,8 @@ export function TeamCommand() {
   const today = todayYMD();
   const people = useMemo(() => ROSTER.map((p) => {
     const a = (att || []).find((r) => r.key === p.key);
-    const mine = orderTasks((tasks || []).filter((t) => (t.detail.owner || "").toLowerCase() === p.name.toLowerCase()), today);
+    const mine = orderTasks((tasks || []).filter((t) => (t.detail.owner || "").toLowerCase() === p.name.toLowerCase()
+      && onDayPlan(t.status, /writer/i.test(p.role))), today);
     // Presenting someone else's video is an hour of their day too (same rule as My Day
     // and Workload). Only the load — not "current" or run-long, which are the owner's.
     const shoots = (tasks || []).filter((t) => (t.detail.presenter || "").toLowerCase() === p.key && (t.detail.owner || "").toLowerCase() !== p.name.toLowerCase()

@@ -27,6 +27,16 @@ const PPL_META: Record<string, { name: string; av: string; color: string; photo?
 // and 502s the whole query. "Output - In Progress" (the producer's timer-running
 // state) WAS added to the enum on 2026-07-19 and must be included, or a task the
 // producer starts working would vanish from the board.
+// Statuses that still take someone's time — what a day timeline plans. A writer
+// plans pre-approval writing; everyone else plans approved work until it reaches
+// Output - Ready. My Day already worked this way; Workload and Team Command kept
+// finished, rejected and not-yet-theirs tasks on the timeline (Praveen, 21 Oct).
+export function onDayPlan(status: string, writer: boolean): boolean {
+  return writer
+    ? status === "Content - Pending" || status === "Content - In Progress"
+    : ["Content - Needs Approval", "Content - Approved", "Output - In Progress", "Incorporating Feedback"].includes(status);
+}
+
 export const WORKING = [
   "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
   "Incorporating Feedback", "Output - Ready", "Ready to Publish",

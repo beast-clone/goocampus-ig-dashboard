@@ -1,4 +1,5 @@
 "use client";
+import { onDayPlan } from "@/lib/my-day-task";
 import { Fragment, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SyncFromAirtable } from "./SyncFromAirtable";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -116,7 +117,7 @@ type TeamMember = { key: string; label: string; role: Role; aliases: string[]; c
 // the Team page is appended at runtime by MarketingHubShell (mergeTeam), so they
 // appear in the owner picker, filters, views and Team tab without a code change.
 const TEAM: TeamMember[] = [
-  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya"],                                color: "#E0791F", displayRole: "Content writer", av: "M" },
+  { key: "manya", label: "Manya", role: "writer",   aliases: ["Manya B M", "Manya BM", "Manya"],                    color: "#E0791F", displayRole: "Content writer", av: "M" },
   { key: "praveen", label: "Praveen", role: "designer", aliases: ["Praveen L", "Praveen"],                          color: "#C2410C", displayRole: "Designer", av: "P" },
   { key: "nikhil", label: "Nikhil", role: "editor", aliases: ["NIKHI Shyamraj", "Nikhil Shyamraj", "Nikhil"],       color: "#3A57E8", displayRole: "Video editor", av: "N" },
   { key: "nandu", label: "Nandu", role: "editor", aliases: ["Nandu C", "Nandu"],                                   color: "#3A57E8", displayRole: "Video editor", av: "Nd" },
@@ -739,7 +740,7 @@ function useTodayLogins(): Record<string, number> {
 
 function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
   const queue = queueRows
-    .filter((r) => !DONE_STATUSES.includes(r.status))
+    .filter((r) => presentsOn(r, member) || onDayPlan(r.status, member.role === "writer"))
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const blocks: PlanBlk[] = [];
