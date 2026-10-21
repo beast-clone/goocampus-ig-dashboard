@@ -4088,6 +4088,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop or click to browse</div>
                   </div>
                 )}
+                {/* A link instead of (or as well as) a file — "include creatives link or
+                    creative" (Nandu, 13 Oct). It's the task's output link: it counts as
+                    the deliverable for Output - Ready, as it always has. */}
+                <div className="mt-1">{urlRow("output_link", "Creatives link (Drive / Canva)", detail?.outputLink ?? row.outputLink ?? "", IconLink)}</div>
               </Panel>
 
               {/* References — mood-board (above Content): reference images and/or links */}
