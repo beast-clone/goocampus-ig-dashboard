@@ -13,6 +13,7 @@ import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { uploadTaskFile } from "@/lib/upload-task-file";
 import { RichTextField } from "@/components/RichTextField";
+import { ClampBox } from "@/components/ClampBox";
 import { Markdown } from "@/components/Markdown";
 import { playChime } from "../notifChime";
 import { NOTIF_COUNT, NOTIF_CENTER } from "../NotificationHost";
@@ -1198,7 +1199,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {task.status === "Incorporating Feedback" && task.detail.feedback && (
         <div style={{ margin: "0 0 .9rem", padding: ".7rem .85rem", borderRadius: 10, background: "#FCE8EC", border: "1px solid #F3C0CB" }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>{IWARN} Feedback from Manya</div>
-          <div style={{ fontSize: 13, color: "#7A1327", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{task.detail.feedback}</div>
+          <ClampBox maxHeight={200}><div style={{ fontSize: 13, color: "#7A1327", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{task.detail.feedback}</div></ClampBox>
         </div>
       )}
 

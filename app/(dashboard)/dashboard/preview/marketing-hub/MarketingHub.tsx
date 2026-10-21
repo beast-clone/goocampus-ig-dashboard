@@ -17,6 +17,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { MultiPick } from "@/components/MultiPick";
 import { RichTextField } from "@/components/RichTextField";
+import { ClampBox } from "@/components/ClampBox";
 import { linkify } from "@/components/Markdown";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
@@ -4072,7 +4073,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               <Panel icon={IconMessageCircle2} title="Caption">
                 {firstLoad ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading caption…" />
-                  : <RichTextField key={`k-${row.id}`} mode="plain" value={caption} onSave={saveText("caption")} placeholder="Write the post caption…" />}
+                  : <RichTextField key={`k-${row.id}`} maxHeight={260} mode="plain" value={caption} onSave={saveText("caption")} placeholder="Write the post caption…" />}
               </Panel>
 
               <div className="contents" onMouseOver={() => { pasteKind.current = "creative"; }}>
@@ -4208,7 +4209,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
-                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} />
+                  <ClampBox maxHeight={260}><div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} /></ClampBox>
                 </Panel>
               )}
 
