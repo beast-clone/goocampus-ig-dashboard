@@ -169,11 +169,17 @@ export async function PATCH(req: Request) {
     //   Change dates:     moving the publish or due date to another day.
     const me = (getSessionUserId() || "").toLowerCase();
     const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
-    if ("owner_key" in clean && clean.owner_key !== preRow.owner_key && String(clean.owner_key || "").toLowerCase() !== me) {
+    // Putting your OWN video back in the claim pool (owner → nobody, and back to
+    // Content - Approved if it was under way) is giving work up, not handing it to
+    // someone or approving anything, so neither switch applies (Nandu, 9 & 13 Oct).
+    const poolRelease = "owner_key" in clean && !clean.owner_key && !!me
+      && String(preRow.owner_key || "").toLowerCase() === me && VIDEO_TYPES.has(String(clean.type ?? preRow.type ?? ""))
+      && (!("status" in clean) || (clean.status === "Content - Approved" && (wasStatus === "Output - In Progress" || wasStatus === "Content - Approved")));
+    if ("owner_key" in clean && clean.owner_key !== preRow.owner_key && String(clean.owner_key || "").toLowerCase() !== me && !poolRelease) {
       const no = await requireCapability("assign_tasks");
       if (no) return no;
     }
-    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved") {
+    if (newStatus === "Content - Approved" && wasStatus !== "Content - Approved" && !poolRelease) {
       const no = await requireCapability("approve_content");
       if (no) return no;
     }

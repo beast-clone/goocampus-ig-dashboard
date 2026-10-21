@@ -7,7 +7,8 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
-import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+
 import { Markdown } from "@/components/Markdown";
 import { useUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -28,6 +29,7 @@ import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
+import { isVideoType } from "@/lib/mh-content-types";
 
 export type Row = {
   id: string;
@@ -3128,7 +3130,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       case "sbu": return <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />{r.sbu || "—"}</span>;
       case "type": return <span className="text-gray-600">{r.type || "—"}</span>;
       case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>{statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
-      case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">Unassigned</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
+      case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">{isVideoType(r.type) && r.status === "Content - Approved" ? "Nobody — claim pool" : "Unassigned"}</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
       case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
       case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { done(); await changeDate(r.id, e.target.value || null); }} />)} />;
       case "createdBy": return r.createdBy ? <span className="text-gray-600">{r.createdBy}</span> : <span className="text-gray-300">—</span>;
@@ -3727,6 +3729,38 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const platformsCur = detail?.platforms ?? row.platforms ?? [];
   const [statusEdit, setStatusEdit] = useState(false);
   const [priorityEdit, setPriorityEdit] = useState(false);
+  // Owner was display-only, so nobody could hand a video back to the editors — "give
+  // me option to change owner to claim pool" (Nandu, 9 Oct). Same local override as
+  // priority: the board row doesn't refresh while the panel is open.
+  const [ownerEdit, setOwnerEdit] = useState(false);
+  const [ownerSet, setOwnerSet] = useState<{ key: string; label: string } | null>(null);
+  useEffect(() => { setOwnerSet(null); }, [row.owner]);
+  const ownerKeyCur = ownerSet ? ownerSet.key : (TEAM.find((m) => ownerMatches(row.owner, m))?.key ?? "");
+  const ownerLabelCur = ownerSet ? ownerSet.label : row.owner;
+  // The pool takes approved videos only (app/api/my-day); one already under way goes
+  // back to Content - Approved, which also stops its clock.
+  const poolable = isVideoType(row.type) && (statusCur === "Content - Approved" || statusCur === "Output - In Progress");
+  const POOL = "__pool";
+  const changeOwner = async (to: string) => {
+    setOwnerEdit(false);
+    if (to === ownerKeyCur) return;
+    const toPool = to === POOL;
+    const fields: Record<string, unknown> = { owner_key: toPool || !to ? null : to };
+    if (toPool && statusCur !== "Content - Approved") fields.status = "Content - Approved";
+    const res = await fetch("/api/marketing-hub/update", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: row.id, actor: activeAuthor, fields }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      const block = gateFromResponse(res.status, j, row.particulars || "This task");
+      setFailure(block ? { kind: "gate", block } : { kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+      return;
+    }
+    setOwnerSet({ key: toPool ? "" : to, label: toPool ? "" : (TEAM.find((m) => m.key === to)?.label || to) });
+    if (toPool) showToast({ who: "Back in the claim pool", body: "Nikhil and Nandu have been told.", color: "#3A57E8", av: "✓" });
+    await loadDetail();
+  };
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
   // `prev` is passed ONLY where the caller genuinely knows the old value. An undo
@@ -4148,7 +4182,20 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     {isDone && <IconCheck size={11} stroke={2.5} />}{statusCur || "— set"}
                   </button>
                 ))}
-                {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
+                {detailRow("Owner", ownerEdit ? (
+                  <select autoFocus defaultValue={ownerKeyCur} onBlur={() => setOwnerEdit(false)}
+                    onChange={(e) => changeOwner(e.target.value)}
+                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
+                    {poolable ? <option value={POOL}>Nobody — put in claim pool</option> : <option value="">Nobody</option>}
+                    {TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  </select>
+                ) : (
+                  <button onClick={() => setOwnerEdit(true)} title={poolable ? "Change the owner, or put it back in the claim pool" : "Change the owner"}
+                    className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 hover:ring-1 hover:ring-brand/40">
+                    {ownerLabelCur ? (<><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{ownerLabelCur.trim().slice(0, 1).toUpperCase()}</span><span className="text-[13px] text-[#1D1F25]">{ownerLabelCur}</span></>)
+                      : <span className="text-[12px] text-[#8A92A6]">{isVideoType(row.type) && statusCur === "Content - Approved" ? "In the claim pool" : "— set"}</span>}
+                  </button>
+                ))}
                 {detailRow("Priority", priorityEdit ? (
                   <select autoFocus defaultValue={priorityCur || ""} onBlur={() => setPriorityEdit(false)}
                     onChange={async (e) => {

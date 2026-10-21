@@ -191,6 +191,11 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       if (e.to_value && !claimedOrHandedOff.has(e.post_id)) {
         target = [e.to_value];
         n = { cat: "assigned", kind: "message", emoji: "📌", title: "Assigned to you", sub: `"${short}" was handed to you by ${nameOf(e.from_value)}.` };
+      } else if (!e.to_value && VIDEO_TYPES.has(postMap.get(e.post_id)?.type || "")) {
+        // Released back to the claim pool ("Nobody — claim pool" in the task window,
+        // Nandu 9 Oct). Without this the video sat in the pool and nobody heard.
+        target = EDITORS;
+        n = { cat: "pool", kind: "message", emoji: "🎬", title: "Back in the claim pool", sub: `${nameOf(e.actor_key)} put "${short}" back in the pool — claim it if you can take it.` };
       }
     }
 
