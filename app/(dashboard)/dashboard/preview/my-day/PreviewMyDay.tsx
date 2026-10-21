@@ -742,6 +742,22 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setEditing(false); onSaved?.();
     } finally { setBusy(false); }
   };
+  // Give an approved / under-way video back to the editors' claim pool (Nandu, 9 &
+  // 13 Oct). The owner may do this without "Assign to others"; the server allows it.
+  const ownsIt = !!uploadedBy && task.detail.ownerKey === uploadedBy;
+  const poolable = isVideoType(task.detail.typeLine) && (task.status === "Content - Approved" || task.status === "Output - In Progress");
+  const releaseToPool = async () => {
+    setBusy(true);
+    try {
+      const fields: Record<string, unknown> = { owner_key: null };
+      if (task.status !== "Content - Approved") fields.status = "Content - Approved";
+      const r = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor: uploadedBy, fields }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); showToast({ who: "Couldn't put it back", body: (j as { error?: string }).error || `HTTP ${r.status}`, color: "#C03221", av: "!" }); return; }
+      showToast({ who: "Back in the claim pool", body: "Nikhil and Nandu have been told.", color: "#3A57E8", av: "✓" });
+      setAssigning(false); onSaved?.();
+    } finally { setBusy(false); }
+  };
+  const canOpenOwner = canAssign || ownsIt;
   const reassign = async (key: string) => {
     setBusy(true);
     try {
@@ -934,14 +950,22 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       {/* Owner (claimer) and Collaborators (writer) are distinct fields */}
       <div className="meta-grid" style={{ marginTop: "1.1rem" }}>
         <div>
-          <div className="mlbl">Owner{editing && canAssign && <Pen field="owner" />}</div>
+          <div className="mlbl">Owner{editing && canOpenOwner && <Pen field="owner" />}</div>
           {editing && editField === "owner" && (
             <div className="fld-edit">
-              {Object.entries(PPL).map(([key, pp]) => (
+              {canAssign && Object.entries(PPL).map(([key, pp]) => (
                 <button key={key} className="btn sm" disabled={busy} onClick={() => { reassign(key); setEditField(null); }}>
                   <span style={{ marginRight: ".35rem", display: "inline-flex" }}><Avatar p={pp} /></span>{pp.name}
                 </button>
               ))}
+              {poolable && (
+                <button className="btn sm" disabled={busy} onClick={() => { releaseToPool(); setEditField(null); }}>Nobody — claim pool</button>
+              )}
+              {/* The pool is video work only (agreed 21 Oct): approved design work goes
+                  to Praveen by rule. Say so where people look for it (Nandu, 13 Oct). */}
+              {!isVideoType(task.detail.typeLine) && (
+                <div style={{ fontSize: 12, color: "#8A92A6", marginTop: 4, width: "100%" }}>The claim pool is for video work — approved design work goes to Praveen.</div>
+              )}
             </div>
           )}
           {/* Clicking the owner opens the picker. Reassigning was only reachable
@@ -951,17 +975,17 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               add button" (Nandu, 6 Oct), clicked directly on the owner. */}
           {ownerP ? (
             <div className="collab-cell"
-              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
-              style={canAssign ? { cursor: "pointer" } : undefined}
-              title={canAssign ? "Click to hand this to someone else" : undefined}>
+              onClick={canOpenOwner ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canOpenOwner ? { cursor: "pointer" } : undefined}
+              title={canAssign ? "Click to hand this to someone else" : canOpenOwner ? "Click to put it back in the claim pool" : undefined}>
               <Avatar p={ownerP} />
               <span className="collab-names">{ownerP.name}</span>
             </div>
           ) : (
             <div className="mval"
-              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
-              style={canAssign ? { cursor: "pointer" } : undefined}
-              title={canAssign ? "Click to assign an owner" : undefined}>
+              onClick={canOpenOwner ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canOpenOwner ? { cursor: "pointer" } : undefined}
+              title={canOpenOwner ? "Click to assign an owner" : undefined}>
               {task.detail.owner}
             </div>
           )}
