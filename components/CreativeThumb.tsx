@@ -27,6 +27,7 @@ export function CreativeThumb({
   title,
   seed,
   rounded,
+  fit = "cover",
 }: {
   thumbnailUrl?: string | null;
   assetLink?: string | null;
@@ -34,6 +35,8 @@ export function CreativeThumb({
   title?: string | null;
   seed?: string | null;
   rounded?: boolean;
+  /** "contain" shows the whole image (letterboxed) instead of filling the tile. */
+  fit?: "cover" | "contain";
 }) {
   const [broken, setBroken] = useState(false);
   const isVideo = /reel|video/i.test(type || "") || /\.(mp4|mov|webm)(\?|$)/i.test(assetLink || "");
@@ -45,7 +48,7 @@ export function CreativeThumb({
       <img
         src={thumbnailUrl}
         alt={title || "creative"}
-        className={`w-full h-full object-cover ${radius}`}
+        className={`w-full h-full ${fit === "contain" ? "object-contain" : "object-cover"} ${radius}`}
         onError={() => setBroken(true)}
       />
     );

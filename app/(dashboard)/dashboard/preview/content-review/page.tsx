@@ -12,11 +12,43 @@ import { fmtDate } from "@/lib/date";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
-  IconClipboardCheck, IconLayoutGrid, IconTable, IconX, IconChevronLeft, IconChevronRight,
+  IconClipboardCheck, IconLayoutGrid, IconTable, IconX, IconChevronLeft, IconChevronRight, IconCalendarEvent, IconPlayerPlayFilled,
 } from "@tabler/icons-react";
+
+// When it is meant to go out, on the card — "Goes out today", "Tomorrow · Thu 22 Oct",
+// "Fri 23 Oct", or late in red (Praveen, 21 Oct).
+function PubDate({ date }: { date: string | null }) {
+  if (!date) return null;
+  const d = new Date(date.slice(0, 10) + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  const nice = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const [label, cls] = days < 0 ? [`Was due ${nice}`, "text-[#C0201F] bg-[#FDECEC]"]
+    : days === 0 ? ["Goes out today", "text-amber-700 bg-amber-50"]
+    : days === 1 ? [`Tomorrow · ${nice}`, "text-[#2138B0] bg-brand-light"]
+    : [nice, "text-[#4A5468] bg-[#F6F7FB]"];
+  return (
+    <span className={`ml-auto inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-1 whitespace-nowrap ${cls}`}>
+      <IconCalendarEvent size={12} stroke={1.9} />{label}
+    </span>
+  );
+}
 
 // A media URL is a video if its extension says so (fall back to the post type when
 // the URL carries no extension, e.g. a signed storage link for a reel).
+// A creative handed in as a Google Drive link (the speaking reels) has no file here
+// to show. Drive serves a thumbnail and an embeddable player for a shared file, so
+// the card and the preview use those instead of a blank tile (Praveen, 21 Oct).
+function driveFileId(link: string | null | undefined): string | null {
+  const m = (link || "").match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/);
+  return m ? m[1] : null;
+}
+const cardThumb = (p: { thumbnailUrl: string | null; assetLink: string | null }) => {
+  const id = driveFileId(p.assetLink);
+  return p.thumbnailUrl || (id ? `/api/content-review/drive-thumb?id=${id}` : null);
+};
+
 function isVideoUrl(u: string | undefined, type: string | null): boolean {
   if (u && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u)) return true;
   if (u) return false;
@@ -192,7 +224,7 @@ function Review() {
               <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0 relative">
                 {p.thumbnailUrl && isPdf(p.thumbnailUrl)
                   ? <PdfThumb url={p.thumbnailUrl} fallback={<CreativeThumb assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />} />
-                  : <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
+                  : <CreativeThumb thumbnailUrl={cardThumb(p)} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
               </span>
               <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
             </div>
@@ -243,10 +275,11 @@ function Review() {
         className={`rounded-xl border bg-white overflow-hidden flex flex-col cursor-pointer ${on ? "border-brand ring-1 ring-brand/30" : "border-gray-100"}`}
       >
         {/* Media preview */}
+        {/* The whole creative, letterboxed — same card size, nothing cut off (Praveen, 21 Oct). */}
         <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
           {p.thumbnailUrl && isPdf(p.thumbnailUrl)
-                  ? <PdfThumb url={p.thumbnailUrl} fallback={<CreativeThumb assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />} />
-                  : <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
+                  ? <PdfThumb url={p.thumbnailUrl} fit="contain" fallback={<CreativeThumb assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />} />
+                  : <CreativeThumb thumbnailUrl={cardThumb(p)} fit="contain" assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
           <span
             className="absolute top-2 left-2 text-[11px] font-semibold rounded-md px-2 py-0.5"
             style={{ background: tc.bg, color: tc.fg }}
@@ -260,11 +293,14 @@ function Review() {
           <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
             {p.title || "Untitled"}
           </div>
-          {p.sbu && (
-            <div>
-              <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
-                {p.sbu}
-              </span>
+          {(p.sbu || p.publishingDate) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {p.sbu && (
+                <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
+                  {p.sbu}
+                </span>
+              )}
+              <PubDate date={p.publishingDate} />
             </div>
           )}
           {(p.caption || p.content) && (
@@ -526,8 +562,19 @@ function Review() {
                         </div>
                       ))}
                     </div>
+                  ) : driveFileId(p.assetLink) ? (
+                    // Drive won't play inside the dashboard (its player refuses to embed
+                    // here), so show the reel's frame and open it on Drive to watch.
+                    <a href={p.assetLink!} target="_blank" rel="noreferrer" className="group block w-full h-full relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={cardThumb(p)!} alt={p.title || "creative"} className="w-full h-full object-contain" />
+                      <span className="absolute inset-0 grid place-items-center">
+                        <span className="w-14 h-14 rounded-full bg-black/55 group-hover:bg-black/75 grid place-items-center text-white transition"><IconPlayerPlayFilled size={26} /></span>
+                      </span>
+                      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] font-medium text-white bg-black/55 rounded-full px-2.5 py-0.5 whitespace-nowrap">Plays on Google Drive</span>
+                    </a>
                   ) : (
-                    <CreativeThumb thumbnailUrl={p.thumbnailUrl} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
+                    <CreativeThumb thumbnailUrl={p.thumbnailUrl} fit="contain" assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />
                   )}
                   {slides.length > 1 && (
                     <>
