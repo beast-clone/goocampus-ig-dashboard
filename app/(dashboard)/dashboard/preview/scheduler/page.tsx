@@ -9,6 +9,7 @@ import { CreativeThumb } from "@/components/CreativeThumb";
 import { AutoTextarea } from "@/components/AutoTextarea";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook } from "@tabler/icons-react";
 import { LinkedInQueue } from "./LinkedInScheduler";
+import { PdfThumb, pdfPageCount } from "@/components/PdfThumb";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
 import { CopyrightCheck } from "./CopyrightCheck";
@@ -84,7 +85,7 @@ const isPdfUrl = (u: string) => /\.pdf(\?|#|$)/i.test(u);
 const isVideoUrl = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u || "");
 // Filename off the storage URL, minus the upload timestamp prefix we add.
 const pdfName = (u: string) => decodeURIComponent((u.split("?")[0].split("/").pop() || "document.pdf"))
-  .replace(/^\d{10,}-[a-z0-9]{4,8}-/i, "");
+  .replace(/^\d{10,}-([a-z0-9]{4,8}-)?/i, "");   // some uploads carry only the timestamp
 
 // Brand page -> its LinkedIn page key. GooCampus India has no LinkedIn page, so
 // the LinkedIn option is unavailable (not merely unticked) whenever that is the
@@ -613,7 +614,8 @@ function Scheduler() {
     // LinkedIn is ticked automatically, so this only fires if it was turned off
     // on a post whose only file is a PDF — nothing left to publish anywhere.
     linkedInOnly && !(alsoLinkedIn && linkedInAvailable) && (toInstagram || toFacebook
-      ? "Somewhere to post the PDF — turn LinkedIn back on, or add an image"
+      ? (linkedInAvailable ? "Somewhere to post the PDF — turn LinkedIn back on, or add an image"
+        : "Somewhere to post the PDF — 12thPlus.com has no LinkedIn page, so pick GooCampus or GooCampus World, or add images")
       : "Somewhere to post — tick Instagram, Facebook or LinkedIn"),
     scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
   ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime, toInstagram, toFacebook]);
@@ -770,7 +772,9 @@ function Scheduler() {
             ) : alsoLinkedIn ? (
               <span className="text-[#232D42]">{pdfName(pdfUrls[0])}</span>
             ) : (
-              <span className="text-[#C0392B]">{pdfName(pdfUrls[0])} — not being posted, LinkedIn is off</span>
+              <span className="text-[#C0392B]">{pdfName(pdfUrls[0])} — not being posted. {linkedInAvailable
+                    ? "LinkedIn is off."
+                    : "12thPlus.com has no LinkedIn page: pick GooCampus or GooCampus World to post it there, or add images for Instagram/Facebook."}</span>
             )}
           </div>
         </div>
@@ -2841,9 +2845,12 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
                 {/* A PDF has nothing an <img> can render — it used to fade to a
                     blank tile. Draw it as a labelled document instead. */}
                 {isPdfUrl(url)
-                  ? <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-0.5 pointer-events-none">
-                      <IconFileTypePdf size={22} stroke={1.6} />
-                      <span className="text-[9px] font-semibold tracking-wide">PDF</span>
+                  ? <div className="w-full h-full pointer-events-none">
+                      <PdfThumb url={url} width={64} fallback={
+                        <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-0.5">
+                          <IconFileTypePdf size={22} stroke={1.6} />
+                          <span className="text-[9px] font-semibold tracking-wide">PDF</span>
+                        </div>} />
                     </div>
                   : isVideo(url)
                   ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
@@ -3486,6 +3493,47 @@ function PreviewHeader({ platform, onPlatform, device, onDevice }: {
   );
 }
 
+// A PDF as LinkedIn shows a document post: the real pages, one at a time, with the
+// title and page count on top and a progress bar under it. It used to be a pink
+// "PDF" card, which showed nothing of what would actually go out (Praveen, 21 Oct).
+function PdfDocPreview({ url }: { url: string }) {
+  const [pages, setPages] = useState(0);
+  const [pg, setPg] = useState(1);
+  useEffect(() => {
+    let live = true;
+    setPg(1); setPages(0);
+    pdfPageCount(url).then((n) => { if (live) setPages(n); });
+    return () => { live = false; };
+  }, [url]);
+  const btn = "absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center z-10 disabled:opacity-0";
+  return (
+    <div className="w-full bg-[#F3F2EF]">
+      <div className="px-3 py-1.5 bg-[#1D2226] text-white text-[12px] truncate">
+        {pdfName(url).replace(/\.pdf$/i, "").replace(/_/g, " ")}{pages ? ` · ${pages} pages` : ""}
+      </div>
+      <div className="relative w-full aspect-[4/5]">
+        <PdfThumb url={url} page={pg} width={480} fit="contain" badge={false} fallback={
+          <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-2">
+            <IconFileTypePdf size={44} stroke={1.4} />
+            <div className="text-[12.5px] font-medium px-4 text-center break-all">{pdfName(url)}</div>
+          </div>} />
+        {pages > 1 && (
+          <>
+            <button type="button" aria-label="Previous page" disabled={pg <= 1} onClick={() => setPg((p) => p - 1)} className={`${btn} left-2`}><IconChevronLeft size={18} stroke={2.4} /></button>
+            <button type="button" aria-label="Next page" disabled={pg >= pages} onClick={() => setPg((p) => p + 1)} className={`${btn} right-2`}><IconChevronRight size={18} stroke={2.4} /></button>
+          </>
+        )}
+      </div>
+      {pages > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5">
+          <div className="flex-1 h-1 rounded-full bg-gray-300 overflow-hidden"><div className="h-full bg-[#0A66C2]" style={{ width: `${(pg / pages) * 100}%` }} /></div>
+          <span className="text-[11px] text-[#5E6670] tabular-nums">{pg} / {pages}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SocialPreview({ platform, handle, name, images, caption, device = "mobile" }: {
   platform: PreviewPlatform; handle: string; name: string; images: string[]; caption: string;
   /** Feed width to render at — the same two Meta offers beside their preview. */
@@ -3514,13 +3562,7 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
   const media = (placeholderRatio: string) => (
     <div className={`relative overflow-hidden flex items-center justify-center ${image ? "bg-gray-50" : `${placeholderRatio} bg-gray-100 flex-col text-gray-300`}`}>
       {image && isPdfUrl(image)
-        // A PDF can't be previewed as an image — show it as the document card
-        // LinkedIn will render, so the tile isn't just blank.
-        ? <div className="w-full aspect-[4/3] bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-2">
-            <IconFileTypePdf size={44} stroke={1.4} />
-            <div className="text-[12.5px] font-medium px-4 text-center break-all">{pdfName(image)}</div>
-            <div className="text-[11px] text-[#C0392B]/70">Document carousel</div>
-          </div>
+        ? <PdfDocPreview url={image} />
         : image && isVideoUrl(image)
         // A video in an <img> renders nothing at all, which is why the preview went
         // blank the moment a reel was the creative. Muted + playsInline so it can
