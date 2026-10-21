@@ -4,31 +4,12 @@ import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { activeTeamIds } from "@/lib/team-db";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
+import { asKind, mimeAllowed, mimeRefusal } from "@/lib/attach-rules";
 
 
-// Attachments land in a PUBLIC bucket and get a permanent unauthenticated URL,
-// so whatever is accepted here is served to anyone with the link, from an
-// origin that looks like our infrastructure. Without a list, text/html or an
-// SVG could be uploaded and would render — a credible phishing page, and
-// script execution on the Supabase origin. app/api/scheduler/upload-media has
-// had this list all along; this route simply never got one.
-const ALLOWED_MIME = new Set([
-  "image/jpeg", "image/png", "image/gif", "image/webp",
-  "video/mp4", "video/quicktime",
-  "application/pdf",
-]);
-const ALLOWED_LABEL = "jpg, png, gif, webp, mp4, mov or pdf";
-// Attachments are working files, not media (Manya, 10 Oct: "references are
-// different and attachments are different"), so they also take Office files and
-// CSV — all of which download rather than render, so the reasoning above holds.
-const ATTACHMENT_EXTRA = new Set([
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
-  "text/csv",
-]);
-const ATTACHMENT_LABEL = "an image, video, pdf, Word, Excel, PowerPoint or CSV file";
+// Allowed types live in lib/attach-rules.ts (shared with attach/sign + attach/complete,
+// which every upload box now uses — this direct route is capped by the host's ~6 MB
+// request limit, so it only suits small files).
 // POST /api/marketing-hub/attach
 // multipart/form-data:
 //   postId:       string (required)
@@ -52,8 +33,7 @@ export async function POST(req: Request) {
     const file = form.get("file");
     // creative = the deliverable (what gets published); reference = mood-board;
     // attachment = working files that are never published.
-    const rawKind = form.get("kind");
-    const kind = rawKind === "reference" || rawKind === "attachment" ? rawKind : "creative";
+    const kind = asKind(form.get("kind"));
 
     if (typeof postId !== "string" || !postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     // Attribution comes from the SESSION. It used to be read from the form, so
@@ -71,9 +51,7 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 });
     if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `file exceeds ${MAX_MB}MB` }, { status: 413 });
     const mime = (file.type || "").toLowerCase();
-    if (!ALLOWED_MIME.has(mime) && !(kind === "attachment" && ATTACHMENT_EXTRA.has(mime))) {
-      return NextResponse.json({ error: `That file type isn't allowed — use ${kind === "attachment" ? ATTACHMENT_LABEL : ALLOWED_LABEL}.` }, { status: 415 });
-    }
+    if (!mimeAllowed(mime, kind)) return NextResponse.json({ error: mimeRefusal(kind) }, { status: 415 });
 
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });

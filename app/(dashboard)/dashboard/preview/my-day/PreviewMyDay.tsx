@@ -11,6 +11,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
+import { uploadTaskFile } from "@/lib/upload-task-file";
 import { RichTextField } from "@/components/RichTextField";
 import { Markdown } from "@/components/Markdown";
 import { playChime } from "../notifChime";
@@ -474,10 +475,8 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
     setBusy(true);
     try {
       for (const f of Array.from(files)) {
-        const fd = new FormData();
-        fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "reference"); fd.append("file", f);
-        const r = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => null);
-        if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; showToast({ who: `Couldn't add ${f.name}`, body: (j as { error?: string }).error || "Upload failed — try again.", color: "#C03221", av: "!" }); }
+        const r = await uploadTaskFile(postId, f, "reference", uploadedBy);
+        if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });
       }
     } finally { setBusy(false); onSaved(); }
   };
@@ -549,11 +548,9 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
     setBusy(true);
     try {
       for (const f of Array.from(files)) {
-        const fd = new FormData();
-        fd.append("postId", postId); fd.append("uploadedBy", uploadedBy); fd.append("kind", "creative"); fd.append("file", f);
-        const r = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => null);
+        const r = await uploadTaskFile(postId, f, "creative", uploadedBy);
         // A refused upload used to vanish without a word.
-        if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; showToast({ who: `Couldn't add ${f.name}`, body: (j as { error?: string }).error || "Upload failed — try again.", color: "#C03221", av: "!" }); }
+        if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });
       }
     } finally { setBusy(false); onSaved(); }
   };
@@ -3065,9 +3062,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: person, fields }) }).catch(() => {});
           }
           const upload = async (file: File, kind: "reference" | "creative") => {
-            const fd = new FormData();
-            fd.append("postId", postId); fd.append("uploadedBy", person); fd.append("kind", kind); fd.append("file", file);
-            await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => {});
+            const r = await uploadTaskFile(postId, file, kind, person);
+            if (!r.ok) showToast({ who: `Couldn't add ${file.name}`, body: r.error, color: "#C03221", av: "!" });
           };
           for (const f of assets.refFiles) await upload(f, "reference");
           for (const f of assets.outFiles) await upload(f, "creative");

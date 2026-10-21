@@ -27,6 +27,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
+import { uploadTaskFile } from "@/lib/upload-task-file";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3945,11 +3946,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
-        const fd = new FormData();
         // Same compression the composer uses — a 5 MB slide export helps nobody.
-        fd.append("postId", row.id); fd.append("uploadedBy", uploaderKey); fd.append("file", await compressImage(f)); fd.append("kind", kind);
-        const res = await fetch("/api/marketing-hub/attach", { method: "POST", body: fd });
-        if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "upload failed" }); }
+        const r = await uploadTaskFile(row.id, await compressImage(f), kind, uploaderKey);
+        if (!r.ok) setFailure({ kind: "error", message: `${f.name}: ${r.error}` });
       }
       await loadDetail();
     } finally { setUploading(false); }
@@ -4173,10 +4172,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </div>
                 )}
                 <div className="flex items-center gap-4">
-                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{uploading ? "Uploading…" : "Add image"}</button>
+                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{uploading ? "Uploading…" : "Add file"}</button>
                   <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
                 </div>
-                {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
+                {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image, a PDF or a link.</div>}
               </Panel>
 
               </div>

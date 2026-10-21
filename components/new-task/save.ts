@@ -1,4 +1,5 @@
 import { isVideoType } from "@/lib/mh-content-types";
+import { uploadTaskFile } from "@/lib/upload-task-file";
 import type { NewTaskDraft, NewTaskThumbnail } from "./NewTaskForm";
 
 // The network sequence that turns a NewTaskDraft into a real row, in the one order
@@ -140,12 +141,7 @@ export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promi
     }).catch(() => {});
   }
   const upload = async (file: File, kind: "reference" | "creative") => {
-    const fd = new FormData();
-    fd.append("postId", postId);
-    fd.append("uploadedBy", writerKey);
-    fd.append("kind", kind);
-    fd.append("file", file);
-    await fetch("/api/marketing-hub/attach", { method: "POST", body: fd }).catch(() => {});
+    await uploadTaskFile(postId, file, kind, writerKey).catch(() => null);
   };
   for (const f of draft.assets.refFiles) await upload(f, "reference");
   for (const f of draft.assets.outFiles) await upload(f, "creative");
