@@ -7,6 +7,8 @@ import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, APPROVER_KEY } from "@/lib/date-approvals";
+import { siblingOf } from "@/lib/notifications";
+import { defaultCollaboratorFor } from "@/lib/task-create";
 import { fetchRoster } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
 
@@ -122,9 +124,19 @@ export async function PATCH(req: Request) {
     // Guard the mh_status enum — a non-enum value would 502 the whole update with
     // an opaque Postgres error (and two legacy client statuses used to do exactly
     // that). Reject clearly instead.
+    //
+    // This list MUST be exactly public.mh_status. It is a "did you send a real
+    // enum value" check, not a "may you choose this one" check — permission lives
+    // further down. When it drifted below the enum it did not reject bad input, it
+    // quietly made good rows uneditable: three values were missing, and the 6 live
+    // rows holding them (5 Rejected/Not Published, 1 Content - Needs Approval)
+    // 400'd on every save, because the grid sends status back whether or not the
+    // user touched it. Add here and in the enum together, or not at all.
     const VALID_STATUS = new Set([
-      "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-      "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+      "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+      "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+      "Output - Ready", "Ready to Publish", "Published/Scheduled",
+      "Rejected/Not Published", "Failed",
     ]);
     if (typeof clean.status === "string" && !VALID_STATUS.has(clean.status)) {
       return NextResponse.json({ error: `"${clean.status}" is not a valid status` }, { status: 400 });
@@ -184,8 +196,21 @@ export async function PATCH(req: Request) {
       if (!filled(eff("sbu"))) missing.push("SBU");
       if (!filled(eff("priority"))) missing.push("Priority");
       if (!filled(eff("publishing_date"))) missing.push("Publishing date");
-      const { count: collabCount } = await sb.from("mh_post_collaborators").select("member_key", { count: "exact", head: true }).eq("post_id", body.id);
-      if (!(collabCount || 0)) missing.push("At least one collaborator");
+      // Deliberately NOT requiring a collaborator.
+      //
+      // This gate is about the BRIEF being complete before it reaches a producer —
+      // the content, which SBU, how urgent, when it publishes. Who works on it is
+      // not part of the brief; it is decided by the auto-handoff further down this
+      // same request, which assigns design work to Praveen and drops video into the
+      // editors' pool.
+      //
+      // Requiring one here made that circular: you had to already have a
+      // collaborator to run the step that adds collaborators. For video it could
+      // never be satisfied at all, because the handoff leaves video unassigned on
+      // purpose — "up for grabs in the editors' pool" — so every video task had to
+      // have somebody added by hand first, for no reason the workflow asks for.
+      // "It is not allowing me to approve the task until I manually add
+      // collaborators" (Manya, 6 Oct, on a YouTube Long-Form).
       if (missing.length) return NextResponse.json({ error: "Can't approve yet — some required fields are missing.", missing, gate: "approve" }, { status: 422 });
     }
 
@@ -415,6 +440,91 @@ export async function PATCH(req: Request) {
         if (data.owner_key !== "praveen") {
           await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
           await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
+        }
+      }
+    }
+
+    // Saying you are on camera puts you ON the task, not just in a field.
+    //
+    // The presenter was recorded only as custom.presenter_key, which no board
+    // reads. My Day lists a task for its owner OR its collaborators, so a
+    // presenter who was neither saw the task nowhere — he had said he was
+    // presenting and it still showed up for no one but the editor. The presenter
+    // now joins the collaborators: the editor keeps the task (they do the
+    // cutting) and it appears for both of them, next to the writer. So a reel
+    // Nandu is cutting that Nikhil fronted reads owner Nandu, collaborators
+    // Nikhil and Manya.
+    //
+    // Same shape the claim path already produces in /takeover, so a presenter
+    // named before the claim and one named afterwards end up in the same place.
+    // The two editors pair up by themselves.
+    //
+    // "When I select on camera the automation should automate editing to Nandu, and
+    // if he selects edit option it should automate me as on camera" (Nikhil, 5 Oct).
+    // A video needs one person in front of the camera and one behind it, and with
+    // two editors naming one always implies the other — so saying it twice was just
+    // data entry.
+    //
+    // It only ever fills a BLANK. Going on camera claims the editing for the other
+    // editor only while the task is still unowned, and claiming the editing names
+    // the other editor as presenter only while nobody is on camera. So it can never
+    // take a task off whoever already has it, and either half can be overridden
+    // afterwards from the task itself.
+    //
+    // siblingOf returns null for anyone who is not an editor, which is what keeps
+    // this from firing when Manya or Praveen touches a video.
+    const isVideo = VIDEO_TYPES.has(String(data.type || ""));
+    if (isVideo && customPatch) {
+      const ownerNow = ((data.owner_key as string | null) || "").toLowerCase();
+      const presenterNow = typeof (clean.custom as Record<string, unknown>)?.presenter_key === "string"
+        ? ((clean.custom as Record<string, string>).presenter_key || "").toLowerCase() : "";
+
+      // Going on camera → the other editor gets the editing, if it is going spare.
+      const newPresenter = typeof customPatch.presenter_key === "string" ? customPatch.presenter_key.toLowerCase() : "";
+      if (newPresenter && (!ownerNow || ownerNow === "unclaimed")) {
+        const editor = siblingOf(newPresenter);
+        if (editor) {
+          await sb.from("mh_posts").update({ owner_key: editor }).eq("id", body.id);
+          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: data.owner_key || null, to_value: editor });
+        }
+      }
+
+      // Claiming the editing → the other editor is on camera, if nobody is yet.
+      // "Both" is excluded on purpose: it means one person does the whole thing.
+      const newRole = typeof customPatch.claim_role === "string" ? customPatch.claim_role.toLowerCase() : "";
+      if (newRole === "edit" && !presenterNow && actor) {
+        const presenter = siblingOf(actor.toLowerCase());
+        if (presenter) {
+          const merged = { ...((clean.custom as Record<string, unknown>) || {}), presenter_key: presenter };
+          await sb.from("mh_posts").update({ custom: merged }).eq("id", body.id);
+          await sb.from("mh_post_collaborators").upsert(
+            [{ post_id: body.id, member_key: presenter }],
+            { onConflict: "post_id,member_key", ignoreDuplicates: true },
+          );
+        }
+      }
+    }
+
+    if (customPatch && Object.prototype.hasOwnProperty.call(customPatch, "presenter_key")) {
+      const prevPresenter = typeof beforeCustom?.presenter_key === "string" ? beforeCustom.presenter_key : "";
+      const nextPresenter = typeof customPatch.presenter_key === "string" ? customPatch.presenter_key : "";
+      const ownerKey = (data.owner_key as string | null) || "";
+      // Nobody is ever both owner and collaborator — an editor who shot it
+      // themselves is already on the task as its owner.
+      if (nextPresenter && nextPresenter !== ownerKey) {
+        await sb.from("mh_post_collaborators").upsert(
+          [{ post_id: body.id, member_key: nextPresenter }],
+          { onConflict: "post_id,member_key", ignoreDuplicates: true },
+        );
+      }
+      // Standing down takes you back off the task — unless you belong on it for
+      // another reason, i.e. you are its default collaborator (the writer, or
+      // Nandu on 12thPlus / GC India). Dropping those would quietly undo the
+      // handoff.
+      if (prevPresenter && prevPresenter !== nextPresenter && prevPresenter !== ownerKey) {
+        const def = await defaultCollaboratorFor((before.data as { sbu?: string | null }).sbu ?? null, ownerKey, data.type as string | null);
+        if (prevPresenter !== def) {
+          await sb.from("mh_post_collaborators").delete().eq("post_id", body.id).eq("member_key", prevPresenter);
         }
       }
     }

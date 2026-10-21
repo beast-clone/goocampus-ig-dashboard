@@ -7,6 +7,7 @@ import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchRecentMedia, fetchMediaComments } from "@/lib/instagram";
 import { getAdAccount, fetchAdsDaily } from "@/lib/meta-ads";
 import { getSupabase } from "@/lib/supabase";
+import { safeError } from "@/lib/errors";
 
 // Funnel keywords that mark a comment as a lead (short-comment match).
 const FUNNEL_KEYWORDS = [
@@ -208,6 +209,6 @@ export async function GET(req: Request) {
     await cacheSet(cacheKey, result);
     return NextResponse.json({ ...result, cached: false, latencyMs: Date.now() - t0 });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load leads"), { status: 500 });
   }
 }

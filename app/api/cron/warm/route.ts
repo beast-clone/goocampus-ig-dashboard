@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHmac, randomBytes } from "crypto";
+import { buildPayload } from "@/lib/session-payload";
 import { format, subDays } from "date-fns";
+import { fetchRoster } from "@/lib/team-db";
 
 // Cache warm-up job.
 //
@@ -17,25 +19,48 @@ import { format, subDays } from "date-fns";
 
 const ACCOUNTS = ["goocampus", "goocampusworld", "12thplusdotcom", "samvaya_matrimony"];
 
-function mintSession(): string {
+// The session has to belong to a REAL admin, not a made-up one.
+//
+// This used to mint `warm:a:<token>`. The signed `:a:` flag is enough for the
+// Edge middleware, so the cookie looked fine — but requireSection() (added in the
+// 2026-08 authorization audit) ignores that flag and looks the id up in the team
+// roster. There is no user called "warm", so every single target answered 403 and
+// the job warmed nothing while reporting a cheerful 200. Borrowing a real admin's
+// id makes the roster lookup succeed, which is what the cookie was always
+// claiming anyway. Still gated on CRON_SECRET, so nothing outside can mint one.
+async function mintSession(): Promise<string> {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) return "";
+  const admin = (await fetchRoster()).find((u) => u.isAdmin && u.active);
+  if (!admin) return "";
   const token = randomBytes(24).toString("hex");
-  const payload = `warm:a:${token}`;
+  // Built with the shared builder, not by hand. Hand-rolling it here is how this
+  // cookie ended up in the pre-expiry 3-field shape after sessions gained an
+  // expiry: still correctly signed, so it looked fine, and refused by the
+  // middleware on every target — the same silent "warms nothing, reports 200"
+  // failure described above, arrived at a second way.
+  const payload = buildPayload(admin.id, true, token);
   const sig = createHmac("sha256", secret).update(payload).digest("hex");
   return `gc_session=${payload}.${sig}`;
 }
 
 export async function GET(req: Request) {
+  // Header only. The secret used to be accepted as ?secret= too, which puts a
+  // live credential into Netlify's access logs, the n8n execution record and
+  // anyone's browser history — somewhere it is never rotated out of. Every
+  // other /api/cron route already takes the header alone; n8n sends it that
+  // way, so nothing legitimate was using the query form.
+  //
+  // Note the `secret &&` below: with CRON_SECRET unset this route is open. That
+  // is deliberate for local dev, where instrumentation.ts fires it on boot, and
+  // safe in production because the variable is always set there.
   const secret = process.env.CRON_SECRET;
-  const url = new URL(req.url);
-  const provided = req.headers.get("x-cron-secret") || url.searchParams.get("secret");
-  if (secret && provided !== secret) {
+  if (secret && req.headers.get("x-cron-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cookie = mintSession();
-  if (!cookie) return NextResponse.json({ error: "SESSION_SECRET not configured" }, { status: 500 });
+  const cookie = await mintSession();
+  if (!cookie) return NextResponse.json({ error: "SESSION_SECRET not configured, or no active admin in the roster" }, { status: 500 });
 
   // App base = everything before "/api/cron/warm" (keeps any basePath prefix intact).
   const appBase = req.url.slice(0, req.url.indexOf("/api/cron/warm"));

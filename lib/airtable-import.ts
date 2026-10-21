@@ -76,6 +76,10 @@ type CalendarFields = {
 // Optional narrowing on top of the date range, the way the team filters Airtable:
 // any of the picked values within a field, all fields together.
 export const IMPORT_FILTER_KEYS = ["owner", "collaborators", "type", "status", "sbu"] as const;
+
+// What belongs to whoever claimed the task, not to Airtable. See the note at the
+// diff below.
+const CLAIM_OWNED = new Set(["owner_key", "status", "duration_min"]);
 export type ImportFilterKey = (typeof IMPORT_FILTER_KEYS)[number];
 export type ImportFilters = Partial<Record<ImportFilterKey, string[]>>;
 export type ImportFacets = Record<ImportFilterKey, { value: string; count: number }[]>;
@@ -239,22 +243,25 @@ export async function importFromAirtable(opts: {
     }
   }
 
-  // Newest-wins needs the last time a person edited each existing task here.
+  // Newest-wins needs the last time a person edited each existing task here, and
+  // which tasks somebody has CLAIMED here — the two are read in the same pass.
   const lastHumanEdit = new Map<string, number>();
+  const claimedHere = new Set<string>();
   if (opts.newestWins && existing.size) {
     const postIds = [...existing.values()].map((e) => e.id);
     for (let i = 0; i < postIds.length; i += 150) {
       const { data, error } = await db
         .from("mh_activity")
-        .select("post_id, created_at")
+        .select("post_id, created_at, action")
         .in("post_id", postIds.slice(i, i + 150))
         .not("actor_key", "is", null)
         .order("created_at", { ascending: false })
         .limit(5000);
       if (error) throw new Error(`Reading task history failed: ${error.message}`);
-      for (const a of (data || []) as { post_id: string; created_at: string }[]) {
+      for (const a of (data || []) as { post_id: string; created_at: string; action: string }[]) {
         const t = Date.parse(a.created_at);
         if (!lastHumanEdit.has(a.post_id) || t > lastHumanEdit.get(a.post_id)!) lastHumanEdit.set(a.post_id, t);
+        if (a.action === "claim") claimedHere.add(a.post_id);
       }
     }
   }
@@ -348,6 +355,19 @@ export async function importFromAirtable(opts: {
       const changed: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(row)) {
         if (k === "updated_at" || k === "custom" || k === "airtable_record_id" || k === "media_urls") continue;
+        // Once an editor has claimed a task HERE, Airtable no longer decides who has
+        // it, what stage it is at, or how long it takes.
+        //
+        // Airtable's Owner column still says whoever wrote the brief, because
+        // claiming only exists in the dashboard. So any edit to that row — fixing a
+        // typo in a caption — made Airtable "newer" and handed the task back to the
+        // writer, wiping the claim, the stage and the time estimate. The editor's
+        // day emptied out and nothing said why. It happened to eight tasks over
+        // three weeks before anybody worked out what was doing it.
+        //
+        // Everything else still comes from Airtable: title, caption, brief, dates,
+        // SBU, platforms. This is only about who is doing the work.
+        if (CLAIM_OWNED.has(k) && claimedHere.has(hit.id)) continue;
         if (!sameValue(v, hit.current[k])) changed[k] = v;
       }
       if (Object.keys(changed).length === 0) { skip("already matches Airtable"); continue; }

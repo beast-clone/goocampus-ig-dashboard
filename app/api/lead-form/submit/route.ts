@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // PUBLIC endpoint — a lead submits the per-post form (no login). Writes one clean row
 // to mh_dm_leads. A lead is "confirmed" only when all 5 details are present; the source
@@ -9,6 +10,21 @@ import { safeError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Unauthenticated, CSRF-exempt, and it writes a row — so without a limit a
+  // script can fill the CRM with fabricated "confirmed" leads, poisoning the
+  // pipeline the dashboard exists to run and burning sales time on fake
+  // records. Generous enough that a real person submitting twice, or a whole
+  // classroom behind one school's NAT, is never blocked.
+  //
+  // This keys on getClientIp, which trusts the first x-forwarded-for hop and
+  // is therefore spoofable (see lib/rate-limit.ts). It raises the bar rather
+  // than closing the door, and improves for free when that is fixed.
+  const rl = rateLimit("lead-form:" + getClientIp(req.headers), 12, 10 * 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many submissions — please try again shortly." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec || 60) } });
+  }
+
   try {
     const b = (await req.json().catch(() => ({}))) as Record<string, string>;
     const first = (b.first_name || "").trim();

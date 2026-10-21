@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, requireCapability } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -11,6 +11,15 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
+  // Publishing is the most expensive action in the product: it is public,
+  // immediate and not really undoable. The "content" section alone is held by
+  // the Designer, Video-editor and Content-writer presets, i.e. everyone who
+  // can open the tab — so section access was deciding who could post to the
+  // brand accounts. approve_content exists precisely to separate "can work on
+  // a task" from "can ship it". Admins pass automatically, so this changes
+  // nothing until a non-admin account exists, which is when it should bite.
+  const __noCap = await requireCapability("approve_content");
+  if (__noCap) return __noCap;
 
   let body: { recordId?: string };
   try { body = await req.json(); }

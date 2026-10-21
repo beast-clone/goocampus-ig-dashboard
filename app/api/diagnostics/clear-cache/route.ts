@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { clearCache } from "@/lib/api-cache";
 
+// Guarded on the "system" section: lib/permissions.ts marks it adminOnly, and
+// what this returns or does is platform posture, not day-to-day work.
 // POST /api/diagnostics/clear-cache  { prefix? }
 // Drops in-memory API cache entries (all, or by key prefix) so the next fetch is
 // fresh. The "clear cache & refetch" repair action.

@@ -7,6 +7,9 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+import { Markdown } from "@/components/Markdown";
+import { useUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
@@ -24,6 +27,7 @@ import { compressImage } from "@/lib/compress-image";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
+import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 
 export type Row = {
   id: string;
@@ -183,6 +187,14 @@ function blockColor(type: string): { bg: string; fg: string } {
 // people drag between); this list is what /api/marketing-hub/update will accept,
 // which also includes "Content - In Progress" — a real stage that has no column.
 // Anything outside this set is rejected by the API with a 400.
+const PRIORITY_CHOICES = ["Urgent", "High", "Medium", "Low"];
+
+// Where the Master sheet remembers how you left it, per browser.
+const MASTER_VIEW_KEY = "mh-master-view";
+
+// Where the Content Calendar remembers its SBU / status filters, per browser.
+const CAL_FILTER_KEY = "mh-cal-filters";
+
 const STATUS_CHOICES = [
   "Content - Pending", "Content - In Progress", "Content - Needs Approval",
   "Content - Approved", "Output - In Progress", "Incorporating Feedback",
@@ -235,16 +247,36 @@ const ALL_STATUSES = [
 // SINGLE source of truth for status pill colours — soft themed pills, each hue
 // tinted from its PIPELINE_STAGES dot, so a status reads identically in the
 // Pipeline (dot), Master sheet (pill) and Calendar (bar). Was 3 separate maps.
+// Status colours, taken from the Content Calendar's own Status field in Airtable.
+//
+// "Change the content status colours to same like airtable so that it's clearly
+// visible, now everything is looking the same" (Manya, 5 Oct, on the calendar).
+// She was right: the old set were all pastels around 94% lightness, so at the size
+// of a calendar chip they really did read as one off-white — and four statuses were
+// missing from the map entirely and came out grey like the rest.
+//
+// Two of Airtable's choices could not be copied literally. Airtable gives only six
+// distinct colours to these eleven statuses: blueBright covers Content-In Progress,
+// Output-In Progress, Output-Ready AND Incorporating Feedback, and grayDark1 covers
+// both Content-Pending and Rejected. Copying that exactly would have reproduced the
+// problem she reported. So the colours Airtable does distinguish are kept exactly,
+// and the collisions are spread across Airtable's own shades of the same hue — its
+// blue ramp for the four blues, its grey ramp for the two greys. It still looks like
+// Airtable, and every status is now tellable apart.
 const STATUS_TINT: Record<string, { bg: string; text: string; border: string }> = {
-  "Content - Pending":    { bg: "var(--st-pending-bg, #EEF1F5)", text: "var(--st-pending-fg, #46505F)", border: "var(--st-pending-bd, #DCE1E8)" }, // slate
-  "Content - Approved":   { bg: "var(--st-approved-bg, #FBF3E6)", text: "var(--st-approved-fg, #8A5D1E)", border: "var(--st-approved-bd, #EFDFC2)" }, // amber
-  "Output - In Progress": { bg: "var(--st-inprog-bg, #FBEEEA)", text: "var(--st-inprog-fg, #9B4A36)", border: "var(--st-inprog-bd, #F1D6CD)" }, // coral
-  "Incorporating Feedback": { bg: "var(--st-feedback-bg, #FCEAEE)", text: "var(--st-feedback-fg, #9B2D45)", border: "var(--st-feedback-bd, #F3D2DA)" }, // rose — rework
-  "Output - Ready":       { bg: "var(--st-ready-bg, #EBF2FA)", text: "var(--st-ready-fg, #244D82)", border: "var(--st-ready-bd, #D2E0F1)" }, // blue
-  "Ready to Publish":     { bg: "var(--st-topublish-bg, #E9F6F0)", text: "var(--st-topublish-fg, #1F7256)", border: "var(--st-topublish-bd, #CCEADD)" }, // green
-  "Published/Scheduled":  { bg: "var(--st-published-bg, #EFEEFA)", text: "var(--st-published-fg, #423B94)", border: "var(--st-published-bd, #DAD7F2)" }, // purple
+  "Content - Pending":      { bg: "var(--st-pending-bg, #444444)",   text: "var(--st-pending-fg, #FFFFFF)",   border: "var(--st-pending-bd, #333333)" },   // grayDark1
+  "Content - In Progress":  { bg: "var(--st-cinprog-bg, #CFDFFF)",   text: "var(--st-cinprog-fg, #1B3A6B)",   border: "var(--st-cinprog-bd, #AFC8F5)" },   // blueBright -> blueLight2
+  "Content - Needs Approval": { bg: "var(--st-needsappr-bg, #F82B60)", text: "var(--st-needsappr-fg, #FFFFFF)", border: "var(--st-needsappr-bd, #D81B4C)" }, // redBright
+  "Content - Approved":     { bg: "var(--st-approved-bg, #D1F7C4)",  text: "var(--st-approved-fg, #1D4D12)",  border: "var(--st-approved-bd, #B3E8A0)" },  // greenLight2
+  "Output - In Progress":   { bg: "var(--st-inprog-bg, #2D7FF9)",    text: "var(--st-inprog-fg, #FFFFFF)",    border: "var(--st-inprog-bd, #1E66D0)" },    // blueBright
+  "Output - Ready":         { bg: "var(--st-ready-bg, #9CC7FF)",     text: "var(--st-ready-fg, #17457F)",     border: "var(--st-ready-bd, #7FB2F5)" },     // blueBright -> blueLight1
+  "Incorporating Feedback": { bg: "var(--st-feedback-bg, #2750AE)",  text: "var(--st-feedback-fg, #FFFFFF)",  border: "var(--st-feedback-bd, #1E3F8C)" },  // blueBright -> blueDark1
+  "Ready to Publish":       { bg: "var(--st-topublish-bg, #20C933)", text: "var(--st-topublish-fg, #FFFFFF)", border: "var(--st-topublish-bd, #18A528)" }, // greenBright
+  "Published/Scheduled":    { bg: "var(--st-published-bg, #93E088)", text: "var(--st-published-fg, #1D4D12)", border: "var(--st-published-bd, #76CE6A)" }, // greenLight1
+  "Rejected/Not Published": { bg: "var(--st-rejected-bg, #CFCFCF)",  text: "var(--st-rejected-fg, #3A3A3A)",  border: "var(--st-rejected-bd, #B8B8B8)" },  // grayDark1 -> grayLight1
+  "Failed":                 { bg: "var(--st-failed-bg, #BA1E45)",    text: "var(--st-failed-fg, #FFFFFF)",    border: "var(--st-failed-bd, #991736)" },    // redDark1
 };
-const STATUS_TINT_FALLBACK = { bg: "var(--st-pending-bg, #F1F3F8)", text: "var(--st-pending-fg, #5B6472)", border: "var(--st-pending-bd, #D3D8E1)" };
+const STATUS_TINT_FALLBACK = { bg: "var(--st-unknown-bg, #EEEEEE)", text: "var(--st-unknown-fg, #3A3A3A)", border: "var(--st-unknown-bd, #D6D6D6)" };
 // (bg/text/border read --st-* vars, set only in the dark theme — globals.css.)
 
 export function ymd(d: Date): string {
@@ -1328,6 +1360,20 @@ html[data-theme="dark"] .mhcal{--cal-panel:#1F2332;--cal-panel2:#191D2A;--cal-ra
 .mhcal-titlecard{position:relative;z-index:2;margin:0;background:var(--cal-panel);border:1px solid var(--cal-line);border-radius:14px;padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .mhcal-tc-right{display:flex;align-items:center;gap:1rem}
 .mhcal-tc-count{font-size:.8rem;font-weight:600;color:var(--cal-muted)}
+/* Multi-pick dropdown (SBUs, statuses) — several at once, the way an Airtable view filters */
+.mhcal-mp{position:relative}
+.mhcal-mp-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:9px;padding:.46rem .7rem;font-size:.8rem;font-weight:600;color:var(--cal-ink);text-align:left}
+.mhcal-mp-btn:hover{border-color:#3A57E8}
+.mhcal-mp-btn.on{border-color:#3A57E8;background:var(--cal-brandsoft)}
+.mhcal-mp-car{color:var(--cal-muted);font-size:.65rem}
+.mhcal-mp-pop{position:absolute;z-index:40;top:calc(100% + 5px);left:0;min-width:100%;max-height:330px;overflow:auto;background:var(--cal-panel);border:1px solid var(--cal-line3);border-radius:11px;box-shadow:0 10px 32px rgba(16,24,40,.16);padding:.4rem}
+.mhcal-mp-acts{display:flex;gap:.4rem;padding:.2rem .35rem .45rem;border-bottom:1px solid var(--cal-line);margin-bottom:.3rem}
+.mhcal-mp-acts button{background:none;border:none;color:#3A57E8;font-size:.72rem;font-weight:700;padding:.1rem .2rem}
+.mhcal-mp-row{display:flex;align-items:center;gap:.5rem;padding:.32rem .45rem;border-radius:7px;font-size:.78rem;color:var(--cal-ink);cursor:pointer;white-space:nowrap}
+.mhcal-mp-row:hover{background:var(--cal-panel2)}
+.mhcal-mp-row input{accent-color:#3A57E8;margin:0}
+.mhcal-mp-n{margin-left:auto;color:var(--cal-muted);font-size:.72rem;font-weight:600}
+.mhcal-mp-sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
 .mhcal-titlecard h4{margin:0;font-size:1.15rem;font-weight:700;color:var(--cal-ink);letter-spacing:-.012em}
 .mhcal-live{display:inline-flex;align-items:center;gap:.4rem;font-size:.76rem;font-weight:600;color:var(--cal-muted)}
 .mhcal-live .dot{width:7px;height:7px;border-radius:50%;background:#1AA053}
@@ -1443,11 +1489,94 @@ const CAL_CHANNELS: { value: CalChannel; label: string }[] = [
 const PAGE_CHANNEL: Record<SbuPage, Exclude<CalChannel, "all">> = { "GooCampus Main": "goocampus", "GooCampus World": "goocampusworld", "12Plus / GC India": "12thplusdotcom" };
 const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const p = pageForSbu(sbu); return p ? PAGE_CHANNEL[p] : null; };
 
+// Pick several at once — "I don't select single SBU each time to see, I want see all
+// the SBUs of my together" (Manya, 5 Oct). An empty selection means everything, so the
+// calendar opens unfiltered and the button can always say what is being left out.
+function MultiPick({ label, options, selected, onChange, total }: {
+  label: string;
+  options: { value: string; count: number; swatch?: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  /** Rows in view when nothing is picked. Needed because the options don't always
+   *  add up to it — a row with a blank or retired SBU belongs to no option, and a
+   *  button reading "All SBUs (215)" next to a count of 220 just looks wrong. */
+  total?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const all = total ?? options.reduce((n, o) => n + o.count, 0);
+  const shown = selected.length ? options.filter((o) => selected.includes(o.value)).reduce((n, o) => n + o.count, 0) : all;
+  // Unticking has to subtract from what is ON SCREEN, not from the stored list.
+  // Empty means "all", so every box renders ticked while the list is empty — and a
+  // naive toggle then ADDED the box you just unticked, leaving you looking at only
+  // that status instead of everything except it.
+  const toggle = (v: string) => {
+    const base = selected.length ? selected : options.map((o) => o.value);
+    const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v];
+    // All ticked is the same as no filter; so is none ticked, since a calendar
+    // showing nothing helps no one. Both collapse back to "all".
+    onChange(next.length === options.length || next.length === 0 ? [] : next);
+  };
+  return (
+    <div className="mhcal-mp" ref={box}>
+      <button className={`mhcal-mp-btn ${selected.length ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
+        <span>{selected.length === 0 ? `All ${label} (${fmtInt(all)})` : `${selected.length} of ${options.length} ${label} (${fmtInt(shown)})`}</span>
+        <span className="mhcal-mp-car">▼</span>
+      </button>
+      {open && (
+        <div className="mhcal-mp-pop">
+          <div className="mhcal-mp-acts">
+            <button onClick={() => onChange([])}>Show all</button>
+            <button onClick={() => onChange(options.map((o) => o.value))}>Select all</button>
+          </div>
+          {options.map((o) => (
+            <label key={o.value} className="mhcal-mp-row">
+              <input type="checkbox" checked={selected.length === 0 || selected.includes(o.value)} onChange={() => toggle(o.value)} />
+              {o.swatch && <span className="mhcal-mp-sw" style={{ background: o.swatch }} />}
+              <span>{o.value}</span>
+              <span className="mhcal-mp-n">{fmtInt(o.count)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   const sbus = useSbus();   // live brand list (sql/027)
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
-  const [activeBrand, setActiveBrand] = useState<string>("");
+  // Both filters hold what to SHOW, with empty meaning everything. Statuses are
+  // phrased that way rather than as a hide-list because the button can then say
+  // "8 of 11 statuses" — a filter you can forget you left on is worse than none.
+  // They stick per browser, like the Master sheet's, so walking to another tab and
+  // back doesn't reset them.
+  const [brandSel, setBrandSel] = useState<string[]>([]);
+  const [statusSel, setStatusSel] = useState<string[]>([]);
+  const [calReady, setCalReady] = useState(false);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(CAL_FILTER_KEY) || "null");
+      if (v && typeof v === "object") {
+        if (Array.isArray(v.brands)) setBrandSel(v.brands.filter((x: unknown) => typeof x === "string"));
+        if (Array.isArray(v.statuses)) setStatusSel(v.statuses.filter((x: unknown) => typeof x === "string"));
+      }
+    } catch { /* private mode, or an older shape — open unfiltered */ }
+    setCalReady(true);
+  }, []);
+  useEffect(() => {
+    if (!calReady) return;
+    try { localStorage.setItem(CAL_FILTER_KEY, JSON.stringify({ brands: brandSel, statuses: statusSel })); } catch { /* private mode */ }
+  }, [calReady, brandSel, statusSel]);
   const [channel, setChannel] = useState<CalChannel>("all");
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
   // A day showing every task instead of the first four. Creating a task on a busy
@@ -1460,6 +1589,27 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const [view, setView] = useState<CalView>("month");
   // Anchor date drives every view; ‹ › shifts by month/week/day, Today resets it.
   const [anchor, setAnchor] = useState(() => new Date());
+
+  // Arrow keys move through the calendar the way they do in every other calendar,
+  // and M/W/D/L pick the view. Shared with the ? card in Shortcuts.tsx.
+  //
+  // Bare letters, so the same rule applies as everywhere else: not while you are
+  // typing, and never with a modifier held — Ctrl+W closes the browser tab and
+  // Ctrl+D bookmarks the page, and neither should go anywhere near this.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (e.key === "ArrowLeft") { e.preventDefault(); shift(-1); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); shift(1); return; }
+      if (k === "t") { e.preventDefault(); jumpToday(); return; }
+      const view = k === "m" ? "month" : k === "w" ? "week" : k === "d" ? "day" : k === "l" ? "list" : null;
+      if (view) { e.preventDefault(); setView(view as CalView); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Drag-to-reschedule: drop a task on a day to set its publishing date there.
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -1484,7 +1634,11 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
 
   // Channel first, then the brand chip, then bucket by yyyy-mm-dd.
   const channelRows = useMemo(() => channel === "all" ? rows : rows.filter((r) => channelOfSbu(r.sbu) === channel), [rows, channel]);
-  const filteredRows = useMemo(() => activeBrand ? channelRows.filter((r) => r.sbu === activeBrand) : channelRows, [channelRows, activeBrand]);
+  const filteredRows = useMemo(() => {
+    let out = brandSel.length ? channelRows.filter((r) => brandSel.includes(r.sbu)) : channelRows;
+    if (statusSel.length) out = out.filter((r) => statusSel.includes(r.status));
+    return out;
+  }, [channelRows, brandSel, statusSel]);
   const byDay = useMemo(() => {
     const m = new Map<string, Row[]>();
     for (const r of filteredRows) {
@@ -1601,17 +1755,25 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         <h4>Calendar</h4>
         <div className="mhcal-tc-right">
           <div style={{ width: 190 }}>
-            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setActiveBrand(""); }} options={CAL_CHANNELS} />
+            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel([]); }} options={CAL_CHANNELS} />
           </div>
-          <div style={{ width: 230 }}>
-            {/* Every SBU, always (user) — picking one switches the account to the one it
-                belongs to, so the pick never lands on an empty calendar. */}
-            <PreviewSelect value={activeBrand} onChange={(v) => { setActiveBrand(v); if (v) setChannel(channelOfSbu(v) ?? "all"); }}
-              options={[{ value: "", label: `All SBUs (${channelRows.length})` },
-                ...Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
-                  .map((x) => ({ value: x, label: `${x} (${rows.filter((r) => r.sbu === x).length})` }))]} />
+          <div style={{ width: 240 }}>
+            {/* Every SBU, always (user). Choosing brands drops the account filter back to
+                All, so a pick can never land on an empty calendar — which is what the old
+                single-select guarded against by switching accounts for you. */}
+            <MultiPick label="SBUs" selected={brandSel} total={channelRows.length}
+              onChange={(next) => { setBrandSel(next); if (next.length) setChannel("all"); }}
+              options={Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
+                .map((x) => ({ value: x, count: channelRows.filter((r) => r.sbu === x).length }))} />
           </div>
-          <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} {activeBrand ? `${activeBrand} tasks` : "tasks in view"}</span>
+          <div style={{ width: 215 }}>
+            {/* "Give me the content status filter here so that I can filter the status
+                which I don't want to see" (Manya, 5 Oct). Swatches match the chips on the
+                grid, so the list reads the same way the calendar does. */}
+            <MultiPick label="statuses" selected={statusSel} onChange={setStatusSel} total={channelRows.length}
+              options={ALL_STATUSES.map((st) => ({ value: st.key, count: channelRows.filter((r) => r.status === st.key).length, swatch: statusPill(st.key).bg }))} />
+          </div>
+          <span className="mhcal-tc-count">{fmtInt(filteredRows.length)} tasks in view</span>
           <span className="mhcal-live"><span className="dot" />{loading ? "Syncing…" : "Live"}</span>
         </div>
       </div>
@@ -1770,7 +1932,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       {createDate && (
         <NewTaskDialog onClose={() => setCreateDate(null)}
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
-          initial={{ publishDate: createDate, sbu: activeBrand || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
+          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
       )}
     </div>
   );
@@ -1786,16 +1948,13 @@ function RichText({ value }: { value: string }) {
   if (LOOKS_LIKE_HTML.test(value)) {
     return (
       <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px] [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2"
-        dangerouslySetInnerHTML={{ __html: value }} />
+        dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }} />
     );
   }
-  // A blank line starts a new block; single newlines stay as line breaks inside it.
-  const blocks = value.replace(/\r\n/g, "\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-  return (
-    <div className="text-[14px] leading-[22px] text-[#5A6478] space-y-3">
-      {blocks.map((b, i) => <p key={i} className="whitespace-pre-wrap">{b}</p>)}
-    </div>
-  );
+  // Not HTML — so Markdown, which is what the team actually writes. Plain text
+  // falls through it unchanged: with no headings, bullets or marks, every line is
+  // just a paragraph, exactly as before.
+  return <Markdown value={value} />;
 }
 
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
@@ -2326,6 +2485,61 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const [hiddenCols, setHiddenCols] = useState<string[]>([]);
   const [colorField, setColorField] = useState<string>("");
   const [groupField, setGroupField] = useState<string>("");
+
+  // The sheet remembers how you left it. "After adding a filter, when going to the
+  // content calendar or anywhere and coming back, the filter is not there. In
+  // Airtable, if I add a filter to any view, it will stay until I change it."
+  // (Nandu, 6 Oct.) The hub mounts one tab at a time, so switching tabs threw all
+  // of this away and you came back to the unfiltered sheet.
+  //
+  // The whole view goes, not just the filter — sort, hidden columns, colour and
+  // grouping are the same act of arranging the sheet, and keeping only some of it
+  // would be stranger than keeping none. Search is deliberately left out: a search
+  // box that quietly still holds last week's words looks like missing data.
+  //
+  // Per browser, not per account: this is where you left the furniture, not team
+  // data. Saved views remain the shared, named thing.
+  //
+  // Read in an effect rather than in the initialisers so the server and the first
+  // client render agree, and the write is held until that read has happened, or the
+  // empty starting state would overwrite what was saved before it is restored.
+  //
+  // "Restored" has to be state, not a ref. Both effects below run in the same
+  // commit, so the saving one closes over the values from BEFORE the restore; with
+  // a ref it would see the flag already flipped and write the empty default
+  // straight over what was just read. As state it instead re-runs once the
+  // restored values have actually rendered.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    // A notification link is an explicit instruction about what to show, so it
+    // beats whatever was left behind.
+    if (!deepLink) {
+      try {
+        const v = JSON.parse(localStorage.getItem(MASTER_VIEW_KEY) || "null");
+        if (v && typeof v === "object") {
+          if (typeof v.activeId === "string") setActiveId(v.activeId);
+          if (v.draft && Array.isArray(v.draft.conditions)) setDraft(v.draft as FilterModel);
+          if (Array.isArray(v.sorts)) setSorts(v.sorts as SortSpec[]);
+          if (Array.isArray(v.hiddenCols)) setHiddenCols(v.hiddenCols as string[]);
+          if (typeof v.color === "string") setColorField(v.color);
+          if (typeof v.group === "string") setGroupField(v.group);
+        }
+      } catch { /* private mode, or a shape from an older build — open unfiltered */ }
+    }
+    setRestored(true);
+  }, [deepLink]);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(MASTER_VIEW_KEY, JSON.stringify({
+        // "link" only means something while those query params are in the URL; the
+        // filter it produced is kept as an ordinary ad-hoc one.
+        activeId: activeId === "link" ? "draft" : activeId,
+        draft, sorts, hiddenCols, color: colorField, group: groupField,
+      }));
+    } catch { /* private mode */ }
+  }, [restored, activeId, draft, sorts, hiddenCols, colorField, groupField]);
+
   const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color" | "group">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
   const [addColOpen, setAddColOpen] = useState(false);
@@ -3475,6 +3689,16 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
   useEffect(() => { loadDetail(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.id]);
 
+  // Ctrl+Z for the edits made in this panel (see preview/Undo.tsx).
+  const { record: recordUndo } = useUndo();
+  // The task-detail endpoint does not return priority, so the only copy is the one
+  // on the board row — and that does not refresh while the panel is open. Changing
+  // the priority therefore left the pill showing the OLD value until the board
+  // reloaded, and would have had undo record a stale "previous" if you changed it
+  // twice. Hold what we last set, and drop it the moment the row catches up.
+  const [prioritySet, setPrioritySet] = useState<string | null>(null);
+  useEffect(() => { setPrioritySet(null); }, [row.priority]);
+  const priorityCur = prioritySet ?? row.priority;
   const content = (detail?.content || row.content || "").trim();
   const caption = (detail?.caption ?? row.caption ?? "").trim();
   const notes = (detail?.notes || row.additionalInfo || "").trim();
@@ -3486,7 +3710,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const statusCur = detail?.status ?? row.status;
   const isDone = DONE_STATUSES.includes(statusCur) || !!row.completionTime;
   const sp = statusPill(statusCur);
-  const pp = priorityPill(row.priority);
+  const pp = priorityPill(priorityCur);
   const uploaderKey = TEAM.find((m) => ownerMatches(row.owner, m))?.key || "maheen";
   // Account-specific: every comment + edit is stamped with the LOGGED-IN user
   // (detail.me from the session), never a manual picker. Whoever is signed in owns
@@ -3502,9 +3726,13 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const liUrl = detail?.linkedinUrl ?? row.linkedinUrl ?? "";
   const platformsCur = detail?.platforms ?? row.platforms ?? [];
   const [statusEdit, setStatusEdit] = useState(false);
+  const [priorityEdit, setPriorityEdit] = useState(false);
   const [urlEdit, setUrlEdit] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
-  const saveOne = async (field: string, value: unknown) => {
+  // `prev` is passed ONLY where the caller genuinely knows the old value. An undo
+  // that writes a guessed "previous" over a real one is worse than no undo at all,
+  // so a save without it simply is not recorded.
+  const saveOne = async (field: string, value: unknown, prev?: { value: unknown; label: string }) => {
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: value } }),
@@ -3519,6 +3747,31 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
       return;
     }
     await loadDetail();
+    // Recorded only once the server has taken it, so Ctrl+Z can never offer to undo
+    // something that was refused.
+    if (prev) {
+      const write = async (v: unknown) => {
+        const r = await fetch("/api/marketing-hub/update", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: v } }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setFailure({ kind: "error", message: (j as { error?: string }).error || `Couldn't undo — HTTP ${r.status}` });
+          return false;
+        }
+        // Undo is a write like any other, so the panel has to follow it — otherwise
+        // the row goes back and the pill keeps showing what you had just set.
+        if (field === "priority") setPrioritySet(v == null ? null : String(v));
+        await loadDetail();
+        return true;
+      };
+      recordUndo({
+        label: `${prev.label}: ${String(prev.value ?? "—")} → ${String(value ?? "—")}`,
+        undo: () => write(prev.value),
+        redo: () => write(value),
+      });
+    }
   };
   // Filling a published link is NOT an ordinary field edit: it also means the post is
   // live, so published_at gets stamped and the read cache is busted. Going through the
@@ -3753,6 +4006,28 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         <div className="flex-1 flex min-h-0 bg-white">
           <div className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4">
             <div>
+              {/* Content and Caption come FIRST.
+                  "The entire content should appear in full when I open it" (Manya, 5 Oct,
+                  asking a second time). Opening a task used to show the Creatives
+                  drop-zone and an empty References box, with the writing itself below the
+                  fold — so the one thing the record is actually about was the one thing
+                  you could not see without scrolling.
+
+                  This does reverse an earlier decision to sit References above Content as
+                  a mood-board; the panels are all still here, in a different order. */}
+              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
+                {editSection === "content" ? editBox(14, "Write the content brief…")
+                  : content ? <RichText value={content} />
+                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
+                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
+              </Panel>
+
+              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
+                {editSection === "caption" ? editBox(5, "Write the post caption…")
+                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
+                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
+              </Panel>
+
               <Panel icon={IconPhoto} title="Creatives" accent
                 right={<>
                   <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
@@ -3848,22 +4123,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
               </Panel>
 
-              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
-                {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <RichText value={content} />
-                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
-                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
-              </Panel>
-
-              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
-                {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
-                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
-              </Panel>
-
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
-                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: notes }} />
+                  <div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} />
                 </Panel>
               )}
 
@@ -3875,7 +4137,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     gates ("can't approve yet — X missing") and logs the change to Activity. */}
                 {detailRow("Status", statusEdit ? (
                   <select autoFocus defaultValue={statusCur || ""} onBlur={() => setStatusEdit(false)}
-                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value); }}
+                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value, { value: statusCur, label: "Status" }); }}
                     className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
                     {Array.from(new Set([...(statusCur ? [statusCur] : []), ...STATUS_CHOICES])).map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
@@ -3887,7 +4149,26 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </button>
                 ))}
                 {detailRow("Owner", row.owner ? <span className="inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{row.owner.trim().slice(0, 1).toUpperCase()}</span>{row.owner}</span> : null)}
-                {detailRow("Priority", row.priority ? <span className="text-[11px] font-medium rounded-full px-2 py-0.5" style={{ background: pp.bg, color: pp.text }}>{row.priority}</span> : null)}
+                {detailRow("Priority", priorityEdit ? (
+                  <select autoFocus defaultValue={priorityCur || ""} onBlur={() => setPriorityEdit(false)}
+                    onChange={async (e) => {
+                      setPriorityEdit(false);
+                      if (!e.target.value) return;
+                      const was = priorityCur;
+                      setPrioritySet(e.target.value);
+                      await saveOne("priority", e.target.value, { value: was, label: "Priority" });
+                    }}
+                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
+                    <option value="">— set priority</option>
+                    {PRIORITY_CHOICES.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <button onClick={() => setPriorityEdit(true)} title="Change the priority"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
+                    style={priorityCur ? { background: pp.bg, color: pp.text } : { background: "#F1F3F8", color: "#8A92A6" }}>
+                    {priorityCur || "— set"}
+                  </button>
+                ))}
                 {detailRow("Publish to page", row.publishToPage)}
                 {detailRow("Platforms", (
                   <div className="flex flex-wrap gap-1 justify-end">

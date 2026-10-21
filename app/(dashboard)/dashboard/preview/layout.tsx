@@ -2,6 +2,7 @@ import { PreviewSidebar } from "./PreviewSidebar";
 import { SHELL_CSS } from "./PreviewShell";
 import { NavProgress } from "./NavProgress";
 import { NotificationHost } from "./NotificationHost";
+import { UndoProvider } from "./Undo";
 import { NOTIF_CSS } from "./notificationStyles";
 
 // Every Version-2 page shares this chrome — the theme root, the flex shell and the
@@ -20,10 +21,14 @@ export default function PreviewLayout({ children }: { children: React.ReactNode 
       {/* Notification pop-ups — here, not in a page, so they show on every page
           and survive navigation (docs/NOTIFICATIONS_SPEC.md). */}
       <NotificationHost />
-      <div className="hshell">
-        <PreviewSidebar />
-        {children}
-      </div>
+      {/* One undo stack for the whole dashboard. In the layout so the sidebar and
+          every page share it — a provider beside the content would reach neither. */}
+      <UndoProvider>
+        <div className="hshell">
+          <PreviewSidebar />
+          {children}
+        </div>
+      </UndoProvider>
     </div>
   );
 }

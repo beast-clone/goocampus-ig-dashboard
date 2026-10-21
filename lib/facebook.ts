@@ -4,21 +4,26 @@
 // (accounts.local.json / ACCOUNTS_JSON via lib/instagram.ts getAccount) — each
 // stored account carries pageId + pageAccessToken for its linked Facebook Page.
 //
-// What the current tokens can and cannot read (probed 2026-07-11, Graph v25.0):
-//   ✓ Page profile     — name, followers_count, fan_count, picture, link (all 4 pages)
-//   ✗ Page insights    — /insights returns an EMPTY data array for every valid
-//                        metric (page_post_engagements, page_views_total, …) because
-//                        the tokens lack the read_insights permission. Older metric
-//                        names (page_impressions*, page_fans) are gone from v25 anyway.
-//   ± Published posts  — /published_posts works with basic fields (message,
-//                        created_time, full_picture, permalink_url) but 400s on
-//                        likes.summary/comments.summary/reactions.summary
-//                        (needs pages_read_engagement / pages_read_user_content).
-//                        12thplusdotcom 403s entirely (admin permission / 2FA).
+// What the current tokens can and cannot read (re-probed 2026-10-04, Graph v25.0).
+// The previous note here was written 2026-07-11 — one day BEFORE the token
+// rotation that granted read_insights — and said insights were unavailable and
+// likes/comments 400'd. Both are now false, and believing it costs an afternoon
+// regenerating tokens that were never the problem. Measured, not assumed:
+//   ✓ Page profile     — name, followers_count, fan_count, picture, link
+//   ✓ Page insights    — page_post_engagements, page_views_total and page_follows
+//                        all return real daily series over a since/until range.
+//                        NOTE: they only work WITH a date range; asking for
+//                        period=day alone makes Meta reject the metric outright.
+//   ✓ Published posts  — the rich fields work: likes.summary(true) and
+//                        comments.summary(true) both return counts.
+//   ✗ Post-level reach — post_impressions and post_engaged_users are RETIRED by
+//                        Meta, not a permission problem, so no token will bring
+//                        them back. post_clicks still works.
+//   ✗ Page-level reach — v25 exposes no reach metric readable by a page token
+//                        (page_impressions* and page_fans are gone), hence
+//                        FBInsights.reach is always null.
 //
 // Anything unreadable is returned as null / available:false — the UI shows "—".
-// To unlock insights + per-post likes/comments, regenerate the page tokens with
-// read_insights + pages_read_engagement + pages_read_user_content scopes.
 
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { recordApiCall } from "./api-usage";
@@ -133,7 +138,11 @@ export async function fetchPageAudience(acc: IGAccountConfig): Promise<FBAudienc
 export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, toIso: string): Promise<FBInsights> {
   const unavailable: FBInsights = {
     available: false,
-    reason: "page token lacks the read_insights permission",
+    // Not a permission problem — read_insights has been granted since the
+    // 2026-07-12 rotation and these metrics were verified live on 2026-10-04.
+    // An empty result now means the window genuinely has no data, or Meta is
+    // refusing the call for another reason.
+    reason: "Facebook returned no insight data for this period",
     reach: null,
     engagement: null,
     pageViews: null,
@@ -165,7 +174,7 @@ export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, t
       access_token: acc.pageAccessToken,
     });
     const data = r.data || [];
-    if (!data.length) return null; // no read_insights, or an empty window
+    if (!data.length) return null; // an empty window (read_insights is granted)
     const total = (name: string): number | null => {
       const m = data.find((d) => d.name === name);
       if (!m || !m.values?.length) return null;
@@ -181,7 +190,7 @@ export async function fetchPageInsights(acc: IGAccountConfig, fromIso: string, t
   try {
     const parts = await Promise.all(windows.map((w) => fetchWindow(w.since, w.until).catch(() => null)));
     const got = parts.filter(Boolean) as { engagement: number | null; pageViews: number | null; follows: number | null }[];
-    if (!got.length) return unavailable; // Meta returns [] without read_insights (or every window empty)
+    if (!got.length) return unavailable; // every window came back empty
     const sumField = (key: "engagement" | "pageViews" | "follows"): number | null => {
       const vals = got.map((g) => g[key]).filter((v): v is number => typeof v === "number");
       return vals.length ? vals.reduce((s, v) => s + v, 0) : null;

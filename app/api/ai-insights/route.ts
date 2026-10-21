@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { askPerplexityJSON, hasAI } from "@/lib/ai";
 
 type Post = {
@@ -52,6 +52,8 @@ function extractHashtags(text: string | undefined): string[] {
 export async function POST(req: Request) {
   const __denied = await requireSection("ai");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "ai-insights", 10, 300_000);
+  if (__limited) return __limited;
 
   const body = await req.json();
   const { accountId = "goocampus", range } = body as { accountId: string; range: { from: string; to: string } };

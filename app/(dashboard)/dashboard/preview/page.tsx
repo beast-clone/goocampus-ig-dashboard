@@ -12,5 +12,9 @@ export const dynamic = "force-dynamic";
 
 export default async function PreviewPage() {
   const user = await rosterById(getSessionUserId());
-  return <PreviewOverview person={user?.name || ""} />;
+  // First name, not the full one. The Team record's full name is whatever somebody
+  // typed — Nikhil's reads "Nikhi" — and a greeting is the one place a typo is
+  // read as the dashboard not knowing who you are. Falls back to the full name
+  // for anyone whose record has no first name.
+  return <PreviewOverview person={user?.first || user?.name || ""} />;
 }

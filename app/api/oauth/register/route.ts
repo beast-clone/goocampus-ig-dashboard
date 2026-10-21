@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { registerClient } from "@/lib/oauth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Dynamic client registration (RFC 7591). Claude introduces itself here and gets a
 // client_id back — this is the call that 404'd and produced "couldn't register with
@@ -19,6 +20,16 @@ const CORS = {
 };
 
 export async function POST(req: Request) {
+  // RFC 7591 open registration, so public by design — but every call writes
+  // an oauth-client row and nothing capped how many. Registering a client is
+  // a once-per-setup act; a dozen in ten minutes is already far more than any
+  // real integration needs.
+  const rl = rateLimit("oauth-register:" + getClientIp(req.headers), 12, 10 * 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "temporarily_unavailable", error_description: "Too many registrations — try again shortly." },
+      { status: 429, headers: { ...CORS, "Retry-After": String(rl.retryAfterSec || 60) } });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "invalid_client_metadata", error_description: "Body must be JSON." }, { status: 400, headers: CORS });

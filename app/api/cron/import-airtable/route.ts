@@ -2,6 +2,23 @@ import { NextResponse } from "next/server";
 import { importFromAirtable, isNetworkError } from "@/lib/airtable-import";
 import { safeError } from "@/lib/errors";
 
+// OFF since 8 October 2026. Tasks are created in the dashboard now.
+//
+// Airtable was where work was written, and this pulled it across every hour. That
+// made Airtable the authority on things it could not actually know — above all who
+// is doing a job, because claiming only exists here. Any edit to an Airtable row
+// made it "newer" and handed a claimed task back to whoever wrote the brief,
+// silently. It happened to eight tasks over three weeks before anyone traced it.
+//
+// Having two systems disagree about the same task is the problem; arbitrating
+// between them is only a patch. So the automatic pull stops and the dashboard
+// becomes the one place a task is born. lib/airtable-import.ts keeps its claim
+// protection regardless — if this is ever switched back on, that rule still holds.
+//
+// Switching it back on is an env var, not a deploy: set AIRTABLE_IMPORT=on.
+// The "Sync from Airtable" button in the Marketing Hub is untouched — that is
+// somebody deliberately pulling, not a surprise at the top of the hour.
+//
 // Hourly sync from Airtable's Content Calendar into the master sheet.
 //
 //   GET /api/cron/import-airtable
@@ -26,6 +43,16 @@ export async function GET(req: Request) {
   if (!secret) return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   if (req.headers.get("x-cron-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Answers 200, not an error: whatever is calling this on a schedule should see a
+  // clean "nothing to do" rather than a failure it starts alerting about.
+  if ((process.env.AIRTABLE_IMPORT || "").toLowerCase() !== "on") {
+    return NextResponse.json({
+      ok: true,
+      disabled: true,
+      message: "The hourly Airtable import is off — tasks are created in the dashboard. Set AIRTABLE_IMPORT=on to resume.",
+    });
   }
 
   const startedAt = Date.now();

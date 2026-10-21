@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { guardRate, requireSection } from "@/lib/api-guard";
 import { getSessionUserId } from "@/lib/auth";
 import { addExtraAccount, cleanHandle, lookupAccounts, removeExtraAccount } from "@/lib/social-keywords";
+import { safeError } from "@/lib/errors";
 
 // GET    /api/seo/accounts?platform=&q= → matching accounts to confirm before adding
 // POST   /api/seo/accounts { platform, handle } → add an account to compare with
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
   try {
     return NextResponse.json({ matches: await lookupAccounts(platform, platform === "instagram" ? q.replace(/[^\w.]/g, "") : q) });
   } catch (err) {
-    return NextResponse.json({ matches: [], error: (err as Error).message }, { status: 200 });
+    return NextResponse.json({ ...safeError(err, "Couldn't load SEO data"), matches: [],   }, { status: 200 });
   }
 }
 
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     const name = await addExtraAccount(platform, handle, getSessionUserId() || undefined);
     return NextResponse.json({ ok: true, name });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return NextResponse.json(safeError(err, "Couldn't load SEO data"), { status: 400 });
   }
 }
 
@@ -56,6 +57,6 @@ export async function DELETE(req: Request) {
     await removeExtraAccount(platform, handle);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return NextResponse.json(safeError(err, "Couldn't load SEO data"), { status: 400 });
   }
 }

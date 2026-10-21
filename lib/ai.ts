@@ -5,6 +5,30 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
+import { createLimiter } from "@/lib/concurrency";
+
+// Every Perplexity model — Sonar and the Claude ones — bills to one key and one
+// rate budget, so they share a single limiter. On 2026-09-27 four "playbook"
+// runs started in the same second and all four came back 429; the work was lost
+// and the user saw four failures at once. Queued calls still run, just paced.
+const aiLimiter = createLimiter(3);
+
+// Perplexity rejects an empty or whitespace-only message with a 400 that reads
+// "invalid request body" / "Message content was empty" — which tells you nothing
+// about which end was empty, and burns a request to find out. A competitor with
+// no gathered data produced exactly that on 2026-09-28. Fail before the call,
+// naming the empty side, and let the caller decide whether that is worth
+// surfacing or skipping.
+// Perplexity bills Sonar and the Claude models to one key and one rate budget,
+// so every outbound call goes through the same limiter. Wrapping fetch rather
+// than the whole function keeps the timeout, usage logging and error handling
+// exactly where they were.
+const aiFetch = (url: string, init: RequestInit) => aiLimiter(() => fetch(url, init));
+
+function assertPrompt(system: string, user: string, feature?: string): void {
+  const where = !String(system || "").trim() ? "system" : !String(user || "").trim() ? "user" : null;
+  if (where) throw new Error(`Refusing to call Perplexity with an empty ${where} message${feature ? ` (${feature})` : ""}`);
+}
 
 // The key is stored as PLANNER_SEARCH_KEY in this project (Post Planner + the
 // Integrations/Diagnostics tab use it); accept either name so the shared AI layer works.
@@ -74,9 +98,10 @@ export async function askPerplexity(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 25_000);
   const startedAt = Date.now();
+  assertPrompt(system, user, opts?.feature);
   const model = opts?.model || "sonar";
   try {
-    const res = await fetch("https://api.perplexity.ai/chat/completions", {
+    const res = await aiFetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -119,9 +144,10 @@ export async function askClaudeViaPerplexity(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 90_000);
   const startedAt = Date.now();
+  assertPrompt(system, user, opts?.feature);
   const model = opts?.model || "anthropic/claude-sonnet-4-5";
   try {
-    const res = await fetch("https://api.perplexity.ai/v1/responses", {
+    const res = await aiFetch("https://api.perplexity.ai/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -169,6 +195,7 @@ export async function askPerplexityAsync(
   user: string,
   opts?: { model?: string; maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number } & CallOpts,
 ): Promise<{ text: string; citations: string[] }> {
+  assertPrompt(system, user, opts?.feature);
   const model = opts?.model || "sonar-deep-research";
   const startedAt = Date.now();
   try {
@@ -188,7 +215,7 @@ async function askPerplexityAsyncInner(
   opts?: { maxTokens?: number; temperature?: number; pollMs?: number; maxWaitMs?: number },
 ): Promise<{ text: string; citations: string[]; usage: Usage }> {
   const auth = { Authorization: `Bearer ${KEY}` };
-  const submit = await fetch("https://api.perplexity.ai/async/chat/completions", {
+  const submit = await aiFetch("https://api.perplexity.ai/async/chat/completions", {
     method: "POST",
     headers: { ...auth, "Content-Type": "application/json" },
     body: JSON.stringify({

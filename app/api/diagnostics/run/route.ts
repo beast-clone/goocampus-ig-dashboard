@@ -3,6 +3,8 @@ import { requireSection } from "@/lib/api-guard";
 import { runDiagnostics } from "@/lib/diagnostics";
 import { safeError } from "@/lib/errors";
 
+// Guarded on the "system" section: lib/permissions.ts marks it adminOnly, and
+// what this returns or does is platform posture, not day-to-day work.
 // POST /api/diagnostics/run — on-demand full diagnostic + auto-repair. Session-
 // protected by middleware. Returns the report (also stored in mh_diagnostics_runs).
 export async function POST() {

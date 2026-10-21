@@ -23,6 +23,7 @@ import { useRadarMissed, RadarMissedList, dayLabel } from "./RadarCrumb";
 import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationHost";
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 import { shouldPoll } from "@/lib/quiet-hours";
+import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -63,12 +64,21 @@ type CCStatus =
   | "Incorporating Feedback" | "Ready to Publish" | "Published/Scheduled"
   | "Rejected/Not Published" | "Failed";
 // ONLY real mh_status enum values — offering anything else in a picker would 502
-// the save (the server now rejects them with a 400). The legacy statuses
-// ("Content - Needs Approval", "Output - In Progress", …) stay in the TYPE/map so
-// old references render, but they are not selectable.
+// the save. Every stage in the mh_status enum is now selectable except "Failed",
+// which the publisher owns — see the note on CC_STATUS_ORDER below.
+// "I don't see all the content status options. Add everything here." (Nandu,
+// 6 Oct). Three stages were held back because the update route's allow-list had
+// drifted below the mh_status enum and rejected them with a 400. That list was
+// corrected on 4 Oct, so the reason for hiding them is gone.
+//
+// "Failed" stays out on purpose: the publisher sets it when a publish attempt
+// errors. Letting someone choose it by hand would put a failure on the record
+// that never happened.
 const CC_STATUS_ORDER: CCStatus[] = [
-  "Content - Pending", "Content - In Progress", "Content - Approved", "Output - In Progress",
-  "Incorporating Feedback", "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Content - Pending", "Content - In Progress", "Content - Needs Approval",
+  "Content - Approved", "Output - In Progress", "Incorporating Feedback",
+  "Output - Ready", "Ready to Publish", "Published/Scheduled",
+  "Rejected/Not Published",
 ];
 const STATUS: Record<CCStatus, { label: string; tone: Tone; stage: number; inView: boolean }> = {
   "Content - Pending":        { label: "Content - Pending",        tone: "muted", stage: 0, inView: true },
@@ -161,6 +171,9 @@ const TEAM = [
   { key: "nikhil", name: "Nikhil", role: "Video editor", av: "N", color: "#3A57E8" },
   { key: "nandu", name: "Nandu", role: "Video editor", av: "N", color: "#6E48F8" },
 ];
+// Only an editor can be holding claimable video work. Read off the roster rather
+// than naming the two of them, so this stays true when the team changes.
+const EDITOR_NAMES = new Set(TEAM.filter((t) => t.role === "Video editor").map((t) => t.name));
 
 
 // Today's plan is time-proportional across an 8-hour workday (9 AM–6 PM) with a
@@ -417,6 +430,18 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
 // or upload image files; both persist to the same backend as the Marketing Hub
 // modal (reference links → mh_posts.reference_links, images → mh_attachments
 // kind='reference'). Seeded from the task's own references; remounted per task.
+// References are rarely pasted as a bare URL. 20 of the 23 on the board read like
+// "MCC Revised UG Information Bulletin 2026 (20.08.2026), Q. No. 32: https://…" —
+// a citation with the link inside it. Putting that whole string in href makes it a
+// relative path, so the browser stays inside the dashboard and the link looks
+// dead. "Reference links are not clickable" (Nikhil, 7 Oct).
+//
+// Pull the first real URL out and link to that, keeping the full text as the
+// label. A reference with no URL in it is a note, not a link, so it renders
+// without an href rather than as a link that goes nowhere.
+const refHref = (s?: string | null): string | undefined =>
+  String(s || "").match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
+
 function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
   const [url, setUrl] = useState("");
@@ -460,7 +485,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
             <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
           </div>
         ) : (
-          <a key={r.url || i} className="ref-link" href={r.url} target="_blank" rel="noreferrer" title={r.url}>
+          <a key={r.url || i} className="ref-link" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>
             <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
             <span className="ref-link-lbl">{r.label}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
@@ -713,6 +738,25 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       setAssigning(false); onSaved?.();
     } finally { setBusy(false); }
   };
+  // Registering as presenter AFTER the task has been claimed.
+  //
+  // "Present on camera" only exists on cards sitting unclaimed in the pool, so
+  // the moment an editor claims a video there is no way left to say you are on
+  // camera — even though that is exactly the pairing the workflow wants (the
+  // editor owns it, the presenter collaborates). Nikhil hit this on a YouTube
+  // Long-Form already owned by Nandu, 7 Oct.
+  //
+  // Same write the pool buttons make, so the two routes cannot drift.
+  const setPresenter = async (key: string) => {
+    setBusy(true);
+    try {
+      await fetch("/api/marketing-hub/update", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, actor: uploadedBy, fields: { custom: { presenter_key: key, claim_role: key ? "present" : "" } } }),
+      });
+      onSaved?.();
+    } finally { setBusy(false); }
+  };
   const [delError, setDelError] = useState<string | null>(null);
   const doDelete = async () => {
     setBusy(true); setDelError(null);
@@ -889,13 +933,49 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               ))}
             </div>
           )}
+          {/* Clicking the owner opens the picker. Reassigning was only reachable
+              through the Reassign button in the header or by entering Edit mode
+              first and finding the pencil, so clicking the name itself — the
+              obvious thing — did nothing. "Give me change option or delete and
+              add button" (Nandu, 6 Oct), clicked directly on the owner. */}
           {ownerP ? (
-            <div className="collab-cell">
+            <div className="collab-cell"
+              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canAssign ? { cursor: "pointer" } : undefined}
+              title={canAssign ? "Click to hand this to someone else" : undefined}>
               <Avatar p={ownerP} />
               <span className="collab-names">{ownerP.name}</span>
             </div>
-          ) : <div className="mval">{task.detail.owner}</div>}
+          ) : (
+            <div className="mval"
+              onClick={canAssign ? () => { setEditing(true); setEditField("owner"); } : undefined}
+              style={canAssign ? { cursor: "pointer" } : undefined}
+              title={canAssign ? "Click to assign an owner" : undefined}>
+              {task.detail.owner}
+            </div>
+          )}
         </div>
+        {/* Who is on camera. Only video has a presenter, and until now this was
+            invisible once a task left the pool — so "who is doing what" could
+            not be answered from the task itself. */}
+        {isVideoType(task.detail.typeLine) && (
+          <div>
+            <div className="mlbl">On camera</div>
+            {task.detail.presenter && PPL[task.detail.presenter] ? (
+              <div className="collab-cell">
+                <Avatar p={PPL[task.detail.presenter]} />
+                <span className="collab-names">{PPL[task.detail.presenter].name}</span>
+                {uploadedBy === task.detail.presenter && (
+                  <button className="btn sm" disabled={busy} style={{ marginLeft: ".4rem" }}
+                    onClick={() => setPresenter("")} title="You are no longer presenting this">Not me</button>
+                )}
+              </div>
+            ) : uploadedBy && PPL[uploadedBy] ? (
+              <button className="btn sm" disabled={busy} onClick={() => setPresenter(uploadedBy)}
+                title="Record that you will be on camera — the editor still owns the task">I&rsquo;m on camera</button>
+            ) : <div className="mval">Nobody yet</div>}
+          </div>
+        )}
         <div>
           <div className="mlbl">Collaborators{editing && addable.length > 0 && <span className="fld-hint" title="Use the + to add one">＋</span>}</div>
           <div className="collab-cell" style={{ position: "relative" }}>
@@ -2105,6 +2185,32 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)).sort(cmpTasks) : [],
     [isEditor, curTab.key, claimPool, claimedTasks, cmpTasks],
   );
+  // Who is holding the video work right now, for when there is none left to claim.
+  //
+  // On 8 Oct Nikhil claimed the last three videos at about 10:15; Nandu opened his
+  // approved tab two hours later, found it blank, and read it as his own work having
+  // gone missing — "After claiming, task should be visible here. not able see any
+  // task who is doing what". Nothing had gone wrong: the pool was simply empty. An
+  // empty tab that says only "Nothing here ✓" cannot tell those two cases apart,
+  // and the second one looks like a bug.
+  //
+  // Counts video that is actually being worked — claimed but not yet delivered.
+  // Anything Output-Ready or later is finished as far as the pool is concerned.
+  const videoInHand = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const t of tasks) {
+      if (!isVideoType(t.detail.typeLine)) continue;
+      if (t.status !== "Content - Approved" && t.status !== "Output - In Progress") continue;
+      const o = t.detail.owner;
+      if (!o || o === "Unclaimed" || o === me.name) continue;
+      // Editors only. Some approved video still sits under the writer's name, and
+      // saying "Manya is working on 5 videos" would be both wrong and confusing —
+      // she writes them, she does not cut them.
+      if (!EDITOR_NAMES.has(o)) continue;
+      by.set(o, (by.get(o) || 0) + 1);
+    }
+    return [...by.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tasks, me.name]);
   const planModalTask = planModalId ? [...tasks, ...claimedTasks, ...samvaya].find((t) => t.id === planModalId) || null : null;
   // Change a task's status via the card's status dropdown. Two special cases:
   //  • CONTENT-FIRST HANDOFF: when the WRITER's task hits "Content - Approved", it
@@ -2707,6 +2813,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setRedoStack((s) => s.slice(0, -1));
     if (ok) { setUndoStack((u) => [...u, e]); setToast({ who: "Redone", color: "#3A57E8", av: me.av, body: e.label }); }
   };
+  // My Day had undo before the dashboard-wide one existed, and its stack knows
+  // something the shared one does not: it REFUSES when the task has changed since,
+  // rather than writing a stale value back over somebody else's edit. So it keeps
+  // its own and silences the shared handler while this page is open — otherwise one
+  // Ctrl+Z would be read by two stacks and the wrong thing would come back.
+  useOwnUndo();
   // ⌘Z / ⌘⇧Z (and Ctrl on Windows). Let native undo win inside text fields.
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -3628,7 +3740,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               ))}
             </div>
             <div className="tasklist">
-              {shownTasks.length === 0 && claimableHere.length === 0 && <div className="empty" style={{ padding: "1.6rem 0" }}>Nothing in “{curTab.label}” right now ✓</div>}
+              {shownTasks.length === 0 && claimableHere.length === 0 && (
+                <div className="empty" style={{ padding: "1.6rem 0" }}>
+                  {isEditor && curTab.key === "approved" && videoInHand.length > 0
+                    ? <>Nothing up for grabs — {videoInHand.map(([who, n]) => `${who} is working on ${n === 1 ? "1 video" : `${n} videos`}`).join(", ")}.</>
+                    : <>Nothing in “{curTab.label}” right now ✓</>}
+                </div>
+              )}
               {/* One list, one order: my tasks and claimable videos sorted together. */}
               {[...shownTasks.map((t) => ({ t, claim: false })), ...claimableHere.map((t) => ({ t, claim: true }))]
                 .sort((x, y) => cmpTasks(x.t, y.t))

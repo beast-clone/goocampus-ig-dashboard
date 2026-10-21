@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { serperRank } from "@/lib/seo";
 import { safeError } from "@/lib/errors";
@@ -9,9 +9,11 @@ import { safeError } from "@/lib/errors";
 // snapshot, building the movement history. Also runnable on a daily cron. Free (Serper).
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: Request) {
   const __denied = await requireSection("analytics");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "seo-refresh", 6, 300_000);
+  if (__limited) return __limited;
 
   try {
     const sb = getSupabase();

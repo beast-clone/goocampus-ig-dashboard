@@ -24,7 +24,7 @@ export type WatchEvent = { handle: string; name: string; kind: "blog" | "event" 
 // `events` are new since the last run → stored AND notified. `listed` are events a
 // site shows the first time we read its event pages → stored (so the Briefing shows
 // what's on right now) but NOT notified: they weren't announced just now.
-export type WatchResult = { competitors: number; baselined: string[]; events: WatchEvent[]; listed: WatchEvent[]; errors: string[] };
+export type WatchResult = { competitors: number; checked: number; baselined: string[]; events: WatchEvent[]; listed: WatchEvent[]; errors: string[] };
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
 const EVENT_PATH = /(webinar|event|seminar|workshop|masterclass|conference|expo|live-session)/i;
@@ -245,11 +245,25 @@ async function diff(sb: SB, accountId: string, handle: string, source: string, n
 }
 
 // ── the run ────────────────────────────────────────────────────────────────────
-export async function runCompetitorWatch(opts: { accountId?: string; instagram?: boolean } = {}): Promise<WatchResult> {
+export async function runCompetitorWatch(opts: {
+  accountId?: string;
+  instagram?: boolean;
+  /**
+   * Check only a window of the competitor list, `size` wide, starting at
+   * `offset` (wrapping). Each competitor costs several sequential network
+   * round-trips — robots.txt, the sitemap, every watched section page, then a
+   * title fetch per new link — so ten of them in one pass runs well past the 30s
+   * a serverless request is allowed and the whole run is killed, having saved
+   * nothing. A few per run, rotated, finishes comfortably and still covers
+   * everyone several times a day. Omit it and the behaviour is unchanged: the
+   * Briefing's "Check now" button still sweeps the lot.
+   */
+  window?: { offset: number; size: number };
+} = {}): Promise<WatchResult> {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase not configured");
   const accountId = opts.accountId || "goocampus";
-  const res: WatchResult = { competitors: 0, baselined: [], events: [], listed: [], errors: [] };
+  const res: WatchResult = { competitors: 0, checked: 0, baselined: [], events: [], listed: [], errors: [] };
   const account = getAccount(accountId);
   const ourHandle = (account?.handle || "").replace(/^@/, "").toLowerCase();
 
@@ -259,7 +273,16 @@ export async function runCompetitorWatch(opts: { accountId?: string; instagram?:
     .filter((c) => c.platform === "instagram" && c.handle !== ourHandle);
   res.competitors = list.length;
 
-  for (const c of list) {
+  // Rotate through the list when a window is given, wrapping at the end so a
+  // window straddling the boundary still returns `size` competitors rather than
+  // a short tail.
+  const due = opts.window && list.length
+    ? Array.from({ length: Math.min(opts.window.size, list.length) },
+                 (_, i) => list[(opts.window!.offset + i) % list.length])
+    : list;
+  res.checked = due.length;
+
+  for (const c of due) {
     const name = c.name || c.handle;
     const add = (e: Omit<WatchEvent, "handle" | "name">) => res.events.push({ ...e, handle: c.handle, name });
 

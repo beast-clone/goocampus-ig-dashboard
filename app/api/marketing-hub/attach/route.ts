@@ -3,7 +3,21 @@ import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { activeTeamIds } from "@/lib/team-db";
+import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 
+
+// Attachments land in a PUBLIC bucket and get a permanent unauthenticated URL,
+// so whatever is accepted here is served to anyone with the link, from an
+// origin that looks like our infrastructure. Without a list, text/html or an
+// SVG could be uploaded and would render — a credible phishing page, and
+// script execution on the Supabase origin. app/api/scheduler/upload-media has
+// had this list all along; this route simply never got one.
+const ALLOWED_MIME = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "video/mp4", "video/quicktime",
+  "application/pdf",
+]);
+const ALLOWED_LABEL = "jpg, png, gif, webp, mp4, mov or pdf";
 // POST /api/marketing-hub/attach
 // multipart/form-data:
 //   postId:       string (required)
@@ -28,11 +42,24 @@ export async function POST(req: Request) {
     const kind = form.get("kind") === "reference" ? "reference" : "creative";
 
     if (typeof postId !== "string" || !postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
-    if (typeof uploadedBy !== "string" || !VALID_KEYS.has(uploadedBy)) {
-      return NextResponse.json({ error: `uploadedBy must be one of ${[...VALID_KEYS].join("|")}` }, { status: 400 });
+    // Attribution comes from the SESSION. It used to be read from the form, so
+    // any content user could post a file as a colleague — and this is the one
+    // audit trail the Marketing Hub keeps (it also writes actor_key into
+    // mh_activity), i.e. exactly the record someone would consult to ask who
+    // added a creative. An admin may still attribute to someone else.
+    const me = (getSessionUserId() || "").toLowerCase();
+    const who = getSessionIsAdmin() && typeof uploadedBy === "string" && uploadedBy ? uploadedBy.toLowerCase() : me;
+    if (!VALID_KEYS.has(who)) {
+      // Deliberately does not name the valid keys: the old message returned the
+      // entire active roster to anyone who sent one malformed request.
+      return NextResponse.json({ error: "Not a recognised team member." }, { status: 400 });
     }
     if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 });
     if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `file exceeds ${MAX_MB}MB` }, { status: 413 });
+    const mime = (file.type || "").toLowerCase();
+    if (!ALLOWED_MIME.has(mime)) {
+      return NextResponse.json({ error: `That file type isn't allowed — use ${ALLOWED_LABEL}.` }, { status: 415 });
+    }
 
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -47,7 +74,10 @@ export async function POST(req: Request) {
 
     const buf = Buffer.from(await file.arrayBuffer());
     const up = await sb.storage.from("scheduler-media").upload(objectPath, buf, {
-      contentType: file.type || "application/octet-stream",
+      // Content-Type is what the browser acts on when the public URL is opened,
+      // so it comes from the allow-list check above rather than straight from
+      // whatever the uploader declared.
+      contentType: mime,
       upsert: false,
     });
     if (up.error) throw new Error(`upload: ${up.error.message}`);
@@ -62,7 +92,7 @@ export async function POST(req: Request) {
         storage_path: publicUrl,
         mime_type: file.type || null,
         size_bytes: file.size,
-        uploaded_by: uploadedBy,
+        uploaded_by: who,
         kind,
       })
       .select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, kind")
@@ -73,7 +103,7 @@ export async function POST(req: Request) {
     // Log to the task Activity feed so an upload is visible there.
     await sb.from("mh_activity").insert({
       post_id: postId,
-      actor_key: uploadedBy,
+      actor_key: who,
       action: kind === "reference" ? "reference_added" : "creative_added",
       to_value: file.name,
     });

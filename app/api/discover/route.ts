@@ -10,6 +10,7 @@ import {
 import { scrapeHashtagWithFallback, getProviderHealth } from "@/lib/scrapers/router";
 import type { ScrapedPost, ScraperProvider } from "@/lib/scrapers/types";
 import { getSupabase } from "@/lib/supabase";
+import { safeError } from "@/lib/errors";
 
 type NicheBucket = { label: string; tags: string[] };
 type NicheConfig = { brand: string; audience: string; hashtagBuckets: NicheBucket[] };
@@ -223,6 +224,6 @@ export async function GET(req: Request) {
     out.latencyMs = Date.now() - t0;
     return NextResponse.json(out);
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load discovery data"), { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getAccount, fetchBasic, fetchAudience } from "@/lib/instagram";
 import { readAudienceMonthSnapshot } from "@/lib/audience-history";
+import { safeError } from "@/lib/errors";
 
 // Audience demographics. Meta's follower_demographics is "right now" only, so for a
 // past range (ends before today) we serve the frozen monthly snapshot of the range's
@@ -48,6 +49,6 @@ export async function GET(req: Request) {
       ...audience,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load the audience breakdown"), { status: 500 });
   }
 }

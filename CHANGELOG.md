@@ -3,6 +3,174 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-08 — Every comment on the board, closed
+
+> ### ⚠️ NOT DEPLOYED
+>
+> 20 commits on this machine only, `ff315ad`..`f64b92b`. Built and checked against the
+> live Supabase on localhost. `tsc` clean, 83/83 tests, production build exit 0.
+>
+> **The n8n KEA watcher (`lhOaZp9S755bhEvT`) must keep running until this ships.**
+
+The comment queue went from 13 open to **0**. What follows is grouped by what was actually
+wrong, because several of these were not the bug they looked like.
+
+### Things that were not the bug they appeared to be
+
+**Nandu's "claimed task not visible"** was not a broken claim. The activity log shows he
+made no claim that day: Nikhil had claimed the last three videos at about 10:15 and Nandu
+opened a blank Approved tab two hours later. The screen said only "Nothing in Content
+Approved right now", which looks identical whether there is no work or somebody already
+took it. It now names who is holding the video work.
+
+**Manya's "video disappearing"** was a deliverable handed over as a Google Drive *link*
+rather than an uploaded file. Output-Ready shows either; the Scheduler only ever previewed
+uploaded files, so from content review onward it rendered an empty upload box. The one
+trace was a grey line reading "grab from Slack" — hard-coded, on a Drive link.
+
+**The Radar's "no official sources"** was true twice over. Of the 155 items it held across
+37 sources, not one came from an authority, because every alert it runs is a topic keyword
+search. Meanwhile the Watchers had been reading the MCC counselling pages every hour and
+the Radar had no idea they existed. The two are now connected.
+
+**The 12thplus YouTube tab** was not a 12thplus problem. Every request minted its own
+access token; all three channels are managed by one Google account; Google rotates access
+tokens per account, so a second request silently killed the token the first was still
+using. A request takes 2–9 seconds and the subscriber count is its last call, which is why
+that is where it surfaced. Six requests at once failed three of them. Now 36/36.
+
+### Fixed
+
+- **My Day** — reference links open; all eleven statuses are selectable; the owner's name
+  is click-to-reassign; an empty claim pool says where the work went.
+- **My Day** — you can register as on camera *after* a video is claimed, and doing so puts
+  you on the task as a collaborator so it reaches your board. The two editors also pair up
+  by themselves: on camera hands the editing to the other one, and claiming the editing
+  puts the other one on camera. It only ever fills a blank.
+- **Marketing Hub** — approving no longer demands a collaborator (the check was circular,
+  and impossible for video); Priority is editable in the task panel; the Master sheet
+  reopens the way you left it; status colours come from Airtable's own Status field; the
+  calendar filters by several brands at once and by status; Markdown in content renders
+  instead of printing `###` and `**`; a task opens on its content rather than on an empty
+  upload box.
+- **Content Review** — filter the queue by interest.
+- **Scheduler** — a link-delivered video no longer looks lost; sending a task back keeps
+  the caption.
+- **Content Radar** — official sources are told apart from reporting, and watcher notices
+  appear as their own lane.
+- **YouTube** — the token rotation above, plus the error now repeats Google's reason
+  instead of a bare "401".
+
+### New
+
+- **Sign in** — Forgot password: a code by email, set a new one, signed in.
+- **Watchers** — six official sources added and baselined silently (543 notices, none
+  announced): NMC, NBEMS, NTA, the Australian Medical Council, USMLE and the Medical
+  Council of Ireland. NBEMS `natboard.edu.in`, the GMC and ECFMG answer 403 to a server and
+  AHPRA builds its news page in JavaScript, so those are deliberately not watched.
+- **Watchers** — `POST /api/cron/watcher-ingest`. `lib/watchers.ts` already accepted
+  prefetched HTML and pointed at an endpoint that had never been built, so the KEA watcher
+  could never work: `cetonline.karnataka.gov.in` answers an Indian IP in under a second and
+  refuses a US one outright. n8n on the Hostinger VPS can now fetch the page and post it in.
+  It sits under `/api/cron` because the middleware session-gates every other `/api/` path
+  and skips the CSRF origin check only there.
+
+### Waiting on somebody
+
+- **Deploy.** Until then the n8n KEA watcher stays load-bearing, and the ingest route cannot
+  be wired because n8n cannot reach localhost.
+- **KEA's first ingest** announces to three email recipients and Telegram. Run it when
+  somebody is expecting that.
+- **Samvaya YouTube** — needs its channel link, and the dashboard's Google account added as
+  a manager on the channel in YouTube Studio. Searching finds more than one plausible
+  Samvaya, so the handle is deliberately left blank rather than guessed; both candidates
+  answer 403 to our token while GooCampus answers 200 on the same token.
+
+## 2026-10-04 — Sessions end with the day, the stop zone finally covers everything, and a first test suite
+
+Deployed. `63107cf`..`3b697db`, live as deploy `6ac23c33` at 17:14 IST.
+
+### Sessions now end at midnight IST
+
+Attendance stamps the first sign-in of each IST day, but the session lasted **seven** days — so for
+most people it fired once and never again, and the board was reading a clock-in from whenever they
+had last been logged out. Sessions now expire at the next 00:00 IST: everyone signs in fresh each
+morning and the clock-in is real.
+
+The expiry rides **inside the signed payload**, not just the cookie's `maxAge`. `maxAge` is a request
+to the browser; a copied cookie ignores it. Before this there was no expiry in the payload at all, so
+a lifted cookie was good forever — the audit's session-expiry finding, closed by the same change.
+Signing in at 23:58 gets 30 minutes rather than two.
+
+Both login paths behave identically: password and Google both call `setSession` and `recordLogin`.
+**Everyone was logged out once**, deliberately — pre-expiry cookie shapes are refused.
+
+### Two bugs found by checking before deploying rather than after
+
+- **The cache warmer would have silently warmed nothing.** It signs its own admin cookie and built
+  the payload by hand in the old 3-field shape — correctly signed, refused by the middleware on all
+  22 targets, reporting a cheerful 200. The same failure its own code comment describes happening
+  once before, reached a second way. Now uses the shared builder. Verified: 22 warmed, 22 ok.
+- **`x-forwarded-for` was read from the left.** That end is whatever the client sent, so the login
+  limit of 5-per-15-minutes could be bypassed by presenting a fresh fake address each request. Now
+  prefers Netlify's own `x-nf-client-connection-ip`, else counts in from the right.
+
+### Six rows that could not be edited
+
+`VALID_STATUS` in the update route had drifted below `public.mh_status`. It did not reject bad input
+— it quietly made good rows uneditable: three enum values were missing and the 6 live rows holding
+them (5 `Rejected/Not Published`, 1 `Content - Needs Approval`) 400'd on every save, because the grid
+returns status whether or not anyone touched it. The list now mirrors the enum.
+
+### The stop zone was 28% done
+
+It had been applied to the `GC Dashboard —` workflows only. **52 of 71 active scheduled n8n jobs
+still fired between midnight and 6am** — about 3,280 executions a night, ~98,400 a month. All 52 are
+now windowed to `6-23`; the overnight figure is **zero**. Four pure-sync jobs that polled every
+minute dropped to every five. Daily executions across those 52: **13,889 → 6,985**.
+
+Five of them had **no timezone set**, where `6-23` would have meant 11:30–05:30 IST — the exact
+inverse. Set explicitly to `Asia/Kolkata`. Reasoning for every one of the 52 is in
+`docs/STOP_ZONE_CLASSIFICATION_2026-10-04.md`; original schedules are backed up.
+
+### A first test suite
+
+The project had **no tests at all** — no runner, no script, no files. `npm test`: **83 tests, 2.7s**,
+over the five things that fail *silently* — session expiry, the stop zone, client IP, SSRF, and the
+attendance clock. A broken button gets reported in an hour; a session that never expires sits there
+for months looking fine. Each file guards a defect that was real today.
+
+Mutation-checked: restoring the `x-forwarded-for` bug fails 4 tests, removing the expiry check fails
+5. `tests/README.md` makes breaking-it-first the rule. **Not covered:** API routes, components,
+anything touching Supabase or n8n — green means those five units are sound, nothing wider.
+
+### Landing page
+
+Platform strip went from grey text to the brands' own colour marks with names set in the page's own
+type. Hero centred, the "difference" heading fits one line, and the overnight copy now matches
+reality (every half hour, 6am to midnight — "2am" and "around the clock" became false the night the
+stop zone went in). Draft pages `landing-v{2,3,4,5}.html` deleted; they were publicly reachable.
+
+### Housekeeping
+
+`DASHBOARD_PASSWORD` removed from Netlify — inert since the shared login went, but a rotated secret
+sitting in the environment for no reason. KEA fetch-and-ingest workflow built (`pmDnLrn2zmZ7uMxX`)
+and left **off**: activating it starts emailing three people.
+
+### Credits
+
+**2,715 available** at 17:15 IST, period 3 Oct – 2 Nov. Five deploys today, ~10 minutes of build
+time. Builds remain paused (`stop_builds: true`), so nothing builds without being asked.
+
+### Still open
+
+- **Meta tokens expire Friday 9 October, 18:14 UTC** — Instagram ×4, Facebook, Ads and IG/FB
+  publishing stop together. System User token is the fix.
+- KEA job is off; the standalone watcher stays until the replacement is proven.
+- Rotate the keys that were in the committed `.env.local.bak`.
+- Next.js 14→16: the critical CVE is Windows-only, so it does not apply on Netlify, but 14.2.35 is
+  already the newest 14.x — the upgrade is the only fix and needs its own window.
+
 ## 2026-10-02 — Watchers: two columns, email and Telegram actually sending, and the Radar loop
 
 Branch `feat/dashboard-reskin`, 11 commits, `494686c`..`ac7a5e5`. **Not deployed** — nothing checks

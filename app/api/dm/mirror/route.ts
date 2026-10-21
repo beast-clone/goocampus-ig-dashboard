@@ -1,13 +1,18 @@
 // Called by n8n every time it processes a DM. Mirrors the conversation into Supabase.
-// Usage: POST /api/dm/mirror  with header x-cron-secret OR ?secret=
+// Usage: POST /api/dm/mirror  with header x-cron-secret
+//
+// Header only. ?secret= used to be accepted too, which writes a live credential
+// into Netlify access logs, the n8n execution record and any proxy in between —
+// log stores whose retention and access control are not this app's, and which
+// nobody rotates. n8n sends the header, so nothing legitimate used the query form.
 // Body: { account, sender_id, username?, direction: "in"|"out", text, source?: "user"|"ai"|"human", message_id?, at? }
 import { NextResponse } from "next/server";
 import { recordInbound, recordOutbound } from "@/lib/dm";
+import { safeError } from "@/lib/errors";
 
 function authorized(req: Request) {
   const secret = process.env.CRON_SECRET;
-  const url = new URL(req.url);
-  return !!secret && (req.headers.get("x-cron-secret") === secret || url.searchParams.get("secret") === secret);
+  return !!secret && req.headers.get("x-cron-secret") === secret;
 }
 
 export async function POST(req: Request) {
@@ -32,6 +37,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, thread: t });
     }
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't update the conversation"), { status: 500 });
   }
 }

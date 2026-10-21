@@ -23,7 +23,14 @@ export const dynamic = "force-dynamic";
 
 const BASE = (process.env.N8N_BASE_URL || "https://n8n.srv1046538.hstgr.cloud").replace(/\/$/, "");
 const KEY = process.env.N8N_API_KEY;
-const OURS = /\/api\/cron\//;
+// Any n8n node that calls THIS dashboard. Deliberately not /\/api\/cron\//:
+// that prefix hid the WhatsApp broadcast queue, which polls
+// /api/scheduler/whatsapp/due every minute and is the busiest job we run, so
+// the Workflows tab listed nine jobs and left out the tenth-largest-by-far.
+// See the matching note in /api/netlify/usage.
+const SITE = (process.env.NEXT_PUBLIC_SITE_URL || "goocampus-ig-dashboard.netlify.app")
+  .replace(/^https?:\/\//, "").replace(/\/$/, "");
+const OURS = new RegExp(`${SITE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/api/`);
 
 type N8nNode = { type?: string; parameters?: Record<string, unknown> };
 type N8nWorkflow = { id: string; name: string; active: boolean; nodes?: N8nNode[]; settings?: { timezone?: string } };

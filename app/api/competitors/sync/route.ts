@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { getApifyToken, parsePastRuns, fetchRunAds } from "@/lib/apify";
 import { cacheKey, readCache, writeCache } from "@/lib/competitor-cache";
+import { safeError } from "@/lib/errors";
 
-export async function POST() {
+export async function POST(req: Request) {
   const __denied = await requireSection("ads");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "competitors-sync", 6, 300_000);
+  if (__limited) return __limited;
 
   const token = getApifyToken();
   if (!token) return NextResponse.json({ error: "APIFY_API_TOKEN not set" }, { status: 400 });
@@ -53,6 +56,6 @@ export async function POST() {
       results,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load competitors"), { status: 500 });
   }
 }

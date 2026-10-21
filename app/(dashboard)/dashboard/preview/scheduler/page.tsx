@@ -313,7 +313,18 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     if (!ok) return;
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: t.id, fields: { status: "Output - Ready" } }),
+      body: JSON.stringify({ id: t.id, fields: {
+        status: "Output - Ready",
+        // Save the caption on the way out. It lives only in React state while the
+        // composer is open — mh_posts does not mirror it and /api/scheduler/caption
+        // is read-only, pulling from Airtable — so sending the status by itself
+        // discarded whatever had been typed, and the next read fetched the empty
+        // Airtable value back over it. "captions are disappearing, it is not
+        // staying in the task when I am updating" (Manya, 6 Oct). Only when the
+        // composer is actually showing this task, so sending back a different row
+        // can't stamp one task's caption onto another.
+        ...(selectedTaskId === t.id && caption.trim() ? { caption: caption.trim() } : {}),
+      } }),
     });
     if (!res.ok) { const d = await res.json().catch(() => ({})); alertDialog("Couldn't send it back", (d as { error?: string }).error || `HTTP ${res.status}`); return; }
     if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; }
@@ -1800,6 +1811,28 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
                     <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadForTask(t.id, e.target.files); e.currentTarget.value = ""; }} />
                   </label>
                 </div>
+              ) : t.assetLink ? (
+                /* Delivered as a LINK, not a file. Showing the bare "Upload media"
+                   dropzone here made the work look lost between Output-Ready and the
+                   Scheduler — "when it is in output ready I can see the video, when I
+                   do content review and push to schedule, video is disappearing"
+                   (Manya, 6 Oct, on a Reel whose cut sat in Drive). The only trace
+                   was a grey line that said Slack whatever the link really was.
+
+                   Publishing still needs the actual file — Meta cannot fetch a Drive
+                   link — so the upload stays. It just no longer pretends nothing was
+                   handed over. */
+                <div className="h-28 rounded border border-gray-200 bg-gray-50 p-2 flex flex-col justify-between">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-gray-700">Delivered as a link</div>
+                    <a href={t.assetLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-brand hover:underline truncate block">Open in {linkHost(t.assetLink)} ↗</a>
+                  </div>
+                  <label className={`text-xs border border-dashed rounded px-2 py-1 text-center cursor-pointer transition ${uploadingId === t.id ? "border-brand text-brand bg-brand-light/40" : "border-gray-300 text-gray-600 hover:border-brand"}`}>
+                    <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadForTask(t.id, e.target.files); e.currentTarget.value = ""; }} />
+                    {uploadingId === t.id ? "Uploading…" : "Add the file to publish"}
+                  </label>
+                </div>
               ) : (
                 <label className={`flex flex-col items-center justify-center gap-1 h-28 rounded border border-dashed cursor-pointer transition ${uploadingId === t.id ? "border-brand bg-brand-light/40" : "border-gray-300 hover:border-brand"}`}>
                   <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadForTask(t.id, e.target.files); e.currentTarget.value = ""; }} />
@@ -1809,7 +1842,6 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
                     <>
                       <span className="text-lg">↑</span>
                       <span className="text-xs text-gray-600 font-medium">Upload media</span>
-                      {t.assetLink && <a href={t.assetLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-gray-400 hover:text-brand hover:underline">or grab from Slack ↗</a>}
                     </>
                   )}
                 </label>
@@ -1926,6 +1958,22 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
 }
 
 // Over-posting guard popup. Lists the posts already committed to that day (name + time),
+// A deliverable arrives either as an uploaded file or as a LINK (Drive, Canva,
+// Slack). Name the link by where it actually points — this used to say "Slack" for
+// every link, including the Google Drive ones it usually is.
+function linkHost(u: string): string {
+  try {
+    const h = new URL(u).hostname.replace(/^www./, "");
+    if (h.includes("drive.google") || h.includes("docs.google")) return "Google Drive";
+    if (h.includes("slack")) return "Slack";
+    if (h.includes("canva")) return "Canva";
+    if (h.includes("dropbox")) return "Dropbox";
+    if (h.includes("youtube") || h.includes("youtu.be")) return "YouTube";
+    if (h.includes("vimeo")) return "Vimeo";
+    return h;
+  } catch { return "the link"; }
+}
+
 // each expandable inline to show its creative + caption, with "Schedule anyway" / "Pick
 // another date" at the bottom.
 function DayCapWarningModal({ dateLabel, page, limit, existing, pageHandle, onProceed, onPickAnother }: {

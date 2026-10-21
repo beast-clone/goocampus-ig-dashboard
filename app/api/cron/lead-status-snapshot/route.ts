@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { airtableList, CRM_TABLE, pickName, dateRangeFormula } from "@/lib/sales-hub";
 import { pickUser } from "@/lib/lead-assignment";
 import { SOURCE, trackKey, getLastRun, setLastRun, type LeadTrack, type StatusEvent } from "@/lib/lead-status-track";
+import { safeError } from "@/lib/errors";
 
 // Nightly lead-status snapshot. Airtable overwrites Lead Status in place and hides
 // field-revision history, so we record stage changes ourselves: read the leads
@@ -75,6 +76,6 @@ export async function GET(req: Request) {
     await setLastRun(sb, now);
     return NextResponse.json({ ok: true, sinceDay, scanned: rows.length, changed, seeded, unchanged, capped: rows.length >= MAX, latencyMs: Date.now() - t0 });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    return NextResponse.json(safeError(err, "Something went wrong"), { status: 502 });
   }
 }

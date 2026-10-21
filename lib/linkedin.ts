@@ -1,7 +1,7 @@
 // LinkedIn Community Management API client.
 //
 // Powers the live side of /api/linkedin. Auth is a member (org-admin) access
-// token generated from the "GC World Pages API" app (Client ID 86a1luhoymqmmy),
+// token generated from the "GC Main Pages API" app (Client ID 86fmmm22d2ca7i),
 // which holds the Community Management API product (Development Tier).
 //
 // Env (all optional — absence just keeps the tab on demo data):
@@ -10,7 +10,9 @@
 //                               r_organization_social_feed, r_member_profileAnalytics,
 //                               w_organization_social, w_member_social  ← write scopes enable posting
 //   LINKEDIN_REFRESH_TOKEN    — 1-year refresh token (used to mint a new access token)
-//   LINKEDIN_CLIENT_ID        — 86a1luhoymqmmy
+//   LINKEDIN_CLIENT_ID        — 86fmmm22d2ca7i (GC Main Pages API — NOT the GC
+//                               World Pages API app, whose id looks similar and
+//                               was wrong here until 2026-09-04)
 //   LINKEDIN_CLIENT_SECRET    — app primary client secret (only needed for refresh)
 //   LINKEDIN_ORG_URN_GCWORLD  — urn:li:organization:XXXX for GooCampus World
 //                               (auto-discovered on first call if left blank)

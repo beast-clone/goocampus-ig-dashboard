@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { safeError } from "@/lib/errors";
 
@@ -42,6 +42,8 @@ const TTL_MS = 12 * 60 * 60 * 1000; // 12h
 export async function GET(req: Request) {
   const __denied = await requireSection("analytics");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "overview-tips", 15, 300_000);
+  if (__limited) return __limited;
 
   const url = new URL(req.url);
   const accountId = url.searchParams.get("accountId") || "goocampus";

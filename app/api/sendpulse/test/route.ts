@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { authPing, listBots, listContacts, listMessages, sendText } from "@/lib/sendpulse";
+import { safeError } from "@/lib/errors";
 
 // Hit:
 //   GET /api/sendpulse/test                → ping + bots + contacts (no send)
@@ -51,6 +52,6 @@ export async function GET(req: Request) {
       latencyMs: Date.now() - t0,
     });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: (err as Error).message, latencyMs: Date.now() - t0 }, { status: 500 });
+    return NextResponse.json({ ...safeError(err, "Something went wrong"), ok: false, latencyMs: Date.now() - t0  }, { status: 500 });
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { recordApiCall, callsThisMonth } from "@/lib/api-usage";
 import { safeError } from "@/lib/errors";
@@ -18,6 +18,8 @@ const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./,
 export async function GET(req: Request) {
   const __denied = await requireSection("ads");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "benchmark-mentions", 20, 300_000);
+  if (__limited) return __limited;
 
   try {
     const key = process.env.SERPER_API_KEY;

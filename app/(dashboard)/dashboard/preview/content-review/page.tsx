@@ -1,6 +1,8 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
+import { Markdown, plainText } from "@/components/Markdown";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { fmtDate } from "@/lib/date";
@@ -131,15 +133,40 @@ function Review() {
   // into the GooCampus review queue (same rule as the My Day timeline). Split it out
   // by interest (SBU) and give it its own clearly-labelled section below.
   const isSamvaya = (p: ReviewPost) => /samvaya|matrimony/i.test(p.sbu || "");
-  const mainPosts = posts.filter((p) => !isSamvaya(p));
+  const allMain = posts.filter((p) => !isSamvaya(p));
   const samvayaPosts = posts.filter(isSamvaya);
 
-  const renderRow = (p: ReviewPost) => {
+  // "Even here create filters by SBU to avoid any confusion" (Manya, 5 Oct).
+  //
+  // Chips rather than a dropdown: the queue is short and a filter you can see is
+  // worth more here than one tucked inside a menu. Built from the SBUs actually
+  // waiting, so it never offers a brand with nothing in it, and hidden entirely
+  // when everything in the queue is one brand — then it would only be clutter.
+  //
+  // Deliberately NOT remembered between visits, unlike the calendar's filters.
+  // This is a queue of work waiting on her: a filter that quietly persisted could
+  // hide a post that arrived while she was away.
+  const [sbuSel, setSbuSel] = useState<string[]>([]);
+  const queueSbus = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of allMain) { const k = (p.sbu || "").trim(); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [allMain]);
+  const mainPosts = sbuSel.length ? allMain.filter((p) => sbuSel.includes((p.sbu || "").trim())) : allMain;
+  const toggleSbu = (k: string) => setSbuSel((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
+
+  // Arrows or J/K walk the queue, Enter opens what you are on. The queue is the
+  // one screen here that is worked straight through, one item after another, so
+  // reaching for the mouse between each is most of the effort.
+  const { cursor, setCursor } = useListCursor(mainPosts.length, (i) => setOpenPost(mainPosts[i]));
+
+  const renderRow = (p: ReviewPost, index: number) => {
     const tc = typeChip(p.type);
     const busy = busyId === p.id;
     return (
       <Fragment key={p.id}>
-        <tr onClick={() => setOpenPost(p)} className="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer">
+        <tr data-cursor={index} onClick={() => { setCursor(index); setOpenPost(p); }}
+          className={`border-b border-gray-50 cursor-pointer ${index === cursor ? "bg-brand-light/60" : "hover:bg-gray-50/60"}`}>
           <td className="px-4 py-2.5">
             <span className="inline-flex text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
           </td>
@@ -185,14 +212,16 @@ function Review() {
     );
   };
 
-  const renderCard = (p: ReviewPost) => {
+  const renderCard = (p: ReviewPost, index: number) => {
     const tc = typeChip(p.type);
     const busy = busyId === p.id;
+    const on = index === cursor;
     return (
       <div
         key={p.id}
-        onClick={() => setOpenPost(p)}
-        className="rounded-xl border border-gray-100 bg-white overflow-hidden flex flex-col cursor-pointer"
+        data-cursor={index}
+        onClick={() => { setCursor(index); setOpenPost(p); }}
+        className={`rounded-xl border bg-white overflow-hidden flex flex-col cursor-pointer ${on ? "border-brand ring-1 ring-brand/30" : "border-gray-100"}`}
       >
         {/* Media preview */}
         <div className="aspect-[4/3] bg-[#F6F7FB] relative overflow-hidden">
@@ -218,7 +247,7 @@ function Review() {
             </div>
           )}
           {(p.caption || p.content) && (
-            <p className="text-xs text-[#8A92A6] line-clamp-2">{p.caption || p.content}</p>
+            <p className="text-xs text-[#8A92A6] line-clamp-2">{plainText(p.caption || p.content)}</p>
           )}
           {!p.hasCreative && (
             <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
@@ -287,7 +316,7 @@ function Review() {
             <th className="px-4 py-2.5 font-medium text-right">Actions</th>
           </tr>
         </thead>
-        <tbody>{list.map(renderRow)}</tbody>
+        <tbody>{list.map((p, i) => renderRow(p, i))}</tbody>
       </table>
     </div>
   );
@@ -295,7 +324,7 @@ function Review() {
   // Grid scales up on big monitors: 5 cols on ~24in (1536px+), 6 on ~27-32in (2100px+).
   const renderGrid = (list: ReviewPost[]) => (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2100px]:grid-cols-6">
-      {list.map(renderCard)}
+      {list.map((p, i) => renderCard(p, i))}
     </div>
   );
 
@@ -331,7 +360,7 @@ function Review() {
             </button>
           </div>
           <span className="text-sm font-medium text-brand bg-white rounded-full px-3 py-1">
-            {mainPosts.length} in queue
+            {sbuSel.length ? `${mainPosts.length} of ${allMain.length} in queue` : `${allMain.length} in queue`}
           </span>
           <button
             onClick={load}
@@ -345,6 +374,27 @@ function Review() {
       {err && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm px-4 py-2.5">
           {err}
+        </div>
+      )}
+
+      {queueSbus.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mr-1">Interest</span>
+          <button
+            onClick={() => setSbuSel([])}
+            className={`text-xs font-semibold rounded-full px-3 py-1 border transition ${sbuSel.length === 0 ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand"}`}
+          >
+            All ({allMain.length})
+          </button>
+          {queueSbus.map(([k, n]) => (
+            <button
+              key={k}
+              onClick={() => toggleSbu(k)}
+              className={`text-xs font-semibold rounded-full px-3 py-1 border transition ${sbuSel.includes(k) ? "bg-brand text-white border-brand" : "bg-white text-[#4A5468] border-gray-200 hover:border-brand"}`}
+            >
+              {k} ({n})
+            </button>
+          ))}
         </div>
       )}
 
@@ -365,6 +415,11 @@ function Review() {
           {/* GooCampus review queue */}
           {mainPosts.length > 0 ? (
             view === "table" ? renderTable(mainPosts) : renderGrid(mainPosts)
+          ) : sbuSel.length ? (
+            <div className="rounded-2xl border border-gray-100 bg-white py-10 text-center text-sm text-[#8A92A6]">
+              Nothing awaiting review for {sbuSel.join(", ")}.{" "}
+              <button onClick={() => setSbuSel([])} className="text-brand font-semibold hover:underline">Show all {allMain.length}</button>
+            </div>
           ) : (
             <div className="rounded-2xl border border-gray-100 bg-white py-10 text-center text-sm text-[#8A92A6]">
               No GooCampus posts awaiting review.
@@ -449,7 +504,7 @@ function Review() {
                 {(p.caption || p.content) && (
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-1">Caption</div>
-                    <p className="text-sm text-[#232D42] whitespace-pre-wrap">{p.caption || p.content}</p>
+                    <div className="text-sm text-[#232D42]"><Markdown value={p.caption || p.content || ""} /></div>
                   </div>
                 )}
                 {!p.hasCreative && <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No creative attached — add media before it can go to the Scheduler.</div>}

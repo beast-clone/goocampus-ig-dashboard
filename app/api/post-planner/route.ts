@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { askPerplexity, hasAI } from "@/lib/ai";
 import { getSupabase } from "@/lib/supabase";
 import { getTopTimeSuggestions, getTopPerformers } from "@/lib/scheduler-helpers";
@@ -80,6 +80,8 @@ function nextSlot(afterMs: number, bestHours: number[]): Date {
 export async function GET(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "post-planner", 15, 300_000);
+  if (__limited) return __limited;
 
   const force = new URL(req.url).searchParams.get("force") === "1";
   if (!force && cache && Date.now() - cache.at < TTL_MS) {

@@ -19,7 +19,17 @@ export const dynamic = "force-dynamic";
 
 const BASE = (process.env.N8N_BASE_URL || "https://n8n.srv1046538.hstgr.cloud").replace(/\/$/, "");
 const KEY = process.env.N8N_API_KEY;
-const OURS = /\/api\/cron\//;
+// Any n8n node that calls THIS dashboard, not just the /api/cron/ ones.
+//
+// This used to be /\/api\/cron\//, which quietly excluded the single biggest
+// consumer the site has: the WhatsApp broadcast queue polls
+// /api/scheduler/whatsapp/due every minute — 1,440 calls a day against 96 for
+// every /api/cron job put together — and was invisible here because of the
+// prefix. A usage page that cannot see the largest line item is worse than no
+// usage page, because it is believed.
+const SITE = (process.env.NEXT_PUBLIC_SITE_URL || "goocampus-ig-dashboard.netlify.app")
+  .replace(/^https?:\/\//, "").replace(/\/$/, "");
+const OURS = new RegExp(`${SITE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/api/`);
 
 const NETLIFY_TOKEN = process.env.NETLIFY_AUTH_TOKEN;
 const NETLIFY_ACCOUNT = process.env.NETLIFY_ACCOUNT_SLUG || "goocampus";

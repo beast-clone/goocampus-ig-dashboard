@@ -10,8 +10,7 @@ import { getThread, popQueuedReply, recordInbound } from "@/lib/dm";
 
 function authorized(req: Request) {
   const secret = process.env.CRON_SECRET;
-  const url = new URL(req.url);
-  return !!secret && (req.headers.get("x-cron-secret") === secret || url.searchParams.get("secret") === secret);
+  return !!secret && req.headers.get("x-cron-secret") === secret;
 }
 
 export async function GET(req: Request) {

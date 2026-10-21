@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, guardRate } from "@/lib/api-guard";
 import { getApifyToken, searchCompetitorAds } from "@/lib/apify";
 import { cacheKey, readCache, writeCache, isStale, formatAge } from "@/lib/competitor-cache";
+import { safeError } from "@/lib/errors";
 
 export async function GET(req: Request) {
   const __denied = await requireSection("ads");
   if (__denied) return __denied;
+  const __limited = guardRate(req, "competitors", 30, 300_000);
+  if (__limited) return __limited;
 
   const url = new URL(req.url);
   const query = url.searchParams.get("q");
@@ -56,6 +59,6 @@ export async function GET(req: Request) {
       ads,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(safeError(err, "Couldn't load competitors"), { status: 500 });
   }
 }

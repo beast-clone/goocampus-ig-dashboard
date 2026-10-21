@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { fetchContentCalendarBody, extractCaptionFromContent } from "@/lib/content-calendar";
+import { safeError } from "@/lib/errors";
 
 // Returns the ready-to-post caption for a Content Calendar record — pulled live
 // from the Airtable "Content" field's "Caption:" section (mh_posts doesn't mirror it).
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
     const { content } = await fetchContentCalendarBody(recordId);
     return NextResponse.json({ caption: extractCaptionFromContent(content) });
   } catch (e) {
-    return NextResponse.json({ caption: "", error: (e as Error).message });
+    // Airtable errors name the base, table and field — not something to hand a
+    // browser. caption stays "" so the caller keeps its existing empty-state.
+    return NextResponse.json({ caption: "", ...safeError(e, "Couldn't read the caption") });
   }
 }

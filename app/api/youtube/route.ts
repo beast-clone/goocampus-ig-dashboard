@@ -81,9 +81,36 @@ export async function GET(req: Request) {
     }
     if (ytAuth && CHANNELS[channelKey].channelId) {
       try {
-        // 10-min cache: YouTube Analytics takes 2–9s; tab flips shouldn't re-pay it.
-        // ("g2": cache generation after per-channel grants — older entries may hold zeros.)
-        const live = await cached(`yt:g2:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to));
+        // A day's cache: YouTube Analytics takes 2–9s, and these numbers move
+        // slowly. (The note here used to say ten minutes; the code has always said
+        // a day.)
+        //
+        // Don't keep a degraded answer for that day, though. Every analytics caller
+        // in lib/youtube.ts catches its own failure and substitutes empty rows, so a
+        // channel that cannot be read returns a WELL-FORMED payload full of zeros
+        // rather than throwing. Cached, that pins "0 views, 0 watch hours, no
+        // videos" next to a correct subscriber count for twenty-four hours, and it
+        // reads as a quiet channel instead of a broken one — which is how three
+        // tabs sat wrong without anyone being able to tell.
+        //
+        // Which answers are "degraded"? The analytics half and the video-list half
+        // are separate calls, and only the analytics half carries views and watch
+        // time. So the failure does NOT always arrive empty-handed: 12thplus came
+        // back with its 613 subscribers and all 25 videos, and 0 views beside them.
+        // An earlier version of this guard also required topVideos to be empty and
+        // let exactly that through, into the cache, for a day.
+        //
+        // The honest test is the analytics half alone: no views AND no watch time,
+        // on a channel that visibly has an audience or a back catalogue, did not
+        // happen — something failed. A channel with no subscribers and no videos is
+        // allowed to be zero, because that one is simply empty.
+        //
+        // Serve it either way, so a dormant channel still renders; just don't store
+        // it, so the next request retries and it heals.
+        const looksReal = (d: Awaited<ReturnType<typeof buildLiveYouTube>>) =>
+          !(d.summary.views === 0 && d.summary.watchHours === 0
+            && (d.summary.subscribers > 0 || d.topVideos.length > 0));
+        const live = await cached(`yt:${channelKey}:${from}:${to}`, 24 * 60 * 60_000, () => buildLiveYouTube(channelKey, from, to), looksReal);
         return NextResponse.json({ ...live, bestTimes: bestTimesFrom(live.viewsOverTime), latencyMs: Date.now() - t0 });
       } catch (e) {
         return NextResponse.json({ error: `Couldn't load YouTube right now: ${e instanceof Error ? e.message : String(e)}`.slice(0, 240) }, { status: 502 });
