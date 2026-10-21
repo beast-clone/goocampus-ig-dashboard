@@ -9,7 +9,6 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { isTyping } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
 
-import { Markdown } from "@/components/Markdown";
 import { useUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -17,6 +16,7 @@ import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { MultiPick } from "@/components/MultiPick";
+import { RichTextField } from "@/components/RichTextField";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
@@ -1888,25 +1888,6 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   );
 }
 
-// Content written in Airtable is plain text: blank lines between blocks, no tags.
-// Rendering that as HTML throws the line breaks away and everything runs together,
-// so text is shown as text and only real markup goes through the HTML path.
-// Paragraphs get space between them rather than one wall — "clean, neat and not
-// clumpsy with proper spacing" (Manya, 28 Sept).
-const LOOKS_LIKE_HTML = /<(p|div|br|ul|ol|li|h[1-6]|strong|em|b|i|a|table|span)\b[^>]*>/i;
-function RichText({ value }: { value: string }) {
-  if (LOOKS_LIKE_HTML.test(value)) {
-    return (
-      <div className="text-[14px] leading-[22px] prose prose-sm max-w-none text-[#5A6478] [&_*]:text-[14px] [&_*]:leading-[22px] [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2"
-        dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }} />
-    );
-  }
-  // Not HTML — so Markdown, which is what the team actually writes. Plain text
-  // falls through it unchanged: with no headings, bullets or marks, every line is
-  // just a paragraph, exactly as before.
-  return <Markdown value={value} />;
-}
-
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
 function statusPill(s: string): { bg: string; text: string } {
   return STATUS_TINT[s] || STATUS_TINT_FALLBACK;
@@ -3615,11 +3596,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<{ items: Creative[]; index: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Inline editing for the Content brief + Caption. Saving writes to mh_posts,
-  // which the activity trigger records (content_edited / caption_edited).
-  const [editSection, setEditSection] = useState<"content" | "caption" | null>(null);
-  const [draft, setDraft] = useState("");
-  const [savingEdit, setSavingEdit] = useState(false);
   // "Which live post is this?" — see app/api/marketing-hub/link-suggest.
   type LinkCandidate = { id: string; url: string; caption: string; timestamp: string | null; score: number };
   type LinkPick = { key: "instagram" | "facebook" | "linkedin"; label: string; field: string; candidates: LinkCandidate[] };
@@ -3910,41 +3886,25 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     setRefLinkDraft(""); setRefLinkAdd(false);
   };
   const removeRefLink = async (link: string) => { await saveOne("reference_links", refLinks.filter((l) => l !== link)); };
-  const startEdit = (section: "content" | "caption", current: string) => { setDraft(current); setEditSection(section); };
-  const saveEdit = async () => {
-    if (!editSection) return;
-    setSavingEdit(true);
-    try {
-      const res = await fetch("/api/marketing-hub/update", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [editSection]: draft } }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        const block = gateFromResponse(res.status, j, row.particulars || "This task");
-        if (block) setFailure({ kind: "gate", block });
-        else setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
-        return;
-      }
-      setEditSection(null);
-      await loadDetail(); // refreshes the field + surfaces the new Activity entry
-    } finally { setSavingEdit(false); }
+  // Content and Caption are always editable (RichTextField) and save themselves —
+  // "remove both edit and save button" (Manya, 10 Oct). Saving writes to mh_posts,
+  // which the activity trigger records (content_edited / caption_edited).
+  const saveText = (field: "content" | "caption") => async (next: string) => {
+    const res = await fetch("/api/marketing-hub/update", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: row.id, actor: activeAuthor, fields: { [field]: next } }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      const block = gateFromResponse(res.status, j, row.particulars || "This task");
+      setFailure(block ? { kind: "gate", block } : { kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
+      throw new Error("save refused");
+    }
+    loadDetail(); // the new Activity entry
   };
-  const editBtn = (section: "content" | "caption", current: string) =>
-    editSection !== section ? (
-      <button onClick={() => startEdit(section, current)} className="text-[11px] text-brand hover:underline flex items-center gap-1"><IconPencil size={12} stroke={2} />Edit</button>
-    ) : null;
-  const editBox = (rows: number, placeholder: string) => (
-    <div className="space-y-2">
-      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={rows} autoFocus placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg p-2.5 text-[14px] leading-relaxed font-normal focus:outline-none focus:ring-1 focus:ring-brand" />
-      <div className="flex items-center gap-2">
-        <button onClick={saveEdit} disabled={savingEdit} className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5 disabled:opacity-60">{savingEdit ? "Saving…" : "Save"}</button>
-        <button onClick={() => setEditSection(null)} className="text-[12px] text-gray-500 hover:text-gray-800 px-2">Cancel</button>
-      </div>
-    </div>
-  );
-
+  // Until the first load lands, content may still be on its way from Airtable — an
+  // empty box you could type into would then overwrite it.
+  const firstLoad = loadingDetail && !detail;
 
   const detailRow = (label: string, value: React.ReactNode) => (
     <div className="flex items-start py-2">
@@ -3997,17 +3957,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
                   This does reverse an earlier decision to sit References above Content as
                   a mood-board; the panels are all still here, in a different order. */}
-              <Panel icon={IconFileText} title="Content" right={editBtn("content", content)}>
-                {editSection === "content" ? editBox(14, "Write the content brief…")
-                  : content ? <RichText value={content} />
-                  : loadingDetail ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
-                  : <div className="text-[14px] text-gray-400 italic">No content written yet.</div>}
+              <Panel icon={IconFileText} title="Content">
+                {firstLoad ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading content…" />
+                  : <RichTextField key={`c-${row.id}`} value={content} onSave={saveText("content")} placeholder="Write the content — slides, points, links…" />}
               </Panel>
 
-              <Panel icon={IconMessageCircle2} title="Caption" right={editBtn("caption", caption)}>
-                {editSection === "caption" ? editBox(5, "Write the post caption…")
-                  : caption ? <div className="text-[14px] leading-[22px] whitespace-pre-wrap text-[#5A6478]">{caption}</div>
-                  : <div className="text-[14px] text-gray-400 italic">No caption yet.</div>}
+              <Panel icon={IconMessageCircle2} title="Caption">
+                {firstLoad ? <LoadingBlock size={18} className="!py-2 !flex-row !justify-start !gap-2" label="Loading caption…" />
+                  : <RichTextField key={`k-${row.id}`} mode="plain" value={caption} onSave={saveText("caption")} placeholder="Write the post caption…" />}
               </Panel>
 
               <Panel icon={IconPhoto} title="Creatives" accent
