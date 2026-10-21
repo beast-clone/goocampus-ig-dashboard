@@ -388,14 +388,22 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin })).catch(() => setViewer({ ready: true, isAdmin: false }));
   }, []);
+  // An admin can switch the approval off for testing (Team & access). Off → a date
+  // change just saves, no reason box. Unknown → assume on, as before.
+  const approval = useApi<{ on?: boolean }>("/api/settings/date-approval");
+  const approvalOn = approval.data?.on !== false;
 
   const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
     if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
     // Admin edits apply immediately — no approval, no popup. So does a dateless
     // task getting its first date: that isn't a move (the server agrees).
-    if (viewer.isAdmin || !a.from) {
+    if (viewer.isAdmin || !a.from || !approvalOn) {
       const r = await saveField(a.id, { publishing_date: a.to });
-      return r.ok ? "applied" : "error";
+      if (!r.ok) return "error";
+      // The server holds any change not made by Maheen while the rule is on — admins
+      // included — so say "pending" when it did, rather than claim it moved.
+      if (r.pendingApproval) { setToast(`Sent to Maheen for approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once she approves.`); return "pending"; }
+      return "applied";
     }
     // Non-admin → collect a reason, then send for approval.
     const reasonText = await new Promise<string | null>((resolve) => { setReason(""); setAsk({ ...a, resolve }); });
@@ -404,7 +412,7 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
     if (!r.ok) return "error";
     if (r.pendingApproval) { setToast(`Sent to Maheen for approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once she approves.`); return "pending"; }
     return "applied";
-  }, [viewer.isAdmin]);
+  }, [viewer.isAdmin, approvalOn]);
 
   const submit = async () => {
     if (!ask) return;

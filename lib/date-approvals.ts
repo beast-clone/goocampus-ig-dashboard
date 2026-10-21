@@ -103,6 +103,24 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
   return payload;
 }
 
+// The approval itself can be switched off by an admin (Team & access → "Date
+// changes need Maheen's approval"), for testing — Praveen, 21 Oct. Stored next to
+// the requests in discover_cache, so no migration. Missing = ON, which is how it
+// has always behaved.
+const SETTING_KEY = "setting:date_change_approval";
+export async function dateApprovalOn(sb: SB): Promise<boolean> {
+  const { data } = await sb.from("discover_cache").select("payload").eq("cache_key", SETTING_KEY).maybeSingle();
+  const on = (data?.payload as { on?: unknown } | null)?.on;
+  return on !== false;
+}
+export async function setDateApprovalOn(sb: SB, on: boolean, by: string): Promise<void> {
+  const { error } = await sb.from("discover_cache").upsert(
+    { cache_key: SETTING_KEY, source: "mh_setting", last_fetched: new Date().toISOString(), payload: { on, by, at: new Date().toISOString() } },
+    { onConflict: "cache_key" },
+  );
+  if (error) throw new Error(error.message);
+}
+
 export async function listPendingDateChanges(sb: SB): Promise<DateChangeRequest[]> {
   const { data } = await sb
     .from("discover_cache")
