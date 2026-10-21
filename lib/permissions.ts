@@ -27,7 +27,23 @@ export const CAPABILITIES: { key: Capability; label: string; short: string; desc
 ];
 
 
-export type Permissions = Partial<Record<Capability, boolean>>;
+export type Permissions = Partial<Record<Capability, boolean>> & {
+  /** Their publish-date changes wait for an admin's approval (Team & access → Tasks).
+   *  Not a capability — it limits rather than allows, and it applies to admins too.
+   *  Unset = the rule as it always was: everyone except Maheen. (Praveen, 21 Oct) */
+  date_needs_approval?: boolean;
+};
+
+export const DATE_APPROVAL_RULE = {
+  label: "Date changes need admin approval",
+  desc: "Moving a publishing date waits until an admin approves it. Giving a task its first date never does.",
+};
+
+export function needsDateApproval(user: { id?: string; permissions?: Permissions } | null | undefined): boolean {
+  if (!user) return true;
+  const v = user.permissions?.date_needs_approval;
+  return typeof v === "boolean" ? v : (user.id || "").toLowerCase() !== "maheen";
+}
 
 // Does this user have `cap`? Admins bypass (they have everything).
 export function hasCapability(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined, cap: Capability): boolean {
@@ -41,6 +57,9 @@ export function cleanPermissions(raw: unknown): Permissions {
   const out: Permissions = {};
   if (raw && typeof raw === "object") {
     for (const c of CAPABILITIES) if ((raw as Record<string, unknown>)[c.key] === true) out[c.key] = true;
+    // Kept when false as well: false is a real answer here, unlike a capability.
+    const d = (raw as Record<string, unknown>).date_needs_approval;
+    if (typeof d === "boolean") out.date_needs_approval = d;
   }
   return out;
 }

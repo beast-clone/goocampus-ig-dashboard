@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import {
   IconUsersGroup, IconShieldLock, IconKey, IconMail, IconChevronDown,
-  IconCheck, IconUserPlus, IconAlertTriangle, IconCalendarCheck,
+  IconCheck, IconUserPlus, IconAlertTriangle,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { CAPABILITIES, GRANTABLE_SECTIONS, ROLE_PRESETS, type Capability, type Section } from "@/lib/permissions";
+import { CAPABILITIES, DATE_APPROVAL_RULE, GRANTABLE_SECTIONS, ROLE_PRESETS, needsDateApproval, type Capability, type Section } from "@/lib/permissions";
 import { SECTION_TABS } from "@/app/(dashboard)/dashboard/preview/PreviewSidebar";
 
 type Member = {
@@ -174,8 +174,6 @@ function TeamManager() {
           <IconCheck size={15} stroke={2} className="shrink-0" />{notice}
         </div>
       )}
-
-      <DateApprovalRule />
 
       <Panel
         icon={<IconUsersGroup size={18} stroke={1.8} />}
@@ -372,6 +370,12 @@ function PersonRow({ m, open, busy, onToggle, onSave, onAction }: {
                   <SwitchRow key={c.key} title={c.label} detail={c.desc}
                     checked={d.isAdmin || on(d.permissions, c.key)} locked={d.isAdmin || busy} onChange={(v) => flip("permissions", c.key, v as boolean)} />
                 ))}
+                {/* A limit, not a permission, so it stays switchable for admins too —
+                    "if Manya changes the date it needs admin approval; for now make it a
+                    toggle" (Praveen, 21 Oct). Unset = on for everyone but Maheen. */}
+                <SwitchRow title={DATE_APPROVAL_RULE.label} detail={DATE_APPROVAL_RULE.desc}
+                  checked={needsDateApproval({ id: m.id, permissions: d.permissions })} locked={busy}
+                  onChange={(v) => setD((x) => ({ ...x, permissions: { ...x.permissions, date_needs_approval: v as boolean } }))} />
               </div>
             </div>
           </div>
@@ -417,40 +421,6 @@ function PersonRow({ m, open, busy, onToggle, onSave, onAction }: {
         </div>
       )}
     </div>
-  );
-}
-
-// "For now, make it a toggle — if the admin enables it, Manya's date change needs
-// approval; if disabled, let it go. Just for testing" (Praveen, 21 Oct).
-function DateApprovalRule() {
-  const [on, setOn] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  useEffect(() => {
-    fetch("/api/settings/date-approval").then((r) => r.json()).then((d) => setOn(d?.on !== false)).catch(() => setOn(true));
-  }, []);
-  const change = async (v: boolean) => {
-    setBusy(true); setErr("");
-    try {
-      const r = await fetch("/api/settings/date-approval", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: v }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`);
-      setOn(v);
-    } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't save"); }
-    finally { setBusy(false); }
-  };
-  return (
-    <Panel icon={<IconCalendarCheck size={18} stroke={1.8} />} title="Rules">
-      <div className="px-2 py-1">
-        <SwitchRow
-          title="Date changes need Maheen's approval"
-          detail={on === false
-            ? "Off — anyone allowed to change dates moves a publishing date straight away, with no request to Maheen."
-            : "On — when someone other than Maheen moves a publishing date, it waits for her approval. Setting a task's first date never needs it."}
-          checked={on !== false} locked={on === null || busy} onChange={change} />
-        {err && <div className="px-3 pb-2 text-[11.5px] text-[#C0392B]">{err}</div>}
-      </div>
-    </Panel>
   );
 }
 

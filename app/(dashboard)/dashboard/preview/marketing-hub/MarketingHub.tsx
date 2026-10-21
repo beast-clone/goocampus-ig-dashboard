@@ -32,6 +32,7 @@ import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-t
 import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
+import { needsDateApproval } from "@/lib/permissions";
 
 export type Row = {
   id: string;
@@ -376,7 +377,7 @@ const PublishApprovalContext = createContext<PublishApprovalCtx | null>(null);
 const dayOf = (d: string | null) => (d ? String(d).slice(0, 10) : null);
 
 function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
-  const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean }>({ ready: false, isAdmin: false });
+  const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean; needsApproval: boolean }>({ ready: false, isAdmin: false, needsApproval: true });
   // The open reason-modal, with the promise resolver that changePublishDate awaits.
   const [ask, setAsk] = useState<null | { id: string; title: string; from: string | null; to: string | null; resolve: (reason: string | null) => void }>(null);
   const [reason, setReason] = useState("");
@@ -386,23 +387,21 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
   const setToast = useCallback((t: string | null) => showToast(t ? { who: t, color: "#3A57E8", av: "✓" } : null), []);
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin })).catch(() => setViewer({ ready: true, isAdmin: false }));
+    // Whether MY date changes wait for approval is set per person (Team & access).
+    fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin, needsApproval: needsDateApproval(d?.user) })).catch(() => setViewer({ ready: true, isAdmin: false, needsApproval: true }));
   }, []);
-  // An admin can switch the approval off for testing (Team & access). Off → a date
-  // change just saves, no reason box. Unknown → assume on, as before.
-  const approval = useApi<{ on?: boolean }>("/api/settings/date-approval");
-  const approvalOn = approval.data?.on !== false;
+
 
   const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
     if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
     // Admin edits apply immediately — no approval, no popup. So does a dateless
     // task getting its first date: that isn't a move (the server agrees).
-    if (viewer.isAdmin || !a.from || !approvalOn) {
+    if (!viewer.needsApproval || !a.from) {
       const r = await saveField(a.id, { publishing_date: a.to });
       if (!r.ok) return "error";
       // The server holds any change not made by Maheen while the rule is on — admins
       // included — so say "pending" when it did, rather than claim it moved.
-      if (r.pendingApproval) { setToast(`Sent to Maheen for approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once she approves.`); return "pending"; }
+      if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
       return "applied";
     }
     // Non-admin → collect a reason, then send for approval.
@@ -410,9 +409,9 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
     if (reasonText === null) return "cancelled";
     const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText });
     if (!r.ok) return "error";
-    if (r.pendingApproval) { setToast(`Sent to Maheen for approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once she approves.`); return "pending"; }
+    if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
     return "applied";
-  }, [viewer.isAdmin, approvalOn]);
+  }, [viewer.needsApproval]);
 
   const submit = async () => {
     if (!ask) return;
@@ -432,8 +431,8 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconCalendarEvent size={18} stroke={1.8} /></div>
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold text-[#232D42]">Change needs Maheen’s approval</div>
-                <div className="text-[13px] text-[#8A92A6] mt-0.5">You’re moving the publish date. Maheen approves it before it goes live.</div>
+                <div className="text-[15px] font-semibold text-[#232D42]">Change needs admin approval</div>
+                <div className="text-[13px] text-[#8A92A6] mt-0.5">You’re moving the publish date. An admin approves it before it goes live.</div>
               </div>
             </div>
             <div className="mt-4 rounded-xl bg-[#F6F7FB] border border-gray-100 px-3 py-2.5">
@@ -1601,7 +1600,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to: dayKey });
     if (outcome === "pending") {
       await pendingMoves.refresh();
-      showToast({ who: "Moved — waiting for Maheen", body: "It shows on the new day now; she approves the date.", color: "#3A57E8", av: "✓" });
+      showToast({ who: "Moved — waiting for approval", body: "It shows on the new day now; an admin approves the date.", color: "#3A57E8", av: "✓" });
       onSaved(); return;
     }
     if (outcome === "applied") { onSaved(); return; }
@@ -1702,7 +1701,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     return (
       <button
         key={r.id}
-        title={moved ? `Moved from ${moved.from ? fmtDate(moved.from) : "no date"} — waiting for Maheen to approve` : undefined}
+        title={moved ? `Moved from ${moved.from ? fmtDate(moved.from) : "no date"} — waiting for an admin to approve` : undefined}
         draggable
         onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
         onClick={() => onOpen(r.id)}

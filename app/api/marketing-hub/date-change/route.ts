@@ -4,12 +4,14 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
-import { listPendingDateChanges, resolveDateChange, APPROVER_KEY } from "@/lib/date-approvals";
+import { listPendingDateChanges, resolveDateChange, getDateChange } from "@/lib/date-approvals";
+import { rosterById } from "@/lib/team-db";
 
 // Publish-date change approvals.
 //   GET  /api/marketing-hub/date-change              → pending requests (for the panel)
 //   POST /api/marketing-hub/date-change { postId, action:"approve"|"reject", actor? }
-//        → approve writes the date; reject discards. Only Maheen may resolve.
+//        → approve writes the date; reject discards. Any admin may resolve, except
+//          the person who asked.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -29,15 +31,22 @@ export async function POST(req: Request) {
   if (denied) return denied;
   try {
     const body = (await req.json()) as { postId?: string; action?: "approve" | "reject"; actor?: string; note?: string };
-    const approver = (body.actor || getSessionUserId() || "").toLowerCase();
-    if (approver !== APPROVER_KEY) {
-      return NextResponse.json({ error: "Only Maheen can approve or reject publish-date changes." }, { status: 403 });
+    // Any admin approves (Praveen, 21 Oct — it was Maheen only), but not their own
+    // request. Decided from the session; the `actor` pages send is ignored.
+    const approver = (getSessionUserId() || "").toLowerCase();
+    const who = await rosterById(approver);
+    if (!who?.isAdmin) {
+      return NextResponse.json({ error: "Only an admin can approve or reject publish-date changes." }, { status: 403 });
     }
     if (!body.postId || (body.action !== "approve" && body.action !== "reject")) {
       return NextResponse.json({ error: "postId and action (approve|reject) are required" }, { status: 400 });
     }
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    const pending = await getDateChange(sb, body.postId);
+    if (pending && (pending.requestedBy || "").toLowerCase() === approver) {
+      return NextResponse.json({ error: "You asked for this change — another admin has to approve it." }, { status: 403 });
+    }
 
     const r = await resolveDateChange(sb, { postId: body.postId, action: body.action, approverKey: approver, note: typeof body.note === "string" ? body.note : undefined });
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });

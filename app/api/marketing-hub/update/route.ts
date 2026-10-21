@@ -6,7 +6,9 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
-import { requestDateChange, APPROVER_KEY, dateApprovalOn } from "@/lib/date-approvals";
+import { requestDateChange } from "@/lib/date-approvals";
+import { needsDateApproval } from "@/lib/permissions";
+import { rosterById } from "@/lib/team-db";
 import { siblingOf } from "@/lib/notifications";
 import { defaultCollaboratorFor } from "@/lib/task-create";
 import { fetchRoster } from "@/lib/team-db";
@@ -251,7 +253,10 @@ export async function PATCH(req: Request) {
     // other field in the same patch still saves.
     const gateActor = ((typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor! : getSessionUserId()) || "").toLowerCase();
     let pendingApproval: { from: string | null; to: string | null } | null = null;
-    if ("publishing_date" in clean && gateActor !== APPROVER_KEY && !firstDate && await dateApprovalOn(sb)) {
+    // Who must wait is set per person in Team & access ("Date changes need admin
+    // approval"); unset means everyone except Maheen, as it always was. Decided by the
+    // signed-in person, not the `actor` a page sends.
+    if ("publishing_date" in clean && !firstDate && needsDateApproval(await rosterById(me || gateActor))) {
       const oldDate = (preRow.publishing_date as string | null) ?? null;
       const newDate = (clean.publishing_date as string | null) ?? null;
       const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);

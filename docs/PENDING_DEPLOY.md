@@ -30,6 +30,9 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
     the timer; Start asks for the time first (#23).
   - Check after deploy: an attachment upload (kind `attachment`) and that the
     Scheduler still sees creatives only.
+  - Team & access → each person → step 3: "Date changes need admin approval"
+    (per person; unset = on for everyone but Maheen). Any admin approves, never
+    their own request. Stored as `permissions.date_needs_approval`.
 
 - **System → Workflows tab** (`/dashboard/preview/workflows`) — lists the n8n
   jobs behind this dashboard with their schedule, endpoint, on/off state and last
